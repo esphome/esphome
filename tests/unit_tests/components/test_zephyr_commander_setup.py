@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import platformdirs
 import pytest
 
 from esphome.components.zephyr.commander_setup import (
     _RELEASES,
+    DEFAULT_VERSION,
     _install_dir,
     check_and_install,
 )
@@ -46,14 +50,14 @@ def test_install_dir_default_is_global_cache(monkeypatch: pytest.MonkeyPatch) ->
 _TEST_VERSION = "1.24.1"
 
 
-def _fake_extract(archive, extract_dir, **kwargs) -> None:
+def _fake_extract(archive: Path, extract_dir: Path, **kwargs: Any) -> None:
     """Stand-in for archive_extract_all(): real extraction creates extract_dir
     (install_dir) on disk, which sentinel.touch() then depends on."""
     Path(extract_dir).mkdir(parents=True, exist_ok=True)
 
 
 @pytest.fixture
-def mock_commander_download_ops():
+def mock_commander_download_ops() -> Iterator[tuple[MagicMock, MagicMock]]:
     """Patch the download/extract seams. Unlike sdk_setup_west.py (which calls
     the combined download_and_extract() and so is patched in framework_helpers,
     where that function resolves its own internals), commander_setup.py calls
@@ -71,23 +75,25 @@ def mock_commander_download_ops():
         yield mock_download, mock_extract
 
 
-def _patch_linux_x86_64():
+def _patch_host(
+    sys_platform: str = "linux", machine: str = "x86_64"
+) -> tuple[AbstractContextManager[Any], AbstractContextManager[Any]]:
     return (
-        patch("sys.platform", "linux"),
-        patch("platform.machine", return_value="x86_64"),
+        patch("sys.platform", sys_platform),
+        patch("platform.machine", return_value=machine),
     )
 
 
 def test_check_and_install_downloads_when_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    mock_commander_download_ops,
+    mock_commander_download_ops: tuple[MagicMock, MagicMock],
 ) -> None:
     monkeypatch.setenv("ESPHOME_SDK_SILABS_PREFIX", str(tmp_path / "cache"))
     mock_download, mock_extract = mock_commander_download_ops
     install_dir = _install_dir(_TEST_VERSION)
 
-    p1, p2 = _patch_linux_x86_64()
+    p1, p2 = _patch_host()
     with p1, p2:
         result = check_and_install(_TEST_VERSION)
 
@@ -105,7 +111,7 @@ def test_check_and_install_downloads_when_missing(
 def test_check_and_install_skips_download_when_sentinel_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    mock_commander_download_ops,
+    mock_commander_download_ops: tuple[MagicMock, MagicMock],
 ) -> None:
     monkeypatch.setenv("ESPHOME_SDK_SILABS_PREFIX", str(tmp_path / "cache"))
     mock_download, mock_extract = mock_commander_download_ops
@@ -113,7 +119,7 @@ def test_check_and_install_skips_download_when_sentinel_exists(
     install_dir.mkdir(parents=True)
     (install_dir / ".esphome_complete").touch()
 
-    p1, p2 = _patch_linux_x86_64()
+    p1, p2 = _patch_host()
     with p1, p2:
         check_and_install(_TEST_VERSION)
 
@@ -128,7 +134,7 @@ def test_check_and_install_cleans_up_on_extract_failure(
     monkeypatch.setenv("ESPHOME_SDK_SILABS_PREFIX", str(tmp_path / "cache"))
     install_dir = _install_dir(_TEST_VERSION)
 
-    p1, p2 = _patch_linux_x86_64()
+    p1, p2 = _patch_host()
     with (
         p1,
         p2,
@@ -142,3 +148,57 @@ def test_check_and_install_cleans_up_on_extract_failure(
         check_and_install(_TEST_VERSION)
 
     assert not install_dir.exists()
+
+
+def test_check_and_install_rejects_unknown_version() -> None:
+    with pytest.raises(RuntimeError, match="Unknown Simplicity Commander version"):
+        check_and_install("0.0.1")
+
+
+def test_check_and_install_defaults_to_the_pinned_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_commander_download_ops: tuple[MagicMock, MagicMock],
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_SILABS_PREFIX", str(tmp_path / "cache"))
+    mock_download, _mock_extract = mock_commander_download_ops
+
+    p1, p2 = _patch_host()
+    with p1, p2:
+        result = check_and_install(None)
+
+    assert result == _install_dir(DEFAULT_VERSION)
+    assert f"/{DEFAULT_VERSION}/" in mock_download.call_args.args[0]
+
+
+def test_check_and_install_rejects_non_linux_host() -> None:
+    p1, p2 = _patch_host(sys_platform="darwin")
+    with p1, p2, pytest.raises(RuntimeError, match="only supported on Linux"):
+        check_and_install(_TEST_VERSION)
+
+
+def test_check_and_install_rejects_unsupported_cpu() -> None:
+    p1, p2 = _patch_host(machine="ppc64le")
+    with p1, p2, pytest.raises(RuntimeError, match="Unsupported CPU architecture"):
+        check_and_install(_TEST_VERSION)
+
+
+@pytest.mark.parametrize("machine", ["aarch64", "arm64"])
+def test_check_and_install_downloads_the_aarch64_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_commander_download_ops: tuple[MagicMock, MagicMock],
+    machine: str,
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_SILABS_PREFIX", str(tmp_path / "cache"))
+    mock_download, _mock_extract = mock_commander_download_ops
+
+    p1, p2 = _patch_host(machine=machine)
+    with p1, p2:
+        check_and_install(_TEST_VERSION)
+
+    url, _dest = mock_download.call_args.args
+    assert "Commander_linux_aarch64_" in url
+    assert (
+        mock_download.call_args.kwargs["sha256"] == _RELEASES[_TEST_VERSION]["aarch64"]
+    )

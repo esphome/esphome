@@ -4,4 +4,5 @@ i2c:
   - id: i2c_bus
     scan: true
 
-<<: !include common.yaml
+packages:
+  i2c: !include common.yaml

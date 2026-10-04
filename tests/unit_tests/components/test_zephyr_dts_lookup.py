@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 import tempfile
+from typing import Any, NoReturn
 
 import pytest
 
@@ -34,19 +36,9 @@ from esphome.components.zephyr.dts_lookup import (
     resolve_zephyr_bus,
     validate_board_revision,
 )
+from esphome.components.zephyr.variants import ZephyrSDK, ZephyrVariant
 from esphome.core import CORE, EsphomeError
-
-
-def _empty_zd(**overrides) -> dict:
-    return {
-        "cpp_path": "",
-        "board_dir_cache": {},
-        "dts_include_paths": None,
-        "board_edt_cache": {},
-        "board_yaml_cache": {},
-        "dts_base_path": None,
-        **overrides,
-    }
+from tests.unit_tests.components.zephyr_state import empty_zephyr_data
 
 
 class _FakeReg:
@@ -101,7 +93,7 @@ class _FakeEdt:
 
 
 def test_resolve_zephyr_bus_returns_explicit_override() -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     assert (
         resolve_zephyr_bus(
             "i2c", "some_board", override_key="dts_node_override", override="i2c99"
@@ -113,13 +105,13 @@ def test_resolve_zephyr_bus_returns_explicit_override() -> None:
 def test_resolve_zephyr_bus_raises_when_nothing_resolves() -> None:
     # resolve_zephyr_bus() raises EsphomeError, not cv.Invalid -- it runs from
     # to_code(), not CONFIG_SCHEMA, where only cv.Invalid is caught/formatted.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     with pytest.raises(EsphomeError, match="Cannot determine I2C bus label"):
         resolve_zephyr_bus("i2c", "unknown_board", override_key="dts_node_override")
 
 
 def test_resolve_zephyr_bus_error_hint_uses_caller_supplied_override_key() -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     with pytest.raises(EsphomeError, match="interface: spi0"):
         resolve_zephyr_bus("spi", "unknown_board", override_key="interface")
 
@@ -204,20 +196,20 @@ def fake_zephyr_base(tmp_path: Path) -> Path:
 
 
 def test_find_board_dir_locates_vendor_subfolder(fake_zephyr_base: Path) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     result = _find_board_dir(fake_zephyr_base, "esp32h2_devkitm/esp32h2")
     assert result == fake_zephyr_base / "boards" / "espressif" / "esp32h2_devkitm"
 
 
 def test_find_board_dir_returns_none_for_unknown_board(fake_zephyr_base: Path) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     assert _find_board_dir(fake_zephyr_base, "no_such_board/soc") is None
 
 
 def test_find_board_dir_strips_revision_suffix(fake_zephyr_base: Path) -> None:
     """A "@<revision>" suffix must not leak into the vendor-folder scan -- otherwise
     a revisioned board string would never resolve to its directory."""
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     result = _find_board_dir(fake_zephyr_base, "esp32h2_devkitm@1.0.0/esp32h2")
     assert result == fake_zephyr_base / "boards" / "espressif" / "esp32h2_devkitm"
 
@@ -364,7 +356,7 @@ def test_find_board_dir_dts_file_and_revision_overlay_at_each_depth(
 
     board = "depth_board@1.0.0" + "".join(f"/{q}" for q in qualifiers)
 
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     found_board_dir = _find_board_dir(tmp_path, board)
     assert found_board_dir == board_dir
 
@@ -412,12 +404,12 @@ def test_get_board_yaml_supported_end_to_end(tmp_path: Path) -> None:
     (boards / "esp32h2_devkitm.yaml").write_text(
         "identifier: esp32h2_devkitm/esp32h2\nsupported:\n  - uart\n  - i2c\n  - adc\n"
     )
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert get_board_yaml_supported("esp32h2_devkitm/esp32h2") == ["adc", "i2c", "uart"]
 
 
 def test_get_board_yaml_supported_returns_none_without_dts_base_path() -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=None)
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=None)
     assert get_board_yaml_supported("esp32h2_devkitm/esp32h2") is None
 
 
@@ -427,7 +419,7 @@ def test_get_board_yaml_supported_returns_none_for_malformed_yaml(
     boards = tmp_path / "boards" / "espressif" / "esp32h2_devkitm"
     boards.mkdir(parents=True)
     (boards / "esp32h2_devkitm.yaml").write_text("not: valid: yaml: at: all:")
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert get_board_yaml_supported("esp32h2_devkitm/esp32h2") is None
 
 
@@ -437,16 +429,16 @@ def test_get_board_yaml_supported_returns_none_missing_supported_key(
     boards = tmp_path / "boards" / "espressif" / "esp32h2_devkitm"
     boards.mkdir(parents=True)
     (boards / "esp32h2_devkitm.yaml").write_text("identifier: esp32h2_devkitm\n")
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert get_board_yaml_supported("esp32h2_devkitm/esp32h2") == []
 
 
-def test_get_board_yaml_supported_is_cached(tmp_path: Path, monkeypatch) -> None:
+def test_get_board_yaml_supported_is_cached(tmp_path: Path) -> None:
     boards = tmp_path / "boards" / "espressif" / "esp32h2_devkitm"
     boards.mkdir(parents=True)
     yaml_file = boards / "esp32h2_devkitm.yaml"
     yaml_file.write_text("supported:\n  - uart\n")
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
 
     assert get_board_yaml_supported("esp32h2_devkitm/esp32h2") == ["uart"]
     yaml_file.unlink()
@@ -463,8 +455,10 @@ def test_get_board_yaml_supported_is_cached(tmp_path: Path, monkeypatch) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_get_i2c_controller_labels_returns_enabled_then_disabled(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_i2c_controller_labels_returns_enabled_then_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [
         _FakeNode(labels=["i2c0"], buses=["i2c"], status="disabled"),
         _FakeNode(labels=["i2c1"], buses=["i2c"], status="okay"),
@@ -473,8 +467,10 @@ def test_get_i2c_controller_labels_returns_enabled_then_disabled(monkeypatch) ->
     assert get_i2c_controller_labels("some_board") == ["i2c1", "i2c0"]
 
 
-def test_get_spi_controller_labels_returns_enabled_then_disabled(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_spi_controller_labels_returns_enabled_then_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [
         _FakeNode(labels=["spi0"], buses=["spi"], status="disabled"),
         _FakeNode(labels=["spi1"], buses=["spi"], status="okay"),
@@ -484,9 +480,9 @@ def test_get_spi_controller_labels_returns_enabled_then_disabled(monkeypatch) ->
 
 
 def test_get_uart_controller_labels_returns_disabled_when_none_enabled(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [
         _FakeNode(labels=["uart0"], buses=["uart"], status="disabled"),
         _FakeNode(labels=["uart1"], buses=["uart"], status="disabled"),
@@ -495,39 +491,49 @@ def test_get_uart_controller_labels_returns_disabled_when_none_enabled(
     assert get_uart_controller_labels("some_board") == ["uart0", "uart1"]
 
 
-def test_has_pinctrl_configured_true_on_node_itself(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_has_pinctrl_configured_true_on_node_itself(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [_FakeNode(labels=["uart0"], pinctrls=[object()])]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert has_pinctrl_configured("some_board", "uart0") is True
 
 
-def test_has_pinctrl_configured_true_on_ancestor(monkeypatch) -> None:
+def test_has_pinctrl_configured_true_on_ancestor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Renesas RA shape: pinctrl-0 lives on the sci<N> parent, not the uart<N>
     # child label a numbered port resolves to.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     sci2 = _FakeNode(labels=["sci2"], pinctrls=[object()])
     uart2 = _FakeNode(labels=["uart2"], parent=sci2)
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([sci2, uart2]))
     assert has_pinctrl_configured("some_board", "uart2") is True
 
 
-def test_has_pinctrl_configured_false_when_absent(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_has_pinctrl_configured_false_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [_FakeNode(labels=["uart0"])]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert has_pinctrl_configured("some_board", "uart0") is False
 
 
-def test_has_pinctrl_configured_false_for_unknown_label(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_has_pinctrl_configured_false_for_unknown_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [_FakeNode(labels=["uart0"], pinctrls=[object()])]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert has_pinctrl_configured("some_board", "uart9") is False
 
 
-def test_has_pinctrl_configured_false_without_dts(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_has_pinctrl_configured_false_without_dts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert has_pinctrl_configured("some_board", "uart0") is False
 
@@ -538,11 +544,11 @@ class _FakePinCtrl:
 
 
 def test_get_pinctrl_states_reads_real_conf_node_label_and_single_group(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # esp32's real shape: &spi2's pinctrl-0 points at spim2_default, not spi2_default,
     # with a single shared "group1" child.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     group1 = _FakeNode(labels=[])
     spim2_default = _FakeNode(labels=["spim2_default"], children={"group1": group1})
     spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([spim2_default])])
@@ -550,10 +556,12 @@ def test_get_pinctrl_states_reads_real_conf_node_label_and_single_group(
     assert get_pinctrl_states("some_board", "spi2") == [("spim2_default", ["group1"])]
 
 
-def test_get_pinctrl_states_returns_every_pinctrl_n_state(monkeypatch) -> None:
+def test_get_pinctrl_states_returns_every_pinctrl_n_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # nRF52's real shape: pinctrl-0 = default, pinctrl-1 = sleep -- both states
     # must come back, in pinctrl-<N> index order.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     i2c0_default = _FakeNode(
         labels=["i2c0_default"], children={"group1": _FakeNode(labels=[])}
     )
@@ -571,9 +579,11 @@ def test_get_pinctrl_states_returns_every_pinctrl_n_state(monkeypatch) -> None:
     ]
 
 
-def test_get_pinctrl_states_reports_multiple_groups(monkeypatch) -> None:
+def test_get_pinctrl_states_reports_multiple_groups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # The UART TX/RX shape: some boards split signals across more than one group.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     uart1_default = _FakeNode(
         labels=["uart1_default"],
         children={"group1": _FakeNode(labels=[]), "group2": _FakeNode(labels=[])},
@@ -585,8 +595,8 @@ def test_get_pinctrl_states_reports_multiple_groups(monkeypatch) -> None:
     ]
 
 
-def test_get_pinctrl_states_true_on_ancestor(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_pinctrl_states_true_on_ancestor(monkeypatch: pytest.MonkeyPatch) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     sci2_default = _FakeNode(
         labels=["sci2_default"], children={"group1": _FakeNode(labels=[])}
     )
@@ -596,38 +606,42 @@ def test_get_pinctrl_states_true_on_ancestor(monkeypatch) -> None:
     assert get_pinctrl_states("some_board", "uart2") == [("sci2_default", ["group1"])]
 
 
-def test_get_pinctrl_states_none_when_absent(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_pinctrl_states_none_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [_FakeNode(labels=["spi2"])]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert get_pinctrl_states("some_board", "spi2") is None
 
 
-def test_get_pinctrl_states_none_for_unknown_label(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_pinctrl_states_none_for_unknown_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     spim2_default = _FakeNode(labels=["spim2_default"])
     spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([spim2_default])])
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
     assert get_pinctrl_states("some_board", "spi9") is None
 
 
-def test_get_pinctrl_states_none_without_dts(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_pinctrl_states_none_without_dts(monkeypatch: pytest.MonkeyPatch) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert get_pinctrl_states("some_board", "spi2") is None
 
 
 def test_get_pinctrl_states_none_when_conf_node_has_no_label(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     unlabeled = _FakeNode(labels=[])
     spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([unlabeled])])
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
     assert get_pinctrl_states("some_board", "spi2") is None
 
 
-def test_get_pinctrl_group_property_returns_real_values(monkeypatch) -> None:
+def test_get_pinctrl_group_property_returns_real_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     group1 = _FakeNode(labels=[], props={"pinmux": _FakeProp([229328])})
     uart0_default = _FakeNode(labels=["uart0_default"], children={"group1": group1})
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
@@ -636,7 +650,9 @@ def test_get_pinctrl_group_property_returns_real_values(monkeypatch) -> None:
     ) == [229328]
 
 
-def test_get_pinctrl_group_property_none_for_unknown_group(monkeypatch) -> None:
+def test_get_pinctrl_group_property_none_for_unknown_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     uart0_default = _FakeNode(labels=["uart0_default"], children={})
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
     assert (
@@ -645,7 +661,9 @@ def test_get_pinctrl_group_property_none_for_unknown_group(monkeypatch) -> None:
     )
 
 
-def test_get_pinctrl_group_property_none_for_unknown_property(monkeypatch) -> None:
+def test_get_pinctrl_group_property_none_for_unknown_property(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     group1 = _FakeNode(labels=[], props={})
     uart0_default = _FakeNode(labels=["uart0_default"], children={"group1": group1})
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
@@ -655,7 +673,9 @@ def test_get_pinctrl_group_property_none_for_unknown_property(monkeypatch) -> No
     )
 
 
-def test_get_pinctrl_group_property_none_for_unknown_label(monkeypatch) -> None:
+def test_get_pinctrl_group_property_none_for_unknown_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     uart0_default = _FakeNode(labels=["uart0_default"])
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
     assert (
@@ -664,7 +684,9 @@ def test_get_pinctrl_group_property_none_for_unknown_label(monkeypatch) -> None:
     )
 
 
-def test_get_pinctrl_group_property_none_without_dts(monkeypatch) -> None:
+def test_get_pinctrl_group_property_none_without_dts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert (
         get_pinctrl_group_property("some_board", "uart0_default", "group1", "pinmux")
@@ -672,18 +694,22 @@ def test_get_pinctrl_group_property_none_without_dts(monkeypatch) -> None:
     )
 
 
-def test_get_watchdog_node_label_already_working(monkeypatch) -> None:
+def test_get_watchdog_node_label_already_working(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # nRF52/ESP32 shape: board already aliases watchdog0 to an enabled node.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [_FakeNode(labels=["wdt0"], aliases=["watchdog0"], status="okay")]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert get_watchdog_node_label("some_board") == ("wdt0", True)
 
 
-def test_get_watchdog_node_label_found_but_not_aliased(monkeypatch) -> None:
+def test_get_watchdog_node_label_found_but_not_aliased(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # STM32/Renesas shape: a real watchdog-class node exists (found by binding
     # path, not a hardcoded compat/family list) but isn't enabled or aliased.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [
         _FakeNode(
             labels=["wdt"],
@@ -695,10 +721,12 @@ def test_get_watchdog_node_label_found_but_not_aliased(monkeypatch) -> None:
     assert get_watchdog_node_label("some_board") == ("wdt", False)
 
 
-def test_get_watchdog_node_label_ignores_disabled_alias_target(monkeypatch) -> None:
+def test_get_watchdog_node_label_ignores_disabled_alias_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # An alias pointing at a disabled node doesn't count as already-working --
     # falls through to the generic binding-path search instead.
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [
         _FakeNode(
             labels=["wdt"],
@@ -711,30 +739,38 @@ def test_get_watchdog_node_label_ignores_disabled_alias_target(monkeypatch) -> N
     assert get_watchdog_node_label("some_board") == ("wdt", False)
 
 
-def test_get_watchdog_node_label_none_when_absent(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_watchdog_node_label_none_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [_FakeNode(labels=["uart0"], status="okay")]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert get_watchdog_node_label("some_board") == (None, False)
 
 
-def test_get_watchdog_node_label_none_without_dts(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_watchdog_node_label_none_without_dts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert get_watchdog_node_label("some_board") == (None, False)
 
 
-def test_get_can_controller_labels_returns_disabled_nodes(monkeypatch) -> None:
+def test_get_can_controller_labels_returns_disabled_nodes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Every STM32 SoC dtsi ships its CAN node disabled, so a disabled-only board
     must still report it -- zephyr_can is what enables the node."""
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [_FakeNode(labels=["fdcan1"], status="disabled")]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert get_can_controller_labels("some_board") == ["fdcan1"]
 
 
-def test_get_can_controller_labels_matches_bxcan_and_fdcan_only(monkeypatch) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+def test_get_can_controller_labels_matches_bxcan_and_fdcan_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     nodes = [
         _FakeNode(labels=["can1"]),
         _FakeNode(labels=["fdcan2"]),
@@ -746,15 +782,15 @@ def test_get_can_controller_labels_matches_bxcan_and_fdcan_only(monkeypatch) -> 
 
 
 def test_get_spi_controller_labels_returns_none_when_dts_unavailable(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert get_spi_controller_labels("some_board") is None
 
 
 def test_get_board_partitions_matches_parent_fixed_partitions_compat(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     parent = _FakeNode(compats=["fixed-partitions"])
     nodes = [
@@ -768,7 +804,9 @@ def test_get_board_partitions_matches_parent_fixed_partitions_compat(
     ]
 
 
-def test_get_board_partitions_matches_own_mapped_partition_compat(monkeypatch) -> None:
+def test_get_board_partitions_matches_own_mapped_partition_compat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Covers this project's custom boards, which set compatible directly on each
     partition child instead of only on the parent (see esp32_devkit_procpu_only)."""
     nodes = [
@@ -782,7 +820,9 @@ def test_get_board_partitions_matches_own_mapped_partition_compat(monkeypatch) -
     assert get_board_partitions("some_board") == [("storage", 0x3A0000, 0x40000)]
 
 
-def test_get_board_partitions_skips_nodes_without_label_or_regs(monkeypatch) -> None:
+def test_get_board_partitions_skips_nodes_without_label_or_regs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     parent = _FakeNode(compats=["fixed-partitions"])
     nodes = [
         _FakeNode(label=None, regs=[_FakeReg(0, 0x1000)], parent=parent),
@@ -793,7 +833,9 @@ def test_get_board_partitions_skips_nodes_without_label_or_regs(monkeypatch) -> 
     assert get_board_partitions("some_board") == [("storage", 0x10000, 0x1000)]
 
 
-def test_get_board_partitions_returns_none_when_dts_unavailable(monkeypatch) -> None:
+def test_get_board_partitions_returns_none_when_dts_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert get_board_partitions("some_board") is None
 
@@ -812,17 +854,36 @@ def test_format_size_falls_back_to_bytes_when_not_k_aligned() -> None:
     assert _format_size(1000) == "1000B"
 
 
+_FAKE_SDK = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
+
+_BOARD_QUERIES = (
+    "get_board_yaml_supported",
+    "get_board_features",
+    "get_i2c_controller_labels",
+    "get_spi_controller_labels",
+    "get_uart_controller_labels",
+    "get_can_controller_labels",
+    "get_board_partitions",
+)
+
+
+@pytest.fixture
+def no_board_info(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    """Make every board query log_board_capabilities() makes report 'nothing found'."""
+    for name in _BOARD_QUERIES:
+        monkeypatch.setattr(dts_lookup, name, lambda board: None)
+    return monkeypatch
+
+
 # ---------------------------------------------------------------------------
 # log_board_capabilities -- combined report composition
 # ---------------------------------------------------------------------------
 
 
-def test_log_board_capabilities_stock_board_full_report(monkeypatch, caplog) -> None:
-    from esphome.components.zephyr.variants import ZephyrSDK, ZephyrVariant
-
-    _fake_sdk = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
-
-    variant = ZephyrVariant(sdk=_fake_sdk, swap_methods=frozenset({"scratch", "move"}))
+def test_log_board_capabilities_stock_board_full_report(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    variant = ZephyrVariant(sdk=_FAKE_SDK, swap_methods=frozenset({"scratch", "move"}))
     monkeypatch.setattr(
         dts_lookup, "get_board_yaml_supported", lambda board: ["adc", "i2c"]
     )
@@ -854,23 +915,11 @@ def test_log_board_capabilities_stock_board_full_report(monkeypatch, caplog) -> 
 
 
 def test_log_board_capabilities_custom_board_shows_board_root(
-    monkeypatch, caplog, tmp_path: Path
+    no_board_info: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
 ) -> None:
-    from esphome.components.zephyr.variants import ZephyrSDK, ZephyrVariant
-
-    _fake_sdk = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
-
-    variant = ZephyrVariant(sdk=_fake_sdk)
-    for name in (
-        "get_board_yaml_supported",
-        "get_board_features",
-        "get_i2c_controller_labels",
-        "get_spi_controller_labels",
-        "get_uart_controller_labels",
-        "get_can_controller_labels",
-        "get_board_partitions",
-    ):
-        monkeypatch.setattr(dts_lookup, name, lambda board: None)
+    variant = ZephyrVariant(sdk=_FAKE_SDK)
 
     with caplog.at_level("INFO"):
         log_board_capabilities("my_board", "esp32_c6", variant, "4.4.1", tmp_path)
@@ -880,33 +929,23 @@ def test_log_board_capabilities_custom_board_shows_board_root(
 
 
 def test_log_board_capabilities_empty_swap_methods_omits_partitions(
-    monkeypatch, caplog
+    no_board_info: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """native_sim-shaped case: no swap_methods (no real MCUboot), so the partition
     section must be omitted entirely -- even though the board's DTS still defines a
     mcuboot/image-* partition layout as boilerplate, showing it would misleadingly
     imply a real bootloader/OTA partition scheme on this variant."""
-    from esphome.components.zephyr.variants import ZephyrSDK, ZephyrVariant
-
-    _fake_sdk = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
-
-    variant = ZephyrVariant(
-        sdk=_fake_sdk
-    )  # swap_methods defaults to frozenset() (empty)
-    monkeypatch.setattr(dts_lookup, "get_board_yaml_supported", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_board_features", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_i2c_controller_labels", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_spi_controller_labels", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_uart_controller_labels", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_can_controller_labels", lambda board: None)
+    variant = ZephyrVariant(sdk=_FAKE_SDK)  # swap_methods defaults to empty
     partitions_called = False
 
-    def _unexpected_partitions_call(board):
+    def _unexpected_partitions_call(board: str) -> list[tuple[str, int, int]]:
         nonlocal partitions_called
         partitions_called = True
         return [("mcuboot", 0, 0xC000)]
 
-    monkeypatch.setattr(dts_lookup, "get_board_partitions", _unexpected_partitions_call)
+    no_board_info.setattr(
+        dts_lookup, "get_board_partitions", _unexpected_partitions_call
+    )
 
     with caplog.at_level("INFO"):
         log_board_capabilities(
@@ -919,21 +958,9 @@ def test_log_board_capabilities_empty_swap_methods_omits_partitions(
     assert not partitions_called
 
 
-def test_log_board_capabilities_lists_shields(monkeypatch, caplog) -> None:
-    from esphome.components.zephyr.variants import ZephyrSDK, ZephyrVariant
-
-    _fake_sdk = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
-    variant = ZephyrVariant(sdk=_fake_sdk)
-    for name in (
-        "get_board_yaml_supported",
-        "get_board_features",
-        "get_i2c_controller_labels",
-        "get_spi_controller_labels",
-        "get_uart_controller_labels",
-        "get_can_controller_labels",
-        "get_board_partitions",
-    ):
-        monkeypatch.setattr(dts_lookup, name, lambda board: None)
+@pytest.mark.usefixtures("no_board_info")
+def test_log_board_capabilities_lists_shields(caplog: pytest.LogCaptureFixture) -> None:
+    variant = ZephyrVariant(sdk=_FAKE_SDK)
 
     with caplog.at_level("INFO"):
         log_board_capabilities(
@@ -1128,7 +1155,9 @@ def test_snippet_overlay_files_handles_list_valued_overlay_file(
 # ---------------------------------------------------------------------------
 
 
-def _fake_preprocess_dts_file(src_file, zephyr_base, extra_include_dirs):
+def _fake_preprocess_dts_file(
+    src_file: Path, zephyr_base: Path, extra_include_dirs: list[Path]
+) -> str:
     """Stand-in for cpp -- resolves `#include "<path>"` by reading the file,
     no macro expansion (tests only care which files got merged)."""
     lines = src_file.read_text(encoding="utf-8").splitlines()
@@ -1142,7 +1171,27 @@ def _fake_preprocess_dts_file(src_file, zephyr_base, extra_include_dirs):
     return "\n".join(parts)
 
 
-def test_get_edt_cache_key_varies_with_shields(monkeypatch, tmp_path: Path) -> None:
+def _fake_edtlib(ctor: Callable[..., object]) -> Callable[[Path], type]:
+    return lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(ctor)})
+
+
+@pytest.fixture
+def edt_texts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Patch cpp and edtlib so _get_edt() records the merged devicetree text it would
+    have parsed, one entry per call, and returns a fresh object each time."""
+    seen: list[str] = []
+
+    def _fake_edt_ctor(path: str, bindings_dirs: object, **kwargs: object) -> object:
+        seen.append(Path(path).read_text(encoding="utf-8"))
+        return object()
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
+    monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(_fake_edt_ctor))
+    return seen
+
+
+@pytest.mark.usefixtures("edt_texts")
+def test_get_edt_cache_key_varies_with_shields(tmp_path: Path) -> None:
     """Same board, different shields: selection must not share a cached EDT --
     otherwise a config change (adding/removing a shield) would silently keep
     validating against the wrong (stale) merged devicetree."""
@@ -1151,17 +1200,7 @@ def test_get_edt_cache_key_varies_with_shields(monkeypatch, tmp_path: Path) -> N
         "/ { };"
     )
 
-    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
-        return object()  # a fresh, distinct object each call
-
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
-    monkeypatch.setattr(
-        dts_lookup,
-        "_load_edtlib",
-        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
-    )
-
-    zd = _empty_zd(dts_base_path=str(tmp_path), shields=[])
+    zd = empty_zephyr_data(dts_base_path=str(tmp_path), shields=[])
     CORE.data[KEY_ZEPHYR] = zd
     edt_no_shield = _get_edt("my_board")
 
@@ -1174,7 +1213,9 @@ def test_get_edt_cache_key_varies_with_shields(monkeypatch, tmp_path: Path) -> N
     assert ("my_board", ("nrf7002ek",), ()) in cache
 
 
-def test_get_edt_merges_shield_overlay_text(monkeypatch, tmp_path: Path) -> None:
+def test_get_edt_merges_shield_overlay_text(
+    edt_texts: list[str], tmp_path: Path
+) -> None:
     (tmp_path / "boards" / "espressif" / "my_board").mkdir(parents=True)
     (tmp_path / "boards" / "espressif" / "my_board" / "my_board.dts").write_text(
         "/* base */"
@@ -1183,27 +1224,14 @@ def test_get_edt_merges_shield_overlay_text(monkeypatch, tmp_path: Path) -> None
     shield_dir.mkdir(parents=True)
     (shield_dir / "nrf7002ek.overlay").write_text('&spi0 { status = "okay"; };')
 
-    seen_texts: list[str] = []
-
-    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
-        seen_texts.append(Path(path).read_text(encoding="utf-8"))
-        return object()
-
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
-    monkeypatch.setattr(
-        dts_lookup,
-        "_load_edtlib",
-        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
-    )
-
-    CORE.data[KEY_ZEPHYR] = _empty_zd(
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(
         dts_base_path=str(tmp_path), shields=["nrf7002ek"]
     )
     _get_edt("my_board")
 
-    assert len(seen_texts) == 1
-    assert "/* base */" in seen_texts[0]
-    assert '&spi0 { status = "okay"; };' in seen_texts[0]
+    assert len(edt_texts) == 1
+    assert "/* base */" in edt_texts[0]
+    assert '&spi0 { status = "okay"; };' in edt_texts[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1260,104 +1288,67 @@ def test_find_revision_overlay_no_qualifiers(tmp_path: Path) -> None:
     assert result == board_dir / "my_board_1_0_0.overlay"
 
 
-def test_get_edt_merges_revision_overlay_text(monkeypatch, tmp_path: Path) -> None:
+def test_get_edt_merges_revision_overlay_text(
+    edt_texts: list[str], tmp_path: Path
+) -> None:
     _revisioned_board_dir(tmp_path)
 
-    seen_texts: list[str] = []
-
-    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
-        seen_texts.append(Path(path).read_text(encoding="utf-8"))
-        return object()
-
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
-    monkeypatch.setattr(
-        dts_lookup,
-        "_load_edtlib",
-        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
-    )
-
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     # Requesting 1.9.0 must resolve to the closest lower declared revision, 1.4.0,
     # and merge in *that* revision's overlay -- not 2.0.0's.
     _get_edt("actinius_icarus@1.9.0/nrf9160/ns")
 
-    assert len(seen_texts) == 1
-    assert "/* base */" in seen_texts[0]
-    assert "/* rev 1.4.0 */" in seen_texts[0]
-    assert "/* rev 2.0.0 */" not in seen_texts[0]
+    assert len(edt_texts) == 1
+    assert "/* base */" in edt_texts[0]
+    assert "/* rev 1.4.0 */" in edt_texts[0]
+    assert "/* rev 2.0.0 */" not in edt_texts[0]
 
 
 def test_get_edt_merges_default_revision_overlay_without_suffix(
-    monkeypatch, tmp_path: Path
+    edt_texts: list[str], tmp_path: Path
 ) -> None:
     _revisioned_board_dir(tmp_path)
 
-    seen_texts: list[str] = []
-
-    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
-        seen_texts.append(Path(path).read_text(encoding="utf-8"))
-        return object()
-
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
-    monkeypatch.setattr(
-        dts_lookup,
-        "_load_edtlib",
-        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
-    )
-
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     _get_edt("actinius_icarus/nrf9160/ns")
 
-    assert len(seen_texts) == 1
-    assert "/* rev 2.0.0 */" in seen_texts[0]
-    assert "/* rev 1.4.0 */" not in seen_texts[0]
+    assert len(edt_texts) == 1
+    assert "/* rev 2.0.0 */" in edt_texts[0]
+    assert "/* rev 1.4.0 */" not in edt_texts[0]
 
 
 def test_get_edt_ignores_revision_when_board_has_none(
-    monkeypatch, tmp_path: Path
+    edt_texts: list[str], tmp_path: Path
 ) -> None:
     (tmp_path / "boards" / "espressif" / "my_board").mkdir(parents=True)
     (tmp_path / "boards" / "espressif" / "my_board" / "my_board.dts").write_text(
         "/* base */"
     )
 
-    seen_texts: list[str] = []
-
-    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
-        seen_texts.append(Path(path).read_text(encoding="utf-8"))
-        return object()
-
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
-    monkeypatch.setattr(
-        dts_lookup,
-        "_load_edtlib",
-        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
-    )
-
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     # "@1.0.0" on a board that declares no revisions at all -- silently ignored,
     # same as Zephyr's own build would do for a stray, meaningless revision.
     _get_edt("my_board@1.0.0")
 
-    assert seen_texts == ["/* base */"]
+    assert edt_texts == ["/* base */"]
 
 
 def test_validate_board_revision_returns_none_without_revision_suffix(
     tmp_path: Path,
 ) -> None:
     _revisioned_board_dir(tmp_path)
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert validate_board_revision("actinius_icarus/nrf9160/ns") is None
 
 
 def test_validate_board_revision_returns_none_without_dts_base_path() -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=None)
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=None)
     assert validate_board_revision("actinius_icarus@1.4.0/nrf9160/ns") is None
 
 
 def test_validate_board_revision_true_for_resolvable_revision(tmp_path: Path) -> None:
     _revisioned_board_dir(tmp_path)
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert validate_board_revision("actinius_icarus@1.9.0/nrf9160/ns") is True
 
 
@@ -1365,7 +1356,7 @@ def test_validate_board_revision_false_for_unresolvable_revision(
     tmp_path: Path,
 ) -> None:
     _revisioned_board_dir(tmp_path)
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert validate_board_revision("actinius_icarus@0.1.0/nrf9160/ns") is False
 
 
@@ -1376,7 +1367,7 @@ def test_validate_board_revision_returns_none_for_board_without_revisions(
     (tmp_path / "boards" / "espressif" / "my_board" / "my_board.dts").write_text(
         "/* base */"
     )
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert validate_board_revision("my_board@1.0.0") is None
 
 
@@ -1391,17 +1382,13 @@ def _board_tree(tmp_path: Path) -> None:
     (board / "my_board.dts").write_text("/ { };")
 
 
-def _fake_edtlib(ctor):
-    return lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(ctor)})
-
-
 def test_get_edt_warns_once_when_cpp_missing(
-    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     _board_tree(tmp_path)
     monkeypatch.setattr(dts_lookup, "_find_cpp", lambda: None)
     monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
 
     assert _get_edt("my_board") is None
     assert _get_edt("my_board") is None
@@ -1412,27 +1399,27 @@ def test_get_edt_warns_once_when_cpp_missing(
 
 
 def test_get_edt_warns_when_board_not_found(
-    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     (tmp_path / "boards").mkdir()
     monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
 
     assert _get_edt("missing_board") is None
     assert "board directory not found" in caplog.text
 
 
 def test_get_edt_warns_when_devicetree_parse_fails(
-    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     _board_tree(tmp_path)
 
-    def _reject(*args, **kwargs):
+    def _reject(*args: Any, **kwargs: Any) -> NoReturn:
         raise ValueError("unknown binding for compatible 'acme,bus'")
 
     monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
     monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(_reject))
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
 
     assert _get_edt("my_board") is None
     assert "devicetree parse failed: unknown binding" in caplog.text
@@ -1441,12 +1428,14 @@ def test_get_edt_warns_when_devicetree_parse_fails(
 def test_get_edt_no_warning_without_dts_base(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     assert _get_edt("my_board") is None
     assert "Can't read board" not in caplog.text
 
 
-def test_get_edt_leaves_no_temp_files(monkeypatch, tmp_path: Path) -> None:
+def test_get_edt_leaves_no_temp_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Both the cpp wrapper and its output are removed, on success and on failure."""
     _board_tree(tmp_path)
     temp_dir = tmp_path / "tmp"
@@ -1455,7 +1444,7 @@ def test_get_edt_leaves_no_temp_files(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
 
     monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert _get_edt("my_board") == 1
     assert not list(temp_dir.iterdir())
 
@@ -1463,6 +1452,6 @@ def test_get_edt_leaves_no_temp_files(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
     monkeypatch.setattr(dts_lookup, "_load_edtlib", _fake_edtlib(lambda *a, **k: 1))
     monkeypatch.setattr(dts_lookup, "_find_cpp", lambda: None)
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert _get_edt("my_board") is None
     assert not list(temp_dir.iterdir())
