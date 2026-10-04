@@ -47,10 +47,8 @@ VARIANT = ZephyrVariant(
     soc="esp32c5",
     qualifier="hpcore",
     swap_methods=frozenset({"scratch", "move", "direct", "offset"}),
-    # esp32c5_common.dtsi's adc0 node declares channel-count = <6> -- GPIO0-5 map directly
-    # to ADC1 channel 0-5 (devicetree channel@N address IS the real silicon channel, same
-    # as esp32_c6/esp32_h2).
-    adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5},
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c5/include/soc/adc_channel.h
+    adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5},
     uart_node_labels={},
     uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
     spi_valid_pins={
