@@ -4,6 +4,7 @@ import math
 import pytest
 
 from esphome import cpp_generator as cg, cpp_types as ct
+from esphome.core import CORE, ID
 
 
 class TestExpressions:
@@ -808,3 +809,39 @@ async def test_templatable__lambda_with_std_string() -> None:
     result = await cg.templatable(lambda_obj, [], ct.std_string)
 
     assert isinstance(result, cg.LambdaExpression)
+
+
+class TestSharedProgmemArray:
+    def test_identical_contents_share_one_array(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1, 2, 3])
+        b = cg.shared_progmem_array("table", ct.uint8, [1, 2, 3])
+        c = cg.shared_progmem_array("table", ct.uint8, [4])
+        assert a is b
+        assert str(a) != str(c)
+        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+        assert not any("PROGMEM" in str(st) for st in CORE.main_statements)
+
+    def test_share_false_always_emits_a_new_array(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
+        b = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
+        assert str(a) != str(b)
+        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+
+    def test_same_contents_different_type_are_separate(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1])
+        b = cg.shared_progmem_array("table", ct.uint16, [1])
+        assert str(a) != str(b)
+
+    def test_name_avoids_config_ids(self) -> None:
+        CORE.config = {"sensor": [{"id": ID("table", is_declaration=True)}]}
+        array = cg.shared_progmem_array("table", ct.uint8, [1])
+        assert str(array) == "table_2"
+
+    def test_name_avoids_registered_variables(self) -> None:
+        CORE.config = {}
+        CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
+        array = cg.shared_progmem_array("table", ct.uint8, [1])
+        assert str(array) == "table_2"

@@ -20,9 +20,6 @@ DfrobotSen0395Component = dfrobot_sen0395_ns.class_(
 )
 
 # Actions
-DfrobotSen0395ResetAction = dfrobot_sen0395_ns.class_(
-    "DfrobotSen0395ResetAction", automation.Action
-)
 DfrobotSen0395SettingsAction = dfrobot_sen0395_ns.class_(
     "DfrobotSen0395SettingsAction", automation.Action
 )
@@ -49,15 +46,14 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "dfrobot_sen0395.reset",
-    DfrobotSen0395ResetAction,
     maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(DfrobotSen0395Component),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_system()"),
 )
 
 
@@ -191,19 +187,18 @@ async def dfrobot_sen0395_settings_to_code(
             template_ = await cg.templatable(segments[7], args, cg.float_)
             cg.add(var.set_det_max4(template_))
     if CONF_OUTPUT_LATENCY in config:
-        template_ = await cg.templatable(
-            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DETECT], args, float
-        )
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds / 1000
-        cg.add(var.set_delay_after_detect(template_))
-
-        template_ = await cg.templatable(
-            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DISAPPEAR], args, float
-        )
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds / 1000
-        cg.add(var.set_delay_after_disappear(template_))
+        latency = config[CONF_OUTPUT_LATENCY]
+        for key, setter in (
+            (CONF_DELAY_AFTER_DETECT, var.set_delay_after_detect),
+            (CONF_DELAY_AFTER_DISAPPEAR, var.set_delay_after_disappear),
+        ):
+            template_ = await cg.templatable(
+                latency[key],
+                args,
+                float,
+                to_exp=lambda period: period.total_milliseconds / 1000,
+            )
+            cg.add(setter(template_))
     if CONF_SENSITIVITY in config:
         template_ = await cg.templatable(config[CONF_SENSITIVITY], args, cg.int8)
         cg.add(var.set_sensitivity(template_))

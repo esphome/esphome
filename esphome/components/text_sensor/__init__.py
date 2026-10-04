@@ -20,14 +20,16 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -229,6 +231,13 @@ async def new_text_sensor(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_text_sensor(var, config)
     return var
+
+
+def sub_text_sensors(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_text_sensor."""
+    return SubEntities(new_text_sensor, config, parent)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

@@ -12,9 +12,6 @@ CODEOWNERS = ["@glmnet"]
 
 dfplayer_ns = cg.esphome_ns.namespace("dfplayer")
 DFPlayer = dfplayer_ns.class_("DFPlayer", cg.Component)
-DFPlayerIsPlayingCondition = dfplayer_ns.class_(
-    "DFPlayerIsPlayingCondition", automation.Condition
-)
 
 MULTI_CONF = True
 CONF_FOLDER = "folder"
@@ -199,12 +196,12 @@ automation.register_apply_action(
 )
 
 
-automation.register_parented_condition(
+automation.register_apply_condition(
     "dfplayer.is_playing",
-    DFPlayerIsPlayingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    "is_playing()",
 )

@@ -59,12 +59,6 @@ MAX_MICROPHONE_SOURCES = 2
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
 VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
 
-IsRunningCondition = voice_assistant_ns.class_(
-    "IsRunningCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
-)
-ConnectedCondition = voice_assistant_ns.class_(
-    "ConnectedCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
-)
 
 Timer = voice_assistant_ns.struct("Timer")
 
@@ -421,15 +415,14 @@ automation.register_apply_action(
 )
 
 
-automation.register_parented_condition(
+automation.register_apply_condition(
     "voice_assistant.is_running",
-    IsRunningCondition,
     VOICE_ASSISTANT_ACTION_SCHEMA,
+    "is_running_or_continuous()",
 )
 
-
-automation.register_parented_condition(
+automation.register_apply_condition(
     "voice_assistant.connected",
-    ConnectedCondition,
     VOICE_ASSISTANT_ACTION_SCHEMA,
+    "get_api_connection() != nullptr",
 )

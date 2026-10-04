@@ -23,9 +23,6 @@ MAX17043Component = max17043_ns.class_(
     "MAX17043Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-# Actions
-SleepAction = max17043_ns.class_("SleepAction", automation.Action)
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -56,13 +53,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_remaining_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
 
 
 MAX17043_ACTION_SCHEMA = maybe_simple_id(
@@ -72,9 +65,6 @@ MAX17043_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
-    "max17043.sleep_mode",
-    SleepAction,
-    MAX17043_ACTION_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "max17043.sleep_mode", MAX17043_ACTION_SCHEMA, automation.ApplyCall("sleep_mode()")
 )

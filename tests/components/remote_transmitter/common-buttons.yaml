@@ -278,3 +278,8 @@ button:
       - remote_transmitter.digital_write:
           transmitter_id: xmitr
           value: !lambda return id(remote_transmitter_test_number).state > 127;
+  - platform: template
+    name: Hob2Hood
+    on_press:
+      - remote_transmitter.transmit_hob2hood:
+          command: light_on

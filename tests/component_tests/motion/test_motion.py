@@ -18,7 +18,6 @@ from esphome.components.motion import (
     _build_calibrate_action,
     _transform_matrix,
     _validate_matrix_options,
-    clear_calibration_to_code,
 )
 from esphome.components.motion.sensor import (
     _ACCELERATIONS,
@@ -783,44 +782,6 @@ class TestClearActionSchema:
     def test_save_defaults_to_false(self):
         result = CLEAR_ACTION_SCHEMA({CONF_ID: "x"})
         assert result[CONF_SAVE] is False
-
-
-@pytest.fixture
-def mock_clear_codegen():
-    """Mock cg functions used by clear_calibration_to_code."""
-    mock_var = MagicMock()
-    mock_parent = MagicMock()
-    with (
-        patch(
-            "esphome.components.motion.cg.get_variable",
-            new_callable=AsyncMock,
-            return_value=mock_parent,
-        ),
-        patch(
-            "esphome.components.motion.cg.new_Pvariable",
-            return_value=mock_var,
-        ) as mock_new_pvar,
-        patch("esphome.components.motion.cg.add") as mock_add,
-    ):
-        yield {"new_Pvariable": mock_new_pvar, "add": mock_add, "var": mock_var}
-
-
-@pytest.mark.asyncio
-async def test_clear_action_without_save(mock_clear_codegen):
-    """With save=False, set_save should not be emitted."""
-    config = {CONF_ID: MagicMock(), CONF_SAVE: False}
-    result = await clear_calibration_to_code(config, MagicMock(), MagicMock(), [])
-    assert result is mock_clear_codegen["var"]
-    mock_clear_codegen["add"].assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_clear_action_with_save(mock_clear_codegen):
-    """With save=True, set_save(True) should be emitted exactly once."""
-    config = {CONF_ID: MagicMock(), CONF_SAVE: True}
-    await clear_calibration_to_code(config, MagicMock(), MagicMock(), [])
-    mock_clear_codegen["var"].set_save.assert_called_once_with(True)
-    mock_clear_codegen["add"].assert_called_once()
 
 
 # --- Calibration persistence invalidation ---

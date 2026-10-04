@@ -13,6 +13,7 @@ from esphome.components.logger import request_log_listener
 from esphome.components.noise import (  # noqa: F401
     ENCRYPTION_SCHEMA,
     decode_encryption_key,
+    enable_spare_ephemeral,
     encryption_schema,
     new_psk_progmem,
     validate_encryption_key,
@@ -600,7 +601,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
+            cg.add(var.set_noise_psk(new_psk_progmem(key)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
@@ -613,6 +614,7 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
+        enable_spare_ephemeral()
     else:
         cg.add_define("USE_API_PLAINTEXT")
 

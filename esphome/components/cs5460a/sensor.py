@@ -30,7 +30,6 @@ PGA_GAIN_OPTIONS = {
 }
 
 CS5460AComponent = cs5460a_ns.class_("CS5460AComponent", spi.SPIDevice, cg.Component)
-CS5460ARestartAction = cs5460a_ns.class_("CS5460ARestartAction", automation.Action)
 
 CONF_SAMPLES = "samples"
 CONF_PHASE_OFFSET = "phase_offset"
@@ -118,24 +117,18 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_hpf_enable(config[CONF_CURRENT_HPF], config[CONF_VOLTAGE_HPF]))
     cg.add(var.set_pulse_energy_wh(config[CONF_PULSE_ENERGY]))
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
 
 
-automation.register_simple_action(
+automation.register_apply_action(
     "cs5460a.restart",
-    CS5460ARestartAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(CS5460AComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("restart()"),
 )

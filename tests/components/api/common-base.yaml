@@ -92,7 +92,7 @@ api:
       then:
         - logger.log:
             # yamllint disable rule:line-length
-            format: "Bool: %s (%u), Int: %ld (%u), Float: %f (%u), String: %s (%u)"
+            format: "Bool: %s (%zu), Int: %ld (%zu), Float: %f (%zu), String: %s (%zu)"
             # yamllint enable rule:line-length
             args:
               - YESNO(bool_arr[0])
@@ -116,7 +116,7 @@ api:
       then:
         - delay: 20ms
         - logger.log:
-            format: "Delayed: %s (%u ints, %u strings)"
+            format: "Delayed: %s (%zu ints, %zu strings)"
             args:
               - name.c_str()
               - int_arr.size()
@@ -139,7 +139,7 @@ api:
               message: !lambda 'return name;'
             on_success:
               - logger.log:
-                  format: "Notified %s (%u ints)"
+                  format: "Notified %s (%zu ints)"
                   args:
                     - name.c_str()
                     - int_arr.size()

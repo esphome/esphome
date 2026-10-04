@@ -8,6 +8,8 @@ import shutil
 import subprocess
 
 from esphome import pins
+from esphome.build_helpers import pch
+from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     add_extra_script,
@@ -74,6 +76,7 @@ from .framework import (
     get_build_env,
     get_build_paths,
     setup_platformio_python_env,
+    toolchain_tool,
 )
 
 # force import gpio to register pin schema
@@ -175,6 +178,8 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     """Detect the bootloader for the given board."""
     config = config.copy()
     bootloaders: list[str] = []
+    if CONF_BOARD not in config:
+        raise cv.Invalid("'board' is a required option for [nrf52].")
     board = config[CONF_BOARD]
 
     if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
@@ -249,7 +254,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
-                    cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
+                    cv.Optional(CONF_LIBC_NANO): cv.boolean,
                     cv.Optional(
                         CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
                     ): cv.Schema(
@@ -295,7 +300,7 @@ def _final_validate(config):
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
 
-    if conf[CONF_LIBC_NANO] and "logger" in CORE.loaded_integrations:
+    if conf.get(CONF_LIBC_NANO, False) and "logger" in CORE.loaded_integrations:
         _LOGGER.warning(
             "Logger is enabled with newlib-nano (libc_nano: true). Some format specifiers "
             "such as %%zu are not supported and will print incorrectly. "
@@ -401,7 +406,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OTA_ROLLBACK")
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
-    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", conf[CONF_LIBC_NANO])
+    zephyr_add_prj_conf(
+        "NEWLIB_LIBC_NANO",
+        conf.get(CONF_LIBC_NANO, "logger" not in CORE.loaded_integrations),
+    )
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)
@@ -412,9 +420,6 @@ async def to_code(config: ConfigType) -> None:
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # disable console
-    zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
@@ -428,9 +433,18 @@ async def to_code(config: ConfigType) -> None:
         )
     zephyr_add_prj_conf("REBOOT", True)
 
-    # some boards enable USB by default.
+    # some boards enable USB and UART by default.
     # disable it to prevent extra current consumption.
     zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+    zephyr_add_prj_conf("SERIAL", False, False)
+
+    # disable stuff to make image smaller by default
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
+    zephyr_add_prj_conf("BOOT_BANNER", False, False)
+    zephyr_add_prj_conf("PRINTK", False, False)
+    zephyr_add_prj_conf("CONSOLE", False, False)
+    zephyr_add_prj_conf("UART_CONSOLE", False)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -445,6 +459,7 @@ async def _dfu_to_code(dfu_config):
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+    zephyr_add_prj_conf("SERIAL", True)
     await cg.register_component(var, dfu_config)
 
 
@@ -482,8 +497,8 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
-    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1, only generated when OTA is disabled
-    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2, always generated
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1 without OTA, SDK 3.4.0+
+    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
     if (build_dir / UF2_PATH).is_file():
@@ -514,15 +529,15 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
                 "download": f"{storage_json.name}.hex",
             },
         ]
-        if (build_dir / APP_IMAGE_PATH).is_file():
-            types += [
-                {
-                    "title": "App update package",
-                    "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
-                    "file": APP_IMAGE_PATH,
-                    "download": f"app-{storage_json.name}.img",
-                },
-            ]
+    if (build_dir / APP_IMAGE_PATH).is_file():
+        types += [
+            {
+                "title": "App update package",
+                "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
+                "file": APP_IMAGE_PATH,
+                "download": f"app-{storage_json.name}.img",
+            },
+        ]
 
     return types
 
@@ -570,7 +585,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     raise EsphomeError("Not implemented yet")
                 check_and_install()
                 paths = get_build_paths()
-                env = get_build_env()
+                env = get_build_env(None)  # no compile, just nrfutil
                 build_dir = CORE.relative_pioenvs_path(CORE.name)
                 dfu_package = build_dir / "firmware.zip"
                 if not dfu_package.is_file():
@@ -652,7 +667,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if not CORE.using_toolchain_platformio:
             check_and_install()
             paths = get_build_paths()
-            env = get_build_env()
+            env = get_build_env(resolve_ccache_path())  # west flash may rebuild
             build_dir = CORE.relative_pioenvs_path(CORE.name)
             west_cmd = [
                 str(paths["python_executable"]),
@@ -770,7 +785,72 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _generate_cmake_lists() -> bool:
+# GCC only loads a precompiled header ahead of every other forced header, and
+# Zephyr forces two with -imacros. They hold macros only, so the C++ sources
+# of the app get them through the precompiled header.
+_PCH_CMAKE_LINES = [
+    "",
+    "# ESPHome precompiled header",
+    "get_property(esphome_options TARGET zephyr_interface",
+    "    PROPERTY INTERFACE_COMPILE_OPTIONS)",
+    "set(esphome_kept_options)",
+    "set(esphome_pch_headers)",
+    "foreach(option IN LISTS esphome_options)",
+    '  if(option MATCHES "imacros> (.+)$")',
+    '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
+    "    list(APPEND esphome_kept_options",
+    '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
+    "  else()",
+    '    list(APPEND esphome_kept_options "${option}")',
+    "  endif()",
+    "endforeach()",
+    "if(NOT esphome_pch_headers)",
+    '  message(FATAL_ERROR "ESPHome: the headers Zephyr forces were not found, so "',
+    '      "the precompiled header would not load (set ESPHOME_PCH_ENABLE=0)")',
+    "endif()",
+    "set_property(TARGET zephyr_interface",
+    '    PROPERTY INTERFACE_COMPILE_OPTIONS "${esphome_kept_options}")',
+    *(
+        f'list(APPEND esphome_pch_headers "${{CMAKE_CURRENT_LIST_DIR}}/../src/{header}")'
+        for header in pch.PCH_DEFAULT_HEADERS
+    ),
+    'list(TRANSFORM esphome_pch_headers REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\\\1>")',
+    "target_precompile_headers(app PRIVATE ${esphome_pch_headers})",
+]
+# Where CMake puts the .gch of the app, below its binary dir
+_PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
+
+
+def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
+    """Write the checksum ccache reads in place of the .gch. The app binary
+    dir only exists after the first configure; sysbuild nests it."""
+    app_dir = build_dir / "zephyr"
+    if not (app_dir / "CMakeCache.txt").is_file():
+        app_dir = build_dir
+    if not (app_dir / "CMakeCache.txt").is_file():
+        return
+    checksum = pch.pch_checksum(
+        CORE.relative_src_path(),
+        pch.PCH_DEFAULT_HEADERS,
+        (
+            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            zephyr_data()[KEY_BOARD],
+            # What the Zephyr configuration is generated from
+            *(
+                path.read_text(encoding="utf-8")
+                for path in sorted(source_dir.iterdir())
+                if path.suffix in (".conf", ".overlay")
+            ),
+        ),
+    )
+    write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
+
+
+def _pch_usable() -> bool:
+    return pch.pch_usable((toolchain_tool("g++"),))
+
+
+def _generate_cmake_lists(pch_on: bool) -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
@@ -813,6 +893,9 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
+    if pch_on:
+        lines += _PCH_CMAKE_LINES
+
     if link_flags:
         lines += [
             "",
@@ -832,6 +915,26 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def _west_build_command(
+    python_executable: Path, board: str, build_dir: Path, source_dir: Path
+) -> list[str]:
+    return [
+        str(python_executable),
+        "-m",
+        "west",
+        "build",
+        "--pristine=auto",
+        "-b",
+        board,
+        "-d",
+        str(build_dir),
+        str(source_dir),
+        "--",
+        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
+    ]
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         # The actual build is done by PlatformIO (the caller falls through to
@@ -847,9 +950,13 @@ def run_compile(args, config: ConfigType) -> bool:
     check_and_install()
 
     paths = get_build_paths()
-    env = get_build_env()
+    # Depend mode in the shared ccache settings keeps the .gch sound
+    # across Kconfig flips.
+    ccache = resolve_ccache_path()
+    env = get_build_env(ccache)
 
-    cmake_lists_changed = _generate_cmake_lists()
+    pch_on = _pch_usable()
+    cmake_lists_changed = _generate_cmake_lists(pch_on)
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
@@ -866,18 +973,18 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    west_cmd = [
-        str(paths["python_executable"]),
-        "-m",
-        "west",
-        "build",
-        "--pristine=auto",
-        "-b",
-        board,
-        "-d",
-        str(build_dir),
-        str(source_dir),
-    ]
+    # SDK 3.4.0+ no longer generates merged.hex; drop one left by an older SDK
+    # build so it is never packaged or offered for download.
+    for stale_hex in (build_dir / "merged.hex", build_dir / "zephyr" / "merged.hex"):
+        stale_hex.unlink(missing_ok=True)
+
+    if pch_on:
+        pch.log_pch_in_use()
+        _write_pch_checksum(build_dir, source_dir)
+
+    west_cmd = _west_build_command(
+        paths["python_executable"], board, build_dir, source_dir
+    )
 
     if not run_command_ok(
         west_cmd,
@@ -913,13 +1020,18 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir / "zephyr"
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
-    # whose records carry the correct flash addresses. The build's own
-    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
-    merged_hex = zephyr_dir / "merged.hex"
-    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
+    # For Adafruit bootloader builds, regenerate the UF2 from a hex file.
+    # merged.hex carries the correct flash addresses; SDK 3.4.0+ no longer
+    # generates it, so use zephyr.hex there. Chosen by version so a merged.hex
+    # left by an older SDK build is never picked.
+    if framework_ver >= cv.Version(3, 4, 0):
+        hex_file = zephyr_dir / "zephyr.hex"
+    else:
+        hex_file = zephyr_dir / "merged.hex"
+    if bootloader in _UF2_FAMILY_IDS and hex_file.is_file():
         # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"
         if app_uf2.is_file():
@@ -936,12 +1048,12 @@ def run_compile(args, config: ConfigType) -> bool:
                 "-c",
                 "-o",
                 str(zephyr_dir / "zephyr.uf2"),
-                str(merged_hex),
+                str(hex_file),
             ],
             env=env,
             stream_output=True,
         ):
-            raise EsphomeError("Failed to generate UF2 from merged hex")
+            raise EsphomeError(f"Failed to generate UF2 from {hex_file.name}")
 
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
@@ -949,9 +1061,6 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        # no fallback is needed for adafruit case. merged merged.hex is always generated.
-        # get_download_types needs fallback for mcuboot (non adafruit)
-        hex_file = zephyr_dir / "merged.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),
