@@ -7,7 +7,8 @@
 namespace esphome::ld2450 {
 
 static constexpr uint8_t MIN_POLYGON_POINTS = 3;
-static constexpr uint8_t MAX_POLYGON_POINTS = 16;
+// The most points whose text always fits Home Assistant's 255-character limit: 23 x "-4860,7560" + 22 x ';' = 252
+static constexpr uint8_t MAX_POLYGON_POINTS = 23;
 // Coordinate limits of the radar detection area, in mm
 static constexpr int16_t POLYGON_MIN_X = -4860;
 static constexpr int16_t POLYGON_MAX_X = 4860;

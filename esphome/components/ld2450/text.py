@@ -19,7 +19,7 @@ ICON_VECTOR_POLYGON = "mdi:vector-polygon"
 
 # Must match MIN_POLYGON_POINTS and MAX_POLYGON_POINTS in polygon.h
 MIN_POLYGON_POINTS = 3
-MAX_POLYGON_POINTS = 16
+MAX_POLYGON_POINTS = 23
 # Matches what Polygon::parse() accepts, apart from coordinate ranges, which only the device checks:
 # empty, or MIN_POLYGON_POINTS to MAX_POLYGON_POINTS "x,y" points separated by ';'. HA validates input with it.
 # No character classes: the HA frontend compiles it with the JS "v" flag, HA core with Python re.
@@ -27,8 +27,8 @@ POLYGON_PATTERN = (
     r"^ *$|^ *-?\d{1,4} *, *\d{1,4} *"
     rf"(; *-?\d{{1,4}} *, *\d{{1,4}} *){{{MIN_POLYGON_POINTS - 1},{MAX_POLYGON_POINTS - 1}}};? *$"
 )
-# Longest polygon the device publishes: "-4860,7560" (10 characters) per point, ';' between points
-POLYGON_MAX_LENGTH = MAX_POLYGON_POINTS * 11 - 1
+# Home Assistant's limit for a state; the longest polygon the device publishes is 252 characters
+POLYGON_MAX_LENGTH = 255
 
 PolygonZone = ld2450_ns.class_("PolygonZone", text.Text)
 
