@@ -38,7 +38,7 @@ class XiaomiMCCGQ02HL final : public Component,
   };
 
   bool parse_service_data_(std::vector<uint8_t> raw, Reading &reading);
-  static bool parse_objects_(const uint8_t *payload, size_t length, Reading &reading);
+  bool parse_objects_(const uint8_t *payload, size_t length, Reading &reading);
 
   uint64_t address_{0};
   uint8_t bindkey_[16]{};

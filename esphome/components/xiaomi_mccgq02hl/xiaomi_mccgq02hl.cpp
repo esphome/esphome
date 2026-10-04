@@ -52,9 +52,11 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
       continue;
 
     ESP_LOGD(TAG, "%s: open=%s light=%s battery=%s", this->get_name().c_str(),
-             reading.open.has_value() ? (*reading.open ? "yes" : "no") : "-",
-             reading.light.has_value() ? (*reading.light ? "yes" : "no") : "-",
-             reading.battery_level.has_value() ? "updated" : "-");
+             reading.open.has_value() ? (*reading.open ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"))
+                                      : LOG_STR_LITERAL("-"),
+             reading.light.has_value() ? (*reading.light ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"))
+                                       : LOG_STR_LITERAL("-"),
+             reading.battery_level.has_value() ? LOG_STR_LITERAL("updated") : LOG_STR_LITERAL("-"));
 
     if (reading.open.has_value()) {
       this->publish_state(*reading.open);
@@ -109,7 +111,7 @@ bool XiaomiMCCGQ02HL::parse_service_data_(std::vector<uint8_t> raw, Reading &rea
 
   if (offset >= end)
     return false;
-  return parse_objects_(raw.data() + offset, end - offset, reading);
+  return this->parse_objects_(raw.data() + offset, end - offset, reading);
 }
 
 bool XiaomiMCCGQ02HL::parse_objects_(const uint8_t *payload, size_t length, Reading &reading) {
