@@ -19,6 +19,10 @@ RingBuffer::~RingBuffer() {
 }
 
 std::unique_ptr<RingBuffer> RingBuffer::create(size_t len, MemoryPreference preference) {
+  // A zero size is the only case where xRingbufferCreateStatic() rejects a byte buffer
+  if (len == 0) {
+    return nullptr;
+  }
   std::unique_ptr<RingBuffer> rb = make_unique<RingBuffer>();
 
   rb->size_ = len;
