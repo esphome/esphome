@@ -491,9 +491,7 @@ async def component_to_code(config):
         # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
         cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
 
-    # LN882x: route FreeRTOS allocations through ln882x_zero_malloc.c, which
-    # turns a zero-size request into one byte so it cannot trip the SDK's
-    # malloc-failed hook (an LN_ASSERT spin until the watchdog resets).
+    # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
     if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:
         cg.add_build_flag("-Wl,--wrap=pvPortMalloc")
 
