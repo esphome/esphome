@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 from aioesphomeapi import (
     BinarySensorInfo,
@@ -23,6 +24,8 @@ from aioesphomeapi import (
     TextState,
 )
 import pytest
+
+from esphome.components.ld2450.text import POLYGON_MAX_LENGTH, POLYGON_PATTERN
 
 from .host_prefs import clear_host_prefs
 from .state_utils import InitialStateHelper, require_entity
@@ -89,8 +92,11 @@ async def test_uart_mock_ld2450_polygon_zones(
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
         await initial_state_helper.wait_for_initial_states()
 
-        for name in polygons:
-            assert initial_state_helper.initial_states[polygons[name].key].state == ""
+        for name, polygon in polygons.items():
+            # Home Assistant validates input and the zone card finds zones with these
+            assert polygon.pattern == POLYGON_PATTERN
+            assert polygon.max_length == POLYGON_MAX_LENGTH
+            assert initial_state_helper.initial_states[polygon.key].state == ""
             assert initial_state_helper.initial_states[
                 presences[name].key
             ].missing_state
@@ -101,6 +107,7 @@ async def test_uart_mock_ld2450_polygon_zones(
             client.text_command(key, value)
             state = await asyncio.wait_for(published, timeout=5.0)
             assert state.state == expected
+            assert re.fullmatch(POLYGON_PATTERN, state.state)
 
         # Spaces and a trailing separator are accepted and removed
         await set_polygon(
