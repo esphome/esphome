@@ -46,8 +46,6 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
       continue;
 
     Reading reading;
-    // Pass a copy: decryption rewrites the buffer in place, and the tracker's
-    // service data is shared with every other listener.
     if (!this->parse_service_data_(service_data.data, reading))
       continue;
 
@@ -72,9 +70,14 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
   return success;
 }
 
-bool XiaomiMCCGQ02HL::parse_service_data_(std::vector<uint8_t> raw, Reading &reading) {
-  if (raw.size() < 5)
+bool XiaomiMCCGQ02HL::parse_service_data_(const std::vector<uint8_t> &data, Reading &reading) {
+  if (data.size() < 5 || data.size() > MAX_FRAME_SIZE)
     return false;
+
+  // Decryption rewrites the buffer in place, and the tracker's service data is shared with every other
+  // listener, so work on a copy. frame_ was reserved at construction, so assign() does not allocate.
+  this->frame_.assign(data.begin(), data.end());
+  std::vector<uint8_t> &raw = this->frame_;
 
   const uint8_t fc = raw[0];
   if (!(fc & FC_OBJECT))

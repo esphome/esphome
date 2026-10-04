@@ -21,6 +21,8 @@ class XiaomiMCCGQ02HL final : public Component,
                               public binary_sensor::BinarySensorInitiallyOff,
                               public ble_device_base::ESPBTDeviceListener {
  public:
+  XiaomiMCCGQ02HL() { this->frame_.reserve(MAX_FRAME_SIZE); }
+
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(const char *bindkey);
   void set_open(binary_sensor::BinarySensor *open) { this->open_ = open; }
@@ -37,7 +39,10 @@ class XiaomiMCCGQ02HL final : public Component,
     optional<float> battery_level;
   };
 
-  bool parse_service_data_(std::vector<uint8_t> raw, Reading &reading);
+  // Service data in a legacy advertisement is at most 27 bytes.
+  static constexpr size_t MAX_FRAME_SIZE = 27;
+
+  bool parse_service_data_(const std::vector<uint8_t> &data, Reading &reading);
   bool parse_objects_(const uint8_t *payload, size_t length, Reading &reading);
 
   uint64_t address_{0};
@@ -45,6 +50,7 @@ class XiaomiMCCGQ02HL final : public Component,
   // Per instance, unlike xiaomi_ble's function-static counter which is shared
   // by every Xiaomi device on the node.
   optional<uint8_t> last_frame_count_;
+  std::vector<uint8_t> frame_;
   binary_sensor::BinarySensor *open_{nullptr};
   binary_sensor::BinarySensor *light_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
