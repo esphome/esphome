@@ -21,18 +21,13 @@ void HttpRequestComponent::dump_config() {
   }
 }
 
-std::string HttpContainer::get_response_header(const std::string &header_name, bool required) {
+std::string HttpContainer::get_response_header(const std::string &header_name) {
   auto lower = str_lower_case(header_name);  // NOLINT
   for (const auto &entry : this->response_headers_) {
     if (entry.name == lower) {
-      ESP_LOGD(TAG, "Header with name %s found with value %s", lower.c_str(), entry.value.c_str());
+      ESP_LOGV(TAG, "Header with name %s found with value %s", lower.c_str(), entry.value.c_str());
       return entry.value;
     }
-  }
-  if (required) {
-    ESP_LOGE(TAG, "No header with name %s found", lower.c_str());
-  } else {
-    ESP_LOGD(TAG, "No header with name %s found", lower.c_str());
   }
   return "";
 }

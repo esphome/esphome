@@ -271,11 +271,9 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   /**
    * @brief Get the value of a response header by name.
    * @param header_name The name of the header to retrieve.
-   * @param required Whether the header is required. This only controls the logging
-   *                 level in case the header is not found; it does not affect the return value.
    * @return The value of the header if found, otherwise an empty string.
    */
-  std::string get_response_header(const std::string &header_name, bool required = false);
+  std::string get_response_header(const std::string &header_name);
 
  protected:
   size_t bytes_read_{0};
