@@ -24,11 +24,22 @@ class UartSplitOutput : public uart::UARTComponent {
 
   bool rx_only() const { return this->rx_only_; }
   bool mirror_tx() const { return this->mirror_tx_; }
-  bool drop_logged() const { return this->drop_logged_; }
-  void mark_drop_logged() { this->drop_logged_ = true; }
+  /// A writer holds the read back while it is full, unless it has dropped bytes since it was last empty.
+  bool holds_back() const { return !this->rx_only_ && !this->dropping_; }
   size_t rx_free() const { return RX_BUFFER_SIZE - this->rx_.size(); }
-  /// Copy one received byte. Returns false when this output's buffer is full.
-  bool push_rx(uint8_t byte) { return this->rx_.push(byte); }
+  /// Copy bytes into the receive buffer. Returns false when some did not fit.
+  bool push_rx(const uint8_t *data, size_t len);
+  /// Mark that bytes were dropped. Returns true for the first drop since the buffer was last empty.
+  bool start_dropping() {
+    bool first = !this->dropping_;
+    this->dropping_ = true;
+    return first;
+  }
+  void end_dropping_if_empty() {
+    if (this->rx_.empty()) {
+      this->dropping_ = false;
+    }
+  }
 
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
@@ -47,7 +58,8 @@ class UartSplitOutput : public uart::UARTComponent {
   UartSplit *split_;
   bool rx_only_{false};
   bool mirror_tx_{false};
-  bool drop_logged_{false};
+  bool dropping_{false};
+  bool write_drop_logged_{false};
   StaticRingBuffer<uint8_t, RX_BUFFER_SIZE> rx_{};
 };
 
@@ -68,6 +80,8 @@ class UartSplit : public Component {
   void mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len);
 
  protected:
+  void push_(uint8_t index, const uint8_t *data, size_t len);
+
   uart::UARTComponent *parent_;
   UartSplitOutput *outputs_[MAX_OUTPUTS]{};
   uint8_t output_count_{0};
