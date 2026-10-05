@@ -20,11 +20,11 @@ from esphome.components.motion import (
     _transform_matrix,
     _validate_matrix_options,
 )
-from esphome.components.motion.binary_sensor.__init__ import (
+from esphome.components.motion.binary_sensor import (
     CONFIG_SCHEMA as BINARY_SENSOR_CONFIG_SCHEMA,
     to_code as binary_sensor_to_code,
 )
-from esphome.components.motion.event.__init__ import (
+from esphome.components.motion.event import (
     CONFIG_SCHEMA as EVENT_CONFIG_SCHEMA,
     to_code as event_to_code,
 )
@@ -37,7 +37,6 @@ from esphome.components.motion.sensor import (
     CONF_PITCH,
     CONF_ROLL,
     CONFIG_SCHEMA,
-    DEFAULT_FLAT_THRESHOLD,
     build_sensor_expr,
 )
 from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS
@@ -275,7 +274,7 @@ class TestAxisMapToMatrix:
 
 def _expr_str(sensor_type: str) -> str:
     """Build a sensor expression via the production function and return its string form."""
-    return str(build_sensor_expr(sensor_type, MockObj("data")))
+    return str(build_sensor_expr(sensor_type, MockObj("data"), {}))
 
 
 class TestSensorExpressions:
@@ -337,15 +336,6 @@ class TestSensorExpressions:
         assert "std::numbers::pi_v<float>" in expr
         # Pitch negates the x component
         assert "(-data.acceleration[0])" in expr
-
-    def test_orientation_expression_default_threshold(self):
-        """Without config, orientation uses the default flat threshold (in degrees),
-        passed to the helper as the sine of the angle."""
-
-        expr = _expr_str("orientation")
-        assert "orientation_degrees(data" in expr
-        expected = round(math.sin(math.radians(DEFAULT_FLAT_THRESHOLD)), 6)
-        assert str(expected) in expr
 
     def test_orientation_expression_custom_threshold(self):
         """The configured flat_threshold (degrees) is converted to a sine and passed
@@ -916,6 +906,18 @@ class TestBinarySensorSchema:
         )
         assert res["threshold"] == pytest.approx(0.15)
         assert res["duration"].total_milliseconds == 100
+
+    @pytest.mark.parametrize("sensor_type", ["free_fall", "moving"])
+    def test_zero_threshold_rejected(self, sensor_type: str) -> None:
+        with pytest.raises((Invalid, MultipleInvalid)):
+            BINARY_SENSOR_CONFIG_SCHEMA(
+                {
+                    "type": sensor_type,
+                    "motion_id": "my_motion_component",
+                    "name": "Test",
+                    "threshold": 0,
+                }
+            )
 
     def test_invalid_type(self):
         with pytest.raises((Invalid, MultipleInvalid)):

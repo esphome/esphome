@@ -127,21 +127,14 @@ def _final_validate(config: dict) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def build_sensor_expr(
-    sensor_type: str, data: MockObj, config: dict | None = None
-) -> MockObj:
+def build_sensor_expr(sensor_type: str, data: MockObj, config: dict) -> MockObj:
     """Build the C++ expression for a motion sensor type."""
 
     # Note that <numbers> is included via this component's header file.
     pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
     if sensor_type == CONF_ORIENTATION:
-        threshold_deg = (
-            config.get(CONF_FLAT_THRESHOLD, DEFAULT_FLAT_THRESHOLD)
-            if config is not None
-            else DEFAULT_FLAT_THRESHOLD
-        )
         # The C++ helper compares against the sine of the tilt angle.
-        threshold = round(math.sin(math.radians(threshold_deg)), 6)
+        threshold = round(math.sin(math.radians(config[CONF_FLAT_THRESHOLD])), 6)
         return motion_ns.orientation_degrees(data, threshold)
     if sensor_type == CONF_ROLL:
         ay = data.acceleration[1]

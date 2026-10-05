@@ -70,12 +70,18 @@ def check_update_interval(motion_id: ID, feature_name: str) -> None:
         )
 
 
-def check_has_accelerometer(motion_id: ID, feature_name: str) -> None:
-    """Raise if the parent motion device does not measure acceleration."""
+def check_has_accelerometer(
+    motion_id: ID, feature_name: str, path: list[str] | None = None
+) -> None:
+    """Raise if the parent motion device does not measure acceleration.
+
+    `path` locates the error within the calling entity's config.
+    """
     motion_config = get_motion_config(motion_id)
     if not motion_config.get(KEY_ACCELEROMETER, False):
         raise cv.Invalid(
-            f"The motion device does not measure acceleration, required for {feature_name}"
+            f"The motion device does not measure acceleration, required for {feature_name}",
+            path=path,
         )
 
 

@@ -90,6 +90,7 @@ motion:
   - platform: qmi8658
     id: qmi8658_motion
     i2c_id: i2c_bus
+    update_interval: 100ms
     # Accelerometer full-scale range: 2G | 4G | 8G | 16G
     accelerometer_range: 4G
 

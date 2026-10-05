@@ -68,13 +68,15 @@ def _binary_sensor_schema(
 # 0 is excluded: cos(0) == 1.0 would make the C++ comparison always false, so
 # face_up/face_down would never trigger.
 _angle_threshold = cv.float_range(min=0.0, max=90.0, min_included=False)
+# 0 is excluded: free_fall would never trigger and moving would always be on.
+_positive_threshold = cv.float_range(min=0.0, min_included=False)
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
         "face_up": _binary_sensor_schema(30.0, _angle_threshold),
         "face_down": _binary_sensor_schema(30.0, _angle_threshold),
-        "free_fall": _binary_sensor_schema(0.15, cv.positive_float, "100ms"),
-        "moving": _binary_sensor_schema(0.05, cv.positive_float, "2s"),
+        "free_fall": _binary_sensor_schema(0.15, _positive_threshold, "100ms"),
+        "moving": _binary_sensor_schema(0.05, _positive_threshold, "2s"),
     }
 )
 
@@ -92,7 +94,9 @@ def _final_validate(config: dict) -> None:
     if sensor_type in _FAST_DETECTION_TYPES:
         check_update_interval(config[CONF_MOTION_ID], sensor_type.replace("_", "-"))
     if sensor_type in _ACCEL_ONLY_TYPES:
-        check_has_accelerometer(config[CONF_MOTION_ID], sensor_type.replace("_", "-"))
+        check_has_accelerometer(
+            config[CONF_MOTION_ID], sensor_type.replace("_", "-"), path=[CONF_TYPE]
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -111,5 +115,5 @@ async def to_code(config):
         # Convert the configured tilt angle (degrees) to the cosine the C++ side expects.
         threshold = round(math.cos(math.radians(threshold)), 6)
     cg.add(var.set_threshold(threshold))
-    if CONF_DURATION in config:
-        cg.add(var.set_duration(config[CONF_DURATION]))
+    if (duration := config.get(CONF_DURATION)) is not None:
+        cg.add(var.set_duration(duration))
