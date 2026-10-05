@@ -1,0 +1,24 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+from SCons.Environment import Base
+
+# The LN882H SDK's prebuilt WiFi library is built with 1-byte enums, but
+# LibreTiny builds the family with -fno-short-enums, so every SDK struct with
+# an enum in it (scan config, scan results, softAP config) is laid out
+# differently on each side: scan dwell times come out of struct padding and
+# scan results read 0 dBm. Build everything with 1-byte enums instead. Runs
+# before the platform's builder scripts, which add the flag.
+_append = Base.Append
+
+
+def _append_short_enums(self, *args, **kw):
+    flags = kw.get("CCFLAGS")
+    if isinstance(flags, list) and "-fno-short-enums" in flags:
+        kw["CCFLAGS"] = [
+            "-fshort-enums" if flag == "-fno-short-enums" else flag for flag in flags
+        ]
+    return _append(self, *args, **kw)
+
+
+Base.Append = _append_short_enums

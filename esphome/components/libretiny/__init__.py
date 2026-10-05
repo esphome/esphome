@@ -32,6 +32,7 @@ from esphome.storage_json import StorageJSON
 from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
+    COMPONENT_LN882X,
     CONF_GPIO_RECOVER,
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
@@ -521,6 +522,9 @@ async def component_to_code(config):
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    # The LN882H WiFi library uses 1-byte enums; see the script.
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
+        cg.add_platformio_option("extra_scripts", ["pre:short_enums.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
@@ -623,5 +627,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         script_dir / "scons_dont_inherit.py.script",
         CORE.relative_build_path("scons_dont_inherit.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "short_enums.py.script",
+        CORE.relative_build_path("short_enums.py"),
     )
     copy_ccache_script()
