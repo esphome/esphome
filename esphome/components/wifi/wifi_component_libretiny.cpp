@@ -792,7 +792,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; 
 #ifdef USE_LN882X
 void WiFiComponent::on_powerdown() {
   // Leave the AP so it no longer holds the association when we come back.
-  if (!this->is_connected())
+  if (WiFi.status() != WL_CONNECTED)  // associated, even before DHCP has finished
     return;
   ESP_LOGD(TAG, "Disconnecting before powerdown");
   wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
