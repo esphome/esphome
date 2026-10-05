@@ -661,6 +661,14 @@ void WiFiComponent::setup() {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
       if (this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
+#ifdef USE_WIFI_AP_EXCLUSIVE
+        // The networks wait while the AP runs on its own; hand them the radio
+        // now rather than at the end of the dwell.
+        if (this->state_ == WIFI_COMPONENT_STATE_AP && this->has_sta()) {
+          this->pause_exclusive_ap_();
+          return;
+        }
+#endif
         this->wifi_mode_({}, false);
       }
     });
@@ -887,8 +895,9 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_AP:
 #ifdef USE_WIFI_AP_EXCLUSIVE
         // The networks are not tried while the AP is up, so it pauses for
-        // them once nobody has used it for a while.
-        if (now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS &&
+        // them once nobody has used it for a while. Without networks the AP
+        // is all there is and stays.
+        if (this->has_sta() && now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS &&
             (this->ap_clients_ == 0 || now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_MAX_DWELL_MS))
           this->pause_exclusive_ap_();
         break;
