@@ -609,16 +609,36 @@ def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
     framework = config[CONF_FRAMEWORK]
-    if cpu_frequency is None:
-        cpu_frequency = _get_sdkconfig_cpu_frequency(
+    try:
+        sdkconfig_cpu_frequency = _get_sdkconfig_cpu_frequency(
             framework[CONF_SDKCONFIG_OPTIONS], variant
         )
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            str(err), path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS]
+        ) from err
+
+    if cpu_frequency is None:
+        cpu_frequency = sdkconfig_cpu_frequency
         if cpu_frequency is not None:
+            if cpu_frequency not in CPU_FREQUENCIES[variant]:
+                raise cv.Invalid(
+                    f"sdkconfig_options selects {cpu_frequency}, which {variant} does not support",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                )
             _LOGGER.warning(
                 "sdkconfig_options contains a CPU frequency setting; using %s. "
                 "Set 'esp32.cpu_frequency' to configure it directly.",
                 cpu_frequency,
             )
+    elif (
+        sdkconfig_cpu_frequency is not None and sdkconfig_cpu_frequency != cpu_frequency
+    ):
+        raise cv.Invalid(
+            f"esp32.cpu_frequency ({cpu_frequency}) conflicts with sdkconfig_options "
+            f"({sdkconfig_cpu_frequency})",
+            path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+        )
     # if not specified in config, default to the maximum supported frequency
     # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
