@@ -105,8 +105,8 @@ TEST(HoermannHcpLightTest, RequestSendsOneCommandUntilTheLampReports) {
   ASSERT_TRUE(door.set_light(true));
 
   auto [light, light_2] = poll_command(door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_ON);
+  EXPECT_EQ(light_2, LIGHT_ON_2);
 
   // Asking again sends no second command.
   ASSERT_TRUE(door.set_light(true));
@@ -165,7 +165,7 @@ TEST(HoermannHcpLightTest, RequestReversedAfterTheFetchSendsAgainOnceTheFirstLan
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_ON);
 
   ASSERT_TRUE(door.set_light(false));
   EXPECT_FALSE(door.is_light_heading_on());
@@ -175,7 +175,7 @@ TEST(HoermannHcpLightTest, RequestReversedAfterTheFetchSendsAgainOnceTheFirstLan
   // It lands, away from the request.
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
   EXPECT_TRUE(door.light_requested_);
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_OFF);
 
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   EXPECT_FALSE(door.light_requested_);
@@ -214,7 +214,7 @@ TEST(HoermannHcpLightTest, LampCommandWaitsForAStatusPoll) {
   EXPECT_EQ(other[3], 0x0000);
   EXPECT_FALSE(door.light_command_sent_);
 
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_ON);
 }
 
 // A lamp switched at the door without a request is followed, never switched back.
@@ -252,7 +252,7 @@ TEST(HoermannHcpLightTest, WatchdogGivesUpOnAnUnreportedCommand) {
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_ON);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   // The broadcast keeps the connection alive.
@@ -281,45 +281,45 @@ TEST(HoermannHcpLightTest, DoorCommandGoesBeforeTheLampCommand) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000, 0x0000, 0x0000, 0x0000, 0x0000}));
   auto [light, light_2] = poll_command(door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_ON);
+  EXPECT_EQ(light_2, LIGHT_ON_2);
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
-// Switching a lit lamp off sends the same toggle as switching it on.
-TEST(HoermannHcpLightTest, OffSendsTheSameToggle) {
+// Switching a lit lamp off sends the off command.
+TEST(HoermannHcpLightTest, OffSendsTheOffCommand) {
   TestableHoermannHcp door;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
   ASSERT_TRUE(door.set_light(false));
   auto [light, light_2] = poll_command(door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_OFF);
+  EXPECT_EQ(light_2, LIGHT_OFF_2);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   EXPECT_FALSE(door.is_light_heading_on());
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
-// A toggle sent again after the lamp moved away from a changed request gets its own deadline.
-TEST(HoermannHcpLightTest, ToggleAgainRestartsTheDeadline) {
+// A command sent again after the lamp moved away from a changed request gets its own deadline.
+TEST(HoermannHcpLightTest, SendingAgainRestartsTheDeadline) {
   TestableHoermannHcp door;
   // Only the second wait has to stay under the timeout; a late wakeup only lengthens the first.
   door.connection_timeout_ms_ = 500;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.set_light(true));
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_ON);
   std::this_thread::sleep_for(std::chrono::milliseconds(450));
   ASSERT_TRUE(door.set_light(false));
-  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));  // the first toggle lands
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));  // the first command lands
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   connect_controller(door);
   door.update();
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_OFF);
 }
 
-// A toggle held while the door starts and moves is not given up while it waits.
-TEST(HoermannHcpLightTest, ToggleHeldForTheDoorIsNotGivenUp) {
+// A lamp command held while the door starts and moves is not given up while it waits.
+TEST(HoermannHcpLightTest, LampCommandHeldForTheDoorIsNotGivenUp) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
   connect_controller(door);
@@ -338,7 +338,7 @@ TEST(HoermannHcpLightTest, ToggleHeldForTheDoorIsNotGivenUp) {
   door.update();
   EXPECT_TRUE(door.light_requested_);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000, 0x0000, 0x0000, 0x0000, 0x0000}));
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_ON);
 }
 
 // The motor ignores the lamp while its door moves, so a request then goes out once the door rests.
@@ -349,11 +349,11 @@ TEST(HoermannHcpLightTest, LampWaitsForAMovingDoorToRest) {
   ASSERT_TRUE(door.set_light(false));
   EXPECT_EQ(poll_command(door).first, 0x0000);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000, 0x0000, 0x0000, 0x0000, 0x0010}));
-  EXPECT_EQ(poll_command(door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(door).first, LIGHT_OFF);
 }
 
-// A lamp the motor switches on as the door starts gets no toggle, which would switch it off again.
-TEST(HoermannHcpLightTest, LampSwitchedOnByTheStartGetsNoToggle) {
+// A lamp the motor switches on as the door starts already meets the request, so nothing is sent.
+TEST(HoermannHcpLightTest, LampSwitchedOnByTheStartGetsNoCommand) {
   TestableHoermannHcp door;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
@@ -386,8 +386,8 @@ TEST(HoermannHcpLightTest, LampRequestDoesNotDelayTheTargetStop) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
   door.on_write_registers(BROADCAST_REG, door_broadcast(0x0082, 0x0000));
   auto [light, light_2] = poll_command(door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_ON);
+  EXPECT_EQ(light_2, LIGHT_ON_2);
 }
 
 // The target's start deadline is its own, so switching the lamp cannot keep a stale target alive.
@@ -490,8 +490,8 @@ TEST(HoermannHcpLightPlatformTest, CommandIsSentOnceAndSettles) {
 
   fixture.command(true);
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_ON);
+  EXPECT_EQ(light_2, LIGHT_ON_2);
 
   // The lamp is now on, and the resulting broadcast must not send another command.
   fixture.report_lamp(true);
@@ -544,7 +544,7 @@ TEST(HoermannHcpLightPlatformTest, LampBecomingUnknownDropsTheRequest) {
   fixture.bring_up();
 
   fixture.command(true);
-  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_ON);
 
   fixture.report_broadcast(make_registers({0x0000, 0x0064, 0x0100}));
   EXPECT_FALSE(fixture.door.light_requested_);
@@ -656,7 +656,7 @@ TEST(HoermannHcpLightPlatformTest, QuickTapsSettleOnTheLastRequest) {
   fixture.bring_up();
 
   fixture.command(true);
-  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_ON);
   fixture.command(false);
   EXPECT_FALSE(fixture.entity_on());
   fixture.command(true);
@@ -682,8 +682,8 @@ TEST(HoermannHcpLightPlatformTest, CommandBeforeTheFirstPollIsNotMistakenForTheB
 
   fixture.command(true);
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_ON);
+  EXPECT_EQ(light_2, LIGHT_ON_2);
 }
 
 // On boot the restored state is replayed through write_state() before the lamp has ever been read. A lamp
@@ -728,7 +728,7 @@ TEST(HoermannHcpLightPlatformTest, ReversingRequestAfterFetchSwitchesBackOnceThe
   fixture.bring_up();
 
   fixture.command(true);
-  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_TOGGLE);
+  EXPECT_EQ(poll_command(fixture.door).first, LIGHT_ON);
   ASSERT_FALSE(fixture.door.is_light_on());
 
   fixture.command(false);
@@ -739,8 +739,8 @@ TEST(HoermannHcpLightPlatformTest, ReversingRequestAfterFetchSwitchesBackOnceThe
   fixture.report_lamp(true);
   EXPECT_FALSE(fixture.entity_on());
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_OFF);
+  EXPECT_EQ(light_2, LIGHT_OFF_2);
 
   // The second command lands too, and the lamp finally agrees with the request.
   fixture.report_lamp(false);
@@ -799,8 +799,8 @@ TEST(HoermannHcpLightPlatformTest, FirstLampReportReachesTheEntity) {
 
   fixture.command(true);
   auto [light, light_2] = poll_command(fixture.door);
-  EXPECT_EQ(light, LIGHT_TOGGLE);
-  EXPECT_EQ(light_2, LIGHT_TOGGLE_2);
+  EXPECT_EQ(light, LIGHT_ON);
+  EXPECT_EQ(light_2, LIGHT_ON_2);
 }
 
 // Changing the request does not move the deadline of the command already out.

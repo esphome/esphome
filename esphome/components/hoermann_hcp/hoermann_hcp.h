@@ -112,7 +112,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void push_command_registers_(modbus::RegisterValues &registers);
   // Decide at the fetch what goes into a status answer, against the door as it stands then.
   const HoermannHcpCommand *take_command_();
-  const HoermannHcpCommand *take_light_toggle_();
+  const HoermannHcpCommand *take_light_command_();
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
   void on_light_reg_(uint16_t value);

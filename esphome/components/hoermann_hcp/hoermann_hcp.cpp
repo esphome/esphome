@@ -23,8 +23,9 @@ static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0120};
 static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0140};
 static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0100, 0x4000};
 static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0100, 0x0400};
-// The release half of the lamp key press, sent alone. The absolute on/off values did not switch a SupraMatic E4 B1.
-static constexpr HoermannHcpCommand COMMAND_TOGGLE_LIGHT{"toggle light", 0x0800, 0x0200};
+// Absolute, as a vendor gateway sends them, so a late or repeated one cannot switch the lamp the wrong way.
+static constexpr HoermannHcpCommand COMMAND_LIGHT_ON{"light on", 0x0880};
+static constexpr HoermannHcpCommand COMMAND_LIGHT_OFF{"light off", 0x0800, 0x0100};
 // Kept as the intent, as the same impulse starts a door at rest; only a door still moving at the fetch gets it.
 static constexpr HoermannHcpCommand COMMAND_STOP{"stop", 0x0140};
 
@@ -160,7 +161,7 @@ void HoermannHcp::update() {
       ESP_LOGD(TAG, "Door did not start after the command");
     }
   }
-  // A toggle held while the door starts or moves waits on purpose, so its deadline starts once the door rests.
+  // A lamp command held while the door starts or moves waits on purpose, so its deadline starts once the door rests.
   if (this->is_moving_or_starting_() && this->light_requested_ && !this->light_command_sent_)
     this->light_since_ = now;
   // Neither fire late nor block the next request.
@@ -299,7 +300,7 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
 void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   const HoermannHcpCommand *command = this->take_command_();
   if (command == nullptr)
-    command = this->take_light_toggle_();
+    command = this->take_light_command_();
   if (command == nullptr) {
     push_zeros(registers, 2);
     return;
@@ -345,14 +346,14 @@ const HoermannHcpCommand *HoermannHcp::take_command_() {
   return command;
 }
 
-const HoermannHcpCommand *HoermannHcp::take_light_toggle_() {
-  // The motor ignores the lamp while its door moves and may switch it itself as it starts, so a toggle waits for rest.
+const HoermannHcpCommand *HoermannHcp::take_light_command_() {
+  // The motor ignores the lamp while its door moves and may switch it itself as it starts, so the lamp waits for rest.
   if (!this->light_requested_ || this->light_command_sent_ || this->is_moving_or_starting_() ||
       this->light_target_ == this->light_on_)
     return nullptr;
   this->light_command_sent_ = true;
   this->light_since_ = millis();
-  return &COMMAND_TOGGLE_LIGHT;
+  return this->light_target_ ? &COMMAND_LIGHT_ON : &COMMAND_LIGHT_OFF;
 }
 
 #ifdef USE_HOERMANN_HCP_IDENTITY
@@ -732,7 +733,7 @@ void HoermannHcp::set_light_on_(bool on) {
     this->clear_light_request_();
     return;
   }
-  // Switched away from the target while the toggle was out: toggle again.
+  // Switched away from the target while the command was out: send again.
   this->light_command_sent_ = false;
   this->light_since_ = millis();
 }
