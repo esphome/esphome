@@ -10,7 +10,12 @@
 
 namespace esphome::ld2450 {
 
-/// A zone with any polygon shape. The text state holds the polygon, so it can be edited and read back from HA.
+/** A zone with any polygon shape. The text state holds the polygon, so it can be edited and read back from HA.
+ *
+ * The polygon is in the radar's raw coordinates (mm), and targets are checked against it as decoded from each
+ * radar frame, before any sensor filter. Filters on the target X/Y sensors change only what they publish, so a
+ * filter that changes their values (multiply, offset, lambda, ...) puts them in a different frame from the polygon.
+ */
 class PolygonZone : public text::Text {
  public:
   /// Config validation guarantees every zone gets exactly one presence binary sensor.
