@@ -44,7 +44,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    cg.add_define("USE_BTHOME_BINARY_SENSOR")
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)

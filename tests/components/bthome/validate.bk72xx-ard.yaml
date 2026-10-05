@@ -4,8 +4,6 @@
 bk72xx_ble_tracker:
   id: ble_hub
 
-bthome:
-
 binary_sensor:
   - platform: bthome
     ble_hub_id: ble_hub

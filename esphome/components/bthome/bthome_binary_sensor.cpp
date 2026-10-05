@@ -1,10 +1,4 @@
-// clang-tidy compiles this file without the platform define. The host
-// build includes the header from esphome.h and must not pull binary_sensor.
-#ifndef USE_BTHOME_BINARY_SENSOR
-#define USE_BTHOME_BINARY_SENSOR
-#endif
-
-#include "binary_sensor.h"
+#include "bthome_binary_sensor.h"
 
 #include "codec.h"
 

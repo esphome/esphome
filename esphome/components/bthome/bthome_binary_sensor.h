@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_BTHOME_BINARY_SENSOR
-
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/component.h"
@@ -33,5 +31,3 @@ class BTHomeButtonBinarySensor final : public binary_sensor::BinarySensor,
 };
 
 }  // namespace esphome::bthome
-
-#endif

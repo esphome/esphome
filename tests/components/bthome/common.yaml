@@ -1,8 +1,6 @@
 esp32_ble_tracker:
   id: ble_tracker_hub
 
-bthome:
-
 binary_sensor:
   # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: bthome

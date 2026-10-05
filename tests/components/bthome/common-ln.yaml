@@ -1,5 +1,3 @@
-bthome:
-
 binary_sensor:
   - platform: bthome
     mac_address: AA:BB:CC:DD:EE:FF
