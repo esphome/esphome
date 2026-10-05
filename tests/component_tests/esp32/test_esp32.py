@@ -214,7 +214,7 @@ def test_esp32_config(
         ),
     ],
 )
-def test_legacy_cpu_frequency_sdkconfig_warning(
+def test_sdkconfig_cpu_frequency_is_honored(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,
     sdkconfig_options: dict[str, str],
@@ -302,6 +302,36 @@ def test_sdkconfig_cpu_frequency_conflicts_with_explicit_value(
                 },
             }
         )
+    assert exc_info.value.path == ["framework", "sdkconfig_options"]
+
+
+@pytest.mark.parametrize(
+    ("cpu_frequency", "sdkconfig_options"),
+    [
+        (None, {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": "n"}),
+        ("160MHz", {"CONFIG_ESP32_DEFAULT_CPU_FREQ_160": "n"}),
+    ],
+)
+def test_sdkconfig_cannot_disable_selected_cpu_frequency(
+    set_core_config: SetCoreConfigCallable,
+    cpu_frequency: str | None,
+    sdkconfig_options: dict[str, str],
+) -> None:
+    """An explicit `n` must not override the resolved CPU frequency in sdkconfig."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    config: dict[str, Any] = {
+        "variant": VARIANT_ESP32,
+        "framework": {"type": "esp-idf", "sdkconfig_options": sdkconfig_options},
+    }
+    if cpu_frequency is not None:
+        config["cpu_frequency"] = cpu_frequency
+
+    with pytest.raises(
+        cv.Invalid, match="disables the selected CPU frequency"
+    ) as exc_info:
+        CONFIG_SCHEMA(config)
     assert exc_info.value.path == ["framework", "sdkconfig_options"]
 
 

@@ -605,6 +605,18 @@ def _get_sdkconfig_cpu_frequency(
     return None
 
 
+def _is_sdkconfig_cpu_frequency_disabled(
+    sdkconfig_options: dict[str, str], variant: str, frequency: str
+) -> bool:
+    """Return whether sdkconfig explicitly disables the selected frequency."""
+    frequency_mhz = frequency.removesuffix("MHZ")
+    names = {f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{frequency_mhz}"}
+    if legacy_variant := _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS.get(variant):
+        names.add(f"CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_MHZ_{frequency_mhz}")
+        names.add(f"CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_{frequency_mhz}")
+    return any(sdkconfig_options.get(name, "").lower() == "n" for name in names)
+
+
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
@@ -651,6 +663,13 @@ def set_core_data(config):
         raise cv.Invalid(
             f"Invalid CPU frequency '{cpu_frequency}' for {config[CONF_VARIANT]}",
             path=[CONF_CPU_FREQUENCY],
+        )
+    if _is_sdkconfig_cpu_frequency_disabled(
+        framework[CONF_SDKCONFIG_OPTIONS], variant, cpu_frequency
+    ):
+        raise cv.Invalid(
+            f"sdkconfig_options disables the selected CPU frequency ({cpu_frequency})",
+            path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
         )
     config[CONF_CPU_FREQUENCY] = cpu_frequency
 
