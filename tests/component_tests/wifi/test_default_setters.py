@@ -23,6 +23,7 @@ def test_default_values_are_not_emitted(
     assert "set_reboot_timeout(" not in main_cpp
     assert "set_power_save_mode(" not in main_cpp
     assert "set_min_auth_mode(" not in main_cpp
+    assert "set_post_connect_roaming(" not in main_cpp
 
 
 def test_custom_values_are_emitted(
@@ -43,7 +44,7 @@ def test_ln882x_skips_post_connect_roaming(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """An LN882H scan drops the association, so LN882x does not roam by default."""
+    """LN882x defaults post_connect_roaming off."""
     main_cpp = generate_main(component_config_path("bare_ln882x.yaml"))
 
     assert "set_post_connect_roaming(false);" in main_cpp
