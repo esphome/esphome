@@ -12,6 +12,14 @@
 // libretiny component's API.
 namespace esphome::libretiny {}  // namespace esphome::libretiny
 
+#ifdef USE_LN882X
+// The SDK's prebuilt libraries use 1-byte enums, and LibreTiny's
+// -Wl,--no-enum-size-warning hides a mismatch; fail the build instead if the
+// -fshort-enums swap in __init__.py stops reaching the compiler.
+enum Ln882xEnumSizeCheck { LN882X_ENUM_SIZE_CHECK };
+static_assert(sizeof(Ln882xEnumSizeCheck) == 1, "LN882x must build with -fshort-enums to match the SDK");
+#endif
+
 namespace esphome {
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
