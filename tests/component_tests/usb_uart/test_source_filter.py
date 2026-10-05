@@ -12,5 +12,8 @@ def test_only_configured_driver_compiled(
     from esphome.components.usb_uart import FILTER_SOURCE_FILES
 
     defines = {define.name for define in CORE.defines}
-    assert "USE_USB_UART_FT23XX" in defines
+    # cdc_acm is built into usb_uart.cpp and adds no driver define
+    assert {d for d in defines if d.startswith("USE_USB_UART_")} == {
+        "USE_USB_UART_FT23XX"
+    }
     assert sorted(FILTER_SOURCE_FILES()) == ["ch34x.cpp", "cp210x.cpp", "pl2303.cpp"]

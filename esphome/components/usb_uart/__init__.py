@@ -66,8 +66,8 @@ class Type:
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
-        # CDC ACM lives in usb_uart.cpp; each vendor driver has its own source file
-        self.define = None if cls == "CdcAcm" else f"USE_USB_UART_{cls}"
+        # CDC ACM lives in usb_uart.cpp; each vendor driver has its own <cls>.cpp
+        self.driver = None if cls == "CdcAcm" else cls
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
         self.max_baud = max_baud
@@ -127,12 +127,16 @@ uart_types = (
 
 _TYPES_BY_NAME = {it.name: it for it in uart_types}
 
+
+def _driver_define(driver: str) -> str:
+    return f"USE_USB_UART_{driver}"
+
+
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
-        "ch34x.cpp": "USE_USB_UART_CH34X",
-        "cp210x.cpp": "USE_USB_UART_CP210X",
-        "ft23xx.cpp": "USE_USB_UART_FT23XX",
-        "pl2303.cpp": "USE_USB_UART_PL2303",
+        f"{it.driver.lower()}.cpp": _driver_define(it.driver)
+        for it in uart_types
+        if it.driver is not None
     }
 )
 
@@ -226,8 +230,8 @@ async def to_code(config: list[ConfigType]) -> None:
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
-        if (define := _TYPES_BY_NAME[device[CONF_TYPE]].define) is not None:
-            cg.add_define(define)
+        if (driver := _TYPES_BY_NAME[device[CONF_TYPE]].driver) is not None:
+            cg.add_define(_driver_define(driver))
         var = await register_usb_client(device)
         # The C++ default is true; only emit the override
         if not device.get(CONF_CLAIM_COMM_INTERFACE, True):
