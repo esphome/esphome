@@ -1,0 +1,5 @@
+esphome:
+  name: test
+  suspend_loop: true
+
+host:

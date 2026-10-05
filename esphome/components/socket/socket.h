@@ -138,6 +138,10 @@ inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int prot
 /// @return Size of the sockaddr structure used, or 0 on error
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port);
 
+/// Network order IPv4 of an AF_INET or v4 mapped AF_INET6 peer; false for anything else.
+/// addr must hold the family's full struct.
+bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out);
+
 /// Convenience overload for std::string (backward compatible).
 inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
   return set_sockaddr(addr, addrlen, ip_address.c_str(), port);
@@ -166,6 +170,14 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in = 0);
 #endif  // USE_NETWORK_IPV6
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
+
+/// Poll a connect() that returned EINPROGRESS. On error, err_out is SO_ERROR (or
+/// errno) on fd implementations and the failure the callbacks recorded on raw lwip.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+inline ConnectPollResult poll_connect(Socket &sock, int &err_out) { return sock.poll_connect(err_out); }
+#else
+ConnectPollResult poll_connect(Socket &sock, int &err_out);
+#endif
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);

@@ -50,36 +50,32 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if distance_resolution_config := config.get(CONF_DISTANCE_RESOLUTION):
-        s = await select.new_select(
-            distance_resolution_config, options=["0.2m", "0.75m"]
-        )
-        await cg.register_parented(s, config[CONF_LD2410_ID])
-        cg.add(ld2410_component.set_distance_resolution_select(s))
-    if out_pin_level_config := config.get(CONF_OUT_PIN_LEVEL):
-        s = await select.new_select(out_pin_level_config, options=["low", "high"])
-        await cg.register_parented(s, config[CONF_LD2410_ID])
-        cg.add(ld2410_component.set_out_pin_level_select(s))
-    if light_function_config := config.get(CONF_LIGHT_FUNCTION):
-        s = await select.new_select(
-            light_function_config, options=["off", "below", "above"]
-        )
-        await cg.register_parented(s, config[CONF_LD2410_ID])
-        cg.add(ld2410_component.set_light_function_select(s))
-    if baud_rate_config := config.get(CONF_BAUD_RATE):
-        s = await select.new_select(
-            baud_rate_config,
-            options=[
-                "9600",
-                "19200",
-                "38400",
-                "57600",
-                "115200",
-                "230400",
-                "256000",
-                "460800",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_LD2410_ID])
-        cg.add(ld2410_component.set_baud_rate_select(s))
+    hub = await cg.get_variable(config[CONF_LD2410_ID])
+    selects = select.sub_selects(config, parent=hub)
+    await selects(
+        CONF_DISTANCE_RESOLUTION,
+        hub.set_distance_resolution_select,
+        options=["0.2m", "0.75m"],
+    )
+    await selects(
+        CONF_OUT_PIN_LEVEL, hub.set_out_pin_level_select, options=["low", "high"]
+    )
+    await selects(
+        CONF_LIGHT_FUNCTION,
+        hub.set_light_function_select,
+        options=["off", "below", "above"],
+    )
+    await selects(
+        CONF_BAUD_RATE,
+        hub.set_baud_rate_select,
+        options=[
+            "9600",
+            "19200",
+            "38400",
+            "57600",
+            "115200",
+            "230400",
+            "256000",
+            "460800",
+        ],
+    )

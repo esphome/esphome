@@ -4,11 +4,18 @@ esphome:
       - hlk_fm22x.enroll:
           name: "Test"
           direction: 1
+      - hlk_fm22x.delete: 5
       - hlk_fm22x.delete_all:
+      - hlk_fm22x.reset:
+      - hlk_fm22x.scan:
 
 hlk_fm22x:
   on_face_scan_matched:
     - logger.log: test_hlk_22x_face_scan_matched
+    - hlk_fm22x.enroll:
+        name: !lambda 'return name + "-again";'
+        direction: !lambda 'return face_id % 3;'
+    - hlk_fm22x.delete: !lambda 'return face_id;'
   on_face_scan_unmatched:
     - logger.log: test_hlk_22x_face_scan_unmatched
   on_face_scan_invalid:

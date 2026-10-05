@@ -42,11 +42,7 @@ void TemplateSwitch::setup() {
   if (initial_state.has_value()) {
     ESP_LOGD(TAG, "  Restored state %s", ONOFF(initial_state.value()));
     // if it has a value, restore_mode is not "DISABLED", therefore act on the switch:
-    if (initial_state.value()) {
-      this->turn_on();
-    } else {
-      this->turn_off();
-    }
+    this->control(initial_state.value());
   }
 }
 void TemplateSwitch::dump_config() {

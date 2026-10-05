@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32, network, psram, socket, wifi
+from esphome.components import esp32, mdns, network, psram, socket, wifi
 from esphome.components.const import CONF_MANUFACTURER
 import esphome.config_validation as cv
 from esphome.const import (
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_MDNS,
     CONF_MODEL,
     CONF_NAME,
     CONF_PROJECT,
@@ -20,8 +21,8 @@ from esphome.const import (
     CONF_VERSION,
     CONF_WIDTH,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 # mdns for autodiscovery
@@ -105,13 +106,6 @@ sendspin_ns = cg.esphome_ns.namespace("sendspin_")
 SendspinHub = sendspin_ns.class_(
     "SendspinHub",
     cg.Component,
-)
-
-
-SendspinSwitchCommandAction = sendspin_ns.class_(
-    "SendspinSwitchCommandAction",
-    automation.Action,
-    cg.Parented.template(SendspinHub),
 )
 
 
@@ -239,21 +233,11 @@ SENDSPIN_SIMPLE_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sendspin.switch",
-    SendspinSwitchCommandAction,
     SENDSPIN_SIMPLE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("switch_client()"),
 )
-async def sendspin_switch_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def to_code(config: ConfigType) -> None:
@@ -281,9 +265,14 @@ async def to_code(config: ConfigType) -> None:
             cg.add(setter(value))
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.2")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.8.0")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
+
+    # Service starts disabled and the hub enables it; always advertised where unsupported
+    if mdns.request_service_enable_disable():
+        mdns_var = await cg.get_variable(CORE.config[CONF_MDNS][CONF_ID])
+        cg.add(var.set_mdns(mdns_var))
 
     data = _get_data()
 
