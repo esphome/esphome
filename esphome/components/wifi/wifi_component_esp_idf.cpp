@@ -1,6 +1,6 @@
 #include "wifi_component.h"
 
-#ifdef USE_WIFI
+#ifdef USE_WIFI // temp force recompile of wifi_component_esp_idf.cpp
 #ifdef USE_ESP32
 
 #include <esp_event.h>
