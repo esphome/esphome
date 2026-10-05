@@ -154,6 +154,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout("next_ann");
           this->announcement_playlist_.clear();
+          this->announcement_item_failed_ = false;
           if (media_command.file.has_value()) {
             this->announcement_pipeline_->start_file(playlist_item.file.value());
           } else if (media_command.url.has_value()) {
@@ -167,6 +168,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout("next_media");
           this->media_playlist_.clear();
+          this->media_item_failed_ = false;
           if (this->is_paused_) {
             // If paused, stop the media pipeline and unpause it after confirming its stopped. This avoids playing a
             // short segment of the paused file before starting the new one.
@@ -222,7 +224,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           break;
         case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
           this->is_turn_off_ = true;
-          // Intentional Fall-through
+          [[fallthrough]];
 #endif
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
           // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
@@ -236,6 +238,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
             if (this->announcement_pipeline_ != nullptr) {
               this->cancel_timeout("next_ann");
               this->announcement_playlist_.clear();
+              this->announcement_item_failed_ = false;
               this->announcement_pipeline_->stop();
               this->unpause_announcement_remaining_ = 3;
               this->set_interval("unpause_ann", 50, [this]() {
@@ -251,6 +254,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
             if (this->media_pipeline_ != nullptr) {
               this->cancel_timeout("next_media");
               this->media_playlist_.clear();
+              this->media_item_failed_ = false;
               this->stop_and_unpause_media_();
             }
           }
@@ -351,8 +355,10 @@ void SpeakerMediaPlayer::loop() {
 
   if (this->media_pipeline_state_ == AudioPipelineState::ERROR_READING) {
     ESP_LOGE(TAG, "The media pipeline's file reader encountered an error.");
+    this->media_item_failed_ = true;
   } else if (this->media_pipeline_state_ == AudioPipelineState::ERROR_DECODING) {
     ESP_LOGE(TAG, "The media pipeline's audio decoder encountered an error.");
+    this->media_item_failed_ = true;
   }
 
   AudioPipelineState old_announcement_pipeline_state = this->announcement_pipeline_state_;
@@ -362,8 +368,10 @@ void SpeakerMediaPlayer::loop() {
 
   if (this->announcement_pipeline_state_ == AudioPipelineState::ERROR_READING) {
     ESP_LOGE(TAG, "The announcement pipeline's file reader encountered an error.");
+    this->announcement_item_failed_ = true;
   } else if (this->announcement_pipeline_state_ == AudioPipelineState::ERROR_DECODING) {
     ESP_LOGE(TAG, "The announcement pipeline's audio decoder encountered an error.");
+    this->announcement_item_failed_ = true;
   }
 
   if (this->announcement_pipeline_state_ != AudioPipelineState::STOPPED) {
@@ -371,7 +379,12 @@ void SpeakerMediaPlayer::loop() {
   } else {
     if (!this->announcement_playlist_.empty()) {
       uint32_t timeout_ms = 0;
-      if (old_announcement_pipeline_state == AudioPipelineState::PLAYING) {
+      if (this->announcement_item_failed_) {
+        // Drop the item that failed, even with repeat enabled; otherwise it is restarted as soon as the pipeline
+        // stops, which after an error is usually on the next loop
+        this->announcement_item_failed_ = false;
+        this->announcement_playlist_.pop_front();
+      } else if (old_announcement_pipeline_state == AudioPipelineState::PLAYING) {
         // Finished the current announcement file
         if (!this->announcement_repeat_one_) {
           //  Pop item off the playlist if repeat is disabled
@@ -399,6 +412,8 @@ void SpeakerMediaPlayer::loop() {
         }
       }
     } else {
+      // Nothing left to retry
+      this->announcement_item_failed_ = false;
       if (this->is_paused_) {
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
         if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
@@ -412,7 +427,12 @@ void SpeakerMediaPlayer::loop() {
       } else if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
         if (!media_playlist_.empty()) {
           uint32_t timeout_ms = 0;
-          if (old_media_pipeline_state == AudioPipelineState::PLAYING) {
+          if (this->media_item_failed_) {
+            // Drop the item that failed, even with repeat enabled; otherwise it is restarted as soon as the pipeline
+            // stops. The flag also covers an error that happened while an announcement was playing.
+            this->media_item_failed_ = false;
+            this->media_playlist_.pop_front();
+          } else if (old_media_pipeline_state == AudioPipelineState::PLAYING) {
             // Finished the current media file
             if (!this->media_repeat_one_) {
               // Pop item off the playlist if repeat is disabled
@@ -439,6 +459,8 @@ void SpeakerMediaPlayer::loop() {
             }
           }
         } else {
+          // Nothing left to retry
+          this->media_item_failed_ = false;
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
           if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
             this->state = media_player::MEDIA_PLAYER_STATE_IDLE;

@@ -19,6 +19,8 @@ KEY_SERIAL1_REQUIRED = "serial1_required"
 KEY_SCANF_FLOAT = "scanf_float"
 # Per-board flash-layout override consumed by board_ld_script()
 KEY_LDSCRIPT = "ldscript"
+# Crash-decode tools, resolved once per run by __init__
+KEY_DECODE_TOOLS = "decode_tools"
 
 # esp8266 namespace is already defined by arduino, manually prefix esphome
 esp8266_ns = cg.global_ns.namespace("esphome").namespace("esp8266")

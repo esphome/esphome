@@ -41,16 +41,6 @@ _WG_KEY_REGEX = re.compile(r"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
 AllowedIP = wireguard_ns.struct("AllowedIP")
-WireguardPeerOnlineCondition = wireguard_ns.class_(
-    "WireguardPeerOnlineCondition", automation.Condition
-)
-WireguardEnabledCondition = wireguard_ns.class_(
-    "WireguardEnabledCondition", automation.Condition
-)
-WireguardEnableAction = wireguard_ns.class_("WireguardEnableAction", automation.Action)
-WireguardDisableAction = wireguard_ns.class_(
-    "WireguardDisableAction", automation.Action
-)
 
 
 def _wireguard_key(value):
@@ -163,47 +153,17 @@ async def to_code(config):
     await cg.register_component(var, config)
 
 
-@automation.register_condition(
-    "wireguard.peer_online",
-    WireguardPeerOnlineCondition,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+WIREGUARD_AUTOMATION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)})
+
+automation.register_apply_condition(
+    "wireguard.peer_online", WIREGUARD_AUTOMATION_SCHEMA, "is_peer_up()"
 )
-async def wireguard_peer_up_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_condition(
-    "wireguard.enabled",
-    WireguardEnabledCondition,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+automation.register_apply_condition(
+    "wireguard.enabled", WIREGUARD_AUTOMATION_SCHEMA, "is_enabled()"
 )
-async def wireguard_enabled_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "wireguard.enable",
-    WireguardEnableAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
-    synchronous=True,
+automation.register_apply_action(
+    "wireguard.enable", WIREGUARD_AUTOMATION_SCHEMA, automation.ApplyCall("enable()")
 )
-async def wireguard_enable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "wireguard.disable",
-    WireguardDisableAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
-    synchronous=True,
+automation.register_apply_action(
+    "wireguard.disable", WIREGUARD_AUTOMATION_SCHEMA, automation.ApplyCall("disable()")
 )
-async def wireguard_disable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

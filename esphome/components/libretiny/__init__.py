@@ -32,6 +32,7 @@ from esphome.storage_json import StorageJSON
 from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
+    COMPONENT_LN882X,
     CONF_GPIO_RECOVER,
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
@@ -489,6 +490,10 @@ async def component_to_code(config):
         # The -D wins over the #ifndef default in FreeRTOS.h.
         # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
         cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
+
+    # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
+    if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:
+        cg.add_build_flag("-Wl,--wrap=pvPortMalloc")
 
     # RTL8710B needs FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake
     # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)

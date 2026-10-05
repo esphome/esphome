@@ -16,7 +16,7 @@
 #include <cinttypes>
 #include <string>
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 #include "WString.h"
 #endif
 
@@ -63,7 +63,8 @@ namespace esphome {
 
 void esp_log_printf_(int level, const char *tag, int line, const char *format, ...)  // NOLINT
     __attribute__((format(printf, 4, 5)));
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
+// NOLINTNEXTLINE(readability-identifier-naming)
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
@@ -71,7 +72,7 @@ void esp_log_vprintf_(int level, const char *tag, int line, const char *format, 
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 #define ESPHOME_LOG_FORMAT(format) F(format)
 #else
 #define ESPHOME_LOG_FORMAT(format) format
@@ -172,7 +173,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 // Helper class that identifies strings that may be stored in flash storage (similar to Arduino's __FlashStringHelper)
 struct LogString;
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 
 #include <pgmspace.h>
 
@@ -181,7 +182,7 @@ struct LogString;
 #define LOG_STR(s) (reinterpret_cast<const LogString *>(PSTR(s)))
 #define LOG_STR_LITERAL(s) LOG_STR_ARG(LOG_STR(s))
 
-#else  // !USE_STORE_LOG_STR_IN_FLASH
+#else  // !USE_ESP8266
 
 #define LOG_STR(s) (reinterpret_cast<const LogString *>(s))
 #define LOG_STR_ARG(s) (reinterpret_cast<const char *>(s))

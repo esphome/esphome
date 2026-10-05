@@ -64,6 +64,7 @@ REPORT = {
     "default": report.ZIGBEE_REPORT_DEFAULT,
 }
 
+CONF_CLUSTER = "cluster"
 CONF_ENDPOINT = "endpoint"
 CONF_MAX_EP_NUMBER = 239
 CONF_ON_JOIN = "on_join"

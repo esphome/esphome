@@ -125,11 +125,15 @@ class SpeakerMediaPlayer final : public Component,
   optional<media_player::MediaPlayerSupportedFormat> media_format_;
   AudioPipelineState media_pipeline_state_{AudioPipelineState::STOPPED};
   bool media_repeat_one_{false};
+  // Set when the media pipeline reports an error, consumed when it stops, so the failed item is dropped
+  bool media_item_failed_{false};
   uint32_t media_playlist_delay_ms_{0};
 
   optional<media_player::MediaPlayerSupportedFormat> announcement_format_;
   AudioPipelineState announcement_pipeline_state_{AudioPipelineState::STOPPED};
   bool announcement_repeat_one_{false};
+  // Set when the announcement pipeline reports an error, consumed when it stops, so the failed item is dropped
+  bool announcement_item_failed_{false};
   uint32_t announcement_playlist_delay_ms_{0};
 
   QueueHandle_t media_control_command_queue_;

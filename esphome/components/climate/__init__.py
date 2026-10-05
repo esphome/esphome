@@ -494,12 +494,6 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-def _literal_with_length(config: ConfigType, value: str) -> str:
-    # The (const char *, size_t) overload compares bytes in place, so it needs a plain
-    # literal rather than the default PROGMEM rendering on ESP8266, and skips a strlen.
-    return f"{cg.safe_exp(value)}, {len(value.encode('utf-8'))}"
-
-
 automation.register_apply_action(
     "climate.control",
     CLIMATE_CONTROL_ACTION_SCHEMA,
@@ -517,14 +511,14 @@ automation.register_apply_action(
         CONF_CUSTOM_FAN_MODE,
         "set_fan_mode",
         cg.std_string,
-        const_fn=_literal_with_length,
+        const_fn=automation.literal_with_length,
     ),
     automation.ApplyField(CONF_PRESET, "set_preset", ClimatePreset),
     automation.ApplyField(
         CONF_CUSTOM_PRESET,
         "set_preset",
         cg.std_string,
-        const_fn=_literal_with_length,
+        const_fn=automation.literal_with_length,
     ),
     automation.ApplyField(CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
     call="make_call",

@@ -13,6 +13,7 @@ from esphome.components.logger import request_log_listener
 from esphome.components.noise import (  # noqa: F401
     ENCRYPTION_SCHEMA,
     decode_encryption_key,
+    enable_spare_ephemeral,
     encryption_schema,
     new_psk_progmem,
     validate_encryption_key,
@@ -81,7 +82,7 @@ def AUTO_LOAD(config: ConfigType) -> list[str]:
 
 
 api_ns = cg.esphome_ns.namespace("api")
-APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
+APIServer = api_ns.class_("APIServer", cg.Component)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
 )
@@ -141,6 +142,7 @@ CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 DEFAULT_PORT = 6053
 DEFAULT_REBOOT_TIMEOUT = "15min"
 DEFAULT_BATCH_DELAY = "100ms"
+DEFAULT_LISTEN_BACKLOG = 4
 
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
@@ -462,8 +464,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    # Track controller registration for StaticVector sizing
-    CORE.register_controller()
+    CORE.register_controller(var)
 
     # Request a log listener slot for API log streaming
     request_log_listener()
@@ -477,8 +478,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_reboot_timeout(reboot_timeout))
     if (batch_delay := config[CONF_BATCH_DELAY]) != cv.time_period(DEFAULT_BATCH_DELAY):
         cg.add(var.set_batch_delay(batch_delay))
-    if CONF_LISTEN_BACKLOG in config:
-        cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
+    if (
+        listen_backlog := config.get(CONF_LISTEN_BACKLOG)
+    ) is not None and listen_backlog != DEFAULT_LISTEN_BACKLOG:
+        cg.add(var.set_listen_backlog(listen_backlog))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
@@ -601,7 +604,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
+            cg.add(var.set_noise_psk(new_psk_progmem(key)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
@@ -614,6 +617,7 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
+        enable_spare_ephemeral()
     else:
         cg.add_define("USE_API_PLAINTEXT")
 

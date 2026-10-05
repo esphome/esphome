@@ -284,6 +284,13 @@ void SendspinHub::send_client_command(sendspin::SendspinControllerCommand comman
   }
 }
 
+// THREAD CONTEXT: Main loop (invoked from the sendspin.switch action)
+void SendspinHub::switch_client() {
+  // Clear any EXTERNAL_SOURCE state so the switch command is followed
+  this->update_state(sendspin::SendspinClientState::SYNCHRONIZED);
+  this->send_client_command(sendspin::SendspinControllerCommand::SWITCH);
+}
+
 // THREAD CONTEXT: Main loop (ControllerRoleListener override, fired from client_->loop())
 void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObject &state) {
   this->controller_state_callbacks_.call(state);

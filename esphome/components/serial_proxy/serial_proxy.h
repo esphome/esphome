@@ -53,6 +53,11 @@ enum class SerialProxyResult : uint8_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
+/// Longest main-loop stall client writes may cause per loop pass, shared by every instance;
+/// bytes the UART cannot buffer within it are dropped. Well under the shortest watchdog
+/// timeout, since the API hands the proxies up to ten writes in one pass.
+inline constexpr uint32_t SERIAL_PROXY_MAX_WRITE_STALL_MS = 1000;
+
 #ifdef USE_SERIAL_PROXY_TAP
 /// Observes a port's traffic without owning it, and may inject bytes of its own.
 ///
@@ -204,6 +209,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   bool is_subscriber_(api::APIConnection *api_connection) const { return this->api_connection_ == api_connection; }
 #endif
 
+  /// Time the wire needs for the given number of bytes at the current framing
+  uint32_t wire_time_ms_(size_t bytes) const;
+
 #ifdef USE_SERIAL_PROXY_TAP
   /// Return the port to RAW when a subscriber goes away, so the mode never outlives it
   void reset_mode_();
@@ -220,6 +228,12 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
+
+  /// Stall spent by writes in the current loop pass, keyed by the pass's cached start time.
+  /// Static on purpose: there is one main loop, and writes to different ports that arrive in
+  /// the same pass all stall it, so the budget is one per device rather than one per port
+  static uint32_t stall_loop_time;
+  static uint32_t stall_spent_ms;
 
   /// Subscribed API client (only one allowed at a time)
   api::APIConnection *api_connection_{nullptr};
@@ -247,6 +261,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Current modem pin states
   bool rts_state_{false};
   bool dtr_state_{false};
+
+  /// Set while writes are being trimmed, so a client streaming into a slow port warns once
+  bool trim_warned_{false};
 
 #ifdef USE_SERIAL_PROXY_TAP
   SerialProxyTap *tap_{nullptr};

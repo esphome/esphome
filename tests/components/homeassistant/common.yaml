@@ -71,6 +71,9 @@ number:
   - platform: homeassistant
     entity_id: number.hello_world
     id: ha_hello_world_number
+  - platform: homeassistant
+    entity_id: input_number.hello_world
+    id: ha_hello_world_input_number
 
 sensor:
   - platform: homeassistant
