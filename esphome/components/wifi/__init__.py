@@ -514,7 +514,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2="light",
                 bk72xx="none",
                 rtl87xx="none",
-                ln882x="light",
+                ln882x="none",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
