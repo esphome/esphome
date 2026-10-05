@@ -170,7 +170,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   int x = 0;
   for (;;) {
     size_t length;
-    auto code_point = extract_unicode_codepoint(str, &length);
+    auto code_point = unicode::extract_unicode_codepoint(str, &length);
     if (length == 0)
       break;
     str += length;
@@ -199,7 +199,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
   int x_at = x_start;
   for (;;) {
     size_t length;
-    auto code_point = extract_unicode_codepoint(text, &length);
+    auto code_point = unicode::extract_unicode_codepoint(text, &length);
     if (length == 0)
       break;
     text += length;
