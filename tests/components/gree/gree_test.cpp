@@ -59,13 +59,13 @@ class GreeTransmitTest : public ::testing::Test {
     this->climate_.swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
-  void transmit(Model model) {
+  void transmit_(Model model) {
     this->climate_.set_model(model);
     // This public feature setter sends the current state without changing any feature bits.
     this->climate_.set_mode_bit(0, false);
   }
 
-  remote_base::RawTimings yaw1f_timings(const std::array<uint8_t, 8> &command) {
+  remote_base::RawTimings yaw1f_timings_(const std::array<uint8_t, 8> &command) {
     remote_base::RawTimings timings;
     append_frame(timings, command, 4500, 19980);
     timings.push_back(-40000);
@@ -79,23 +79,23 @@ class GreeTransmitTest : public ::testing::Test {
 };
 
 TEST_F(GreeTransmitTest, Yaw1fMatchesCapturedOffCommandAndFollowup) {
-  this->transmit(GREE_YAW1F);
+  this->transmit_(GREE_YAW1F);
   // Captured from the flashed device on 26 September: off, 29 degrees, fan auto, swing off.
   EXPECT_EQ(this->transmitter_.data().get_data(),
-            this->yaw1f_timings({0x00, 0x0D, 0x60, 0x50, 0x00, 0x80, 0x00, 0xF0}));
+            this->yaw1f_timings_({0x00, 0x0D, 0x60, 0x50, 0x00, 0x80, 0x00, 0xF0}));
   EXPECT_EQ(this->transmitter_.data().get_carrier_frequency(), 38000);
   EXPECT_EQ(this->transmitter_.send_count, 1);
 }
 
 TEST_F(GreeTransmitTest, Yaw1fUpdatesModeTemperatureFanSwingAndChecksum) {
-  this->transmit(GREE_YAW1F);
+  this->transmit_(GREE_YAW1F);
   this->climate_.mode = climate::CLIMATE_MODE_COOL;
   this->climate_.target_temperature = 26;
   this->climate_.fan_mode = climate::CLIMATE_FAN_HIGH;
   this->climate_.swing_mode = climate::CLIMATE_SWING_BOTH;
-  this->transmit(GREE_YAW1F);
+  this->transmit_(GREE_YAW1F);
   EXPECT_EQ(this->transmitter_.data().get_data(),
-            this->yaw1f_timings({0x79, 0x0A, 0x60, 0x50, 0x11, 0x80, 0x00, 0x60}));
+            this->yaw1f_timings_({0x79, 0x0A, 0x60, 0x50, 0x11, 0x80, 0x00, 0x60}));
   EXPECT_EQ(this->transmitter_.send_count, 2);
 }
 
@@ -115,7 +115,7 @@ TEST_F(GreeTransmitTest, ExistingModelsKeepTheirBytesAndSingleMessageFraming) {
   };
   for (const auto &vector : vectors) {
     SCOPED_TRACE(static_cast<int>(vector.model));
-    this->transmit(vector.model);
+    this->transmit_(vector.model);
     remote_base::RawTimings expected;
     const bool yac1fb9 = vector.model == GREE_YAC1FB9;
     append_frame(expected, vector.bytes, yac1fb9 ? 4500 : 4000, yac1fb9 ? 19980 : 19000);
