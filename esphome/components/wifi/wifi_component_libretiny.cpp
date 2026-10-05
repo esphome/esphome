@@ -31,9 +31,7 @@ extern "C" {
 #ifdef USE_LN882X
 #include <WiFiPrivate.h>
 #undef DATA  // clashes with setup_priority::DATA
-// LibreTiny's LN882H reconnect() keeps the requested BSSID but hands the SDK a
-// NULL one, so the SDK picks the AP itself; linked with
-// -Wl,--wrap=wifi_sta_connect, this passes the requested one on.
+// LibreTiny's LN882H reconnect() gives the SDK a NULL bssid; pass on the requested one.
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 // Names are mandated by the --wrap linker mechanism.
 extern "C" int __real_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cfg_t *scan_cfg);
