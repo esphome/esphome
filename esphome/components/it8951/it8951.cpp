@@ -15,6 +15,10 @@ static const char *const TAG = "it8951";
 // Soft cap for time spent in a single XFER_ROWS Op so we yield back to the
 // loop within one tick budget.
 static constexpr uint32_t MAX_TRANSFER_TIME_MS = 20;
+// Longest a direct-draw flush waits for the controller to finish an update (or
+// its startup handshake) before giving up. Covers the slowest waveform plus the
+// startup clear with margin.
+static constexpr uint32_t FLUSH_WAIT_TIMEOUT_MS = 5000;
 
 // --- Loop / scheduling -------------------------------------------------------
 
@@ -1237,15 +1241,28 @@ void IT8951DirectDisplay::fill(Color color) {
 
 bool IT8951DirectDisplay::prepare_direct_write_() {
   // Writing image RAM while the LUT engine is reading it corrupts the frame the
-  // panel is drawing. The phase only returns to IDLE once the waveform has
-  // finished (see waits_for_waveform_), and LVGL's update_when_display_idle
-  // withholds rendering until then; this check catches anything else, such as
-  // an explicit lv_refr_now() during an update.
+  // panel is drawing, and the phase only returns to IDLE once the waveform has
+  // finished (see waits_for_waveform_). LVGL's update_when_display_idle keeps
+  // its own renders out of that window; anything else, such as an explicit
+  // lv_refr_now() during an update or the controller handshake, is held here
+  // until the controller is free. Dropping the flush instead would lose those
+  // pixels for good, since LVGL considers a flushed area drawn.
   if (this->phase_ != Phase::IDLE) {
-    ESP_LOGW(TAG, "Dropping flush: controller busy in phase %u. Set 'update_when_display_idle: true' on lvgl.",
-             static_cast<unsigned>(this->phase_));
-    return false;
+    const uint32_t start = millis();
+    while (this->phase_ != Phase::IDLE) {
+      if (millis() - start > FLUSH_WAIT_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "Dropping flush: controller still busy in phase %u after %" PRIu32 "ms",
+                 static_cast<unsigned>(this->phase_), FLUSH_WAIT_TIMEOUT_MS);
+        return false;
+      }
+      App.feed_wdt();
+      this->loop();
+      delay(1);
+    }
+    ESP_LOGV(TAG, "Flush waited %" PRIu32 "ms for the controller", millis() - start);
   }
+  if (!this->initialised_)
+    return false;
   if (this->asleep_) {
     this->spi_cmd_(TCON_SYS_RUN);
     delay(10);  // clocks settle after SYS_RUN
@@ -1371,9 +1388,7 @@ void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16
 void HOT IT8951DirectDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
                                              ColorOrder order, ColorBitness bitness, bool big_endian, int x_offset,
                                              int y_offset, int x_pad) {
-  // Pixels pushed before the controller handshake completes have nowhere to go;
-  // LVGL redraws everything once the display reports ready.
-  if (!this->initialised_ || this->row_buf_ == nullptr)
+  if (this->row_buf_ == nullptr)
     return;
 
   const bool swap_xy = (this->effective_transform_ & TRANSFORM_SWAP_XY) != 0;

@@ -468,8 +468,8 @@ class IT8951DirectDisplay : public IT8951Display {
   // Pack one native row of that rectangle into row_buf_, starting from source
   // pixel `first_index`.
   void pack_row_(uint16_t x, uint16_t y, uint16_t w, int32_t first_index, const FlushSource &src);
-  // Bring the controller out of sleep before a direct write. Returns false if
-  // the controller is not in a state that can accept pixel data.
+  // Wait for any update in progress to finish, then bring the controller out of
+  // sleep. Returns false if it does not become ready to accept pixel data.
   bool prepare_direct_write_();
 
   // One native-format row of the widest possible flush rectangle.
