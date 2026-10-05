@@ -37,3 +37,17 @@ def test_custom_values_are_emitted(
     assert "set_reboot_timeout(0);" in main_cpp
     assert "set_power_save_mode(wifi::WIFI_POWER_SAVE_LIGHT);" in main_cpp
     assert "set_min_auth_mode(wifi::WIFI_MIN_AUTH_MODE_WPA);" in main_cpp
+
+
+def test_ln882x_power_save_defaults_to_none(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """LN882x keeps power save off by default, as BK72xx and RTL87xx do.
+
+    LibreTiny maps any power save to the LN882H SDK's maximum, which drops the
+    connection in a busy channel.
+    """
+    main_cpp = generate_main(component_config_path("bare_ln882x.yaml"))
+
+    assert "set_power_save_mode(" not in main_cpp
