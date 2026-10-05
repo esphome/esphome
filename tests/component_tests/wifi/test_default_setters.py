@@ -37,3 +37,13 @@ def test_custom_values_are_emitted(
     assert "set_reboot_timeout(0);" in main_cpp
     assert "set_power_save_mode(wifi::WIFI_POWER_SAVE_LIGHT);" in main_cpp
     assert "set_min_auth_mode(wifi::WIFI_MIN_AUTH_MODE_WPA);" in main_cpp
+
+
+def test_ln882x_skips_post_connect_roaming(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """An LN882H scan drops the association, so LN882x does not roam by default."""
+    main_cpp = generate_main(component_config_path("bare_ln882x.yaml"))
+
+    assert "set_post_connect_roaming(false);" in main_cpp

@@ -542,7 +542,18 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
+            # An LN882H scan takes the radio off the AP long enough to drop
+            # the association, so the post-connect roam check costs a
+            # disconnect there.
+            cv.SplitDefault(
+                CONF_POST_CONNECT_ROAMING,
+                esp8266=True,
+                esp32=True,
+                rp2=True,
+                bk72xx=True,
+                rtl87xx=True,
+                ln882x=False,
+            ): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
