@@ -12,11 +12,11 @@ class TcpUart;
 namespace esphome::modbus_tcp_uart {
 
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
-/// Client: a response is delivered only when it carries that request's transaction id, with the request's unit.
-/// Server: one request at a time is delivered as one RTU frame, and the reply uses that id. The next stays in the
-/// TCP buffer until the reply went out or REPLY_TIMEOUT_MS passed. A reply must match the request's unit and function.
-/// With a unit list, a request to another unit is dropped, since no other device on this link answers it.
-/// A bad MBAP with a usable length is skipped. Without one, bytes are dropped until the peer has been quiet.
+/// Client: Response must match the request transaction ID (else dropped). It keeps the request's unit.
+/// Server: Response is sent with transaction ID matching the most recent request. One request at a time goes to the
+/// hub, the next waits for the reply or REPLY_TIMEOUT_MS. The reply must match its unit and function (else dropped).
+/// With servers on the hub, a request to a unit that none of them answers is dropped.
+/// Bad MBAP: skipped if its length is usable, else bytes are dropped until the peer has been quiet.
 class ModbusTcpUart : public uart::UARTComponent, public Component {
  public:
   ModbusTcpUart() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
