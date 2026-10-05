@@ -1,5 +1,6 @@
 #include "uart_tcp.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -10,8 +11,8 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
-// Bytes per 16 ms loop pass at 10 bits per byte: baud / 10 / 62.5.
-static constexpr uint32_t BAUD_PACE_DIVISOR = 625;
+// 10 bits per byte on the line, loop interval in ms: bytes = baud * ms / 10000.
+static constexpr uint32_t BAUD_PACE_DIVISOR = 10 * 1000;
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
@@ -61,9 +62,11 @@ void UartTcp::read_socket_() {
   // not fit in the socket, so TCP flow control throttles the peer.
   size_t room = this->parent_->available_for_write();
   if (room == SIZE_MAX) {
-    // Capacity unknown on this platform; pace to one loop pass of UART time
-    // (16 ms at 10 bits per byte) so a blocking write stays short.
-    room = std::max<size_t>(1, this->parent_->get_baud_rate() / BAUD_PACE_DIVISOR);
+    // Capacity unknown on this platform; pace to one loop interval of UART time
+    // so a blocking write stays within one pass.
+    uint64_t paced =
+        static_cast<uint64_t>(this->parent_->get_baud_rate()) * App.get_loop_interval() / BAUD_PACE_DIVISOR;
+    room = std::max<size_t>(1, static_cast<size_t>(paced));
   }
   if (room == 0) {
     this->rx_pending_ = true;
@@ -85,7 +88,7 @@ void UartTcp::read_socket_() {
 
 void UartTcp::discard_uart_() {
   // Drain exactly what was buffered while the link was down; later bytes are live.
-  uint8_t dump[32];
+  uint8_t dump[DISCARD_CHUNK];
   size_t left = this->available();
   while (left != 0) {
     size_t n = std::min(left, sizeof(dump));

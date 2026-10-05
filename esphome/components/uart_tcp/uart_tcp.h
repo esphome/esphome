@@ -40,6 +40,8 @@ class UartTcp : public Component, public uart::UARTDevice {
   void discard_uart_();
 
   static constexpr size_t READ_CHUNK = 128;
+  // Scratch size for dropping stale UART bytes on connect.
+  static constexpr size_t DISCARD_CHUNK = 32;
 
   socket::TcpClientLink link_;
 #ifdef USE_SOCKET_TCP_LISTENER
