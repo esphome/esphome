@@ -224,7 +224,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           break;
         case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
           this->is_turn_off_ = true;
-          // Intentional Fall-through
+          [[fallthrough]];
 #endif
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
           // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
@@ -493,7 +493,7 @@ void SpeakerMediaPlayer::loop() {
 #endif
 }
 
-void SpeakerMediaPlayer::play_file(audio::AudioFile *media_file, bool announcement, bool enqueue) {
+void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool announcement, bool enqueue) {
   if (!this->is_ready()) {
     // Ignore any commands sent before the media player is setup
     return;

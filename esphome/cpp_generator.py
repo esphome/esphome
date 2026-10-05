@@ -19,7 +19,12 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import cpp_string_escape, indent, indent_all_but_first_and_last
+from esphome.helpers import (
+    cpp_string_escape,
+    ensure_unique_string,
+    indent,
+    indent_all_but_first_and_last,
+)
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
@@ -461,6 +466,36 @@ def progmem_array(id_, rhs) -> "MockObj":
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
+
+
+def shared_progmem_array(
+    name: str, type_: "MockObjClass", rhs: SafeExpType, *, share: bool = True
+) -> "MockObj":
+    """Emit a global PROGMEM array once per distinct type and contents; later calls reuse it.
+
+    The array is ``static constexpr``, so elements must be constant expressions and lambdas
+    must be captureless. Its name is made unique against every config id and variable.
+    ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
+    """
+    from esphome.config import iter_ids
+    from esphome.config_validation import RESERVED_IDS
+
+    arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
+    rhs = safe_exp(rhs)
+    key = f"{type_} {rhs}"
+    if share and (array := arrays.get(key)) is not None:
+        return array
+    used = {str(i) for i, _ in iter_ids(CORE.config)}
+    used |= {str(i) for i in CORE.variables}
+    used |= set(RESERVED_IDS) | CORE.loaded_integrations
+    id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    # Global, so any scope can use it; anything a lambda references is already declared.
+    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs))
+    array = MockObj(id_, ".")
+    CORE.register_variable(id_, array)
+    if share:
+        arrays[key] = array
+    return array
 
 
 def static_const_array(id_, rhs) -> "MockObj":

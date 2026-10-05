@@ -10,6 +10,7 @@ import subprocess
 
 from esphome import pins
 from esphome.build_helpers import pch
+from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.zephyr import (
@@ -28,6 +29,7 @@ from esphome.components.zephyr.const import (
     CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_SYSBUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -78,6 +80,7 @@ from .framework import (
     get_build_paths,
     setup_platformio_python_env,
     toolchain_tool,
+    wanted_west_projects,
 )
 
 # force import gpio to register pin schema
@@ -588,7 +591,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     raise EsphomeError("Not implemented yet")
                 check_and_install()
                 paths = get_build_paths()
-                env = get_build_env()
+                env = get_build_env(None)  # no compile, just nrfutil
                 build_dir = CORE.relative_pioenvs_path(CORE.name)
                 dfu_package = build_dir / "firmware.zip"
                 if not dfu_package.is_file():
@@ -670,7 +673,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if not CORE.using_toolchain_platformio:
             check_and_install()
             paths = get_build_paths()
-            env = get_build_env()
+            env = get_build_env(resolve_ccache_path())  # west flash may rebuild
             build_dir = CORE.relative_pioenvs_path(CORE.name)
             west_cmd = [
                 str(paths["python_executable"]),
@@ -825,19 +828,22 @@ _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
 
 def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
-    """Write the checksum ccache reads in place of the .gch. The app binary
-    dir only exists after the first configure; sysbuild nests it."""
-    app_dir = build_dir / "zephyr"
-    if not (app_dir / "CMakeCache.txt").is_file():
-        app_dir = build_dir
-    if not (app_dir / "CMakeCache.txt").is_file():
-        return
+    """Write the checksum ccache reads in place of the .gch; before the
+    first build too, or its compiles hash the path laden .gch instead.
+    The app image dir follows the SDK version, like get_elf_path;
+    2.9.2+ always wraps the build in sysbuild."""
+    app_dir = build_dir
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+        app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
         (
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             zephyr_data()[KEY_BOARD],
+            # Kconfig inputs that reach autoconf.h without a .conf line
+            ",".join(sorted(wanted_west_projects())),
+            str(zephyr_data().get(KEY_SYSBUILD)),
             # What the Zephyr configuration is generated from
             *(
                 path.read_text(encoding="utf-8")
@@ -953,7 +959,10 @@ def run_compile(args, config: ConfigType) -> bool:
     check_and_install()
 
     paths = get_build_paths()
-    env = get_build_env()
+    # Depend mode in the shared ccache settings keeps the .gch sound
+    # across Kconfig flips.
+    ccache = resolve_ccache_path()
+    env = get_build_env(ccache)
 
     pch_on = _pch_usable()
     cmake_lists_changed = _generate_cmake_lists(pch_on)
@@ -980,8 +989,6 @@ def run_compile(args, config: ConfigType) -> bool:
 
     if pch_on:
         pch.log_pch_in_use()
-        # Zephyr turns ccache on by itself when it is installed
-        env.update(pch.ccache_pch_env())
         _write_pch_checksum(build_dir, source_dir)
 
     west_cmd = _west_build_command(
