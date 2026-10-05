@@ -791,16 +791,12 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; 
 
 #ifdef USE_LN882X
 void WiFiComponent::on_powerdown() {
-  // Leave the AP before a reboot or deep sleep, after teardown has let the
-  // API say goodbye: otherwise the AP still holds the association when the
-  // chip comes back and the first connects can stall or fail.
+  // Leave the AP so it no longer holds the association when we come back.
   if (!this->is_connected())
     return;
   ESP_LOGD(TAG, "Disconnecting before powerdown");
-  // The SDK call directly: LibreTiny's WiFi.disconnect() also frees the SSID
-  // its event handlers read, which once hung a reboot until the watchdog.
-  wifi_sta_disconnect();
-  delay(100);  // let the deauth go out before the reset
+  wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
 }
 #endif
 
