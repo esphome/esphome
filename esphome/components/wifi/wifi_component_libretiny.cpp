@@ -791,9 +791,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; 
 
 #ifdef USE_LN882X
 void WiFiComponent::wifi_powerdown_disconnect_() {
-  // The SDK call directly: LibreTiny's WiFi.disconnect() also frees the SSID
-  // its event handlers read, which once hung a reboot until the watchdog.
-  wifi_sta_disconnect();
+  wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
 }
 #endif
 

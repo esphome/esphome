@@ -767,9 +767,7 @@ void WiFiComponent::restart_adapter() {
 }
 
 void WiFiComponent::on_powerdown() {
-  // Leave the AP before a reboot or deep sleep, after teardown has let the
-  // API say goodbye: otherwise the AP still holds the association when the
-  // device comes back and the first connects can stall or fail.
+  // Leave the AP so it no longer holds the association when we come back.
   if (!this->is_connected())
     return;
   ESP_LOGD(TAG, "Disconnecting before powerdown");
@@ -778,7 +776,7 @@ void WiFiComponent::on_powerdown() {
 #else
   this->wifi_disconnect_();
 #endif
-  delay(100);  // let the deauth go out before the reset
+  delay(100);  // NOLINT: once per reboot or deep sleep, lets the deauth go out
 }
 
 void WiFiComponent::loop() {
