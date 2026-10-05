@@ -61,6 +61,13 @@ void expect_round_trip(uint16_t suffix, uint8_t suffix_bits, bool drop_tail = fa
   EXPECT_EQ(decoded->suffix_bits, suffix_bits);
 }
 
+// 0xA5 sends 1, 0, 1 first. Replace the space of one of those bits while the other bits still follow.
+optional<KeeloqData> decode_with_suffix_space(uint8_t bit, uint32_t space_us) {
+  RawTimings timings = as_received(encode(frame(0xA5, 8)));
+  timings[timings.size() - 2 * 8 + 2 * bit + 1] = -static_cast<int32_t>(space_us);
+  return decode(timings);
+}
+
 }  // namespace
 
 TEST(KeeloqProtocolTest, PlainWordHasNoSuffix) { expect_round_trip(0, 0); }
@@ -122,6 +129,48 @@ TEST(KeeloqProtocolTest, FollowingPwmIsNotASuffix) {
   if (decoded.has_value()) {
     EXPECT_EQ(decoded->suffix, 0);
     EXPECT_EQ(decoded->suffix_bits, 0);
+  }
+}
+
+TEST(KeeloqProtocolTest, ASpaceThatIsNeitherDataNorAGapDropsTheSuffix) {
+  // A 1 bit with the space of a 0 bit, and a 0 bit with the space of a 1 bit.
+  for (const auto &[bit, space_us] : {std::pair<uint8_t, uint32_t>{2, BIT_US}, {1, 2 * BIT_US}}) {
+    auto decoded = decode_with_suffix_space(bit, space_us);
+    ASSERT_TRUE(decoded.has_value()) << "bit " << int(bit);
+    if (decoded.has_value()) {
+      EXPECT_EQ(decoded->address, 0x116ea01u);
+      EXPECT_EQ(decoded->suffix, 0) << "bit " << int(bit);
+      EXPECT_EQ(decoded->suffix_bits, 0) << "bit " << int(bit);
+    }
+  }
+}
+
+TEST(KeeloqProtocolTest, ASuffixFollowsARepeatBitOfZero) {
+  // The encoder always sends the repeat bit as 1. Turn it into a 0 bit, with and without a suffix.
+  for (uint8_t suffix_bits : {0, 8}) {
+    RawTimings timings = as_received(encode(frame(suffix_bits > 0 ? 0xA5 : 0, suffix_bits)));
+    const size_t repeat = timings.size() - 2 * suffix_bits - 2;
+    timings[repeat] = static_cast<int32_t>(2 * BIT_US);
+    if (suffix_bits > 0) {
+      timings[repeat + 1] = -static_cast<int32_t>(BIT_US);
+    }
+    auto decoded = decode(timings);
+    ASSERT_TRUE(decoded.has_value()) << int(suffix_bits);
+    if (decoded.has_value()) {
+      EXPECT_FALSE(decoded->repeat);
+      EXPECT_EQ(decoded->suffix, suffix_bits > 0 ? 0xA5 : 0);
+      EXPECT_EQ(decoded->suffix_bits, suffix_bits);
+    }
+  }
+}
+
+TEST(KeeloqProtocolTest, ASuffixEndsAtAGap) {
+  // What follows the gap is the next frame.
+  auto decoded = decode_with_suffix_space(2, 4 * BIT_US);
+  ASSERT_TRUE(decoded.has_value());
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->suffix, 0x5);
+    EXPECT_EQ(decoded->suffix_bits, 3);
   }
 }
 

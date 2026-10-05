@@ -19,6 +19,9 @@ static constexpr uint8_t NBITS_SYNC_CNT = 16;
 static constexpr uint8_t NBITS_FIXED_DATA = NBITS_REPEAT + NBITS_VLOW + NBITS_BUTTONS + NBITS_SERIAL;
 static constexpr uint8_t NBITS_ENCRYPTED_DATA = NBITS_BUTTONS + NBITS_DISC + NBITS_SYNC_CNT;
 static constexpr uint8_t NBITS_DATA = NBITS_FIXED_DATA + NBITS_ENCRYPTED_DATA;
+static constexpr uint8_t NBITS_SUFFIX_MAX = 16;
+// A space this long is not part of the PWM: data spaces are at most 2 bit times, the guard is 39.
+static constexpr uint32_t GAP_TIME_US = 4 * BIT_TIME_US;
 
 /*
 KeeLoq Protocol
@@ -94,7 +97,7 @@ void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
   dst->mark(1 * BIT_TIME_US);
   dst->space(2 * BIT_TIME_US);
 
-  const uint8_t extra = data.suffix_bits > 16 ? 16 : data.suffix_bits;
+  const uint8_t extra = data.suffix_bits > NBITS_SUFFIX_MAX ? NBITS_SUFFIX_MAX : data.suffix_bits;
   for (uint8_t i = 0; i < extra; i++) {
     if (data.suffix & (1 << i)) {
       dst->mark(1 * BIT_TIME_US);
@@ -202,7 +205,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     src.expect_space(BIT_TIME_US);
   }
 
-  while (out.suffix_bits < 16) {
+  while (out.suffix_bits < NBITS_SUFFIX_MAX) {
     bool one = false;
     if (src.expect_mark(2 * BIT_TIME_US)) {
       one = false;
@@ -212,8 +215,8 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
       break;
     }
     // The last bit's space is merged into the guard gap, or the capture ends at idle.
-    const uint32_t space = one ? 2 * BIT_TIME_US : BIT_TIME_US;
-    if (!src.expect_space(space) && !src.peek_space_at_least(space) && src.is_valid()) {
+    if (!src.expect_space(one ? 2 * BIT_TIME_US : BIT_TIME_US) && src.is_valid() &&
+        !src.peek_space_at_least(GAP_TIME_US)) {
       break;
     }
     if (one) {
@@ -221,8 +224,8 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     }
     out.suffix_bits++;
   }
-  // More PWM after the word is a following frame, not a suffix.
-  if (src.is_valid() && !src.peek_space_at_least(BIT_TIME_US)) {
+  // The suffix ends at a gap or at the end of the capture. PWM that goes on is not a suffix.
+  if (src.is_valid() && !src.peek_space_at_least(GAP_TIME_US)) {
     out.suffix = 0;
     out.suffix_bits = 0;
   }
