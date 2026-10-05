@@ -762,7 +762,7 @@ void WiFiComponent::restart_adapter() {
   // and check_connecting_finished() is called after cooldown without going
   // through start_connecting() first. Without this clear, stale errors would
   // trigger spurious "failed (callback)" logs. The canonical clear location
-  // is in start_connecting(); this is the only exception to that pattern.
+  // is in start_connecting() (ESP8266 also clears after wifi_station_connect()).
   this->error_from_callback_ = false;
 }
 
@@ -1218,8 +1218,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
   // Clear any stale error from previous connection attempt.
   // This is the canonical location for clearing the flag since all connection
-  // attempts go through start_connecting(). The only other clear is in
-  // restart_adapter() which enters COOLDOWN without calling start_connecting().
+  // attempts go through start_connecting(). restart_adapter() also clears it, as it
+  // enters COOLDOWN without calling start_connecting(), and ESP8266 clears it again
+  // after wifi_station_connect(), whose callbacks fire synchronously.
   this->error_from_callback_ = false;
 
   if (!this->wifi_sta_connect_(ap)) {
