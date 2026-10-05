@@ -74,6 +74,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire; see require_virtual_uart().
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
@@ -533,6 +535,11 @@ def final_validate_device_schema(
     )
 
 
+def require_virtual_uart() -> None:
+    """Compile the VirtualUARTComponent base; call from the to_code of a class that derives from it."""
+    cg.add_define("USE_UART_VIRTUAL")
+
+
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
@@ -601,9 +608,12 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 # uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
-# debug block is configured.
+# debug block is configured; uart_virtual.cpp on USE_UART_VIRTUAL.
 _define_filter = filter_source_files_from_defines(
-    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+    {
+        "uart_debugger.cpp": "USE_UART_DEBUGGER",
+        "uart_virtual.cpp": "USE_UART_VIRTUAL",
+    }
 )
 
 
