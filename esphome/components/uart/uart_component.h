@@ -217,7 +217,7 @@ class UARTComponent {
   uint32_t baud_rate_{0};
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
-  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif
