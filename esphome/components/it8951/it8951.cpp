@@ -256,7 +256,7 @@ void IT8951Display::advance_phase_() {
       // RAM holds whatever was in it at power-on, and there is no framebuffer
       // to fill. Runs before the IDLE transition so the pending update it marks
       // is picked up by the advance_phase_ below.
-      this->on_initialised_();
+      this->on_initialised();
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
       break;
@@ -271,7 +271,7 @@ void IT8951Display::advance_phase_() {
         return;
       }
       this->active_mode_ = mode;
-      if (!this->needs_transfer_()) {
+      if (!this->needs_transfer()) {
         // Direct draw: the pixels were streamed into controller RAM as they
         // were drawn, so go straight to the waveform.
         this->set_phase_(Phase::UPDATE_REFRESH);
@@ -284,7 +284,7 @@ void IT8951Display::advance_phase_() {
     }
 
     case Phase::UPDATE_TRANSFER:
-      this->on_transfer_done_();
+      this->on_transfer_done();
       this->set_phase_(Phase::UPDATE_REFRESH);
       this->enqueue_update_refresh_();
       break;
@@ -293,10 +293,11 @@ void IT8951Display::advance_phase_() {
       // The buffered class doesn't wait for the refresh to complete: the next
       // update's pre-display LUT-idle poll (and the HW_RDY-gated TCON_SLEEP)
       // wait as needed, so the refresh time stays off this update's critical
-      // path. Direct draw waits in UPDATE_SLEEP instead (see waits_for_waveform_). The 1bpp display mode is left
-      // enabled rather than restored after every update: on a monochrome display every update (DU partials and the
-      // periodic GC16 cleans) runs in 1bpp mode, so the bit never needs clearing — and clearing it required a full
-      // refresh-length LUT-idle wait.
+      // path. Direct draw waits in UPDATE_SLEEP instead (see waits_for_waveform).
+      // The 1bpp display mode is left enabled rather than restored after every
+      // update: on a monochrome display every update (DU partials and the
+      // periodic GC16 cleans) runs in 1bpp mode, so the bit never needs
+      // clearing — and clearing it required a full refresh-length LUT-idle wait.
       this->set_phase_(Phase::UPDATE_SLEEP);
       this->enqueue_update_sleep_();
       break;
@@ -456,7 +457,7 @@ void IT8951Display::enqueue_update_sleep_() {
   // Returning to IDLE is what lets LVGL render again (update_when_display_idle),
   // so a class whose renders land in image RAM holds IDLE back until the
   // waveform reading that RAM has finished.
-  if (this->waits_for_waveform_())
+  if (this->waits_for_waveform())
     this->enqueue_wait_lut_idle_();
   if (this->sleep_when_done_) {
     this->enqueue_(OpType::CMD, TCON_SLEEP);
@@ -625,7 +626,7 @@ bool IT8951Display::op_xfer_rows_() {
   // the buffer already holds the wire bytes — so stream it straight to SPI with
   // no per-pixel packing or temporary buffer.
   while (this->transfer_row_ < area_h) {
-    this->write_array(this->transfer_row_data_(this->transfer_row_), bytes_per_row);
+    this->write_array(this->transfer_row_data(this->transfer_row_), bytes_per_row);
     this->transfer_row_++;
     if (millis() - start_time >= MAX_TRANSFER_TIME_MS)
       break;
@@ -635,7 +636,7 @@ bool IT8951Display::op_xfer_rows_() {
   return this->transfer_row_ >= area_h;
 }
 
-const uint8_t *IT8951BufferedDisplay::transfer_row_data_(uint16_t row) const {
+const uint8_t *IT8951BufferedDisplay::transfer_row_data(uint16_t row) const {
   const uint16_t row_x_bytes =
       this->grayscale_ ? static_cast<uint16_t>(this->area_x_ >> 1) : static_cast<uint16_t>(this->area_x_ >> 3);
   const uint32_t offset = (static_cast<uint32_t>(this->area_y_) + row) * this->row_width_ + row_x_bytes;
@@ -1215,7 +1216,7 @@ void IT8951DirectDisplay::setup() {
   IT8951Display::setup();
 }
 
-void IT8951DirectDisplay::on_initialised_() {
+void IT8951DirectDisplay::on_initialised() {
   // Controller image RAM holds whatever survived power-on and there is no
   // framebuffer standing in for it, so clear it before the first waveform can
   // present undrawn regions as garbage.
@@ -1242,7 +1243,7 @@ void IT8951DirectDisplay::fill(Color color) {
 bool IT8951DirectDisplay::prepare_direct_write_() {
   // Writing image RAM while the LUT engine is reading it corrupts the frame the
   // panel is drawing, and the phase only returns to IDLE once the waveform has
-  // finished (see waits_for_waveform_). LVGL's update_when_display_idle keeps
+  // finished (see waits_for_waveform). LVGL's update_when_display_idle keeps
   // its own renders out of that window; anything else, such as an explicit
   // lv_refr_now() during an update or the controller handshake, is held here
   // until the controller is free. Dropping the flush instead would lose those

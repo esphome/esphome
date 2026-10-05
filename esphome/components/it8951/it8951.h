@@ -282,16 +282,16 @@ class IT8951Display : public Display,
 
   // --- Hooks for the buffered and direct-draw classes ---
   // True when the update about to run has pixel data to stream.
-  virtual bool needs_transfer_() const = 0;
+  virtual bool needs_transfer() const = 0;
   // Source bytes for one row of the current update area, in native wire format.
-  virtual const uint8_t *transfer_row_data_(uint16_t row) const = 0;
+  virtual const uint8_t *transfer_row_data(uint16_t row) const = 0;
   // Called once the controller handshake has completed and initialised_ is set.
-  virtual void on_initialised_() {}
+  virtual void on_initialised() {}
   // Called when the transfer phase has streamed its last row.
-  virtual void on_transfer_done_() {}
+  virtual void on_transfer_done() {}
   // True to stay busy until the waveform has finished rather than returning to
   // IDLE as soon as it has been started.
-  virtual bool waits_for_waveform_() const { return false; }
+  virtual bool waits_for_waveform() const { return false; }
 
   bool prepare_update_region_(UpdateMode &mode);
 
@@ -396,8 +396,8 @@ class IT8951BufferedDisplay : public IT8951Display {
                       ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
-  bool needs_transfer_() const override { return true; }
-  const uint8_t *transfer_row_data_(uint16_t row) const override;
+  bool needs_transfer() const override { return true; }
+  const uint8_t *transfer_row_data(uint16_t row) const override;
 
   bool rotate_coordinates_(int &x, int &y);
   void set_mono_pixel_(uint16_t x, uint16_t y, bool value) const;
@@ -454,13 +454,13 @@ class IT8951DirectDisplay : public IT8951Display {
  protected:
   // Only a whole-screen constant fill needs the streaming transfer phase; a
   // normal update's pixels are already in controller RAM.
-  bool needs_transfer_() const override { return this->fill_pending_; }
-  const uint8_t *transfer_row_data_(uint16_t row) const override { return this->fill_row_.get(); }
-  void on_initialised_() override;
-  void on_transfer_done_() override { this->fill_pending_ = false; }
+  bool needs_transfer() const override { return this->fill_pending_; }
+  const uint8_t *transfer_row_data(uint16_t row) const override { return this->fill_row_.get(); }
+  void on_initialised() override;
+  void on_transfer_done() override { this->fill_pending_ = false; }
   // Writes go straight into image RAM, so the next render must not start until
   // the panel has finished drawing from it.
-  bool waits_for_waveform_() const override { return true; }
+  bool waits_for_waveform() const override { return true; }
 
   // Stream one flush rectangle, in native panel coordinates and already clipped
   // and alignment-checked, into controller image RAM.
