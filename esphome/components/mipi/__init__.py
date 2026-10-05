@@ -9,7 +9,7 @@ from typing import Any, Self
 import voluptuous as vol
 
 from esphome.components.const import CONF_COLOR_DEPTH
-from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
+from esphome.components.display import display_ns
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
@@ -19,13 +19,11 @@ from esphome.const import (
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
-    CONF_PAGES,
     CONF_RESET_PIN,
     CONF_ROTATION,
     CONF_SWAP_XY,
@@ -692,17 +690,6 @@ class DriverChip:
                 raise cv.Invalid(
                     f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
                 )
-
-
-def requires_buffer(config) -> bool:
-    """
-    Check if the display configuration requires a buffer. It will do so if any drawing methods are configured.
-    :param config:
-    :return:  True if a buffer is required, False otherwise
-    """
-    return any(
-        config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
-    )
 
 
 def get_color_depth(config) -> int:

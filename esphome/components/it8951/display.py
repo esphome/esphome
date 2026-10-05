@@ -8,8 +8,11 @@ from typing import Any
 from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
-from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
-from esphome.components.mipi import requires_buffer
+from esphome.components.display import (
+    CONF_SHOW_TEST_CARD,
+    requires_buffer,
+    validate_rotation,
+)
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
@@ -52,6 +55,7 @@ CONF_GRAYSCALE = "grayscale"
 CONF_DITHERING = "dithering"
 CONF_UPDATE_MODE = "update_mode"
 CONF_USE_LEGACY_DPY_AREA = "use_legacy_dpy_area"
+CONF_DIRECT_DRAW = "direct_draw"
 
 # VCOM SET sub-command selectors. The IT8951 firmware accepts different
 # values across panels; most respond to 0x0001, but a few — e.g. the Seeed
@@ -62,6 +66,7 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
+IT8951BufferedDisplay = it8951_ns.class_("IT8951BufferedDisplay", IT8951Display)
 IT8951DirectDisplay = it8951_ns.class_("IT8951DirectDisplay", IT8951Display)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
@@ -276,6 +281,9 @@ def _model_schema(config: ConfigType) -> cv.Schema:
                 default=model.get_default(CONF_USE_LEGACY_DPY_AREA, False),
             ): cv.boolean,
             cv.Optional(CONF_UPDATE_MODE): update_mode,
+            # Stream LVGL's output straight into controller memory instead of
+            # keeping a framebuffer on the ESP.
+            cv.Optional(CONF_DIRECT_DRAW, default=False): cv.boolean,
             # One or more GPIOs driven high during setup to power on the panel
             # (e.g. board power-enable rails), before reset and init.
             cv.Optional(
@@ -317,25 +325,22 @@ def _customise_schema(config: ConfigType) -> ConfigType:
     model = IT8951Model.models[config[CONF_MODEL].upper()]
     width, height = model.get_dimensions(model_config)
 
-    buffered = requires_buffer(model_config)
+    direct_draw = model_config[CONF_DIRECT_DRAW]
+    if direct_draw and requires_buffer(model_config):
+        raise cv.Invalid(
+            f"'{CONF_DIRECT_DRAW}' cannot be used with 'lambda', 'pages' or "
+            f"'{CONF_SHOW_TEST_CARD}', which need a framebuffer.",
+            [CONF_DIRECT_DRAW],
+        )
     display.add_metadata(
         model_config[CONF_ID],
         width,
         height,
-        # With a framebuffer, rotation is applied per-pixel in draw_pixel_at at no
-        # extra cost, so we advertise hardware rotation and LVGL routes its
-        # rotation to the driver via set_rotation. Direct draw has no framebuffer
-        # to rotate through — transposing a flush rectangle would need a
-        # chunk-sized scratch buffer, which is exactly what LVGL's own software
-        # (or ESP32-P4 PPA) rotation already provides — so it leaves rotation to
-        # LVGL. Only LVGL reads this flag, and a config with neither a writer nor
-        # LVGL gets the test card from _final_validate, so the value is never
-        # consulted in the one case where it would be stale.
-        has_hardware_rotation=buffered,
-        # auto_clear_enabled calls clear() from do_update_ whether or not a writer
-        # exists, so it counts as a writer for LVGL's purposes — the same term as
-        # mipi_spi, mipi_dsi, mipi_rgb and display's own fallback metadata.
-        has_writer=buffered or model_config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        # Both classes rotate for free: per pixel in the buffered class, by the
+        # order the source is read in when packing a direct-draw row.
+        has_hardware_rotation=True,
+        has_writer=requires_buffer(model_config)
+        or model_config.get(CONF_AUTO_CLEAR_ENABLED) is True,
         # Report the configured rotation so LVGL can detect (and reject) a
         # rotation set in the display config instead of the LVGL config.
         rotation=model_config.get(CONF_ROTATION, 0),
@@ -347,6 +352,7 @@ def _customise_schema(config: ConfigType) -> ConfigType:
         # become 32x32 of converted pixels. 16 satisfies both pixel formats and
         # survives mirroring (see _final_validate).
         draw_rounding=16,
+        requires_update_when_display_idle=direct_draw,
     )
 
     return model_config
@@ -364,6 +370,15 @@ def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN, defines as lv_defines
 
+    if config[CONF_DIRECT_DRAW] and not any(
+        config[CONF_ID] in lvgl_config.get(lv_defines.CONF_DISPLAYS, [])
+        for lvgl_config in global_config.get(LVGL_DOMAIN, [])
+    ):
+        raise cv.Invalid(
+            f"'{CONF_DIRECT_DRAW}' requires an lvgl component that draws on this display.",
+            [CONF_DIRECT_DRAW],
+        )
+
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
         if LVGL_DOMAIN in global_config:
             if CONF_UPDATE_INTERVAL not in config:
@@ -378,61 +393,22 @@ def _final_validate(config: ConfigType) -> None:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
 
     # Everything below applies only to the direct-draw variant.
-    if requires_buffer(config):
+    if not config[CONF_DIRECT_DRAW]:
         return
 
-    # Mirroring maps a rectangle to width - x - w, so the panel width has to be a
-    # multiple of the load alignment for a LVGL-aligned rectangle to stay aligned.
-    # Every model preset satisfies this; a generic model with hand-entered
-    # dimensions need not, and would otherwise drop every flush at runtime.
-    transform = config.get(CONF_TRANSFORM)
-    mirrored = transform is not None and (
-        transform.get(CONF_MIRROR_X) or transform.get(CONF_MIRROR_Y)
-    )
-    if mirrored:
-        model = IT8951Model.models[config[CONF_MODEL]]
-        width, _ = model.get_dimensions(config)
-        align = 4 if config[CONF_GRAYSCALE] else 16
-        if width % align:
-            raise cv.Invalid(
-                f"Width {width} must be a multiple of {align} to use 'transform' "
-                f"without a framebuffer. Remove the mirror, pick a width that is a "
-                f"multiple of {align}, or add a 'lambda:' to use the buffered driver.",
-                [CONF_DIMENSIONS],
-            )
-
-    if transform is not None and transform.get(CONF_SWAP_XY):
+    # Rotation and mirroring map a rectangle to width - x - w, and clipping at the
+    # right edge ends it at width, so the panel width has to be a multiple of the
+    # load alignment for LVGL's 16-aligned rectangles to stay aligned. Every model
+    # preset satisfies this; a generic model with hand-entered dimensions need not,
+    # and would otherwise drop flushes along the edge at runtime.
+    model = IT8951Model.models[config[CONF_MODEL]]
+    width, _ = model.get_dimensions(config)
+    align = 4 if config[CONF_GRAYSCALE] else 16
+    if width % align:
         raise cv.Invalid(
-            "'swap_xy' is not supported without a framebuffer. Rotate in the LVGL "
-            "config instead, or add a 'lambda:' to use the buffered driver.",
-            [CONF_TRANSFORM, CONF_SWAP_XY],
+            f"Width {width} must be a multiple of {align} to use '{CONF_DIRECT_DRAW}'.",
+            [CONF_DIMENSIONS],
         )
-
-    # Direct draw writes into the controller's image memory as LVGL flushes, so a
-    # render started while a waveform is in flight overwrites the image the panel
-    # is still drawing from, and the driver has to drop it — leaving that part of
-    # the screen wrong until something happens to redraw it.
-    #
-    # Only 'update_when_display_idle' prevents this. Gating the config's own
-    # lv_refr_now() calls on is_idle() is not enough, because LVGL's refresh timer
-    # renders on its own schedule and nothing in a configuration can hold it back.
-    #
-    # It does mean LVGL asks for a present at every render end, using the
-    # display's default waveform. Use it8951.pause to swallow those requests and
-    # it8951.resume to present with the waveform this particular update wants.
-    display_id = config[CONF_ID]
-    for lvgl_config in global_config.get(LVGL_DOMAIN, []):
-        if display_id not in lvgl_config.get(lv_defines.CONF_DISPLAYS, []):
-            continue
-        if not lvgl_config.get(lv_defines.CONF_UPDATE_WHEN_DISPLAY_IDLE):
-            raise cv.Invalid(
-                f"The lvgl component driving '{display_id}' must set "
-                "'update_when_display_idle: true'. Without a framebuffer, LVGL "
-                "would render into the controller's image memory while the panel "
-                "is still refreshing from it, and those renders are lost. Use "
-                "it8951.pause / it8951.resume to keep control of which waveform "
-                "each update uses."
-            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -443,11 +419,9 @@ async def to_code(config: ConfigType) -> None:
     width, height = model.get_dimensions(config)
 
     var_id = config[CONF_ID]
-    # A lambda, pages or the test card all call draw_pixel_at in arbitrary order,
-    # which cannot be streamed into controller memory as it happens, so those
-    # configs need the buffered class. Everything else — in practice LVGL, which
-    # pushes whole rectangles — is drawn straight into controller memory.
-    var_id.type = IT8951Display if requires_buffer(config) else IT8951DirectDisplay
+    var_id.type = (
+        IT8951DirectDisplay if config[CONF_DIRECT_DRAW] else IT8951BufferedDisplay
+    )
     var = cg.new_Pvariable(var_id, model.name, width, height)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)

@@ -1,7 +1,6 @@
-# Direct-draw variant: no lambda/pages, so the driver streams LVGL's flush
-# rectangles straight into the controller's image RAM instead of allocating a
-# framebuffer. Covers both pixel formats and the software-rotation path that
-# direct draw forces LVGL onto.
+# Direct-draw variant: the driver streams LVGL's flush rectangles straight into
+# the controller's image RAM instead of allocating a framebuffer. Covers both
+# pixel formats and driver-side rotation.
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
 
@@ -23,6 +22,7 @@ display:
       number: GPIO4
     vcom: 1400
     sleep_when_done: false
+    direct_draw: true
 
   # Monochrome (8bpp-packed 1bpp loads) with ordered dithering, so the dither
   # threshold has to stay keyed to absolute panel coordinates across flushes.
@@ -42,6 +42,7 @@ display:
     grayscale: false
     dithering: true
     sleep_when_done: true
+    direct_draw: true
 
 lvgl:
   - id: lvgl_gray
@@ -59,8 +60,7 @@ lvgl:
     # Required for a framebuffer-less display: nothing else can hold back LVGL's
     # own refresh timer while a waveform is running.
     update_when_display_idle: true
-    # Direct draw advertises has_hardware_rotation=false, so this exercises
-    # LVGL's software rotation path rather than driver-side rotation.
+    # Rotation is done by the driver while packing rows (swap_xy path).
     rotation: 90
     widgets:
       - label:
@@ -72,6 +72,9 @@ lvgl:
 interval:
   - interval: 60s
     then:
+      # Don't compose while a waveform is still reading image memory.
+      - wait_until:
+          component.is_idle: direct_gray
       - it8951.pause: direct_gray
       - lambda: lv_refr_now(nullptr);
       # Resume presents the accumulated region with the given waveform.
