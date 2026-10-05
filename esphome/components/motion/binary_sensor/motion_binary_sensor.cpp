@@ -68,7 +68,7 @@ void MotionBinarySensor::process_motion_data_(const MotionData &data) {
     case MOTION_BINARY_SENSOR_FACE_DOWN: {
       // Block while the device is moving: hold the last stable state instead of
       // reacting to transient acceleration spikes from shaking or handling.
-      if (!this->is_stationary(data))
+      if (!is_stationary(data))
         break;
 
       float ax = data.acceleration[X_AXIS];
