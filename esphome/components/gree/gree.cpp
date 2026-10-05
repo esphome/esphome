@@ -149,9 +149,9 @@ void GreeClimate::transmit_state() {
   encode(remote_state);
   if (model == GREE_YAW1F) {
     // The YAW1F remote follows every command with a second message, 00 00 00 A0 | 00 00 00 A0
-    static const uint8_t followup[8] = {0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xA0};
+    static const uint8_t FOLLOWUP[8] = {0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xA0};
     data->space(GREE_YAW1F_FOLLOWUP_SPACE);
-    encode(followup);
+    encode(FOLLOWUP);
   }
   data->space(0);
 
