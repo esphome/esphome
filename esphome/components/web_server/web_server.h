@@ -254,9 +254,9 @@ class WebServer final : public Component, public AsyncWebHandler {
    *
    * This list is also used to authorize Private Network Access requests when that feature is enabled.
    *
-   * @param origins The list of allowed origins.
+   * @param origins nullptr-terminated table of allowed origins; must outlive the server.
    */
-  void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
+  void set_allowed_origins(const char *const *origins) { this->allowed_origins_ = origins; }
 #endif
 
   // ========== INTERNAL METHODS ==========
@@ -531,6 +531,9 @@ class WebServer final : public Component, public AsyncWebHandler {
   bool include_internal_{false};
 
  protected:
+  // Declared here so it packs into the padding after include_internal_
+  bool expose_log_{true};
+
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 
 #ifdef USE_LIGHT
@@ -614,11 +617,10 @@ class WebServer final : public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-  bool expose_log_{true};
 #ifdef USE_WEBSERVER_ALLOWED_ORIGINS
   // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
   // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
-  FixedVector<const char *> allowed_origins_;
+  const char *const *allowed_origins_{nullptr};
 #endif
 
   /// Check whether the given request Origin is permitted. Same-origin (matching the Host the

@@ -191,6 +191,7 @@ esphome/components/espnow/* @jesserockz
 esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
+esphome/components/exponential_moving_average/* @clydebarrow
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento

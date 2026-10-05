@@ -44,6 +44,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   bool is_connected() override { return this->link_.connected(); }
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 #endif
 
  protected:
