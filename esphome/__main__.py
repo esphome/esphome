@@ -829,9 +829,9 @@ def write_cpp_file() -> int:
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     if CORE.skip_bootloader and not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
-        # Info, not a warning: an orchestrator cannot see YAML toolchain
-        # overrides, this is its expected no-op, and a full build is safe.
-        _LOGGER.info(
+        # Debug only: an orchestrator cannot see YAML toolchain overrides,
+        # so this is its expected no-op, and a full build is safe.
+        _LOGGER.debug(
             "--skip-bootloader ignored: only supported on ESP32 with the "
             "esp-idf toolchain"
         )
