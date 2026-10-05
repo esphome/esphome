@@ -1,0 +1,17 @@
+---
+esphome:
+  name: test
+
+host:
+
+logger:
+
+api:
+
+number:
+  - platform: homeassistant
+    entity_id: number.some_number
+    id: ha_number
+  - platform: homeassistant
+    entity_id: sensor.foo
+    id: ha_other_number
