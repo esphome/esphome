@@ -381,6 +381,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   ETS_UART_INTR_ENABLE();
   if (!ret) {
     ESP_LOGV(TAG, "wifi_station_connect failed");
+    this->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_FAILED);
     return false;
   }
   // Reset after, not before: wifi_station_connect() synchronously reports the attempt it replaces as failed
