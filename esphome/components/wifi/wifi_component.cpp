@@ -768,14 +768,15 @@ void WiFiComponent::restart_adapter() {
 
 void WiFiComponent::on_powerdown() {
   // Leave the AP so it no longer holds the association when we come back.
+#ifdef USE_LN882X
+  if (!this->wifi_powerdown_disconnect_())
+    return;
+#else
   if (!this->is_connected())
     return;
-  ESP_LOGD(TAG, "Disconnecting before powerdown");
-#ifdef USE_LN882X
-  this->wifi_powerdown_disconnect_();
-#else
   this->wifi_disconnect_();
 #endif
+  ESP_LOGD(TAG, "Disconnected before powerdown");
   delay(100);  // NOLINT: once per reboot or deep sleep, lets the deauth go out
 }
 

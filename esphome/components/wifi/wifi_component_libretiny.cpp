@@ -790,8 +790,11 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; 
 #endif  // USE_WIFI_AP
 
 #ifdef USE_LN882X
-void WiFiComponent::wifi_powerdown_disconnect_() {
+bool WiFiComponent::wifi_powerdown_disconnect_() {
+  if (WiFi.status() != WL_CONNECTED)  // associated, even before DHCP has finished
+    return false;
   wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
+  return true;
 }
 #endif
 
