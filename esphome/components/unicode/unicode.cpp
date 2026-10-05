@@ -1,7 +1,6 @@
 #include "unicode.h"
 #include <stdint.h>
 
-
 namespace esphome::unicode {
 
 uint32_t extract_unicode_codepoint(const char *utf8_str, size_t *length) {
