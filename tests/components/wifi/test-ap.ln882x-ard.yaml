@@ -1,0 +1,9 @@
+wifi:
+  networks:
+    - ssid: MySSID
+      password: password1
+  ap:
+    ssid: Fallback Hotspot
+    password: password2
+
+captive_portal:
