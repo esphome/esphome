@@ -772,7 +772,7 @@ void WiFiComponent::on_powerdown() {
   // device comes back and the first connects can stall or fail.
   if (!this->is_connected())
     return;
-  ESP_LOGD(TAG, "Disconnecting before reboot");
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
 #ifdef USE_LN882X
   this->wifi_powerdown_disconnect_();
 #else
