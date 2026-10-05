@@ -29,7 +29,7 @@ class MotionBinarySensor : public Component, public binary_sensor::BinarySensor 
   /// True when the device is at rest: total acceleration is close to 1g and (if a
   /// gyroscope is present) the angular rate is low. While not stationary the
   /// face_up / face_down orientation is unreliable, so their updates are suspended.
-  static bool is_stationary_(const MotionData &data);
+  static bool is_stationary(const MotionData &data);
 
   MotionComponent *parent_;
   MotionBinarySensorType type_;

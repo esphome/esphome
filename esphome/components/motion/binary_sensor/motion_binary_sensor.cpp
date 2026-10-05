@@ -17,7 +17,7 @@ static constexpr float GYRO_THRESHOLD_SCALE = 50.0f;   // arbitrary gyro thresho
 MotionBinarySensor::MotionBinarySensor(MotionComponent *parent, MotionBinarySensorType type)
     : parent_(parent), type_(type) {}
 
-bool MotionBinarySensor::is_stationary_(const MotionData &data) {
+bool MotionBinarySensor::is_stationary(const MotionData &data) {
   float ax = data.acceleration[X_AXIS];
   float ay = data.acceleration[Y_AXIS];
   float az = data.acceleration[Z_AXIS];
@@ -68,7 +68,7 @@ void MotionBinarySensor::process_motion_data_(const MotionData &data) {
     case MOTION_BINARY_SENSOR_FACE_DOWN: {
       // Block while the device is moving: hold the last stable state instead of
       // reacting to transient acceleration spikes from shaking or handling.
-      if (!this->is_stationary_(data))
+      if (!this->is_stationary(data))
         break;
 
       float ax = data.acceleration[X_AXIS];
