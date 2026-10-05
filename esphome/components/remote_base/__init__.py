@@ -256,7 +256,9 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 ).extend(REMOTE_TRANSMITTABLE_SCHEMA)
 
 
-def register_action(name, type_, schema, *, validate=None):
+def register_action(
+    name, type_, schema, *, validate: Callable[[ConfigType], ConfigType] | None = None
+):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
     if validate is not None:
         validator = cv.All(validator, validate)
@@ -942,12 +944,14 @@ KEELOQ_SCHEMA = cv.Schema(
 )
 
 
-def _keeloq_suffix_fits(config):
+def _keeloq_suffix_fits(config: ConfigType) -> ConfigType:
     # A lambda is only known on the device. A plain value has to fit the width.
     suffix = config[CONF_SUFFIX]
     bits = config[CONF_SUFFIX_BITS]
     if isinstance(suffix, int) and isinstance(bits, int) and suffix >> bits:
-        raise cv.Invalid("suffix does not fit in suffix_bits", [CONF_SUFFIX])
+        raise cv.Invalid(
+            f"suffix 0x{suffix:X} does not fit in {bits} suffix_bits", [CONF_SUFFIX]
+        )
     return config
 
 
@@ -996,10 +1000,12 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
     cg.add(var.set_vlow(template_))
-    template_ = await cg.templatable(config[CONF_SUFFIX], args, cg.uint16)
-    cg.add(var.set_suffix(template_))
-    template_ = await cg.templatable(config[CONF_SUFFIX_BITS], args, cg.uint8)
-    cg.add(var.set_suffix_bits(template_))
+    # Without suffix bits nothing of the suffix is sent, so both stay at their C++ default.
+    if (suffix_bits := config[CONF_SUFFIX_BITS]) != 0:
+        template_ = await cg.templatable(config[CONF_SUFFIX], args, cg.uint16)
+        cg.add(var.set_suffix(template_))
+        template_ = await cg.templatable(suffix_bits, args, cg.uint8)
+        cg.add(var.set_suffix_bits(template_))
 
 
 # NEC
