@@ -28,8 +28,7 @@ void USBHost::setup() {
 void USBHost::dump_config() {
   ESP_LOGCONFIG(TAG, "USB Host:");
   ESP_LOGCONFIG(TAG, "  FIFO lines: RX=%" PRIu32 ", NPTX=%" PRIu32 ", PTX=%" PRIu32,
-                static_cast<uint32_t>(USB_HOST_RX_FIFO_LINES),
-                static_cast<uint32_t>(USB_HOST_NPTX_FIFO_LINES),
+                static_cast<uint32_t>(USB_HOST_RX_FIFO_LINES), static_cast<uint32_t>(USB_HOST_NPTX_FIFO_LINES),
                 static_cast<uint32_t>(USB_HOST_PTX_FIFO_LINES));
 }
 #endif  // USB_HOST_RX_FIFO_LINES

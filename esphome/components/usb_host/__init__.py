@@ -90,15 +90,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
                 64, 128, 256, 512, 1024, int=True
             ),
-            cv.Optional(CONF_RX_FIFO_LINES): cv.int_range(
-                min=1, max=MAX_FIFO_LINES
-            ),
-            cv.Optional(CONF_NPTX_FIFO_LINES): cv.int_range(
-                min=1, max=MAX_FIFO_LINES
-            ),
-            cv.Optional(CONF_PTX_FIFO_LINES): cv.int_range(
-                min=0, max=MAX_FIFO_LINES
-            ),
+            cv.Optional(CONF_RX_FIFO_LINES): cv.int_range(min=1, max=MAX_FIFO_LINES),
+            cv.Optional(CONF_NPTX_FIFO_LINES): cv.int_range(min=1, max=MAX_FIFO_LINES),
+            cv.Optional(CONF_PTX_FIFO_LINES): cv.int_range(min=0, max=MAX_FIFO_LINES),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
@@ -135,9 +129,7 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if (
-        rx_fifo_lines := cast(int | None, config.get(CONF_RX_FIFO_LINES))
-    ) is not None:
+    if (rx_fifo_lines := cast(int | None, config.get(CONF_RX_FIFO_LINES))) is not None:
         cg.add_define("USB_HOST_RX_FIFO_LINES", rx_fifo_lines)
         cg.add_define(
             "USB_HOST_NPTX_FIFO_LINES", cast(int, config[CONF_NPTX_FIFO_LINES])
