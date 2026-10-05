@@ -796,7 +796,7 @@ void WiFiComponent::on_powerdown() {
   // chip comes back and the first connects can stall or fail.
   if (!this->is_connected())
     return;
-  ESP_LOGD(TAG, "Disconnecting before reboot");
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
   // The SDK call directly: LibreTiny's WiFi.disconnect() also frees the SSID
   // its event handlers read, which once hung a reboot until the watchdog.
   wifi_sta_disconnect();
