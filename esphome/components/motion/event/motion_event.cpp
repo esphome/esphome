@@ -1,6 +1,7 @@
 #include "motion_event.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 
 namespace esphome::motion {
 
@@ -30,7 +31,7 @@ void MotionEvent::process_motion_data_(const MotionData &data) {
     return;
   }
 
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
 
   if (!std::isnan(this->last_accel_[0])) {
     float dx = ax - this->last_accel_[0];

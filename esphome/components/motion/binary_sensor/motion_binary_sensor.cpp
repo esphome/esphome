@@ -1,6 +1,7 @@
 #include "motion_binary_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 
 namespace esphome::motion {
 
@@ -16,7 +17,7 @@ static constexpr float GYRO_THRESHOLD_SCALE = 50.0f;   // arbitrary gyro thresho
 MotionBinarySensor::MotionBinarySensor(MotionComponent *parent, MotionBinarySensorType type)
     : parent_(parent), type_(type) {}
 
-bool MotionBinarySensor::is_stationary_(const MotionData &data) const {
+bool MotionBinarySensor::is_stationary_(const MotionData &data) {
   float ax = data.acceleration[X_AXIS];
   float ay = data.acceleration[Y_AXIS];
   float az = data.acceleration[Z_AXIS];
@@ -60,7 +61,7 @@ void MotionBinarySensor::dump_config() {
 }
 
 void MotionBinarySensor::process_motion_data_(const MotionData &data) {
-  uint32_t now = millis();
+  uint32_t now = App.get_loop_component_start_time();
 
   switch (this->type_) {
     case MOTION_BINARY_SENSOR_FACE_UP:
@@ -101,9 +102,8 @@ void MotionBinarySensor::process_motion_data_(const MotionData &data) {
       }
 
       float mag = std::sqrt(ax * ax + ay * ay + az * az);
-      bool free_falling = mag < this->threshold_;
 
-      if (free_falling) {
+      if (mag < this->threshold_) {
         if (!this->free_fall_candidate_) {
           this->free_fall_candidate_ = true;
           this->free_fall_start_time_ = now;

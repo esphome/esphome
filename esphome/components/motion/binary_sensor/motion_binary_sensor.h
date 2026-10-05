@@ -19,7 +19,6 @@ class MotionBinarySensor : public Component, public binary_sensor::BinarySensor 
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_threshold(float threshold) { this->threshold_ = threshold; }
   void set_duration(uint32_t duration) { this->duration_ = duration; }
@@ -30,7 +29,7 @@ class MotionBinarySensor : public Component, public binary_sensor::BinarySensor 
   /// True when the device is at rest: total acceleration is close to 1g and (if a
   /// gyroscope is present) the angular rate is low. While not stationary the
   /// face_up / face_down orientation is unreliable, so their updates are suspended.
-  bool is_stationary_(const MotionData &data) const;
+  static bool is_stationary_(const MotionData &data);
 
   MotionComponent *parent_;
   MotionBinarySensorType type_;

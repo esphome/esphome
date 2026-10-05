@@ -12,7 +12,6 @@ class MotionEvent : public Component, public event::Event {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_threshold(float threshold) { this->threshold_ = threshold; }
   void set_cooldown(uint32_t cooldown) { this->cooldown_ = cooldown; }

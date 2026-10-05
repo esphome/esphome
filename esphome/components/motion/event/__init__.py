@@ -24,7 +24,9 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_MOTION_ID): cv.use_id(MotionComponent),
-            cv.Optional(CONF_THRESHOLD, default=0.5): cv.positive_float,
+            cv.Optional(CONF_THRESHOLD, default=0.5): cv.float_range(
+                min=0.0, min_included=False
+            ),
             cv.Optional(
                 CONF_COOLDOWN, default="500ms"
             ): cv.positive_time_period_milliseconds,
