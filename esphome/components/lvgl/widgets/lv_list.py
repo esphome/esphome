@@ -441,7 +441,7 @@ async def _wire_dynamic_triggers(w: Widget, config: dict) -> None:
     for event, conf in {
         event: conf for event, conf in config.items() if event in LV_EVENT_TRIGGERS
     }.items():
-        w.add_flag("LV_OBJ_FLAG_CLICKABLE")
+        w.set_flag("clickable", True)
         await add_trigger(
             conf[0], event_target, event, attach_obj=w.obj, user_data=user_data
         )

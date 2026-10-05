@@ -72,7 +72,7 @@ async def generate_triggers():
                 event: conf for event, conf in config.items() if event in all_triggers
             }.items():
                 conf = conf[0]
-                w.add_flag("LV_OBJ_FLAG_CLICKABLE")
+                w.set_flag("clickable", True)
                 await add_trigger(conf, w, event)
 
             for event, conf in {
@@ -82,7 +82,7 @@ async def generate_triggers():
                 dir = event[9:].upper()
                 dir = {"UP": "TOP", "DOWN": "BOTTOM"}.get(dir, dir)
                 dir = DIRECTIONS.mapper(dir)
-                w.clear_flag("LV_OBJ_FLAG_SCROLLABLE")
+                w.set_flag("scrollable", False)
                 selected = literal(
                     f"lv_indev_get_gesture_dir(lv_indev_active()) == {dir}"
                 )

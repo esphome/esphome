@@ -6,7 +6,7 @@ from esphome.components.binary_sensor import (
 import esphome.config_validation as cv
 from esphome.const import CONF_STATE
 
-from ..defines import CONF_WIDGET, LV_OBJ_FLAG, LvConstant
+from ..defines import CONF_WIDGET, LvConstant
 from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t
 from ..widgets import Widget, get_widgets
@@ -41,7 +41,7 @@ async def to_code(config):
         ctx.add(sensor.publish_initial_state(test_expr))
         if is_pressed:
             events = [LV_EVENT.PRESSED, LV_EVENT.RELEASED]
-            widget.add_flag(LV_OBJ_FLAG.CLICKABLE)
+            widget.set_flag("clickable", True)
         else:
             events = [LV_EVENT.VALUE_CHANGED, UPDATE_EVENT]
         ctx.add(

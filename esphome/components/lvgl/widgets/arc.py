@@ -18,7 +18,6 @@ from ..defines import (
     CONF_KNOB,
     CONF_MAIN,
     CONF_START_ANGLE,
-    LV_OBJ_FLAG,
     LV_PART,
 )
 from ..lv_validation import (
@@ -85,7 +84,7 @@ class ArcType(NumberType):
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
                 lv_obj.remove_style(w.obj, nullptr, LV_PART.KNOB)
-                w.clear_flag(LV_OBJ_FLAG.CLICKABLE)
+                w.set_flag("clickable", False)
             elif CONF_GROUP not in config:
                 # For some reason arc does not get automatically added to the default group
                 lv.group_add_obj(lv_expr.group_get_default(), w.obj)

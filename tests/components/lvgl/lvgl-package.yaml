@@ -977,6 +977,10 @@ lvgl:
         - spinner:
             align: right_mid
             send_draw_task_events: true
+            event_trickle: true
+            state_trickle: true
+            radio_button: true
+            flex_in_new_track: !lambda return true;
         - image:
             id: lv_image
             src: cat_image

@@ -616,13 +616,12 @@ OBJ_FLAGS = (
     "ignore_layout",
     "floating",
     "overflow_visible",
-    "layout_1",
-    "layout_2",
     "send_draw_task_events",
-    "widget_1",
-    "widget_2",
+    "event_trickle",
+    "state_trickle",
+    "radio_button",
+    "flex_in_new_track",
 )
-LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
