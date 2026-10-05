@@ -5,6 +5,7 @@
 
 #include <zephyr/net/dhcpv4.h>
 #include <zephyr/net/dhcpv4_server.h>
+#include <zephyr/net/dns_resolve.h>
 #include <zephyr/net/hostname.h>
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/net_if.h>
@@ -279,6 +280,20 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   in_addr mask{};
   net_addr_pton(AF_INET, manual_ip->subnet.str_to(buf), &mask);
   net_if_ipv4_set_netmask_by_addr(sta_iface, &addr, &mask);
+  // Without DHCP nothing else supplies DNS servers for getaddrinfo().
+  char dns1[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns2[network::IP_ADDRESS_BUFFER_SIZE];
+  const char *servers[3]{};
+  size_t count = 0;
+  if (manual_ip->dns1.is_set()) {
+    servers[count++] = manual_ip->dns1.str_to(dns1);
+  }
+  if (manual_ip->dns2.is_set()) {
+    servers[count++] = manual_ip->dns2.str_to(dns2);
+  }
+  if (count > 0 && dns_resolve_reconfigure(dns_resolve_get_default(), servers, nullptr, DNS_SOURCE_MANUAL) < 0) {
+    ESP_LOGW(TAG, "Failed to set DNS servers");
+  }
   return true;
 }
 
