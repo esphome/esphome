@@ -187,14 +187,8 @@ automation.register_apply_action(
 async def select_is_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     if options := config.get(CONF_OPTIONS):
-        # List of constant options
-        # Create a constexpr and pass that with a template length
-        arr_id = ID(
-            f"{condition_id}_data",
-            is_declaration=True,
-            type=global_ns.namespace("constexpr char * const"),
-        )
-        arg = cg.static_const_array(arr_id, cg.ArrayInitializer(*options))
+        # Shared flash table of option pointers, length passed as a template argument
+        arg = cg.shared_progmem_array("select_is_options", cg.const_char_ptr, options)
         template_arg = TemplateArguments(len(options), *template_arg)
     else:
         # Lambda
