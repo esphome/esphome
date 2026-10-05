@@ -22,16 +22,13 @@ void LTComponent::dump_config() {
 #endif
 
 #if defined(USE_LN882X) && defined(USE_WIFI)
-  // The SDK falls back to this MAC when it finds none stored for the board
-  // layout in use, so every such device shares it and they knock each other
-  // off the network. Tuya modules keep theirs in the Tuya layout's store.
-  static const uint8_t SDK_DEFAULT_MAC[6] = {0x00, 0x50, 0xC2, 0x5E, 0x10, 0x88};
-  uint8_t mac[6];
+  // The SDK falls back to this MAC when the board layout's KV store holds none.
+  static constexpr uint8_t SDK_DEFAULT_MAC[MAC_ADDRESS_SIZE] = {0x00, 0x50, 0xC2, 0x5E, 0x10, 0x88};
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
-  if (memcmp(mac, SDK_DEFAULT_MAC, sizeof(mac)) == 0) {
-    ESP_LOGE(TAG, "MAC is the LN882H SDK default 00:50:C2:5E:10:88, shared by every device without one stored. "
-                  "On a Tuya module, set board: to its Tuya board (wl2s, wl2h-u, ln-cb3s-v1.0, wb02a) and flash over "
-                  "serial");
+  if (memcmp(mac, SDK_DEFAULT_MAC, MAC_ADDRESS_SIZE) == 0) {
+    ESP_LOGE(TAG, "MAC is the LN882H SDK default 00:50:C2:5E:10:88; only one device with it can be on a network. "
+                  "On a Tuya module, set board: to its Tuya board (e.g. wl2s, wl2h-u) and flash over serial");
   }
 #endif
 
