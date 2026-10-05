@@ -15,27 +15,19 @@ static const char *const TAG = "bthome.button";
 static constexpr uint8_t BTHOME_UUID_LO = 0xD2;
 static constexpr uint8_t BTHOME_UUID_HI = 0xFC;
 
-// address_uint64() stores the first printed byte in the top of the word.
-static void format_stored_address(uint64_t address, char *buf) {
-  uint8_t mac[6];
-  for (uint8_t i = 0; i < 6; i++) {
-    mac[i] = static_cast<uint8_t>((address >> ((5 - i) * 8)) & 0xff);
-  }
-  format_mac_addr_upper(mac, buf);
-}
-
 void BTHomeButtonBinarySensor::setup() { this->publish_initial_state(false); }
 
 void BTHomeButtonBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "BTHome Button", this);
+  uint8_t mac[MAC_ADDRESS_SIZE];
+  ble_device_base::uint64_to_mac_msb_first(this->address_, mac);
   char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  format_stored_address(this->address_, addr);
   ESP_LOGCONFIG(TAG,
                 "  Address: %s\n"
                 "  Index: %u\n"
                 "  Event: 0x%02X\n"
                 "  Pulse: %" PRIu32 " ms",
-                addr, this->index_, this->event_, this->pulse_length_ms_);
+                format_mac_addr_upper(mac, addr), this->index_, this->event_, this->pulse_length_ms_);
 }
 
 bool BTHomeButtonBinarySensor::parse_device(const ble_device_base::ESPBTDevice &device) {

@@ -6,6 +6,9 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]
 
+# codec::MAX_BUTTONS
+MAX_BUTTONS = 8
+
 # Names from the BTHome v2 button table.
 BUTTON_EVENTS = {
     "press": 0x01,
@@ -25,21 +28,20 @@ BTHomeButtonBinarySensor = bthome_ns.class_(
     ble_device_base.ESPBTDeviceListener,
 )
 
-CONFIG_SCHEMA = cv.All(
-    ble_device_base.rename_legacy_hub_id("bthome"),
+CONFIG_SCHEMA = (
     binary_sensor.binary_sensor_schema(BTHomeButtonBinarySensor)
     .extend(
         {
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_EVENT): cv.enum(BUTTON_EVENTS, lower=True),
-            cv.Optional(CONF_INDEX, default=1): cv.int_range(min=1, max=8),
+            cv.Optional(CONF_INDEX, default=1): cv.int_range(min=1, max=MAX_BUTTONS),
             cv.Optional(
                 CONF_PULSE_LENGTH, default="200ms"
             ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA)
 )
 
 
