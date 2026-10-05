@@ -62,7 +62,8 @@ WiFiSTAConnectStatus g_sta_status = WiFiSTAConnectStatus::IDLE;  // NOLINT
 bool g_ap_enabled = false;                                       // NOLINT
 // Power-save requests fail until the driver has actually started (a side effect of
 // connect/scan/AP-enable, not interface registration) -- deferred until after.
-bool g_wifi_started = false;  // NOLINT
+bool g_wifi_started = false;   // NOLINT
+bool g_sta_manual_ip = false;  // NOLINT
 // Set once from WiFiComponent::wifi_pre_setup_(); read from the producer thread to
 // drop weak scan results before they ever reach the event queue.
 int8_t g_min_scan_rssi = -128;  // NOLINT
@@ -259,13 +260,10 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
   if (!manual_ip.has_value()) {
-    // ESP32_WIFI_STA_AUTO_DHCPV4 (enabled via NET_DHCPV4 in wifi/__init__.py) starts DHCPv4
-    // automatically once STA connects -- nothing to do here.
+    // DHCPv4 is started on CONNECT_RESULT (see wifi_loop_()).
     return true;
   }
-  // DHCPv4 auto-starts on connect regardless of manual_ip (NET_DHCPV4 is unconditionally
-  // enabled); stop it before adding the static address so it can't race in and overwrite
-  // it, matching ESP-IDF's esp_netif_dhcpc_stop(). No-op if the client was never started.
+  // A previous DHCP network's client may still be running.
   net_dhcpv4_stop(sta_iface);
   char buf[network::IP_ADDRESS_BUFFER_SIZE];
   in_addr addr{};
@@ -329,9 +327,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (sta_iface == nullptr) {
     return false;
   }
-  if (!this->wifi_sta_ip_config_(get_manual_ip_or_none(ap))) {
+  const optional<ManualIP> manual_ip = get_manual_ip_or_none(ap);
+  if (!this->wifi_sta_ip_config_(manual_ip)) {
     return false;
   }
+  g_sta_manual_ip = manual_ip.has_value();
 
   wifi_connect_req_params params{};
   fill_ssid_and_security(params, ap.ssid_, ap.password_);
@@ -569,6 +569,18 @@ bool WiFiComponent::wifi_loop_() {
       case ZephyrWiFiEvent::Type::CONNECT_RESULT:
         if (event->status == 0) {
           g_sta_status = WiFiSTAConnectStatus::CONNECTED;
+          if (g_sta_manual_ip) {
+            // A static address re-added on reconnect raises no IPV4_ADDR_ADD event.
+#if USE_NETWORK_IPV4
+            this->got_ipv4_address_ = true;
+            this->update_connected_state_();
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+            this->notify_ip_state_listeners_();
+#endif
+#endif
+          } else {
+            net_dhcpv4_start(sta_iface);
+          }
           // Deferred from setup() -- the driver wasn't started yet at that point (see
           // wifi_apply_power_save_()'s g_wifi_started guard), so apply it now that it is.
           if (!this->wifi_apply_power_save_()) {
