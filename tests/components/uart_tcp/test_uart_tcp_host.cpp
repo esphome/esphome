@@ -76,9 +76,10 @@ class UartTcpClient : public ::testing::Test {
     this->bridge_.set_uart_parent(&this->uart_);
     this->bridge_.set_host("127.0.0.1");
     this->bridge_.set_port(ntohs(addr.sin_port));
-    // The test clock does not advance; a zero interval lets a dropped link retry at once.
+    // A zero interval lets a dropped link retry on the next pass.
     this->bridge_.set_reconnect_interval(0);
     this->bridge_.set_connected_sensor(&this->sensor_);
+    this->tick(0);
     this->bridge_.setup();
   }
   void TearDown() override {
@@ -88,9 +89,16 @@ class UartTcpClient : public ::testing::Test {
     App.set_loop_interval(16);
   }
 
-  // One main loop pass: select() marks readable sockets, then the component runs.
-  void pass() {
+  // Advance the test clock and publish it as the loop start time, as Application::loop() does.
+  void tick(uint32_t elapsed_ms) {
+    this->now_ += elapsed_ms;
+    LoopBlockingGuard dispatch{nullptr, nullptr, this->now_};
+  }
+  // One main loop pass that started elapsed_ms after the previous one: select()
+  // marks readable sockets, then the component runs.
+  void pass(uint32_t elapsed_ms = 16) {
     internal::wakeable_delay(5);
+    this->tick(elapsed_ms);
     this->bridge_.loop();
   }
   // Pass until the bridge connected and the test accepted it.
@@ -133,6 +141,7 @@ class UartTcpClient : public ::testing::Test {
   binary_sensor::BinarySensor sensor_;
   int listen_fd_{-1};
   int peer_fd_{-1};
+  uint32_t now_{100000};
 };
 
 TEST_F(UartTcpClient, CopiesBothWays) {
@@ -171,19 +180,41 @@ TEST_F(UartTcpClient, PacesToTheDefaultLoopInterval) {
   this->connect();
   this->send(100);
   this->pass();
+  this->pass();
   // 9600 baud at 10 bits per byte for 16 ms.
-  ASSERT_FALSE(this->uart_.writes.empty());
-  EXPECT_EQ(this->uart_.writes.front(), 15u);
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{15, 15}));
 }
 
-TEST_F(UartTcpClient, PacesToAConfiguredLoopInterval) {
+TEST_F(UartTcpClient, PacesAnEarlyPassToTheTimeSinceTheLastWrite) {
   App.set_loop_interval(100);
   this->connect();
-  this->send(120);
+  this->send(200);
+  this->pass(100);
+  // A socket wake 5 ms later gets 5 ms of UART time, not a full interval.
+  this->pass(5);
+  this->pass(100);
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{96, 4, 96}));
+}
+
+TEST_F(UartTcpClient, CapsALongGapAtOneLoopInterval) {
+  App.set_loop_interval(100);
+  this->connect();
+  this->send(250);
+  // A 1000 ms gap gets one interval (96 bytes), a 50 ms pass gets 50 ms.
+  this->pass(1000);
+  this->pass(50);
+  this->pass(1000);
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{96, 48, 96}));
+}
+
+TEST_F(UartTcpClient, WritesAtLeastOneBytePerPass) {
+  this->connect();
+  this->send(100);
   this->pass();
-  // 9600 baud at 10 bits per byte for 100 ms; a fixed 16 ms pace gives 15.
-  ASSERT_FALSE(this->uart_.writes.empty());
-  EXPECT_EQ(this->uart_.writes.front(), 96u);
+  // Less than one byte of UART time since the last write still moves a byte.
+  this->pass(0);
+  this->pass(1);
+  EXPECT_EQ(this->uart_.writes, (std::vector<size_t>{15, 1, 1}));
 }
 
 TEST_F(UartTcpClient, FullUartHoldsSocketBytesUntilThereIsRoom) {

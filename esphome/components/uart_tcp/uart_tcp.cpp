@@ -11,7 +11,7 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
-// 10 bits per byte on the line, loop interval in ms: bytes = baud * ms / 10000.
+// 10 bits per byte on the line, time in ms: bytes = baud * ms / 10000.
 static constexpr uint32_t BAUD_PACE_DIVISOR = 10 * 1000;
 
 void UartTcp::setup() {
@@ -62,10 +62,10 @@ void UartTcp::read_socket_() {
   // not fit in the socket, so TCP flow control throttles the peer.
   size_t room = this->parent_->available_for_write();
   if (room == SIZE_MAX) {
-    // Capacity unknown on this platform; pace to one loop interval of UART time
-    // so a blocking write stays within one pass.
-    uint64_t paced =
-        static_cast<uint64_t>(this->parent_->get_baud_rate()) * App.get_loop_interval() / BAUD_PACE_DIVISOR;
+    // Capacity unknown on this platform; pace to the UART time since the last write,
+    // at most one loop interval, so a pass woken early by the socket writes little.
+    uint32_t span = std::min(App.get_loop_component_start_time() - this->last_write_ms_, App.get_loop_interval());
+    uint64_t paced = static_cast<uint64_t>(this->parent_->get_baud_rate()) * span / BAUD_PACE_DIVISOR;
     room = std::max<size_t>(1, static_cast<size_t>(paced));
   }
   if (room == 0) {
@@ -84,6 +84,7 @@ void UartTcp::read_socket_() {
   }
   this->rx_pending_ = static_cast<size_t>(count) == want;
   this->write_array(tmp, static_cast<size_t>(count));
+  this->last_write_ms_ = App.get_loop_component_start_time();
 }
 
 void UartTcp::discard_uart_() {
