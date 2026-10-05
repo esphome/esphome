@@ -21,6 +21,8 @@ from esphome.components.esp32 import (
     MBEDTLS_TLS_EXTRA_OPTIONS,
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     VARIANTS,
     NetworkSdkconfigData,
     RawSdkconfigValue,
@@ -90,7 +92,14 @@ def test_esp32_config(
 
 
 @pytest.mark.parametrize(
-    ("sdkconfig_options", "cpu_frequency", "expected_frequency", "warns"),
+    (
+        "sdkconfig_options",
+        "cpu_frequency",
+        "expected_frequency",
+        "warns",
+        "variant",
+        "framework_type",
+    ),
     [
         pytest.param(
             {
@@ -100,6 +109,8 @@ def test_esp32_config(
             None,
             "160MHZ",
             True,
+            VARIANT_ESP32,
+            "esp-idf",
             id="legacy-frequency-options-with-default",
         ),
         pytest.param(
@@ -107,6 +118,8 @@ def test_esp32_config(
             "160MHz",
             "160MHZ",
             False,
+            VARIANT_ESP32,
+            "esp-idf",
             id="explicit-cpu-frequency",
         ),
         pytest.param(
@@ -114,6 +127,8 @@ def test_esp32_config(
             None,
             "160MHZ",
             True,
+            VARIANT_ESP32,
+            "esp-idf",
             id="legacy-scalar-frequency",
         ),
         pytest.param(
@@ -121,6 +136,8 @@ def test_esp32_config(
             None,
             "160MHZ",
             True,
+            VARIANT_ESP32,
+            "esp-idf",
             id="legacy-frequency-choice",
         ),
         pytest.param(
@@ -128,6 +145,8 @@ def test_esp32_config(
             None,
             "160MHZ",
             True,
+            VARIANT_ESP32,
+            "esp-idf",
             id="current-idf-frequency-choice",
         ),
         pytest.param(
@@ -135,6 +154,8 @@ def test_esp32_config(
             None,
             "160MHZ",
             True,
+            VARIANT_ESP32,
+            "esp-idf",
             id="legacy-mhz-frequency-choice",
         ),
         pytest.param(
@@ -142,7 +163,54 @@ def test_esp32_config(
             None,
             "240MHZ",
             False,
+            VARIANT_ESP32,
+            "esp-idf",
             id="disabled-frequency-choice",
+        ),
+        pytest.param(
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ": "160"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32C3,
+            "esp-idf",
+            id="current-scalar-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32S2_DEFAULT_CPU_FREQ_MHZ": "160"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32S2,
+            "esp-idf",
+            id="s2-legacy-scalar-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32S3_DEFAULT_CPU_FREQ_160": "y"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32S3,
+            "esp-idf",
+            id="s3-legacy-choice-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP32C3_DEFAULT_CPU_FREQ_80": "y"},
+            None,
+            "80MHZ",
+            True,
+            VARIANT_ESP32C3,
+            "esp-idf",
+            id="c3-legacy-choice-frequency",
+        ),
+        pytest.param(
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ": "160"},
+            None,
+            "160MHZ",
+            True,
+            VARIANT_ESP32,
+            "arduino",
+            id="arduino-framework-current-scalar-frequency",
         ),
     ],
 )
@@ -153,15 +221,22 @@ def test_legacy_cpu_frequency_sdkconfig_warning(
     cpu_frequency: str | None,
     expected_frequency: str,
     warns: bool,
+    variant: str,
+    framework_type: str,
 ) -> None:
     """SDK config frequency settings are honored and recommend the native config key."""
-    set_core_config(PlatformFramework.ESP32_IDF)
+    platform_framework = (
+        PlatformFramework.ESP32_ARDUINO
+        if framework_type == "arduino"
+        else PlatformFramework.ESP32_IDF
+    )
+    set_core_config(platform_framework)
     from esphome.components.esp32 import CONFIG_SCHEMA
 
     config: dict[str, Any] = {
-        "variant": VARIANT_ESP32,
+        "variant": variant,
         "framework": {
-            "type": "esp-idf",
+            "type": framework_type,
             "sdkconfig_options": sdkconfig_options,
         },
     }
@@ -171,7 +246,7 @@ def test_legacy_cpu_frequency_sdkconfig_warning(
     with caplog.at_level(logging.WARNING):
         config = CONFIG_SCHEMA(config)
 
-    assert ("legacy CPU frequency setting" in caplog.text) is warns
+    assert ("CPU frequency setting" in caplog.text) is warns
     assert config["cpu_frequency"] == expected_frequency
 
 

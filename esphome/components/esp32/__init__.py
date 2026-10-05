@@ -551,37 +551,55 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 
 
 _SDKCONFIG_CPU_FREQUENCY_PATTERNS = (
-    re.compile(r"^CONFIG_ESP32_DEFAULT_CPU_FREQ_(?:MHZ_)?(\d+)$"),
     re.compile(r"^CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_(\d+)$"),
 )
 
 
-def _get_sdkconfig_cpu_frequency(sdkconfig_options: dict[str, str]) -> str | None:
+_LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS = {
+    VARIANT_ESP32: "ESP32",
+    VARIANT_ESP32C3: "ESP32C3",
+    VARIANT_ESP32S2: "ESP32S2",
+    VARIANT_ESP32S3: "ESP32S3",
+}
+
+
+def _get_sdkconfig_cpu_frequency(
+    sdkconfig_options: dict[str, str], variant: str
+) -> str | None:
     """Return the user's ESP-IDF CPU frequency choice, if one is configured."""
     frequencies: set[int] = set()
 
-    if (
-        legacy_frequency := sdkconfig_options.get("CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ")
-    ) is not None:
+    scalar_options = ["CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ"]
+    if legacy_variant := _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS.get(variant):
+        scalar_options.append(f"CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_MHZ")
+
+    for name in scalar_options:
+        if (value := sdkconfig_options.get(name)) is None:
+            continue
         try:
-            frequencies.add(int(legacy_frequency))
+            frequencies.add(int(value))
         except ValueError as err:
-            raise cv.Invalid(
-                "CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ must be an integer MHz value"
-            ) from err
+            raise cv.Invalid(f"{name} must be an integer MHz value") from err
+
+    legacy_choice_pattern = None
+    if legacy_variant:
+        legacy_choice_pattern = re.compile(
+            rf"^CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_(?:MHZ_)?(\d+)$"
+        )
 
     for name, value in sdkconfig_options.items():
         if value.lower() != "y":
             continue
-        for pattern in _SDKCONFIG_CPU_FREQUENCY_PATTERNS:
+        for pattern in (
+            *_SDKCONFIG_CPU_FREQUENCY_PATTERNS,
+            *((legacy_choice_pattern,) if legacy_choice_pattern else ()),
+        ):
             if match := pattern.fullmatch(name):
                 frequencies.add(int(match.group(1)))
                 break
 
     if len(frequencies) > 1:
-        raise cv.Invalid(
-            "ESP-IDF sdkconfig_options enables conflicting CPU frequencies"
-        )
+        raise cv.Invalid("sdkconfig_options contains conflicting CPU frequencies")
     if frequencies:
         return f"{frequencies.pop()}MHZ"
     return None
@@ -591,11 +609,13 @@ def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
     framework = config[CONF_FRAMEWORK]
-    if cpu_frequency is None and framework[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cpu_frequency = _get_sdkconfig_cpu_frequency(framework[CONF_SDKCONFIG_OPTIONS])
+    if cpu_frequency is None:
+        cpu_frequency = _get_sdkconfig_cpu_frequency(
+            framework[CONF_SDKCONFIG_OPTIONS], variant
+        )
         if cpu_frequency is not None:
             _LOGGER.warning(
-                "ESP-IDF sdkconfig_options contains a legacy CPU frequency setting; using %s. "
+                "sdkconfig_options contains a CPU frequency setting; using %s. "
                 "Set 'esp32.cpu_frequency' to configure it directly.",
                 cpu_frequency,
             )
