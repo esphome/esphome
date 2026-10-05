@@ -74,6 +74,21 @@ TEST(BTHomeButtonBinarySensor, FiresOncePerPacketIdForItsEvent) {
   EXPECT_TRUE(h.fires(advert(BUTTON_ADDRESS, {0x44, 0x00, 0x03, 0x3A, PRESS})));
 }
 
+TEST(BTHomeButtonBinarySensor, ComparesThePacketIdWithThePreviousAdvertisement) {
+  Harness h(PRESS);
+  EXPECT_TRUE(h.fires(advert(BUTTON_ADDRESS, {0x44, 0x00, 0x05, 0x3A, PRESS})));
+  EXPECT_FALSE(h.fires(advert(BUTTON_ADDRESS, {0x44, 0x00, 0x06, 0x3A, DOUBLE_PRESS})));
+  // The counter is back at 5 after other gestures. That is a new press.
+  EXPECT_TRUE(h.fires(advert(BUTTON_ADDRESS, {0x44, 0x00, 0x05, 0x3A, PRESS})));
+}
+
+TEST(BTHomeButtonBinarySensor, MatchesTheMacInThePayload) {
+  Harness h(PRESS);
+  // BUTTON_ADDRESS, least significant byte first, behind a changing radio address.
+  EXPECT_TRUE(h.fires(advert(OTHER_ADDRESS, {0x46, 0xC3, 0xB2, 0xA1, 0xF5, 0x2E, 0x3C, 0x00, 0x01, 0x3A, PRESS})));
+  EXPECT_FALSE(h.fires(advert(OTHER_ADDRESS, {0x46, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00, 0x02, 0x3A, PRESS})));
+}
+
 TEST(BTHomeButtonBinarySensor, ReadsItsIndexAndTheHoldAlias) {
   Harness h(0x80, 2);
   EXPECT_FALSE(h.fires(advert(BUTTON_ADDRESS, {0x44, 0x00, 0x01, 0x3A, 0x80})));

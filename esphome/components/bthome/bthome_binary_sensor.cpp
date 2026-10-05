@@ -2,7 +2,7 @@
 
 #include "codec.h"
 
-#include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -39,30 +39,38 @@ void BTHomeButtonBinarySensor::dump_config() {
 }
 
 bool BTHomeButtonBinarySensor::parse_device(const ble_device_base::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_) {
-    return false;
-  }
+  const bool address_matches = device.address_uint64() == this->address_;
   bool matched = false;
   for (const auto &service_data : device.get_service_datas()) {
     if (!service_data.uuid.contains(BTHOME_UUID_LO, BTHOME_UUID_HI)) {
       continue;
     }
-    matched = true;
     codec::Parsed parsed{};
-    if (!codec::parse(service_data.data.data(), service_data.data.size(), &parsed)) {
+    const bool valid = codec::parse(service_data.data.data(), service_data.data.size(), &parsed);
+    // A MAC in the payload names a transmitter whose radio address changes.
+    if (!address_matches &&
+        (!parsed.has_mac || ble_device_base::mac_lsb_first_to_uint64(parsed.mac) != this->address_)) {
+      continue;
+    }
+    matched = true;
+    if (!valid) {
       if (parsed.encrypted && !this->encrypted_logged_) {
         this->encrypted_logged_ = true;
         char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-        format_stored_address(this->address_, addr);
-        ESP_LOGW(TAG, "Encrypted advertisement from %s ignored", addr);
+        ESP_LOGW(TAG, "Encrypted advertisement from %s ignored", device.address_str_to(addr));
       }
+      continue;
+    }
+    const uint32_t now = App.get_loop_component_start_time();
+    // The packet id is compared with the previous advertisement, whatever gesture it carried.
+    if (parsed.has_packet_id && !this->dedup_.new_packet(parsed.packet_id, now)) {
       continue;
     }
     const uint8_t event = button_event_at(parsed, this->index_);
     if (event == 0 || event != this->event_) {
       continue;
     }
-    if (!this->dedup_.accept(parsed.has_packet_id, parsed.packet_id, millis())) {
+    if (!parsed.has_packet_id && !this->dedup_.new_gesture(now)) {
       continue;
     }
     this->publish_state(true);
