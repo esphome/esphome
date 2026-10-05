@@ -106,6 +106,8 @@ TEST_F(UartSplitCopy, OutputsReportTheSettingsOfThePins) {
   }
 }
 
+TEST_F(UartSplitCopy, OutputReportsItsBufferSize) { EXPECT_EQ(this->bus_.get_rx_buffer_size(), RX_BUFFER_SIZE); }
+
 TEST_F(UartSplitCopy, ReceivedByteReachesEveryOutput) {
   const uint8_t byte = 0x11;
   this->pins_.rx(&byte, 1);

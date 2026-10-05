@@ -82,13 +82,17 @@ void UartSplit::push_(uint8_t index, const uint8_t *data, size_t len) {
 }
 
 void UartSplit::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART Split:");
-  ESP_LOGCONFIG(TAG, "  Outputs: %u", this->output_count_);
+  ESP_LOGCONFIG(TAG,
+                "UART Split:\n"
+                "  Outputs: %u",
+                this->output_count_);
   for (uint8_t i = 0; i < this->output_count_; i++) {
     UartSplitOutput *output = this->outputs_[i];
-    ESP_LOGCONFIG(TAG, "  Output %u:", i);
-    ESP_LOGCONFIG(TAG, "    RX Only: %s", YESNO(output->rx_only()));
-    ESP_LOGCONFIG(TAG, "    Direction: %s", LOG_STR_ARG(output->mirror_tx() ? LOG_STR("BOTH") : LOG_STR("RX")));
+    ESP_LOGCONFIG(TAG,
+                  "  Output %u:\n"
+                  "    RX Only: %s\n"
+                  "    Direction: %s",
+                  i, YESNO(output->rx_only()), LOG_STR_ARG(output->mirror_tx() ? LOG_STR("BOTH") : LOG_STR("RX")));
   }
 }
 

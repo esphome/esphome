@@ -16,9 +16,9 @@ class UartSplit;
 
 /// One consumer of a shared UART. Bytes arrive in rx_; writes go to the pins
 /// unless this output is receive-only.
-class UartSplitOutput : public uart::UARTComponent {
+class UartSplitOutput final : public uart::UARTComponent {
  public:
-  explicit UartSplitOutput(UartSplit *split) : split_(split) {}
+  explicit UartSplitOutput(UartSplit *split) : split_(split) { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
   void set_rx_only(bool rx_only) { this->rx_only_ = rx_only; }
   void set_mirror_tx(bool mirror_tx) { this->mirror_tx_ = mirror_tx; }
 
@@ -50,6 +50,7 @@ class UartSplitOutput : public uart::UARTComponent {
   bool is_connected() override;
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 #endif
 
  protected:
@@ -64,7 +65,7 @@ class UartSplitOutput : public uart::UARTComponent {
 };
 
 /// The only reader of one hardware UART. Each output gets its own copy.
-class UartSplit : public Component {
+class UartSplit final : public Component {
  public:
   explicit UartSplit(uart::UARTComponent *parent) : parent_(parent) {}
   void add_output(UartSplitOutput *output);
