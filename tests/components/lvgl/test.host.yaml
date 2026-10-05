@@ -1,5 +1,5 @@
 display:
-  - platform: sdl
+  - platform: snapshot
     id: sdl0
     auto_clear_enabled: false
     dimensions:
@@ -10,11 +10,6 @@ display:
     dimensions:
       width: 480
       height: 480
-
-touchscreen:
-  - platform: sdl
-    display: sdl0
-    sdl_id: sdl0
 
 lvgl:
   - id: lvgl_0
