@@ -47,6 +47,9 @@ def _require_manual_id(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
+        # Polygons are in the radar's raw coordinates (mm). Target sensor filters only change published values,
+        # so a target X/Y sensor with a filter that changes its value (multiply, offset, lambda, ...) is no
+        # longer in the same frame as the polygons; filters that only delay or smooth values keep the frame.
         cv.Required(CONF_POLYGON_ZONES): cv.ensure_list(
             text.text_schema(
                 PolygonZone,
