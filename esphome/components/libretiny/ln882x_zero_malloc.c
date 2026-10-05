@@ -1,10 +1,4 @@
-/*
- * LN882x: heap_5 returns NULL for a zero-size request, and the SDK's
- * malloc-failed hook ends in LN_ASSERT(0), which spins until the watchdog
- * resets the chip. LibreTiny's scan handler asks for zero entries when a scan
- * finds no networks. Linked with -Wl,--wrap=pvPortMalloc so every allocation
- * comes through here; drop it once LibreTiny no longer allocates zero entries.
- */
+// LN882x: a zero-size pvPortMalloc trips the SDK's malloc-failed LN_ASSERT; ask for 1 byte instead.
 
 #ifdef USE_LN882X
 
