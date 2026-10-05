@@ -57,7 +57,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf.component import generate_idf_components
+from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -3539,6 +3539,30 @@ def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
 
+    converted: list[IDFComponent] = []
+    if CORE.using_toolchain_esp_idf:
+        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
+        # PlatformIO resolves the whole dependency tree at once -- deduplicating
+        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
+        # and esp_wireguard) to a single version instead of clashing
+        # override_path entries.
+        libraries = [
+            library
+            for name, library in CORE.platformio_libraries.items()
+            # Don't process arduino libraries
+            if name not in ARDUINO_DISABLED_LIBRARIES
+        ]
+        # A library also declared as a managed component is not converted too, or
+        # IDF sees the same requirement twice; converted components reach it through
+        # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
+        managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
+        converted = generate_idf_components(libraries, managed=managed)
+    # IDF names a component after its directory and a later registration of the
+    # same name replaces the earlier one, so a stub beside a converted library of
+    # the same name (espressif/libsodium vs esphome/libsodium) would win or lose
+    # on path order. Such a stub points at the converted library instead.
+    converted_by_name = {component.path.name: component for component in converted}
+
     # For Arduino builds, override unused managed components from the Arduino framework
     # by pointing them to empty stub directories using override_path
     # This prevents the IDF component manager from downloading the real components
@@ -3562,8 +3586,17 @@ def _write_idf_component_yml():
         # always writes, and ninja keeps triggering CMake re-runs on
         # otherwise-cached rebuilds.
         for component_name in sorted(components_to_stub):
+            stub_name = _idf_component_stub_name(component_name)
+            stub_path = stubs_dir / stub_name
+            if (component := converted_by_name.get(stub_name)) is not None:
+                if stub_path.exists():
+                    rmtree(stub_path)
+                dependencies[_idf_component_dep_name(component_name)] = {
+                    "version": "*",
+                    "override_path": str(component.path),
+                }
+                continue
             # Create stub directory with minimal CMakeLists.txt
-            stub_path = stubs_dir / _idf_component_stub_name(component_name)
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
@@ -3605,26 +3638,10 @@ def _write_idf_component_yml():
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
-    if CORE.using_toolchain_esp_idf:
-        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
-        # PlatformIO resolves the whole dependency tree at once -- deduplicating
-        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
-        # and esp_wireguard) to a single version instead of clashing
-        # override_path entries.
-        libraries = [
-            library
-            for name, library in CORE.platformio_libraries.items()
-            # Don't process arduino libraries
-            if name not in ARDUINO_DISABLED_LIBRARIES
-        ]
-        # A library also declared as a managed component is not converted too, or
-        # IDF sees the same requirement twice; converted components reach it through
-        # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
-        managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
-        for component in generate_idf_components(libraries, managed=managed):
-            dependencies[component.get_sanitized_name()] = {
-                "override_path": str(component.path)
-            }
+    for component in converted:
+        dependencies[component.get_sanitized_name()] = {
+            "override_path": str(component.path)
+        }
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
