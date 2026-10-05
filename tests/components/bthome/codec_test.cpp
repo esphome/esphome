@@ -22,7 +22,7 @@ TEST(BTHomeCodec, EncodesPressAndIndex) {
   EXPECT_FALSE(encode_button(1, 0x01, 0, buf, sizeof(buf), &n));
 }
 
-TEST(BTHomeCodec, ParsesPressBatteryAndAReservedInfoBit) {
+TEST(BTHomeCodec, ParsesPressAndBattery) {
   const uint8_t press[] = {0x44, 0x00, 0x07, 0x3A, 0x01};
   Parsed parsed{};
   ASSERT_TRUE(parse(press, sizeof(press), &parsed));
@@ -49,14 +49,29 @@ TEST(BTHomeCodec, ParsesPressBatteryAndAReservedInfoBit) {
   const uint8_t hold_alias[] = {0x44, 0x00, 0x09, 0x3A, 0xFE};
   ASSERT_TRUE(parse(hold_alias, sizeof(hold_alias), &parsed));
   EXPECT_EQ(parsed.buttons[0], 0xFE);
+}
 
-  // Bit 1 is reserved. A button still starts at the next byte.
-  const uint8_t reserved_bit[] = {0x46, 0x00, 0x03, 0x3A, 0x04};
-  ASSERT_TRUE(parse(reserved_bit, sizeof(reserved_bit), &parsed));
-  EXPECT_FALSE(parsed.encrypted);
-  EXPECT_TRUE(parsed.trigger_based);
+TEST(BTHomeCodec, ReadsTheMacThatBitOneAnnounces) {
+  const uint8_t with_mac[] = {0x46, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x00, 0x03, 0x3A, 0x04};
+  Parsed parsed{};
+  ASSERT_TRUE(parse(with_mac, sizeof(with_mac), &parsed));
+  ASSERT_TRUE(parsed.has_mac);
+  const uint8_t mac[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+  EXPECT_EQ(std::memcmp(parsed.mac, mac, sizeof(mac)), 0);
   EXPECT_EQ(parsed.packet_id, 3);
+  ASSERT_EQ(parsed.button_count, 1);
   EXPECT_EQ(parsed.buttons[0], 0x04);
+
+  const uint8_t short_mac[] = {0x46, 0x11, 0x22, 0x33};
+  EXPECT_FALSE(parse(short_mac, sizeof(short_mac), &parsed));
+
+  // Bits 3 and 4 are reserved and add no bytes.
+  const uint8_t reserved_bits[] = {0x5C, 0x00, 0x08, 0x3A, 0x02};
+  ASSERT_TRUE(parse(reserved_bits, sizeof(reserved_bits), &parsed));
+  EXPECT_FALSE(parsed.has_mac);
+  EXPECT_TRUE(parsed.trigger_based);
+  EXPECT_EQ(parsed.packet_id, 8);
+  EXPECT_EQ(parsed.buttons[0], 0x02);
 }
 
 TEST(BTHomeCodec, KeepsEarlierButtonsWhenALaterObjectStopsTheWalk) {

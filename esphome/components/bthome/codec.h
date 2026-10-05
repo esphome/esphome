@@ -11,14 +11,18 @@ static constexpr uint8_t DEVICE_INFO_V2_TRIGGER = 0x44;
 static constexpr uint8_t OBJECT_PACKET_ID = 0x00;
 static constexpr uint8_t OBJECT_BUTTON = 0x3A;
 static constexpr uint8_t MAX_BUTTONS = 8;
+static constexpr size_t MAC_LEN = 6;
 
 struct Parsed {
   bool ok;
   bool encrypted;
+  bool has_mac;
   bool trigger_based;
   bool has_packet_id;
   uint8_t packet_id;
   uint8_t button_count;
+  // As sent: least significant byte first.
+  uint8_t mac[MAC_LEN];
   uint8_t buttons[MAX_BUTTONS];
 };
 

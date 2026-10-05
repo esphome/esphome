@@ -1,8 +1,11 @@
 #include "codec.h"
 
+#include <cstring>
+
 namespace esphome::bthome::codec {
 
 constexpr uint8_t INFO_ENCRYPTED = 0x01;
+constexpr uint8_t INFO_MAC_INCLUDED = 0x02;
 constexpr uint8_t INFO_TRIGGER = 0x04;
 constexpr uint8_t INFO_VERSION_SHIFT = 5;
 constexpr uint8_t INFO_VERSION_MASK = 0x07;
@@ -182,7 +185,6 @@ bool parse(const uint8_t *data, size_t len, Parsed *out) {
     return false;
   }
   const uint8_t info = data[0];
-  // Bits 1-4 are reserved. They are ignored, not consumed as extra bytes.
   if (((info >> INFO_VERSION_SHIFT) & INFO_VERSION_MASK) != VERSION_2) {
     return false;
   }
@@ -192,6 +194,16 @@ bool parse(const uint8_t *data, size_t len, Parsed *out) {
     return false;
   }
   size_t offset = DEVICE_INFO_LEN;
+  // Bit 1 is "reserved" on bthome.io, but the reference parser (bthome-ble) and
+  // bthome_mithermometer read it as a 6-byte MAC before the objects.
+  if ((info & INFO_MAC_INCLUDED) != 0) {
+    if (len < DEVICE_INFO_LEN + MAC_LEN) {
+      return false;
+    }
+    out->has_mac = true;
+    std::memcpy(out->mac, data + DEVICE_INFO_LEN, MAC_LEN);
+    offset += MAC_LEN;
+  }
   while (offset < len) {
     const uint8_t id = data[offset++];
     const int plen = object_payload_len(id, data + offset, len - offset);
