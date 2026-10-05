@@ -13,12 +13,6 @@ void CopySwitch::setup() {
 
 void CopySwitch::dump_config() { LOG_SWITCH("", "Copy Switch", this); }
 
-void CopySwitch::write_state(bool state) {
-  if (state) {
-    source_->turn_on();
-  } else {
-    source_->turn_off();
-  }
-}
+void CopySwitch::write_state(bool state) { this->source_->control(state); }
 
 }  // namespace esphome::copy

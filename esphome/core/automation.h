@@ -317,13 +317,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
       case STATIC_STRING:
         return std::string(this->static_str_);
 #ifdef USE_ESP8266
-      case FLASH_STRING: {
-        // PROGMEM pointer — must use _P functions to access on ESP8266
-        size_t len = strlen_P(this->static_str_);
-        std::string result(len, '\0');
-        memcpy_P(result.data(), this->static_str_, len);
-        return result;
-      }
+      case FLASH_STRING:
+        return progmem_string(reinterpret_cast<ProgmemStr>(this->static_str_));
 #endif
       case NONE:
       default:
@@ -491,7 +486,7 @@ template<typename... Ts> class Action {
     this->play(x...);
     this->play_next_(x...);
   }
-  virtual void stop_complex() {
+  void stop_complex() {
     if (num_running_) {
       this->stop();
       this->num_running_ = 0;
@@ -499,7 +494,7 @@ template<typename... Ts> class Action {
     this->stop_next_();
   }
   /// Check if this or any of the following actions are currently running.
-  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
+  bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
 
   /// The total number of actions that are currently running in this plus any of
   /// the following actions in the chain.

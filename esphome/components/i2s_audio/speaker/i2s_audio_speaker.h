@@ -36,9 +36,7 @@ enum SpeakerEventGroupBits : uint32_t {
 
   ERR_ESP_NO_MEM = (1 << 19),
 
-  ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
-  ERR_PARTIAL_WRITE = (1 << 21),    // i2s_channel_write returned fewer bytes than requested
-  ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
+  ERR_DROPPED_EVENT = (1 << 20),  // ISR overflowed the event queue, dropping a completion event
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
@@ -133,6 +131,21 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
+
+  /// @brief Rebuilds the lockstep queues in place: disables the channel, credits every in-flight real frame as
+  /// played now, empties both queues, preloads silence through ``preload`` and re-enables the channel. Speaker
+  /// task only.
+  /// @param extra_frames Real frames the caller consumed that never reached a write record
+  /// @param preload Callable returning true once every DMA descriptor holds silence with a matching record
+  /// @return false if the preload or the channel enable failed; the caller should restart the task
+  template<typename F> bool resync_lockstep_(uint32_t extra_frames, F &&preload) {
+    this->drain_lockstep_(extra_frames);
+    return preload() && (i2s_channel_enable(this->tx_handle_) == ESP_OK);
+  }
+
+  /// @brief Disables the channel, credits ``extra_frames`` plus every real frame still recorded as in flight,
+  /// and empties both lockstep queues.
+  void drain_lockstep_(uint32_t extra_frames);
 
   /// @brief Apply software volume control by running the samples through the gain ramp. Called from the
   /// speaker task only.

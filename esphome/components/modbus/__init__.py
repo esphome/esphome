@@ -7,14 +7,9 @@ from typing import Any, Literal, NamedTuple
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_CONTINUOUS,
-    CONF_DISABLE_CRC,
-    CONF_FLOW_CONTROL_PIN,
-    CONF_ID,
-)
+from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
@@ -51,12 +46,17 @@ MULTI_CONF = True
 
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
-CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
 MODBUS_ROLES = ["client", "server"]
+
+# The client hub takes these times as 16-bit milliseconds; a Modbus timeout is far shorter anyway.
+_HUB_TIME_PERIOD = cv.All(
+    cv.positive_time_period_milliseconds,
+    cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+)
 
 
 # The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
@@ -279,16 +279,8 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusClient),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(
-                    CONF_SEND_WAIT_TIME, default="2000ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TURNAROUND_TIME, default="600ms"
-                ): cv.positive_time_period_milliseconds,
-                # Remove before 2026.10.0
-                cv.Optional(CONF_DISABLE_CRC): cv.invalid(
-                    "'disable_crc' has been removed. The parser no longer requires it — remove this option."
-                ),
+                cv.Optional(CONF_SEND_WAIT_TIME, default="2000ms"): _HUB_TIME_PERIOD,
+                cv.Optional(CONF_TURNAROUND_TIME, default="600ms"): _HUB_TIME_PERIOD,
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -297,10 +289,6 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusServer),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-                # Remove before 2026.10.0
-                cv.Optional(CONF_DISABLE_CRC): cv.invalid(
-                    "'disable_crc' has been removed. The parser no longer requires it — remove this option."
-                ),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)

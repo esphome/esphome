@@ -9,7 +9,7 @@ from esphome.const import CONF_STATE
 from ..defines import CONF_WIDGET, LV_OBJ_FLAG, LvConstant
 from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t
-from ..widgets import Widget, get_widgets, wait_for_widgets
+from ..widgets import Widget, get_widgets
 
 STATE_PRESSED = "PRESSED"
 STATE_CHECKED = "CHECKED"
@@ -33,7 +33,6 @@ async def to_code(config):
     widget = widget[0]
     assert isinstance(widget, Widget)
     state = await BS_STATE.process(config[CONF_STATE])
-    await wait_for_widgets()
     is_pressed = str(state) == str(LV_STATE.PRESSED)
     test_expr = widget.is_pressed() if is_pressed else widget.is_checked()
     async with LambdaContext(EVENT_ARG) as test_ctx:

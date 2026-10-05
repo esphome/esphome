@@ -11,11 +11,21 @@ static const char *const TAG = "udp";
 
 void UDPComponent::open_sockets_() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  this->sockaddrs_.init(this->addresses_.size());
-  for (const auto &address : this->addresses_) {
+  size_t address_count = 0;
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++)
+    address_count++;
+  this->sockaddrs_.init(address_count);
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     SockaddrEntry entry{};
     entry.len =
         socket::set_sockaddr((struct sockaddr *) &entry.addr, sizeof(entry.addr), address, this->broadcast_port_);
+    if (entry.len == 0) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      // A dropped address silently receives nothing; surface the misconfiguration
+      this->status_set_warning(LOG_STR("invalid address"));
+      continue;
+    }
     this->sockaddrs_.push_back(entry);
   }
   uint32_t mcast_ifindex = 0;
@@ -149,9 +159,14 @@ void UDPComponent::open_sockets_() {
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   // 8266 and RP2040 `Duino
-  for (const auto &address : this->addresses_) {
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     auto ipaddr = IPAddress();
-    ipaddr.fromString(address);
+    if (!ipaddr.fromString(address)) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      this->status_set_warning(LOG_STR("invalid address"));
+      continue;
+    }
     this->ipaddrs_.push_back(ipaddr);
   }
   if (this->should_listen_)
@@ -203,7 +218,8 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const char *address : this->addresses_) {
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     ESP_LOGCONFIG(TAG, "  Address: %s", address);
   }
   if (this->listen_address_.has_value()) {

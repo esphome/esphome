@@ -1,5 +1,5 @@
 import abc
-from typing import TYPE_CHECKING
+import contextvars
 
 from esphome import codegen as cg
 from esphome.config import Config
@@ -65,14 +65,32 @@ class IndentedStatement(Statement):
         return result
 
 
-class CodeContext(abc.ABC):
+class _CodeContextMeta(abc.ABCMeta):
+    """
+    Backs `CodeContext.code_context` with a contextvar instead of a plain class
+    attribute, so the FakeEventLoop's per-task context isolation (see coroutine.py)
+    keeps interleaved to_code() jobs from clobbering each other's current context.
+    """
+
+    _context_var: contextvars.ContextVar["CodeContext | None"] = contextvars.ContextVar(
+        "code_context", default=None
+    )
+
+    @property
+    def code_context(cls) -> "CodeContext | None":
+        return _CodeContextMeta._context_var.get()
+
+    @code_context.setter
+    def code_context(cls, value: "CodeContext | None") -> None:
+        _CodeContextMeta._context_var.set(value)
+
+
+class CodeContext(abc.ABC, metaclass=_CodeContextMeta):
     """
     A class providing a context for code generation. Generated code will be added to the
     current context. A new context will stack on the current context, and restore it
     when done. Used with the `with` statement.
     """
-
-    code_context = None
 
     @abc.abstractmethod
     def add(self, expression: Expression | Statement):
@@ -114,6 +132,9 @@ class CodeContext(abc.ABC):
 
     def indented_statement(self, stmt):
         return IndentedStatement(stmt, self.indent_level)
+
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        return []
 
 
 class MainContext(CodeContext):
@@ -212,10 +233,6 @@ def get_lambda_context_args() -> list[tuple[SafeExpType, str]]:
     """
     if CodeContext.code_context is None:
         return []
-    if TYPE_CHECKING:
-        # CodeContext base class doesn't define get_automation_parameters(),
-        # but LambdaContext and LvContext (the concrete implementations) do.
-        assert isinstance(CodeContext.code_context, LambdaContext)
     return CodeContext.code_context.get_automation_parameters()
 
 
