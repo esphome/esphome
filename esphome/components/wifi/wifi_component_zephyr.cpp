@@ -157,6 +157,40 @@ network::IPAddress ipv4_to_ip_address(const in_addr &addr4) {
 network::IPAddress ipv4_to_ip_address(const in_addr &addr4) { return network::IPAddress(&addr4); }
 #endif
 
+bool parse_ipv4(const char *str, in_addr &out) {
+  if (net_addr_pton(AF_INET, str, &out) != 0) {
+    ESP_LOGE(TAG, "Invalid IPv4 address '%s'", str);
+    return false;
+  }
+  return true;
+}
+
+struct Ipv4Collector {
+  network::IPAddresses *addresses;
+  uint8_t index;
+};
+
+// net_if_ipv4_addr_foreach() callbacks; Zephyr calls them for each used address.
+void collect_ipv4(net_if *iface, net_if_addr *addr, void *user_data) {
+  auto *collector = static_cast<Ipv4Collector *>(user_data);
+  if (collector->index < collector->addresses->size()) {
+    (*collector->addresses)[collector->index++] = ipv4_to_ip_address(addr->address.in_addr);
+  }
+}
+
+struct FirstIpv4 {
+  in_addr addr{};
+  bool found{false};
+};
+
+void first_ipv4(net_if *iface, net_if_addr *addr, void *user_data) {
+  auto *first = static_cast<FirstIpv4 *>(user_data);
+  if (!first->found) {
+    first->addr = addr->address.in_addr;
+    first->found = true;
+  }
+}
+
 }  // namespace
 
 bool WiFiComponent::push_zephyr_wifi_event(void *event) {
@@ -165,6 +199,8 @@ bool WiFiComponent::push_zephyr_wifi_event(void *event) {
 
 void WiFiComponent::wifi_pre_setup_() {
   g_min_scan_rssi = this->min_scan_rssi_;
+  sta_iface = net_if_get_wifi_sta();
+  ap_iface = net_if_get_wifi_sap();
   net_mgmt_init_event_callback(&wifi_event_cb, wifi_event_handler,
                                NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT |
                                    NET_EVENT_WIFI_AP_ENABLE_RESULT | NET_EVENT_WIFI_AP_DISABLE_RESULT |
@@ -176,9 +212,6 @@ void WiFiComponent::wifi_pre_setup_() {
   net_mgmt_init_event_callback(&ipv6_event_cb, ipv6_event_handler, NET_EVENT_IPV6_ADDR_ADD);
   net_mgmt_add_event_callback(&ipv6_event_cb);
 #endif
-
-  sta_iface = net_if_get_wifi_sta();
-  ap_iface = net_if_get_wifi_sap();
 }
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
@@ -268,17 +301,18 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   net_dhcpv4_stop(sta_iface);
   char buf[network::IP_ADDRESS_BUFFER_SIZE];
   in_addr addr{};
-  net_addr_pton(AF_INET, manual_ip->static_ip.str_to(buf), &addr);
+  in_addr gw{};
+  in_addr mask{};
+  if (!parse_ipv4(manual_ip->static_ip.str_to(buf), addr) || !parse_ipv4(manual_ip->gateway.str_to(buf), gw) ||
+      !parse_ipv4(manual_ip->subnet.str_to(buf), mask)) {
+    return false;
+  }
   net_if_addr *ifaddr = net_if_ipv4_addr_add(sta_iface, &addr, NET_ADDR_MANUAL, 0);
   if (ifaddr == nullptr) {
     ESP_LOGE(TAG, "Failed to set static IP");
     return false;
   }
-  in_addr gw{};
-  net_addr_pton(AF_INET, manual_ip->gateway.str_to(buf), &gw);
   net_if_ipv4_set_gw(sta_iface, &gw);
-  in_addr mask{};
-  net_addr_pton(AF_INET, manual_ip->subnet.str_to(buf), &mask);
   net_if_ipv4_set_netmask_by_addr(sta_iface, &addr, &mask);
   // Without DHCP nothing else supplies DNS servers for getaddrinfo().
   char dns1[network::IP_ADDRESS_BUFFER_SIZE];
@@ -409,8 +443,9 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   in_addr addr{};
   in_addr mask{};
   if (manual_ip.has_value()) {
-    net_addr_pton(AF_INET, manual_ip->static_ip.str_to(buf), &addr);
-    net_addr_pton(AF_INET, manual_ip->subnet.str_to(buf), &mask);
+    if (!parse_ipv4(manual_ip->static_ip.str_to(buf), addr) || !parse_ipv4(manual_ip->subnet.str_to(buf), mask)) {
+      return false;
+    }
   } else {
     net_addr_pton(AF_INET, "192.168.4.1", &addr);
     net_addr_pton(AF_INET, "255.255.255.0", &mask);
@@ -463,16 +498,9 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   if (ap_iface == nullptr) {
     return {};
   }
-  net_if_ipv4 *ipv4 = ap_iface->config.ip.ipv4;
-  if (ipv4 == nullptr) {
-    return {};
-  }
-  for (const auto &unicast : ipv4->unicast) {
-    if (unicast.ipv4.is_used) {
-      return ipv4_to_ip_address(unicast.ipv4.address.in_addr);
-    }
-  }
-  return {};
+  FirstIpv4 first;
+  net_if_ipv4_addr_foreach(ap_iface, first_ipv4, &first);
+  return first.found ? ipv4_to_ip_address(first.addr) : network::IPAddress{};
 }
 #endif  // USE_WIFI_AP
 
@@ -532,40 +560,28 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (sta_iface == nullptr) {
     return addresses;
   }
-  net_if_ipv4 *ipv4 = sta_iface->config.ip.ipv4;
-  if (ipv4 == nullptr) {
-    return addresses;
-  }
-  uint8_t index = 0;
-  for (const auto &unicast : ipv4->unicast) {
-    if (index >= addresses.size()) {
-      break;
-    }
-    if (unicast.ipv4.is_used) {
-      addresses[index++] = ipv4_to_ip_address(unicast.ipv4.address.in_addr);
-    }
-  }
+  Ipv4Collector collector{&addresses, 0};
+  net_if_ipv4_addr_foreach(sta_iface, collect_ipv4, &collector);
   return addresses;
 }
 
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
-  if (sta_iface == nullptr || sta_iface->config.ip.ipv4 == nullptr) {
+  if (sta_iface == nullptr) {
     return {};
   }
-  for (const auto &unicast : sta_iface->config.ip.ipv4->unicast) {
-    if (unicast.ipv4.is_used) {
-      in_addr mask = net_if_ipv4_get_netmask_by_addr(sta_iface, &unicast.ipv4.address.in_addr);
-      return ipv4_to_ip_address(mask);
-    }
+  FirstIpv4 first;
+  net_if_ipv4_addr_foreach(sta_iface, first_ipv4, &first);
+  if (!first.found) {
+    return {};
   }
-  return {};
+  return ipv4_to_ip_address(net_if_ipv4_get_netmask_by_addr(sta_iface, &first.addr));
 }
 
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
-  if (sta_iface == nullptr || sta_iface->config.ip.ipv4 == nullptr) {
+  if (sta_iface == nullptr) {
     return {};
   }
-  return ipv4_to_ip_address(sta_iface->config.ip.ipv4->gw);
+  return ipv4_to_ip_address(net_if_ipv4_get_gw(sta_iface));
 }
 
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
