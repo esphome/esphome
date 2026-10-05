@@ -790,9 +790,10 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; 
 #endif  // USE_WIFI_AP
 
 #ifdef USE_LN882X
-void WiFiComponent::on_shutdown() {
-  // Leave the AP before a reboot: otherwise it still holds the association
-  // when the chip comes back and the first connects can stall or fail.
+void WiFiComponent::on_powerdown() {
+  // Leave the AP before a reboot or deep sleep, after teardown has let the
+  // API say goodbye: otherwise the AP still holds the association when the
+  // chip comes back and the first connects can stall or fail.
   if (!this->is_connected())
     return;
   ESP_LOGD(TAG, "Disconnecting before reboot");

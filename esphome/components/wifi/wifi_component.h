@@ -507,7 +507,7 @@ class WiFiComponent final : public Component {
   /// Setup WiFi interface.
   void setup() override;
 #ifdef USE_LN882X
-  void on_shutdown() override;
+  void on_powerdown() override;
 #endif
   void start();
   void dump_config() override;
