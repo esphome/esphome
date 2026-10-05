@@ -21,10 +21,7 @@ void TcpListener::try_listen_(TcpClientLink &link) {
   int err = errno;
   if (this->listen_ != nullptr) {
     int yes = 1;
-    // Best-effort: without it a rebind right after a restart can fail, which the retry covers.
-    if (this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0) {
-      ESP_LOGD(this->tag_, "SO_REUSEADDR failed: %d", errno);
-    }
+    this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     struct sockaddr_storage local;
     socklen_t local_len = set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), link.port());
     // A blocking listener would stall loop() inside accept(), so its
@@ -72,9 +69,7 @@ void TcpListener::accept_(TcpClientLink &link) {
     return;
   }
 #endif
-  if (!link.adopt(std::move(client))) {
-    return;
-  }
+  link.adopt(std::move(client));
   ESP_LOGI(this->tag_, "Client connected from %s", text);
 }
 

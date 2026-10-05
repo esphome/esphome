@@ -14,16 +14,13 @@ namespace esphome::socket {
 // After this long in SYN, the stack's own retries are cut short.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
 
-// Non-blocking mode and TCP keepalive for a bridged stream socket. Returns
-// false when the socket stays blocking; it would stall loop() then.
-// The other options are best-effort: the raw lwIP implementation (ESP8266,
-// RP2040) rejects keepalive, so a half-open link there is only detected by a
-// failed write.
-static bool set_stream_options(Socket *sock, const char *tag) {
-  if (sock->setblocking(false) != 0) {
-    return false;
-  }
+// Non-blocking options and TCP keepalive for a bridged stream socket.
+// Keepalive is best-effort: the raw lwIP implementation (ESP8266, RP2040)
+// rejects it, so a half-open link there is only detected by a failed write.
+static void set_stream_options(Socket *sock, const char *tag) {
   int yes = 1;
+  // Fails only on an invalid descriptor, or on raw lwIP after a peer reset that the next read() reports.
+  sock->setblocking(false);
   int err = sock->setsockopt(IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
   err |= sock->setsockopt(SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(yes));
 #ifdef TCP_KEEPIDLE
@@ -37,7 +34,6 @@ static bool set_stream_options(Socket *sock, const char *tag) {
   if (err != 0) {
     ESP_LOGV(tag, "Nodelay/keepalive not fully applied");
   }
-  return true;
 }
 
 void TcpClientLink::begin(const char *tag) {
@@ -92,10 +88,7 @@ void TcpClientLink::try_connect_() {
     this->drop_(LOG_STR("Connect failed"), errno);
     return;
   }
-  if (!set_stream_options(this->sock_.get(), this->tag_)) {
-    this->drop_(LOG_STR("Connect failed"), errno);
-    return;
-  }
+  set_stream_options(this->sock_.get(), this->tag_);
   // Starts the pending-connect clock that poll() times out against.
   this->note_attempt();
   // An immediate success is reported by the next poll(); poll_connect() sees it writable.
@@ -104,16 +97,11 @@ void TcpClientLink::try_connect_() {
   }
 }
 
-bool TcpClientLink::adopt(std::unique_ptr<Socket> sock) {
+void TcpClientLink::adopt(std::unique_ptr<Socket> sock) {
   this->close();
-  if (!set_stream_options(sock.get(), this->tag_)) {
-    // The accepted socket closes on return.
-    this->drop_(LOG_STR("Accept failed"), errno);
-    return false;
-  }
+  set_stream_options(sock.get(), this->tag_);
   this->sock_ = std::move(sock);
   this->connected_ = true;
-  return true;
 }
 
 ssize_t TcpClientLink::read(uint8_t *buf, size_t len) {

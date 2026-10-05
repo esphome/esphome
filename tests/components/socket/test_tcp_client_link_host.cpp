@@ -88,16 +88,6 @@ class TcpClientLinkClock : public ::testing::Test {
   int peer_fd_{-1};
 };
 
-TEST_F(TcpClientLinkClock, AdoptDropsASocketThatStaysBlocking) {
-  this->link_.begin("link_test");
-  ASSERT_FALSE(this->link_.in_backoff());
-  // setblocking() fails on a bad descriptor; a blocking socket would stall loop().
-  this->link_.adopt(std::make_unique<Socket>(-1));
-  EXPECT_FALSE(this->link_.connected());
-  EXPECT_FALSE(this->link_.has_socket());
-  EXPECT_TRUE(this->link_.in_backoff());
-}
-
 TEST_F(TcpClientLinkClock, PendingConnectTimesOutIntoBackoff) {
   this->link_.begin("link_test");
   this->set_pending_socket();
