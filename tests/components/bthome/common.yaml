@@ -1,15 +1,10 @@
-esp32_ble_tracker:
-  id: ble_tracker_hub
-
 binary_sensor:
-  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: bthome
-    ble_hub_id: ble_tracker_hub
     mac_address: AA:BB:CC:DD:EE:FF
     event: press
     name: BTHome press
   - platform: bthome
-    mac_address: AA:BB:CC:DD:EE:FF
+    mac_address: AA:BB:CC:DD:EE:FE
     index: 8
     event: hold_press
     pulse_length: 300ms
