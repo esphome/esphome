@@ -1,4 +1,6 @@
 #include "unicode.h"
+#include <stdint.h>
+
 
 namespace esphome::unicode {
 
