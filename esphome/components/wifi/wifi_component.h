@@ -792,6 +792,9 @@ class WiFiComponent final : public Component {
 #endif  // USE_WIFI_AP
 
   bool wifi_disconnect_();
+#ifdef USE_LN882X
+  void wifi_powerdown_disconnect_();
+#endif
 
   network::IPAddress wifi_subnet_mask_();
   network::IPAddress wifi_gateway_ip_();

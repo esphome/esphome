@@ -766,7 +766,6 @@ void WiFiComponent::restart_adapter() {
   this->error_from_callback_ = false;
 }
 
-#ifndef USE_LN882X  // LN882x leaves through the SDK directly; see wifi_component_libretiny.cpp
 void WiFiComponent::on_powerdown() {
   // Leave the AP before a reboot or deep sleep, after teardown has let the
   // API say goodbye: otherwise the AP still holds the association when the
@@ -774,10 +773,13 @@ void WiFiComponent::on_powerdown() {
   if (!this->is_connected())
     return;
   ESP_LOGD(TAG, "Disconnecting before reboot");
+#ifdef USE_LN882X
+  this->wifi_powerdown_disconnect_();
+#else
   this->wifi_disconnect_();
+#endif
   delay(100);  // let the deauth go out before the reset
 }
-#endif
 
 void WiFiComponent::loop() {
   bool events_processed = this->wifi_loop_();
