@@ -132,7 +132,13 @@ TEST_F(UartSplitCopy, ReceiveOnlyWriteDoesNotReachThePins) {
   const uint8_t byte = 0x33;
   this->tap_.write_array(&byte, 1);
   EXPECT_EQ(this->pins_.tx_len_, 0u);
-  EXPECT_EQ(this->tap_.available_for_write(), 0u);
+  EXPECT_EQ(this->tap_.available(), 0u);
+}
+
+TEST_F(UartSplitCopy, ReceiveOnlyOutputTakesEveryWrite) {
+  // A paced writer like uart_tcp keeps reading its socket, and so sees its client leave.
+  EXPECT_EQ(this->tap_.available_for_write(), SIZE_MAX);
+  EXPECT_EQ(this->quiet_.available_for_write(), SIZE_MAX);
 }
 
 TEST_F(UartSplitCopy, FullWriterStopsTheRead) {

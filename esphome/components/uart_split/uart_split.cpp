@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <cstdint>
 
 namespace esphome::uart_split {
 
@@ -111,7 +112,7 @@ void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
   }
   if (this->rx_only_) {
     if (!this->write_drop_logged_) {
-      ESP_LOGW(TAG, "RX-only output dropped %u bytes written to it", static_cast<unsigned>(len));
+      ESP_LOGW(TAG, "An RX-only output drops the bytes written to it");
       this->write_drop_logged_ = true;
     }
     return;
@@ -141,7 +142,9 @@ bool UartSplitOutput::read_array(uint8_t *data, size_t len) {
 
 size_t UartSplitOutput::available_for_write() {
   if (this->rx_only_) {
-    return 0;
+    // Takes and drops every byte without waiting. 0 would make a paced writer such as uart_tcp
+    // stop reading its socket, so it would never see its client leave.
+    return SIZE_MAX;
   }
   return this->split_->parent()->available_for_write();
 }
