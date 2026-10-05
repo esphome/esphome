@@ -1,5 +1,4 @@
 #include "unicode.h"
-#include <cstdint>
 
 namespace esphome::unicode {
 
