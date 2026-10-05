@@ -364,7 +364,10 @@ void APIConnection::check_keepalive_(uint32_t now) {
     ESP_LOGVV(TAG, "Sending keepalive PING");
     PingRequest req;
     this->flags_.sent_ping = this->send_message(req);
-    if (!this->flags_.sent_ping) {
+    if (this->flags_.sent_ping) {
+      // Quiet for a keepalive period and the ping is on its way: a one-off stall's storage can go
+      this->helper_->release_overflow_buffer();
+    } else {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       ESP_LOGW(TAG, "Buffer full, ping queued");
@@ -597,7 +600,7 @@ bool APIConnection::send_light_state(light::LightState *light) {
 uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *light = static_cast<light::LightState *>(entity);
   LightStateResponse resp;
-  auto values = light->remote_values;
+  auto values = light->get_reported_values();
   auto color_mode = values.get_color_mode();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
@@ -706,6 +709,7 @@ uint16_t APIConnection::try_send_switch_state(EntityBase *entity, APIConnection 
   auto *a_switch = static_cast<switch_::Switch *>(entity);
   SwitchStateResponse resp;
   resp.state = a_switch->state;
+  resp.missing_state = !a_switch->has_state();
   return fill_and_encode_entity_state(a_switch, resp, conn, remaining_size);
 }
 
@@ -717,12 +721,7 @@ uint16_t APIConnection::try_send_switch_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
   ENTITY_COMMAND_GET(switch_::Switch, a_switch, switch)
-
-  if (msg.state) {
-    a_switch->turn_on();
-  } else {
-    a_switch->turn_off();
-  }
+  a_switch->control(msg.state);
 }
 #endif
 
@@ -756,6 +755,7 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   auto traits = climate->get_traits();
   resp.mode = static_cast<enums::ClimateMode>(climate->mode);
   resp.action = static_cast<enums::ClimateAction>(climate->action);
+  resp.missing_state = !climate->has_state();
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE))
     resp.current_temperature = climate->current_temperature;
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
@@ -1449,6 +1449,7 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
   auto *wh = static_cast<water_heater::WaterHeater *>(entity);
   WaterHeaterStateResponse resp;
   resp.mode = static_cast<enums::WaterHeaterMode>(wh->get_mode());
+  resp.missing_state = !wh->has_state();
   resp.current_temperature = wh->get_current_temperature();
   resp.target_temperature = wh->get_target_temperature();
   resp.target_temperature_low = wh->get_target_temperature_low();
@@ -1661,6 +1662,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
     case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
     case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE:
       // Response-only discriminators; never valid in a request
       ESP_LOGW(TAG, "Response-only serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
       status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
@@ -1671,6 +1673,19 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
   }
   send_serial_proxy_ack(this, msg.instance, msg.type, status);
+}
+
+void APIConnection::on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE,
+                          enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
+    return;
+  }
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->set_mode_from_client(this, msg.mode);
+  send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE,
+                        serial_proxy_result_to_status(result));
 }
 
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
@@ -1799,7 +1814,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 16;
+  resp.api_version_minor = 17;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -2161,7 +2176,10 @@ void APIConnection::on_homeassistant_action_response(const HomeassistantActionRe
 bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
-
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // A yaml key cannot be changed at runtime, so no decode or save path is built
+  ESP_LOGW(TAG, "Key set in YAML");
+#else
 #ifdef USE_PROVISIONING
   // Refuse to set a key once the provisioning window has closed (defense in depth;
   // such connections are already rejected at hello).
@@ -2196,6 +2214,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
 #endif
   }
+#endif  // USE_API_NOISE_PSK_FROM_YAML
 
   return this->send_message(resp);
 }
@@ -2251,7 +2270,12 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+#ifdef ESPHOME_DEBUG_API
+  proto_check_encode_end(end, shared_buf.data() + shared_buf.size());
+#else
+  (void) end;
+#endif
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)

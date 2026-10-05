@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
+from esphome.components.const import CONF_HOST
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSORS,
@@ -14,7 +15,6 @@ AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@Links2004"]
 DEPENDENCIES = ["network"]
 
-CONF_HOST = "host"
 CONF_PREFIX = "prefix"
 
 statsd_component_ns = cg.esphome_ns.namespace("statsd")

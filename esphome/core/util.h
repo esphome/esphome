@@ -25,9 +25,17 @@ ESPHOME_ALWAYS_INLINE inline bool api_is_connected() { return false; }
 #endif
 
 /// Return whether the node has an active connection to an MQTT broker
+#ifdef USE_MQTT
 bool mqtt_is_connected();
+#else
+inline bool mqtt_is_connected() { return false; }
+#endif
 
 /// Return whether the node has any form of "remote" connection via the API or to an MQTT broker
+#ifdef USE_MQTT
 bool remote_is_connected();
+#else
+inline bool remote_is_connected() { return api_is_connected(); }
+#endif
 
 }  // namespace esphome

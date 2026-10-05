@@ -31,7 +31,7 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
   void setup() override;
   void write_state(bool state) override;
   void dump_config() override;
-  void set_assumed_state(bool assumed_state);
+  void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
   void set_state(bool state) { this->state = state; }
   void parse_and_publish(std::span<const uint8_t> data) override;
   void set_parent(ModbusController *parent) { this->set_controller_(parent); }

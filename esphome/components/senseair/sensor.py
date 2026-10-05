@@ -11,8 +11,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -20,21 +18,6 @@ DEPENDENCIES = ["uart"]
 senseair_ns = cg.esphome_ns.namespace("senseair")
 SenseAirComponent = senseair_ns.class_(
     "SenseAirComponent", cg.PollingComponent, uart.UARTDevice
-)
-SenseAirBackgroundCalibrationAction = senseair_ns.class_(
-    "SenseAirBackgroundCalibrationAction", automation.Action
-)
-SenseAirBackgroundCalibrationResultAction = senseair_ns.class_(
-    "SenseAirBackgroundCalibrationResultAction", automation.Action
-)
-SenseAirABCEnableAction = senseair_ns.class_(
-    "SenseAirABCEnableAction", automation.Action
-)
-SenseAirABCDisableAction = senseair_ns.class_(
-    "SenseAirABCDisableAction", automation.Action
-)
-SenseAirABCGetPeriodAction = senseair_ns.class_(
-    "SenseAirABCGetPeriodAction", automation.Action
 )
 
 CONFIG_SCHEMA = (
@@ -70,9 +53,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if co2 := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2)
-        cg.add(var.set_co2_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
@@ -82,41 +64,13 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "senseair.background_calibration",
-    SenseAirBackgroundCalibrationAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "senseair.background_calibration_result",
-    SenseAirBackgroundCalibrationResultAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "senseair.abc_enable",
-    SenseAirABCEnableAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "senseair.abc_disable",
-    SenseAirABCDisableAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "senseair.abc_get_period",
-    SenseAirABCGetPeriodAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def senseair_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (
+    ("senseair.background_calibration", "background_calibration()"),
+    ("senseair.background_calibration_result", "background_calibration_result()"),
+    ("senseair.abc_enable", "abc_enable()"),
+    ("senseair.abc_disable", "abc_disable()"),
+    ("senseair.abc_get_period", "abc_get_period()"),
+):
+    automation.register_apply_action(
+        _name, CALIBRATION_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )

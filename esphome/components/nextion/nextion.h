@@ -614,7 +614,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    */
   void disable_component_touch(const char *component);
 
-#ifdef USE_NEXTION_WAVEFORM
   /**
    * Add waveform data to a waveform component
    * @param component_id The integer component id.
@@ -624,7 +623,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value);
 
   void open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value);
-#endif  // USE_NEXTION_WAVEFORM
 
   /**
    * Display a picture at coordinates.
@@ -1469,6 +1467,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+  void release_queue_entry_(NextionQueue *nb);
+  NextionQueue *make_no_result_entry_(const std::string &variable_name);
 
   /**
    * @brief Status flags for Nextion display state management

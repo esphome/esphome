@@ -39,8 +39,7 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, ID, CoroPriority, TimePeriod, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
 
@@ -116,12 +115,6 @@ BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 # Actions
-ESP32BLEStartScanAction = esp32_ble_tracker_ns.class_(
-    "ESP32BLEStartScanAction", automation.Action
-)
-ESP32BLEStopScanAction = esp32_ble_tracker_ns.class_(
-    "ESP32BLEStopScanAction", automation.Action
-)
 
 
 def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
@@ -443,6 +436,25 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_SOFTWARE_COEXISTENCE")
 
 
+# First tagged release per series with espressif/esp-idf@82e71c1767 (see bluedroid_stubs.cpp).
+# A series without an entry keeps the guard until a fixed release is tagged; the guard is
+# harmless on fixed sources. The 5.4, 5.5 and 6.1 branches carry the fix but have no tag yet.
+DIRECT_CONN_FIX_VERSIONS = {
+    (5, 2): cv.Version(5, 2, 8),
+    (5, 3): cv.Version(5, 3, 6),
+    (6, 0): cv.Version(6, 0, 3),
+}
+DIRECT_CONN_FIX_ALL_FROM = cv.Version(6, 2, 0)
+
+
+def _needs_direct_conn_guard() -> bool:
+    ver = idf_version()
+    if ver >= DIRECT_CONN_FIX_ALL_FROM:
+        return False
+    fixed = DIRECT_CONN_FIX_VERSIONS.get((ver.major, ver.minor))
+    return fixed is None or ver < fixed
+
+
 # This needs to be run as a job with very low priority so that all components have
 # chance to call register_ble_tracker and register_client before the list is checked
 # and added to the global defines list.
@@ -459,6 +471,11 @@ async def _add_ble_features() -> None:
     if BLEFeatures.ESP_BT_DEVICE in required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")
+    if cg.get_slot_count(CLIENT_COUNT_DEFINE) and _needs_direct_conn_guard():
+        # --undefined keeps the wrapper, libsrc.a is scanned before the IDF libraries
+        cg.add_define("USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD")
+        cg.add_build_flag("-Wl,--wrap=l2cble_init_direct_conn")
+        cg.add_build_flag("-Wl,--undefined=__wrap_l2cble_init_direct_conn")
 
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
@@ -469,23 +486,12 @@ ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "esp32_ble_tracker.start_scan",
-    ESP32BLEStartScanAction,
     ESP32_BLE_START_SCAN_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_CONTINUOUS, "set_scan_continuous", cg.bool_),
+    automation.ApplyCall("start_scan_if_idle()"),
 )
-async def esp32_ble_tracker_start_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_CONTINUOUS], args, cg.bool_)
-    cg.add(var.set_continuous(template_))
-    return var
 
 
 ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -497,21 +503,11 @@ ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "esp32_ble_tracker.stop_scan",
-    ESP32BLEStopScanAction,
     ESP32_BLE_STOP_SCAN_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("stop_scan()"),
 )
-async def esp32_ble_tracker_stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def register_ble_device(
