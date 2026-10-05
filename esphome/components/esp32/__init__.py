@@ -550,20 +550,54 @@ assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
 
+_SDKCONFIG_CPU_FREQUENCY_PATTERNS = (
+    re.compile(r"^CONFIG_ESP32_DEFAULT_CPU_FREQ_(?:MHZ_)?(\d+)$"),
+    re.compile(r"^CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_(\d+)$"),
+)
+
+
+def _get_sdkconfig_cpu_frequency(sdkconfig_options: dict[str, str]) -> str | None:
+    """Return the user's ESP-IDF CPU frequency choice, if one is configured."""
+    frequencies: set[int] = set()
+
+    if (
+        legacy_frequency := sdkconfig_options.get("CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ")
+    ) is not None:
+        try:
+            frequencies.add(int(legacy_frequency))
+        except ValueError as err:
+            raise cv.Invalid(
+                "CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ must be an integer MHz value"
+            ) from err
+
+    for name, value in sdkconfig_options.items():
+        if value.lower() != "y":
+            continue
+        for pattern in _SDKCONFIG_CPU_FREQUENCY_PATTERNS:
+            if match := pattern.fullmatch(name):
+                frequencies.add(int(match.group(1)))
+                break
+
+    if len(frequencies) > 1:
+        raise cv.Invalid(
+            "ESP-IDF sdkconfig_options enables conflicting CPU frequencies"
+        )
+    if frequencies:
+        return f"{frequencies.pop()}MHZ"
+    return None
+
+
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
     framework = config[CONF_FRAMEWORK]
     if cpu_frequency is None and framework[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        sdkconfig_options = framework[CONF_SDKCONFIG_OPTIONS]
-        if any(
-            name.startswith("CONFIG_ESP32") and "_DEFAULT_CPU_FREQ_" in name
-            for name in sdkconfig_options
-        ):
+        cpu_frequency = _get_sdkconfig_cpu_frequency(framework[CONF_SDKCONFIG_OPTIONS])
+        if cpu_frequency is not None:
             _LOGGER.warning(
-                "ESP-IDF sdkconfig_options contains a legacy ESP32 CPU frequency setting, "
-                "but ESPHome's default cpu_frequency takes precedence. Set "
-                "'esp32.cpu_frequency' to the desired frequency instead."
+                "ESP-IDF sdkconfig_options contains a legacy CPU frequency setting; using %s. "
+                "Set 'esp32.cpu_frequency' to configure it directly.",
+                cpu_frequency,
             )
     # if not specified in config, default to the maximum supported frequency
     # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
@@ -573,12 +607,12 @@ def set_core_data(config):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
-        config[CONF_CPU_FREQUENCY] = cpu_frequency
     elif cpu_frequency not in CPU_FREQUENCIES[variant]:
         raise cv.Invalid(
             f"Invalid CPU frequency '{cpu_frequency}' for {config[CONF_VARIANT]}",
             path=[CONF_CPU_FREQUENCY],
         )
+    config[CONF_CPU_FREQUENCY] = cpu_frequency
 
     if variant == VARIANT_ESP32P4 and cpu_frequency == "400MHZ":
         _LOGGER.warning(
