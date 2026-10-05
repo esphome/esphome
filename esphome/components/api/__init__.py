@@ -142,6 +142,7 @@ CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 DEFAULT_PORT = 6053
 DEFAULT_REBOOT_TIMEOUT = "15min"
 DEFAULT_BATCH_DELAY = "100ms"
+DEFAULT_LISTEN_BACKLOG = 4
 
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
@@ -477,8 +478,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_reboot_timeout(reboot_timeout))
     if (batch_delay := config[CONF_BATCH_DELAY]) != cv.time_period(DEFAULT_BATCH_DELAY):
         cg.add(var.set_batch_delay(batch_delay))
-    if CONF_LISTEN_BACKLOG in config:
-        cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
+    if (
+        listen_backlog := config.get(CONF_LISTEN_BACKLOG)
+    ) is not None and listen_backlog != DEFAULT_LISTEN_BACKLOG:
+        cg.add(var.set_listen_backlog(listen_backlog))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
