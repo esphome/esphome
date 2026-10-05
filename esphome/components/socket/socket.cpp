@@ -87,6 +87,7 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 #endif
 
 bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out) {
+#if USE_NETWORK_IPV4
   if (addr->sa_family == AF_INET) {
     *out = reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr;
     return true;
@@ -102,6 +103,9 @@ bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out) {
     }
   }
 #endif
+#endif /* USE_NETWORK_IPV4 */
+  (void) addr;
+  (void) out;
   return false;
 }
 
