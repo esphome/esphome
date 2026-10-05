@@ -1,6 +1,7 @@
 #include "modbus_tcp_uart.h"
 
 #include "mbap.h"
+#include "esphome/components/modbus/modbus_definitions.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -17,8 +18,6 @@ static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 static constexpr uint32_t TX_PARTIAL_STALE_MS = 300;
 // A peer sends a whole frame and then waits. After this much quiet the next byte starts a frame.
 static constexpr uint32_t RESYNC_QUIET_US = 100000;
-// An exception reply sets the top bit of the request's function code.
-static constexpr uint8_t FUNCTION_CODE_MASK = 0x7F;
 
 static bool drop_log_due(uint32_t &last_ms) {
   uint32_t now = App.get_loop_component_start_time();
@@ -311,7 +310,8 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   uint16_t txn;
   if (this->server_) {
     // A late reply to an earlier request, or one from another unit, must not take this request's id.
-    if (!this->txn_pending_ || this->tx_[0] != this->unit_ || (this->tx_[1] & FUNCTION_CODE_MASK) != this->function_) {
+    if (!this->txn_pending_ || this->tx_[0] != this->unit_ ||
+        (this->tx_[1] & modbus::FUNCTION_CODE_MASK) != this->function_) {
       note_drop(this->drop_log_ms_[DROP_NO_REQUEST], LOG_STR("Reply without a matching request, dropped"));
       this->clear_tx_();
       return;

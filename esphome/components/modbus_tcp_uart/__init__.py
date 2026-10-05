@@ -13,7 +13,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
-DEPENDENCIES = ["tcp_uart"]
+DEPENDENCIES = ["modbus", "tcp_uart"]
 MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
