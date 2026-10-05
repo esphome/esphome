@@ -153,6 +153,33 @@ def test_generate_compile_commands_configures_twice(
     assert mock_write.call_args_list[1].args[1] == ["esp_timer", "lwip"]
 
 
+def test_generate_compile_commands_hands_converted_libs_to_arduino_stubs(
+    tmp_path: Path,
+) -> None:
+    """On Arduino the stub generator sees the converted libraries, so a stub
+    sharing a converted library's directory name can point at it instead."""
+    converted = {"esphome/libsodium": {"override_path": str(tmp_path / "libsodium")}}
+    stubs = {"espressif/libsodium": {"version": "*", "override_path": "x"}}
+    with (
+        patch.object(clang_tidy, "_setup_core"),
+        patch.object(clang_tidy, "_convert_pio_libs", return_value=converted),
+        patch.object(
+            clang_tidy, "_arduino_excluded_stubs", return_value=stubs
+        ) as mock_stubs,
+        patch.object(clang_tidy, "_write_tidy_project") as mock_write,
+        patch("esphome.espidf.toolchain.run_reconfigure", return_value=0),
+        patch("esphome.build_gen.espidf.get_available_components", return_value=[]),
+    ):
+        clang_tidy._generate_compile_commands(
+            tmp_path, _settings(target_framework="arduino"), tmp_path / "platformio.ini"
+        )
+
+    mock_stubs.assert_called_once_with(tmp_path, converted)
+    extra_deps = mock_write.call_args_list[0].args[2]
+    assert extra_deps["esphome/libsodium"] == converted["esphome/libsodium"]
+    assert extra_deps["espressif/libsodium"] == stubs["espressif/libsodium"]
+
+
 def test_esphome_manifest_deps_reads_repo_manifest() -> None:
     """Top-level dependency names, independent of the per-dependency rules."""
     manifest = yaml.safe_load(
