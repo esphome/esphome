@@ -448,6 +448,12 @@ def _generate_compile_commands(
         # Stub the arduino-bundled components ESPHome doesn't use (avoids the
         # libsodium clash with noise-c and ~26 unused heavy downloads).
         extra_deps.update(_arduino_excluded_stubs(work_dir, converted))
+    else:
+        # tsdb is ESP-IDF only and adds its engines from to_code(), which never
+        # runs here. The arduino envs must not get them: littlefs is one of the
+        # components they stub out (_arduino_excluded_stubs), and a real dep
+        # alongside that stub does not resolve.
+        extra_deps.update(_espidf_only_deps())
 
     # Phase 1: discover the components available for this target.
     _write_tidy_project(work_dir, [], extra_deps, settings)
