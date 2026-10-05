@@ -28,6 +28,26 @@ extern "C" {
 }
 #endif
 
+#ifdef USE_LN882X
+// LibreTiny's LN882H reconnect() hands the SDK a NULL bssid even when one was
+// asked for, so the SDK picks the AP itself. Linked with
+// -Wl,--wrap=wifi_sta_connect; the wrapper fills in the one being connected to.
+// Mirrors the SDK's wifi_sta_connect_t, whose header clashes with LibreTiny's.
+struct Ln882xStaConnect {
+  char *ssid;
+  char *pwd;
+  uint8_t *bssid;
+  uint8_t *psk_value;
+};
+static uint8_t *ln882x_connect_bssid = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern "C" int __real_wifi_sta_connect(Ln882xStaConnect *connect, void *scan_cfg);   // NOLINT
+extern "C" int __wrap_wifi_sta_connect(Ln882xStaConnect *connect, void *scan_cfg) {  // NOLINT
+  if (connect->bssid == nullptr)
+    connect->bssid = ln882x_connect_bssid;
+  return __real_wifi_sta_connect(connect, scan_cfg);
+}
+#endif
+
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -236,9 +256,16 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
+#ifdef USE_LN882X
+  bssid_t bssid = ap.get_bssid();
+  ln882x_connect_bssid = ap.has_bssid() ? bssid.data() : nullptr;
+#endif
   WiFiStatus status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                                  ap.get_channel(),  // 0 = auto
                                  ap.has_bssid() ? ap.get_bssid().data() : NULL);
+#ifdef USE_LN882X
+  ln882x_connect_bssid = nullptr;
+#endif
   if (status != WL_CONNECTED) {
     ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
     // Without this reset the state machine stays at CONNECTING and each retry
