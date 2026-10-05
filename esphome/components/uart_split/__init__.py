@@ -1,16 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BAUD_RATE,
     CONF_DIRECTION,
     CONF_ID,
     CONF_OUTPUTS,
     CONF_RX_ONLY,
     CONF_UART_ID,
 )
-from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -29,6 +26,13 @@ def _default_direction(config: ConfigType) -> ConfigType:
     for output in config[CONF_OUTPUTS]:
         if CONF_DIRECTION not in output:
             output[CONF_DIRECTION] = "BOTH" if output[CONF_RX_ONLY] else "RX"
+    return config
+
+
+def _inherit_settings(config: ConfigType) -> ConfigType:
+    # Devices on an output are checked against the baud rate and framing of the UART it copies.
+    for output in config[CONF_OUTPUTS]:
+        uart.inherit_settings(output[CONF_ID], config[CONF_UART_ID])
     return config
 
 
@@ -52,6 +56,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _default_direction,
+    _inherit_settings,
 )
 
 
@@ -94,20 +99,13 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     parent = await cg.get_variable(config[CONF_UART_ID])
-    cg.add(var.set_parent(parent))
-    uart_config = CORE.config.get_config_for_path(
-        CORE.config.get_path_for_id(config[CONF_UART_ID])[:-1]
-    )
+    var = cg.new_Pvariable(config[CONF_ID], parent)
+    await cg.register_component(var, config)
     for output_config in config[CONF_OUTPUTS]:
-        output = cg.new_Pvariable(output_config[CONF_ID])
-        cg.add(output.set_split(var))
-        cg.add(output.set_rx_only(output_config[CONF_RX_ONLY]))
-        cg.add(output.set_mirror_tx(output_config[CONF_DIRECTION] == "BOTH"))
+        output = cg.new_Pvariable(output_config[CONF_ID], var)
+        if output_config[CONF_RX_ONLY]:
+            cg.add(output.set_rx_only(True))
+        if output_config[CONF_DIRECTION] == "BOTH":
+            cg.add(output.set_mirror_tx(True))
         cg.add(var.add_output(output))
-        cg.add(output.set_baud_rate(uart_config[CONF_BAUD_RATE]))
-        cg.add(output.set_data_bits(uart_config[CONF_DATA_BITS]))
-        cg.add(output.set_stop_bits(uart_config[CONF_STOP_BITS]))
-        cg.add(output.set_parity(uart_config[CONF_PARITY]))

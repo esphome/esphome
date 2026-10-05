@@ -18,7 +18,7 @@ class UartSplit;
 /// unless this output is receive-only.
 class UartSplitOutput : public uart::UARTComponent {
  public:
-  void set_split(UartSplit *split) { this->split_ = split; }
+  explicit UartSplitOutput(UartSplit *split) : split_(split) {}
   void set_rx_only(bool rx_only) { this->rx_only_ = rx_only; }
   void set_mirror_tx(bool mirror_tx) { this->mirror_tx_ = mirror_tx; }
 
@@ -44,7 +44,7 @@ class UartSplitOutput : public uart::UARTComponent {
  protected:
   void check_logger_conflict() override {}
 
-  UartSplit *split_{nullptr};
+  UartSplit *split_;
   bool rx_only_{false};
   bool mirror_tx_{false};
   bool drop_logged_{false};
@@ -54,19 +54,21 @@ class UartSplitOutput : public uart::UARTComponent {
 /// The only reader of one hardware UART. Each output gets its own copy.
 class UartSplit : public Component {
  public:
-  void set_parent(uart::UARTComponent *parent) { this->parent_ = parent; }
+  explicit UartSplit(uart::UARTComponent *parent) : parent_(parent) {}
   void add_output(UartSplitOutput *output);
   uart::UARTComponent *parent() const { return this->parent_; }
 
+  void setup() override;
   void loop() override;
   void dump_config() override;
+  // After the hardware UART (BUS), before the devices on the outputs (modbus is BUS - 1), which read the settings.
   float get_setup_priority() const override { return setup_priority::BUS - 0.5f; }
 
   /// Copy bytes a writer just sent into every other output that asked for them.
   void mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len);
 
  protected:
-  uart::UARTComponent *parent_{nullptr};
+  uart::UARTComponent *parent_;
   UartSplitOutput *outputs_[MAX_OUTPUTS]{};
   uint8_t output_count_{0};
 };

@@ -15,8 +15,19 @@ void UartSplit::add_output(UartSplitOutput *output) {
   this->outputs_[this->output_count_++] = output;
 }
 
+void UartSplit::setup() {
+  // An output carries the parent's bytes, so it reports the parent's settings to the devices on it.
+  for (uint8_t i = 0; i < this->output_count_; i++) {
+    UartSplitOutput *output = this->outputs_[i];
+    output->set_baud_rate(this->parent_->get_baud_rate());
+    output->set_data_bits(this->parent_->get_data_bits());
+    output->set_parity(this->parent_->get_parity());
+    output->set_stop_bits(this->parent_->get_stop_bits());
+  }
+}
+
 void UartSplit::loop() {
-  if (this->parent_ == nullptr || this->output_count_ == 0) {
+  if (this->output_count_ == 0) {
     return;
   }
   // A writer must not lose bytes, so stop reading the pins while its buffer is full.
@@ -100,7 +111,7 @@ void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
     }
     return;
   }
-  if (this->split_ == nullptr || this->split_->parent() == nullptr || len == 0) {
+  if (len == 0) {
     return;
   }
   this->split_->parent()->write_array(data, len);
@@ -127,24 +138,19 @@ bool UartSplitOutput::read_array(uint8_t *data, size_t len) {
 }
 
 size_t UartSplitOutput::available_for_write() {
-  if (this->rx_only_ || this->split_ == nullptr || this->split_->parent() == nullptr) {
+  if (this->rx_only_) {
     return 0;
   }
   return this->split_->parent()->available_for_write();
 }
 
 uart::UARTFlushResult UartSplitOutput::flush() {
-  if (this->rx_only_ || this->split_ == nullptr || this->split_->parent() == nullptr) {
+  if (this->rx_only_) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
   }
   return this->split_->parent()->flush();
 }
 
-bool UartSplitOutput::is_connected() {
-  if (this->split_ == nullptr || this->split_->parent() == nullptr) {
-    return false;
-  }
-  return this->split_->parent()->is_connected();
-}
+bool UartSplitOutput::is_connected() { return this->split_->parent()->is_connected(); }
 
 }  // namespace esphome::uart_split

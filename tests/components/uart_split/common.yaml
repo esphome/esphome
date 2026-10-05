@@ -13,6 +13,14 @@ uart_split:
       - id: pins_only
         rx_only: true
         direction: RX
+      - id: distance_tap
+        rx_only: true
+
+# Checks the baud rate of its UART: an output reports the one of uart_bus.
+sensor:
+  - platform: a01nyub
+    uart_id: distance_tap
+    name: Distance
 
 interval:
   - interval: 60s

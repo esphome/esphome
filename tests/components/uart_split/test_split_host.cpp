@@ -55,12 +55,8 @@ class FakeUart : public uart::UARTComponent {
 class UartSplitCopy : public ::testing::Test {
  protected:
   void SetUp() override {
-    this->split_.set_parent(&this->pins_);
-    this->bus_.set_split(&this->split_);
-    this->tap_.set_split(&this->split_);
     this->tap_.set_rx_only(true);
     this->tap_.set_mirror_tx(true);
-    this->quiet_.set_split(&this->split_);
     this->quiet_.set_rx_only(true);
     this->split_.add_output(&this->bus_);
     this->split_.add_output(&this->tap_);
@@ -74,11 +70,25 @@ class UartSplitCopy : public ::testing::Test {
   }
 
   FakeUart pins_;
-  UartSplit split_;
-  UartSplitOutput bus_;
-  UartSplitOutput tap_;
-  UartSplitOutput quiet_;
+  UartSplit split_{&this->pins_};
+  UartSplitOutput bus_{&this->split_};
+  UartSplitOutput tap_{&this->split_};
+  UartSplitOutput quiet_{&this->split_};
 };
+
+TEST_F(UartSplitCopy, OutputsReportTheSettingsOfThePins) {
+  this->pins_.set_baud_rate(19200);
+  this->pins_.set_data_bits(7);
+  this->pins_.set_parity(uart::UART_CONFIG_PARITY_EVEN);
+  this->pins_.set_stop_bits(2);
+  this->split_.setup();
+  for (UartSplitOutput *output : {&this->bus_, &this->tap_, &this->quiet_}) {
+    EXPECT_EQ(output->get_baud_rate(), 19200u);
+    EXPECT_EQ(output->get_data_bits(), 7);
+    EXPECT_EQ(output->get_parity(), uart::UART_CONFIG_PARITY_EVEN);
+    EXPECT_EQ(output->get_stop_bits(), 2);
+  }
+}
 
 TEST_F(UartSplitCopy, ReceivedByteReachesEveryOutput) {
   const uint8_t byte = 0x11;
@@ -127,8 +137,7 @@ TEST_F(UartSplitCopy, FullWriterStopsTheRead) {
 }
 
 TEST_F(UartSplitCopy, TwoWritersBothReachThePins) {
-  UartSplitOutput other;
-  other.set_split(&this->split_);
+  UartSplitOutput other{&this->split_};
   this->split_.add_output(&other);
   const uint8_t first = 0x41;
   const uint8_t second = 0x42;
