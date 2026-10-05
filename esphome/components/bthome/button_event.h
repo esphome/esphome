@@ -5,7 +5,6 @@
 #include <cstdint>
 
 // Which button object to publish, and which advertisement is a repeat.
-// No ESPHome headers, so the host test can compile it.
 
 namespace esphome::bthome {
 
