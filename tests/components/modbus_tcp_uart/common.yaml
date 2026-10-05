@@ -6,11 +6,9 @@ tcp_uart:
   - id: shelly_link
     host: 192.0.2.10
     port: 502
-    baud_rate: 19200
   - id: inbound
     role: server
     port: 1502
-    baud_rate: 9600
 
 modbus_tcp_uart:
   - id: shelly_uart
