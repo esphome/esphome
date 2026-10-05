@@ -12,11 +12,8 @@
 // libretiny component's API.
 namespace esphome::libretiny {}  // namespace esphome::libretiny
 
-// clang-tidy compiles without the PlatformIO build flags.
-#if defined(USE_LN882X) && !defined(CLANG_TIDY)
-// The SDK's prebuilt libraries use 1-byte enums, and LibreTiny's
-// -Wl,--no-enum-size-warning hides a mismatch; fail the build instead if the
-// -fshort-enums swap in __init__.py stops reaching the compiler.
+#if defined(USE_LN882X) && !defined(CLANG_TIDY)  // clang-tidy runs without the PlatformIO flags
+// Fail the build if the -fshort-enums swap in __init__.py stops working.
 enum Ln882xEnumSizeCheck { LN882X_ENUM_SIZE_CHECK };
 static_assert(sizeof(Ln882xEnumSizeCheck) == 1, "LN882x must build with -fshort-enums to match the SDK");
 #endif
