@@ -2873,6 +2873,8 @@ async def to_code(config):
             "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
+        # Work around ESP-IDF bug: see https://github.com/espressif/esp-idf/issues/19020
+        add_idf_sdkconfig_option("CONFIG_ESP_MAIN_TASK_STACK_SIZE", 8192)
 
     # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
     # understand %zu or %lld and crashes on any %s that follows one.
