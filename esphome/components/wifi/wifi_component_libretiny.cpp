@@ -31,6 +31,17 @@ extern "C" {
 #ifdef USE_LN882X
 #include <WiFiPrivate.h>
 #undef DATA  // clashes with setup_priority::DATA
+// LibreTiny 1.13's LN882H reconnect() gives the SDK a NULL bssid; pass on the requested one. Remove once it passes
+// info.bssid. Safe without a BSSID: begin() frees sta.bssid (resetNetworkInfo), so it stays NULL.
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+// Names are mandated by the --wrap linker mechanism.
+extern "C" int __real_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cfg_t *scan_cfg);
+extern "C" int __wrap_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cfg_t *scan_cfg) {
+  if (connect->bssid == nullptr)
+    connect->bssid = static_cast<WiFiData *>(WiFi.data)->sta.bssid;
+  return __real_wifi_sta_connect(connect, scan_cfg);
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif
 
 #include "esphome/core/application.h"
