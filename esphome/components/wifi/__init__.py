@@ -805,6 +805,9 @@ async def to_code(config):
         if blob_spec := variant.transport_blobs.get("wifi"):
             zephyr_add_blobs(*blob_spec)
         zephyr_add_prj_conf("NET_DHCPV4", True)
+        # The driver's own DHCP start overrides manual_ip and, on ESP32, holds
+        # CONNECT_RESULT until a lease binds -- wifi_component_zephyr.cpp starts it.
+        zephyr_add_prj_conf("WIFI_STA_AUTO_DHCPV4", False)
         if CONF_AP in config:
             # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
             zephyr_add_prj_conf("NET_DHCPV4_SERVER", True)
