@@ -808,6 +808,9 @@ async def to_code(config):
         # The driver's own DHCP start overrides manual_ip and, on ESP32, holds
         # CONNECT_RESULT until a lease binds -- wifi_component_zephyr.cpp starts it.
         zephyr_add_prj_conf("WIFI_STA_AUTO_DHCPV4", False)
+        if has_manual_ip:
+            # No DHCP supplies DNS servers with a static IP; room for dns1 and dns2.
+            zephyr_add_prj_conf("DNS_RESOLVER_MAX_SERVERS", 2)
         if CONF_AP in config:
             # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
             zephyr_add_prj_conf("NET_DHCPV4_SERVER", True)
