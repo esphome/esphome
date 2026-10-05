@@ -6,19 +6,16 @@ namespace esphome::bthome::codec {
 
 constexpr uint8_t INFO_ENCRYPTED = 0x01;
 constexpr uint8_t INFO_MAC_INCLUDED = 0x02;
-constexpr uint8_t INFO_TRIGGER = 0x04;
 constexpr uint8_t INFO_VERSION_SHIFT = 5;
 constexpr uint8_t INFO_VERSION_MASK = 0x07;
 constexpr uint8_t VERSION_2 = 2;
 constexpr uint8_t OBJECT_COMMAND = 0x3B;
 constexpr uint8_t OBJECT_TEXT = 0x53;
 constexpr uint8_t OBJECT_RAW = 0x54;
-constexpr uint8_t BUTTON_NONE = 0x00;
 constexpr uint8_t COMMAND_LENGTH_MASK = 0x1F;
 constexpr size_t COMMAND_HEADER_LEN = 2;
 constexpr size_t DEVICE_INFO_LEN = 1;
 constexpr size_t LENGTH_PREFIX = 1;
-constexpr size_t OBJECT_ID_AND_VALUE = 2;
 
 namespace {
 
@@ -156,26 +153,6 @@ int object_payload_len(uint8_t id, const uint8_t *p, size_t avail) {
 
 }  // namespace
 
-bool encode_button(uint8_t packet_id, uint8_t event, uint8_t index, uint8_t *out, size_t cap, size_t *out_len) {
-  if (out == nullptr || out_len == nullptr || index < 1 || index > MAX_BUTTONS) {
-    return false;
-  }
-  const size_t need = DEVICE_INFO_LEN + OBJECT_ID_AND_VALUE + static_cast<size_t>(index) * OBJECT_ID_AND_VALUE;
-  if (cap < need) {
-    return false;
-  }
-  size_t i = 0;
-  out[i++] = DEVICE_INFO_V2_TRIGGER;
-  out[i++] = OBJECT_PACKET_ID;
-  out[i++] = packet_id;
-  for (uint8_t button = 1; button <= index; button++) {
-    out[i++] = OBJECT_BUTTON;
-    out[i++] = (button == index) ? event : BUTTON_NONE;
-  }
-  *out_len = i;
-  return true;
-}
-
 bool parse(const uint8_t *data, size_t len, Parsed *out) {
   if (out == nullptr) {
     return false;
@@ -189,7 +166,6 @@ bool parse(const uint8_t *data, size_t len, Parsed *out) {
     return false;
   }
   out->encrypted = (info & INFO_ENCRYPTED) != 0;
-  out->trigger_based = (info & INFO_TRIGGER) != 0;
   if (out->encrypted) {
     return false;
   }
@@ -220,7 +196,6 @@ bool parse(const uint8_t *data, size_t len, Parsed *out) {
     }
     offset += static_cast<size_t>(plen);
   }
-  out->ok = true;
   return true;
 }
 
