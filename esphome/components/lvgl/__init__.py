@@ -17,6 +17,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
 )
 from esphome.components.image import (
     CONF_OPAQUE,
@@ -325,9 +326,14 @@ async def to_code(configs):
         # Skip compiling lvgl examples
         add_idf_sdkconfig_option("CONFIG_LV_BUILD_EXAMPLES", False)
         add_idf_sdkconfig_option("CONFIG_LV_BUILD_DEMOS", False)
+        # Match LV_USE_STDLIB_MALLOC in lv_conf.h. This also drops the builtin malloc
+        # options, which LVGL 9.5 builds leave set to deprecated values.
+        add_idf_sdkconfig_option("CONFIG_LV_USE_CUSTOM_MALLOC", True)
         if get_esp32_variant() == VARIANT_ESP32P4:
             add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
-            df.add_define("LV_USE_PPA", "1")
+            # The LVGL PPA driver uses cache functions added in ESP-IDF 6.0
+            if idf_version() >= cv.Version(6, 0, 0):
+                df.add_define("LV_USE_PPA", "1")
             df.add_define("LV_DRAW_BUF_ALIGN", "64")
         else:
             df.add_define("LV_DRAW_BUF_ALIGN", "32")
