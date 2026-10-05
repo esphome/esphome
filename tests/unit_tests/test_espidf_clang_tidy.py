@@ -284,6 +284,27 @@ def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
     assert (stub_path / "CMakeLists.txt").is_file()
 
 
+def test_arduino_excluded_stubs_points_libsodium_at_converted_library(
+    tmp_path: Path,
+) -> None:
+    """Below IDF 6.0 the converted esphome/libsodium shares its directory name
+    with the espressif/libsodium stub; IDF would keep whichever registers last,
+    so the stub entry points at the converted library instead (#20102)."""
+    _set_idf_version(cv.Version(5, 5, 4))
+    converted_path = str(tmp_path / "pio" / "esphome" / "libsodium")
+    converted = {"esphome/libsodium": {"override_path": converted_path}}
+
+    deps = _arduino_excluded_stubs(tmp_path, converted)
+
+    assert deps["espressif/libsodium"] == {
+        "version": "*",
+        "override_path": converted_path,
+    }
+    assert not (tmp_path / "component_stubs" / "libsodium").exists()
+    # Stubs without a converted namesake are unaffected.
+    assert (tmp_path / "component_stubs" / "cbor" / "CMakeLists.txt").is_file()
+
+
 def test_arduino_excluded_stubs_skips_libsodium_from_idf_6(tmp_path: Path) -> None:
     """From IDF 6.0 arduino-esp32 drops espressif/libsodium; a stub would clash
     with esphome/libsodium."""
