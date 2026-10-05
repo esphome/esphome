@@ -18,12 +18,14 @@ MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
 
-modbus_tcp_ns = cg.esphome_ns.namespace("modbus_tcp")
-ModbusTcp = modbus_tcp_ns.class_("ModbusTcp", uart.UARTComponent, cg.Component)
+modbus_tcp_uart_ns = cg.esphome_ns.namespace("modbus_tcp_uart")
+ModbusTcpUart = modbus_tcp_uart_ns.class_(
+    "ModbusTcpUart", uart.UARTComponent, cg.Component
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(ModbusTcp),
+        cv.GenerateID(): cv.declare_id(ModbusTcpUart),
         cv.Required(CONF_TCP_UART_ID): cv.use_id(tcp_uart.TcpUart),
         cv.Optional(CONF_ROLE, default="client"): cv.one_of(
             "client", "server", lower=True

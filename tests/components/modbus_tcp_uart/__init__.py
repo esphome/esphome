@@ -1,5 +1,5 @@
 # This file's presence makes pytest treat this directory as a package named
-# "modbus_tcp"; required for cpp unit testing.
+# "modbus_tcp_uart"; required for cpp unit testing.
 from tests.testing_helpers import ComponentManifestOverride
 
 

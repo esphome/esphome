@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace esphome::modbus_tcp {
+namespace esphome::modbus_tcp_uart {
 
 static constexpr size_t MBAP_HEADER_SIZE = 7;
 static constexpr size_t MBAP_MAX_LENGTH = 254;
@@ -82,4 +82,4 @@ inline bool rtu_crc_ok(const uint8_t *frame, size_t len) {
   return len >= 4 && len <= 256 && crc16(frame, static_cast<uint16_t>(len)) == 0;
 }
 
-}  // namespace esphome::modbus_tcp
+}  // namespace esphome::modbus_tcp_uart

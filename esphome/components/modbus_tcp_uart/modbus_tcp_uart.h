@@ -9,7 +9,7 @@ namespace esphome::tcp_uart {
 class TcpUart;
 }  // namespace esphome::tcp_uart
 
-namespace esphome::modbus_tcp {
+namespace esphome::modbus_tcp_uart {
 
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
 /// Client: a response is delivered only when it carries that request's transaction id, with the request's unit.
@@ -17,9 +17,9 @@ namespace esphome::modbus_tcp {
 /// TCP buffer until the reply went out or REPLY_TIMEOUT_MS passed. A reply must match the request's unit and function.
 /// With a unit list, a request to another unit is dropped, since no other device on this link answers it.
 /// A bad MBAP with a usable length is skipped. Without one, bytes are dropped until the peer has been quiet.
-class ModbusTcp : public uart::UARTComponent, public Component {
+class ModbusTcpUart : public uart::UARTComponent, public Component {
  public:
-  ModbusTcp() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
+  ModbusTcpUart() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
 
   void set_parent(tcp_uart::TcpUart *parent) { this->parent_ = parent; }
   void set_server(bool server) { this->server_ = server; }
@@ -107,4 +107,4 @@ class ModbusTcp : public uart::UARTComponent, public Component {
   uint8_t rx_[RTU_FRAME_SIZE]{};
 };
 
-}  // namespace esphome::modbus_tcp
+}  // namespace esphome::modbus_tcp_uart

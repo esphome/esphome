@@ -7,8 +7,8 @@
 #include <initializer_list>
 #include <thread>
 
-#include "esphome/components/modbus_tcp/mbap.h"
-#include "esphome/components/modbus_tcp/modbus_tcp.h"
+#include "esphome/components/modbus_tcp_uart/mbap.h"
+#include "esphome/components/modbus_tcp_uart/modbus_tcp_uart.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 
 namespace {
@@ -40,7 +40,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   }
   void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     this->feed(frame, n);
   }
@@ -51,7 +51,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   uint8_t rx_[64]{};
 };
 
-class ServerLink : public esphome::modbus_tcp::ModbusTcp {
+class ServerLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
  public:
   ServerLink() { this->set_server(true); }
 
@@ -59,7 +59,7 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
 
   void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     std::memcpy(this->tcp_buf_ + this->tcp_len_, frame, n);
     this->tcp_len_ += static_cast<uint16_t>(n);
@@ -88,7 +88,7 @@ class ServerLink : public esphome::modbus_tcp::ModbusTcp {
 const uint8_t PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
 const uint8_t PDU_REG1[] = {0x03, 0x00, 0x01, 0x00, 0x01};
 
-TEST(ModbusTcpServer, UnansweredRequestIsReplacedWhenOverdue) {
+TEST(ModbusTcpUartServer, UnansweredRequestIsReplacedWhenOverdue) {
   ServerLink link;
   link.push(7, 1, PDU, sizeof(PDU));
   ASSERT_TRUE(link.pending());
@@ -109,7 +109,7 @@ TEST(ModbusTcpServer, UnansweredRequestIsReplacedWhenOverdue) {
   EXPECT_EQ(link.available(), sizeof(PDU) + 3);
 }
 
-TEST(ModbusTcpServer, UnreadRequestIsKept) {
+TEST(ModbusTcpUartServer, UnreadRequestIsKept) {
   ServerLink link;
   link.push(7, 1, PDU, sizeof(PDU));
   uint16_t waiting = link.available();
@@ -118,7 +118,7 @@ TEST(ModbusTcpServer, UnreadRequestIsKept) {
   EXPECT_EQ(link.available(), waiting);
 }
 
-TEST(ModbusTcpServer, PipelinedRequestsAreAnsweredInOrder) {
+TEST(ModbusTcpUartServer, PipelinedRequestsAreAnsweredInOrder) {
   Pipe pipe;
   ServerLink link;
   link.set_pipe(&pipe);
@@ -143,7 +143,7 @@ TEST(ModbusTcpServer, PipelinedRequestsAreAnsweredInOrder) {
   EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
 }
 
-TEST(ModbusTcpServer, OnlyAFrameFromTheRequestUnitAndFunctionIsTheReply) {
+TEST(ModbusTcpUartServer, OnlyAFrameFromTheRequestUnitAndFunctionIsTheReply) {
   Pipe pipe;
   ServerLink link;
   link.set_pipe(&pipe);
@@ -162,7 +162,7 @@ TEST(ModbusTcpServer, OnlyAFrameFromTheRequestUnitAndFunctionIsTheReply) {
   EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
 }
 
-TEST(ModbusTcpServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
+TEST(ModbusTcpUartServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
   ServerLink link;
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
@@ -183,7 +183,7 @@ TEST(ModbusTcpServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
   EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpServer, WholeFrameReplacesAnIncompleteOne) {
+TEST(ModbusTcpUartServer, WholeFrameReplacesAnIncompleteOne) {
   ServerLink link;
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
@@ -197,7 +197,7 @@ TEST(ModbusTcpServer, WholeFrameReplacesAnIncompleteOne) {
   EXPECT_EQ(link.held(), 0u);
 }
 
-TEST(ModbusTcpServer, SplitFrameIsAppended) {
+TEST(ModbusTcpUartServer, SplitFrameIsAppended) {
   ServerLink link;
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
@@ -211,7 +211,7 @@ TEST(ModbusTcpServer, SplitFrameIsAppended) {
 
 const uint8_t REPLY[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
 
-TEST(ModbusTcpServer, ReplyUsesTheRequestTransaction) {
+TEST(ModbusTcpUartServer, ReplyUsesTheRequestTransaction) {
   Pipe pipe;
   ServerLink link;
   link.set_pipe(&pipe);
@@ -226,7 +226,7 @@ TEST(ModbusTcpServer, ReplyUsesTheRequestTransaction) {
   EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpServer, BroadcastIsNotAnswered) {
+TEST(ModbusTcpUartServer, BroadcastIsNotAnswered) {
   Pipe pipe;
   ServerLink link;
   link.set_pipe(&pipe);
@@ -238,7 +238,7 @@ TEST(ModbusTcpServer, BroadcastIsNotAnswered) {
   EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpServer, RequestToAUnitNoServerAnswersIsDropped) {
+TEST(ModbusTcpUartServer, RequestToAUnitNoServerAnswersIsDropped) {
   static const uint8_t UNITS[] = {1};
   const uint8_t write[] = {0x06, 0x00, 0x01, 0x00, 0x55};
   ServerLink link;
@@ -255,7 +255,7 @@ TEST(ModbusTcpServer, RequestToAUnitNoServerAnswersIsDropped) {
   EXPECT_EQ(link.available(), sizeof(write) + 3);
 }
 
-TEST(ModbusTcpServer, BadProtocolIdSkipsOnlyThatFrame) {
+TEST(ModbusTcpUartServer, BadProtocolIdSkipsOnlyThatFrame) {
   Pipe pipe;
   ServerLink link;
   link.set_pipe(&pipe);
@@ -268,7 +268,7 @@ TEST(ModbusTcpServer, BadProtocolIdSkipsOnlyThatFrame) {
   EXPECT_EQ(link.available(), sizeof(PDU) + 3);
 }
 
-TEST(ModbusTcpServer, BadLengthWaitsForAQuietStream) {
+TEST(ModbusTcpUartServer, BadLengthWaitsForAQuietStream) {
   Pipe pipe;
   ServerLink link;
   link.set_pipe(&pipe);

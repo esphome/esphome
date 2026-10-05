@@ -1,8 +1,8 @@
-"""The hub on a modbus_tcp link has to use the same role as the link."""
+"""The hub on a modbus_tcp_uart link has to use the same role as the link."""
 
 import pytest
 
-from esphome.components.modbus_tcp import _final_validate, _served_units
+from esphome.components.modbus_tcp_uart import _final_validate, _served_units
 import esphome.config_validation as cv
 from esphome.core import ID
 import esphome.final_validate as fv

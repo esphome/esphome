@@ -2,15 +2,15 @@
 
 #include <cstring>
 
-#include "esphome/components/modbus_tcp/mbap.h"
+#include "esphome/components/modbus_tcp_uart/mbap.h"
 
 namespace {
 
-using esphome::modbus_tcp::Mbap;
-using esphome::modbus_tcp::MbapTake;
-using esphome::modbus_tcp::rtu_crc_ok;
-using esphome::modbus_tcp::take_mbap;
-using esphome::modbus_tcp::write_mbap;
+using esphome::modbus_tcp_uart::Mbap;
+using esphome::modbus_tcp_uart::MbapTake;
+using esphome::modbus_tcp_uart::rtu_crc_ok;
+using esphome::modbus_tcp_uart::take_mbap;
+using esphome::modbus_tcp_uart::write_mbap;
 
 TEST(MbapTest, RoundTrip) {
   const uint8_t pdu[] = {0x03, 0x00, 0x00, 0x00, 0x01};

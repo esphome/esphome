@@ -1,4 +1,4 @@
-#include "modbus_tcp.h"
+#include "modbus_tcp_uart.h"
 
 #include "mbap.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
@@ -8,9 +8,9 @@
 #include <algorithm>
 #include <cstring>
 
-namespace esphome::modbus_tcp {
+namespace esphome::modbus_tcp_uart {
 
-static const char *const TAG = "modbus_tcp";
+static const char *const TAG = "modbus_tcp_uart";
 
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 // A bridge copies every loop. A pause this long is an unfinished frame, not the next chunk.
@@ -37,21 +37,21 @@ static void note_drop(uint32_t &last_ms, const LogString *message) {
   ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
 }
 
-void ModbusTcp::dump_config() {
+void ModbusTcpUart::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "Modbus TCP:\n"
+                "Modbus TCP UART:\n"
                 "  Role: %s",
                 this->server_ ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"));
 }
 
-bool ModbusTcp::is_connected() { return this->parent_ != nullptr && this->parent_->is_connected(); }
+bool ModbusTcpUart::is_connected() { return this->parent_ != nullptr && this->parent_->is_connected(); }
 
-void ModbusTcp::clear_tx_() {
+void ModbusTcpUart::clear_tx_() {
   this->tx_len_ = 0;
   this->tx_hold_logged_ = false;
 }
 
-void ModbusTcp::loop() {
+void ModbusTcpUart::loop() {
   bool up = this->is_connected();
   if (!up) {
     if (this->link_was_up_ && (this->txn_pending_ || this->tx_len_ != 0 || this->rx_len_ != 0 || this->tcp_len_ != 0)) {
@@ -79,7 +79,7 @@ void ModbusTcp::loop() {
   this->read_parent_();
 }
 
-void ModbusTcp::write_array(const uint8_t *data, size_t len) {
+void ModbusTcpUart::write_array(const uint8_t *data, size_t len) {
   // The new request is still buffered, so this write answers the previous one.
   if (this->server_ && this->rx_len_ != 0) {
     note_drop(this->drop_log_ms_[DROP_REPLY_PREVIOUS], LOG_STR("Reply to the previous request, dropped"));
@@ -114,7 +114,7 @@ void ModbusTcp::write_array(const uint8_t *data, size_t len) {
   }
 }
 
-bool ModbusTcp::peek_byte(uint8_t *data) {
+bool ModbusTcpUart::peek_byte(uint8_t *data) {
   if (this->rx_len_ == 0) {
     return false;
   }
@@ -122,7 +122,7 @@ bool ModbusTcp::peek_byte(uint8_t *data) {
   return true;
 }
 
-bool ModbusTcp::read_array(uint8_t *data, size_t len) {
+bool ModbusTcpUart::read_array(uint8_t *data, size_t len) {
   if (this->available() < len) {
     return false;
   }
@@ -134,14 +134,14 @@ bool ModbusTcp::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-size_t ModbusTcp::available_for_write() {
+size_t ModbusTcpUart::available_for_write() {
   if (!this->is_connected()) {
     return 0;
   }
   return sizeof(this->tx_) - this->tx_len_;
 }
 
-uart::UARTFlushResult ModbusTcp::flush() {
+uart::UARTFlushResult ModbusTcpUart::flush() {
   this->send_rtu_as_mbap_();
   // The frame is still here, so the hub must not be told that the flush finished.
   if (this->parent_ == nullptr || this->tx_len_ != 0) {
@@ -150,7 +150,7 @@ uart::UARTFlushResult ModbusTcp::flush() {
   return this->parent_->flush();
 }
 
-void ModbusTcp::read_parent_() {
+void ModbusTcpUart::read_parent_() {
   if (this->tcp_len_ != 0) {
     this->deliver_mbap_();
   }
@@ -183,7 +183,7 @@ void ModbusTcp::read_parent_() {
   this->deliver_mbap_();
 }
 
-void ModbusTcp::deliver_mbap_() {
+void ModbusTcpUart::deliver_mbap_() {
   // frame.pdu points into tcp_buf_. Copy it out before the tail slides.
   uint16_t pos = 0;
   while (pos < this->tcp_len_) {
@@ -296,7 +296,7 @@ void ModbusTcp::deliver_mbap_() {
   }
 }
 
-void ModbusTcp::send_rtu_as_mbap_() {
+void ModbusTcpUart::send_rtu_as_mbap_() {
   if (!rtu_crc_ok(this->tx_, this->tx_len_)) {
     return;
   }
@@ -360,7 +360,7 @@ void ModbusTcp::send_rtu_as_mbap_() {
   }
 }
 
-void ModbusTcp::discard_parent_() {
+void ModbusTcpUart::discard_parent_() {
   uint8_t junk[32];
   size_t left = this->parent_->available();
   while (left != 0) {
@@ -372,4 +372,4 @@ void ModbusTcp::discard_parent_() {
   }
 }
 
-}  // namespace esphome::modbus_tcp
+}  // namespace esphome::modbus_tcp_uart

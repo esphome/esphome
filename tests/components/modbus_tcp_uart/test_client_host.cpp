@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "esphome/components/modbus_tcp/mbap.h"
-#include "esphome/components/modbus_tcp/modbus_tcp.h"
+#include "esphome/components/modbus_tcp_uart/mbap.h"
+#include "esphome/components/modbus_tcp_uart/modbus_tcp_uart.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 
 namespace {
@@ -36,7 +36,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   }
   void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     this->feed(frame, n);
   }
@@ -50,7 +50,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   uint8_t rx_[64]{};
 };
 
-class ClientLink : public esphome::modbus_tcp::ModbusTcp {
+class ClientLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
  public:
   explicit ClientLink(Pipe *pipe) { this->set_parent(pipe); }
 
@@ -63,7 +63,7 @@ class ClientLink : public esphome::modbus_tcp::ModbusTcp {
 
   void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     std::memcpy(this->tcp_buf_ + this->tcp_len_, frame, n);
     this->tcp_len_ += static_cast<uint16_t>(n);
@@ -85,7 +85,7 @@ const uint8_t RESPONSE_PDU[] = {0x03, 0x02, 0x12, 0x34};
 // 01 03 00 00 00 01 84 0A
 const uint8_t RTU[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
 
-TEST(ModbusTcpClient, MatchingResponseBecomesRtu) {
+TEST(ModbusTcpUartClient, MatchingResponseBecomesRtu) {
   Pipe pipe;
   ClientLink link(&pipe);
   link.write_array(RTU, sizeof(RTU));
@@ -95,7 +95,7 @@ TEST(ModbusTcpClient, MatchingResponseBecomesRtu) {
   size_t n = link.available();
   ASSERT_EQ(n, sizeof(RESPONSE_PDU) + 3);
   ASSERT_TRUE(link.read_array(taken, n));
-  EXPECT_TRUE(esphome::modbus_tcp::rtu_crc_ok(taken, n));
+  EXPECT_TRUE(esphome::modbus_tcp_uart::rtu_crc_ok(taken, n));
   EXPECT_EQ(taken[0], 1);
   EXPECT_EQ(taken[1], 0x03);
   EXPECT_EQ(taken[2], 0x02);
@@ -104,7 +104,7 @@ TEST(ModbusTcpClient, MatchingResponseBecomesRtu) {
   EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpClient, ResponseKeepsTheRequestUnit) {
+TEST(ModbusTcpUartClient, ResponseKeepsTheRequestUnit) {
   Pipe pipe;
   ClientLink link(&pipe);
   link.write_array(RTU, sizeof(RTU));
@@ -115,10 +115,10 @@ TEST(ModbusTcpClient, ResponseKeepsTheRequestUnit) {
   ASSERT_EQ(n, sizeof(RESPONSE_PDU) + 3);
   ASSERT_TRUE(link.read_array(taken, n));
   EXPECT_EQ(taken[0], 1);
-  EXPECT_TRUE(esphome::modbus_tcp::rtu_crc_ok(taken, n));
+  EXPECT_TRUE(esphome::modbus_tcp_uart::rtu_crc_ok(taken, n));
 }
 
-TEST(ModbusTcpClient, StaleTransactionIsDropped) {
+TEST(ModbusTcpUartClient, StaleTransactionIsDropped) {
   Pipe pipe;
   ClientLink link(&pipe);
   link.arm(7);
@@ -128,7 +128,7 @@ TEST(ModbusTcpClient, StaleTransactionIsDropped) {
   EXPECT_EQ(link.txn(), 7);
 }
 
-TEST(ModbusTcpClient, HeldFrameIsReplaced) {
+TEST(ModbusTcpUartClient, HeldFrameIsReplaced) {
   Pipe pipe;
   pipe.room_ = 0;
   ClientLink link(&pipe);
@@ -145,7 +145,7 @@ TEST(ModbusTcpClient, HeldFrameIsReplaced) {
   EXPECT_EQ(pipe.n_, 0u);
 }
 
-TEST(ModbusTcpClient, TransactionWrapsToOne) {
+TEST(ModbusTcpUartClient, TransactionWrapsToOne) {
   Pipe pipe;
   ClientLink link(&pipe);
   link.set_txn(0xFFFF);
@@ -158,7 +158,7 @@ TEST(ModbusTcpClient, TransactionWrapsToOne) {
   EXPECT_TRUE(link.pending());
 }
 
-TEST(ModbusTcpClient, FlushTimeoutKeepsTheTransaction) {
+TEST(ModbusTcpUartClient, FlushTimeoutKeepsTheTransaction) {
   Pipe pipe;
   pipe.flushed_ = esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
   ClientLink link(&pipe);
@@ -169,7 +169,7 @@ TEST(ModbusTcpClient, FlushTimeoutKeepsTheTransaction) {
   EXPECT_GT(link.available(), 0u);
 }
 
-TEST(ModbusTcpClient, BadProtocolIdSkipsOnlyThatFrame) {
+TEST(ModbusTcpUartClient, BadProtocolIdSkipsOnlyThatFrame) {
   Pipe pipe;
   ClientLink link(&pipe);
   link.arm(7);
@@ -188,7 +188,7 @@ TEST(ModbusTcpClient, BadProtocolIdSkipsOnlyThatFrame) {
   EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpClient, DisconnectDropsInFlight) {
+TEST(ModbusTcpUartClient, DisconnectDropsInFlight) {
   Pipe pipe;
   ClientLink link(&pipe);
   link.loop();
