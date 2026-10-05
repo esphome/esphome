@@ -301,14 +301,10 @@ void LD6002BComponent::setup() {
       target_display_controlled = true;
       // Nothing reports this switch back, so its restored state is the only state
       // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and turn_on()/turn_off() are what turn it
+      // the restored value is logical, and driving the switch is what turns it
       // into the raw command, the published state and the stream flag.
       const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      if (state) {
-        this->target_display_switch_->turn_on();
-      } else {
-        this->target_display_switch_->turn_off();
-      }
+      this->target_display_switch_->control(state);
     }
 #endif
     if (!target_display_controlled) {
@@ -328,11 +324,7 @@ void LD6002BComponent::setup() {
       // The switch owns the stream, so it is also what applies the restored state:
       // driving it rather than the module keeps the entity's inversion in the path.
       const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      if (state) {
-        this->point_cloud_switch_->turn_on();
-      } else {
-        this->point_cloud_switch_->turn_off();
-      }
+      this->point_cloud_switch_->control(state);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -375,11 +367,7 @@ void LD6002BComponent::setup() {
       // Driving the switch applies its inversion; it also marks the restored value
       // as reported, so the work mode fallback runs on that until the query lands.
       const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      if (state) {
-        this->low_power_switch_->turn_on();
-      } else {
-        this->low_power_switch_->turn_off();
-      }
+      this->low_power_switch_->control(state);
     }
 #else
     bool want_low_power = false;
@@ -437,7 +425,8 @@ void LD6002BComponent::dump_config() {
                 "HLK-LD6002B:\n"
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
-                this->auto_wake_ ? "true" : "false", static_cast<unsigned>(this->max_data_len_));
+                this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+                static_cast<unsigned>(this->max_data_len_));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);

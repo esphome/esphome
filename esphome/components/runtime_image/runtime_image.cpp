@@ -15,6 +15,9 @@
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+#include "qoi_decoder.h"
+#endif
 
 namespace esphome::runtime_image {
 
@@ -183,14 +186,15 @@ bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
 
   // An idle decoder for a different format cannot be reused
   if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
-    ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
+    ESP_LOGD(TAG, "Decoder format mismatch: current: %s, new: %s",
+             LOG_STR_ARG(get_format_name(this->decoder_->get_format())), LOG_STR_ARG(get_format_name(format)));
     this->decoder_ = nullptr;
   }
 
   if (!this->decoder_) {
     this->decoder_ = this->create_decoder_(format);
     if (!this->decoder_) {
-      ESP_LOGE(TAG, "Failed to create decoder for format %d", format);
+      ESP_LOGE(TAG, "Failed to create decoder for format %s", LOG_STR_ARG(get_format_name(format)));
       return false;
     }
   }
@@ -354,7 +358,7 @@ size_t RuntimeImage::get_buffer_size(int width, int height) const {
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
 std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
-  ESP_LOGV(TAG, "Creating decoder for format %d", format);
+  ESP_LOGV(TAG, "Creating decoder for format %s", LOG_STR_ARG(get_format_name(format)));
   switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
@@ -368,11 +372,15 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
     case PNG:
       return make_unique<PngDecoder>(this);
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    case QOI:
+      return make_unique<QoiDecoder>(this);
+#endif
     case AUTO:
       ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");
       return nullptr;
     default:
-      ESP_LOGE(TAG, "Unsupported image format: %d", format);
+      ESP_LOGE(TAG, "Unsupported image format: %s", LOG_STR_ARG(get_format_name(format)));
       return nullptr;
   }
 }

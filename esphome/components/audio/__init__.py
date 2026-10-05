@@ -7,6 +7,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     include_builtin_idf_component,
+    require_certificate_bundle,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -335,11 +336,10 @@ def _emit_memory_pair(value: str | None, psram_key: str, internal_key: str) -> N
 async def to_code(config: ConfigType) -> None:
     # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
     include_builtin_idf_component("esp_http_client")
+    # HTTPS streams verify the server against the root certificate bundle
+    require_certificate_bundle()
 
-    add_idf_component(
-        name="esphome/esp-audio-libs",
-        ref="3.2.1",
-    )
+    add_idf_component(name="esphome/esp-audio-libs", ref="4.0.1")
 
     data = _get_data()
 

@@ -58,6 +58,10 @@ lv_obj_t *lv_container_create(lv_obj_t *parent);
 void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local);
 #endif
+#ifdef USE_LVGL_TABLE
+uint32_t lv_table_get_selected_row(lv_obj_t *obj);
+uint32_t lv_table_get_selected_column(lv_obj_t *obj);
+#endif
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -511,6 +515,27 @@ class LvLineType : public LvCompound {
   FixedVector<lv_point_precise_t> points_{};
 };
 #endif
+#ifdef USE_LVGL_TABLE
+// Unlike most size properties, lv_table_set_column_width() only accepts a literal pixel
+// count, so percentage column widths must be recomputed by hand whenever the table's own
+// content width changes.
+class LvTableType : public LvCompound {
+ public:
+  void set_obj(lv_obj_t *lv_obj) override;
+  // count is the number of percentage-width columns, known at code-generation time.
+  void init_column_pct(size_t count) { this->column_pct_.init(count); }
+  void add_column_width_pct(uint32_t col, uint8_t pct);
+
+ protected:
+  void update_column_widths_();
+
+  struct ColumnPct {
+    uint32_t col;
+    uint8_t pct;
+  };
+  FixedVector<ColumnPct> column_pct_{};
+};
+#endif  // USE_LVGL_TABLE
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)
 class LvSelectable : public LvCompound {
  public:
@@ -518,12 +543,12 @@ class LvSelectable : public LvCompound {
   virtual void set_selected_index(size_t index, lv_anim_enable_t anim) = 0;
   void set_selected_text(const std::string &text, lv_anim_enable_t anim);
   std::string get_selected_text();
-  const std::vector<std::string> &get_options() { return this->options_; }
-  void set_options(std::vector<std::string> options);
+  const FixedVector<const char *> &get_options() { return this->options_; }
+  void set_options(FixedVector<const char *> options);
 
  protected:
   virtual void set_option_string(const char *options) = 0;
-  std::vector<std::string> options_{};
+  FixedVector<const char *> options_{};
 };
 
 #ifdef USE_LVGL_DROPDOWN

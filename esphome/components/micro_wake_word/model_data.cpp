@@ -87,7 +87,8 @@ bool ModelData::validate_and_mark_ready() {
 
   const tflite::Model *model = tflite::GetModel(this->data_);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
-    ESP_LOGE(TAG, "TFLite model version mismatch (expected %d, got %d)", TFLITE_SCHEMA_VERSION, model->version());
+    ESP_LOGE(TAG, "TFLite model version mismatch (expected %d, got %" PRIu32 ")", TFLITE_SCHEMA_VERSION,
+             model->version());
     return false;
   }
 

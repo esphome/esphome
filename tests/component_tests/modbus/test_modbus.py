@@ -33,7 +33,6 @@ def test_server_schema_rejects_address_zero() -> None:
 
 
 def test_client_schema_still_accepts_address_zero() -> None:
-    # Not rejected for clients today, but not supported either: a client broadcast gets no reply and
-    # stalls the hub for the full send-wait.
+    # A client may address 0: writes are broadcast, and reads are allowed with allow_broadcast_read.
     schema = modbus.modbus_device_schema(0x01)
     assert schema({CONF_MODBUS_ID: "hub", CONF_ADDRESS: 0})[CONF_ADDRESS] == 0

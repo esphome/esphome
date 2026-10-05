@@ -44,6 +44,7 @@ from esphome.espidf.framework import (
     check_esp_idf_install,
     get_framework_env,
     get_idf_tools_path,
+    idf_tools_version,
 )
 from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
 
@@ -371,10 +372,9 @@ def _fake_download_from_mirrors(
 ) -> str:
     """Stand-in for download_from_mirrors that creates path targets, since
     the framework code opens the downloaded tarball afterwards."""
-    if isinstance(target, (str, os.PathLike)):
-        path = Path(target)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch()
+    path = Path(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
     return "https://example.com/idf.tar.xz"
 
 
@@ -384,13 +384,15 @@ def espidf_mocks(setup_core: Path):
     # archive_extract_all is mocked, so pre-create the framework dir that the
     # extracted-marker touch writes into.
     _get_framework_path(_IDF_VERSION).mkdir(parents=True, exist_ok=True)
+    # One mock covers the tarball (via framework_helpers.download_and_extract)
+    # and the constraints file (espidf-bound download_from_mirrors), so call
+    # counts and ordering assertions span the two.
+    download = MagicMock(side_effect=_fake_download_from_mirrors)
     with (
         patch("esphome.espidf.framework.rmdir") as rmdir_mock,
-        patch(
-            "esphome.espidf.framework.download_from_mirrors",
-            side_effect=_fake_download_from_mirrors,
-        ) as download,
-        patch("esphome.espidf.framework.archive_extract_all") as extract,
+        patch("esphome.framework_helpers.download_from_mirrors", download),
+        patch("esphome.espidf.framework.download_from_mirrors", download),
+        patch("esphome.framework_helpers.archive_extract_all") as extract,
         patch("esphome.espidf.framework.create_venv") as venv,
         patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
         patch(
@@ -517,6 +519,33 @@ def test_check_esp_idf_install_feature_failure(espidf_mocks: SimpleNamespace) ->
     espidf_mocks.run_ok.side_effect = [True, True, False]
     with pytest.raises(RuntimeError, match="Python dependencies for"):
         check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+
+
+def test_python_deps_use_uv_when_available(
+    espidf_mocks: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The python env installs go through uv when on the PATH, pip otherwise."""
+    monkeypatch.delenv("UV_HTTP_RETRIES", raising=False)
+    with patch(
+        "esphome.espidf.framework.shutil.which",
+        # Keyed on the name: the same which() also probes the default tools
+        side_effect=lambda name: "/usr/bin/uv" if name == "uv" else None,
+    ):
+        check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+    upgrade_call, feature_call = espidf_mocks.run_ok.call_args_list[1:3]
+    upgrade_cmd, feature_cmd = upgrade_call.args[0], feature_call.args[0]
+    assert upgrade_cmd[:3] == ["/usr/bin/uv", "pip", "install"]
+    assert "--python" in upgrade_cmd
+    assert feature_cmd[:3] == ["/usr/bin/uv", "pip", "install"]
+    assert upgrade_call.kwargs["env"]["UV_HTTP_RETRIES"] == "10"
+
+    espidf_mocks.run_ok.reset_mock()
+    monkeypatch.setenv("UV_HTTP_RETRIES", "3")  # an explicit user value wins
+    with patch("esphome.espidf.framework.shutil.which", return_value=None):
+        check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+    upgrade_call = espidf_mocks.run_ok.call_args_list[1]
+    assert upgrade_call.args[0][1:4] == ["-m", "pip", "install"]
+    assert upgrade_call.kwargs["env"]["UV_HTTP_RETRIES"] == "3"
 
 
 def _mark_installed() -> None:
@@ -910,7 +939,7 @@ def test_prefetch_leaves_unverifiable_entries_to_the_installer(
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
@@ -933,7 +962,7 @@ def test_prefetch_all_entries_unverifiable_is_a_noop(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -951,7 +980,7 @@ def test_prefetch_dedupes_entries_by_dest(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress"),
     ):
@@ -966,7 +995,7 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
@@ -1010,7 +1039,7 @@ def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch(
             "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
@@ -1031,7 +1060,7 @@ def test_prefetch_skips_already_downloaded_archives(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -1064,7 +1093,7 @@ def test_prefetch_failures_never_raise(
     with (
         patch("esphome.espidf.framework.run_command", return_value=run_result),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=download_error,
         ),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1086,7 +1115,7 @@ def test_prefetch_total_failure_logs_error(
             return_value=(True, _PREFETCH_JSON, ""),
         ),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=OSError("proxy refuses everything"),
         ),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1111,7 +1140,7 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
             return_value=(True, _PREFETCH_JSON, ""),
         ),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=_fail_cmake_download,
         ) as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1132,7 +1161,7 @@ def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> Non
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume"),
+        patch("esphome.framework_helpers.download_with_resume"),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
         patch("esphome.framework_helpers.ThreadPoolExecutor") as pool_cls,
@@ -1440,19 +1469,59 @@ def test_demote_unused_tools_already_patched_is_noop(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_get_idf_version_parses_stdout(tmp_path: Path) -> None:
+def _write_idf_version_header(root: Path, major: int, minor: int) -> None:
+    include = root / "components" / "esp_common" / "include"
+    include.mkdir(parents=True)
+    (include / "esp_idf_version.h").write_text(
+        f"#define ESP_IDF_VERSION_MAJOR   {major}\n"
+        "/** Minor version number (x.X.x) */\n"
+        f"#define ESP_IDF_VERSION_MINOR   {minor}\n"
+        "#define ESP_IDF_VERSION_PATCH   0\n",
+        encoding="utf-8",
+    )
+
+
+def test_get_idf_version_reads_version_txt(tmp_path: Path) -> None:
+    """version.txt wins and gives major.minor, as idf_tools returns it."""
+    (tmp_path / "version.txt").write_text("v5.5.5\n", encoding="utf-8")
+    _write_idf_version_header(tmp_path, 6, 1)
+    assert _get_idf_version(tmp_path) == "5.5"
+
+
+def test_get_idf_version_falls_back_to_the_header(tmp_path: Path) -> None:
+    """A version.txt that does not match (a git ref) defers to the header."""
+    (tmp_path / "version.txt").write_text("vrelease/v6.1\n", encoding="utf-8")
+    _write_idf_version_header(tmp_path, 6, 1)
+    assert _get_idf_version(tmp_path) == "6.1"
+
+
+def test_get_idf_version_raises_without_a_source(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="Can't get ESP-IDF version"):
+        _get_idf_version(tmp_path)
+
+
+def test_get_idf_version_wraps_an_unreadable_source(tmp_path: Path) -> None:
+    """A source that cannot be decoded keeps the RuntimeError contract."""
+    (tmp_path / "version.txt").write_bytes(b"\xff\xfev")
+    with pytest.raises(RuntimeError, match="Can't get ESP-IDF version") as info:
+        _get_idf_version(tmp_path)
+    assert isinstance(info.value.__cause__, UnicodeError)
+
+
+def test_idf_tools_version_runs_the_framework_script(tmp_path: Path) -> None:
     with patch(
-        "esphome.espidf.framework.run_command", return_value=(True, "5.1.2\n", "")
-    ):
-        assert _get_idf_version(tmp_path) == "5.1.2"
+        "esphome.espidf.framework.run_command", return_value=(True, "5.5\n", "")
+    ) as run:
+        assert idf_tools_version(tmp_path) == "5.5"
+    assert run.call_args.args[0][1].endswith("get_idf_version.py")
 
 
-def test_get_idf_version_raises_on_failure(tmp_path: Path) -> None:
+def test_idf_tools_version_raises_on_failure(tmp_path: Path) -> None:
     with (
         patch("esphome.espidf.framework.run_command", return_value=(False, "", "boom")),
         pytest.raises(RuntimeError, match="Can't get ESP-IDF version"),
     ):
-        _get_idf_version(tmp_path)
+        idf_tools_version(tmp_path)
 
 
 def test_get_idf_tool_paths_parses_json(tmp_path: Path) -> None:
@@ -1481,6 +1550,30 @@ def test_get_idf_tool_paths_raises_on_failure(tmp_path: Path) -> None:
         pytest.raises(RuntimeError, match="Can't get ESP-IDF tool paths"),
     ):
         _get_idf_tool_paths(tmp_path)
+
+
+def test_get_idf_tool_paths_runs_the_script_once_per_build(tmp_path: Path) -> None:
+    payload = json.dumps({"paths_to_export": ["/a"], "export_vars": {"X": "1"}})
+    env = {"IDF_TOOLS_PATH": str(tmp_path / "tools")}
+    with patch(
+        "esphome.espidf.framework.run_command", return_value=(True, payload, "")
+    ) as run:
+        first = _get_idf_tool_paths(tmp_path, env)
+        second = _get_idf_tool_paths(tmp_path, env)
+    assert run.call_count == 1
+    assert first == second == (["/a"], {"X": "1"})
+
+
+def test_get_idf_tool_paths_does_not_cache_a_failure(tmp_path: Path) -> None:
+    payload = json.dumps({"paths_to_export": ["/a"], "export_vars": {}})
+    with patch(
+        "esphome.espidf.framework.run_command",
+        side_effect=[(False, "", "err"), (True, payload, "")],
+    ) as run:
+        with pytest.raises(RuntimeError, match="Can't get ESP-IDF tool paths"):
+            _get_idf_tool_paths(tmp_path)
+        assert _get_idf_tool_paths(tmp_path) == (["/a"], {})
+    assert run.call_count == 2
 
 
 def test_get_python_version_parses_stdout(tmp_path: Path) -> None:
@@ -1559,13 +1652,14 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
 def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
     return (
-        patch("esphome.espidf.framework.shutil.which", return_value=which),
+        patch("esphome.espidf.framework.resolve_ccache_path", return_value=which),
         patch(
             "esphome.espidf.framework.get_idf_tools_path",
             return_value=tmp_path / "tools",
         ),
+        # ccache_defaults_env (build_helpers.ccache) reads CORE at call time
         patch(
-            "esphome.espidf.framework.CORE",
+            "esphome.core.CORE",
             SimpleNamespace(build_path=build_path),
         ),
     )
@@ -1580,13 +1674,17 @@ def test_ccache_env_default_enabled_when_available(tmp_path: Path) -> None:
     assert env["CCACHE_NOHASHDIR"] == "true"
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    # The pch cannot cache under ccache without these
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
 
 
 def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
     # build_path is None here too: a disabled cache must not require it.
     p1, p2, p3 = _ccache_patches(tmp_path, None, None)
     with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
-        assert _ccache_env() == {}
+        # Canonical off, so an inherited/unparsable value cannot enable it
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
 def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
@@ -1594,18 +1692,111 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
     # short-circuits before build_path is needed.
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
-        assert _ccache_env() == {}
+        # The canonical off spelling is exported, so every reader of the
+        # env sees the same answer
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
-def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
-    # Explicit IDF_CCACHE_ENABLE=1 forces it on without probing PATH. It's
-    # already in the environment, so it isn't re-emitted, but the rest is.
+def test_ccache_env_opt_in_without_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Explicit IDF_CCACHE_ENABLE=1 forces it on; without a usable binary
+    # IDF's CMake silently skips ccache, so this branch must say so out loud.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
         env = _ccache_env()
-    assert "IDF_CCACHE_ENABLE" not in env
+    assert env["IDF_CCACHE_ENABLE"] == "1"
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
     assert env["CCACHE_DEPEND"] == "1"
+    assert "no ccache binary is on PATH" in caplog.text
+
+
+def test_ccache_env_opt_in_with_working_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Forced on with a working binary: no warning fires at all.
+    ccache = tmp_path / "ccache"
+    ccache.touch()
+    p1, p2, p3 = _ccache_patches(tmp_path, str(ccache), tmp_path / "build")
+    with (
+        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
+        patch("esphome.espidf.framework.shutil.which", return_value=str(ccache)),
+        patch("esphome.espidf.framework.tool_version_runs", return_value=True),
+        p1,
+        p2,
+        p3,
+    ):
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_ccache_env_opt_in_with_rejected_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Forced on with a present-but-rejected binary: IDF's CMake does its own
+    # PATH lookup and uses it anyway; the warning must say so, not claim
+    # the build runs without ccache.
+    # A present but non-executable file: the real probe fails and logs
+    # the forced-on message (patching the probe would silence it)
+    broken = tmp_path / "broken-ccache"
+    broken.touch()
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    with (
+        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
+        patch("esphome.espidf.framework.shutil.which", return_value=str(broken)),
+        p1,
+        p2,
+        p3,
+    ):
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert "the build will use it anyway" in caplog.text
+    # Exactly one story: the resolver's contradictory "compiling without
+    # ccache" must not precede it
+    assert "compiling without ccache" not in caplog.text
+
+
+def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
+    """ESPHOME_CCACHE_ENABLE=0 disables ccache here too; the shared policy
+    must not apply to every backend except this one."""
+    _p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    env_vars = {"ESPHOME_CCACHE_ENABLE": "0", "PATH": "/usr/bin"}
+    with patch.dict("os.environ", env_vars, clear=True), p2, p3:
+        # The real resolver runs so the opt-out parse is exercised
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
+
+
+@pytest.mark.parametrize("value", ["off", "no"])
+def test_ccache_env_idf_knob_parses_strictly(tmp_path: Path, value: str) -> None:
+    """IDF_CCACHE_ENABLE uses the same strict table as the shared knob, so
+    "off" disables instead of reading as truthy."""
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": value}, clear=True), p1, p2, p3:
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
+
+
+def test_ccache_env_idf_knob_unrecognized_warns_and_defers(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unparsable IDF_CCACHE_ENABLE warns, defers to the shared resolver,
+    and is not forwarded to the build as truthy."""
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    env_vars = {"IDF_CCACHE_ENABLE": "enabled"}
+    with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert "unrecognized IDF_CCACHE_ENABLE" in caplog.text
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+
+
+def test_ccache_env_idf_knob_wins_over_shared_opt_out(tmp_path: Path) -> None:
+    """IDF_CCACHE_ENABLE=1 takes precedence over ESPHOME_CCACHE_ENABLE=0."""
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    env_vars = {"IDF_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_ENABLE": "0"}
+    with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+    assert env["IDF_CCACHE_ENABLE"] == "1"
 
 
 def test_ccache_env_preserves_user_overrides(tmp_path: Path) -> None:

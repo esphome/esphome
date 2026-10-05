@@ -3,6 +3,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import (
+    VARIANT_ESP32S31,
     get_esp32_variant,
     include_builtin_idf_component,
     require_adc_oneshot_iram,
@@ -55,6 +56,14 @@ _sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
 def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
+
+    # The S31 ADC supports a single attenuation level (SOC_ADC_ATTEN_NUM is 1)
+    if (
+        CORE.is_esp32
+        and get_esp32_variant() == VARIANT_ESP32S31
+        and config.get(CONF_ATTENUATION, "0db") != "0db"
+    ):
+        raise cv.Invalid("ESP32-S31 only supports 'attenuation: 0db'")
 
     if config.get(CONF_ATTENUATION, None) == "auto" and config.get(CONF_SAMPLES, 1) > 1:
         raise cv.Invalid(

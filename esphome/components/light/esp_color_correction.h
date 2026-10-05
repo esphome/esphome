@@ -5,6 +5,12 @@
 
 namespace esphome::light {
 
+/// A gamma curve as codegen emits it into PROGMEM: the lookup table and the gamma it was built from
+struct GammaTable {
+  uint16_t lut[256];
+  uint16_t gamma_x100;
+};
+
 /// Binary search a monotonically increasing uint16[256] PROGMEM table.
 /// Returns the largest index where table[index] <= target.
 inline uint8_t gamma_table_reverse_search(const uint16_t *table, uint16_t target) {

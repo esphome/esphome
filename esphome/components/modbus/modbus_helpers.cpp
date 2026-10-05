@@ -30,9 +30,11 @@ uint16_t server_pdu_length(const uint8_t *frame, size_t size) {
   switch (static_cast<FunctionCode>(frame[0])) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
+      // function(1) + byte count(1) + packed coil bytes
+      return 2 + (size > 1 ? std::min(frame[1], uint8_t(packed_bit_bytes(MAX_NUM_OF_COILS_TO_READ))) : 0);
     case FunctionCode::READ_HOLDING_REGISTERS:
     case FunctionCode::READ_INPUT_REGISTERS:
-      // function(1) + byte count(1) + data
+      // function(1) + byte count(1) + register data
       return 2 + (size > 1 ? std::min(frame[1], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
     case FunctionCode::WRITE_SINGLE_COIL:
     case FunctionCode::WRITE_SINGLE_REGISTER:
@@ -60,6 +62,9 @@ uint16_t server_pdu_length(const uint8_t *frame, size_t size) {
 uint16_t client_pdu_length(const uint8_t *frame, size_t size) {
   if (size < MIN_PDU_SIZE)
     return MIN_PDU_SIZE;
+  if (is_function_code_exception(frame[0])) {
+    return 2;  // never a valid request; sized like the exception reply so the CRC fails at once
+  }
   switch (static_cast<FunctionCode>(frame[0])) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
@@ -287,25 +292,52 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
 }
 
 std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type) {
-  const size_t required_size = required_payload_size(sensor_value_type);
-  if (required_size == 0) {
-    return 0;  // RAW/unsupported: nothing to read
+  // RAW and BIT carry no fixed-width number, so there is nothing to decode whatever the span holds.
+  // register_width_for() reports 1 for them, so this must be checked before the width test below.
+  if (sensor_value_type == SensorValueType::RAW || sensor_value_type == SensorValueType::BIT) {
+    return 0;
   }
-  const size_t required_words = required_size / 2;
+  const uint16_t required_words = register_width_for(sensor_value_type);
   if (required_words > count) {
-    ESP_LOGE(TAG, "not enough registers for value type=%u count=%zu required=%zu",
-             static_cast<unsigned int>(sensor_value_type), count, required_words);
+    ESP_LOGE(TAG, "not enough registers for value type=%u count=%zu required=%u",
+             static_cast<unsigned int>(sensor_value_type), count, static_cast<unsigned int>(required_words));
     return std::nullopt;
   }
-  // Serialize the needed words back to big-endian bytes and reuse the audited byte decoder so the
-  // sign-extension behaviour stays identical to the wire path.
-  uint8_t bytes[8];  // at most 4 registers (QWORD)
-  for (size_t i = 0; i < required_words; i++) {
-    uint16_t reg = registers[i];
-    bytes[i * 2] = static_cast<uint8_t>(reg >> 8);
-    bytes[i * 2 + 1] = static_cast<uint8_t>(reg & 0xFF);
+  // Registers are the wire's own unit, so decode them directly rather than serializing back to bytes.
+  // Each case defers to registers_to_value() so the word order and sign rules have one definition, with
+  // two deliberate exceptions matching what the byte decoder returned: the float types yield their bit
+  // pattern rather than a float, and U_QWORD shares the signed branch because the return type is int64_t.
+  switch (sensor_value_type) {
+    case SensorValueType::U_WORD:
+      return registers_to_value<SensorValueType::U_WORD>(registers);
+    case SensorValueType::U_WORD_S:
+      return registers_to_value<SensorValueType::U_WORD_S>(registers);
+    case SensorValueType::S_WORD:
+      return registers_to_value<SensorValueType::S_WORD>(registers);
+    case SensorValueType::S_WORD_S:
+      return registers_to_value<SensorValueType::S_WORD_S>(registers);
+    case SensorValueType::U_DWORD:
+      return registers_to_value<SensorValueType::U_DWORD>(registers);
+    case SensorValueType::U_DWORD_R:
+      return registers_to_value<SensorValueType::U_DWORD_R>(registers);
+    case SensorValueType::S_DWORD:
+      return registers_to_value<SensorValueType::S_DWORD>(registers);
+    case SensorValueType::S_DWORD_R:
+      return registers_to_value<SensorValueType::S_DWORD_R>(registers);
+    case SensorValueType::FP32:
+      return registers_to_uint32(registers[0], registers[1]);
+    case SensorValueType::FP32_R:
+      return registers_to_uint32(registers[1], registers[0]);
+    // Signed for both: an unsigned QWORD above INT64_MAX has to come back as a negative int64_t.
+    case SensorValueType::U_QWORD:
+    case SensorValueType::S_QWORD:
+      return registers_to_value<SensorValueType::S_QWORD>(registers);
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD_R:
+      return registers_to_value<SensorValueType::S_QWORD_R>(registers);
+    default:
+      return 0;
   }
-  return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
 // Append a 16-bit value to a PDU in big-endian (wire) byte order.
@@ -381,8 +413,6 @@ ReadPdu create_read_pdu(FunctionCode function_code, uint16_t start_address, uint
 PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities,
                             const uint8_t *values, size_t values_len) {
   PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
-  // Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
-  // create_write_registers_pdu(), etc.) which bound their inputs per spec.
   if (is_function_code_read_only(static_cast<uint8_t>(function_code))) {
     if (values != nullptr || values_len > 0) {
       ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
@@ -445,9 +475,7 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
     return pdu;
   }
   // The quantity is spec-bounded above, so the data length just has to agree with it exactly
-  // (registers are 2 bytes each, coils pack 8 per byte). This is the same consistency the response
-  // dispatch enforces via is_client_pdu_standard(), so a frame built here can never be classified
-  // non-standard on reply, and the spec bound keeps the PDU within capacity by construction.
+  // (registers are 2 bytes each, coils pack 8 per byte).
   // Checked before the header append: a failed check must return an empty PDU, not a 5-byte partial one.
   const bool bits = function_code == FunctionCode::WRITE_MULTIPLE_COILS;
   const size_t expected_len = bits ? packed_bit_bytes(number_of_entities) : static_cast<size_t>(number_of_entities) * 2;
@@ -484,9 +512,12 @@ static bool register_block_in_range(const LogString *role, uint16_t start_addres
   return true;
 }
 
-PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
-  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
-  if (!register_block_in_range(LOG_STR("Write"), start_address, values.size(), MAX_NUM_OF_REGISTERS_TO_WRITE)) {
+// The ceiling comes from the buffer itself: push_back() drops silently, so a bound wider than the buffer
+// would put a truncated frame on the wire.
+template<typename Pdu> static Pdu build_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  constexpr auto max_registers = static_cast<uint16_t>((Pdu::capacity() - WRITE_MULTIPLE_HEADER_SIZE) / 2);
+  Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
+  if (!register_block_in_range(LOG_STR("Write"), start_address, values.size(), max_registers)) {
     return pdu;
   }
   append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, values.size());
@@ -495,6 +526,19 @@ PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uin
     append_pdu_word(pdu, v);
   }
   return pdu;
+}
+
+static_assert((PduBuffer::capacity() - WRITE_MULTIPLE_HEADER_SIZE) / 2 == MAX_NUM_OF_REGISTERS_TO_WRITE,
+              "a full-frame PDU must hold exactly MAX_NUM_OF_REGISTERS_TO_WRITE registers");
+static_assert((WriteFewRegistersPdu::capacity() - WRITE_MULTIPLE_HEADER_SIZE) / 2 == MAX_FEW_REGISTERS,
+              "the small write buffer must hold exactly MAX_FEW_REGISTERS registers");
+
+PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  return build_write_registers_pdu<PduBuffer>(start_address, values);
+}
+
+WriteFewRegistersPdu create_write_few_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  return build_write_registers_pdu<WriteFewRegistersPdu>(start_address, values);
 }
 
 PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,

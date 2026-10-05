@@ -180,11 +180,11 @@ void ZWaveProxy::process_uart_slow_() {
 
 void ZWaveProxy::dump_config() {
   char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
-  ESP_LOGCONFIG(
-      TAG,
-      "Z-Wave Proxy:\n"
-      "  Home ID: %s",
-      this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()) : "unknown");
+  ESP_LOGCONFIG(TAG,
+                "Z-Wave Proxy:\n"
+                "  Home ID: %s",
+                this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size())
+                                     : LOG_STR_LITERAL("unknown"));
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -510,7 +510,8 @@ bool ZWaveProxy::response_handler_slow_() {
       return false;  // No response handled
   }
 
-  ESP_LOGVV(TAG, "Sending %s (0x%02X)", this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? "ACK" : "NAK/CAN",
+  ESP_LOGVV(TAG, "Sending %s (0x%02X)",
+            this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? LOG_STR_LITERAL("ACK") : LOG_STR_LITERAL("NAK/CAN"),
             this->last_response_);
   this->write_byte(this->last_response_);
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;

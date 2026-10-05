@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     get_esp32_variant,
 )
 import esphome.config_validation as cv
@@ -156,6 +157,17 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         9: adc_channel_t.ADC_CHANNEL_8,
         10: adc_channel_t.ADC_CHANNEL_9,
     },
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s31/include/soc/adc_channel.h
+    VARIANT_ESP32S31: {
+        42: adc_channel_t.ADC_CHANNEL_0,
+        43: adc_channel_t.ADC_CHANNEL_1,
+        44: adc_channel_t.ADC_CHANNEL_2,
+        45: adc_channel_t.ADC_CHANNEL_3,
+        46: adc_channel_t.ADC_CHANNEL_4,
+        47: adc_channel_t.ADC_CHANNEL_5,
+        48: adc_channel_t.ADC_CHANNEL_6,
+        49: adc_channel_t.ADC_CHANNEL_7,
+    },
 }
 
 # pin to adc2 channel mapping
@@ -224,6 +236,17 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
         18: adc_channel_t.ADC_CHANNEL_7,
         19: adc_channel_t.ADC_CHANNEL_8,
         20: adc_channel_t.ADC_CHANNEL_9,
+    },
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s31/include/soc/adc_channel.h
+    VARIANT_ESP32S31: {
+        50: adc_channel_t.ADC_CHANNEL_0,
+        51: adc_channel_t.ADC_CHANNEL_1,
+        52: adc_channel_t.ADC_CHANNEL_2,
+        53: adc_channel_t.ADC_CHANNEL_3,
+        54: adc_channel_t.ADC_CHANNEL_4,
+        55: adc_channel_t.ADC_CHANNEL_5,
+        56: adc_channel_t.ADC_CHANNEL_6,
+        57: adc_channel_t.ADC_CHANNEL_7,
     },
 }
 

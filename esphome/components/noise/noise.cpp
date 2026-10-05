@@ -1,19 +1,59 @@
 #include "noise.h"
 #ifdef USE_NOISE
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <cstring>
 
 #include <noise/protocol.h>
-
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#endif
+#include <sodium.h>
 
 namespace esphome::noise {
 
 static const char *const TAG = "noise";
+
+void NoiseContext::load_psk(psk_t &out) const {
+  if (this->psk_ == nullptr) {
+    out.fill(0);
+    return;
+  }
+  progmem_memcpy(out.data(), this->psk_, out.size());
+}
+
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+static constexpr size_t PRIVATE_KEY_SIZE = SPARE_EPHEMERAL_KEY_SIZE;
+static constexpr size_t PUBLIC_KEY_SIZE = SPARE_EPHEMERAL_KEY_SIZE;
+uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+void prepare_spare_ephemeral() {
+  uint8_t *private_key = spare_ephemeral;
+  uint8_t *public_key = spare_ephemeral + PRIVATE_KEY_SIZE;
+  // Same steps as noise-c's keygen; the clamp sets the ready bit
+  if (!random_bytes(private_key, PRIVATE_KEY_SIZE)) {
+    sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
+    return;
+  }
+  private_key[0] &= 0xF8;
+  private_key[PRIVATE_KEY_SIZE - 1] = (private_key[PRIVATE_KEY_SIZE - 1] & 0x7F) | 0x40;
+  if (crypto_scalarmult_curve25519_base(public_key, private_key) != 0) {
+    sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
+  }
+}
+
+int consume_spare_ephemeral(NoiseHandshakeState *state) {
+  if (!has_spare_ephemeral()) {
+    return 0;
+  }
+  // noise-c keeps its own copy, so the slot is wiped either way
+  int err = noise_handshakestate_set_local_ephemeral(state, spare_ephemeral, PRIVATE_KEY_SIZE,
+                                                     spare_ephemeral + PRIVATE_KEY_SIZE, PUBLIC_KEY_SIZE);
+  sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
+  return err;
+}
+#endif  // USE_NOISE_SPARE_EPHEMERAL
 
 const LogString *noise_err_to_logstr(int err) {
   if (err == NOISE_ERROR_NO_MEMORY)
@@ -65,22 +105,13 @@ size_t format_reject_payload(uint8_t *buf, size_t capacity, const LogString *rea
     return 0;
   }
   buf[0] = HANDSHAKE_STATUS_REJECT;
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
-  size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
-  reason_len = std::min(reason_len, capacity - 1);
-  if (reason_len > 0) {
-    memcpy_P(buf + 1, reinterpret_cast<PGM_P>(reason), reason_len);
-  }
-#else
+  // The reason may live in PROGMEM on ESP8266; the progmem helpers read RAM and flash alike
   const char *reason_str = LOG_STR_ARG(reason);
-  size_t reason_len = strlen(reason_str);
-  reason_len = std::min(reason_len, capacity - 1);
+  size_t reason_len = std::min(ESPHOME_strlen_P(reason_str), capacity - 1);
   if (reason_len > 0) {
     // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
-    std::memcpy(buf + 1, reason_str, reason_len);
+    progmem_memcpy(buf + 1, reason_str, reason_len);
   }
-#endif
   return reason_len + 1;
 }
 

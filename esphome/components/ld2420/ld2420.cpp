@@ -701,7 +701,8 @@ uint8_t LD2420Component::set_config_mode(bool enable) {
     cmd_frame.data_length += sizeof(CMD_PROTOCOL_VER);
   }
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"),
+           cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
 

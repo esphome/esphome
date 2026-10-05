@@ -13,8 +13,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -23,10 +21,6 @@ CODEOWNERS = ["@andrewjswan"]
 cm1106_ns = cg.esphome_ns.namespace("cm1106")
 CM1106Component = cm1106_ns.class_(
     "CM1106Component", cg.PollingComponent, uart.UARTDevice
-)
-CM1106CalibrateZeroAction = cm1106_ns.class_(
-    "CM1106CalibrateZeroAction",
-    automation.Action,
 )
 
 CONFIG_SCHEMA = (
@@ -46,15 +40,22 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "cm1106",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
+
 
 async def to_code(config: ConfigType) -> None:
     """Code generation entry point."""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    if co2_config := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2_config)
-        cg.add(var.set_co2_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
@@ -64,18 +65,8 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "cm1106.calibrate_zero",
-    CM1106CalibrateZeroAction,
     CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("calibrate_zero(400)"),
 )
-async def cm1106_calibration_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    """Service code generation entry point."""
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

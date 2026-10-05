@@ -28,6 +28,11 @@ extern "C" {
 }
 #endif
 
+#ifdef USE_LN882X
+#include <WiFiPrivate.h>
+#undef DATA  // clashes with setup_priority::DATA
+#endif
+
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -709,7 +714,11 @@ void WiFiComponent::wifi_scan_done_callback_() {
       }
     }
 
-    this->scan_result_.init(count);  // Exact allocation
+    if (!this->scan_result_.try_init(count)) {
+      ESP_LOGW(TAG, "No memory for %zu scan results", count);
+      WiFi.scanDelete();
+      return;
+    }
 
     // Second pass: store matching networks
     for (int i = 0; i < num; i++) {
@@ -765,6 +774,13 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 #endif
 
   yield();
+
+#ifdef USE_LN882X
+  // LibreTiny's LN882H softAP() points ap.bssid at a static array and frees it
+  // on the next call, tripping FreeRTOS's configASSERT until the watchdog
+  // resets the chip. Clear it so that a second AP start frees nothing.
+  static_cast<WiFiData *>(WiFi.data)->ap.bssid = nullptr;
+#endif
 
   return WiFi.softAP(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
                      ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());

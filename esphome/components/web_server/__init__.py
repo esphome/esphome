@@ -8,6 +8,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
@@ -56,9 +57,13 @@ CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_ALLOWED_ORIGINS = "allowed_origins"
 
+# Schema default that also matches the C++ initializer in web_server_base.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_PORT = 80
+
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
-WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
+WebServer = web_server_ns.class_("WebServer", cg.Component)
 
 sorting_groups = {}
 
@@ -251,7 +256,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
-            cv.Optional(CONF_PORT, default=80): cv.port,
+            cv.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
@@ -374,14 +379,18 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
-    # Track controller registration for StaticVector sizing
-    CORE.register_controller()
+    CORE.register_controller(var)
 
     version = config[CONF_VERSION]
 
-    cg.add(paren.set_port(config[CONF_PORT]))
+    # Skip the setter when the config matches the C++ initializer (DEFAULT_PORT).
+    if (port := config[CONF_PORT]) != DEFAULT_PORT:
+        cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
-    cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
+    cg.add_define("USE_WEBSERVER_PORT", port)
+    if CORE.is_esp32:
+        # The ESP-IDF event source builds state documents in a stack arena
+        enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
@@ -395,14 +404,25 @@ async def to_code(config: ConfigType) -> None:
     # Captive portal will still be able to perform OTA updates even when this is set
     if config.get(CONF_OTA) is False:
         cg.add_define("USE_WEBSERVER_OTA_DISABLED")
-    cg.add(var.set_expose_log(config[CONF_LOG]))
+    # expose_log_ is true in C++; only emit the setter to turn it off.
     if config[CONF_LOG]:
         request_log_listener()  # Request a log listener slot for web server log streaming
+    else:
+        cg.add(var.set_expose_log(False))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
-        cg.add(var.set_allowed_origins(allowed_origins))
+        # Shared flash table ended by nullptr, so the server stores only a pointer.
+        cg.add(
+            var.set_allowed_origins(
+                cg.shared_progmem_array(
+                    "web_server_allowed_origins",
+                    cg.const_char_ptr,
+                    [*allowed_origins, cg.nullptr],
+                )
+            )
+        )
     if (auth := config.get(CONF_AUTH)) is not None:
         cg.add_define("USE_WEBSERVER_AUTH")
         # The scheme is fixed at build time so the unused Basic/Digest code path is compiled
@@ -433,7 +453,9 @@ async def to_code(config: ConfigType) -> None:
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
-    cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
+    # include_internal_ is false in C++; only emit the setter to turn it on.
+    if config[CONF_INCLUDE_INTERNAL]:
+        cg.add(var.set_include_internal(True))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
     if config[CONF_COMPRESSION] == "gzip":

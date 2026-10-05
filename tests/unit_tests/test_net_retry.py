@@ -7,7 +7,11 @@ import pytest
 import requests as req
 
 from esphome.core import EsphomeError
-from esphome.net_retry import fetch_with_retry, is_transient_download_error
+from esphome.net_retry import (
+    fetch_with_retry,
+    http_request,
+    is_transient_download_error,
+)
 
 
 def _http_error(status: int) -> req.HTTPError:
@@ -141,3 +145,40 @@ class TestFetchWithRetry:
         assert mock_sleep.call_args_list == [call(2), call(4)]
         assert "(attempt 2/3)" in caplog.text
         assert "(attempt 3/3)" in caplog.text
+
+
+class TestHttpRequest:
+    def test_applies_happy_eyeballs_and_forwards_arguments(self) -> None:
+        with (
+            patch("esphome.net_retry.ensure_happy_eyeballs") as mock_he,
+            patch("requests.get", return_value=MagicMock()) as mock_get,
+        ):
+            resp = http_request(
+                "GET",
+                "https://example.com/f",
+                timeout=30,
+                stream=True,
+                headers={"Range": "bytes=4-"},
+            )
+        mock_he.assert_called_once_with()
+        assert resp is mock_get.return_value
+        assert mock_get.call_args == call(
+            "https://example.com/f",
+            timeout=30,
+            stream=True,
+            headers={"Range": "bytes=4-"},
+            allow_redirects=True,
+        )
+
+    def test_dispatches_head_through_requests_head(self) -> None:
+        """Dispatch goes through requests.get/head so tests patching those
+        entry points keep working."""
+        with patch("requests.head", return_value=MagicMock()) as mock_head:
+            http_request("HEAD", "https://example.com/f", timeout=(5, 30))
+        assert mock_head.call_args[1]["timeout"] == (5, 30)
+
+    def test_no_status_handling(self) -> None:
+        """Error statuses are the caller's problem; nothing raises here."""
+        resp = MagicMock(status_code=404)
+        with patch("requests.get", return_value=resp):
+            assert http_request("GET", "https://example.com/f", timeout=1) is resp

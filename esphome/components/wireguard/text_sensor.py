@@ -16,8 +16,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_WIREGUARD_ID])
+    hub = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
-    if address_config := config.get(CONF_ADDRESS):
-        sens = await text_sensor.new_text_sensor(address_config)
-        cg.add(parent.set_address_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_ADDRESS, hub.set_address_sensor)

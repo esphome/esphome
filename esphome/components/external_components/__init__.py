@@ -71,6 +71,33 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
     return components_dir
 
 
+def _log_overridden_components(
+    conf: dict[str, Any], component_names: list[str]
+) -> None:
+    overridden = [
+        name
+        for name in component_names
+        if (loader.CORE_COMPONENTS_PATH / name / "__init__.py").is_file()
+    ]
+    if not overridden:
+        return
+    if conf[CONF_TYPE] == TYPE_GIT:
+        source = conf[CONF_URL]
+        if ref := conf.get(CONF_REF):
+            source = f"{source}@{ref}"
+        if path := conf.get(CONF_PATH):
+            source = f"{source} ({path})"
+    else:
+        source = conf[CONF_PATH]
+    _LOGGER.info(
+        "External components are overriding built-in components:\n"
+        "  source: %s\n"
+        "  components: %s",
+        source,
+        ", ".join(sorted(overridden)),
+    )
+
+
 def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
@@ -84,8 +111,8 @@ def _process_single_config(config: dict[str, Any]) -> None:
         raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
-        num_components = len(list(components_dir.glob("*/__init__.py")))
-        if num_components > 100:
+        component_names = [p.parent.name for p in components_dir.glob("*/__init__.py")]
+        if len(component_names) > 100:
             # Prevent accidentally including all components from an esphome fork/branch
             # In this case force the user to manually specify which components they want to include
             raise cv.Invalid(
@@ -102,6 +129,9 @@ def _process_single_config(config: dict[str, Any]) -> None:
                     [CONF_COMPONENTS, i],
                 )
         allowed_components = config[CONF_COMPONENTS]
+        component_names = allowed_components
+
+    _log_overridden_components(conf, component_names)
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 

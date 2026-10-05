@@ -3,55 +3,63 @@
 
 namespace esphome::pzemdc {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "pzemdc";
 
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
-static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
+static const uint8_t PZEM_REGISTER_COUNT = 8;  // 8x 16-bit registers
 
-void PZEMDC::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
-  auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (data.size() < 16) {
-    ESP_LOGW(TAG, "Invalid size for PZEM DC!");
-    return;
-  }
+// Register map, see https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
+// 32-bit values are two registers, low word first.
+static const uint16_t PZEM_REGISTER_VOLTAGE = 0;  // 1 register, 0.01 V
+static const uint16_t PZEM_REGISTER_CURRENT = 1;  // 1 register, 0.01 A
+static const uint16_t PZEM_REGISTER_POWER = 2;    // 2 registers, 0.1 W
+static const uint16_t PZEM_REGISTER_ENERGY = 4;   // 2 registers, 1 Wh
 
-  // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
-  //           0     1     2     3     4     5     6     7           = ModBus register
-  //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20  = Buffer index
-  // 01 04 10 05 40 00 0A 00 0D 00 00 00 02 00 00 00 00 00 00 D6 29
-  // Id Cc Sz Volt- Curre Power------ Energy----- HiAlm LoAlm Crc--
+void PZEMDC::on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                     modbus::ResponseStatus status) {
+  if (!modbus::succeeded(status))
+    return;  // the hub already logs exception responses
 
-  auto pzem_get_16bit = [&](size_t i) -> uint16_t {
-    return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
+  // Publish a sensor if its register(s) are in this response; skipping absent registers keeps this
+  // correct for any read range, so the poll may be split into multiple requests.
+  auto publish_1_register = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
+    if (sensor == nullptr)
+      return;
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_WORD>(registers, start_address, reg))
+      sensor->publish_state(*value / divisor);
   };
-  auto pzem_get_32bit = [&](size_t i) -> uint32_t {
-    return (uint32_t(pzem_get_16bit(i + 2)) << 16) | (uint32_t(pzem_get_16bit(i + 0)) << 0);
+
+  auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
+    if (sensor == nullptr)
+      return;
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, reg))
+      sensor->publish_state(*value / divisor);
   };
 
-  uint16_t raw_voltage = pzem_get_16bit(0);
-  float voltage = raw_voltage / 100.0f;  // max 655.35 V
-
-  uint16_t raw_current = pzem_get_16bit(2);
-  float current = raw_current / 100.0f;  // max 655.35 A
-
-  uint32_t raw_power = pzem_get_32bit(4);
-  float power = raw_power / 10.0f;  // max 429496729.5 W
-
-  uint32_t raw_energy = pzem_get_32bit(8);
-  float energy = raw_energy / 1000.0f;  // max 4294967.295 kWh
-
-  ESP_LOGD(TAG, "PZEM DC: V=%.1f V, I=%.3f A, P=%.1f W", voltage, current, power);
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(current);
-  if (this->power_sensor_ != nullptr)
-    this->power_sensor_->publish_state(power);
-  if (this->energy_sensor_ != nullptr)
-    this->energy_sensor_->publish_state(energy);
+  publish_1_register(this->voltage_sensor_, PZEM_REGISTER_VOLTAGE, 100.0f);
+  publish_1_register(this->current_sensor_, PZEM_REGISTER_CURRENT, 100.0f);
+  publish_2_registers(this->power_sensor_, PZEM_REGISTER_POWER, 10.0f);
+  publish_2_registers(this->energy_sensor_, PZEM_REGISTER_ENERGY, 1000.0f);
 }
 
-void PZEMDC::update() { this->read_input_registers(0, 8); }
+void PZEMDC::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                modbus::ResponseStatus status) {
+  // The only custom request this component sends is the energy reset; acknowledge its echo here so
+  // the default unhandled-response warning stays meaningful.
+  if (!request_pdu.empty() && request_pdu[0] == PZEM_CMD_RESET_ENERGY) {
+    if (modbus::succeeded(status)) {
+      ESP_LOGD(TAG, "Energy reset acknowledged");
+    } else {
+      ESP_LOGW(TAG, "Energy reset rejected");
+    }
+    return;
+  }
+  modbus::ModbusClientDevice::on_custom_response(request_pdu, response_pdu, status);
+}
+
+void PZEMDC::update() { this->read_input_registers(0, PZEM_REGISTER_COUNT); }
 void PZEMDC::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PZEMDC:\n"
