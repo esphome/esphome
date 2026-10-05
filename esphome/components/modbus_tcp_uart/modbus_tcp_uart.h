@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/uart/uart_component.h"
+#include "esphome/components/uart/uart_virtual.h"
 #include "esphome/core/component.h"
 
 #include <cstdint>
@@ -17,9 +17,12 @@ namespace esphome::modbus_tcp_uart {
 /// hub, the next waits for the reply or REPLY_TIMEOUT_MS. The reply must match its unit and function (else dropped).
 /// With servers on the hub, a request to a unit that none of them answers is dropped.
 /// Bad MBAP: skipped if its length is usable, else bytes are dropped until the peer has been quiet.
-class ModbusTcpUart : public uart::UARTComponent, public Component {
+/// Writes are joined into RTU frames: a frame ends at the length its function code gives, else at the first CRC
+/// match, so a frame may come in pieces and one write may hold several frames. A part that the next write cannot
+/// continue is dropped.
+class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
  public:
-  ModbusTcpUart() { this->rx_buffer_size_ = RTU_FRAME_SIZE; }
+  ModbusTcpUart() : VirtualUARTComponent(RTU_FRAME_SIZE) {}
 
   void set_parent(tcp_uart::TcpUart *parent) { this->parent_ = parent; }
   void set_server(bool server) { this->server_ = server; }
@@ -34,21 +37,16 @@ class ModbusTcpUart : public uart::UARTComponent, public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void write_array(const uint8_t *data, size_t len) override;
-  bool peek_byte(uint8_t *data) override;
-  bool read_array(uint8_t *data, size_t len) override;
-  size_t available() override { return this->rx_len_; }
   size_t available_for_write() override;
   uart::UARTFlushResult flush() override;
   bool is_connected() override;
-#if defined(USE_ESP8266) || defined(USE_ESP32)
-  void load_settings(bool dump_config) override {}
-#endif
 
  protected:
-  void check_logger_conflict() override {}
   void read_parent_();
   void deliver_mbap_();
+  void send_tx_(size_t held);
   void send_rtu_as_mbap_();
+  void consume_tx_(size_t len);
   void clear_tx_();
   void discard_parent_();
 
@@ -57,7 +55,6 @@ class ModbusTcpUart : public uart::UARTComponent, public Component {
     DROP_INCOMPLETE = 0,
     DROP_REPLY_PREVIOUS,
     DROP_HELD,
-    DROP_TOO_LONG,
     DROP_READ,
     DROP_REPLACED,
     DROP_STALE,
@@ -72,22 +69,22 @@ class ModbusTcpUart : public uart::UARTComponent, public Component {
 
   static constexpr size_t TCP_FRAME_SIZE = 260;
   // One RTU frame. The hub reads it before the next request, so nothing else is waiting.
-  static constexpr size_t RTU_FRAME_SIZE = 256;
+  static constexpr uint16_t RTU_FRAME_SIZE = 256;
   // Server: how long the next request waits for the reply to the current one.
   static constexpr uint32_t REPLY_TIMEOUT_MS = 1000;
 
   tcp_uart::TcpUart *parent_{nullptr};
   const uint8_t *units_{nullptr};
   uint32_t drop_log_ms_[DROP_KIND_COUNT]{};
-  // When tx_ holds an unfinished frame. A later write can tell a pause from a copy still in progress.
-  uint32_t tx_partial_ms_{0};
   uint32_t resync_from_us_{0};
   // Server: when the open request was delivered.
   uint32_t request_ms_{0};
   uint16_t txn_{0};
   uint16_t tcp_len_{0};
+  // tx_[0, tx_len_): written, not sent. A whole frame of tx_frame_len_ bytes at the front waits for room in the
+  // transport; the rest is the start of the next frame.
   uint16_t tx_len_{0};
-  uint16_t rx_len_{0};
+  uint16_t tx_frame_len_{0};
   uint8_t units_count_{0};
   // The open request's unit. Client: the response's RTU address. Server: with the function, it marks the reply.
   uint8_t unit_{0};
@@ -104,7 +101,6 @@ class ModbusTcpUart : public uart::UARTComponent, public Component {
   bool resync_{false};
   uint8_t tcp_buf_[TCP_FRAME_SIZE]{};
   uint8_t tx_[RTU_FRAME_SIZE]{};
-  uint8_t rx_[RTU_FRAME_SIZE]{};
 };
 
 }  // namespace esphome::modbus_tcp_uart

@@ -46,7 +46,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   }
 
   size_t n_{0};
-  uint8_t buf_[64]{};
+  uint8_t buf_[300]{};
   size_t rx_n_{0};
   uint8_t rx_[64]{};
 };
@@ -78,6 +78,8 @@ class ServerLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
     frame[body.size() + 1] = crc >> 8;
     this->write_array(frame, body.size() + 2);
   }
+
+  uint16_t held_part() const { return this->tx_len_; }
 
   uint16_t txn() const { return this->txn_; }
   bool pending() const { return this->txn_pending_; }
@@ -162,8 +164,13 @@ TEST(ModbusTcpUartServer, OnlyAFrameFromTheRequestUnitAndFunctionIsTheReply) {
   EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
 }
 
+// 01 03 02 12 34 B5 33, the reply to a one-register read.
+const uint8_t REPLY_1234[] = {0x01, 0x03, 0x02, 0x12, 0x34, 0xB5, 0x33};
+
 TEST(ModbusTcpUartServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
+  Pipe pipe;
   ServerLink link;
+  link.set_pipe(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -171,45 +178,100 @@ TEST(ModbusTcpUartServer, ReplyWhileTheNewRequestIsBufferedIsDropped) {
   link.push(8, 1, PDU, sizeof(PDU));
   ASSERT_GT(link.available(), 0u);
 
-  // 01 03 00 00 00 01 84 0A, a complete RTU frame.
-  const uint8_t reply[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
-  link.write_array(reply, sizeof(reply));
+  // The late reply to 7 arrives while 8 is still unread: nothing goes out.
+  link.write_array(REPLY_1234, sizeof(REPLY_1234));
+  EXPECT_EQ(pipe.n_, 0u);
   EXPECT_TRUE(link.pending());
   EXPECT_EQ(link.txn(), 8);
   EXPECT_EQ(link.held(), 0);
 
   ASSERT_TRUE(link.read_array(taken, link.available()));
-  link.write_array(reply, sizeof(reply));
+  link.write_array(REPLY_1234, sizeof(REPLY_1234));
+  const uint8_t want[] = {0x00, 0x08, 0, 0, 0, 5, 1, 0x03, 0x02, 0x12, 0x34};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
   EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpUartServer, WholeFrameReplacesAnIncompleteOne) {
+TEST(ModbusTcpUartServer, PiecesOfAReplyAreJoined) {
+  Pipe pipe;
   ServerLink link;
+  link.set_pipe(&pipe);
   link.push(7, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
 
-  const uint8_t junk[] = {0x01, 0x03, 0x00};
-  const uint8_t reply[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
-  link.write_array(junk, sizeof(junk));
-  EXPECT_EQ(link.held(), sizeof(junk));
-  link.write_array(reply, sizeof(reply));
-  EXPECT_EQ(link.held(), 0u);
+  link.write_array(REPLY_1234, 4);
+  EXPECT_EQ(pipe.n_, 0u);
+  EXPECT_TRUE(link.pending());
+  link.write_array(REPLY_1234 + 4, sizeof(REPLY_1234) - 4);
+  const uint8_t want[] = {0x00, 0x07, 0, 0, 0, 5, 1, 0x03, 0x02, 0x12, 0x34};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+  EXPECT_FALSE(link.pending());
 }
 
-TEST(ModbusTcpUartServer, SplitFrameIsAppended) {
+TEST(ModbusTcpUartServer, LongReplyFromAWriterThatKeepsToTheRoom) {
+  // 125 registers: a 255-byte reply, written the way uart_tcp writes, at most 128 bytes and never more than the room.
+  Pipe pipe;
   ServerLink link;
-  link.push(7, 1, PDU, sizeof(PDU));
+  link.set_pipe(&pipe);
+  const uint8_t read_125[] = {0x03, 0x00, 0x00, 0x00, 125};
+  link.push(9, 1, read_125, sizeof(read_125));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
 
-  const uint8_t reply[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
-  link.write_array(reply, 4);
-  link.write_array(reply + 4, 4);
-  EXPECT_EQ(link.held(), sizeof(reply));
+  uint8_t reply[255] = {0x01, 0x03, 250};
+  for (size_t i = 3; i < 253; i++) {
+    reply[i] = static_cast<uint8_t>(i);
+  }
+  const uint16_t crc = esphome::crc16(reply, 253);
+  reply[253] = crc & 0xFF;
+  reply[254] = crc >> 8;
+  for (size_t sent = 0; sent < sizeof(reply);) {
+    const size_t n = std::min<size_t>({sizeof(reply) - sent, 128, link.available_for_write()});
+    ASSERT_GT(n, 0u);
+    link.write_array(reply + sent, n);
+    sent += n;
+  }
+  ASSERT_EQ(pipe.n_, 7u + 252u);
+  EXPECT_EQ(pipe.buf_[1], 9);
+  EXPECT_EQ(std::memcmp(pipe.buf_ + 7, reply + 1, 252), 0);
+  EXPECT_EQ(link.held_part(), 0u);
 }
 
-const uint8_t REPLY[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+// Answers each request it is handed within the same call, as a reader with a fast peer can.
+class AnsweringReader : public esphome::uart::UARTSink {
+ public:
+  explicit AnsweringReader(ServerLink *link) : link_(link) {}
+  void on_block(const uint8_t *data, size_t len) override {
+    this->requests++;
+    this->last_len = len;
+    this->link_->answer({data[0], 0x03, 0x02, 0x12, 0x34});
+  }
+
+  int requests{0};
+  size_t last_len{0};
+
+ protected:
+  ServerLink *link_;
+};
+
+TEST(ModbusTcpUartServer, AttachedReaderGetsTheRequestAndMayAnswerAtOnce) {
+  Pipe pipe;
+  ServerLink link;
+  link.set_pipe(&pipe);
+  AnsweringReader reader(&link);
+  link.set_rx_sink(&reader);
+  link.push(0x0A0B, 1, PDU, sizeof(PDU));
+  EXPECT_EQ(reader.requests, 1);
+  EXPECT_EQ(reader.last_len, sizeof(PDU) + 3);
+  EXPECT_EQ(link.available(), 0u);
+  EXPECT_FALSE(link.pending());
+  const uint8_t want[] = {0x0A, 0x0B, 0, 0, 0, 5, 1, 0x03, 0x02, 0x12, 0x34};
+  ASSERT_EQ(pipe.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
+}
 
 TEST(ModbusTcpUartServer, ReplyUsesTheRequestTransaction) {
   Pipe pipe;
@@ -218,7 +280,7 @@ TEST(ModbusTcpUartServer, ReplyUsesTheRequestTransaction) {
   link.push(0x1234, 1, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
-  link.write_array(REPLY, sizeof(REPLY));
+  link.write_array(REPLY_1234, sizeof(REPLY_1234));
   ASSERT_GE(pipe.n_, 7u);
   EXPECT_EQ(pipe.buf_[0], 0x12);
   EXPECT_EQ(pipe.buf_[1], 0x34);
@@ -233,7 +295,7 @@ TEST(ModbusTcpUartServer, BroadcastIsNotAnswered) {
   link.push(5, 0, PDU, sizeof(PDU));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
-  link.write_array(REPLY, sizeof(REPLY));
+  link.write_array(REPLY_1234, sizeof(REPLY_1234));
   EXPECT_EQ(pipe.n_, 0u);
   EXPECT_FALSE(link.pending());
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/helpers.h"
 
 #include <cstddef>
@@ -78,8 +79,57 @@ inline size_t write_mbap(uint8_t *dst, size_t cap, uint16_t txn, uint8_t unit, c
   return n;
 }
 
+/// Writes unit, PDU and CRC as an RTU frame. dst holds at least pdu_len + 3 bytes. Returns the frame length.
+inline size_t write_rtu(uint8_t *dst, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
+  dst[0] = unit;
+  std::memcpy(dst + 1, pdu, pdu_len);
+  uint16_t crc = crc16(dst, static_cast<uint16_t>(pdu_len + 1));
+  dst[pdu_len + 1] = crc & 0xFF;
+  dst[pdu_len + 2] = crc >> 8;
+  return pdu_len + 3;
+}
+
+// Unit, PDU and CRC.
+static constexpr size_t RTU_MAX_SIZE = modbus::MAX_PDU_SIZE + 3;
+
 inline bool rtu_crc_ok(const uint8_t *frame, size_t len) {
-  return len >= 4 && len <= 256 && crc16(frame, static_cast<uint16_t>(len)) == 0;
+  return len >= 4 && len <= RTU_MAX_SIZE && crc16(frame, static_cast<uint16_t>(len)) == 0;
+}
+
+enum class RtuTake : uint8_t {
+  NEED_MORE,
+  BAD,
+  FRAME,
+};
+
+/// Finds the RTU frame at the start of buf: by the length its function code gives, else at the first CRC match.
+/// replies: buf holds what a server sends; else what a client sends. *frame_len is set for FRAME.
+inline RtuTake take_rtu(const uint8_t *buf, size_t len, bool replies, size_t *frame_len) {
+  *frame_len = 0;
+  if (len < 2) {
+    return RtuTake::NEED_MORE;
+  }
+  if (!modbus::helpers::is_function_code_unknown_length(buf[1])) {
+    const size_t want =
+        replies ? modbus::helpers::server_frame_length(buf, len) : modbus::helpers::client_frame_length(buf, len);
+    if (len < want) {
+      return RtuTake::NEED_MORE;
+    }
+    if (!rtu_crc_ok(buf, want)) {
+      return RtuTake::BAD;
+    }
+    *frame_len = want;
+    return RtuTake::FRAME;
+  }
+  uint16_t crc = 0xFFFF;
+  for (size_t n = 1; n <= len && n <= RTU_MAX_SIZE; n++) {
+    crc = crc16(buf + n - 1, 1, crc);
+    if (n >= 4 && crc == 0) {
+      *frame_len = n;
+      return RtuTake::FRAME;
+    }
+  }
+  return len >= RTU_MAX_SIZE ? RtuTake::BAD : RtuTake::NEED_MORE;
 }
 
 }  // namespace esphome::modbus_tcp_uart

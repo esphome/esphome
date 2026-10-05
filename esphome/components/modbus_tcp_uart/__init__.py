@@ -20,7 +20,7 @@ CONF_TCP_UART_ID = "tcp_uart_id"
 
 modbus_tcp_uart_ns = cg.esphome_ns.namespace("modbus_tcp_uart")
 ModbusTcpUart = modbus_tcp_uart_ns.class_(
-    "ModbusTcpUart", uart.UARTComponent, cg.Component
+    "ModbusTcpUart", uart.VirtualUARTComponent, cg.Component
 )
 
 CONFIG_SCHEMA = cv.Schema(
@@ -39,7 +39,7 @@ def _final_validate(config: ConfigType) -> None:
     full = fv.full_config.get()
     link_id = str(config[CONF_ID])
     want = config.get(CONF_ROLE, "client")
-    for hub in (full.get("modbus") or []) if full is not None else []:
+    for hub in full.get("modbus") or []:
         if str(hub.get(CONF_UART_ID, "")) != link_id:
             continue
         if hub.get(CONF_ROLE, "client") == want:
@@ -74,13 +74,14 @@ def _served_units(full: ConfigType, link_id: str) -> list[int]:
 
 
 async def to_code(config: ConfigType) -> None:
+    uart.require_virtual_uart()
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     parent = await cg.get_variable(config[CONF_TCP_UART_ID])
     cg.add(var.set_parent(parent))
     if config[CONF_ROLE] == "server":
         cg.add(var.set_server(True))
-        # Without a hub, e.g. behind a bridge to an RTU bus, every request goes on.
+        # No hub on this link (another reader takes the requests): every request goes on.
         if units := _served_units(CORE.config, str(config[CONF_ID])):
             arr = cg.static_const_array(
                 ID(f"{config[CONF_ID]}_units", is_declaration=True, type=cg.uint8),

@@ -9,8 +9,11 @@ namespace {
 using esphome::modbus_tcp_uart::Mbap;
 using esphome::modbus_tcp_uart::MbapTake;
 using esphome::modbus_tcp_uart::rtu_crc_ok;
+using esphome::modbus_tcp_uart::RtuTake;
+using esphome::modbus_tcp_uart::take_rtu;
 using esphome::modbus_tcp_uart::take_mbap;
 using esphome::modbus_tcp_uart::write_mbap;
+using esphome::modbus_tcp_uart::write_rtu;
 
 TEST(MbapTest, RoundTrip) {
   const uint8_t pdu[] = {0x03, 0x00, 0x00, 0x00, 0x01};
@@ -61,6 +64,15 @@ TEST(MbapTest, RtuCrc) {
   EXPECT_FALSE(rtu_crc_ok(frame, sizeof(frame) - 1));
 }
 
+TEST(MbapTest, WriteRtuAddsUnitAndCrc) {
+  const uint8_t pdu[] = {0x03, 0x00, 0x00, 0x00, 0x01};
+  uint8_t frame[16];
+  ASSERT_EQ(write_rtu(frame, 0x01, pdu, sizeof(pdu)), sizeof(pdu) + 3);
+  const uint8_t want[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+  EXPECT_EQ(std::memcmp(frame, want, sizeof(want)), 0);
+  EXPECT_TRUE(rtu_crc_ok(frame, sizeof(want)));
+}
+
 TEST(MbapTest, BadProtocolDropsOneByte) {
   uint8_t frame[8] = {0, 1, 0, 1, 0, 2, 1, 3};
   Mbap out;
@@ -72,6 +84,39 @@ TEST(MbapTest, BadProtocolDropsOneByte) {
 TEST(MbapTest, WriteRejectsAnEmptyPdu) {
   uint8_t frame[8];
   EXPECT_EQ(write_mbap(frame, sizeof(frame), 1, 1, frame, 0), 0u);
+}
+
+TEST(MbapTest, TakeRtuUsesTheLengthOfTheFunctionCode) {
+  // 01 03 02 12 34 B5 33: a reply to a one-register read, then the start of the next frame.
+  const uint8_t two[] = {0x01, 0x03, 0x02, 0x12, 0x34, 0xB5, 0x33, 0x01, 0x03};
+  size_t len = 0;
+  EXPECT_EQ(take_rtu(two, 1, true, &len), RtuTake::NEED_MORE);
+  EXPECT_EQ(take_rtu(two, 6, true, &len), RtuTake::NEED_MORE);
+  ASSERT_EQ(take_rtu(two, sizeof(two), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 7u);
+  // The same bytes as a request: function 3 asks for 8 bytes, and the CRC does not match there.
+  EXPECT_EQ(take_rtu(two, sizeof(two), false, &len), RtuTake::BAD);
+}
+
+TEST(MbapTest, TakeRtuFindsAnExceptionReply) {
+  uint8_t frame[5] = {0x04, 0x83, 0x02};
+  const uint16_t crc = esphome::crc16(frame, 3);
+  frame[3] = crc & 0xFF;
+  frame[4] = crc >> 8;
+  size_t len = 0;
+  ASSERT_EQ(take_rtu(frame, sizeof(frame), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 5u);
+}
+
+TEST(MbapTest, TakeRtuEndsAnUnknownFunctionAtItsCrc) {
+  uint8_t frame[7] = {0x01, 0x41, 0xAA, 0xBB, 0, 0, 0x99};
+  const uint16_t crc = esphome::crc16(frame, 4);
+  frame[4] = crc & 0xFF;
+  frame[5] = crc >> 8;
+  size_t len = 0;
+  EXPECT_EQ(take_rtu(frame, 5, false, &len), RtuTake::NEED_MORE);
+  ASSERT_EQ(take_rtu(frame, sizeof(frame), false, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 6u);
 }
 
 }  // namespace
