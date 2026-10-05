@@ -796,7 +796,9 @@ void WiFiComponent::on_shutdown() {
   if (!this->is_connected())
     return;
   ESP_LOGD(TAG, "Disconnecting before reboot");
-  this->wifi_disconnect_();
+  // The SDK call directly: LibreTiny's WiFi.disconnect() also frees the SSID
+  // its event handlers read, which once hung a reboot until the watchdog.
+  wifi_sta_disconnect();
   delay(100);  // let the deauth go out before the reset
 }
 #endif
