@@ -23,14 +23,17 @@ void TcpUart::setup() {
 }
 
 void TcpUart::dump_config() {
+  uint32_t timeout = this->link_.idle_timeout();
+  // A precision of 0 prints no digit for 0, so a timeout that is off reads "off".
   ESP_LOGCONFIG(TAG,
                 "TCP UART:\n"
                 "  %s: %s:%u\n"
                 "  Reconnect Interval: %" PRIu32 "ms\n"
-                "  Timeout: %" PRIu32 "ms",
+                "  Timeout: %.0" PRIu32 "%s",
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval(), this->link_.idle_timeout());
+                this->link_.reconnect_interval(), timeout,
+                timeout != 0 ? LOG_STR_LITERAL("ms") : LOG_STR_LITERAL("off"));
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
