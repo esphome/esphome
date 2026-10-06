@@ -11,6 +11,20 @@
 
 #ifdef USE_HOST
 
+#include <sys/uio.h>
+
+// Raw lwIP (ESP8266, RP2040) returns 0 when its send buffer takes no byte; a POSIX
+// socket never does. In this test binary, write() on zero_write_fd does the same.
+static int zero_write_fd = -1;
+
+extern "C" ssize_t write(int fd, const void *buf, size_t len) {
+  if (fd == zero_write_fd) {
+    return 0;
+  }
+  struct iovec iov = {const_cast<void *>(buf), len};
+  return ::writev(fd, &iov, 1);
+}
+
 namespace esphome::socket::testing {
 
 class LinkPeer {
@@ -20,6 +34,7 @@ class LinkPeer {
     signal(SIGPIPE, SIG_IGN);
     int fds[2];
     EXPECT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+    this->link_fd_ = fds[0];
     this->peer_fd_ = fds[1];
     this->link_.set_host("peer");
     this->link_.set_port(1);
@@ -38,6 +53,7 @@ class LinkPeer {
   }
 
   TcpClientLink link_;
+  int link_fd_{-1};
   int peer_fd_{-1};
 };
 
@@ -158,9 +174,30 @@ TEST(TcpClientLink, StuckSendClosesAfterTheTimeout) {
     emptied = p.link_.flush_tx();
   }
   ASSERT_FALSE(emptied);
-  // A send that moves nothing does not restart the clock.
+  // A send refused with EAGAIN does not restart the clock.
   set_now(1050);
   EXPECT_FALSE(p.link_.flush_tx());
+  set_now(1099);
+  p.link_.check_idle();
+  EXPECT_TRUE(p.link_.connected());
+  set_now(1100);
+  p.link_.check_idle();
+  EXPECT_FALSE(p.link_.connected());
+}
+
+TEST(TcpClientLink, ASendThatTakesNothingKeepsTheIdleClock) {
+  LinkPeer p;
+  p.link_.set_idle_timeout(100);
+  set_now(1000);
+  p.link_.note_io();
+  ASSERT_EQ(p.link_.queue(reinterpret_cast<const uint8_t *>("x"), 1), 1u);
+  zero_write_fd = p.link_fd_;
+  // The send returns 0: the byte stays queued, the link stays up, the clock keeps running.
+  set_now(1050);
+  bool emptied = p.link_.flush_tx();
+  zero_write_fd = -1;
+  EXPECT_FALSE(emptied);
+  EXPECT_TRUE(p.link_.connected());
   set_now(1099);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());
