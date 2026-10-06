@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include <utility>
 
 #include "esphome/core/component.h"
@@ -109,6 +110,10 @@ struct AddressableColorWipeEffectColor {
   bool gradient;
   uint32_t num_leds;
 };
+static_assert(std::is_trivially_copyable_v<AddressableColorWipeEffectColor>,
+              "AddressableColorWipeEffectColor is copied out of flash");
+static_assert(sizeof(AddressableColorWipeEffectColor) % sizeof(uint32_t) == 0,
+              "AddressableColorWipeEffectColor must be whole words for ESP8266 flash reads");
 static constexpr uint8_t NO_RANDOM_SLOT = 0xFF;
 
 class AddressableColorWipeEffect : public AddressableLightEffect {

@@ -24,8 +24,6 @@ def test_effect_colors_use_flash_tables(
         main_cpp,
     )
     # Only the random entry gets a RAM slot, starting at its configured color
-    assert re.search(
-        r"static Color light__\w+__random_colors\[\] = \{Color\(", main_cpp
-    )
+    assert re.search(r"static Color \w+_random_colors\[\] = \{Color\(", main_cpp)
     assert ".random_slot = 0," in main_cpp
     assert ".random_slot = 255," in main_cpp

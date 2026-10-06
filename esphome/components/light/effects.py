@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALPHA,
@@ -29,7 +30,9 @@ from esphome.const import (
     CONF_WHITE,
     CONF_WIDTH,
 )
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObjClass
+from esphome.helpers import ensure_unique_string
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.util import Registry
@@ -515,10 +518,20 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     random_storage = cg.nullptr
     if random_colors:
         # One RAM slot per random entry; it starts at the configured color, as before
-        name = f"light__{effect_id.id}__random_colors"
-        values = ", ".join(f"Color({r}, {g}, {b}, {w})" for r, g, b, w in random_colors)
-        cg.add_global(cg.RawStatement(f"static Color {name}[] = {{{values}}};"))
-        random_storage = cg.RawExpression(name)
+        used = {str(i) for i, _ in iter_ids(CORE.config)} | {
+            str(i) for i in CORE.variables
+        }
+        id_ = ID(
+            ensure_unique_string(f"{effect_id.id}_random_colors", used),
+            is_declaration=True,
+            type=Color,
+        )
+        values = cg.ArrayInitializer(
+            *(Color(r, g, b, w) for r, g, b, w in random_colors)
+        )
+        cg.add_global(cg.RawStatement(f"static {Color} {id_}[] = {values};"))
+        random_storage = cg.MockObj(id_, ".")
+        CORE.register_variable(id_, random_storage)
     cg.add(var.set_colors(table, len(colors), random_storage))
     return var
 

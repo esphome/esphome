@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include <utility>
 
 #include "esphome/core/automation.h"
@@ -171,6 +172,9 @@ struct StrobeLightEffectColor {
   uint32_t transition_length;
   ColorMode color_mode;
 };
+static_assert(std::is_trivially_copyable_v<StrobeLightEffectColor>, "StrobeLightEffectColor is copied out of flash");
+static_assert(sizeof(StrobeLightEffectColor) % sizeof(uint32_t) == 0,
+              "StrobeLightEffectColor must be whole words for ESP8266 flash reads");
 
 class StrobeLightEffect : public LightEffect {
  public:
