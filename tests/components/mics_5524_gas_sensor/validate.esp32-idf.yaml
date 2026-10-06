@@ -1,5 +1,6 @@
 # Config-only test: the external voltage sampler path, the datasheet conversion
 # and the optional diagnostics/control entities.
+# and force recompile
 sensor:
   - platform: adc
     id: mics_5524_adc
