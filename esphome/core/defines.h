@@ -602,6 +602,7 @@
 // to parse against.
 #ifdef USE_LN882X
 #define USE_LN882H_BLE_TRACKER
+#define USE_WIFI_AP_EXCLUSIVE
 #else
 #define USE_BK72XX_BLE_TRACKER
 #endif
