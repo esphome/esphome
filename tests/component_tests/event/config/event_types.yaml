@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+event:
+  - platform: template
+    id: event_a
+    name: Event A
+    event_types: [pressed, held]
+  - platform: template
+    id: event_b
+    name: Event B
+    event_types: [pressed, held]
+  - platform: template
+    id: event_c
+    name: Event C
+    event_types: [ring]
