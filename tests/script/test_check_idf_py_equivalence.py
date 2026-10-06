@@ -16,7 +16,7 @@ import check_idf_py_equivalence as guard  # noqa: E402
 
 from esphome.build_gen import espidf as build_gen  # noqa: E402
 from esphome.core import CORE  # noqa: E402
-from esphome.espidf import toolchain  # noqa: E402
+from esphome.espidf import framework, toolchain  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -74,10 +74,12 @@ def _run_check(
     esphome_rcs: tuple[int, int] = (0, 0),
     macro_matches: bool = True,
     envs: list[dict[str, str]] | None = None,
+    versions: tuple[str | None, str | None, str] = ("5.5", "5.5", "5.5"),
 ) -> tuple[list[str], list[list[str]]]:
     """Run check() with idf.py replaced by ``side_effect``; return problems, calls.
 
-    ``envs`` collects the env each idf.py call receives.
+    ``envs`` collects the env each idf.py call receives. ``versions`` is what
+    version.txt, the version header and idf_tools report for the framework.
     """
     calls: list[list[str]] = []
 
@@ -98,6 +100,10 @@ def _run_check(
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
         patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
         patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
+        patch.object(framework, "read_idf_version_txt", return_value=versions[0]),
+        patch.object(framework, "read_idf_version_header", return_value=versions[1]),
+        patch.object(framework, "idf_tools_version", return_value=versions[2]),
+        patch.object(guard, "_lwip_empty_source_problems", return_value=[]),
         patch.object(guard.subprocess, "run", side_effect=run),
         patch.dict(os.environ),
     ):
@@ -285,6 +291,24 @@ def test_check_fails_loudly_when_the_idf_macro_changed(tmp_path: Path) -> None:
     assert calls == []
 
 
+@pytest.mark.parametrize(
+    ("versions", "source"),
+    [(("5.4", "5.5", "5.5"), "txt"), (("5.5", None, "5.5"), "header")],
+)
+def test_check_fails_loudly_when_the_version_read_drifts(
+    tmp_path: Path, versions: tuple[str | None, str | None, str], source: str
+) -> None:
+    """An IDF bump that changes how idf_tools reads its version must fail CI;
+    both sources are checked since a managed tree never reaches the header."""
+    tree = _make_tree(tmp_path)
+    problems, calls = _run_check(tree, versions=versions)
+    ours = versions[0] if source == "txt" else versions[1]
+    assert problems == [
+        guard.VERSION_DRIFT.format(ours=ours, source=source, theirs="5.5")
+    ]
+    assert calls == []
+
+
 def test_main_without_build_trees(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -294,6 +318,99 @@ def test_main_without_build_trees(
     ):
         assert guard.main() == 1
     assert "No native ESP-IDF build tree found" in capsys.readouterr().out
+
+
+def _make_lwip_tree(tmp_path: Path, objects: list[str], config: dict) -> Path:
+    """A tree with lwip objects, their sdkconfig.json and an nm in the cache."""
+    tree = _make_tree(tmp_path)
+    objdir = tree / "build" / "esp-idf" / "lwip" / "CMakeFiles" / "__idf_lwip.dir"
+    for name in objects:
+        (objdir / name).parent.mkdir(parents=True, exist_ok=True)
+        (objdir / name).write_bytes(b"x")
+    (tree / "build" / "config").mkdir(parents=True, exist_ok=True)
+    (tree / "build" / "config" / "sdkconfig.json").write_text(json.dumps(config))
+    with (tree / "build" / "CMakeCache.txt").open("a") as cache:
+        cache.write("CMAKE_NM:FILEPATH=/tools/nm\n")
+    return tree
+
+
+def _run_lwip_check(
+    tree: Path,
+    non_empty: set[str] = frozenset(),
+    failing: set[str] = frozenset(),
+    calls: list[list[str]] | None = None,
+) -> list[str]:
+    """Run the lwip check with nm faked; ``calls`` collects the nm commands."""
+
+    def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        if calls is not None:
+            calls.append(cmd)
+        name = Path(cmd[-1]).name
+        if name in failing:
+            return subprocess.CompletedProcess(cmd, 1, "", "bad object")
+        return subprocess.CompletedProcess(
+            cmd, 0, "symbol\n" if name in non_empty else "", ""
+        )
+
+    with (
+        patch.object(toolchain, "run_reconfigure", return_value=0) as reconfigure,
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(guard.subprocess, "run", side_effect=run),
+    ):
+        problems = guard._lwip_empty_source_problems(tree)
+    reconfigure.assert_called_once_with(
+        extra_env={build_gen.LWIP_FULL_SOURCES_ENV: "1"}
+    )
+    return problems
+
+
+def test_lwip_check_inspects_only_the_dropped_sources(tmp_path: Path) -> None:
+    """An option that is on, or absent (invisible), keeps its sources unchecked."""
+    tree = _make_lwip_tree(
+        tmp_path,
+        [
+            "lwip/src/netif/ppp/auth.c.obj",
+            "lwip/src/core/ipv6/ip6.c.obj",
+            "lwip/src/core/ipv4/autoip.c.obj",
+        ],
+        {"LWIP_PPP_SUPPORT": False, "LWIP_IPV6": True},
+    )
+    calls: list[list[str]] = []
+    assert _run_lwip_check(tree, calls=calls) == []
+    assert [Path(c[-1]).name for c in calls] == ["auth.c.obj"]
+
+
+def test_lwip_check_flags_a_dropped_source_with_symbols(tmp_path: Path) -> None:
+    tree = _make_lwip_tree(
+        tmp_path, ["lwip/src/netif/ppp/auth.c.obj"], {"LWIP_PPP_SUPPORT": False}
+    )
+    assert _run_lwip_check(tree, non_empty={"auth.c.obj"}) == [
+        guard.LWIP_NOT_EMPTY.format(source="auth.c", option="CONFIG_LWIP_PPP_SUPPORT")
+    ]
+
+
+def test_lwip_check_flags_a_failed_nm(tmp_path: Path) -> None:
+    """A broken nm must not pass as an empty object."""
+    tree = _make_lwip_tree(
+        tmp_path, ["lwip/src/netif/ppp/auth.c.obj"], {"LWIP_PPP_SUPPORT": False}
+    )
+    assert _run_lwip_check(tree, failing={"auth.c.obj"}) == [
+        guard.LWIP_NM_FAILED.format(source="auth.c", error="bad object")
+    ]
+
+
+def test_lwip_check_fails_per_pattern_that_matched_nothing(tmp_path: Path) -> None:
+    """A stale pattern is reported even while the others still match."""
+    tree = _make_lwip_tree(
+        tmp_path,
+        ["lwip/src/netif/ppp/auth.c.obj"],
+        {"LWIP_PPP_SUPPORT": False, "LWIP_STATS": False},
+    )
+    assert _run_lwip_check(tree) == [
+        guard.LWIP_NOTHING_MATCHED.format(
+            regex="/core/stats[.]c$", option="CONFIG_LWIP_STATS"
+        )
+    ]
 
 
 @pytest.mark.parametrize(("problems", "rc"), [([], 0), (["idf.py changed x"], 1)])

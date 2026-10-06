@@ -1037,7 +1037,7 @@ void lv_mem_init() {}
 
 void lv_mem_deinit() {}
 
-#if defined(USE_HOST) || defined(USE_RP2) || defined(USE_ESP8266)
+#ifndef USE_ESP32
 void *lv_malloc_core(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {
@@ -1053,7 +1053,7 @@ static void *lv_alloc_draw_buf(size_t size, bool internal) {
   return malloc(size);  // NOLINT
 }
 
-#elif defined(USE_ESP32)
+#else
 static unsigned cap_bits = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;  // NOLINT
 
 static void *lv_alloc_draw_buf(size_t size, bool internal) {
