@@ -11,16 +11,19 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.wifi import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+from esphome.const import Platform, PlatformFramework
 from esphome.core import CORE
+from esphome.types import ConfigType
+from tests.component_tests.types import SetCoreConfigCallable
 from tests.component_tests.wifi import sdkconfig_option
 
 _AP_DEFINE = "USE_WIFI_AP"
 _APSTA_DEFINE = "USE_WIFI_APSTA"
 _NAPT_DEFINE = "USE_WIFI_AP_NAPT"
 
-_ESP32_IDF = "esp32:\n  board: esp32dev\n  framework:\n    type: esp-idf\n"
-_ESP8266 = "esp8266:\n  board: d1_mini\n"
-_STATION = "  ssid: test\n  password: testtest\n"
+_STA_NETWORK: ConfigType = {"ssid": "test", "password": "testtest"}
 
 
 def _defines() -> set[str]:
@@ -28,13 +31,9 @@ def _defines() -> set[str]:
     return {define.name for define in CORE.defines}
 
 
-def _write_config(tmp_path: Path, platform: str, wifi: str) -> Path:
-    """Write a throwaway config so each case can pick its own combination."""
-    config = tmp_path / "wifi.yaml"
-    config.write_text(
-        f"esphome:\n  name: test\n{platform}wifi:\n{wifi}", encoding="utf-8"
-    )
-    return config
+def _validate(wifi: ConfigType) -> None:
+    """Run the wifi schema and its final validation, as loading a config does."""
+    FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA({"use_address": "192.168.1.1", **wifi}))
 
 
 @pytest.mark.parametrize("config_file", ["coexist.yaml", "coexist_legacy_ssid.yaml"])
@@ -101,55 +100,69 @@ def test_ap_defaults_stay_plain(
     assert sdkconfig_option("CONFIG_LWIP_DHCPS") is None
 
 
-# The codegen pass stops at the first failure, so the coroutines queued behind
-# it are never awaited; core does the same for its pipeline tests.
-@pytest.mark.filterwarnings("ignore::RuntimeWarning")
 @pytest.mark.parametrize(
-    ("platform", "wifi", "match"),
+    ("platform_framework", "wifi", "match"),
     [
-        # APSTA lives in the esp-idf driver only.
+        # APSTA lives in the esp-idf driver only, so the ESP8266 and the ESP32
+        # arduino framework are both out.
         (
-            _ESP8266,
-            f"{_STATION}  ap:\n    ssid: fallback\n    coexist: true\n",
+            PlatformFramework.ESP8266_ARDUINO,
+            {"networks": [_STA_NETWORK], "ap": {"ssid": "fallback", "coexist": True}},
+            "only supported on ESP32",
+        ),
+        (
+            PlatformFramework.ESP32_ARDUINO,
+            {"networks": [_STA_NETWORK], "ap": {"ssid": "fallback", "coexist": True}},
             "only supported on ESP32",
         ),
         # Coexistence needs a station for the AP to fall back from.
         (
-            _ESP32_IDF,
-            (
-                "  post_connect_roaming: false\n"
-                "  ap:\n    ssid: fallback\n    coexist: true\n"
-            ),
+            PlatformFramework.ESP32_IDF,
+            {
+                "post_connect_roaming": False,
+                "ap": {"ssid": "fallback", "coexist": True},
+            },
             "requires at least one STA network",
         ),
         # The default post_connect_roaming scan would drop the AP again.
         (
-            _ESP32_IDF,
-            f"{_STATION}  ap:\n    ssid: fallback\n    coexist: true\n",
+            PlatformFramework.ESP32_IDF,
+            {"networks": [_STA_NETWORK], "ap": {"ssid": "fallback", "coexist": True}},
             "incompatible with post_connect_roaming",
         ),
         # NAPT only makes sense on top of coexistence.
         (
-            _ESP32_IDF,
-            f"{_STATION}  ap:\n    ssid: fallback\n    napt: true\n",
+            PlatformFramework.ESP32_IDF,
+            {"networks": [_STA_NETWORK], "ap": {"ssid": "fallback", "napt": True}},
             r"requires AP\+STA coexistence",
+        ),
+        # NAPT carries the same platform restriction.
+        (
+            PlatformFramework.ESP8266_ARDUINO,
+            {"networks": [_STA_NETWORK], "ap": {"ssid": "fallback", "napt": True}},
+            "only supported on ESP32",
         ),
     ],
 )
 def test_invalid_combinations(
-    tmp_path: Path,
-    generate_main: Callable[[str | Path], str],
-    platform: str,
-    wifi: str,
+    set_core_config: SetCoreConfigCallable,
+    platform_framework: PlatformFramework,
+    wifi: ConfigType,
     match: str,
 ) -> None:
-    """Unsupported combinations are rejected while the code is generated.
+    """Unsupported combinations are rejected while the config is loaded.
 
-    These checks live in ``to_code()``, so they surface on the codegen pass
-    rather than during config validation. Two further branches are unreachable
-    through a config file: ``napt:`` on another platform (``coexist:`` reports
-    first) and the legacy ``ssid:`` spelling of the station lookup, which
-    validation has already folded into ``networks`` by then.
+    The checks live in the schema's final validation, so they surface when the
+    config is loaded rather than later, during code generation.
     """
+    platform, _ = platform_framework.value
+    set_core_config(
+        platform_framework,
+        # The esp32 split defaults are keyed by variant, so a schema that reads
+        # one needs the variant set even before any esp32 config is loaded.
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32}
+        if platform is Platform.ESP32
+        else {},
+    )
     with pytest.raises(cv.Invalid, match=match):
-        generate_main(_write_config(tmp_path, platform, wifi))
+        _validate(wifi)
