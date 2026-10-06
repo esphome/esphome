@@ -2,6 +2,8 @@
 
 namespace esphome::climate {
 
+ClimateTraits::ClimateTraits() = default;
+
 static const ClimateCustomModes EMPTY_CUSTOM_MODES;  // NOLINT
 
 const ClimateCustomModes &ClimateTraits::get_supported_custom_fan_modes() const {

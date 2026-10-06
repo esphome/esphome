@@ -77,6 +77,10 @@ class ClimateTraits {
   friend class Climate;  // Climate wires its custom mode lists into traits
 
  public:
+  // Out of line on purpose: an inlined default init makes GCC copy the defaults from a .rodata
+  // template per traits() override, and .rodata is RAM on ESP8266.
+  ClimateTraits();
+
   /// Get/set feature flags (see ClimateFeatures enum in climate_mode.h)
   uint32_t get_feature_flags() const { return this->feature_flags_; }
   void add_feature_flags(uint32_t feature_flags) { this->feature_flags_ |= feature_flags; }
