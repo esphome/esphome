@@ -670,11 +670,7 @@ def theme_update_schema(value: dict) -> dict:
     for w_name, style in validated.items():
         for part, states in collect_parts(style).items():
             for state, props in states.items():
-                # collect_parts() unconditionally seeds a main/default entry
-                # even when nothing was set for it (e.g. `{pressed: {...}}`
-                # alone) -- skip combos with no properties so a request for
-                # one state doesn't also create an unused, empty main/default
-                # style that gets attached to every widget of this type.
+                # Skip states with no properties
                 if not props:
                     continue
                 df.get_theme_update_requests().setdefault(w_name, {})[(part, state)] = (

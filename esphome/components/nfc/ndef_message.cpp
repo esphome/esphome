@@ -97,7 +97,7 @@ bool NdefMessage::add_record(std::unique_ptr<NdefRecord> record) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
   }
-  this->records_.emplace_back(std::move(record));
+  this->records_.emplace_next() = std::move(record);
   return true;
 }
 
