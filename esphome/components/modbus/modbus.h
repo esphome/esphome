@@ -91,7 +91,8 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
-// Transmit ordering, highest first: writes before one-shot reads before continuous polls.
+// Transmit ordering, highest first: writes before one-shot reads before continuous polls. An entry
+// that has waited behind more than MODBUS_TX_BUFFER_SIZE newer requests goes before all of them.
 enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 
 // Per-entry lifecycle state. Waiting states (see waiting_state()) hold the bus; the sweep delivers owed
@@ -125,7 +126,7 @@ struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
   // Place-in-line stamp (hub's free-running counter); selection takes the oldest for round-robin
-  // fairness within a class. Meant to wrap.
+  // fairness within a class, and its age lets a starved entry through. Meant to wrap.
   uint16_t seq{0};
   FrameState state{FrameState::READY};
   // Accepted requests this entry stands for, capped at max_pending(); drains one terminal each.
@@ -280,7 +281,8 @@ class ModbusClientHub : public Modbus {
   void send_next_frame_();
   // Deliver owed callbacks from a quiescent hub and apply lifecycle bookkeeping; see FrameState.
   void sweep_();
-  // The selection function: best READY entry (ordered by priority; FIFO by seq within each group), or nullptr.
+  // The selection function: best READY entry (overdue first, then by priority; FIFO by seq within each group),
+  // or nullptr.
   ModbusDeviceCommand *select_next_ready_();
   // Locate the single entry waiting for a response (WAITING/INTERRUPTED/WAITING_RETIRED/INTERRUPTED_RETIRED).
   ModbusDeviceCommand *find_waiting_();

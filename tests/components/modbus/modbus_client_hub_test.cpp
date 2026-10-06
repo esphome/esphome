@@ -476,6 +476,62 @@ TEST(ModbusClientHubPriority, WritesThenOneShotReadsThenContinuousPolls) {
   EXPECT_TRUE(hub.waiting_command().options.continuous);  // and the poll takes what is left
 }
 
+// A steady stream of one-shot reads keeps the READ class from ever emptying. The poll still gets the
+// bus once more requests than the queue holds have passed it, and then falls back behind the reads.
+TEST(ModbusClientHubPriority, SteadyReadsDoNotStarveContinuousPoll) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  ASSERT_TRUE(device.read_holding_registers(0x100, 2, {.continuous = true}));
+  ASSERT_TRUE(device.read_holding_registers(0x200, 1));
+  ASSERT_TRUE(device.read_holding_registers(0x300, 1));
+
+  size_t reads_before_poll = 0;
+  while (reads_before_poll < 4 * MODBUS_TX_BUFFER_SIZE) {
+    hub.force_send_next();
+    if (hub.waiting_command().options.continuous)
+      break;
+    const uint16_t start = (hub.waiting_command().frame.pdu()[1] << 8) | hub.waiting_command().frame.pdu()[2];
+    hub.timeout_waiting();
+    ASSERT_TRUE(device.read_holding_registers(start, 1));  // the reader asks again at once
+    reads_before_poll++;
+  }
+  EXPECT_LE(reads_before_poll, MODBUS_TX_BUFFER_SIZE);
+
+  // Served, the poll is re-stamped to the tail and ranks below the reads again.
+  const uint8_t poll_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x02, poll_response);
+  ASSERT_EQ(hub.queued_frames(), 3u);
+  hub.force_send_next();
+  EXPECT_FALSE(hub.waiting_command().options.continuous);
+}
+
+// A burst that nearly fills the queue does not make anything overdue: the write still goes first and
+// the older continuous poll still goes last.
+TEST(ModbusClientHubPriority, BurstKeepsClassOrder) {
+  NoResponseProbeHub hub;
+  RetryingDevice device(&hub, 0x02, /*retry=*/false);
+
+  ASSERT_TRUE(device.read_holding_registers(0x100, 2, {.continuous = true}));
+  constexpr uint16_t burst = MODBUS_TX_BUFFER_SIZE - 8;
+  for (uint16_t i = 0; i < burst; i++)
+    ASSERT_TRUE(device.read_holding_registers(0x1000 + i, 1));
+  const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
+  ASSERT_TRUE(device.queue_pdu(write_pdu));
+
+  hub.force_send_next();
+  EXPECT_EQ(hub.waiting_command().frame.pdu()[0], 0x06);
+  hub.timeout_waiting();
+  for (uint16_t i = 0; i < burst; i++) {
+    hub.force_send_next();
+    ASSERT_FALSE(hub.waiting_command().options.continuous) << "poll overtook read " << i;
+    EXPECT_EQ(hub.waiting_command().frame.pdu()[2], static_cast<uint8_t>(i));  // FIFO within the class
+    hub.timeout_waiting();
+  }
+  hub.force_send_next();
+  EXPECT_TRUE(hub.waiting_command().options.continuous);
+}
+
 // continuous is ignored for writes: the frame still sends at WRITE priority, once.
 TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   NoResponseProbeHub hub;

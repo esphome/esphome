@@ -928,16 +928,23 @@ ModbusDeviceCommand *ModbusClientHub::find_waiting_() {
 ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
   // Class first (WRITE, then one-shot READ, then CONTINUOUS), oldest within a class. seq is a
   // free-running counter, so compare each entry's AGE against it (correct across the full range).
+  // An entry passed over by more requests than the queue can hold is overdue and ranks above every
+  // class, so a steady stream of one class cannot starve another.
+  static constexpr uint8_t OVERDUE_RANK = static_cast<uint8_t>(CommandPriority::WRITE) + 1;
   const uint16_t now = this->next_seq_;
   const auto age = [now](const ModbusDeviceCommand &cmd) -> uint16_t { return now - cmd.seq; };
-  const auto older = [&age](const ModbusDeviceCommand &a, const ModbusDeviceCommand &b) { return age(a) > age(b); };
+  const auto rank = [&age](const ModbusDeviceCommand &cmd) -> uint8_t {
+    return age(cmd) > MODBUS_TX_BUFFER_SIZE ? OVERDUE_RANK : static_cast<uint8_t>(cmd.priority());
+  };
   ModbusDeviceCommand *best = nullptr;
+  uint8_t best_rank = 0;
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.state != FrameState::READY)
       continue;
-    if (best == nullptr || cmd.priority() > best->priority() ||
-        (cmd.priority() == best->priority() && older(cmd, *best))) {
+    const uint8_t cmd_rank = rank(cmd);
+    if (best == nullptr || cmd_rank > best_rank || (cmd_rank == best_rank && age(cmd) > age(*best))) {
       best = &cmd;
+      best_rank = cmd_rank;
     }
   }
   return best;
