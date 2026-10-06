@@ -1,6 +1,6 @@
 #include "i2s_clockless_led_strip.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && SOC_I2S_SUPPORTS_TDM
 
 #include <algorithm>
 #include <cinttypes>
@@ -193,8 +193,8 @@ void I2SClocklessLedStrip::write_state(light::LightState *state) {
 
 bool IRAM_ATTR HOT I2SClocklessLedStrip::i2s_on_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event,
                                                               void *user_ctx) {
-  const auto self = static_cast<I2SClocklessLedStrip *>(user_ctx);
-  const auto dma_buf = static_cast<uint8_t *>(event->dma_buf);
+  auto *const self = static_cast<I2SClocklessLedStrip *>(user_ctx);
+  auto *const dma_buf = static_cast<uint8_t *>(event->dma_buf);
   const size_t dma_buf_size = event->size;
 
   if (self->i2s_data_ready_.load(std::memory_order_acquire)) {
@@ -235,4 +235,4 @@ light::ESPColorView I2SClocklessLedStrip::get_view_internal(int32_t index) const
 
 }  // namespace esphome::i2s_clockless_led_strip
 
-#endif  // USE_ESP32
+#endif

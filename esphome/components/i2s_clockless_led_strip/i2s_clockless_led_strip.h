@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && SOC_I2S_SUPPORTS_TDM
 
 #include <atomic>
 #include <cstdint>
@@ -50,4 +50,4 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
 
 }  // namespace esphome::i2s_clockless_led_strip
 
-#endif  // USE_ESP32
+#endif
