@@ -485,7 +485,8 @@ def shared_progmem_array(
     must be captureless. Its name is made unique against every config id and variable.
     ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
     ``constexpr=False`` emits ``static T const`` for address constants such as pointers to
-    generated objects, which GCC still initializes statically but are not constant expressions.
+    generated objects, which GCC folds into static initialization even though they are not
+    constant expressions; the C++ standard does not guarantee this, so keep it to those addresses.
     Every element must then be an address known at compile time (see ``is_static_pointer``);
     a pointer assigned in ``setup()`` would need dynamic init, which faults in ESP8266 flash.
     """

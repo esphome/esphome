@@ -220,6 +220,7 @@ class LightState : public EntityBase, public Component {
   const ConstVector<LightEffect *> &get_effects() const { return this->effects_; }
 
   /// Codegen only: point at the generated table of this light's effects, which must outlive it.
+  /// Codegen caps the count at 65535, so an effect index always fits the uint16_t active index.
   void add_effects(LightEffect *const *effects, size_t count) {
     this->effects_ = ConstVector<LightEffect *>(effects, count);
   }
