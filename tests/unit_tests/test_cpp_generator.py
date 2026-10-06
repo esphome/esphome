@@ -847,7 +847,10 @@ class TestSharedProgmemArray:
         )
         with pytest.raises(EsphomeError, match="dynamic_obj"):
             cg.shared_progmem_array(
-                "table", ct.uint8.operator("ptr"), cg.ArrayInitializer(dynamic), constexpr=False
+                "table",
+                ct.uint8.operator("ptr"),
+                cg.ArrayInitializer(dynamic),
+                constexpr=False,
             )
 
     def test_constexpr_false_emits_a_const_array(self) -> None:
