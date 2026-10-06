@@ -5,6 +5,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::mipi_spi {
@@ -133,7 +134,10 @@ class MipiSpi : public display::Display,
     return HEIGHT;
   }
 
-  void set_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequence_ = sequence; }
+  void set_init_sequence(const uint8_t *sequence, size_t len) {
+    this->init_sequence_ = sequence;
+    this->init_sequence_len_ = len;
+  }
 
   // reset the display, and write the init sequence
   void setup() override {
@@ -159,15 +163,16 @@ class MipiSpi : public display::Display,
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
     size_t index = 0;
-    auto &vec = this->init_sequence_;
-    while (index != vec.size()) {
-      if (vec.size() - index < 2) {
+    const uint8_t *seq = this->init_sequence_;
+    const size_t len = this->init_sequence_len_;
+    while (index != len) {
+      if (len - index < 2) {
         esph_log_e(TAG, "Malformed init sequence");
         this->mark_failed();
         return;
       }
-      uint8_t cmd = vec[index++];
-      uint8_t x = vec[index++];
+      uint8_t cmd = progmem_read_byte(seq + index++);
+      uint8_t x = progmem_read_byte(seq + index++);
       if (x == DELAY_FLAG) {
         if (cmd == 0) {
           cmd = clamp_at_least((int) (when - millis()), 0);
@@ -176,19 +181,21 @@ class MipiSpi : public display::Display,
         delay(cmd);
       } else {
         uint8_t num_args = x & 0x7F;
-        if (vec.size() - index < num_args) {
+        if (len - index < num_args) {
           esph_log_e(TAG, "Malformed init sequence");
           this->mark_failed();
           return;
         }
-        const auto *ptr = vec.data() + index;
-        this->write_command_(cmd, ptr, num_args);
+        // The sequence is in flash, which SPI DMA (and ESP8266 byte loads) cannot read
+        uint8_t args[0x80];
+        progmem_memcpy(args, seq + index, num_args);
+        this->write_command_(cmd, args, num_args);
         index += num_args;
       }
     }
     this->reset_params_();
-    // init sequence no longer needed
-    this->init_sequence_.clear();
+    // Marks init as done, so later commands log at verbose level instead of debug
+    this->init_sequence_len_ = 0;
   }
 
   // Drawing operations
@@ -236,7 +243,7 @@ class MipiSpi : public display::Display,
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
     // Don't spam the log after setup
-    if (this->init_sequence_.empty()) {
+    if (this->init_sequence_len_ == 0) {
       esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     } else {
       esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
@@ -486,7 +493,9 @@ class MipiSpi : public display::Display,
   bool invert_colors_{};
   optional<uint8_t> brightness_{};
   const char *model_{"Unknown"};
-  std::vector<uint8_t> init_sequence_{};
+  // Shared PROGMEM table
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
 };
 
 /**
