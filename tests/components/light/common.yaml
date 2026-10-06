@@ -32,13 +32,14 @@ esphome:
       - lambda: |-
           const auto &effects = id(test_monochromatic_light).get_effects();
           auto &same = id(test_monochromatic_light).get_effects();
+          const auto copy = id(test_monochromatic_light).get_effects();  // the view is copyable
           uint32_t total = effects.size();
           for (auto *effect : effects) {
             ESP_LOGD("test", "Effect %s", effect->get_name().c_str());
           }
           if (total > 0) {
             ESP_LOGD("test", "First %s", effects.at(0)->get_name().c_str());
-            auto *it = std::find(same.begin(), same.end(), effects[0]);
+            auto *it = std::find(same.begin(), same.end(), copy[0]);
             ESP_LOGD("test", "Index %d", (int) (it - same.begin()));
           }
 
