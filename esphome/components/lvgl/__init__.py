@@ -237,7 +237,6 @@ def multi_conf_validate(configs: list[dict]):
     for config in configs[1:]:
         for item in (
             CONF_LOG_LEVEL,
-            df.CONF_CHECK_ARGS,
             CONF_COLOR_DEPTH,
             CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
@@ -374,7 +373,7 @@ async def to_code(configs):
     for font in df.get_lv_fonts_used():
         df.add_define(f"LV_FONT_{font.upper()}")
     df.add_define("LV_OBJ_STYLE_CACHE", "1")
-    if config_0[df.CONF_CHECK_ARGS]:
+    if any(config[df.CONF_CHECK_ARGS] for config in configs):
         df.add_define("LV_USE_CHECK_ARG", "1")
         df.add_define(
             "LV_CHECK_ARG_LOG_MODE",

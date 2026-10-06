@@ -46,6 +46,8 @@ def test_default_lv_conf_defines(
     [
         ("lv_conf_options.yaml", "RGB565", "VERBOSE"),
         ("lv_conf_check_warn.yaml", "RGB565_SWAPPED", "MINIMAL"),
+        # Only the second LVGL instance sets check_args
+        ("lv_conf_check_second.yaml", "RGB565_SWAPPED", "MINIMAL"),
     ],
 )
 def test_lv_conf_options(
