@@ -51,16 +51,28 @@ using UserActionScratch = std::array<char, 0>;
 // the name and every argument is (name, description, example). Unset metadata is nullptr.
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
 static constexpr size_t USER_ACTION_HEADER_STRINGS = 2;
-static constexpr size_t USER_ACTION_ARG_STRINGS = 3;
+static constexpr size_t USER_ACTION_ARG_BASE_STRINGS = 3;
 #else
 static constexpr size_t USER_ACTION_HEADER_STRINGS = 1;
-static constexpr size_t USER_ACTION_ARG_STRINGS = 1;
+static constexpr size_t USER_ACTION_ARG_BASE_STRINGS = 1;
+#endif
+// With USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS each argument gains a trailing
+// default-value slot; nullptr means no default.
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+static constexpr size_t USER_ACTION_ARG_STRINGS = USER_ACTION_ARG_BASE_STRINGS + 1;
+#else
+static constexpr size_t USER_ACTION_ARG_STRINGS = USER_ACTION_ARG_BASE_STRINGS;
 #endif
 class UserServiceStatic : public UserServiceDescriptor {
  public:
   UserServiceStatic(const char *const *strings, uint32_t key,
                     enums::SupportsResponseType supports_response = enums::SUPPORTS_RESPONSE_NONE)
       : strings_(strings), key_(key), supports_response_(supports_response) {}
+
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  // Bit i marks argument i optional (with or without a default)
+  void set_optional_args_mask(uint32_t mask) { this->arg_optional_mask_ = mask; }
+#endif
 
  protected:
   ListEntitiesServicesResponse encode_list_service_response_(std::span<const enums::ServiceArgType> arg_types,
@@ -72,6 +84,9 @@ class UserServiceStatic : public UserServiceDescriptor {
 
   const char *const *strings_;  // PROGMEM pointer table, read with progmem_read_ptr()
   uint32_t key_;
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  uint32_t arg_optional_mask_{0};
+#endif
   enums::SupportsResponseType supports_response_;
 };
 

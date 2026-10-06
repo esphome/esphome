@@ -136,7 +136,7 @@ def test_empty_metadata_is_unset_and_not_counted() -> None:
         "description": "",
         "variables": {"b": {"type": "int", "description": "", "example": "ex"}},
     }
-    strings = _action_strings(conf, has_metadata=True)
+    strings = _action_strings(conf, has_metadata=True, has_optional=False)
     assert strings == ["a", None, "b", None, "ex"]
     # Every emitted string counts its terminator: "a" + "b" + "ex"
     assert _action_strings_size(strings) == 2 + 2 + 3
