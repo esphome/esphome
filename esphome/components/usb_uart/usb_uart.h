@@ -155,7 +155,22 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
-  void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
+  void set_parity(UARTParityOptions parity) {
+    this->parity_ = parity;
+    // Keep the base-class parity in sync so uart::UARTComponent::get_parity() reports the configured value.
+    // MARK/SPACE have no uart:: equivalent and report as NONE.
+    switch (parity) {
+      case UART_CONFIG_PARITY_EVEN:
+        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_EVEN);
+        break;
+      case UART_CONFIG_PARITY_ODD:
+        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_ODD);
+        break;
+      default:
+        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_NONE);
+        break;
+    }
+  }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
