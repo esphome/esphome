@@ -66,9 +66,8 @@ binary_sensor:
       }
       return false;
 
-# Exercise fan.turn_on with various field combinations so the
-# register_apply_action codegen paths get build coverage.
 button:
+  # Read and set preset modes the way external fan components do
   - platform: template
     name: "Fan Preset Modes Lambdas"
     on_press:
@@ -88,6 +87,9 @@ button:
           id(test_fan).set_supported_preset_modes(runtime_modes);
           id(test_fan).set_supported_preset_modes({"Eco"});
           id(test_fan).set_supported_preset_modes({});
+
+  # Exercise fan.turn_on with various field combinations so the
+  # register_apply_action codegen paths get build coverage.
   - platform: template
     name: "Fan Speed Only"
     on_press:
