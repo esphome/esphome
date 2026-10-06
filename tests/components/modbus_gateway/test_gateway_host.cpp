@@ -15,6 +15,8 @@ class FakeUart : public uart::UARTComponent {
  public:
   std::vector<uint8_t> tx;
   std::vector<uint8_t> rx;
+  size_t room{SIZE_MAX};
+  bool connected{true};
 
   void write_array(const uint8_t *data, size_t len) override { this->tx.insert(this->tx.end(), data, data + len); }
   bool peek_byte(uint8_t *data) override {
@@ -33,6 +35,8 @@ class FakeUart : public uart::UARTComponent {
     return true;
   }
   size_t available() override { return this->rx.size(); }
+  size_t available_for_write() override { return this->room; }
+  bool is_connected() override { return this->connected; }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 
   void push(const std::vector<uint8_t> &frame) { this->rx.insert(this->rx.end(), frame.begin(), frame.end()); }
@@ -368,6 +372,51 @@ TEST_F(GatewayRoute, LocalPortReportsItsRoom) {
   this->run();
   EXPECT_EQ(this->local_.available_for_write(), MAX_FRAME);
   EXPECT_EQ(this->local_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS);
+}
+
+// The client left before its answer came. The answer is dropped and the next request goes out without a timeout.
+TEST_F(GatewayRoute, PortThatIsGoneDoesNotHoldTheBus) {
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto next = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(request);
+  this->local_.write_array(next.data(), next.size());
+  this->run();
+  ASSERT_EQ(this->bms_.tx, request);
+
+  this->client_.connected = false;
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  EXPECT_TRUE(this->client_.tx.empty());
+  ASSERT_EQ(this->bms_.tx.size(), request.size() + next.size());
+  auto reply = frame({0x02, 0x03, 0x02, 0x00, 0x02});
+  this->bms_.push(reply);
+  this->run();
+  EXPECT_EQ(this->local_reply(), reply);
+}
+
+// The hub on the local port did not read its last answer. The next one does not fit and is dropped.
+TEST_F(GatewayRoute, FullLocalPortDoesNotHoldTheBus) {
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x7D});
+  std::vector<uint8_t> body{0x01, 0x03, 0xFA};
+  body.resize(3 + 0xFA, 0x11);
+  auto reply = frame(body);
+  this->local_.write_array(request.data(), request.size());
+  this->run();
+  this->bms_.push(reply);
+  this->run();
+  ASSERT_EQ(this->local_.available(), reply.size());
+
+  this->local_.write_array(request.data(), request.size());
+  this->run();
+  ASSERT_EQ(this->bms_.tx.size(), 2 * request.size());
+  this->bms_.push(reply);
+  this->run();
+  EXPECT_EQ(this->local_.available(), reply.size());
+
+  auto other = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(other);
+  this->run();
+  EXPECT_EQ(this->bms_.tx.size(), 2 * request.size() + other.size());
 }
 
 }  // namespace esphome::modbus_gateway::testing

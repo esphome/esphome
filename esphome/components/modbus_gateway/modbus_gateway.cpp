@@ -155,9 +155,7 @@ void ModbusGateway::port_write(uint8_t index, const uint8_t *data, size_t len) {
     port.pending_len = 0;
   }
   if (len > static_cast<size_t>(MAX_FRAME - port.len)) {
-    if (log_due(&this->last_response_log_ms_)) {
-      ESP_LOGW(TAG, "Write dropped, the buffer holds one frame");
-    }
+    this->log_drop_(LOG_STR("Port buffer full"), len);
     return;
   }
   std::memcpy(port.data + port.len, data, len);
@@ -192,31 +190,27 @@ bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data,
   return true;
 }
 
-bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
+void ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
   Port &port = this->ports_[index];
+  const LogString *why = nullptr;
   if (port.local) {
     if (!static_cast<GatewayUart *>(port.uart)->inject_rx(data, len)) {
-      this->log_dropped_(false, len);
-      return false;
+      why = LOG_STR("Port buffer full");
     }
-    return true;
+  } else if (!port.uart->is_connected()) {
+    why = LOG_STR("Port not connected");
+  } else if (!this->write_frame_(port.uart, data, len)) {
+    why = LOG_STR("Port has no room");
   }
-  if (!this->write_frame_(port.uart, data, len)) {
-    this->log_dropped_(true, len);
-    return false;
+  if (why != nullptr) {
+    this->log_drop_(why, len);
   }
-  return true;
 }
 
-void ModbusGateway::log_dropped_(bool on_uart, uint16_t len) {
-  if (!log_due(&this->last_response_log_ms_)) {
-    return;
+void ModbusGateway::log_drop_(const LogString *why, size_t len) {
+  if (log_due(&this->last_drop_log_ms_)) {
+    ESP_LOGW(TAG, "%s, dropped %zu bytes", LOG_STR_ARG(why), len);
   }
-  if (!on_uart) {
-    ESP_LOGW(TAG, "Response dropped, the buffer holds one frame");
-    return;
-  }
-  ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", static_cast<unsigned>(len));
 }
 
 // The bytes behind the waiting request are parsed. A complete request there replaces the waiting one:
@@ -294,12 +288,8 @@ void ModbusGateway::read_bus_(uint32_t now) {
       consume(this->bus_, &this->bus_len_, found.len);
       continue;
     }
-    uint8_t index = static_cast<uint8_t>(this->active_);
-    // A full port keeps the frame. Dropping it here would end the transaction
-    // and the next client could be given this answer.
-    if (!this->deliver_(index, this->bus_, found.len)) {
-      return;
-    }
+    // The bus answered. A port that cannot take the response loses it, and the bus is free again.
+    this->deliver_(static_cast<uint8_t>(this->active_), this->bus_, found.len);
     consume(this->bus_, &this->bus_len_, found.len);
     this->active_ = -1;
   }

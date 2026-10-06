@@ -4,6 +4,7 @@
 #include "esphome/components/uart/uart_virtual.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #include <cstdint>
 
@@ -71,10 +72,10 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   void drain_bus_(uint32_t now);
   bool start_next_(uint32_t now);
   bool write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len);
-  bool deliver_(uint8_t index, const uint8_t *data, uint16_t len);
+  void deliver_(uint8_t index, const uint8_t *data, uint16_t len);
   void log_bad_(bool crc);
   void log_mismatch_();
-  void log_dropped_(bool on_uart, uint16_t len);
+  void log_drop_(const LogString *why, size_t len);
 
   Port ports_[MODBUS_GATEWAY_PORT_COUNT]{};
   uint32_t response_timeout_ms_{500};
@@ -83,7 +84,7 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   uint32_t last_bad_log_ms_{0};
   uint32_t last_mismatch_log_ms_{0};
   uint32_t last_timeout_log_ms_{0};
-  uint32_t last_response_log_ms_{0};
+  uint32_t last_drop_log_ms_{0};
   uint16_t bus_len_{0};
   uint8_t port_count_{0};
   uint8_t next_port_{0};
