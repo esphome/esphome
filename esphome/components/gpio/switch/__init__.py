@@ -36,9 +36,9 @@ async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    if CONF_INTERLOCK in config:
+    if (interlock := config.get(CONF_INTERLOCK)) is not None:
         cg.add_define("USE_GPIO_SWITCH_INTERLOCK")
-        locks = [await cg.get_variable(it) for it in config[CONF_INTERLOCK]]
+        locks = [await cg.get_variable(it) for it in interlock]
         # The group's table lists this switch too, so every member shares one table.
         group = sorted({str(s): s for s in (var, *locks)}.values(), key=str)
         if len(group) > 1:
