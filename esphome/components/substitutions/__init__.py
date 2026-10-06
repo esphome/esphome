@@ -353,7 +353,7 @@ def resolve_include(
     strict_undefined: bool = True,
     errors: ErrList | None = None,
 ) -> Any:
-    """Resolve an include, substituting the filename if needed.
+    """Resolve an include, substituting the condition and filename if needed.
 
     Note: no path-traversal validation is performed on the resolved filename.
     A substitution that resolves to an absolute path will bypass the parent
@@ -362,6 +362,19 @@ def resolve_include(
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
     """
+    if isinstance(original_condition := include.condition, str):
+        condition = str(
+            _expand_substitutions(
+                original_condition,
+                path + ["condition"],
+                context_vars,
+                strict_undefined,
+                errors,
+            )
+        )
+        if condition != original_condition:
+            include = include.with_condition(condition)
+
     original = include.file
     filename = str(
         _expand_substitutions(
@@ -372,8 +385,8 @@ def resolve_include(
     if substituted:
         include = include.with_file(filename)
     try:
-        return include.load()
-    except esphome.core.EsphomeError as err:
+        return include.load() if include.should_load() else {}
+    except (esphome.core.EsphomeError, cv.Invalid) as err:
         resolved = f" (expanded from '{original}')" if substituted else ""
         raise cv.Invalid(
             f"Error including file '{filename}'{resolved}: {err}"
