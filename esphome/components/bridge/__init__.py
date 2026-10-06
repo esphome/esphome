@@ -22,22 +22,18 @@ def _subtree_references_uart(node: object, uart_id: str) -> bool:
     return False
 
 
-def claim_exclusive(
-    config: ConfigType, conf_key: str, label: str, *, seen_key: str | None = None
-) -> None:
+def claim_exclusive(config: ConfigType, conf_key: str, label: str) -> None:
     """Reject the config unless this bridge is the only user of the interface at conf_key.
 
     Bridges of any platform must own their interfaces exclusively; shared ring buffers and
-    overwritten callbacks would corrupt both streams silently. The seen-set is keyed on the
-    bridge domain so all platforms share it; seen_key (default conf_key) names the set, so
-    keys that hold the same kind of interface share one. Other components bind an interface
-    through a uart_id key. Bare `id:` references (a uart.write action) cannot be
-    distinguished; not caught.
+    overwritten callbacks would corrupt both streams silently. All platforms and keys share
+    one seen-set, because every bridged interface is a uart::UARTComponent (a CDC-ACM
+    instance too) and ids are unique. Other components bind an interface through a uart_id
+    key. Bare `id:` references (a uart.write action) cannot be distinguished; not caught.
     """
     full_config = fv.full_config.get()
     owned_id = str(config[conf_key])
-    data = full_config.data.setdefault(DOMAIN, {})
-    used = data.setdefault(seen_key or conf_key, set())
+    used = full_config.data.setdefault(DOMAIN, set())
     if owned_id in used:
         raise cv.Invalid(
             f"The {label} '{owned_id}' is already bridged by another 'bridge' "

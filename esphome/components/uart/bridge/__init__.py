@@ -38,8 +38,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if str(config[CONF_UART_ID]) == str(config[CONF_PEER_ID]):
         raise cv.Invalid("The two ends are the same UART.", [CONF_PEER_ID])
     for key in (CONF_UART_ID, CONF_PEER_ID):
-        # Both keys hold UARTs, so a UART bridged as uart_id here and peer_id elsewhere is caught.
-        claim_exclusive(config, key, "UART", seen_key=CONF_UART_ID)
+        claim_exclusive(config, key, "UART")
         fv.id_declaration_match_schema(_reject_dummy_receiver)(config[key])
     return config
 

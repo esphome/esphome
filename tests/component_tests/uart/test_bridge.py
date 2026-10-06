@@ -1,5 +1,6 @@
 """Tests for the bridge uart platform's final validation and code generation."""
 
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -8,7 +9,7 @@ from esphome import config_validation as cv
 from esphome.components import uart
 from esphome.components.uart import bridge
 from esphome.components.uart.bridge import CONF_PEER_ID
-from esphome.config import Config
+from esphome.config import Config, read_config
 from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
@@ -16,7 +17,7 @@ from esphome.const import (
     CONF_UART_ID,
     PlatformFramework,
 )
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -62,6 +63,55 @@ def test_rejects_a_uart_in_two_bridges_under_either_key(
     _final_validate(_bridge_config("uart_0", "uart_1"))
     with pytest.raises(cv.Invalid, match="already bridged"):
         _final_validate(_bridge_config("uart_2", "uart_0"))
+
+
+_CDC_ACM_YAML = """
+esphome:
+  name: test
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+tinyusb:
+usb_cdc_acm:
+  interfaces:
+    - id: cdc_0
+uart:
+  - id: uart_0
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+  - id: uart_1
+    tx_pin: 6
+    rx_pin: 7
+    baud_rate: 9600
+bridge:
+"""
+# The uart platform takes the CDC-ACM instance as a UART, cdc_acm_uart as its USB end.
+_UART_ENTRY = """
+  - platform: uart
+    uart_id: cdc_0
+    peer_id: uart_0
+"""
+_CDC_ACM_ENTRY = """
+  - platform: cdc_acm_uart
+    uart_id: uart_1
+    usb_cdc_acm_id: cdc_0
+"""
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [_UART_ENTRY + _CDC_ACM_ENTRY, _CDC_ACM_ENTRY + _UART_ENTRY],
+    ids=["uart_first", "cdc_acm_uart_first"],
+)
+def test_rejects_a_cdc_acm_interface_in_bridges_of_both_platforms(
+    entries: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.config_path.write_text(_CDC_ACM_YAML + entries)
+    assert read_config({}) is None
+    assert "'cdc_0' is already bridged" in capsys.readouterr().out
 
 
 def test_rejects_a_uart_another_component_uses(
