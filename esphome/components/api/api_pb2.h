@@ -873,7 +873,7 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  const std::vector<const char *> *supported_preset_modes{};
+  const std::span<const char *const> *supported_preset_modes{};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);

@@ -62,7 +62,6 @@
   "tests/integration/test_large_message_batching.py": 13.6,
   "tests/integration/test_legacy_area.py": 11.44,
   "tests/integration/test_legacy_climate_compat.py": 12.99,
-  "tests/integration/test_legacy_fan_compat.py": 8.75,
   "tests/integration/test_light_automations.py": 15.38,
   "tests/integration/test_light_binary_effect_off_phase.py": 23.85,
   "tests/integration/test_light_calls.py": 16.45,

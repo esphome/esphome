@@ -68,5 +68,4 @@ async def to_code(config: ConfigType) -> None:
         enable_pin = await cg.get_variable(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable_pin))
 
-    if CONF_PRESET_MODES in config:
-        cg.add(var.set_preset_modes(config[CONF_PRESET_MODES]))
+    fan.set_preset_modes(var, config.get(CONF_PRESET_MODES, []))
