@@ -18,7 +18,7 @@ CONF_RESPONSE_TIMEOUT = "response_timeout"
 
 modbus_gateway_ns = cg.esphome_ns.namespace("modbus_gateway")
 ModbusGateway = modbus_gateway_ns.class_("ModbusGateway", cg.Component, uart.UARTDevice)
-GatewayUart = modbus_gateway_ns.class_("GatewayUart", uart.UARTComponent)
+GatewayUart = modbus_gateway_ns.class_("GatewayUart", uart.VirtualUARTComponent)
 
 
 def _port_schema(value: ConfigType) -> ConfigType:
@@ -151,6 +151,7 @@ async def to_code(config: ConfigType) -> None:
             parent = await cg.get_variable(port[CONF_UART_ID])
             cg.add(var.set_port_uart(index, parent))
             continue
+        uart.require_virtual_uart()
         local = cg.new_Pvariable(port[CONF_ID])
         cg.add(var.set_port_local(index, local))
         cg.add(local.set_baud_rate(bus[CONF_BAUD_RATE]))

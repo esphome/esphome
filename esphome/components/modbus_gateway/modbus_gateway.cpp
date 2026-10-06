@@ -129,11 +129,23 @@ static void consume(uint8_t *buf, uint16_t *len, uint16_t used) {
   *len = rest;
 }
 
-void GatewayUart::write_array(const uint8_t *data, size_t len) {
-  size_t room = MAX_FRAME - this->tx_len_;
+void GatewayUart::write_array(const uint8_t *data, size_t len) { this->gateway_->port_write(this->index_, data, len); }
+
+size_t GatewayUart::available_for_write() { return this->gateway_->port_room(this->index_); }
+
+// The bytes leave through the bus only in the port's turn. Report them as still queued until then.
+uart::UARTFlushResult GatewayUart::flush() {
+  return this->gateway_->port_empty(this->index_) ? uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS
+                                                  : uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+}
+
+void ModbusGateway::port_write(uint8_t index, const uint8_t *data, size_t len) {
+  Port &port = this->ports_[index];
+  size_t room = MAX_FRAME - port.len;
+  uint32_t now = App.get_loop_component_start_time();
   if (len > room) {
-    if (!this->trunc_logged_) {
-      this->trunc_logged_ = true;
+    if (now - this->last_response_log_ms_ >= BAD_LOG_INTERVAL_MS) {
+      this->last_response_log_ms_ = now;
       ESP_LOGW(TAG, "Write dropped, the buffer holds one frame");
     }
     len = room;
@@ -141,50 +153,9 @@ void GatewayUart::write_array(const uint8_t *data, size_t len) {
   if (len == 0) {
     return;
   }
-  std::memcpy(this->tx_ + this->tx_len_, data, len);
-  this->tx_len_ += static_cast<uint16_t>(len);
-}
-
-bool GatewayUart::peek_byte(uint8_t *data) {
-  if (this->rx_len_ == 0) {
-    return false;
-  }
-  *data = this->rx_[0];
-  return true;
-}
-
-bool GatewayUart::read_array(uint8_t *data, size_t len) {
-  if (len > this->rx_len_) {
-    return false;
-  }
-  std::memcpy(data, this->rx_, len);
-  this->rx_len_ -= static_cast<uint16_t>(len);
-  if (this->rx_len_ > 0) {
-    std::memmove(this->rx_, this->rx_ + len, this->rx_len_);
-  }
-  return true;
-}
-
-size_t GatewayUart::take_tx(uint8_t *dest, size_t cap) {
-  size_t n = std::min(cap, static_cast<size_t>(this->tx_len_));
-  if (n == 0) {
-    return 0;
-  }
-  std::memcpy(dest, this->tx_, n);
-  this->tx_len_ -= static_cast<uint16_t>(n);
-  if (this->tx_len_ > 0) {
-    std::memmove(this->tx_, this->tx_ + n, this->tx_len_);
-  }
-  return n;
-}
-
-bool GatewayUart::push_rx(const uint8_t *data, size_t len) {
-  if (len > MAX_FRAME - this->rx_len_) {
-    return false;
-  }
-  std::memcpy(this->rx_ + this->rx_len_, data, len);
-  this->rx_len_ += static_cast<uint16_t>(len);
-  return true;
+  std::memcpy(port.data + port.len, data, len);
+  port.len += static_cast<uint16_t>(len);
+  port.last_ms = now;
 }
 
 uart::UARTComponent *ModbusGateway::endpoint_(uint8_t index) {
@@ -231,7 +202,7 @@ bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data,
 bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
   Port &port = this->ports_[index];
   if (port.local != nullptr) {
-    if (!port.local->push_rx(data, len)) {
+    if (!port.local->inject_rx(data, len)) {
       this->log_dropped_(now, false, len);
       return false;
     }
@@ -290,22 +261,14 @@ void ModbusGateway::read_port_(uint8_t index, uint32_t now) {
     return;
   }
   uint8_t tmp[READ_CHUNK];
-  while (port.len < MAX_FRAME) {
-    size_t n = 0;
-    if (port.local != nullptr) {
-      n = port.local->take_tx(tmp, std::min(sizeof(tmp), static_cast<size_t>(MAX_FRAME - port.len)));
-    } else {
-      size_t waiting = end->available();
-      if (waiting == 0) {
-        break;
-      }
-      n = std::min(waiting, sizeof(tmp));
-      n = std::min(n, static_cast<size_t>(MAX_FRAME - port.len));
-      if (!end->read_array(tmp, n)) {
-        break;
-      }
+  while (port.local == nullptr && port.len < MAX_FRAME) {
+    size_t waiting = end->available();
+    if (waiting == 0) {
+      break;
     }
-    if (n == 0) {
+    size_t n = std::min(waiting, sizeof(tmp));
+    n = std::min(n, static_cast<size_t>(MAX_FRAME - port.len));
+    if (!end->read_array(tmp, n)) {
       break;
     }
     std::memcpy(port.data + port.len, tmp, n);

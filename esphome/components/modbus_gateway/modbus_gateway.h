@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/uart/uart_virtual.h"
 #include "esphome/core/component.h"
 
 #include <cstdint>
@@ -10,30 +11,25 @@ namespace esphome::modbus_gateway {
 static constexpr uint8_t MAX_PORTS = 4;
 static constexpr uint16_t MAX_FRAME = 256;
 
-/// UART the gateway exposes. A modbus hub writes a request here and reads the matching response.
-class GatewayUart : public uart::UARTComponent {
- public:
-  void write_array(const uint8_t *data, size_t len) override;
-  bool peek_byte(uint8_t *data) override;
-  bool read_array(uint8_t *data, size_t len) override;
-  size_t available() override { return this->rx_len_; }
-  size_t available_for_write() override { return MAX_FRAME - this->tx_len_; }
-  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+class ModbusGateway;
 
-  size_t take_tx(uint8_t *dest, size_t cap);
-  bool push_rx(const uint8_t *data, size_t len);
+/// A UART for a modbus hub on this device. A write goes straight into the gateway's port buffer, the matching
+/// response comes back through inject_rx().
+class GatewayUart final : public uart::VirtualUARTComponent {
+ public:
+  GatewayUart() : VirtualUARTComponent(MAX_FRAME) {}
+  void attach(ModbusGateway *gateway, uint8_t index) {
+    this->gateway_ = gateway;
+    this->index_ = index;
+  }
+
+  void write_array(const uint8_t *data, size_t len) override;
+  size_t available_for_write() override;
+  uart::UARTFlushResult flush() override;
 
  protected:
-  void check_logger_conflict() override {}
-#if defined(USE_ESP8266) || defined(USE_ESP32)
-  void load_settings(bool dump_config) override {}
-#endif
-
-  uint16_t tx_len_{0};
-  uint16_t rx_len_{0};
-  bool trunc_logged_{false};
-  uint8_t tx_[MAX_FRAME]{};
-  uint8_t rx_[MAX_FRAME]{};
+  ModbusGateway *gateway_{nullptr};
+  uint8_t index_{0};
 };
 
 /// One Modbus RTU bus, several clients. One request is on the bus at a time.
@@ -43,7 +39,14 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   void set_response_timeout(uint32_t ms) { this->response_timeout_ms_ = ms; }
   void set_port_count(uint8_t count) { this->port_count_ = count; }
   void set_port_uart(uint8_t index, uart::UARTComponent *uart) { this->ports_[index].uart = uart; }
-  void set_port_local(uint8_t index, GatewayUart *uart) { this->ports_[index].local = uart; }
+  void set_port_local(uint8_t index, GatewayUart *uart) {
+    this->ports_[index].local = uart;
+    uart->attach(this, index);
+  }
+  /// A local port's hub wrote a block. It goes into that port's buffer.
+  void port_write(uint8_t index, const uint8_t *data, size_t len);
+  size_t port_room(uint8_t index) const { return MAX_FRAME - this->ports_[index].len; }
+  bool port_empty(uint8_t index) const { return this->ports_[index].len == 0 && this->ports_[index].pending_len == 0; }
 
   void loop() override;
   void dump_config() override;
