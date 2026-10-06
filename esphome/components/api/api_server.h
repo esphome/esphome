@@ -357,9 +357,7 @@ class APIServer final : public Component
   // Group smaller types together
   uint16_t port_{6053};        // Keep in sync with DEFAULT_PORT in __init__.py
   uint16_t batch_delay_{100};  // Keep in sync with DEFAULT_BATCH_DELAY in __init__.py
-  // Connection limits - these defaults will be overridden by config values
-  // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
-  uint8_t listen_backlog_{4};
+  uint8_t listen_backlog_{4};  // Keep in sync with DEFAULT_LISTEN_BACKLOG in __init__.py
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
 #if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
