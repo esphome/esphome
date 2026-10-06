@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "esphome/components/socket/tcp_client_link.h"
+#include "esphome/core/application.h"
 
 #ifdef USE_HOST
 
@@ -72,15 +73,18 @@ TEST(TcpClientLink, FatalWriteInsideFlushDropsTheLink) {
   EXPECT_FALSE(p.link_.connected());
 }
 
+// Publish the loop start time the link reads, as Application::loop() does.
+static void set_now(uint32_t now) { LoopBlockingGuard dispatch{nullptr, nullptr, now}; }
+
 TEST(TcpClientLink, QuietLinkClosesAfterTheTimeout) {
   LinkPeer p;
   p.link_.set_idle_timeout(100);
-  p.link_.testing_set_now(1000);
+  set_now(1000);
   p.link_.note_io();
-  p.link_.testing_set_now(1099);
+  set_now(1099);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());
-  p.link_.testing_set_now(1100);
+  set_now(1100);
   p.link_.check_idle();
   EXPECT_FALSE(p.link_.connected());
 }
@@ -88,17 +92,17 @@ TEST(TcpClientLink, QuietLinkClosesAfterTheTimeout) {
 TEST(TcpClientLink, AReadRestartsTheIdleClock) {
   LinkPeer p;
   p.link_.set_idle_timeout(100);
-  p.link_.testing_set_now(1000);
+  set_now(1000);
   p.link_.note_io();
-  p.link_.testing_set_now(1090);
+  set_now(1090);
   char byte = 'x';
   ASSERT_EQ(::write(p.peer_fd_, &byte, 1), 1);
   uint8_t buf[4];
   ASSERT_EQ(p.link_.read(buf, sizeof(buf)), 1);
-  p.link_.testing_set_now(1189);
+  set_now(1189);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());
-  p.link_.testing_set_now(1190);
+  set_now(1190);
   p.link_.check_idle();
   EXPECT_FALSE(p.link_.connected());
 }
@@ -106,15 +110,15 @@ TEST(TcpClientLink, AReadRestartsTheIdleClock) {
 TEST(TcpClientLink, AWriteRestartsTheIdleClock) {
   LinkPeer p;
   p.link_.set_idle_timeout(100);
-  p.link_.testing_set_now(1000);
+  set_now(1000);
   p.link_.note_io();
-  p.link_.testing_set_now(1090);
+  set_now(1090);
   ASSERT_EQ(p.link_.queue(reinterpret_cast<const uint8_t *>("x"), 1), 1u);
   EXPECT_TRUE(p.link_.flush_tx());
-  p.link_.testing_set_now(1189);
+  set_now(1189);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());
-  p.link_.testing_set_now(1190);
+  set_now(1190);
   p.link_.check_idle();
   EXPECT_FALSE(p.link_.connected());
 }
@@ -122,9 +126,9 @@ TEST(TcpClientLink, AWriteRestartsTheIdleClock) {
 TEST(TcpClientLink, ZeroTimeoutLeavesAQuietLinkUp) {
   LinkPeer p;
   p.link_.set_idle_timeout(0);
-  p.link_.testing_set_now(1000);
+  set_now(1000);
   p.link_.note_io();
-  p.link_.testing_set_now(5000);
+  set_now(5000);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());
 }
@@ -132,14 +136,53 @@ TEST(TcpClientLink, ZeroTimeoutLeavesAQuietLinkUp) {
 TEST(TcpClientLink, NotingIoKeepsABlockedConsumerUp) {
   LinkPeer p;
   p.link_.set_idle_timeout(100);
-  p.link_.testing_set_now(1000);
+  set_now(1000);
   p.link_.note_io();
-  p.link_.testing_set_now(1090);
+  set_now(1090);
   // A full local buffer calls this instead of reading. The peer is not idle.
   p.link_.note_io();
-  p.link_.testing_set_now(1189);
+  set_now(1189);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());
+}
+
+TEST(TcpClientLink, StuckSendClosesAfterTheTimeout) {
+  LinkPeer p;
+  p.link_.set_idle_timeout(100);
+  set_now(1000);
+  // Fill the socket until the peer, which never reads, takes no more bytes.
+  uint8_t block[256]{};
+  bool emptied = true;
+  for (int i = 0; i < 10000 && emptied; i++) {
+    p.link_.queue(block, sizeof(block));
+    emptied = p.link_.flush_tx();
+  }
+  ASSERT_FALSE(emptied);
+  // A send that moves nothing does not restart the clock.
+  set_now(1050);
+  EXPECT_FALSE(p.link_.flush_tx());
+  set_now(1099);
+  p.link_.check_idle();
+  EXPECT_TRUE(p.link_.connected());
+  set_now(1100);
+  p.link_.check_idle();
+  EXPECT_FALSE(p.link_.connected());
+}
+
+TEST(TcpClientLink, IdleCloseWaitsTheReconnectInterval) {
+  LinkPeer p;
+  p.link_.set_reconnect_interval(5000);
+  p.link_.set_idle_timeout(100);
+  set_now(1000);
+  p.link_.note_io();
+  set_now(1100);
+  p.link_.check_idle();
+  ASSERT_FALSE(p.link_.connected());
+  EXPECT_TRUE(p.link_.in_backoff());
+  set_now(6099);
+  EXPECT_TRUE(p.link_.in_backoff());
+  set_now(6100);
+  EXPECT_FALSE(p.link_.in_backoff());
 }
 
 }  // namespace esphome::socket::testing

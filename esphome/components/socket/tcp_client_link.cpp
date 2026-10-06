@@ -165,7 +165,6 @@ void TcpClientLink::close() {
   }
   this->connected_ = false;
   this->tx_len_ = 0;
-  this->last_io_ms_ = 0;
   this->resolved_.forget();
 }
 
@@ -175,36 +174,11 @@ void TcpClientLink::drop_(const LogString *what, int err) {
   this->note_attempt();
 }
 
-uint32_t TcpClientLink::now_() const {
-#ifdef USE_HOST
-  if (this->testing_now_ != 0) {
-    return this->testing_now_;
+void TcpClientLink::check_idle_slow_() {
+  if (App.get_loop_component_start_time() - this->last_io_ms_ >= this->idle_timeout_ms_) {
+    this->drop_(LOG_STR("Idle timeout"), 0);
   }
-#endif
-  return App.get_loop_component_start_time();
 }
-
-void TcpClientLink::note_io() {
-  uint32_t now = this->now_();
-  this->last_io_ms_ = now == 0 ? 1 : now;
-}
-
-void TcpClientLink::check_idle() {
-  if (this->idle_timeout_ms_ == 0 || !this->connected_ || this->last_io_ms_ == 0) {
-    return;
-  }
-  uint32_t now = this->now_();
-  if (now == 0 || now - this->last_io_ms_ < this->idle_timeout_ms_) {
-    return;
-  }
-  ESP_LOGW(this->tag_, "Link idle, closing");
-  this->close();
-  this->note_attempt();
-}
-
-#ifdef USE_HOST
-void TcpClientLink::testing_set_now(uint32_t now) { this->testing_now_ = now; }
-#endif
 
 }  // namespace esphome::socket
 

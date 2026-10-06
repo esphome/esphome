@@ -65,13 +65,13 @@ class TcpClientLink {
   void close();
   /// Restart the idle clock. A consumer that cannot take more bytes calls this,
   /// so a full buffer is not treated as a quiet peer.
-  void note_io();
-  /// Close when no byte has moved for idle_timeout(). A zero timeout does nothing.
-  void check_idle();
-#ifdef USE_HOST
-  // Host tests have no running loop, so they advance this clock themselves.
-  void testing_set_now(uint32_t now);
-#endif
+  void note_io() { this->last_io_ms_ = App.get_loop_component_start_time(); }
+  /// Close when no byte has moved for idle_timeout(). Inline no-op at a zero timeout or while down.
+  void check_idle() {
+    if (this->idle_timeout_ms_ != 0 && this->connected_) {
+      this->check_idle_slow_();
+    }
+  }
 
   bool connected() const { return this->connected_; }
   bool ready() const { return this->sock_ != nullptr && this->sock_->ready(); }
@@ -91,7 +91,7 @@ class TcpClientLink {
   void try_connect_();
   /// Close after a failure, log what and errno, schedule the next attempt.
   void drop_(const LogString *what, int err);
-  uint32_t now_() const;
+  void check_idle_slow_();
 
   StringRef host_;
   std::unique_ptr<Socket> sock_;
@@ -100,9 +100,6 @@ class TcpClientLink {
   uint32_t reconnect_interval_ms_{5000};
   uint32_t last_io_ms_{0};
   uint32_t idle_timeout_ms_{0};
-#ifdef USE_HOST
-  uint32_t testing_now_{0};
-#endif
   Ipv4Resolve resolved_;
   uint16_t port_{0};
   uint16_t tx_len_{0};

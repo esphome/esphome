@@ -73,7 +73,8 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
-    cg.add(var.set_timeout(config[CONF_TIMEOUT]))
+    if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
+        cg.add(var.set_timeout(timeout))
     if (host := config.get(CONF_HOST)) is not None:
         cg.add(var.set_host(host))
     binary_sensors = binary_sensor.sub_binary_sensors(config)

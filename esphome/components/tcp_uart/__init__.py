@@ -86,7 +86,8 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
-    cg.add(var.set_timeout(config[CONF_TIMEOUT]))
+    if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
+        cg.add(var.set_timeout(timeout))
     # The socket is not clocked. These only satisfy UARTComponent and a consumer check.
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))

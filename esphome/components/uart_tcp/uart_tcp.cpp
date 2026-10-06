@@ -27,11 +27,11 @@ void UartTcp::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "UART TCP:\n"
                 "  %s: %s:%u\n"
-                "  Reconnect Interval: %" PRIu32 "ms",
+                "  Reconnect Interval: %" PRIu32 "ms\n"
+                "  Timeout: %" PRIu32 "ms",
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
-                this->link_.reconnect_interval());
-  ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->link_.idle_timeout());
+                this->link_.reconnect_interval(), this->link_.idle_timeout());
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -128,15 +128,9 @@ void UartTcp::loop() {
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
-  if (!this->link_.connected()) {
-    return;
-  }
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
   this->link_.flush_tx();
-  if (!this->link_.connected()) {
-    return;
-  }
   this->link_.check_idle();
 }
 
