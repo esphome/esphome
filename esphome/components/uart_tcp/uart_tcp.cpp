@@ -21,9 +21,11 @@ void UartTcp::setup() {
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
+#ifdef USE_SENSOR
   if (this->disconnects_sensor_ != nullptr) {
     this->disconnects_sensor_->publish_state(0);
   }
+#endif
 }
 
 void UartTcp::dump_config() {
@@ -38,7 +40,9 @@ void UartTcp::dump_config() {
   this->listener_.dump_config();
 #endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
+#endif
 }
 
 void UartTcp::on_shutdown() {
@@ -49,18 +53,22 @@ void UartTcp::on_shutdown() {
 }
 
 void UartTcp::sync_link_() {
-  bool was = this->link_was_up_;
   bool up = this->link_.connected();
   this->link_was_up_ = up;
   if (up) {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
-  } else if (was) {
-    this->note_disconnect_();
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
+#ifdef USE_SENSOR
+  // Only edges get here, so down is the falling edge.
+  if (!up && this->disconnects_sensor_ != nullptr) {
+    this->disconnects_++;
+    this->disconnects_sensor_->publish_state(this->disconnects_);
+  }
+#endif
 }
 
 void UartTcp::read_socket_() {
@@ -134,13 +142,6 @@ void UartTcp::loop() {
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
   this->link_.flush_tx();
-}
-
-void UartTcp::note_disconnect_() {
-  this->disconnects_++;
-  if (this->disconnects_sensor_ != nullptr) {
-    this->disconnects_sensor_->publish_state(this->disconnects_);
-  }
 }
 
 }  // namespace esphome::uart_tcp
