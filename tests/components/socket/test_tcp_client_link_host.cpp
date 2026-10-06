@@ -13,12 +13,12 @@
 
 #include <sys/uio.h>
 
-// Raw lwIP (ESP8266, RP2040) returns 0 when its send buffer takes no byte; a POSIX
-// socket never does. In this test binary, write() on zero_write_fd does the same.
+// A BSD socket never returns 0 from a send, so for one test write() returns 0 on zero_write_fd only. Every other
+// call in this binary, a closed socket's fd -1 included, goes unchanged to libc's writev().
 static int zero_write_fd = -1;
 
 extern "C" ssize_t write(int fd, const void *buf, size_t len) {
-  if (fd == zero_write_fd) {
+  if (zero_write_fd >= 0 && fd == zero_write_fd) {
     return 0;
   }
   struct iovec iov = {const_cast<void *>(buf), len};
