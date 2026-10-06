@@ -82,6 +82,26 @@ def test_touch_does_not_double_count_symlinked_port() -> None:
     serial_mock.assert_called_once()
 
 
+def test_touch_refuses_other_port_when_target_not_listed() -> None:
+    result, serial_mock = _run_touch([_port("/dev/ttyUSB0", 0x10C4, 0xEA60)])
+    assert result is False
+    serial_mock.assert_not_called()
+
+
+def test_touch_refuses_other_port_when_target_has_no_vid() -> None:
+    result, serial_mock = _run_touch(
+        [_port(_TARGET, None, None), _port("/dev/ttyUSB0", 0x10C4, 0xEA60)]
+    )
+    assert result is False
+    serial_mock.assert_not_called()
+
+
+def test_touch_allows_target_alone_without_vid() -> None:
+    result, serial_mock = _run_touch([_port(_TARGET, None, None)])
+    assert result is True
+    serial_mock.assert_called_once()
+
+
 def test_touch_returns_false_without_picotool() -> None:
     result, serial_mock = _run_touch([_port(_TARGET, 0x2FE3, 0x0001)], picotool=None)
     assert result is False

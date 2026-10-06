@@ -202,17 +202,17 @@ def touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
         return False
 
     # picotool can't tell BOOTSEL devices apart, so refuse while another board with the
-    # target's VID:PID is attached. A board already in BOOTSEL can't be detected here
-    # (`picotool info -d` isn't reliable enough).
+    # target's VID:PID is attached. If the target's VID:PID is unknown, any other serial
+    # port counts. A board already in BOOTSEL can't be detected here (`picotool info -d`
+    # isn't reliable enough).
     ports = comports(include_links=True)
     target = next((p for p in ports if p.device == port), None)
-    same_kind = {
-        os.path.realpath(p.device)
-        for p in ports
-        if target is not None
-        and target.vid is not None
-        and (p.vid, p.pid) == (target.vid, target.pid)
-    }
+    if target is not None and target.vid is not None:
+        candidates = [p for p in ports if (p.vid, p.pid) == (target.vid, target.pid)]
+    else:
+        candidates = ports
+    same_kind = {os.path.realpath(p.device) for p in candidates}
+    same_kind.add(os.path.realpath(port))
     if len(same_kind) > 1:
         _LOGGER.error(
             "More than one RP2040/RP2350-capable device is connected. Disconnect all "
