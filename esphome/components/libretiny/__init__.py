@@ -526,6 +526,10 @@ async def component_to_code(config):
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
+        cg.add_build_unflag("-fno-short-enums")
+        cg.add_build_flag("-fshort-enums")
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
