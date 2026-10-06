@@ -21,12 +21,18 @@ from esphome.arduino8266.framework import InstalledPaths, toolchain_tool
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
+    _elf2bin_flash_size,
     _flag_defines,
     _flash_size_str,
     _resolve_build_config,
     get_flash_ld_path,
 )
-from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
+from esphome.components.esp8266.boards import (
+    BOARDS,
+    ESP8266_BOARD_BUILD,
+    KEY_FLASH_SIZE,
+    board_ld_script,
+)
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
 import esphome.config_validation as cv
@@ -447,6 +453,19 @@ def test_write_project_pch_disabled(
     assert "  flags = $srcflags" in content
 
 
+def test_write_project_pch_asks_the_toolchain_compiler_on_windows(
+    windows_gcc_rule: None, tmp_path: Path
+) -> None:
+    from esphome.build_helpers import pch
+
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    with patch.object(pch, "gcc_version", return_value=(10, 3, 0)) as asked:
+        content = _write_ninja(paths)
+    assert asked.call_args.args[0] == (toolchain_tool(paths.toolchain, "g++"),)
+    assert "esphome_pch" not in content
+
+
 def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
     paths = _make_framework(tmp_path)
     CORE.data[KEY_ESP8266][KEY_SCANF_FLOAT] = True
@@ -732,6 +751,54 @@ def test_get_flash_ld_path(tmp_path: Path) -> None:
 def test_flash_size_str() -> None:
     assert _flash_size_str(4 * 1024 * 1024) == "4M"
     assert _flash_size_str(512 * 1024) == "512K"
+
+
+def test_elf2bin_flash_size() -> None:
+    """The image-header size follows the ldscript filename like PlatformIO,
+    falling back to board_upload.maximum_size and then the board table."""
+    assert _elf2bin_flash_size("esp8285", "eagle.flash.2m.ld") == "2M"
+    assert _elf2bin_flash_size("esp01", "eagle.flash.512k.ld") == "512K"
+    assert _elf2bin_flash_size("nodemcuv2", "eagle.flash.4m1m.ld") == "4M"
+    # The testing-mode prefix still matches (search, not match)
+    assert _elf2bin_flash_size("esp8285", "testing_eagle.flash.2m.ld") == "2M"
+    # Custom ldscript name: board_upload.maximum_size wins over the board
+    CORE.platformio_options["board_upload.maximum_size"] = "2097152"
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "2M"
+    del CORE.platformio_options["board_upload.maximum_size"]
+    assert _elf2bin_flash_size("esp8285", "custom.ld") == "1M"
+
+
+@pytest.mark.parametrize("bad", ["2MB", "3145728", "-1"])
+def test_elf2bin_flash_size_rejects_bad_maximum_size(bad: str) -> None:
+    """A non-numeric or unsupported board_upload.maximum_size fails by name
+    instead of a ValueError or a late elf2bin choices error."""
+    CORE.platformio_options["board_upload.maximum_size"] = bad
+    with pytest.raises(EsphomeError, match="board_upload.maximum_size"):
+        _elf2bin_flash_size("esp8285", "custom.ld")
+
+
+def test_elf2bin_flash_size_default_matches_board_table() -> None:
+    """Without an ldscript override, every board's own ldscript parses to
+    the board-table size, so the emitted --flash_size is unchanged."""
+    for board, entry in BOARDS.items():
+        assert _elf2bin_flash_size(board, board_ld_script(entry)) == _flash_size_str(
+            entry[KEY_FLASH_SIZE]
+        ), board
+
+
+def test_write_project_flash_size_follows_ldscript_override(
+    tmp_path: Path,
+) -> None:
+    """An ldscript overriding the board's flash size drives the image header
+    too (the Athom shape: esp8285 with eagle.flash.2m.ld). A 1M header over
+    a 2M layout clamps the chip below the OTA scratch area and bricks OTA."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "variants" / "esp8285").mkdir()
+    CORE.data[KEY_ESP8266][KEY_BOARD] = "esp8285"
+    CORE.platformio_options["board_build.ldscript"] = "eagle.flash.2m.ld"
+    content = _write_ninja(paths)
+    assert "--flash_size 2M" in content
+    assert "eagle.flash.2m.ld" in content
 
 
 def test_write_project_testing_mode(tmp_path: Path) -> None:
