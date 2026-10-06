@@ -324,18 +324,16 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
 
 # Entries arduino-esp32 only declares below the given IDF version; stubbing one past
 # it clashes with ESPHome's own managed component of the same short name.
-ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
-    "espressif__libsodium": cv.Version(6, 0, 0),
-}
+# arduino-esp32 4.0.x still declares espressif/libsodium on IDF 6 (the
+# idf_version < 6.0 rule only exists on its master branch), so there is no cap
+# until a release carries it; restore "espressif__libsodium": 6.0.0 then.
+ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {}
 
 
 def arduino_bundles_libsodium() -> bool:
-    """arduino-esp32 ships its own libsodium below IDF 6.0."""
-    return (
-        CORE.using_arduino
-        and idf_version()
-        < ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF["espressif__libsodium"]
-    )
+    """arduino-esp32 ships its own libsodium."""
+    max_version = ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF.get("espressif__libsodium")
+    return CORE.using_arduino and (max_version is None or idf_version() < max_version)
 
 
 def arduino_excluded_idf_components() -> set[str]:
