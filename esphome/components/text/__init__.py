@@ -13,13 +13,13 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mauritskorse"]
@@ -33,9 +33,6 @@ TextPtr = Text.operator("ptr")
 TextStateTrigger = text_ns.class_(
     "TextStateTrigger", automation.Trigger.template(cg.std_string)
 )
-
-# Actions
-TextSetAction = text_ns.class_("TextSetAction", automation.Action)
 
 # Conditions
 TextMode = text_ns.enum("TextMode")
@@ -160,24 +157,13 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "text.set",
-    TextSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.std_string),
+    call="make_call",
 )
-async def text_set_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)
-    cg.add(var.set_value(template_))
-    return var

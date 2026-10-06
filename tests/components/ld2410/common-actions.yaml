@@ -1,0 +1,10 @@
+button:
+  - platform: template
+    name: LD2410 Actions
+    on_press:
+      - bluetooth_password.set:
+          id: my_ld2410
+          password: HiLink
+      - bluetooth_password.set:
+          id: my_ld2410
+          password: !lambda return "HiLink";

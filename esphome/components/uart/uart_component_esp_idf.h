@@ -18,6 +18,8 @@ namespace esphome::uart {
 /// peek byte state (has_peek_/peek_byte_) is not synchronized.
 class IDFUARTComponent final : public UARTComponent, public Component {
  public:
+  // User provided, not "= default": `new(p) IDFUARTComponent()` would zero-fill .bss that is already zero.
+  IDFUARTComponent() {}
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -31,11 +33,24 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
+  size_t available_for_write() override;
   UARTFlushResult flush() override;
 
   void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
 
+  /// TX ring buffer size for the driver; 0 leaves TX unbuffered so write_array() blocks until
+  /// the FIFO has taken everything.
+  void set_tx_buffer_size(size_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
+
+  void set_clock_source(uart_sclk_t clock_source) { this->clock_source_ = static_cast<uint8_t>(clock_source); }
+
   uint8_t get_hw_serial_number() { return this->uart_num_; }
+
+  /// Discard everything received so far: the peek cache and the driver's RX buffer.
+  void flush_input() {
+    this->has_peek_ = false;
+    uart_flush_input(this->uart_num_);
+  }
 
   /**
    * Load the UART with the current settings.
@@ -96,8 +111,10 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   Framing last_good_framing_{};
 
   bool has_peek_{false};
-  uint8_t peek_byte_;
-  uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
+  uint8_t peek_byte_{0};
+  uint8_t clock_source_{UART_SCLK_DEFAULT};  ///< uart_sclk_t stored in a byte; the IDF values are all small.
+  uint32_t flush_timeout_ms_{0};             ///< 0 means wait indefinitely (portMAX_DELAY).
+  size_t tx_buffer_size_{0};
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.

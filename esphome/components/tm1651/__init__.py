@@ -9,8 +9,6 @@ from esphome.const import (
     CONF_ID,
     CONF_LEVEL,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mrtoy-me"]
@@ -21,11 +19,6 @@ tm1651_ns = cg.esphome_ns.namespace("tm1651")
 TM1651Brightness = tm1651_ns.enum("TM1651Brightness")
 TM1651Display = tm1651_ns.class_("TM1651Display", cg.Component)
 
-SetBrightnessAction = tm1651_ns.class_("SetBrightnessAction", automation.Action)
-SetLevelAction = tm1651_ns.class_("SetLevelAction", automation.Action)
-SetLevelPercentAction = tm1651_ns.class_("SetLevelPercentAction", automation.Action)
-TurnOnAction = tm1651_ns.class_("TurnOnAction", automation.Action)
-TurnOffAction = tm1651_ns.class_("TurnOffAction", automation.Action)
 
 TM1651_BRIGHTNESS_OPTIONS = {
     1: TM1651Brightness.TM1651_DARKEST,
@@ -66,107 +59,31 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "tm1651.set_brightness",
-    SetBrightnessAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(TM1651Display),
-            cv.Required(CONF_BRIGHTNESS): cv.templatable(validate_brightness),
-        },
-        key=CONF_BRIGHTNESS,
+for _name, _key, _validator, _method in (
+    ("tm1651.set_brightness", CONF_BRIGHTNESS, validate_brightness, "set_brightness"),
+    ("tm1651.set_level", CONF_LEVEL, validate_level, "set_level"),
+    (
+        "tm1651.set_level_percent",
+        CONF_LEVEL_PERCENT,
+        validate_level_percent,
+        "set_level_percent",
     ),
-    synchronous=True,
+):
+    automation.register_apply_action(
+        _name,
+        cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(TM1651Display),
+                cv.Required(_key): cv.templatable(_validator),
+            },
+            key=_key,
+        ),
+        automation.ApplyField(_key, _method, cg.uint8),
+    )
+
+automation.register_apply_action(
+    "tm1651.turn_off", BINARY_OUTPUT_ACTION_SCHEMA, automation.ApplyCall("turn_off()")
 )
-async def tm1651_set_brightness_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
-    cg.add(var.set_brightness(template_))
-    return var
-
-
-@automation.register_action(
-    "tm1651.set_level",
-    SetLevelAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(TM1651Display),
-            cv.Required(CONF_LEVEL): cv.templatable(validate_level),
-        },
-        key=CONF_LEVEL,
-    ),
-    synchronous=True,
+automation.register_apply_action(
+    "tm1651.turn_on", BINARY_OUTPUT_ACTION_SCHEMA, automation.ApplyCall("turn_on()")
 )
-async def tm1651_set_level_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.uint8)
-    cg.add(var.set_level(template_))
-    return var
-
-
-@automation.register_action(
-    "tm1651.set_level_percent",
-    SetLevelPercentAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(TM1651Display),
-            cv.Required(CONF_LEVEL_PERCENT): cv.templatable(validate_level_percent),
-        },
-        key=CONF_LEVEL_PERCENT,
-    ),
-    synchronous=True,
-)
-async def tm1651_set_level_percent_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_LEVEL_PERCENT], args, cg.uint8)
-    cg.add(var.set_level_percent(template_))
-    return var
-
-
-@automation.register_action(
-    "tm1651.turn_off",
-    TurnOffAction,
-    BINARY_OUTPUT_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def output_turn_off_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "tm1651.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
-)
-async def output_turn_on_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

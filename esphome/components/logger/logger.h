@@ -200,9 +200,9 @@ class Logger final : public Component {
   float get_setup_priority() const override { return setup_priority::BUS + 500.0f; }
 
   void log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args);  // NOLINT
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
-                    va_list args);  // NOLINT
+#ifdef USE_ESP8266
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
 
  protected:
@@ -244,14 +244,14 @@ class Logger final : public Component {
     buf.format_body(format, args);
   }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
   // Format a log message with flash string format and write it to a buffer with header, footer, and null terminator
   // ESP8266-only (single-task), thread_name is always nullptr
-  inline void HOT format_log_to_buffer_with_terminator_P_(uint8_t level, const char *tag, int line,
+  inline void HOT format_log_to_buffer_with_terminator_p_(uint8_t level, const char *tag, int line,
                                                           const __FlashStringHelper *format, va_list args,
                                                           LogBuffer &buf) {
     buf.write_header(level, tag, line, nullptr);
-    buf.format_body_P(reinterpret_cast<PGM_P>(format), args);
+    buf.format_body_p(reinterpret_cast<PGM_P>(format), args);
   }
 #endif
 
@@ -283,9 +283,9 @@ class Logger final : public Component {
                                                   FormatType format, va_list args, const char *thread_name) {
     RecursionGuard guard(recursion_guard);
     LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
     if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
-      this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+      this->format_log_to_buffer_with_terminator_p_(level, tag, line, format, args, buf);
     } else
 #endif
     {

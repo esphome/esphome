@@ -67,14 +67,13 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
-    ID,
     CoroPriority,
     EsphomeError,
     HexInt,
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 from . import wpa2_eap
 
@@ -355,7 +354,7 @@ def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
     full_config = fv.full_config.get()
-    has_improv = "esp32_improv" in full_config
+    has_improv = "improv_ble" in full_config
     has_improv_serial = "improv_serial" in full_config
     has_captive_portal = "captive_portal" in full_config
     has_web_server = "web_server" in full_config
@@ -368,6 +367,13 @@ def final_validate(config):
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
             "The AP will not be usable for configuration or monitoring. "
             "Add 'captive_portal:' or 'web_server:' to your configuration."
+        )
+    if "esp32_hosted" in full_config and any(
+        CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
+    ):
+        _LOGGER.warning(
+            "WPA2 Enterprise ('eap:') is not supported by the esp32_hosted coprocessor "
+            "firmware ESPHome provides"
         )
 
 
@@ -508,7 +514,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2="light",
                 bk72xx="none",
                 rtl87xx="none",
-                ln882x="light",
+                ln882x="none",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -663,6 +669,10 @@ async def to_code(config):
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
             cg.add(var.set_ap_timeout(ap_timeout))
         cg.add_define("USE_WIFI_AP")
+        # The LN882H radio cannot run the AP and STA together; the fallback AP
+        # takes turns with the networks instead.
+        if CORE.is_ln882x:
+            cg.add_define("USE_WIFI_AP_EXCLUSIVE")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
@@ -690,7 +700,16 @@ async def to_code(config):
     ):
         cg.add(var.set_reboot_timeout(reboot_timeout))
     if (power_save_mode := config[CONF_POWER_SAVE_MODE]) != "NONE":
-        cg.add(var.set_power_save_mode(power_save_mode))
+        if reasons := CORE.data.get(POWER_SAVE_OFF_REASONS_KEY):
+            _LOGGER.warning(
+                "power_save_mode %s is not applied: %s",
+                power_save_mode,
+                "; ".join(reasons),
+            )
+        else:
+            cg.add(var.set_power_save_mode(power_save_mode))
+    # From here on force_power_save_off() can no longer take effect
+    CORE.data[POWER_SAVE_APPLIED_KEY] = True
     if (
         min_auth_mode := config.get(CONF_MIN_AUTH_MODE)
     ) is not None and min_auth_mode != "WPA2":
@@ -718,6 +737,10 @@ async def to_code(config):
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
+
+    # LN882x: hand the SDK the BSSID LibreTiny 1.13 drops (see wifi_component_libretiny.cpp); remove once fixed upstream.
+    if CORE.is_ln882x:
+        cg.add_build_flag("-Wl,--wrap=wifi_sta_connect")
 
     # post_connect_roaming defaults to true in C++ - disable if user disabled it
     # or if 802.11k/v is enabled (driver handles roaming natively)
@@ -763,7 +786,7 @@ async def to_code(config):
                 "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
             )
             # PSRAM is guaranteed - use aggressive settings
-            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE may be set to true in networking component
             # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
 
             # Large dynamic RX buffers (requires PSRAM)
@@ -821,49 +844,55 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-@automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
-async def wifi_connected_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_condition("wifi.enabled", WiFiEnabledCondition, cv.Schema({}))
-async def wifi_enabled_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_condition("wifi.ap_active", WiFiAPActiveCondition, cv.Schema({}))
-async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_action(
-    "wifi.enable", WiFiEnableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "wifi.connected",
+    WiFiConnectedCondition,
+    cv.Schema({}),
 )
-async def wifi_enable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action(
-    "wifi.disable", WiFiDisableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "wifi.enabled",
+    WiFiEnabledCondition,
+    cv.Schema({}),
 )
-async def wifi_disable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action(
-    "wifi.roam", WiFiRoamAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "wifi.ap_active",
+    WiFiAPActiveCondition,
+    cv.Schema({}),
 )
-async def wifi_roam_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> cg.MockObj:
-    return cg.new_Pvariable(action_id, template_arg)
+
+
+automation.register_bare_action(
+    "wifi.enable",
+    WiFiEnableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
+
+
+automation.register_bare_action(
+    "wifi.disable",
+    WiFiDisableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
+
+
+automation.register_bare_action(
+    "wifi.roam",
+    WiFiRoamAction,
+    cv.Schema({}),
+    synchronous=True,
+)
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
+POWER_SAVE_OFF_REASONS_KEY = "wifi_power_save_off_reasons"
+POWER_SAVE_APPLIED_KEY = "wifi_power_save_applied"
 RUNTIME_ROAMING_SUPPRESSION_KEY = "wifi_runtime_roaming_suppression"
 # Keys for listener counts
 IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
@@ -894,6 +923,25 @@ def request_wifi_scan_results_lock() -> None:
     to nothing.
     """
     CORE.data[SCAN_RESULTS_LOCK_KEY] = True
+
+
+def force_power_save_off(reason: str) -> None:
+    """Keep the station out of WiFi power save regardless of power_save_mode.
+
+    Components whose platform cannot run power save safely call this from their
+    final validation (FINAL_VALIDATE_SCHEMA), which always runs before any code
+    generation. Every distinct reason is kept; when the configured mode is not
+    NONE, wifi's code generation logs them and skips the mode. Calling it once
+    wifi has generated its code is too late and raises.
+    """
+    if POWER_SAVE_APPLIED_KEY in CORE.data:
+        raise EsphomeError(
+            "wifi.force_power_save_off() must be called from final validation, "
+            "before wifi generates its code"
+        )
+    reasons: list[str] = CORE.data.setdefault(POWER_SAVE_OFF_REASONS_KEY, [])
+    if reason not in reasons:
+        reasons.append(reason)
 
 
 def enable_runtime_power_save_control():

@@ -27,6 +27,10 @@ CONF_HAS_PULLDOWNS = "has_pulldowns"
 
 
 def check_keys(obj: ConfigType) -> ConfigType:
+    for ch in obj.get(CONF_KEYS, ""):
+        if not ch.isascii():
+            # Each key is reported as one byte, so only ASCII characters can be key codes
+            raise cv.Invalid(f"Key code {ch!r} is not an ASCII character")
     if CONF_KEYS in obj and len(obj[CONF_KEYS]) != len(obj[CONF_ROWS]) * len(
         obj[CONF_COLUMNS]
     ):
@@ -74,8 +78,11 @@ async def to_code(config: ConfigType) -> None:
         pin = await cg.gpio_pin_expression(conf[CONF_PIN])
         col_pins.append(pin)
     cg.add(var.set_columns(col_pins))
-    if CONF_KEYS in config:
-        cg.add(var.set_keys(config[CONF_KEYS]))
+    if (keys := config.get(CONF_KEYS)) is not None:
+        table = cg.shared_progmem_array(
+            "matrix_keypad_keys", cg.uint8, list(keys.encode())
+        )
+        cg.add(var.set_keys(table))
     cg.add(var.set_debounce_time(config[CONF_DEBOUNCE_TIME]))
     if CONF_HAS_DIODES in config:
         cg.add(var.set_has_diodes(config[CONF_HAS_DIODES]))

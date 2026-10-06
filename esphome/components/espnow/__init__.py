@@ -39,9 +39,6 @@ ESPNowRecvInfo = espnow_ns.class_("ESPNowRecvInfo")
 ESPNowRecvInfoConstRef = ESPNowRecvInfo.operator("const").operator("ref")
 
 SendAction = espnow_ns.class_("SendAction", automation.Action)
-SetChannelAction = espnow_ns.class_("SetChannelAction", automation.Action)
-AddPeerAction = espnow_ns.class_("AddPeerAction", automation.Action)
-DeletePeerAction = espnow_ns.class_("DeletePeerAction", automation.Action)
 
 ESPNowHandlerTrigger = automation.Trigger.template(
     ESPNowRecvInfoConstRef,
@@ -232,12 +229,16 @@ def _validate_raw_data(value: Any) -> str | list:
     )
 
 
+def _mac_bytes(address: core.MACAddress) -> list[HexInt]:
+    return [HexInt(p) for p in address.parts]
+
+
 async def register_peer(
     var: MockObj, config: ConfigType, args: TemplateArgsType
 ) -> None:
     peer = config[CONF_ADDRESS]
     if isinstance(peer, core.MACAddress):
-        peer = [HexInt(p) for p in peer.parts]
+        peer = _mac_bytes(peer)
 
     template_ = await cg.templatable(peer, args, peer_address_t, peer_address_t)
     cg.add(var.set_address(template_))
@@ -323,40 +324,28 @@ async def send_action(
     return var
 
 
-@automation.register_action(
-    "espnow.peer.add",
-    AddPeerAction,
-    cv.maybe_simple_value(
-        PEER_SCHEMA,
-        key=CONF_ADDRESS,
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "espnow.peer.delete",
-    DeletePeerAction,
-    cv.maybe_simple_value(
-        PEER_SCHEMA,
-        key=CONF_ADDRESS,
-    ),
-    synchronous=True,
-)
-async def peer_action(
-    config: ConfigType,
-    action_id: core.ID,
-    template_arg: cg.TemplateArguments,
-    args: list[tuple],
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await register_peer(var, config, args)
-
-    return var
+def _peer_address(config: ConfigType, value: core.MACAddress) -> str:
+    return str(cg.safe_exp(_mac_bytes(value)))
 
 
-@automation.register_action(
+for _name, _method in (
+    ("espnow.peer.add", "add_peer_from_action"),
+    ("espnow.peer.delete", "del_peer_from_action"),
+):
+    automation.register_apply_action(
+        _name,
+        cv.maybe_simple_value(
+            PEER_SCHEMA,
+            key=CONF_ADDRESS,
+        ),
+        automation.ApplyField(
+            CONF_ADDRESS, _method, peer_address_t, const_fn=_peer_address
+        ),
+    )
+
+
+automation.register_apply_action(
     "espnow.set_channel",
-    SetChannelAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(ESPNowComponent),
@@ -364,16 +353,5 @@ async def peer_action(
         },
         key=CONF_CHANNEL,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_CHANNEL, "set_channel_from_action", cg.uint8),
 )
-async def channel_action(
-    config: ConfigType,
-    action_id: core.ID,
-    template_arg: cg.TemplateArguments,
-    args: list[tuple],
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
-    cg.add(var.set_channel(template_))
-    return var

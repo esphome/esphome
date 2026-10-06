@@ -2,7 +2,9 @@
 
 Bundled names build straight from the framework tree; everything else goes
 through ``esphome.platformio.library``. Mirrors ``lib_ldf_mode=off``: each
-library builds its own archive; all include dirs join one global path.
+library builds its own archive; all include dirs join one global path. The
+host build reuses it without a framework tree: nothing is bundled there and
+every name resolves from the registry.
 
 Deviations from PlatformIO: flat-layout libraries get the recursive default
 source filter; ``dot_a_linkage`` is honored; bundled libraries never run a
@@ -342,13 +344,24 @@ def _check_unfulfilled_provides(
 
 
 def resolve_libraries(
-    framework_path: Path, *, pio_platform: str, board_mcu: str, cache_key: str
+    framework_path: Path | None,
+    *,
+    pio_platform: str,
+    board_mcu: str,
+    cache_key: str,
+    framework: str | None = "arduino",
+    manifest_optional: bool = False,
 ) -> list[ArduinoLibrary]:
     """Resolve every ``cg.add_library()`` entry into an :class:`ArduinoLibrary`.
 
     ``pio_platform``/``board_mcu`` filter manifests the way PlatformIO would
     for that core (e.g. ``espressif8266``/``esp8266``); ``cache_key`` keys the
-    shared converter's download cache.
+    shared converter's download cache. ``framework`` is the manifest
+    framework token the compatibility check warns about; None skips it.
+    A None ``framework_path`` means no core-bundled libraries exist (the
+    host build): every name resolves from the registry.
+    ``manifest_optional`` accepts libraries without a manifest, built with
+    PlatformIO's default layout.
 
     The returned list is not topologically sorted, so the caller must link
     the archives inside one ``--start-group``/``--end-group`` pair (the
@@ -359,18 +372,22 @@ def resolve_libraries(
     # PlatformIO's lib_ignore covers framework-bundled libraries too; the
     # shared converter only filters the registry/git ones.
     lib_ignore = lib_ignore_set()
-    # Exact directory names keep membership case-sensitive everywhere
-    # (an is_dir() probe would match "wire" on macOS/Windows and build
-    # the bundled Wire twice)
-    libraries_dir = framework_path / "libraries"
-    if not libraries_dir.is_dir():
-        # A registry fallback would fail later with a misleading
-        # package-not-found error per bundled name
-        raise EsphomeError(
-            f"{libraries_dir} is missing; the framework install may be "
-            "incomplete (run 'esphome clean-all')"
+    bundled_dir_names: frozenset[str] = frozenset()
+    if framework_path is not None:
+        # Exact directory names keep membership case-sensitive everywhere
+        # (an is_dir() probe would match "wire" on macOS/Windows and build
+        # the bundled Wire twice)
+        libraries_dir = framework_path / "libraries"
+        if not libraries_dir.is_dir():
+            # A registry fallback would fail later with a misleading
+            # package-not-found error per bundled name
+            raise EsphomeError(
+                f"{libraries_dir} is missing; the framework install may be "
+                "incomplete (run 'esphome clean-all')"
+            )
+        bundled_dir_names = frozenset(
+            p.name for p in libraries_dir.iterdir() if p.is_dir()
         )
-    bundled_dir_names = frozenset(p.name for p in libraries_dir.iterdir() if p.is_dir())
 
     def _provided(name: object) -> bool:
         return _is_safe_library_name(name) and name in bundled_dir_names
@@ -497,12 +514,13 @@ def resolve_libraries(
 
     backend = LibraryBackend(
         platform=pio_platform,
-        framework="arduino",
+        framework=framework,
         emit=_emit,
         cache_key=cache_key,
         # The walk must not resolve bundled names from the registry;
         # _add_bundled_dependencies adds them after emit
         provides=_provided,
+        manifest_optional=manifest_optional,
     )
     if external:
         convert_libraries(external, backend)
