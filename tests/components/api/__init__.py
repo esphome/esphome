@@ -22,7 +22,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             cg.add_define(define)
         # The host reads PROGMEM like RAM, so the tests exercise the code ESP8266 uses to copy text out of it
         cg.add_define("API_WIZARD_FLASH_STRINGS")
-        cg.add_define("API_WIZARD_INPUT_COUNT", 2)
         cg.add_define("API_WIZARD_PAGE_SCRATCH_SIZE", 32)
         cg.add_define("API_WIZARD_FIELD_SCRATCH_SIZE", 16)
         cg.add_define("API_WIZARD_FILTER_SCRATCH_SIZE", 8)

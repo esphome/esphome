@@ -11,9 +11,7 @@
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_wizard.h"
 #include "esphome/components/api/proto.h"
-#include "esphome/components/host/preferences.h"
 #include "esphome/core/entity_base.h"
-#include "esphome/core/preferences.h"
 
 namespace esphome::api {
 
@@ -64,6 +62,8 @@ static const WizardPageRow WIZARD_PAGES[] = {
 const WizardView<WizardPage, WizardPageRow> API_WIZARD_PAGES = {WIZARD_PAGES, 2};
 
 using Bytes = std::vector<uint8_t>;
+
+static constexpr size_t WIZARD_RESPONSE_SIZE = 155;
 
 static Bytes cat(std::initializer_list<Bytes> parts) {
   Bytes out;
@@ -122,9 +122,11 @@ TEST(DeviceWizard, EncodesEveryPageFromFlashTables) {
       cat({str_field(1, "Setup"), str_field(2, "Pick"),
            msg_field(3, cat({key_field(0x01020304), str_field(3, "Enable")})), msg_field(3, key_field(0x01020304))});
   Bytes page_two = cat({msg_field(4, cat({key_field(WEATHER_KEY), str_field(2, "Weather"), msg_field(3, filter_met),
-                                          msg_field(3, filter_domain), str_field(4, "sensor.default")})),
+                                          msg_field(3, filter_domain)})),
                         msg_field(4, key_field(OTHER_KEY))});
   Bytes expected = cat({msg_field(1, page_one), msg_field(1, page_two)});
+  // The same size the Python helper wizard_response_size() computes for this wizard (test_wizard.py)
+  EXPECT_EQ(expected.size(), WIZARD_RESPONSE_SIZE);
 
   EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg), expected);
 }
@@ -147,24 +149,7 @@ static const char *set_input(uint32_t key, const char *entity_id) {
   return wizard_set_input(request);
 }
 
-// Saved entity ids are kept by the host preferences, which also write a file, so every test starts and ends clean
-class DeviceWizardPreferences : public ::testing::Test {
- protected:
-  void SetUp() override {
-    host::setup_preferences();
-    // Reading makes the host load its file; resetting and syncing then empties both the memory and the file
-    uint8_t unused;
-    host::get_preferences()->load(0, &unused, 1);
-    this->clear_();
-  }
-  void TearDown() override { this->clear_(); }
-  void clear_() {
-    host::get_preferences()->reset();
-    host::get_preferences()->sync();
-  }
-};
-
-TEST_F(DeviceWizardPreferences, SetInputStoresTheEntityIdInTheBuffer) {
+TEST(DeviceWizard, SetInputStoresTheEntityIdInTheBuffer) {
   EXPECT_EQ(set_input(OTHER_KEY, "sensor.outdoor"), wizard_input_other());
   EXPECT_STREQ(wizard_input_other(), "sensor.outdoor");
   // A shorter id replaces a longer one completely
@@ -176,7 +161,7 @@ TEST_F(DeviceWizardPreferences, SetInputStoresTheEntityIdInTheBuffer) {
   EXPECT_EQ(std::string(wizard_input_other()), longest);
 }
 
-TEST_F(DeviceWizardPreferences, SetInputIgnoresWhatIsNotAnEntityId) {
+TEST(DeviceWizard, SetInputIgnoresWhatIsNotAnEntityId) {
   std::string before = wizard_input_weather();
   EXPECT_EQ(set_input(WEATHER_KEY, ""), nullptr);
   EXPECT_EQ(set_input(WEATHER_KEY, "nodot"), nullptr);
@@ -186,26 +171,7 @@ TEST_F(DeviceWizardPreferences, SetInputIgnoresWhatIsNotAnEntityId) {
   EXPECT_EQ(std::string(wizard_input_weather()), before);
 }
 
-TEST_F(DeviceWizardPreferences, SetupLoadsSavedEntityIdsOverTheDefaults) {
-  wizard_setup();
-  EXPECT_STREQ(wizard_input_weather(), "sensor.default");
-
-  ASSERT_NE(set_input(WEATHER_KEY, "sensor.chosen"), nullptr);
-  strcpy(wizard_input_weather(), "sensor.default");
-  wizard_setup();
-  EXPECT_STREQ(wizard_input_weather(), "sensor.chosen");
-
-  // A saved value that is no entity id is ignored
-  const char *garbage = "no dot here";
-  uint8_t saved[WIZARD_ENTITY_ID_BUFFER_SIZE - 1] = {};
-  std::copy_n(garbage, strlen(garbage), saved);
-  ASSERT_TRUE(global_preferences->save(WEATHER_KEY ^ 0x57495A44, saved, sizeof(saved)));
-  strcpy(wizard_input_weather(), "sensor.default");
-  wizard_setup();
-  EXPECT_STREQ(wizard_input_weather(), "sensor.default");
-}
-
-TEST_F(DeviceWizardPreferences, StandaloneInputReadsTheBufferTheWizardWrites) {
+TEST(DeviceWizard, StandaloneInputReadsTheBufferTheWizardWrites) {
   strcpy(wizard_input_other(), "");
   WizardInput input(wizard_input_other());
   EXPECT_FALSE(input.has_entity_id());
@@ -213,11 +179,6 @@ TEST_F(DeviceWizardPreferences, StandaloneInputReadsTheBufferTheWizardWrites) {
 
   ASSERT_EQ(set_input(OTHER_KEY, "weather.home"), wizard_input_other());
   EXPECT_TRUE(input.has_entity_id());
-  EXPECT_EQ(input.entity_id(), "weather.home");
-
-  // A saved id comes back through the object after a restart
-  strcpy(wizard_input_other(), "");
-  wizard_setup();
   EXPECT_EQ(input.entity_id(), "weather.home");
 }
 

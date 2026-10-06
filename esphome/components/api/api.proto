@@ -21,6 +21,7 @@ service APIConnection {
   }
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
   rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
+  rpc wizard_input_set (WizardInputSetRequest) returns (void) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -449,8 +450,12 @@ message WizardEntityField {
 // input that only stores the entity id for the device's own automations.
 //
 // The key is the FNV-1 hash of the input's ESPHome id, not an entity key. The client
-// sends the chosen entity id back with a WizardInputSetRequest, which the device
-// saves, so the choice survives a restart.
+// sends the chosen entity id to the device with a WizardInputSetRequest.
+//
+// The device keeps the entity id in RAM only and does not store it across restarts.
+// The client therefore stores the choice itself and, after every connection and
+// before it sends SubscribeHomeAssistantStatesRequest, sends a WizardInputSetRequest
+// for each input. It sends one again whenever the user changes the choice.
 message WizardInputField {
   fixed32 key = 1;
   // Shown next to the input. May be a Home Assistant translation placeholder
@@ -459,9 +464,6 @@ message WizardInputField {
   repeated WizardEntityFilter entity_filters = 3
       [(field_ifdef) = "USE_API_WIZARD_ENTITY_FILTERS",
        (container_pointer_no_template) = "WizardView<WizardEntityFilter, WizardFilterRow>"];
-  // The entity id the device currently uses, empty when none is set yet. Lets the
-  // client preselect it.
-  string entity_id = 4 [(max_data_length) = 255];
 }
 
 message WizardPage {
@@ -487,9 +489,12 @@ message DeviceWizardResponse {
 // Sets the entity id of a wizard input (see WizardInputField.key). Clients send
 // this only when DeviceCapabilitiesResponse.wizard.configured is set. There is no
 // reply. The device ignores a request whose key matches no input or whose entity_id
-// is empty, longer than 255 bytes or has no '.'. Otherwise it saves the id and, when
-// the input belongs to a homeassistant platform entity, subscribes to that entity's
-// state.
+// is empty, longer than 255 bytes or has no '.'. Otherwise it keeps the id in RAM,
+// not across restarts, and when the input belongs to a homeassistant platform entity
+// it subscribes to that entity's state. Clients send this for every input right
+// after connecting, before SubscribeHomeAssistantStatesRequest. A request that
+// arrives later still works: the device then sends the affected state subscriptions
+// again.
 message WizardInputSetRequest {
   option (id) = 158;
   option (source) = SOURCE_CLIENT;

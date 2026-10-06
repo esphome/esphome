@@ -1123,7 +1123,6 @@ const char *WizardInputField::dump_to(DumpBuffer &out) const {
     out.append("\n");
   }
 #endif
-  dump_field(out, ESPHOME_PSTR("entity_id"), this->entity_id);
   return out.c_str();
 }
 #endif

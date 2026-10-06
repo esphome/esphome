@@ -7,6 +7,7 @@ import textwrap
 
 import pytest
 
+from esphome.components.api import _varint_size, wizard_response_size
 from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS as SWITCH_DOMAINS
 from esphome.config import load_config
 from esphome.core import CORE
@@ -200,7 +201,6 @@ def test_generates_flash_tables(
         in main_cpp
     )
     assert any(define.name == "USE_API_WIZARD" for define in CORE.defines)
-    assert get_define_value("API_WIZARD_INPUT_COUNT") == "11"
     # Only ESP8266 copies text out of flash
     assert get_define_value("API_WIZARD_PAGE_SCRATCH_SIZE") is None
 
@@ -692,8 +692,6 @@ def test_only_the_defines_the_wizard_needs_are_emitted(
     generate_main(write_config(tmp_path, ESP32_HEADER, api))
 
     assert {d.name for d in CORE.defines} & WIZARD_DEFINES == expected
-    has_inputs = "USE_API_WIZARD_INPUTS" in expected
-    assert (get_define_value("API_WIZARD_INPUT_COUNT") is not None) == has_inputs
 
 
 def test_entity_rows_only_have_the_members_that_are_compiled_in(
@@ -790,3 +788,97 @@ def test_new_platforms_need_an_entity_id_unless_they_are_inputs(
         "entity_id is required unless this entity is a wizard input" in error
         for error in errors
     ), errors
+
+
+def test_response_size_matches_the_encoder() -> None:
+    """The same wizard as the byte exact C++ test (test_wizard.cpp), which asserts the same 155 bytes."""
+    wizard = {
+        "pages": [
+            {
+                "title": "Setup",
+                "description": "Pick",
+                "entities": [{"description": "Enable"}, {}],
+            },
+            {
+                "inputs": [
+                    {
+                        "description": "Weather",
+                        "target": {
+                            "entity": [
+                                {
+                                    "integration": "met",
+                                    "domain": ["weather", "sensor"],
+                                    "device_class": ["temperature"],
+                                    "supported_features": [
+                                        "weather.WeatherEntityFeature.FORECAST_DAILY"
+                                    ],
+                                },
+                                {"domain": ["weather"]},
+                            ]
+                        },
+                    },
+                    {},
+                ]
+            },
+        ]
+    }
+
+    assert wizard_response_size(wizard, None, device_ids=False) == 155
+    # Two entity fields, each with room for a device_id
+    assert wizard_response_size(wizard, None, device_ids=True) == 155 + 2 * 6
+
+
+def test_varint_sizes_grow_with_the_value() -> None:
+    assert [_varint_size(v) for v in (0, 127, 128, 16383, 16384)] == [1, 1, 2, 2, 3]
+
+
+def test_a_wizard_too_big_for_one_message_is_rejected(tmp_path: Path) -> None:
+    entities = ",\n".join(["{id: sw, description: " + "x" * 255 + "}"] * 260)
+    api = wizard_api(f"- entities: [\n{entities}\n]")
+    errors = config_errors(write_config(tmp_path, ESP32_HEADER, api))
+
+    assert any(
+        "bytes when encoded" in error and "bytes over the 65512 bytes" in error
+        for error in errors
+    ), errors
+
+
+def test_a_wizard_just_inside_the_limit_is_valid(tmp_path: Path) -> None:
+    entities = ",\n".join(["{id: sw, description: " + "x" * 255 + "}"] * 240)
+    api = wizard_api(f"- entities: [\n{entities}\n]")
+
+    assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
+
+
+def test_a_linked_default_longer_than_the_buffer_is_rejected(tmp_path: Path) -> None:
+    long_id = "sensor." + "x" * 249  # 256 bytes
+    yaml_entities = f"sensor:\n  - platform: homeassistant\n    id: long_sensor\n    entity_id: {long_id}\n"
+    errors = config_errors(
+        write_config(
+            tmp_path,
+            ESP32_HEADER,
+            wizard_inputs("- entity: long_sensor"),
+            yaml_entities,
+        )
+    )
+
+    assert any(
+        "is 256 bytes" in error and "at most 255" in error for error in errors
+    ), errors
+
+
+def test_a_linked_default_of_the_longest_length_is_valid(tmp_path: Path) -> None:
+    long_id = "sensor." + "x" * 248  # 255 bytes
+    yaml_entities = f"sensor:\n  - platform: homeassistant\n    id: long_sensor\n    entity_id: {long_id}\n"
+
+    assert (
+        config_errors(
+            write_config(
+                tmp_path,
+                ESP32_HEADER,
+                wizard_inputs("- entity: long_sensor"),
+                yaml_entities,
+            )
+        )
+        == []
+    )

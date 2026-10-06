@@ -424,7 +424,6 @@ uint8_t *WizardInputField::encode_msg(const void *self, ProtoWriteBuffer &buffer
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
   }
 #endif
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.entity_id);
   return pos;
 }
 uint32_t WizardInputField::calc_size_msg(const void *self) {
@@ -439,7 +438,6 @@ uint32_t WizardInputField::calc_size_msg(const void *self) {
     }
   }
 #endif
-  size += ProtoSize::calc_length(1, msg.entity_id.size());
   return size;
 }
 #endif

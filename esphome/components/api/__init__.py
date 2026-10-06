@@ -302,6 +302,15 @@ ACTIONS_SCHEMA = automation.validate_automation(
     ),
 )
 
+WIZARD_ENTITY_ID_BUFFER_SIZE = (
+    256  # api_wizard.h; Home Assistant entity IDs are at most 255 bytes
+)
+# One API message must fit APIBuffer::MAX_SIZE (65535) together with the largest frame header (7 bytes,
+# Noise) and footer (16 bytes, Noise MAC)
+WIZARD_RESPONSE_MAX_SIZE = 65535 - 7 - 16
+# Worst case of the device_id varint of an entity field (a tag and a 32 bit varint), sent with USE_DEVICES
+WIZARD_DEVICE_ID_MAX_SIZE = 6
+
 # Wizard string limits; api.proto documents the same values
 WIZARD_TITLE_MAX_LENGTH = 127
 WIZARD_DESCRIPTION_MAX_LENGTH = 255
@@ -467,12 +476,14 @@ def _wizard_input_declaration(
     return path[0], config.get_config_for_path(path)
 
 
-def _wizard_input_filters(conf: ConfigType) -> list[ConfigType]:
+def _wizard_input_filters(
+    conf: ConfigType, config: fv.FinalValidateConfig
+) -> list[ConfigType]:
     """The entity filters of an input, with the defaults of a linked switch or number."""
     if (filters := conf.get(CONF_TARGET, {}).get(CONF_ENTITY)) is not None:
         return filters
     if CONF_ENTITY in conf:
-        domain, _ = _wizard_input_declaration(CORE.config, conf[CONF_ENTITY])
+        domain, _ = _wizard_input_declaration(config, conf[CONF_ENTITY])
         if domains := _wizard_default_domains(domain):
             return [{CONF_DOMAIN: domains}]
     return []
@@ -490,9 +501,64 @@ def _wizard_defines(wizard: ConfigType) -> set[str]:
         defines.add("USE_API_WIZARD_LINKED_INPUTS")
     if any(CONF_ID in conf for conf in inputs):
         defines.add("USE_API_WIZARD_STANDALONE_INPUTS")
-    if any(_wizard_input_filters(conf) for conf in inputs):
+    if any(_wizard_input_filters(conf, CORE.config) for conf in inputs):
         defines.add("USE_API_WIZARD_ENTITY_FILTERS")
     return defines
+
+
+def _varint_size(value: int) -> int:
+    return max(1, (value.bit_length() + 6) // 7)
+
+
+def _string_size(value: str | None) -> int:
+    """Encoded size of a string field with a one byte tag, nothing when it is unset or empty."""
+    if not value:
+        return 0
+    length = len(value.encode("utf-8"))
+    return 1 + _varint_size(length) + length
+
+
+def _message_size(size: int) -> int:
+    """Encoded size of a repeated message field element with a one byte tag."""
+    return 1 + _varint_size(size) + size
+
+
+def wizard_response_size(
+    wizard: ConfigType, config: fv.FinalValidateConfig, device_ids: bool
+) -> int:
+    """Exact encoded size of DeviceWizardResponse for the wizard, in bytes.
+
+    device_ids adds room for the device_id of every entity field, which is only sent with USE_DEVICES.
+    """
+    total = 0
+    for page in wizard[CONF_PAGES]:
+        size = _string_size(page.get(CONF_TITLE)) + _string_size(
+            page.get(CONF_DESCRIPTION)
+        )
+        for entity in page.get(CONF_ENTITIES, []):
+            size += _message_size(
+                5  # the key, a fixed32 with a tag
+                + (WIZARD_DEVICE_ID_MAX_SIZE if device_ids else 0)
+                + _string_size(entity.get(CONF_DESCRIPTION))
+            )
+        for conf in page.get(CONF_INPUTS, []):
+            input_size = 5 + _string_size(conf.get(CONF_DESCRIPTION))
+            for entity_filter in _wizard_input_filters(conf, config):
+                input_size += _message_size(
+                    _string_size(entity_filter.get(CONF_INTEGRATION))
+                    + sum(
+                        _string_size(value)
+                        for key in (
+                            CONF_DOMAIN,
+                            CONF_DEVICE_CLASS,
+                            CONF_SUPPORTED_FEATURES,
+                        )
+                        for value in entity_filter.get(key, [])
+                    )
+                )
+            size += _message_size(input_size)
+        total += _message_size(size)
+    return total
 
 
 def _wizard_default_domains(domain: str) -> list[str] | None:
@@ -519,6 +585,13 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"Wizard input '{conf[CONF_ENTITY].id}' must be a homeassistant "
             f"{', '.join(WIZARD_INPUT_DOMAINS)} entity"
+        )
+    if (default := declaration.get(CONF_ENTITY_ID)) is not None and len(
+        default.encode("utf-8")
+    ) >= WIZARD_ENTITY_ID_BUFFER_SIZE:
+        raise cv.Invalid(
+            f"The entity_id of '{conf[CONF_ENTITY].id}' is {len(default.encode('utf-8'))} bytes, "
+            f"but a wizard input holds at most {WIZARD_ENTITY_ID_BUFFER_SIZE - 1}"
         )
     if domain in WIZARD_DOMAIN_LIMITED_PLATFORMS:
         supported = _wizard_default_domains(domain)
@@ -714,6 +787,15 @@ _WIZARD_FINAL_VALIDATE_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> ConfigType:
     _validate_esp8266_action_strings(config)
     _WIZARD_FINAL_VALIDATE_SCHEMA(config)
+    if (wizard := config.get(CONF_WIZARD)) is not None:
+        size = wizard_response_size(wizard, fv.full_config.get(), device_ids=True)
+        if size > WIZARD_RESPONSE_MAX_SIZE:
+            raise cv.Invalid(
+                f"The wizard is {size} bytes when encoded, {size - WIZARD_RESPONSE_MAX_SIZE} "
+                f"bytes over the {WIZARD_RESPONSE_MAX_SIZE} bytes one API message can hold. "
+                "Shorten the texts or use fewer pages, entities or filters",
+                path=[CONF_WIZARD],
+            )
     return config
 
 
@@ -745,11 +827,6 @@ def _add_action_strings(
     )
 
 
-WIZARD_ENTITY_ID_BUFFER_SIZE = (
-    256  # api_wizard.h; Home Assistant entity IDs are at most 255 bytes
-)
-
-
 class _WizardTables:
     """Emits the wizard as constant tables that stay in flash (see api_wizard.h).
 
@@ -764,7 +841,6 @@ class _WizardTables:
         self._count = 0
         self._flash = CORE.is_esp8266
         self._strings: dict[str, str] = {}
-        self.inputs = 0
         # Bytes of text copied out at a time: page (title and description), field description,
         # filter integration and one list entry. Each has room for the terminator.
         self.page_scratch = self.field_scratch = 1
@@ -847,7 +923,6 @@ class _WizardTables:
         return name
 
     def _input(self, conf: ConfigType) -> str:
-        self.inputs += 1
         input_id = _wizard_input_id(conf)
         if CONF_ENTITY in conf:
             # Linked: the homeassistant entity uses the buffer, and its entity_id is the default
@@ -862,7 +937,9 @@ class _WizardTables:
             cg.new_Pvariable(input_id, cg.RawExpression(buffer))
         row = f"{{{fnv1_hash(input_id.id)}u, {buffer}, {self._description(conf)}"
         if "USE_API_WIZARD_ENTITY_FILTERS" in self.defines:
-            filters = [self._filter(f) for f in _wizard_input_filters(conf)]
+            filters = [
+                self._filter(f) for f in _wizard_input_filters(conf, CORE.config)
+            ]
             row += f", {self._array('esphome::api::WizardFilterRow', filters)}"
         return row + "}"
 
@@ -893,8 +970,6 @@ class _WizardTables:
         )
         for define in sorted(self.defines):
             cg.add_define(define)
-        if "USE_API_WIZARD_INPUTS" in self.defines:
-            cg.add_define("API_WIZARD_INPUT_COUNT", self.inputs)
         if self._flash:
             cg.add_define("API_WIZARD_PAGE_SCRATCH_SIZE", self.page_scratch)
             cg.add_define("API_WIZARD_FIELD_SCRATCH_SIZE", self.field_scratch)

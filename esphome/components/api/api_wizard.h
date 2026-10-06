@@ -239,11 +239,8 @@ class WizardInput {
 extern const WizardView<WizardPage, WizardPageRow> API_WIZARD_PAGES;
 
 #ifdef USE_API_WIZARD_INPUTS
-/// Load the entity ids saved by earlier wizard runs over the defaults in the input buffers. Call once, from setup(),
-/// before the entities that use the buffers subscribe.
-void wizard_setup();
-
-/// Apply a WizardInputSetRequest: validate it, copy the entity id into the input's buffer and save it.
+/// Apply a WizardInputSetRequest: validate it and copy the entity id into the input's buffer. Nothing is stored
+/// across restarts, so the client sends the choices again after every connection.
 /// Returns the buffer, or nullptr when the request was ignored.
 const char *wizard_set_input(const WizardInputSetRequest &msg);
 #endif

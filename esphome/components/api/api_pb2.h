@@ -803,7 +803,6 @@ class WizardInputField final : public ProtoMessage {
 #ifdef USE_API_WIZARD_ENTITY_FILTERS
   const WizardView<WizardEntityFilter, WizardFilterRow> *entity_filters{};
 #endif
-  StringRef entity_id{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);

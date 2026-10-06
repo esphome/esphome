@@ -391,7 +391,6 @@ def test_device_wizard_message_fields_keep_their_wire_numbers() -> None:
             "key": 1,
             "description": 2,
             "entity_filters": 3,
-            "entity_id": 4,
         },
         "WizardInputSetRequest": {"key": 1, "entity_id": 2},
         "WizardPage": {
