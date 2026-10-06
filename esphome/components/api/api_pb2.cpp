@@ -410,6 +410,7 @@ uint8_t *ListEntitiesCoverResponse::encode_msg(const void *self, ProtoWriteBuffe
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.device_id);
 #endif
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 14, msg.supports_stop_tilt);
   return pos;
 }
 uint32_t ListEntitiesCoverResponse::calc_size_msg(const void *self) {
@@ -431,6 +432,7 @@ uint32_t ListEntitiesCoverResponse::calc_size_msg(const void *self) {
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
+  size += ProtoSize::calc_bool(1, msg.supports_stop_tilt);
   return size;
 }
 uint8_t *CoverStateResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
@@ -488,6 +490,9 @@ void CoverCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *
       msg.device_id = value.as_varint();
       break;
 #endif
+    case proto_tag(10, WIRE_TYPE_VARINT):
+      msg.stop_tilt = value.as_bool();
+      break;
   }
 }
 #endif

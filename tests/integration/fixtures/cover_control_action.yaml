@@ -34,6 +34,10 @@ cover:
           // Manually set tilt and publish
           id(test_cover).tilt = tilt;
           id(test_cover).publish_state();
+    stop_tilt_action:
+      - cover.template.publish:
+          id: test_cover
+          tilt: 0.4
 
 button:
   # cover.control: position only
@@ -109,3 +113,17 @@ button:
       - cover.control:
           id: test_cover
           stop: true
+
+  - platform: template
+    id: btn_stop_tilt
+    name: "Stop Tilt"
+    on_press:
+      - cover.stop_tilt: test_cover
+
+  - platform: template
+    id: btn_control_stop_tilt
+    name: "Control Stop Tilt"
+    on_press:
+      - cover.control:
+          id: test_cover
+          stop_tilt: true

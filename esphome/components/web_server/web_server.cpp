@@ -1059,6 +1059,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
         {"open", &cover::CoverCall::set_command_open},
         {"close", &cover::CoverCall::set_command_close},
         {"stop", &cover::CoverCall::set_command_stop},
+        {"stop_tilt", &cover::CoverCall::set_command_stop_tilt},
         {"toggle", &cover::CoverCall::set_command_toggle},
     };
 

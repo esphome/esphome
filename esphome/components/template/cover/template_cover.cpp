@@ -57,6 +57,7 @@ float TemplateCover::get_setup_priority() const { return setup_priority::HARDWAR
 Trigger<> *TemplateCover::get_open_trigger() { return &this->open_trigger_; }
 Trigger<> *TemplateCover::get_close_trigger() { return &this->close_trigger_; }
 Trigger<> *TemplateCover::get_stop_trigger() { return &this->stop_trigger_; }
+Trigger<> *TemplateCover::get_stop_tilt_trigger() { return &this->stop_tilt_trigger_; }
 Trigger<> *TemplateCover::get_toggle_trigger() { return &this->toggle_trigger_; }
 void TemplateCover::dump_config() { LOG_COVER("", "Template Cover", this); }
 void TemplateCover::control(const CoverCall &call) {
@@ -65,6 +66,10 @@ void TemplateCover::control(const CoverCall &call) {
     this->stop_trigger_.trigger();
     this->prev_command_trigger_ = &this->stop_trigger_;
     this->publish_state();
+  }
+  if (call.get_stop_tilt()) {
+    this->tilt_trigger_.stop_action();
+    this->stop_tilt_trigger_.trigger();
   }
   if (call.get_toggle().has_value()) {
     this->stop_prev_trigger_();
@@ -111,6 +116,7 @@ CoverTraits TemplateCover::get_traits() {
   traits.set_supports_toggle(this->has_toggle_);
   traits.set_supports_position(this->has_position_);
   traits.set_supports_tilt(this->has_tilt_);
+  traits.set_supports_stop_tilt(this->has_stop_tilt_);
   return traits;
 }
 Trigger<float> *TemplateCover::get_position_trigger() { return &this->position_trigger_; }

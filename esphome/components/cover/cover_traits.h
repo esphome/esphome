@@ -16,6 +16,8 @@ class CoverTraits {
   void set_supports_toggle(bool supports_toggle) { this->supports_toggle_ = supports_toggle; }
   bool get_supports_stop() const { return this->supports_stop_; }
   void set_supports_stop(bool supports_stop) { this->supports_stop_ = supports_stop; }
+  bool get_supports_stop_tilt() const { return this->supports_stop_tilt_; }
+  void set_supports_stop_tilt(bool supports_stop_tilt) { this->supports_stop_tilt_ = supports_stop_tilt; }
 
  protected:
   bool is_assumed_state_{false};
@@ -23,6 +25,7 @@ class CoverTraits {
   bool supports_tilt_{false};
   bool supports_toggle_{false};
   bool supports_stop_{false};
+  bool supports_stop_tilt_{false};
 };
 
 }  // namespace esphome::cover

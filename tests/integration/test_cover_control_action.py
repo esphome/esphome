@@ -90,3 +90,13 @@ async def test_cover_control_action(
         state = await press_and_wait("Stop Cover")
         # CoverOperation.IDLE == 0
         assert state.current_operation == 0
+
+        # stop_tilt_action publishes tilt 0.4
+        state = await press_and_wait("Stop Tilt")
+        assert state.tilt == pytest.approx(0.4, abs=0.01)
+
+        state = await press_and_wait("Set Tilt")
+        assert state.tilt == pytest.approx(0.75, abs=0.01)
+
+        state = await press_and_wait("Control Stop Tilt")
+        assert state.tilt == pytest.approx(0.4, abs=0.01)

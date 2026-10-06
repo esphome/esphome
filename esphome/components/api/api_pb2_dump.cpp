@@ -1124,6 +1124,7 @@ const char *ListEntitiesCoverResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("supports_stop_tilt"), this->supports_stop_tilt);
   return out.c_str();
 }
 const char *CoverStateResponse::dump_to(DumpBuffer &out) const {
@@ -1148,6 +1149,7 @@ const char *CoverCommandRequest::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("stop_tilt"), this->stop_tilt);
   return out.c_str();
 }
 #endif
