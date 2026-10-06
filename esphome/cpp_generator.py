@@ -10,6 +10,7 @@ from esphome.core import (
     ID,
     Define,
     EnumValue,
+    EsphomeError,
     HexInt,
     Lambda,
     Library,
@@ -487,14 +488,22 @@ def shared_progmem_array(
     ``constexpr=False`` emits ``static T const`` for address constants such as pointers to
     generated objects, which GCC folds into static initialization even though they are not
     constant expressions; the C++ standard does not guarantee this, so keep it to those addresses.
-    Every element must then be an address known at compile time (see ``is_static_pointer``);
-    a pointer assigned in ``setup()`` would need dynamic init, which faults in ESP8266 flash.
+    Every variable element must then be an address known at compile time (see
+    ``is_static_pointer``); a pointer assigned in ``setup()`` would need dynamic init, which
+    faults in ESP8266 flash, so it raises ``EsphomeError``.
     """
     from esphome.config import iter_ids
     from esphome.config_validation import RESERVED_IDS
 
     arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
     rhs = safe_exp(rhs)
+    if not constexpr and isinstance(rhs, ArrayInitializer):
+        for arg in rhs.args:
+            if isinstance(arg, MockObj) and not is_static_pointer(arg):
+                raise EsphomeError(
+                    f"'{arg}' must be created with cg.new_Pvariable so its address is known "
+                    "at compile time"
+                )
     key = f"{type_} {rhs}"
     if share and (array := arrays.get(key)) is not None:
         return array

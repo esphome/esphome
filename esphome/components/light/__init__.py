@@ -529,12 +529,6 @@ def validate_color_temperature_channels(value):
 
 def _effects_table(effects: list[MockObj]) -> MockObj:
     """Emit the flash table of a light's effect pointers; each must be a static address."""
-    for effect in effects:
-        if not cg.is_static_pointer(effect):
-            raise EsphomeError(
-                f"Light effect '{effect}' must be created with cg.new_Pvariable so its address "
-                "is known at compile time"
-            )
     return cg.shared_progmem_array(
         "light_effects",
         LightEffect.operator("ptr"),

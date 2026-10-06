@@ -4,7 +4,7 @@ import math
 import pytest
 
 from esphome import cpp_generator as cg, cpp_types as ct
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, EsphomeError
 
 
 class TestExpressions:
@@ -838,6 +838,17 @@ class TestSharedProgmemArray:
         )
         assert cg.is_static_pointer(static)
         assert not cg.is_static_pointer(dynamic)
+
+    def test_constexpr_false_rejects_dynamic_pointers(self) -> None:
+        CORE.config = {}
+        dynamic = cg.Pvariable(
+            ID("dynamic_obj", is_declaration=True, type=ct.uint8),
+            cg.RawExpression("nullptr"),
+        )
+        with pytest.raises(EsphomeError, match="dynamic_obj"):
+            cg.shared_progmem_array(
+                "table", ct.uint8.operator("ptr"), cg.ArrayInitializer(dynamic), constexpr=False
+            )
 
     def test_constexpr_false_emits_a_const_array(self) -> None:
         CORE.config = {}
