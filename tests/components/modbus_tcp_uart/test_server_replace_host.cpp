@@ -143,6 +143,20 @@ TEST(ModbusTcpUartServer, UnreadRequestIsKept) {
   EXPECT_EQ(link.available(), waiting);
 }
 
+TEST(ModbusTcpUartServer, UnreadRequestIsReplacedWhenOverdue) {
+  // No hub and no attached reader: nothing reads the request.
+  ServerLink link;
+  link.push(7, 1, PDU, sizeof(PDU));
+  link.expire();
+  link.push(8, 1, PDU_REG1, sizeof(PDU_REG1));
+  EXPECT_EQ(link.txn(), 8);
+  EXPECT_TRUE(link.replaced_logged());
+  uint8_t taken[16];
+  ASSERT_EQ(link.available(), sizeof(PDU_REG1) + 3);
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  EXPECT_EQ(taken[3], 0x01);
+}
+
 TEST(ModbusTcpUartServer, PipelinedRequestsAreAnsweredInOrder) {
   Pipe pipe;
   ServerLink link;

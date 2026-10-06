@@ -14,7 +14,8 @@ namespace esphome::modbus_tcp_uart {
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
 /// Client: Response must match the request transaction ID (else dropped). It keeps the request's unit.
 /// Server: Response is sent with transaction ID matching the most recent request. One request at a time goes to the
-/// hub, the next waits for the reply or REPLY_TIMEOUT_MS. The reply must match its unit and function (else dropped).
+/// hub, the next waits until it is read and answered, or REPLY_TIMEOUT_MS. The reply must match its unit and
+/// function (else dropped).
 /// With servers on the hub, a request to a unit that none of them answers is dropped.
 /// Bad MBAP: skipped if its length is usable, else bytes are dropped until the peer has been quiet.
 /// Writes are joined into RTU frames: a frame ends at the length its function code gives, else at the first CRC
@@ -78,7 +79,7 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   const uint8_t *units_{nullptr};
   uint32_t drop_log_ms_[DROP_KIND_COUNT]{};
   uint32_t resync_from_us_{0};
-  // Server: when the open request was delivered.
+  // Server: when the last request was handed to the hub.
   uint32_t request_ms_{0};
   uint16_t txn_{0};
   uint16_t tcp_len_{0};

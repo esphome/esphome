@@ -223,15 +223,17 @@ void ModbusTcpUart::deliver_mbap_() {
       case MbapTake::FRAME: {
         if (this->server_) {
           // One request at a time. This one stays here until the hub has read the last one and its reply went out,
-          // or the reply is overdue.
+          // or the last one is overdue.
           uint32_t now = App.get_loop_component_start_time();
-          if (this->available() != 0 || (this->txn_pending_ && now - this->request_ms_ < REPLY_TIMEOUT_MS)) {
+          bool busy = this->available() != 0 || this->txn_pending_;
+          if (busy && now - this->request_ms_ < REPLY_TIMEOUT_MS) {
             used = 0;
             break;
           }
-          // No reply in time. The next request takes its place.
-          if (this->txn_pending_) {
+          // Not read or not answered in time. The next request takes its place.
+          if (busy) {
             note_drop(this->drop_log_ms_[DROP_REPLACED], LOG_STR("Unanswered request replaced"));
+            this->rx_.clear();
             if (this->tx_len_ != 0) {
               this->clear_tx_();
             }
@@ -249,12 +251,12 @@ void ModbusTcpUart::deliver_mbap_() {
           }
           uint8_t rtu[RTU_FRAME_SIZE];
           size_t rtu_len = write_rtu(rtu, frame.unit, frame.pdu, frame.pdu_len);
+          this->request_ms_ = now;
           // Address 0 is a broadcast. Nothing answers it.
           if (frame.unit != 0) {
             this->txn_ = frame.txn;
             this->unit_ = frame.unit;
             this->function_ = frame.pdu[0];
-            this->request_ms_ = now;
             this->txn_pending_ = true;
           }
           // Last: an attached reader may answer within this call.
