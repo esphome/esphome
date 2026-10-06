@@ -742,9 +742,10 @@ def is_idf_sdkconfig_option_enabled(name: str) -> bool:
 def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
     """Set an sdkconfig option unless it is already set.
 
-    For the FINAL priority reconcile jobs: they run after every to_code,
-    including the user's sdkconfig_options, and must not override an
-    existing value.
+    User sdkconfig_options take precedence regardless of to_code order:
+    esp32.to_code applies them unconditionally, and this helper preserves
+    values that are already set. FINAL priority reconcile jobs use the same
+    guard because they run after every to_code, including the user's options.
     """
     if name not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
         add_idf_sdkconfig_option(name, value)
