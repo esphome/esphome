@@ -35,13 +35,7 @@ from esphome.const import (
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
 )
-from esphome.core import (
-    CORE,
-    ID,
-    CoroPriority,
-    HexInt,
-    coroutine_with_priority,
-)
+from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
