@@ -705,6 +705,10 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
 
         cg.add_define("USE_WIFI_AP")
+        # The LN882H radio cannot run the AP and STA together; the fallback AP
+        # takes turns with the networks instead.
+        if CORE.is_ln882x:
+            cg.add_define("USE_WIFI_AP_EXCLUSIVE")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
