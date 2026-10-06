@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "light_effect.h"
 
@@ -154,10 +155,21 @@ class AutomationLightEffect : public LightEffect {
   Trigger<> trig_;
 };
 
+/// One strobe step. Codegen keeps the steps in a flash table, so it is read with progmem_memcpy.
 struct StrobeLightEffectColor {
-  LightColorValues color;
+  float state;
+  float brightness;
+  float color_brightness;
+  float red;
+  float green;
+  float blue;
+  float white;
+  float color_temperature;
+  float cold_white;
+  float warm_white;
   uint32_t duration;
   uint32_t transition_length;
+  ColorMode color_mode;
 };
 
 class StrobeLightEffect : public LightEffect {
@@ -166,19 +178,22 @@ class StrobeLightEffect : public LightEffect {
   void start() override {
     // Place the cycle at the end of the last color, so the first apply() switches straight to the first color
     this->at_color_ = this->colors_.size() - 1;
-    this->last_switch_ = millis() - this->colors_.back().duration;
+    this->last_switch_ = millis() - this->duration_(this->at_color_);
   }
   void apply() override {
     const uint32_t now = millis();
-    if (now - this->last_switch_ < this->colors_[this->at_color_].duration)
+    if (now - this->last_switch_ < this->duration_(this->at_color_))
       return;
 
     // Switch to next color
     this->at_color_ = (this->at_color_ + 1) % this->colors_.size();
-    auto color = this->colors_[this->at_color_].color;
+    StrobeLightEffectColor step;
+    progmem_memcpy(&step, &this->colors_[this->at_color_], sizeof(step));
+    LightColorValues color(step.color_mode, step.state, step.brightness, step.color_brightness, step.red, step.green,
+                           step.blue, step.white, step.color_temperature, step.cold_white, step.warm_white);
 
     auto call = this->state_->turn_on();
-    call.from_light_color_values(this->colors_[this->at_color_].color);
+    call.from_light_color_values(color);
 
     if (!color.is_on()) {
       // Don't turn the light off, otherwise the light effect will be stopped
@@ -187,15 +202,22 @@ class StrobeLightEffect : public LightEffect {
     }
     call.set_publish(false);
     call.set_save(false);
-    call.set_transition_length_if_supported(this->colors_[this->at_color_].transition_length);
+    call.set_transition_length_if_supported(step.transition_length);
     call.perform();
     this->last_switch_ = now;
   }
 
-  void set_colors(const std::initializer_list<StrobeLightEffectColor> &colors) { this->colors_ = colors; }
+  /// Codegen only: point at the generated flash table of steps, which must outlive the effect.
+  void set_colors(const StrobeLightEffectColor *colors, size_t count) { this->colors_ = {colors, count}; }
 
  protected:
-  FixedVector<StrobeLightEffectColor> colors_;
+  uint32_t duration_(size_t index) const {
+    uint32_t duration;
+    progmem_memcpy(&duration, &this->colors_[index].duration, sizeof(duration));
+    return duration;
+  }
+
+  ConstVector<StrobeLightEffectColor> colors_;
   uint32_t last_switch_{0};
   size_t at_color_{0};
 };
