@@ -63,8 +63,6 @@ CONFIG_SCHEMA = cv.All(
     socket.consume_role_sockets("uart_tcp"),
 )
 
-FINAL_VALIDATE_SCHEMA = socket.final_validate_idle_timeout
-
 
 def _subtree_references_uart(node: object, uart_id: str) -> bool:
     if isinstance(node, dict):
@@ -132,7 +130,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = cv.All(socket.final_validate_idle_timeout, _final_validate)
 
 
 async def to_code(config: ConfigType) -> None:

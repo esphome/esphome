@@ -5,13 +5,16 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components import uart_tcp
 from esphome.components.const import CONF_HOST
+from esphome.config import Config
 from esphome.const import (
     CONF_ESPHOME,
+    CONF_ID,
     CONF_PORT,
     CONF_TIMEOUT,
     CONF_UART_ID,
     PlatformFramework,
 )
+from esphome.core import ID
 from esphome.core.config import CONF_LOOP_INTERVAL
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
@@ -27,9 +30,11 @@ def _validate(
         esphome_conf[CONF_LOOP_INTERVAL] = cv.positive_time_period_milliseconds(
             loop_interval
         )
-    set_core_config(
-        PlatformFramework.ESP32_IDF, full_config={CONF_ESPHOME: esphome_conf}
-    )
+    full = Config()
+    full[CONF_ESPHOME] = esphome_conf
+    full["uart"] = [{CONF_ID: ID("bus")}]
+    full.declare_ids.append((full["uart"][0][CONF_ID], ["uart", 0, CONF_ID]))
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
     config = uart_tcp.CONFIG_SCHEMA(
         {
             CONF_UART_ID: "bus",
