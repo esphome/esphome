@@ -197,6 +197,7 @@ bool IRAM_ATTR HOT I2SClocklessLedStrip::i2s_on_sent_callback(i2s_chan_handle_t 
   auto *const dma_buf = static_cast<uint8_t *>(event->dma_buf);
   const size_t dma_buf_size = event->size;
 
+  bool dma_buf_filled = false;
   if (self->i2s_data_ready_.load(std::memory_order_acquire)) {
     const size_t i2s_data_bytes = self->color_data_bytes_ * I2S_BYTES_PER_SAMPLE;
     if (self->i2s_data_sent_ < i2s_data_bytes) {
@@ -207,14 +208,17 @@ bool IRAM_ATTR HOT I2SClocklessLedStrip::i2s_on_sent_callback(i2s_chan_handle_t 
         memcpy(dma_buf, self->i2s_data_ + self->i2s_data_sent_, i2s_data_remaining);
         memset(dma_buf + i2s_data_remaining, 0, dma_buf_size - i2s_data_remaining);
       }
-    } else {
-      memset(dma_buf, 0, dma_buf_size);
+      dma_buf_filled = true;
     }
     self->i2s_data_sent_ += dma_buf_size;
     if (self->i2s_data_sent_ >= i2s_data_bytes + I2S_RESET_BYTES) {
       self->i2s_data_ready_.store(false, std::memory_order_release);
     }
-  } else {
+  }
+  // We only need to clear the buffer when the first byte is non-zero.  Zero is not a value
+  // that can appear within the I2S data that gets copied into the front of the buffer so
+  // if the first byte is zero then the buffer must have already been cleared.
+  if (!dma_buf_filled && dma_buf[0] != 0) {
     memset(dma_buf, 0, dma_buf_size);
   }
   return false;
