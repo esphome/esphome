@@ -46,12 +46,21 @@ class TestGateway : public ModbusGateway {
   using ModbusGateway::run_;
 };
 
-std::vector<uint8_t> frame(std::initializer_list<uint8_t> body) {
-  std::vector<uint8_t> out(body);
+std::vector<uint8_t> frame(std::vector<uint8_t> out) {
   uint16_t crc = crc16(out.data(), static_cast<uint16_t>(out.size()));
   out.push_back(crc & 0xFF);
   out.push_back(crc >> 8);
   return out;
+}
+
+// FC 0x10 with count registers: 9 + 2 * count bytes.
+std::vector<uint8_t> write_registers(uint8_t unit, uint8_t count) {
+  std::vector<uint8_t> body{unit, 0x10, 0x00, 0x00, 0x00, count, static_cast<uint8_t>(count * 2)};
+  for (uint8_t i = 0; i < count; i++) {
+    body.push_back(0x00);
+    body.push_back(i);
+  }
+  return frame(body);
 }
 
 class GatewayRoute : public ::testing::Test {
@@ -296,6 +305,69 @@ TEST_F(GatewayRoute, LateResponseAfterTheNextRequestIsDropped) {
   this->run();
   EXPECT_EQ(this->local_reply(), reply);
   EXPECT_TRUE(this->client_.tx.empty());
+}
+
+// The client polls again before its turn. Only the latest request goes to the bus.
+TEST_F(GatewayRoute, NewestRequestWins) {
+  auto busy = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->local_.write_array(busy.data(), busy.size());
+  this->run();
+  ASSERT_EQ(this->bms_.tx, busy);
+
+  auto old_request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto new_request = frame({0x01, 0x03, 0x00, 0x05, 0x00, 0x01});
+  this->client_.push(old_request);
+  this->run();
+  this->client_.push(new_request);
+  this->run();
+  this->bms_.push(frame({0x02, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  ASSERT_EQ(this->bms_.tx.size(), busy.size() + new_request.size());
+  EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + static_cast<std::ptrdiff_t>(busy.size()), this->bms_.tx.end()),
+            new_request);
+}
+
+// A long request does not fit behind the waiting one. It takes its room; the rest waits in the client's UART.
+TEST_F(GatewayRoute, LongNewerRequestTakesTheRoomOfTheWaitingOne) {
+  auto busy = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->local_.write_array(busy.data(), busy.size());
+  this->run();
+  auto waiting = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(waiting);
+  this->run();
+
+  auto long_request = write_registers(0x01, 123);
+  ASSERT_EQ(long_request.size(), 255u);
+  this->client_.push(long_request);
+  this->run();
+  EXPECT_EQ(this->client_.rx.size(), 7u);
+  this->run();
+  EXPECT_TRUE(this->client_.rx.empty());
+
+  this->bms_.push(frame({0x02, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  ASSERT_EQ(this->bms_.tx.size(), busy.size() + long_request.size());
+  EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + static_cast<std::ptrdiff_t>(busy.size()), this->bms_.tx.end()),
+            long_request);
+}
+
+// A local port reports the room its buffer has, and a flush is not confirmed while its request waits.
+TEST_F(GatewayRoute, LocalPortReportsItsRoom) {
+  auto busy = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(busy);
+  this->run();
+  EXPECT_EQ(this->local_.available_for_write(), MAX_FRAME);
+  EXPECT_EQ(this->local_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS);
+
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->local_.write_array(request.data(), request.size());
+  EXPECT_EQ(this->local_.available_for_write(), MAX_FRAME - request.size());
+  EXPECT_EQ(this->local_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT);
+
+  this->bms_.push(frame({0x02, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  EXPECT_EQ(this->local_.available_for_write(), MAX_FRAME);
+  EXPECT_EQ(this->local_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS);
 }
 
 }  // namespace esphome::modbus_gateway::testing

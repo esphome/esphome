@@ -17,8 +17,6 @@ static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
 // The Modbus client hub's default. A broadcast is never answered. The pause
 // lets the device finish the write before the next frame.
 static constexpr uint32_t BROADCAST_TURNAROUND_MS = 600;
-// Bytes moved per UART read.
-static constexpr size_t READ_CHUNK = 64;
 
 // Same character size as the Modbus hub: start bit, data bits, parity and stop bits.
 // A UART that never set them is 8N1.
@@ -57,22 +55,22 @@ static uint32_t frame_ms(uint32_t baud, uint8_t bits) {
 
 // The address and the function must belong to the request that is on the bus, and a read
 // must carry the byte count of the quantity it asked for. An exception sets the high bit of the function.
-static bool response_matches(const uint8_t *request, uint16_t request_len, const uint8_t *response,
-                             uint16_t response_len) {
-  if (request_len < 2 || response_len < 3 || response[0] != request[0]) {
+// key is the request's unit, function, start and quantity.
+static bool response_matches(const uint8_t *key, const uint8_t *response, uint16_t response_len) {
+  if (response_len < 3 || response[0] != key[0]) {
     return false;
   }
-  uint8_t function = request[1];
+  uint8_t function = key[1];
   if (response[1] == static_cast<uint8_t>(function | 0x80)) {
     return true;
   }
   if (response[1] != function) {
     return false;
   }
-  if (!modbus::helpers::is_function_code_read_only(function) || request_len < 6) {
+  if (!modbus::helpers::is_function_code_read_only(function)) {
     return true;
   }
-  uint16_t quantity = encode_uint16(request[4], request[5]);
+  uint16_t quantity = encode_uint16(key[4], key[5]);
   bool bits = function == modbus::FunctionCode::READ_COILS || function == modbus::FunctionCode::READ_DISCRETE_INPUTS;
   size_t expected = bits ? modbus::packed_bit_bytes(quantity) : size_t(quantity) * 2;
   return response[2] == expected;
@@ -141,29 +139,22 @@ uart::UARTFlushResult GatewayUart::flush() {
 
 void ModbusGateway::port_write(uint8_t index, const uint8_t *data, size_t len) {
   Port &port = this->ports_[index];
-  size_t room = MAX_FRAME - port.len;
+  // A newer request replaces the one that waits for the bus.
+  if (len > static_cast<size_t>(MAX_FRAME - port.len) && port.pending_len != 0) {
+    consume(port.data, &port.len, port.pending_len);
+    port.pending_len = 0;
+  }
   uint32_t now = App.get_loop_component_start_time();
-  if (len > room) {
+  if (len > static_cast<size_t>(MAX_FRAME - port.len)) {
     if (now - this->last_response_log_ms_ >= BAD_LOG_INTERVAL_MS) {
       this->last_response_log_ms_ = now;
       ESP_LOGW(TAG, "Write dropped, the buffer holds one frame");
     }
-    len = room;
-  }
-  if (len == 0) {
     return;
   }
   std::memcpy(port.data + port.len, data, len);
   port.len += static_cast<uint16_t>(len);
   port.last_ms = now;
-}
-
-uart::UARTComponent *ModbusGateway::endpoint_(uint8_t index) {
-  Port &port = this->ports_[index];
-  if (port.local != nullptr) {
-    return port.local;
-  }
-  return port.uart;
 }
 
 void ModbusGateway::log_bad_(uint32_t now, bool crc) {
@@ -187,9 +178,6 @@ void ModbusGateway::log_mismatch_(uint32_t now) {
 }
 
 bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len) {
-  if (dest == nullptr || len == 0) {
-    return false;
-  }
   // A partial write would open a gap on the wire longer than one frame.
   size_t room = dest->available_for_write();
   if (room != SIZE_MAX && room < len) {
@@ -201,8 +189,8 @@ bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data,
 
 bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
   Port &port = this->ports_[index];
-  if (port.local != nullptr) {
-    if (!port.local->inject_rx(data, len)) {
+  if (port.local) {
+    if (!static_cast<GatewayUart *>(port.uart)->inject_rx(data, len)) {
       this->log_dropped_(now, false, len);
       return false;
     }
@@ -227,69 +215,57 @@ void ModbusGateway::log_dropped_(uint32_t now, bool on_uart, uint16_t len) {
   ESP_LOGW(TAG, "Response dropped, the UART cannot take %u bytes", static_cast<unsigned>(len));
 }
 
+// The bytes behind the waiting request are parsed. A complete request there replaces the waiting one:
+// a client that polls again before its turn keeps only the latest request.
 void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
   Port &port = this->ports_[index];
-  uart::UARTComponent *end = this->endpoint_(index);
-  uint32_t baud = end != nullptr && end->get_baud_rate() != 0 ? end->get_baud_rate() : 9600;
-  uint32_t gap = gap_ms(baud, bits_per_char(end));
-  while (port.len > 0) {
-    bool silent = now - port.last_ms >= gap;
-    Inspect found = inspect(port.data, port.len, true, silent);
-    if (found.len == 0) {
-      if (found.bad_crc && !found.drop_all && port.len > 0) {
-        this->log_bad_(now, true);
-        consume(port.data, &port.len, 1);
-        continue;
-      }
-      if (found.drop_all) {
-        this->log_bad_(now, found.bad_crc);
-        port.len = 0;
-      }
+  uint32_t baud = port.uart->get_baud_rate() != 0 ? port.uart->get_baud_rate() : 9600;
+  bool silent = now - port.last_ms >= gap_ms(baud, bits_per_char(port.uart));
+  while (port.len > port.pending_len) {
+    uint8_t *rest = port.data + port.pending_len;
+    uint16_t rest_len = port.len - port.pending_len;
+    Inspect found = inspect(rest, rest_len, true, silent);
+    if (found.len != 0) {
+      consume(port.data, &port.len, port.pending_len);
+      port.pending_len = found.len;
+      continue;
+    }
+    if (found.bad_crc && !found.drop_all) {
+      this->log_bad_(now, true);
+      consume(rest, &rest_len, 1);
+      port.len = port.pending_len + rest_len;
+      continue;
+    }
+    if (found.drop_all) {
+      this->log_bad_(now, found.bad_crc);
+      port.len = port.pending_len;
       return;
     }
-    // A client that polls again before its turn keeps only the latest request.
-    std::memcpy(port.pending, port.data, found.len);
-    port.pending_len = found.len;
-    consume(port.data, &port.len, found.len);
+    if (port.len < MAX_FRAME || port.pending_len == 0) {
+      return;
+    }
+    // Full: the newer request needs the room of the waiting one.
+    consume(port.data, &port.len, port.pending_len);
+    port.pending_len = 0;
   }
 }
 
 void ModbusGateway::read_port_(uint8_t index, uint32_t now) {
   Port &port = this->ports_[index];
-  uart::UARTComponent *end = this->endpoint_(index);
-  if (end == nullptr) {
-    return;
-  }
-  uint8_t tmp[READ_CHUNK];
-  while (port.local == nullptr && port.len < MAX_FRAME) {
-    size_t waiting = end->available();
-    if (waiting == 0) {
-      break;
+  if (!port.local) {
+    // When the buffer is full the bytes stay in the port's UART.
+    size_t n = std::min(port.uart->available(), static_cast<size_t>(MAX_FRAME - port.len));
+    if (n != 0 && port.uart->read_array(port.data + port.len, n)) {
+      port.len += static_cast<uint16_t>(n);
+      port.last_ms = now;
     }
-    size_t n = std::min(waiting, sizeof(tmp));
-    n = std::min(n, static_cast<size_t>(MAX_FRAME - port.len));
-    if (!end->read_array(tmp, n)) {
-      break;
-    }
-    std::memcpy(port.data + port.len, tmp, n);
-    port.len += static_cast<uint16_t>(n);
-    port.last_ms = now;
   }
   this->take_requests_(index, now);
 }
 
 void ModbusGateway::read_bus_(uint32_t now) {
-  uint8_t tmp[READ_CHUNK];
-  while (this->bus_len_ < MAX_FRAME) {
-    size_t waiting = this->parent_->available();
-    if (waiting == 0) {
-      break;
-    }
-    size_t n = std::min({waiting, sizeof(tmp), static_cast<size_t>(MAX_FRAME - this->bus_len_)});
-    if (!this->parent_->read_array(tmp, n)) {
-      break;
-    }
-    std::memcpy(this->bus_ + this->bus_len_, tmp, n);
+  size_t n = std::min(this->parent_->available(), static_cast<size_t>(MAX_FRAME - this->bus_len_));
+  if (n != 0 && this->parent_->read_array(this->bus_ + this->bus_len_, n)) {
     this->bus_len_ += static_cast<uint16_t>(n);
     this->bus_last_ms_ = now;
   }
@@ -309,7 +285,7 @@ void ModbusGateway::read_bus_(uint32_t now) {
       }
       return;
     }
-    if (!response_matches(this->request_, this->request_len_, this->bus_, found.len)) {
+    if (!response_matches(this->request_key_, this->bus_, found.len)) {
       this->log_mismatch_(now);
       consume(this->bus_, &this->bus_len_, found.len);
       continue;
@@ -335,33 +311,32 @@ bool ModbusGateway::start_next_(uint32_t now) {
     if (port.pending_len == 0) {
       continue;
     }
-    if (!this->write_frame_(this->parent_, port.pending, port.pending_len)) {
+    if (!this->write_frame_(this->parent_, port.data, port.pending_len)) {
       return false;
     }
-    std::memcpy(this->request_, port.pending, port.pending_len);
-    this->request_len_ = port.pending_len;
+    // The first six bytes are always in the buffer. Bytes past a shorter request are not read.
+    std::memcpy(this->request_key_, port.data, sizeof(this->request_key_));
+    consume(port.data, &port.len, port.pending_len);
     port.pending_len = 0;
     this->active_ = static_cast<int8_t>(index);
     this->sent_ms_ = now;
     this->bus_len_ = 0;
     // Address 0 is a broadcast. Nothing may answer. loop() holds the bus
     // for the turnaround and drops anything that arrives meanwhile.
-    this->awaiting_ = this->request_[0] != 0;
+    this->awaiting_ = this->request_key_[0] != 0;
     this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
     return true;
   }
   return false;
 }
 
+// Nothing is expected while no request is open. It is read into bus_ and dropped.
 void ModbusGateway::drain_bus_(uint32_t now) {
-  uint8_t junk[READ_CHUNK];
-  while (true) {
-    size_t waiting = this->parent_->available();
-    if (waiting == 0 || !this->parent_->read_array(junk, std::min(waiting, sizeof(junk)))) {
-      return;
-    }
+  size_t n = std::min(this->parent_->available(), sizeof(this->bus_));
+  if (n != 0 && this->parent_->read_array(this->bus_, n)) {
     this->bus_last_ms_ = now;
   }
+  this->bus_len_ = 0;
 }
 
 void ModbusGateway::loop() { this->run_(App.get_loop_component_start_time()); }

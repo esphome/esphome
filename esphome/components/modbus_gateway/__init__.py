@@ -20,6 +20,9 @@ modbus_gateway_ns = cg.esphome_ns.namespace("modbus_gateway")
 ModbusGateway = modbus_gateway_ns.class_("ModbusGateway", cg.Component, uart.UARTDevice)
 GatewayUart = modbus_gateway_ns.class_("GatewayUart", uart.VirtualUARTComponent)
 
+# Each gateway holds one buffer per port. The count is the most ports any one gateway has.
+_request_port_slot = cg.slot_counter("MODBUS_GATEWAY_PORT_COUNT")
+
 
 def _port_schema(value: ConfigType) -> ConfigType:
     value = cv.Schema(
@@ -147,6 +150,7 @@ async def to_code(config: ConfigType) -> None:
         CORE.config.get_path_for_id(config[CONF_UART_ID])[:-1]
     )
     for index, port in enumerate(ports):
+        _request_port_slot(str(config[CONF_ID]))
         if CONF_UART_ID in port:
             parent = await cg.get_variable(port[CONF_UART_ID])
             cg.add(var.set_port_uart(index, parent))
