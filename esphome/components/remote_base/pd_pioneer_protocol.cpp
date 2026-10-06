@@ -87,7 +87,8 @@ optional<PDPioneerData> PDPioneerProtocol::decode(RemoteReceiveData src) {
   }
 
   char buf[PDPioneerData::TO_STR_BUFFER_SIZE];
-  ESP_LOGI(TAG, "RX %s burst: %s", out.is_odd_burst() ? "odd" : "even", out.to_str(buf));
+  ESP_LOGI(TAG, "RX %s burst: %s", out.is_odd_burst() ? LOG_STR_LITERAL("odd") : LOG_STR_LITERAL("even"),
+           out.to_str(buf));
   return out;
 }
 
