@@ -134,7 +134,7 @@ struct UsbDeviceInfo {
 };
 
 /// Copy a USB string descriptor into a NUL-terminated buffer. A missing descriptor copies as
-/// an empty string. Returns false when when a descriptor contains non-ASCII characters,
+/// an empty string. Returns false when a descriptor contains non-ASCII characters,
 /// UTF-16 to UTF-8 conversion is not currently implemented.
 bool copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
 
@@ -166,7 +166,7 @@ class USBClient : public Component {
                         const std::vector<uint8_t> &data = {});
 
   /// Whether a device has been opened and its setup by the subclass has finished
-  bool is_connected() const { return this->state_ == USB_CLIENT_CONNECTED; }
+  bool is_connected() const { return this->connection_reported_; }
 
   /// Copy the connected device's identity out of the cached USB descriptors.
   /// Returns false when no device is connected or the host stack refused the query.
