@@ -5,6 +5,7 @@
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 #include <functional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include "api_pb2.h"
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
@@ -12,16 +13,17 @@
 #endif
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::api {
 
 // Converts a lambda result to the string sent to Home Assistant
-template<typename T> std::string field_to_string(T &&val) {
+template<typename T>
+requires(!std::is_pointer_v<std::remove_cvref_t<T>>) std::string field_to_string(T &&val) {
   return to_string(std::forward<T>(val));  // NOLINT
 }
-inline std::string field_to_string(char *val) { return val ? std::string(val) : std::string(); }
-inline std::string field_to_string(const char *val) { return std::string(val); }
+inline std::string field_to_string(const char *val) { return val ? std::string(val) : std::string(); }
 inline std::string field_to_string(std::string val) { return val; }
 inline std::string field_to_string(StringRef val) { return val.str(); }
 
@@ -30,12 +32,12 @@ inline std::string field_to_string(StringRef val) { return val.str(); }
 template<typename... Ts> struct HomeAssistantField {
   const char *key;
   const char *value;
-  std::string (*fn)(Ts...);
+  std::string (*fn)(const Ts &...);
 
   template<typename F> static constexpr HomeAssistantField from_lambda(const char *key, F /*lambda*/) {
     return {key, nullptr, &call_lambda<F>};
   }
-  template<typename F> static std::string call_lambda(Ts... x) { return field_to_string(F{}(x...)); }
+  template<typename F> static std::string call_lambda(const Ts &...x) { return field_to_string(F{}(x...)); }
 };
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -120,13 +122,16 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
     size_t flash_len = 0;
 #endif
     for (size_t i = 0; i < total; i++) {
-      if (fields[i].fn != nullptr)
+      if (fields[i].fn != nullptr) {
         lambda_count++;
 #ifdef USE_ESP8266
-      if (fields[i].fn == nullptr)
-        flash_len += strlen_P(fields[i].value);
+      } else {
+        flash_len += ESPHOME_strlen_P(fields[i].value);
+#endif
+      }
+#ifdef USE_ESP8266
       if (fields[i].key != nullptr)
-        flash_len += strlen_P(fields[i].key);
+        flash_len += ESPHOME_strlen_P(fields[i].key);
 #endif
     }
     FixedVector<std::string> results;
@@ -137,7 +142,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
 #endif
     auto string_ref = [&](const char *str) {
 #ifdef USE_ESP8266
-      size_t len = strlen_P(str);
+      size_t len = ESPHOME_strlen_P(str);
       memcpy_P(cursor, str, len);
       StringRef ref(cursor, len);
       cursor += len;

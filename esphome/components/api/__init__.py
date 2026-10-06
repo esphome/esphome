@@ -662,6 +662,11 @@ VARIABLES_SCHEMA = cv.Schema(
     {cv.string: cv.All(_coerce_implicit_lambda, cv.templatable(cv.string_strict))}
 )
 
+# The action stores each map's entry count in a uint8_t
+_FIELD_MAP_MAX = 255
+DATA_FIELDS_SCHEMA = cv.All(KEY_VALUE_SCHEMA, cv.Length(max=_FIELD_MAP_MAX))
+VARIABLES_FIELDS_SCHEMA = cv.All(VARIABLES_SCHEMA, cv.Length(max=_FIELD_MAP_MAX))
+
 
 def _validate_response_config(config: ConfigType) -> ConfigType:
     # Validate dependencies:
@@ -696,9 +701,9 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
             cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.templatable(
                 cv.string
             ),
-            cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
-            cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-            cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
+            cv.Optional(CONF_DATA, default={}): DATA_FIELDS_SCHEMA,
+            cv.Optional(CONF_DATA_TEMPLATE, default={}): DATA_FIELDS_SCHEMA,
+            cv.Optional(CONF_VARIABLES, default={}): VARIABLES_FIELDS_SCHEMA,
             cv.Optional(CONF_RESPONSE_TEMPLATE): cv.templatable(cv.string),
             cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
             cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
@@ -720,40 +725,38 @@ def _field_string(value: str) -> Expression:
 
 
 async def _new_service_call_action(
-    config: ConfigType,
+    server_id: ID,
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
     is_event: bool,
     service: Any,
+    data: dict[str, Any],
+    data_template: dict[str, Any] | None = None,
+    variables: dict[str, Any] | None = None,
 ) -> MockObj:
     """Create the action with its name and fields in one shared flash table."""
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    serv = await cg.get_variable(config[CONF_ID])
+    serv = await cg.get_variable(server_id)
     field_type = HomeAssistantField.template(template_arg)
-    has_lambda = False
+    groups = [data, data_template or {}, variables or {}]
+    # A lambda may keep static state, so a table with lambdas is never shared
+    has_lambda = cg.is_template(service) or any(
+        cg.is_template(value) for group in groups for value in group.values()
+    )
 
     async def field(key: str | None, value: Any, output_type: Any = None) -> Expression:
-        nonlocal has_lambda
         key_exp = cg.nullptr if key is None else _field_string(key)
         if cg.is_template(value):
-            has_lambda = True
             # output_type=None lets lambdas return numbers or char pointers; C++ converts them
             lam = await cg.process_lambda(value, args, return_type=output_type)
             return cg.RawExpression(f"{field_type}::from_lambda({key_exp}, {lam})")
         return cg.ArrayInitializer(key_exp, _field_string(value), cg.nullptr)
 
-    groups = [
-        config.get(key, {}) for key in (CONF_DATA, CONF_DATA_TEMPLATE, CONF_VARIABLES)
-    ]
-    # The action stores each count in a uint8_t
-    if any(len(group) > 255 for group in groups):
-        raise EsphomeError("Home Assistant actions support at most 255 entries per map")
     entries = [await field(None, service, cg.std_string)]
     for group in groups:
         for key, value in group.items():
             entries.append(await field(key, value))
-    # A lambda may keep static state, so a table with lambdas is never shared
     table = cg.shared_progmem_array(
         "ha_action_fields",
         field_type,
@@ -763,6 +766,10 @@ async def _new_service_call_action(
     return cg.new_Pvariable(
         action_id, template_arg, serv, is_event, table, *(len(g) for g in groups)
     )
+
+
+def _service_call_fields(config: ConfigType) -> tuple[dict[str, Any], ...]:
+    return config[CONF_DATA], config[CONF_DATA_TEMPLATE], config[CONF_VARIABLES]
 
 
 # synchronous=False: when on_success/on_error is configured, play() stores the
@@ -787,7 +794,13 @@ async def homeassistant_service_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     var = await _new_service_call_action(
-        config, action_id, template_arg, args, False, config[CONF_ACTION]
+        config[CONF_ID],
+        action_id,
+        template_arg,
+        args,
+        False,
+        config[CONF_ACTION],
+        *_service_call_fields(config),
     )
 
     if on_error := config.get(CONF_ON_ERROR):
@@ -840,9 +853,9 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(APIServer),
         cv.Required(CONF_EVENT): validate_homeassistant_event,
-        cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
+        cv.Optional(CONF_DATA, default={}): DATA_FIELDS_SCHEMA,
+        cv.Optional(CONF_DATA_TEMPLATE, default={}): DATA_FIELDS_SCHEMA,
+        cv.Optional(CONF_VARIABLES, default={}): VARIABLES_FIELDS_SCHEMA,
     }
 )
 
@@ -862,7 +875,13 @@ async def homeassistant_event_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     return await _new_service_call_action(
-        config, action_id, template_arg, args, True, config[CONF_EVENT]
+        config[CONF_ID],
+        action_id,
+        template_arg,
+        args,
+        True,
+        config[CONF_EVENT],
+        *_service_call_fields(config),
     )
 
 
@@ -887,9 +906,14 @@ async def homeassistant_tag_scanned_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    tag_config = {CONF_ID: config[CONF_ID], CONF_DATA: {"tag_id": config[CONF_TAG]}}
     return await _new_service_call_action(
-        tag_config, action_id, template_arg, args, True, "esphome.tag_scanned"
+        config[CONF_ID],
+        action_id,
+        template_arg,
+        args,
+        True,
+        "esphome.tag_scanned",
+        {"tag_id": config[CONF_TAG]},
     )
 
 
