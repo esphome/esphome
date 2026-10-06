@@ -38,9 +38,15 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_INTERLOCK in config:
         cg.add_define("USE_GPIO_SWITCH_INTERLOCK")
-        interlock = []
-        for it in config[CONF_INTERLOCK]:
-            lock = await cg.get_variable(it)
-            interlock.append(lock)
-        cg.add(var.set_interlock(interlock))
+        locks = [await cg.get_variable(it) for it in config[CONF_INTERLOCK]]
+        # The group's table lists this switch too, so every member shares one table.
+        group = sorted({str(s): s for s in (var, *locks)}.values(), key=str)
+        if len(group) > 1:
+            table = cg.shared_progmem_array(
+                "gpio_interlock",
+                switch.Switch.operator("ptr"),
+                cg.ArrayInitializer(*group),
+                constexpr=False,
+            )
+            cg.add(var.set_interlock(table, len(group)))
         cg.add(var.set_interlock_wait_time(config[CONF_INTERLOCK_WAIT_TIME]))
