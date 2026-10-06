@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -129,12 +131,19 @@ class Fan : public EntityBase {
 
   virtual FanTraits get_traits() = 0;
 
-  /// Set the supported preset modes (stored on Fan, referenced by FanTraits via pointer).
+  /// Set the supported preset modes; the list is copied (stored on Fan, referenced by FanTraits).
   void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
-    this->ensure_preset_modes_().assign(preset_modes.begin(), preset_modes.end());
+    this->supported_preset_modes_.assign_copy(preset_modes.begin(), preset_modes.size());
   }
   void set_supported_preset_modes(const std::vector<const char *> &preset_modes) {
-    this->ensure_preset_modes_() = preset_modes;
+    this->supported_preset_modes_.assign_copy(preset_modes.data(), preset_modes.size());
+  }
+  void set_supported_preset_modes(const FanPresetModes &preset_modes) {
+    this->supported_preset_modes_.assign_copy(preset_modes.data(), preset_modes.size());
+  }
+  /// Points at a static table that outlives the fan (codegen); call before any runtime copy.
+  void set_supported_preset_modes_static(const char *const *preset_modes, size_t count) {
+    this->supported_preset_modes_.assign_static(preset_modes, count);
   }
 
   /// Set the restore mode of this fan.
@@ -175,26 +184,14 @@ class Fan : public EntityBase {
   const char *find_preset_mode_(const char *preset_mode, size_t len);
 
   /// Wire the Fan-owned preset modes pointer into the given traits object.
-  void wire_preset_modes_(FanTraits &traits) {
-    if (this->supported_preset_modes_) {
-      traits.set_supported_preset_modes_(this->supported_preset_modes_);
-    }
-  }
+  void wire_preset_modes_(FanTraits &traits) { traits.set_supported_preset_modes_(&this->supported_preset_modes_); }
 
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_{FanRestoreMode::NO_RESTORE};
 
  private:
-  /// Lazy-allocate preset modes vector (never freed — entity lives forever).
-  std::vector<const char *> &ensure_preset_modes_() {
-    if (!this->supported_preset_modes_) {
-      this->supported_preset_modes_ = new std::vector<const char *>();  // NOLINT
-    }
-    return *this->supported_preset_modes_;
-  }
-
-  std::vector<const char *> *supported_preset_modes_{nullptr};
+  FanPresetModes supported_preset_modes_;
   const char *preset_mode_{nullptr};
 };
 
