@@ -15,24 +15,27 @@ class LightEffectNames {
 
   class Iterator {
    public:
-    Iterator(const ConstVector<LightEffect *> &effects, size_t index) : effects_(effects), index_(index) {}
-    StringRef operator*() const {
+    ESPHOME_ALWAYS_INLINE Iterator(const ConstVector<LightEffect *> &effects, size_t index)
+        : effects_(effects), index_(index) {}
+    ESPHOME_ALWAYS_INLINE StringRef operator*() const {
       return this->index_ == 0 ? StringRef::from_lit("None") : this->effects_[this->index_ - 1]->get_name();
     }
-    Iterator &operator++() {
+    ESPHOME_ALWAYS_INLINE Iterator &operator++() {
       ++this->index_;
       return *this;
     }
-    bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
+    ESPHOME_ALWAYS_INLINE bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
 
    protected:
     const ConstVector<LightEffect *> &effects_;
     size_t index_;
   };
 
-  Iterator begin() const { return {this->effects_, 0}; }
-  Iterator end() const { return {this->effects_, this->effects_.empty() ? 0 : this->effects_.size() + 1}; }
-  bool empty() const { return this->effects_.empty(); }
+  ESPHOME_ALWAYS_INLINE Iterator begin() const { return {this->effects_, 0}; }
+  ESPHOME_ALWAYS_INLINE Iterator end() const {
+    return {this->effects_, this->effects_.empty() ? 0 : this->effects_.size() + 1};
+  }
+  ESPHOME_ALWAYS_INLINE bool empty() const { return this->effects_.empty(); }
 
  protected:
   const ConstVector<LightEffect *> &effects_;
