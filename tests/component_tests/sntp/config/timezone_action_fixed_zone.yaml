@@ -1,0 +1,23 @@
+esphome:
+  name: sntp-tz-action-error
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: "testssid"
+  password: "testpassword"
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: Europe/Sofia
+
+script:
+  - id: change_timezone
+    then:
+      - time.sntp.set_timezone: Australia/Sydney

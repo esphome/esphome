@@ -1,0 +1,4 @@
+packages:
+  sntp: !include common-timezone-service.yaml
+
+http_request:

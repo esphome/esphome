@@ -94,6 +94,11 @@ def _load_tzdata(iana_key: str) -> bytes | None:
         raise
 
 
+def is_valid_iana_zone(value: str) -> bool:
+    """True if `value` is a recognized IANA zone key, e.g. "Europe/London"."""
+    return _load_tzdata(value) is not None
+
+
 def _extract_tz_string(tzfile: bytes) -> str:
     try:
         return tzfile.split(b"\n")[-2].decode()
