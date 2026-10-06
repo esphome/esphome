@@ -12,17 +12,15 @@ uint8_t PN7160I2C::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
     return nfc::STATUS_FAILED;
   }
 
-  rx.get_message().resize(nfc::NCI_PKT_HEADER_SIZE);
+  rx.reset();
   if (!this->read_bytes_raw(rx.get_message().data(), nfc::NCI_PKT_HEADER_SIZE)) {
     return nfc::STATUS_FAILED;
   }
 
-  uint8_t length = rx.get_payload_size();
-  if (length > 0) {
-    rx.get_message().resize(length + nfc::NCI_PKT_HEADER_SIZE);
-    if (!this->read_bytes_raw(rx.get_message().data() + nfc::NCI_PKT_HEADER_SIZE, length)) {
-      return nfc::STATUS_FAILED;
-    }
+  const uint8_t length = rx.get_payload_size();
+  rx.set_payload_size(length);
+  if (length > 0 && !this->read_bytes_raw(rx.get_message().data() + nfc::NCI_PKT_HEADER_SIZE, length)) {
+    return nfc::STATUS_FAILED;
   }
   // IRQ normally drops at the end of the read. If another message is queued it rises again at once, and the short
   // low pulse may be missed; that means more data is waiting, not that this read failed (UM11495, 6.2.4).
@@ -33,7 +31,7 @@ uint8_t PN7160I2C::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
 }
 
 uint8_t PN7160I2C::write_nfcc(nfc::NciMessage &tx) {
-  auto encoded = tx.encode();
+  const auto encoded = tx.encode();
   if (this->write(encoded.data(), encoded.size()) == i2c::ERROR_OK) {
     return nfc::STATUS_OK;
   }

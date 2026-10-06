@@ -20,6 +20,7 @@ uart:
     baud_rate: 9600
     data_bits: 8
     rx_buffer_size: 512
+    tx_buffer_size: 512
     rx_full_threshold: 10
     rx_timeout: 1
     parity: EVEN

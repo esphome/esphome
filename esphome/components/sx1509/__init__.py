@@ -43,6 +43,10 @@ SX1509KeyTrigger = sx1509_ns.class_(
 
 
 def check_keys(config: ConfigType) -> ConfigType:
+    for ch in config.get(CONF_KEYS, ""):
+        if not ch.isascii():
+            # Each key is reported as one byte, so only ASCII characters can be key codes
+            raise cv.Invalid(f"Key code {ch!r} is not an ASCII character")
     if (
         CONF_KEYS in config
         and len(config[CONF_KEYS]) != config[CONF_KEY_ROWS] * config[CONF_KEY_COLUMNS]
@@ -98,8 +102,11 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_sleep_time(conf[CONF_SLEEP_TIME]))
             cg.add(var.set_scan_time(conf[CONF_SCAN_TIME]))
             cg.add(var.set_debounce_time(conf[CONF_DEBOUNCE_TIME]))
-        if keys := conf.get(CONF_KEYS):
-            cg.add(var.set_keys(keys))
+        if (keys := conf.get(CONF_KEYS)) is not None:
+            table = cg.shared_progmem_array(
+                "sx1509_keys", cg.uint8, list(keys.encode())
+            )
+            cg.add(var.set_keys(table))
         for tconf in conf.get(CONF_ON_KEY, []):
             trigger = cg.new_Pvariable(tconf[CONF_TRIGGER_ID])
             cg.add(var.register_key_trigger(trigger))
