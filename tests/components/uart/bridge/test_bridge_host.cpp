@@ -4,10 +4,8 @@
 
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <thread>
 #include <vector>
 
 namespace esphome::uart::testing {
@@ -354,21 +352,28 @@ TEST(UARTBridge, LongWaitForTheLineUsesNormalPasses) {
   const uint8_t before = FastLoopRequests::count();
   VirtualEnd a;
   WireUart b(9600);
+  // No room while the blocks are pushed, so the first goes out on a pass at a time the test sets.
+  b.room = 0;
   UARTBridgePipe pipe(&a, &b);
   pipe.set_from_virtual(&a);
   pipe.set_to_wire();
   pipe.setup();
   const auto first = frame(200);
   const auto second = frame(8, 0x80);
-  const uint32_t start = micros();
   a.inject_rx(first.data(), first.size());
   a.inject_rx(second.data(), second.size());
-  // 200 characters are on the wire for 208 ms: the second block waits, at normal loop passes until 20 ms are left.
-  EXPECT_TRUE(pipe.poll(start + 1000));
+  b.room = SIZE_MAX;
+  const uint32_t start = 1000000;
+  EXPECT_TRUE(pipe.poll(start));
+  ASSERT_EQ(b.writes.size(), 1u);
+  // 200 characters are on the wire for 208334 us: the second block waits, at normal loop passes until 20 ms are left.
+  const uint32_t hold = 208334 + GAP_9600_US;
   EXPECT_EQ(FastLoopRequests::count(), before);
-  EXPECT_TRUE(pipe.poll(start + 208334 + GAP_9600_US - 15000));
+  EXPECT_TRUE(pipe.poll(start + hold - 20000));
+  EXPECT_EQ(FastLoopRequests::count(), before);
+  EXPECT_TRUE(pipe.poll(start + hold - 19999));
   EXPECT_EQ(FastLoopRequests::count(), before + 1);
-  EXPECT_FALSE(pipe.poll(start + 208334 + GAP_9600_US + 1000));
+  EXPECT_FALSE(pipe.poll(start + hold));
   EXPECT_EQ(FastLoopRequests::count(), before);
   ASSERT_EQ(b.writes.size(), 2u);
 }
@@ -392,23 +397,26 @@ TEST(UARTBridge, SecondPushIsItsOwnBlockAfterTheGap) {
   // A broadcast and the next request pushed in one call keep 3.5 characters of silence between them.
   VirtualEnd a;
   WireUart b(9600);
-  b.room = 128;
+  // No room while they are pushed, so the first goes out on a pass at a time the test sets.
+  b.room = 0;
   UARTBridgePipe pipe(&a, &b);
   pipe.set_from_virtual(&a);
   pipe.set_to_wire();
   pipe.setup();
   const auto broadcast = frame(13);
   const auto request = frame(8, 0x40);
-  const uint32_t start = micros();
   a.inject_rx(broadcast.data(), broadcast.size());
   a.inject_rx(request.data(), request.size());
+  b.room = 128;
+  const uint32_t start = 1000000;
+  EXPECT_TRUE(pipe.poll(start));
   ASSERT_EQ(b.writes.size(), 1u);
   EXPECT_EQ(b.writes[0], broadcast);
   // 13 characters are on the wire for 13542 us.
   const uint32_t hold = 13542 + GAP_9600_US;
-  EXPECT_TRUE(pipe.poll(start + hold - 1000));
+  EXPECT_TRUE(pipe.poll(start + hold - 1));
   EXPECT_EQ(b.writes.size(), 1u);
-  EXPECT_FALSE(pipe.poll(start + hold + 1000));
+  EXPECT_FALSE(pipe.poll(start + hold));
   ASSERT_EQ(b.writes.size(), 2u);
   EXPECT_EQ(b.writes[1], request);
 }
@@ -541,7 +549,6 @@ class BlockingWire : public WireUart {
     if (this->source != nullptr && data[len - 1] == this->last_byte) {
       this->source->receive(3, 0x80);
       this->source = nullptr;
-      std::this_thread::sleep_for(std::chrono::milliseconds(6));
     }
   }
 
@@ -558,20 +565,17 @@ TEST(UARTBridge, BytesThatArriveDuringABlockingWriteAreTimedFromItsEnd) {
   a.receive(8);
   b.source = &a;
   b.last_byte = 7;
-  pipe.poll();
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  for (int i = 0; i < 20 && b.source != nullptr; i++) {
-    pipe.poll();
-  }
+  pipe.poll(0);
+  pipe.poll(GAP_9600_US);
   ASSERT_EQ(b.source, nullptr);
-  pipe.poll();
-  pipe.poll();
-  // The three bytes arrived up to 6 ms ago, but were seen only after the write: no block yet.
+  // The write took 6 ms. The three bytes that arrived meanwhile are seen on the next pass and timed from there.
+  const uint32_t end = GAP_9600_US + 6000;
+  pipe.poll(end);
+  pipe.poll(end + GAP_9600_US - 1);
   ASSERT_EQ(b.joined(), frame(8));
   a.receive(5, 0x83);
-  pipe.poll();
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  pipe.poll();
+  pipe.poll(end + GAP_9600_US - 1);
+  pipe.poll(end + 2 * GAP_9600_US - 1);
   EXPECT_EQ(b.writes.back(), frame(8, 0x80));
 }
 
