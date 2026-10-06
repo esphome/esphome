@@ -17,6 +17,8 @@ from .defines import (
     CONF_ALIGN,
     CONF_ALIGN_TO,
     CONF_ALIGN_TO_LAMBDA_ID,
+    CONF_CLICKABLE,
+    CONF_SCROLLABLE,
     DIRECTIONS,
     LV_DISPLAY_EVENT_MAP,
     LV_DISPLAY_EVENT_TRIGGERS,
@@ -72,7 +74,7 @@ async def generate_triggers():
                 event: conf for event, conf in config.items() if event in all_triggers
             }.items():
                 conf = conf[0]
-                w.set_flag("clickable", True)
+                w.set_flag(CONF_CLICKABLE, True)
                 await add_trigger(conf, w, event)
 
             for event, conf in {
@@ -82,7 +84,7 @@ async def generate_triggers():
                 dir = event[9:].upper()
                 dir = {"UP": "TOP", "DOWN": "BOTTOM"}.get(dir, dir)
                 dir = DIRECTIONS.mapper(dir)
-                w.set_flag("scrollable", False)
+                w.set_flag(CONF_SCROLLABLE, False)
                 selected = literal(
                     f"lv_indev_get_gesture_dir(lv_indev_active()) == {dir}"
                 )

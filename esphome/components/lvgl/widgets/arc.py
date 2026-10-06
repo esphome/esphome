@@ -13,6 +13,7 @@ from ..defines import (
     ARC_MODES,
     CONF_ADJUSTABLE,
     CONF_CHANGE_RATE,
+    CONF_CLICKABLE,
     CONF_END_ANGLE,
     CONF_INDICATOR,
     CONF_KNOB,
@@ -84,7 +85,7 @@ class ArcType(NumberType):
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
                 lv_obj.remove_style(w.obj, nullptr, LV_PART.KNOB)
-                w.set_flag("clickable", False)
+                w.set_flag(CONF_CLICKABLE, False)
             elif CONF_GROUP not in config:
                 # For some reason arc does not get automatically added to the default group
                 lv.group_add_obj(lv_expr.group_get_default(), w.obj)

@@ -333,7 +333,7 @@ class Widget:
         """
         Set or clear an object flag, given as the lower case name without the LV_OBJ_FLAG_ prefix
         """
-        getattr(lv_obj, f"set_{flag}")(self.obj, value)
+        lv_obj.call(f"set_{flag}", self.obj, value)
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))

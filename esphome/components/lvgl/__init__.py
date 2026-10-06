@@ -334,6 +334,8 @@ async def to_code(configs):
             # The LVGL PPA driver uses cache functions added in ESP-IDF 6.0
             if idf_version() >= cv.Version(6, 0, 0):
                 df.add_define("LV_USE_PPA", "1")
+            else:
+                df.add_define("LV_USE_PPA", "0")
             df.add_define("LV_DRAW_BUF_ALIGN", "64")
         else:
             df.add_define("LV_DRAW_BUF_ALIGN", "32")
