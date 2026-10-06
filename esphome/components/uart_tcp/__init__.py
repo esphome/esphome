@@ -44,7 +44,7 @@ BASE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): cv.string}),
+            "client": BASE_SCHEMA.extend({cv.Required(CONF_HOST): socket.ipv4_host}),
             "server": BASE_SCHEMA.extend(
                 {cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA}
             ),
