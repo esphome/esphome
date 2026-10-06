@@ -1,16 +1,15 @@
 modbus_gateway:
   - id: gate
     uart_id: uart_bus
-    response_timeout: 500ms
+    response_timeout: 200ms
     ports:
-      - uart_id: inverter_bus
       - id: local_bus
 
 modbus:
   - id: local_hub
     uart_id: local_bus
     role: client
-    send_wait_time: 200ms
+    send_wait_time: 500ms
 
 modbus_controller:
   - id: bms_view

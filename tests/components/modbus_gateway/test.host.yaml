@@ -2,8 +2,6 @@ uart:
   - id: uart_bus
     baud_rate: 9600
     port: /dev/ttyS0
-  - id: inverter_bus
-    baud_rate: 9600
-    port: /dev/ttyS1
 
-<<: !include common.yaml
+packages:
+  modbus_gateway: !include common.yaml

@@ -1,11 +1,3 @@
-uart:
-  - id: uart_bus
-    tx_pin: GPIO17
-    rx_pin: GPIO16
-    baud_rate: 9600
-  - id: inverter_bus
-    tx_pin: GPIO18
-    rx_pin: GPIO19
-    baud_rate: 9600
-
-<<: !include common.yaml
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  modbus_gateway: !include common.yaml
