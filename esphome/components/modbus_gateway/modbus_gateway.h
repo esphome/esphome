@@ -36,7 +36,7 @@ class GatewayUart : public uart::UARTComponent {
   uint8_t rx_[MAX_FRAME]{};
 };
 
-/// One Modbus RTU bus, several masters. One request is on the bus at a time.
+/// One Modbus RTU bus, several clients. One request is on the bus at a time.
 /// The response is written back only to the port that sent the request.
 class ModbusGateway : public Component, public uart::UARTDevice {
  public:
@@ -60,15 +60,17 @@ class ModbusGateway : public Component, public uart::UARTDevice {
     uint8_t pending[MAX_FRAME]{};
   };
 
+  void run_(uint32_t now);
   void read_port_(uint8_t index, uint32_t now);
   void take_requests_(uint8_t index, uint32_t now);
   void read_bus_(uint32_t now);
+  void drain_bus_(uint32_t now);
   bool start_next_(uint32_t now);
   bool write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len);
-  bool deliver_(uint8_t index, const uint8_t *data, uint16_t len);
+  bool deliver_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now);
   void log_bad_(uint32_t now, bool crc);
   void log_mismatch_(uint32_t now);
-  void log_dropped_(bool on_uart, uint16_t len);
+  void log_dropped_(uint32_t now, bool on_uart, uint16_t len);
   uart::UARTComponent *endpoint_(uint8_t index);
 
   Port ports_[MAX_PORTS]{};
@@ -85,6 +87,8 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   uint8_t next_port_{0};
   int8_t active_{-1};
   bool awaiting_{false};
+  // Set after a timeout. A late response must not reach the next port.
+  bool quarantine_{false};
   uint8_t request_[MAX_FRAME]{};
   uint8_t bus_[MAX_FRAME]{};
 };

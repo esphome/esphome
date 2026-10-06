@@ -1,6 +1,7 @@
 #include "modbus_gateway.h"
 
 #include "esphome/components/modbus/modbus_helpers.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -16,6 +17,8 @@ static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
 // The Modbus client hub's default. A broadcast is never answered. The pause
 // lets the device finish the write before the next frame.
 static constexpr uint32_t BROADCAST_TURNAROUND_MS = 600;
+// Bytes moved per UART read.
+static constexpr size_t READ_CHUNK = 64;
 
 // Same character size as the Modbus hub: start bit, data bits, parity and stop bits.
 // A UART that never set them is 8N1.
@@ -43,15 +46,36 @@ static uint32_t gap_ms(uint32_t baud, uint8_t bits) {
   return std::max<uint32_t>(1, (uint32_t(bits) * 3500 + baud - 1) / baud);
 }
 
-// The address and the function must belong to the request that is on the bus.
-// An exception response sets the high bit of that function code.
+// Time to send one frame of the largest size. After a timeout the bus stays closed
+// until it was quiet this long, so a late response is dropped.
+static uint32_t frame_ms(uint32_t baud, uint8_t bits) {
+  if (baud == 0) {
+    baud = 9600;
+  }
+  return (uint32_t(MAX_FRAME) * bits * 1000 + baud - 1) / baud;
+}
+
+// The address and the function must belong to the request that is on the bus, and a read
+// must carry the byte count of the quantity it asked for. An exception sets the high bit of the function.
 static bool response_matches(const uint8_t *request, uint16_t request_len, const uint8_t *response,
                              uint16_t response_len) {
-  if (request_len < 2 || response_len < 2 || response[0] != request[0]) {
+  if (request_len < 2 || response_len < 3 || response[0] != request[0]) {
     return false;
   }
   uint8_t function = request[1];
-  return response[1] == function || response[1] == static_cast<uint8_t>(function | 0x80);
+  if (response[1] == static_cast<uint8_t>(function | 0x80)) {
+    return true;
+  }
+  if (response[1] != function) {
+    return false;
+  }
+  if (!modbus::helpers::is_function_code_read_only(function) || request_len < 6) {
+    return true;
+  }
+  uint16_t quantity = encode_uint16(request[4], request[5]);
+  bool bits = function == modbus::FunctionCode::READ_COILS || function == modbus::FunctionCode::READ_DISCRETE_INPUTS;
+  size_t expected = bits ? modbus::packed_bit_bytes(quantity) : size_t(quantity) * 2;
+  return response[2] == expected;
 }
 
 struct Inspect {
@@ -204,24 +228,23 @@ bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data,
   return true;
 }
 
-bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
+bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
   Port &port = this->ports_[index];
   if (port.local != nullptr) {
     if (!port.local->push_rx(data, len)) {
-      this->log_dropped_(false, len);
+      this->log_dropped_(now, false, len);
       return false;
     }
     return true;
   }
   if (!this->write_frame_(port.uart, data, len)) {
-    this->log_dropped_(true, len);
+    this->log_dropped_(now, true, len);
     return false;
   }
   return true;
 }
 
-void ModbusGateway::log_dropped_(bool on_uart, uint16_t len) {
-  uint32_t now = millis();
+void ModbusGateway::log_dropped_(uint32_t now, bool on_uart, uint16_t len) {
   if (now - this->last_response_log_ms_ < BAD_LOG_INTERVAL_MS) {
     return;
   }
@@ -253,7 +276,7 @@ void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
       }
       return;
     }
-    // A master that polls again before its turn keeps only the latest request.
+    // A client that polls again before its turn keeps only the latest request.
     std::memcpy(port.pending, port.data, found.len);
     port.pending_len = found.len;
     consume(port.data, &port.len, found.len);
@@ -266,7 +289,7 @@ void ModbusGateway::read_port_(uint8_t index, uint32_t now) {
   if (end == nullptr) {
     return;
   }
-  uint8_t tmp[64];
+  uint8_t tmp[READ_CHUNK];
   while (port.len < MAX_FRAME) {
     size_t n = 0;
     if (port.local != nullptr) {
@@ -293,10 +316,13 @@ void ModbusGateway::read_port_(uint8_t index, uint32_t now) {
 }
 
 void ModbusGateway::read_bus_(uint32_t now) {
-  uint8_t tmp[64];
-  while (this->bus_len_<MAX_FRAME &&this->parent_->available()> 0) {
-    size_t n = std::min(this->parent_->available(), sizeof(tmp));
-    n = std::min(n, static_cast<size_t>(MAX_FRAME - this->bus_len_));
+  uint8_t tmp[READ_CHUNK];
+  while (this->bus_len_ < MAX_FRAME) {
+    size_t waiting = this->parent_->available();
+    if (waiting == 0) {
+      break;
+    }
+    size_t n = std::min({waiting, sizeof(tmp), static_cast<size_t>(MAX_FRAME - this->bus_len_)});
     if (!this->parent_->read_array(tmp, n)) {
       break;
     }
@@ -327,8 +353,8 @@ void ModbusGateway::read_bus_(uint32_t now) {
     }
     uint8_t index = static_cast<uint8_t>(this->active_);
     // A full port keeps the frame. Dropping it here would end the transaction
-    // and the next master could be given this answer.
-    if (!this->deliver_(index, this->bus_, found.len)) {
+    // and the next client could be given this answer.
+    if (!this->deliver_(index, this->bus_, found.len, now)) {
       return;
     }
     consume(this->bus_, &this->bus_len_, found.len);
@@ -364,11 +390,23 @@ bool ModbusGateway::start_next_(uint32_t now) {
   return false;
 }
 
-void ModbusGateway::loop() {
+void ModbusGateway::drain_bus_(uint32_t now) {
+  uint8_t junk[READ_CHUNK];
+  while (true) {
+    size_t waiting = this->parent_->available();
+    if (waiting == 0 || !this->parent_->read_array(junk, std::min(waiting, sizeof(junk)))) {
+      return;
+    }
+    this->bus_last_ms_ = now;
+  }
+}
+
+void ModbusGateway::loop() { this->run_(App.get_loop_component_start_time()); }
+
+void ModbusGateway::run_(uint32_t now) {
   if (this->port_count_ == 0 || this->parent_ == nullptr) {
     return;
   }
-  uint32_t now = millis();
   for (uint8_t i = 0; i < this->port_count_; i++) {
     this->read_port_(i, now);
   }
@@ -386,17 +424,19 @@ void ModbusGateway::loop() {
         }
         this->active_ = -1;
         this->bus_len_ = 0;
+        this->quarantine_ = true;
+        this->bus_last_ms_ = now;
       }
     }
   }
   if (this->active_ < 0) {
-    uint8_t junk[32];
-    while (this->parent_->available() > 0) {
-      size_t n = std::min(this->parent_->available(), sizeof(junk));
-      if (!this->parent_->read_array(junk, n)) {
-        break;
-      }
+    this->drain_bus_(now);
+  }
+  if (this->quarantine_) {
+    if (now - this->bus_last_ms_ < frame_ms(this->parent_->get_baud_rate(), bits_per_char(this->parent_))) {
+      return;
     }
+    this->quarantine_ = false;
   }
   for (uint8_t n = 0; n < this->port_count_ && this->active_ < 0; n++) {
     if (!this->start_next_(now)) {
