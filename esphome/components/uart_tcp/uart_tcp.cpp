@@ -11,8 +11,8 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
-// 10 bits per byte on the line, time in ms: bytes = baud * ms / 10000.
-static constexpr uint32_t BAUD_PACE_DIVISOR = 10 * 1000;
+// Keeps the pacing product in 32 bits up to about 10 Mbaud.
+static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
@@ -63,10 +63,12 @@ void UartTcp::read_socket_() {
   size_t room = this->parent_->available_for_write();
   if (room == SIZE_MAX) {
     // Capacity unknown on this platform; pace to the UART time since the last write,
-    // at most one loop interval, so a pass woken early by the socket writes little.
-    uint32_t span = std::min(App.get_loop_component_start_time() - this->last_write_ms_, App.get_loop_interval());
-    uint64_t paced = static_cast<uint64_t>(this->parent_->get_baud_rate()) * span / BAUD_PACE_DIVISOR;
-    room = std::max<size_t>(1, static_cast<size_t>(paced));
+    // at most one loop interval and 4 s, so a pass woken early by the socket writes little.
+    uint32_t span = std::min(
+        {App.get_loop_component_start_time() - this->last_write_ms_, App.get_loop_interval(), MAX_PACE_SPAN_MS});
+    // 10 bits per byte on the line.
+    uint32_t paced = this->parent_->get_baud_rate() / 10 * span / 1000;
+    room = std::max<size_t>(1, paced);
   }
   if (room == 0) {
     this->rx_pending_ = true;
