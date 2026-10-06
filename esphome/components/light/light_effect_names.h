@@ -10,11 +10,11 @@ namespace esphome::light {
 /// Reads the light's effect table directly, so listing entities allocates nothing.
 class LightEffectNames {
  public:
-  explicit LightEffectNames(const ConstVector<LightEffect *> &effects) : effects_(effects) {}
+  explicit LightEffectNames(ConstVector<LightEffect *> effects) : effects_(effects) {}
 
   class Iterator {
    public:
-    Iterator(const ConstVector<LightEffect *> &effects, size_t index) : effects_(effects), index_(index) {}
+    Iterator(ConstVector<LightEffect *> effects, size_t index) : effects_(effects), index_(index) {}
     StringRef operator*() const {
       return this->index_ == 0 ? StringRef::from_lit("None") : this->effects_[this->index_ - 1]->get_name();
     }
@@ -25,7 +25,7 @@ class LightEffectNames {
     bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
 
    protected:
-    const ConstVector<LightEffect *> &effects_;
+    ConstVector<LightEffect *> effects_;
     size_t index_;
   };
 
@@ -34,7 +34,7 @@ class LightEffectNames {
   bool empty() const { return this->effects_.empty(); }
 
  protected:
-  const ConstVector<LightEffect *> &effects_;
+  ConstVector<LightEffect *> effects_;
 };
 
 }  // namespace esphome::light

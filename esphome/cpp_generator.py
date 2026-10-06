@@ -486,6 +486,8 @@ def shared_progmem_array(
     ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
     ``constexpr=False`` emits ``static T const`` for address constants such as pointers to
     generated objects, which GCC still initializes statically but are not constant expressions.
+    Every element must then be an address known at compile time (see ``is_static_pointer``);
+    a pointer assigned in ``setup()`` would need dynamic init, which faults in ESP8266 flash.
     """
     from esphome.config import iter_ids
     from esphome.config_validation import RESERVED_IDS
@@ -689,6 +691,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
+        CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
@@ -696,6 +699,20 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
 
     CORE.register_variable(id_, obj)
     return obj
+
+
+_STATIC_POINTER_IDS = "static_pointer_ids"
+
+
+def is_static_pointer(obj: SafeExpType) -> bool:
+    """True if ``obj`` is a Pvariable whose object was placement constructed in static storage.
+
+    Its pointer is then an address known at compile time and may appear in a ``constexpr=False``
+    PROGMEM table; a pointer assigned in ``setup()`` may not.
+    """
+    return isinstance(obj, MockObj) and str(obj.base) in CORE.data.get(
+        _STATIC_POINTER_IDS, ()
+    )
 
 
 def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":

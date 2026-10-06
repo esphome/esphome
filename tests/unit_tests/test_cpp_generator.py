@@ -829,6 +829,16 @@ class TestSharedProgmemArray:
         assert str(a) != str(b)
         assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
 
+    def test_is_static_pointer_only_for_placement_new(self) -> None:
+        CORE.config = {}
+        static = cg.new_Pvariable(ID("static_obj", is_declaration=True, type=ct.uint8))
+        dynamic = cg.Pvariable(
+            ID("dynamic_obj", is_declaration=True, type=ct.uint8),
+            cg.RawExpression("nullptr"),
+        )
+        assert cg.is_static_pointer(static)
+        assert not cg.is_static_pointer(dynamic)
+
     def test_constexpr_false_emits_a_const_array(self) -> None:
         CORE.config = {}
         cg.shared_progmem_array("table", ct.uint8, [1], constexpr=False)

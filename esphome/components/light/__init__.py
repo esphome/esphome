@@ -35,13 +35,20 @@ from esphome.const import (
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    EsphomeError,
+    HexInt,
+    coroutine_with_priority,
+)
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -520,6 +527,23 @@ def validate_color_temperature_channels(value):
     return value
 
 
+def _effects_table(effects: list[MockObj]) -> MockObj:
+    """Emit the flash table of a light's effect pointers; each must be a static address."""
+    for effect in effects:
+        if not cg.is_static_pointer(effect):
+            raise EsphomeError(
+                f"Light effect '{effect}' must be created with cg.new_Pvariable so its address "
+                "is known at compile time"
+            )
+    return cg.shared_progmem_array(
+        "light_effects",
+        LightEffect.operator("ptr"),
+        cg.ArrayInitializer(*effects),
+        share=False,
+        constexpr=False,
+    )
+
+
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     # All 8 legacy restore_mode values, and the restore_state key, are just different
@@ -587,15 +611,7 @@ async def setup_light_core_(light_var, config, output_var):
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
-        # The effect objects are static, so their addresses form a flash table
-        table = cg.shared_progmem_array(
-            "light_effects",
-            LightEffect.operator("ptr"),
-            cg.ArrayInitializer(*effects),
-            share=False,
-            constexpr=False,
-        )
-        cg.add(light_var.add_effects(table, len(effects)))
+        cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
