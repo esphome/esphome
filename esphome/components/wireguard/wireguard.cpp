@@ -103,6 +103,7 @@ void Wireguard::update() {
       this->wg_peer_offline_time_ = millis();
     } else if (this->enabled_) {
       ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
+      this->stop_connection_();
       this->start_connection_();
     }
 
