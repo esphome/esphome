@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components import tcp_uart, uart
+from esphome.components import uart
 from esphome.components.uart import bridge
 from esphome.components.uart.bridge import CONF_PEER_ID
 from esphome.config import Config
@@ -101,9 +101,10 @@ def test_allows_debug_without_dummy_receiver(
 _HARDWARE = uart.IDFUARTComponent
 _HOST = uart.HostUartComponent
 _VIRTUAL = uart.uart_ns.class_("TestVirtualUart", uart.VirtualUARTComponent)
-# Any other UART, e.g. a channel of a UART expander or of a USB serial adapter.
+# Any other UART, e.g. a channel of a UART expander.
 _OTHER = uart.uart_ns.class_("TestOtherUart", uart.UARTComponent)
-_TCP = tcp_uart.TcpUart
+# A UART that marks its id with uart.mark_unclocked(), e.g. tcp_uart or a usb_uart channel.
+_UNCLOCKED = uart.uart_ns.class_("TestUnclockedUart", uart.UARTComponent)
 _SETTERS = ("set_virtual_a", "set_virtual_b", "set_wire_a", "set_wire_b")
 
 
@@ -117,9 +118,9 @@ _SETTERS = ("set_virtual_a", "set_virtual_b", "set_wire_a", "set_wire_b")
         (_VIRTUAL, _VIRTUAL, ["set_virtual_a", "set_virtual_b"]),
         (_HOST, _OTHER, ["set_wire_a", "set_wire_b"]),
         (_OTHER, _VIRTUAL, ["set_virtual_b", "set_wire_a"]),
-        (_TCP, _HARDWARE, ["set_wire_b"]),
-        (_OTHER, _TCP, ["set_wire_a"]),
-        (_TCP, _VIRTUAL, ["set_virtual_b"]),
+        (_UNCLOCKED, _HARDWARE, ["set_wire_b"]),
+        (_OTHER, _UNCLOCKED, ["set_wire_a"]),
+        (_UNCLOCKED, _VIRTUAL, ["set_virtual_b"]),
     ],
 )
 async def test_to_code_tells_the_bridge_what_each_end_is(
@@ -129,6 +130,9 @@ async def test_to_code_tells_the_bridge_what_each_end_is(
         "end_a": ID("end_a", is_declaration=True, type=a_type),
         "end_b": ID("end_b", is_declaration=True, type=b_type),
     }
+    for end in ends.values():
+        if end.type is _UNCLOCKED:
+            uart.mark_unclocked(end)
 
     async def full_id(id_: ID) -> tuple[ID, mock.MagicMock]:
         return ends[id_.id], mock.MagicMock(name=id_.id)

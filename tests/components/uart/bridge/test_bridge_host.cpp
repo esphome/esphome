@@ -231,7 +231,6 @@ TEST(UARTBridge, SourceThatIsNotALineWaitsLikeTheModbusHub) {
 }
 
 TEST(UARTBridge, SourceWithoutBaudRateUsesTheChunkGap) {
-  // ble_nus, or usb_cdc_acm before the host sets the line.
   WireUart a(0);
   WireUart b(9600);
   UARTBridgePipe pipe(&a, &b);

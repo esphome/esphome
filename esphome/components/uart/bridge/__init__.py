@@ -15,9 +15,6 @@ CONF_PEER_ID = "peer_id"
 
 UARTBridge = uart_ns.class_("UARTBridge", cg.Component)
 
-# A TCP UART's baud rate is only a placeholder and its bytes come in chunks, so it is not timed as a line.
-_UNCLOCKED_UART_CLASSES = ("tcp_uart::TcpUart",)
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(UARTBridge),
@@ -55,13 +52,13 @@ async def to_code(config: ConfigType) -> None:
     b_id, b = await cg.get_variable_with_full_id(config[CONF_PEER_ID])
     var = cg.new_Pvariable(config[CONF_ID], a, b)
     await cg.register_component(var, config)
-    # A virtual end pushes whole blocks and takes whole writes, so nothing polls it. Any other end is a line,
-    # timed by the baud rate it reports at setup.
+    # A virtual end pushes whole blocks and takes whole writes, so nothing polls it. Any other end that is not
+    # marked unclocked is a line, timed by the baud rate it reports at setup.
     if a_id.type.inherits_from(uart.VirtualUARTComponent):
         cg.add(var.set_virtual_a(a))
-    elif str(a_id.type) not in _UNCLOCKED_UART_CLASSES:
+    elif not uart.is_unclocked(a_id):
         cg.add(var.set_wire_a())
     if b_id.type.inherits_from(uart.VirtualUARTComponent):
         cg.add(var.set_virtual_b(b))
-    elif str(b_id.type) not in _UNCLOCKED_UART_CLASSES:
+    elif not uart.is_unclocked(b_id):
         cg.add(var.set_wire_b())
