@@ -31,7 +31,7 @@ The CI workflow uses this information to:
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
-- Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
+- Skip or run pylint
 - Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
@@ -414,18 +414,17 @@ PYTHON_LINTERS_TRIGGER_FILES = frozenset(
 
 
 def should_run_python_linters(branch: str | None = None) -> bool:
-    """Determine if Python linters (ruff, flake8, pylint, pyupgrade) should run based on changed files.
+    """Determine if the pylint job should run based on changed files.
 
-    This function is used by the CI workflow to skip Python linting checks when no Python files
-    have changed, saving CI time and resources.
-
-    Python linters will run when any Python source files or PYTHON_LINTERS_TRIGGER_FILES have changed.
+    The CI workflow skips pylint unless a Python file or a file in
+    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff, flake8 and pyupgrade run in
+    lint-format, which this flag does not gate.
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if Python linters should run, False otherwise.
+        True if pylint should run, False otherwise.
     """
     return any(
         file.endswith(PYTHON_FILE_EXTENSIONS) or file in PYTHON_LINTERS_TRIGGER_FILES
