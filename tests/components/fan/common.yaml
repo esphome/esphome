@@ -80,7 +80,7 @@ button:
             ESP_LOGD("test", "%s", mode);
           for (const char *mode : traits.supported_preset_modes())
             ESP_LOGD("test", "%s", mode);
-          if (!modes.empty() && modes.size() > 1) {
+          if (modes.size() > 1) {
             const auto *it = std::find(modes.begin(), modes.end(), modes[1]);
             ESP_LOGD("test", "index %d", (int) (it - modes.begin()));
           }
