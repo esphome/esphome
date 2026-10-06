@@ -1,19 +1,20 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
-#include <thread>
 
 #include "esphome/components/modbus_tcp_uart/mbap.h"
 #include "esphome/components/modbus_tcp_uart/modbus_tcp_uart.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 
+#ifdef USE_HOST
+
+namespace esphome::modbus_tcp_uart::testing {
 namespace {
 
-class Pipe : public esphome::tcp_uart::TcpUart {
+class Pipe : public tcp_uart::TcpUart {
  public:
   bool is_connected() override { return true; }
   size_t available() override { return this->rx_n_; }
@@ -32,7 +33,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
     std::memcpy(this->buf_ + this->n_, data, len);
     this->n_ += len;
   }
-  esphome::uart::UARTFlushResult flush() override { return esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
   void feed(const uint8_t *data, size_t len) {
     ASSERT_LE(this->rx_n_ + len, sizeof(this->rx_));
     std::memcpy(this->rx_ + this->rx_n_, data, len);
@@ -40,7 +41,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   }
   void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     this->feed(frame, n);
   }
@@ -51,7 +52,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   uint8_t rx_[64]{};
 };
 
-class ServerLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
+class ServerLink : public ModbusTcpUart {
  public:
   ServerLink() { this->set_server(true); }
 
@@ -59,7 +60,7 @@ class ServerLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
 
   void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     std::memcpy(this->tcp_buf_ + this->tcp_len_, frame, n);
     this->tcp_len_ += static_cast<uint16_t>(n);
@@ -68,12 +69,14 @@ class ServerLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
 
   void hold_reply(uint8_t n) { this->tx_len_ = n; }
   void expire() { this->request_ms_ -= REPLY_TIMEOUT_MS; }
+  // Moves the start of the quiet period back, as if the stream had been quiet that long.
+  void quiet_for(uint32_t us) { this->resync_from_us_ -= us; }
 
   // Writes an RTU frame with its CRC, the way the hub answers.
   void answer(std::initializer_list<uint8_t> body) {
     uint8_t frame[16];
     std::copy(body.begin(), body.end(), frame);
-    uint16_t crc = esphome::crc16(frame, body.size());
+    uint16_t crc = crc16(frame, body.size());
     frame[body.size()] = crc & 0xFF;
     frame[body.size() + 1] = crc >> 8;
     this->write_array(frame, body.size() + 2);
@@ -225,7 +228,7 @@ TEST(ModbusTcpUartServer, LongReplyFromAWriterThatKeepsToTheRoom) {
   for (size_t i = 3; i < 253; i++) {
     reply[i] = static_cast<uint8_t>(i);
   }
-  const uint16_t crc = esphome::crc16(reply, 253);
+  const uint16_t crc = crc16(reply, 253);
   reply[253] = crc & 0xFF;
   reply[254] = crc >> 8;
   for (size_t sent = 0; sent < sizeof(reply);) {
@@ -241,7 +244,7 @@ TEST(ModbusTcpUartServer, LongReplyFromAWriterThatKeepsToTheRoom) {
 }
 
 // Answers each request it is handed within the same call, as a reader with a fast peer can.
-class AnsweringReader : public esphome::uart::UARTSink {
+class AnsweringReader : public uart::UARTSink {
  public:
   explicit AnsweringReader(ServerLink *link) : link_(link) {}
   void on_block(const uint8_t *data, size_t len) override {
@@ -342,7 +345,7 @@ TEST(ModbusTcpUartServer, BadLengthWaitsForAQuietStream) {
   pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
   link.loop();
   EXPECT_EQ(link.available(), 0u);
-  std::this_thread::sleep_for(std::chrono::milliseconds(120));
+  link.quiet_for(120000);
   link.loop();
   pipe.feed_mbap(8, 1, PDU, sizeof(PDU));
   link.loop();
@@ -351,3 +354,6 @@ TEST(ModbusTcpUartServer, BadLengthWaitsForAQuietStream) {
 }
 
 }  // namespace
+}  // namespace esphome::modbus_tcp_uart::testing
+
+#endif  // USE_HOST

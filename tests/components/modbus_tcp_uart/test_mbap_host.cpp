@@ -4,16 +4,10 @@
 
 #include "esphome/components/modbus_tcp_uart/mbap.h"
 
-namespace {
+#ifdef USE_HOST
 
-using esphome::modbus_tcp_uart::Mbap;
-using esphome::modbus_tcp_uart::MbapTake;
-using esphome::modbus_tcp_uart::rtu_crc_ok;
-using esphome::modbus_tcp_uart::RtuTake;
-using esphome::modbus_tcp_uart::take_rtu;
-using esphome::modbus_tcp_uart::take_mbap;
-using esphome::modbus_tcp_uart::write_mbap;
-using esphome::modbus_tcp_uart::write_rtu;
+namespace esphome::modbus_tcp_uart::testing {
+namespace {
 
 TEST(MbapTest, RoundTrip) {
   const uint8_t pdu[] = {0x03, 0x00, 0x00, 0x00, 0x01};
@@ -100,7 +94,7 @@ TEST(MbapTest, TakeRtuUsesTheLengthOfTheFunctionCode) {
 
 TEST(MbapTest, TakeRtuFindsAnExceptionReply) {
   uint8_t frame[5] = {0x04, 0x83, 0x02};
-  const uint16_t crc = esphome::crc16(frame, 3);
+  const uint16_t crc = crc16(frame, 3);
   frame[3] = crc & 0xFF;
   frame[4] = crc >> 8;
   size_t len = 0;
@@ -110,7 +104,7 @@ TEST(MbapTest, TakeRtuFindsAnExceptionReply) {
 
 TEST(MbapTest, TakeRtuEndsAnUnknownFunctionAtItsCrc) {
   uint8_t frame[7] = {0x01, 0x41, 0xAA, 0xBB, 0, 0, 0x99};
-  const uint16_t crc = esphome::crc16(frame, 4);
+  const uint16_t crc = crc16(frame, 4);
   frame[4] = crc & 0xFF;
   frame[5] = crc >> 8;
   size_t len = 0;
@@ -120,3 +114,6 @@ TEST(MbapTest, TakeRtuEndsAnUnknownFunctionAtItsCrc) {
 }
 
 }  // namespace
+}  // namespace esphome::modbus_tcp_uart::testing
+
+#endif  // USE_HOST

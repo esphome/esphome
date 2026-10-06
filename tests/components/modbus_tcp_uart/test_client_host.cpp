@@ -7,9 +7,12 @@
 #include "esphome/components/modbus_tcp_uart/modbus_tcp_uart.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 
+#ifdef USE_HOST
+
+namespace esphome::modbus_tcp_uart::testing {
 namespace {
 
-class Pipe : public esphome::tcp_uart::TcpUart {
+class Pipe : public tcp_uart::TcpUart {
  public:
   bool is_connected() override { return this->up_; }
   size_t available() override { return this->rx_n_; }
@@ -28,7 +31,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
     std::memcpy(this->buf_ + this->n_, data, len);
     this->n_ += len;
   }
-  esphome::uart::UARTFlushResult flush() override { return this->flushed_; }
+  uart::UARTFlushResult flush() override { return this->flushed_; }
   void feed(const uint8_t *data, size_t len) {
     ASSERT_LE(this->rx_n_ + len, sizeof(this->rx_));
     std::memcpy(this->rx_ + this->rx_n_, data, len);
@@ -36,7 +39,7 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   }
   void feed_mbap(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     this->feed(frame, n);
   }
@@ -44,13 +47,13 @@ class Pipe : public esphome::tcp_uart::TcpUart {
   bool up_{true};
   size_t room_{1024};
   size_t n_{0};
-  esphome::uart::UARTFlushResult flushed_{esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS};
+  uart::UARTFlushResult flushed_{uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS};
   uint8_t buf_[300]{};
   size_t rx_n_{0};
   uint8_t rx_[64]{};
 };
 
-class ClientLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
+class ClientLink : public ModbusTcpUart {
  public:
   explicit ClientLink(Pipe *pipe) { this->set_parent(pipe); }
 
@@ -63,7 +66,7 @@ class ClientLink : public esphome::modbus_tcp_uart::ModbusTcpUart {
 
   void push(uint16_t txn, uint8_t unit, const uint8_t *pdu, size_t pdu_len) {
     uint8_t frame[32];
-    size_t n = esphome::modbus_tcp_uart::write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
+    size_t n = write_mbap(frame, sizeof(frame), txn, unit, pdu, pdu_len);
     ASSERT_GT(n, 0u);
     std::memcpy(this->tcp_buf_ + this->tcp_len_, frame, n);
     this->tcp_len_ += static_cast<uint16_t>(n);
@@ -97,7 +100,7 @@ TEST(ModbusTcpUartClient, MatchingResponseBecomesRtu) {
   size_t n = link.available();
   ASSERT_EQ(n, sizeof(RESPONSE_PDU) + 3);
   ASSERT_TRUE(link.read_array(taken, n));
-  EXPECT_TRUE(esphome::modbus_tcp_uart::rtu_crc_ok(taken, n));
+  EXPECT_TRUE(rtu_crc_ok(taken, n));
   EXPECT_EQ(taken[0], 1);
   EXPECT_EQ(taken[1], 0x03);
   EXPECT_EQ(taken[2], 0x02);
@@ -117,7 +120,7 @@ TEST(ModbusTcpUartClient, ResponseKeepsTheRequestUnit) {
   ASSERT_EQ(n, sizeof(RESPONSE_PDU) + 3);
   ASSERT_TRUE(link.read_array(taken, n));
   EXPECT_EQ(taken[0], 1);
-  EXPECT_TRUE(esphome::modbus_tcp_uart::rtu_crc_ok(taken, n));
+  EXPECT_TRUE(rtu_crc_ok(taken, n));
 }
 
 TEST(ModbusTcpUartClient, StaleTransactionIsDropped) {
@@ -137,7 +140,7 @@ TEST(ModbusTcpUartClient, HeldFrameIsReplaced) {
   link.preload(RTU, sizeof(RTU));
 
   uint8_t next[8] = {0x01, 0x03, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00};
-  uint16_t crc = esphome::crc16(next, 6);
+  uint16_t crc = crc16(next, 6);
   next[6] = crc & 0xFF;
   next[7] = crc >> 8;
   link.write_array(next, sizeof(next));
@@ -162,7 +165,7 @@ TEST(ModbusTcpUartClient, TransactionWrapsToOne) {
 
 TEST(ModbusTcpUartClient, FlushTimeoutKeepsTheTransaction) {
   Pipe pipe;
-  pipe.flushed_ = esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  pipe.flushed_ = uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
   ClientLink link(&pipe);
   link.write_array(RTU, sizeof(RTU));
   EXPECT_TRUE(link.pending());
@@ -190,7 +193,7 @@ TEST(ModbusTcpUartClient, BadProtocolIdSkipsOnlyThatFrame) {
   EXPECT_FALSE(link.pending());
 }
 
-class RecordingReader : public esphome::uart::UARTSink {
+class RecordingReader : public uart::UARTSink {
  public:
   void on_block(const uint8_t *data, size_t len) override {
     this->blocks++;
@@ -212,7 +215,7 @@ TEST(ModbusTcpUartClient, AttachedReaderGetsTheWholeResponse) {
   link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
   ASSERT_EQ(reader.blocks, 1);
   ASSERT_EQ(reader.last_len, sizeof(RESPONSE_PDU) + 3);
-  EXPECT_TRUE(esphome::modbus_tcp_uart::rtu_crc_ok(reader.last, reader.last_len));
+  EXPECT_TRUE(rtu_crc_ok(reader.last, reader.last_len));
   EXPECT_EQ(link.available(), 0u);
   EXPECT_FALSE(link.pending());
 }
@@ -277,7 +280,7 @@ TEST(ModbusTcpUartClient, UnknownFunctionCodeIsFramedByItsCrc) {
   Pipe pipe;
   ClientLink link(&pipe);
   uint8_t custom[6] = {0x01, 0x41, 0xAA, 0xBB, 0, 0};
-  uint16_t crc = esphome::crc16(custom, 4);
+  uint16_t crc = crc16(custom, 4);
   custom[4] = crc & 0xFF;
   custom[5] = crc >> 8;
   link.write_array(custom, 3);
@@ -312,3 +315,6 @@ TEST(ModbusTcpUartClient, DisconnectDropsInFlight) {
 }
 
 }  // namespace
+}  // namespace esphome::modbus_tcp_uart::testing
+
+#endif  // USE_HOST
