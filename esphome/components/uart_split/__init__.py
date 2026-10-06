@@ -2,7 +2,9 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEBUG,
     CONF_DIRECTION,
+    CONF_DUMMY_RECEIVER,
     CONF_ID,
     CONF_OUTPUTS,
     CONF_RX_ONLY,
@@ -33,6 +35,8 @@ def _inherit_settings(config: ConfigType) -> ConfigType:
     # Devices on an output are checked against the baud rate and framing of the UART it copies.
     for output in config[CONF_OUTPUTS]:
         uart.inherit_settings(output[CONF_ID], config[CONF_UART_ID])
+        if output[CONF_RX_ONLY]:
+            uart.mark_receive_only(output[CONF_ID])
     return config
 
 
@@ -72,6 +76,16 @@ def _subtree_has_uart(node: object, uart_id: str) -> bool:
     return False
 
 
+def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
+    debug = uart_conf.get(CONF_DEBUG)
+    if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
+        raise cv.Invalid(
+            "dummy_receiver reads this UART and takes the bytes uart_split should copy.",
+            [CONF_DEBUG, CONF_DUMMY_RECEIVER],
+        )
+    return uart_conf
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     # This component is the only reader. A second consumer would take the bytes.
     full_config = fv.full_config.get()
@@ -92,6 +106,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 "uart_split has to be the only reader; use one of its outputs.",
                 [CONF_UART_ID],
             )
+    fv.id_declaration_match_schema(_reject_dummy_receiver)(config[CONF_UART_ID])
     return config
 
 

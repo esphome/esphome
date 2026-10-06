@@ -30,9 +30,14 @@ uart_split:
         rx_only: true
 """
 
+DUMMY_RECEIVER = """
+    debug:
+      dummy_receiver: true
+"""
+
 DFPLAYER = """
 dfplayer:
-  uart_id: bus
+  uart_id: {uart_id}
 """
 
 DISTANCE = """
@@ -61,7 +66,7 @@ def _errors(tmp_path: Path, yaml: str) -> list[str]:
 
 def test_device_listed_before_the_split_is_valid(tmp_path: Path) -> None:
     """Final validation follows the YAML order; dfplayer checks the output before uart_split runs its own."""
-    yaml = BASE + DFPLAYER + UART.format(baud_rate=9600) + SPLIT
+    yaml = BASE + DFPLAYER.format(uart_id="bus") + UART.format(baud_rate=9600) + SPLIT
     assert _errors(tmp_path, yaml) == []
 
 
@@ -71,9 +76,26 @@ def test_platform_device_on_an_output_is_valid(tmp_path: Path) -> None:
 
 
 def test_wrong_baud_rate_is_reported_at_the_uart(tmp_path: Path) -> None:
-    yaml = BASE + DFPLAYER + UART.format(baud_rate=115200) + SPLIT
+    yaml = BASE + DFPLAYER.format(uart_id="bus") + UART.format(baud_rate=115200) + SPLIT
     errors = _errors(tmp_path, yaml)
     assert any("requires baud rate 9600" in err for err in errors), errors
+
+
+def test_device_that_transmits_on_a_receive_only_output_is_rejected(
+    tmp_path: Path,
+) -> None:
+    yaml = BASE + UART.format(baud_rate=9600) + SPLIT + DFPLAYER.format(uart_id="tap")
+    errors = _errors(tmp_path, yaml)
+    assert any(
+        "dfplayer requires the uart referenced by uart_id to transmit" in err
+        for err in errors
+    ), errors
+
+
+def test_dummy_receiver_on_the_split_uart_is_rejected(tmp_path: Path) -> None:
+    yaml = BASE + UART.format(baud_rate=9600) + DUMMY_RECEIVER + SPLIT
+    errors = _errors(tmp_path, yaml)
+    assert any("dummy_receiver reads this UART" in err for err in errors), errors
 
 
 def test_device_on_a_split_of_an_output_is_valid(tmp_path: Path) -> None:

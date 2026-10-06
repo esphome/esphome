@@ -451,6 +451,8 @@ KEY_UART_DEVICES = "uart_devices"
 class UARTData:
     # (UART, the UART whose settings it runs with), in the order they were declared.
     settings_sources: list[tuple[ID, ID]] = field(default_factory=list)
+    # UARTs that drop what is written to them.
+    receive_only: set[str] = field(default_factory=set)
 
 
 def _get_data() -> UARTData:
@@ -466,6 +468,14 @@ def inherit_settings(uart_id: ID, source_id: ID) -> None:
     CONFIG_SCHEMA: the devices' final validation can run before that of the caller.
     """
     _get_data().settings_sources.append((uart_id, source_id))
+
+
+def mark_receive_only(uart_id: ID) -> None:
+    """Reject devices that require TX on uart_id, a UART that drops what is written to it.
+
+    Call it from CONFIG_SCHEMA, like inherit_settings().
+    """
+    _get_data().receive_only.add(str(uart_id))
 
 
 def _settings_source(uart_id: ID) -> ID | None:
@@ -538,6 +548,10 @@ def final_validate_device_schema(
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
+        if require_tx and str(uart_id) in _get_data().receive_only:
+            raise cv.Invalid(
+                f"Component {name} requires the uart referenced by {uart_bus} to transmit, but it is receive-only"
+            )
         if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
