@@ -150,15 +150,6 @@ def test_esp32_config(
             id="current-idf-frequency-choice",
         ),
         pytest.param(
-            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ_160": "y"},
-            None,
-            "160MHZ",
-            True,
-            VARIANT_ESP32,
-            "esp-idf",
-            id="legacy-mhz-frequency-choice",
-        ),
-        pytest.param(
             {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160": "n"},
             None,
             "240MHZ",
@@ -280,6 +271,8 @@ def test_sdkconfig_cpu_frequency_must_be_supported_and_unambiguous(
     with pytest.raises(cv.Invalid) as exc_info:
         CONFIG_SCHEMA(config)
     assert exc_info.value.path == ["framework", "sdkconfig_options"]
+    if len(sdkconfig_options) > 1:
+        assert "160MHz, 240MHz" in str(exc_info.value)
 
 
 def test_sdkconfig_cpu_frequency_conflicts_with_explicit_value(

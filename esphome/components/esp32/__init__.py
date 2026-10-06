@@ -550,11 +550,6 @@ assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
 
-_SDKCONFIG_CPU_FREQUENCY_PATTERNS = (
-    re.compile(r"^CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_(\d+)$"),
-)
-
-
 _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS = {
     VARIANT_ESP32: "ESP32",
     VARIANT_ESP32C3: "ESP32C3",
@@ -581,25 +576,28 @@ def _get_sdkconfig_cpu_frequency(
         except ValueError as err:
             raise cv.Invalid(f"{name} must be an integer MHz value") from err
 
-    legacy_choice_pattern = None
+    choice_patterns = [re.compile(r"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_(\d+)")]
     if legacy_variant:
-        legacy_choice_pattern = re.compile(
-            rf"^CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_(?:MHZ_)?(\d+)$"
+        choice_patterns.append(
+            re.compile(rf"CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_(\d+)")
         )
 
     for name, value in sdkconfig_options.items():
         if value.lower() != "y":
             continue
-        for pattern in (
-            *_SDKCONFIG_CPU_FREQUENCY_PATTERNS,
-            *((legacy_choice_pattern,) if legacy_choice_pattern else ()),
-        ):
+        for pattern in choice_patterns:
             if match := pattern.fullmatch(name):
                 frequencies.add(int(match.group(1)))
                 break
 
     if len(frequencies) > 1:
-        raise cv.Invalid("sdkconfig_options contains conflicting CPU frequencies")
+        conflicting_frequencies = ", ".join(
+            f"{frequency}MHz" for frequency in sorted(frequencies)
+        )
+        raise cv.Invalid(
+            "sdkconfig_options contains conflicting CPU frequencies "
+            f"({conflicting_frequencies})"
+        )
     if frequencies:
         return f"{frequencies.pop()}MHZ"
     return None
