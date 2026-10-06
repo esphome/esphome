@@ -101,6 +101,8 @@ void ModbusClientHub::expire_waiting_() {
   // wire first so a resend from inside the callback sees it available.
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
+  this->late_reply_hold_ = true;
+  this->late_reply_hold_start_ = this->last_receive_check_;
   cmd->timed_out();
 }
 
@@ -137,10 +139,18 @@ int32_t Modbus::tx_delay_remaining() {
 
 int32_t ModbusClientHub::tx_delay_remaining() {
   const uint32_t now = micros();
-  return (int32_t) std::max(
-      remaining_delay(now - this->last_send_,
-                      this->last_send_tx_offset_ + this->frame_delay_us_ + this->turnaround_delay_us_),
-      remaining_delay(now - this->last_modbus_byte_, this->frame_delay_us_ + this->turnaround_delay_us_));
+  uint32_t remaining =
+      std::max(remaining_delay(now - this->last_send_,
+                               this->last_send_tx_offset_ + this->frame_delay_us_ + this->turnaround_delay_us_),
+               remaining_delay(now - this->last_modbus_byte_, this->frame_delay_us_ + this->turnaround_delay_us_));
+  if (this->late_reply_hold_) {
+    const uint32_t hold =
+        std::max(MODBUS_LATE_REPLY_HOLD_MIN_US, MAX_FRAME_SIZE * this->bits_per_char_ * US_PER_SEC /
+                                                    std::max<uint32_t>(1u, this->parent_->get_baud_rate()));
+    remaining = std::max({remaining, remaining_delay(now - this->late_reply_hold_start_, hold),
+                          remaining_delay(now - this->last_modbus_byte_, hold)});
+  }
+  return (int32_t) remaining;
 }
 
 bool Modbus::tx_blocked() {
@@ -837,6 +847,7 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
+  this->late_reply_hold_ = false;
   cmd->sent();
   if (cmd->fire_and_forget()) {
     // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above

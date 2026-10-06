@@ -20,6 +20,11 @@ namespace esphome::modbus {
 // (e.g. a loop writing a changing value) could grow the heap unboundedly.
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_US = 5000;
+// After a send-wait timeout the client hub sends again only once the bus has been quiet for the
+// larger of one maximum-length frame (MAX_FRAME_SIZE characters) and this floor, so a late reply is
+// dropped instead of being matched to the next request. The floor covers fast links: how late a
+// device answers depends on its processing time, not on the baud rate.
+static constexpr uint32_t MODBUS_LATE_REPLY_HOLD_MIN_US = 100000;
 
 // Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
 // (address + 5-byte PDU + 2-byte CRC).
@@ -289,6 +294,7 @@ class ModbusClientHub : public Modbus {
 
   uint32_t send_wait_time_us_{2000000};
   uint32_t turnaround_delay_us_{0};
+  uint32_t late_reply_hold_start_{0};  // micros() of the last send-wait timeout
 
   // Set on transmit, cleared on the transaction-ending transition; send_next_frame_ won't select
   // while it is set, so at most one frame is awaiting a response.
@@ -296,6 +302,10 @@ class ModbusClientHub : public Modbus {
 
   // Set whenever a transition leaves owed callbacks behind; quiet loop() passes skip the sweep.
   bool sweep_needed_{false};
+  // Set by a send-wait timeout, cleared by the next transmit: tx_delay_remaining() then also waits out
+  // the late-reply hold, counted from the timeout and from the last received byte. A frame received
+  // meanwhile finds no waiting entry and is dropped.
+  bool late_reply_hold_{false};
   // Monotonic stamp source for ModbusDeviceCommand::seq.
   uint16_t next_seq_{0};
 

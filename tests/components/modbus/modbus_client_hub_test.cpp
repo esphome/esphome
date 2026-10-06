@@ -70,6 +70,9 @@ class NoResponseProbeHub : public ModbusClientHub {
   void timeout_waiting() {
     this->sweep_();  // deliver anything already owed (e.g. an interruption's on_no_response)
     this->expire_waiting_();
+    // These tests drive the state machine, not the clock: skip the hold after a timeout, which
+    // would otherwise defer the next send_next_for_test(). ModbusClientHubLateReply covers it.
+    this->late_reply_hold_ = false;
     this->sweep_();
   }
 };
@@ -2435,5 +2438,84 @@ TEST(ModbusClientHubPriority, ReadModifyWritesRankAsWrites) {
   ASSERT_NE(next, nullptr);
   EXPECT_EQ(next->priority(), CommandPriority::WRITE);  // 0x16 wins selection over the queued read
   EXPECT_EQ(next->frame.pdu()[0], 0x16);
+}
+
+// The late-reply tests drive the real loop() through an injectable UART on the host clock, so the
+// send-wait watchdog, the hold after a timeout and the transmit gate all run as on a device.
+namespace {
+constexpr size_t READ_FRAME_SIZE = sizeof(READ_PDU) + 3;
+
+void setup_loop_hub(ModbusClientHub &hub, InjectableUART &uart) {
+  hub.set_uart_parent(&uart);
+  hub.set_send_wait_time(5);
+  hub.setup();  // 115200 8N1: the hold is the 100 ms floor
+}
+
+// Runs loop() until `bytes` have been written or `limit_ms` passed; returns the microseconds it took.
+uint32_t loop_until_written(ModbusClientHub &hub, InjectableUART &uart, size_t bytes, uint32_t limit_ms) {
+  const uint32_t start = micros();
+  while (uart.written.size() < bytes && micros() - start < limit_ms * 1000) {
+    hub.loop();
+    delay(1);
+  }
+  return micros() - start;
+}
+}  // namespace
+
+// A device answers after send_wait_time while the retry of the same request (same address and
+// function code) is queued. The hub holds the retry until the bus has been quiet for the hold, so
+// the late reply is dropped instead of being delivered as the retry's response.
+TEST(ModbusClientHubLateReply, LateReplyIsNotTakenForTheNextRequest) {
+  InjectableUART uart;
+  ModbusClientHub hub;
+  setup_loop_hub(hub, uart);
+  DataCountingDevice device(&hub, 0x02);
+  device.retries_ = 1;
+
+  ASSERT_TRUE(device.queue_pdu(read_pdu()));
+  hub.loop();  // transmit
+  ASSERT_EQ(uart.written.size(), READ_FRAME_SIZE);
+
+  delay(10);   // past send_wait_time
+  hub.loop();  // send-wait timeout: on_no_response, the retry is queued but held
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(uart.written.size(), READ_FRAME_SIZE);  // not sent straight after the timeout
+
+  uart.inject_frame(0x02, OK_RESPONSE);  // the late reply to the first request
+  const uint32_t late_reply_at = micros();
+  hub.loop();
+  EXPECT_EQ(device.data_count_, 0);  // dropped, not delivered to the retry
+  EXPECT_EQ(uart.written.size(), READ_FRAME_SIZE);
+
+  // The retry goes out once the bus has been quiet for the hold, counted from the late reply.
+  loop_until_written(hub, uart, 2 * READ_FRAME_SIZE, 1000);
+  ASSERT_EQ(uart.written.size(), 2 * READ_FRAME_SIZE);
+  EXPECT_GE(micros() - late_reply_at + 1000, MODBUS_LATE_REPLY_HOLD_MIN_US);
+  EXPECT_EQ(device.sent_count_, 2);
+
+  uart.inject_frame(0x02, OK_RESPONSE);  // the retry's own reply is delivered as usual
+  hub.loop();
+  EXPECT_EQ(device.data_count_, 1);
+  EXPECT_EQ(device.terminals(), 2);
+}
+
+// Without a timeout nothing changes: a reply in time frees the bus and the next request goes out
+// in the same loop() pass, after the normal frame delay.
+TEST(ModbusClientHubLateReply, NoHoldWithoutTimeout) {
+  InjectableUART uart;
+  ModbusClientHub hub;
+  setup_loop_hub(hub, uart);
+  DataCountingDevice device(&hub, 0x02);
+
+  const uint8_t second_read[] = {0x03, 0x02, 0x00, 0x00, 0x02};
+  ASSERT_TRUE(device.queue_pdu(read_pdu()));
+  ASSERT_TRUE(device.queue_pdu(second_read));
+  hub.loop();  // first request out
+  ASSERT_EQ(uart.written.size(), READ_FRAME_SIZE);
+
+  uart.inject_frame(0x02, OK_RESPONSE);
+  hub.loop();  // reply delivered, second request out in the same pass
+  EXPECT_EQ(device.data_count_, 1);
+  EXPECT_EQ(uart.written.size(), 2 * READ_FRAME_SIZE);
 }
 }  // namespace esphome::modbus::testing
