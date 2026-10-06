@@ -41,6 +41,8 @@ number:
     min_value: 2
     max_value: 100
     step: 1
+    unit_of_measurement: "°C"
+    device_class: temperature
 
 time:
   - platform: zigbee
