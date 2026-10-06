@@ -225,7 +225,7 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
         )
         .extend({model.option(x): cv.boolean for x in other_options})
     )
-    if model.get_default(CONF_BRIGHTNESS) is not None or model.name == "CUSTOM":
+    if model.get_default(CONF_BRIGHTNESS, None) is not None or model.name == "CUSTOM":
         schema = schema.extend(
             {
                 model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.int_range(
