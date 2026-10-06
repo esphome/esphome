@@ -6,6 +6,8 @@
 #include "esphome/core/log.h"
 #include "uart_component_libretiny.h"
 
+#include "esphome/components/libretiny/core.h"
+
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -118,6 +120,8 @@ void LibreTinyUARTComponent::setup() {
 #endif
   }
 
+  if (this->hardware_idx_ >= 0)
+    libretiny::ensure_serial_handle(this->hardware_idx_);
   this->serial_->begin(this->baud_rate_, get_config());
 }
 
