@@ -9,15 +9,15 @@ namespace esphome::speed {
 
 class SpeedFan final : public Component, public fan::Fan {
  public:
-  // Remove before 2027.5.0
-  ESPDEPRECATED("Use set_supported_preset_modes() instead. Removed in 2027.5.0", "2026.11.0")
-  void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
   SpeedFan(int speed_count) : speed_count_(speed_count) {}
   void setup() override;
   void dump_config() override;
   void set_output(output::FloatOutput *output) { this->output_ = output; }
   void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
   void set_direction(output::BinaryOutput *direction) { this->direction_ = direction; }
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use set_supported_preset_modes() instead. Removed in 2027.5.0", "2026.11.0")
+  void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
   fan::FanTraits get_traits() override {
     this->wire_preset_modes_(this->traits_);
     return this->traits_;
