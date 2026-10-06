@@ -3,6 +3,7 @@ from esphome.components.logger import request_log_listener
 from esphome.components.uart import (
     UARTComponent,
     debug_to_code,
+    mark_unclocked,
     maybe_empty_debug,
     uart_ns,
 )
@@ -41,7 +42,7 @@ def validate_rx_buffer(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(BLENUS),
+            cv.GenerateID(): cv.All(cv.declare_id(BLENUS), mark_unclocked),
             cv.Optional(CONF_TYPE, default=CONF_LOGS): cv.one_of(
                 *[CONF_LOGS, CONF_UART], lower=True
             ),
