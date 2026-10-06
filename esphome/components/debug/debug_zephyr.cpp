@@ -70,7 +70,7 @@ static inline uint32_t sd_version_get() {
 #endif  // USE_NRF52
 
 #ifdef CONFIG_THREAD_MONITOR
-static void log_thread_cb_(const struct k_thread *thread, void *) {
+static void log_thread_cb(const struct k_thread *thread, void *) {
   const char *name = k_thread_name_get(const_cast<struct k_thread *>(thread));
   if (name == nullptr || name[0] == '\0') {
     name = "<unnamed>";
@@ -87,28 +87,28 @@ static void log_thread_cb_(const struct k_thread *thread, void *) {
 
 #ifdef CONFIG_STATS
 #ifdef CONFIG_PM_STATS
-static const char *pm_state_name_(int state) {
+static const LogString *pm_state_name(int state) {
   switch (static_cast<enum pm_state>(state)) {
     case PM_STATE_ACTIVE:
-      return "Active";
+      return LOG_STR("Active");
     case PM_STATE_RUNTIME_IDLE:
-      return "Runtime Idle";
+      return LOG_STR("Runtime Idle");
     case PM_STATE_SUSPEND_TO_IDLE:
-      return "Suspend to Idle";
+      return LOG_STR("Suspend to Idle");
     case PM_STATE_STANDBY:
-      return "Standby";
+      return LOG_STR("Standby");
     case PM_STATE_SUSPEND_TO_RAM:
-      return "Suspend to Ram";
+      return LOG_STR("Suspend to Ram");
     case PM_STATE_SUSPEND_TO_DISK:
-      return "Suspend to Disk";
+      return LOG_STR("Suspend to Disk");
     case PM_STATE_SOFT_OFF:
-      return "Soft Off";
+      return LOG_STR("Soft Off");
     default:
-      return "Unknown";
+      return LOG_STR("Unknown");
   }
 }
 #endif  // CONFIG_PM_STATS
-static int log_stats_entry_cb_(struct stats_hdr *hdr, void *arg, const char *name, uint16_t off) {
+static int log_stats_entry_cb(struct stats_hdr *hdr, void *arg, const char *name, uint16_t off) {
   const auto *addr = reinterpret_cast<const uint8_t *>(hdr) + off;
   uint64_t val = 0;
   switch (hdr->s_size) {
@@ -126,8 +126,8 @@ static int log_stats_entry_cb_(struct stats_hdr *hdr, void *arg, const char *nam
   return 0;
 }
 
-static int log_stats_group_cb_(struct stats_hdr *hdr, void *arg) {
-  bool isHdrLogged = false;
+static int log_stats_group_cb(struct stats_hdr *hdr, void *arg) {
+  bool hdr_logged = false;
 #ifdef CONFIG_PM_STATS
   // Fixed offsets -- pm_stats.c's group name format is fixed-width.
   if (strncmp(hdr->s_name, "pm_cpu_", 7) == 0 && strncmp(hdr->s_name + 10, "_state_", 7) == 0) {
@@ -136,15 +136,15 @@ static int log_stats_group_cb_(struct stats_hdr *hdr, void *arg) {
     auto cpu = parse_number<uint8_t>(cpu_buf);
     auto state = parse_number<uint8_t>(state_buf);
     if (cpu.has_value() && state.has_value()) {
-      ESP_LOGD(TAG, "  CPU %u %s:", *cpu, pm_state_name_(*state));
-      isHdrLogged = true;
+      ESP_LOGD(TAG, "  CPU %u %s:", *cpu, LOG_STR_ARG(pm_state_name(*state)));
+      hdr_logged = true;
     }
   }
 #endif  // CONFIG_PM_STATS
-  if (!isHdrLogged) {
+  if (!hdr_logged) {
     ESP_LOGD(TAG, "  %s:", hdr->s_name);
   }
-  return stats_walk(hdr, log_stats_entry_cb_, arg);
+  return stats_walk(hdr, log_stats_entry_cb, arg);
 }
 #endif  // CONFIG_STATS
 
@@ -539,11 +539,11 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 void DebugComponent::update_platform_() {
 #ifdef CONFIG_THREAD_MONITOR
   ESP_LOGD(TAG, "Threads:");
-  k_thread_foreach(log_thread_cb_, nullptr);
+  k_thread_foreach(log_thread_cb, nullptr);
 #endif
 #ifdef CONFIG_STATS
   ESP_LOGD(TAG, "Stats:");
-  stats_group_walk(log_stats_group_cb_, nullptr);
+  stats_group_walk(log_stats_group_cb, nullptr);
 #endif
 }
 

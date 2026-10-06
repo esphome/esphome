@@ -5,6 +5,8 @@ from collections.abc import Callable
 
 from esphome.types import ConfigType
 
+from ..const import BOOTLOADER_MCUBOOT, CONF_BOOTLOADER
+
 # Devicetree property nordic pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "psels"
 
@@ -139,3 +141,8 @@ def spi_pinctrl(
     """Always available, unlike esp32 which needs bus_label to bind to a
     real instance."""
     return spi_group_roles, spi_value_role
+
+
+def bootloader(advanced: ConfigType) -> str:
+    """Return the bootloader; nrf52 has a choice, nrf54 is always MCUboot."""
+    return advanced.get(CONF_BOOTLOADER, BOOTLOADER_MCUBOOT)

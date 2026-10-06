@@ -7,6 +7,8 @@ implemented yet. See platform_zephyr_todo memory for the open item."""
 
 from esphome.types import ConfigType
 
+from . import mcuboot_or_none
+
 
 def to_code(config: ConfigType) -> None:
     """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults
@@ -19,7 +21,9 @@ def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
-    zephyr_add_prj_conf("FPU", True)
+    # STM32F1 is Cortex-M3, which has no FPU.
+    if zephyr_variant() != ZEPHYR_VARIANT_STM32F1:
+        zephyr_add_prj_conf("FPU", True)
     # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
     # STM32F4 is a whole chip family, not a single SoC -- RNG presence varies per
     # member (F401/F411 have none, F405/F410/F412 and larger do), so stm32f4.py
@@ -36,3 +40,8 @@ def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every stm32-family variant (core.cpp, etc.).
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
+
+
+def bootloader(advanced: ConfigType) -> str:
+    """Return the bootloader set_core_data() gets, rebuilt from the cached advanced: block."""
+    return mcuboot_or_none(advanced)

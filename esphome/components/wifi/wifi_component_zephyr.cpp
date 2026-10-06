@@ -5,6 +5,7 @@
 
 #include <zephyr/net/dhcpv4.h>
 #include <zephyr/net/dhcpv4_server.h>
+#include <zephyr/net/dns_resolve.h>
 #include <zephyr/net/hostname.h>
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/net_if.h>
@@ -62,16 +63,17 @@ WiFiSTAConnectStatus g_sta_status = WiFiSTAConnectStatus::IDLE;  // NOLINT
 bool g_ap_enabled = false;                                       // NOLINT
 // Power-save requests fail until the driver has actually started (a side effect of
 // connect/scan/AP-enable, not interface registration) -- deferred until after.
-bool g_wifi_started = false;  // NOLINT
+bool g_wifi_started = false;   // NOLINT
+bool g_sta_manual_ip = false;  // NOLINT
 // Set once from WiFiComponent::wifi_pre_setup_(); read from the producer thread to
 // drop weak scan results before they ever reach the event queue.
 int8_t g_min_scan_rssi = -128;  // NOLINT
 
-// Fixed pool backing event_queue_ instead of heap-allocating each event (a dense scan can
-// push 15-20 back to back). next_pool_slot only advances on a successful push, so it can
-// never wrap onto a still-live slot -- the queue's ring buffer always keeps one free.
-ZephyrWiFiEvent event_pool[17];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-uint8_t next_pool_slot = 0;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Fixed pool backing event_queue_. Up to 16 queued + 1 being read by wifi_loop_() are live,
+// and a slot is written before push() can fail, so the pool needs one spare beyond that.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+ZephyrWiFiEvent event_pool[ZEPHYR_WIFI_EVENT_QUEUE_SIZE + 1];
+uint8_t next_pool_slot = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 ZephyrWiFiEvent *claim_pool_slot() { return &event_pool[next_pool_slot]; }
 
@@ -155,6 +157,40 @@ network::IPAddress ipv4_to_ip_address(const in_addr &addr4) {
 network::IPAddress ipv4_to_ip_address(const in_addr &addr4) { return network::IPAddress(&addr4); }
 #endif
 
+bool parse_ipv4(const char *str, in_addr &out) {
+  if (net_addr_pton(AF_INET, str, &out) != 0) {
+    ESP_LOGE(TAG, "Invalid IPv4 address '%s'", str);
+    return false;
+  }
+  return true;
+}
+
+struct Ipv4Collector {
+  network::IPAddresses *addresses;
+  uint8_t index;
+};
+
+// net_if_ipv4_addr_foreach() callbacks; Zephyr calls them for each used address.
+void collect_ipv4(net_if *iface, net_if_addr *addr, void *user_data) {
+  auto *collector = static_cast<Ipv4Collector *>(user_data);
+  if (collector->index < collector->addresses->size()) {
+    (*collector->addresses)[collector->index++] = ipv4_to_ip_address(addr->address.in_addr);
+  }
+}
+
+struct FirstIpv4 {
+  in_addr addr{};
+  bool found{false};
+};
+
+void first_ipv4(net_if *iface, net_if_addr *addr, void *user_data) {
+  auto *first = static_cast<FirstIpv4 *>(user_data);
+  if (!first->found) {
+    first->addr = addr->address.in_addr;
+    first->found = true;
+  }
+}
+
 }  // namespace
 
 bool WiFiComponent::push_zephyr_wifi_event(void *event) {
@@ -163,6 +199,8 @@ bool WiFiComponent::push_zephyr_wifi_event(void *event) {
 
 void WiFiComponent::wifi_pre_setup_() {
   g_min_scan_rssi = this->min_scan_rssi_;
+  sta_iface = net_if_get_wifi_sta();
+  ap_iface = net_if_get_wifi_sap();
   net_mgmt_init_event_callback(&wifi_event_cb, wifi_event_handler,
                                NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT |
                                    NET_EVENT_WIFI_AP_ENABLE_RESULT | NET_EVENT_WIFI_AP_DISABLE_RESULT |
@@ -174,9 +212,6 @@ void WiFiComponent::wifi_pre_setup_() {
   net_mgmt_init_event_callback(&ipv6_event_cb, ipv6_event_handler, NET_EVENT_IPV6_ADDR_ADD);
   net_mgmt_add_event_callback(&ipv6_event_cb);
 #endif
-
-  sta_iface = net_if_get_wifi_sta();
-  ap_iface = net_if_get_wifi_sap();
 }
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
@@ -259,28 +294,40 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
   if (!manual_ip.has_value()) {
-    // ESP32_WIFI_STA_AUTO_DHCPV4 (enabled via NET_DHCPV4 in wifi/__init__.py) starts DHCPv4
-    // automatically once STA connects -- nothing to do here.
+    // DHCPv4 is started on CONNECT_RESULT (see wifi_loop_()).
     return true;
   }
-  // DHCPv4 auto-starts on connect regardless of manual_ip (NET_DHCPV4 is unconditionally
-  // enabled); stop it before adding the static address so it can't race in and overwrite
-  // it, matching ESP-IDF's esp_netif_dhcpc_stop(). No-op if the client was never started.
+  // A previous DHCP network's client may still be running.
   net_dhcpv4_stop(sta_iface);
   char buf[network::IP_ADDRESS_BUFFER_SIZE];
   in_addr addr{};
-  net_addr_pton(AF_INET, manual_ip->static_ip.str_to(buf), &addr);
+  in_addr gw{};
+  in_addr mask{};
+  if (!parse_ipv4(manual_ip->static_ip.str_to(buf), addr) || !parse_ipv4(manual_ip->gateway.str_to(buf), gw) ||
+      !parse_ipv4(manual_ip->subnet.str_to(buf), mask)) {
+    return false;
+  }
   net_if_addr *ifaddr = net_if_ipv4_addr_add(sta_iface, &addr, NET_ADDR_MANUAL, 0);
   if (ifaddr == nullptr) {
     ESP_LOGE(TAG, "Failed to set static IP");
     return false;
   }
-  in_addr gw{};
-  net_addr_pton(AF_INET, manual_ip->gateway.str_to(buf), &gw);
   net_if_ipv4_set_gw(sta_iface, &gw);
-  in_addr mask{};
-  net_addr_pton(AF_INET, manual_ip->subnet.str_to(buf), &mask);
   net_if_ipv4_set_netmask_by_addr(sta_iface, &addr, &mask);
+  // Without DHCP nothing else supplies DNS servers for getaddrinfo().
+  char dns1[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns2[network::IP_ADDRESS_BUFFER_SIZE];
+  const char *servers[3]{};
+  size_t count = 0;
+  if (manual_ip->dns1.is_set()) {
+    servers[count++] = manual_ip->dns1.str_to(dns1);
+  }
+  if (manual_ip->dns2.is_set()) {
+    servers[count++] = manual_ip->dns2.str_to(dns2);
+  }
+  if (count > 0 && dns_resolve_reconfigure(dns_resolve_get_default(), servers, nullptr, DNS_SOURCE_MANUAL) < 0) {
+    ESP_LOGW(TAG, "Failed to set DNS servers");
+  }
   return true;
 }
 
@@ -329,9 +376,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (sta_iface == nullptr) {
     return false;
   }
-  if (!this->wifi_sta_ip_config_(get_manual_ip_or_none(ap))) {
+  const optional<ManualIP> manual_ip = get_manual_ip_or_none(ap);
+  if (!this->wifi_sta_ip_config_(manual_ip)) {
     return false;
   }
+  g_sta_manual_ip = manual_ip.has_value();
 
   wifi_connect_req_params params{};
   fill_ssid_and_security(params, ap.ssid_, ap.password_);
@@ -394,8 +443,9 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   in_addr addr{};
   in_addr mask{};
   if (manual_ip.has_value()) {
-    net_addr_pton(AF_INET, manual_ip->static_ip.str_to(buf), &addr);
-    net_addr_pton(AF_INET, manual_ip->subnet.str_to(buf), &mask);
+    if (!parse_ipv4(manual_ip->static_ip.str_to(buf), addr) || !parse_ipv4(manual_ip->subnet.str_to(buf), mask)) {
+      return false;
+    }
   } else {
     net_addr_pton(AF_INET, "192.168.4.1", &addr);
     net_addr_pton(AF_INET, "255.255.255.0", &mask);
@@ -448,16 +498,9 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   if (ap_iface == nullptr) {
     return {};
   }
-  net_if_ipv4 *ipv4 = ap_iface->config.ip.ipv4;
-  if (ipv4 == nullptr) {
-    return {};
-  }
-  for (const auto &unicast : ipv4->unicast) {
-    if (unicast.ipv4.is_used) {
-      return ipv4_to_ip_address(unicast.ipv4.address.in_addr);
-    }
-  }
-  return {};
+  FirstIpv4 first;
+  net_if_ipv4_addr_foreach(ap_iface, first_ipv4, &first);
+  return first.found ? ipv4_to_ip_address(first.addr) : network::IPAddress{};
 }
 #endif  // USE_WIFI_AP
 
@@ -517,40 +560,28 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (sta_iface == nullptr) {
     return addresses;
   }
-  net_if_ipv4 *ipv4 = sta_iface->config.ip.ipv4;
-  if (ipv4 == nullptr) {
-    return addresses;
-  }
-  uint8_t index = 0;
-  for (const auto &unicast : ipv4->unicast) {
-    if (index >= addresses.size()) {
-      break;
-    }
-    if (unicast.ipv4.is_used) {
-      addresses[index++] = ipv4_to_ip_address(unicast.ipv4.address.in_addr);
-    }
-  }
+  Ipv4Collector collector{&addresses, 0};
+  net_if_ipv4_addr_foreach(sta_iface, collect_ipv4, &collector);
   return addresses;
 }
 
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
-  if (sta_iface == nullptr || sta_iface->config.ip.ipv4 == nullptr) {
+  if (sta_iface == nullptr) {
     return {};
   }
-  for (const auto &unicast : sta_iface->config.ip.ipv4->unicast) {
-    if (unicast.ipv4.is_used) {
-      in_addr mask = net_if_ipv4_get_netmask_by_addr(sta_iface, &unicast.ipv4.address.in_addr);
-      return ipv4_to_ip_address(mask);
-    }
+  FirstIpv4 first;
+  net_if_ipv4_addr_foreach(sta_iface, first_ipv4, &first);
+  if (!first.found) {
+    return {};
   }
-  return {};
+  return ipv4_to_ip_address(net_if_ipv4_get_netmask_by_addr(sta_iface, &first.addr));
 }
 
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
-  if (sta_iface == nullptr || sta_iface->config.ip.ipv4 == nullptr) {
+  if (sta_iface == nullptr) {
     return {};
   }
-  return ipv4_to_ip_address(sta_iface->config.ip.ipv4->gw);
+  return ipv4_to_ip_address(net_if_ipv4_get_gw(sta_iface));
 }
 
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
@@ -569,6 +600,18 @@ bool WiFiComponent::wifi_loop_() {
       case ZephyrWiFiEvent::Type::CONNECT_RESULT:
         if (event->status == 0) {
           g_sta_status = WiFiSTAConnectStatus::CONNECTED;
+          if (g_sta_manual_ip) {
+            // A static address re-added on reconnect raises no IPV4_ADDR_ADD event.
+#if USE_NETWORK_IPV4
+            this->got_ipv4_address_ = true;
+            this->update_connected_state_();
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+            this->notify_ip_state_listeners_();
+#endif
+#endif
+          } else {
+            net_dhcpv4_start(sta_iface);
+          }
           // Deferred from setup() -- the driver wasn't started yet at that point (see
           // wifi_apply_power_save_()'s g_wifi_started guard), so apply it now that it is.
           if (!this->wifi_apply_power_save_()) {

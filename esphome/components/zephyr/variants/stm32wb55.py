@@ -119,7 +119,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define(ThreadModel.SINGLE)
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
-    # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
+    # get_mac_address_raw() (zephyr/core.cpp) derives the MAC from the unique ID via hwinfo.
     zephyr_add_prj_conf("HWINFO", True)
 
     # STM32WB55 has a true RNG (dts/arm/st/wb/stm32wb.dtsi's rng@58001000) needed for its

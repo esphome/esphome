@@ -27,6 +27,7 @@ from esphome.const import (
     PLATFORM_ZEPHYR,
 )
 from esphome.core import CORE
+from tests.unit_tests.components.zephyr_state import empty_zephyr_data
 
 
 def test_quad_platform_validator_accepts_esp32_arduino_idf() -> None:
@@ -36,13 +37,13 @@ def test_quad_platform_validator_accepts_esp32_arduino_idf() -> None:
 
 def test_quad_platform_validator_accepts_zephyr_esp32_family_variant() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "ESP32C6"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32C6")
     assert _quad_platform_validator("x") == "x"
 
 
 def test_quad_platform_validator_rejects_zephyr_non_esp32_variant() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "STM32F4"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="STM32F4")
     with pytest.raises(cv.Invalid, match="Quad SPI is not available"):
         _quad_platform_validator("x")
 
@@ -55,7 +56,7 @@ def test_quad_platform_validator_rejects_non_esp32_non_zephyr_platform() -> None
 
 # ---------------------------------------------------------------------------
 # one_of_interface_validator -- Zephyr's named-bus 'interface: spi2' selection
-# (item 47: replaces the old dts_node_override key with the same shape ESP32/
+# (replaces the old dts_node_override key with the same shape ESP32/
 # RP2040 already use). Zephyr's real bus list isn't known until to_code() runs
 # fetch_board_dts(), so unlike ESP32/RP2040 a named value can't be validated
 # against a real list at schema time -- it's accepted and checked for real later
@@ -85,7 +86,7 @@ def test_one_of_interface_validator_esp32_rejects_unknown_value() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _zephyr_setup_spi -- item 48: multiple spi: entries are allowed on Zephyr now,
+# _zephyr_setup_spi -- multiple spi: entries are allowed on Zephyr now,
 # but two entries resolving to the same real bus label is a real conflict.
 # ---------------------------------------------------------------------------
 
@@ -99,17 +100,7 @@ def _spi_conf(interface: str, clk: int) -> dict:
 
 def test_zephyr_setup_spi_allows_distinct_buses() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {
-        "board": "some_board",
-        "variant": "ESP32",
-        "family": "esp32",
-        "prj_conf": {},
-        "overlay": {"": ""},
-        # resolve_zephyr_bus() -> validate_dts_label_exists() -> _get_edt() reads
-        # this key directly (not .get()); DTS auto-detection then no-ops since
-        # "dts_base_path" is unset here.
-        "board_edt_cache": {},
-    }
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32")
     resolved: set[str] = set()
     _zephyr_setup_spi(_spi_conf("spi2", 6), resolved)
     _zephyr_setup_spi(_spi_conf("spi3", 18), resolved)
@@ -118,14 +109,7 @@ def test_zephyr_setup_spi_allows_distinct_buses() -> None:
 
 def test_zephyr_setup_spi_rejects_duplicate_resolved_bus() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {
-        "board": "some_board",
-        "variant": "ESP32",
-        "family": "esp32",
-        "prj_conf": {},
-        "overlay": {"": ""},
-        "board_edt_cache": {},
-    }
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32")
     resolved: set[str] = set()
     _zephyr_setup_spi(_spi_conf("spi2", 6), resolved)
     with pytest.raises(cv.Invalid, match="both resolved to bus 'spi2'"):
@@ -149,47 +133,82 @@ def _spi_pin_conf(clk: int, mosi: int | None = None, miso: int | None = None) ->
 
 def test_validate_spi_config_accepts_valid_esp32_pins() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "ESP32C6"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32C6")
     validate_spi_config([_spi_pin_conf(clk=6, mosi=7, miso=8)])
 
 
 def test_validate_spi_config_rejects_invalid_esp32_clk_pin() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "ESP32C6"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32C6")
     with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
         validate_spi_config([_spi_pin_conf(clk=30)])
 
 
 def test_validate_spi_config_rejects_invalid_esp32_miso_pin() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "ESP32"}
-    # GPIO34-39 are input-only on the original ESP32 -- valid for MISO, not for CLK.
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32")
     with pytest.raises(cv.Invalid, match="does not support SPI MISO"):
-        validate_spi_config([_spi_pin_conf(clk=6, miso=99)])
+        validate_spi_config([_spi_pin_conf(clk=18, miso=99)])
+
+
+def test_validate_spi_config_rejects_invalid_esp32_mosi_pin() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32")
+    with pytest.raises(cv.Invalid, match="does not support SPI MOSI"):
+        validate_spi_config([_spi_pin_conf(clk=18, mosi=99)])
+
+
+def test_validate_spi_config_accepts_input_only_pin_for_miso() -> None:
+    # GPIO34-39 are input-only on the original ESP32: fine for MISO.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32")
+    validate_spi_config([_spi_pin_conf(clk=18, mosi=23, miso=34)])
+
+
+@pytest.mark.parametrize(
+    ("signal", "conf"), [("CLK", {"clk": 34}), ("MOSI", {"clk": 18, "mosi": 34})]
+)
+def test_validate_spi_config_rejects_input_only_pin_for_output_signals(
+    signal: str, conf: dict[str, int]
+) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32")
+    with pytest.raises(cv.Invalid, match=f"does not support SPI {signal}"):
+        validate_spi_config([_spi_pin_conf(**conf)])
+
+
+@pytest.mark.parametrize(
+    ("variant", "pin"), [("ESP32", 6), ("ESP32C3", 12), ("ESP32C5", 16)]
+)
+def test_validate_spi_config_rejects_esp32_flash_pins(variant: str, pin: int) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant=variant)
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=pin)])
 
 
 def test_validate_spi_config_accepts_valid_nordic_pins() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "NRF52"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF52")
     validate_spi_config([_spi_pin_conf(clk=8, mosi=6, miso=7)])
 
 
 def test_validate_spi_config_rejects_invalid_nordic_clk_pin() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "NRF52"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF52")
     with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
         validate_spi_config([_spi_pin_conf(clk=99)])
 
 
 def test_validate_spi_config_accepts_valid_silabs_pins() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "EFR32MG24"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="EFR32MG24")
     validate_spi_config([_spi_pin_conf(clk=3, mosi=5, miso=6)])
 
 
 def test_validate_spi_config_rejects_invalid_silabs_clk_pin() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "EFR32MG24"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="EFR32MG24")
     with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
         validate_spi_config([_spi_pin_conf(clk=99)])
 
@@ -198,7 +217,7 @@ def test_validate_spi_config_skips_pin_check_for_non_esp32_family() -> None:
     # STM32's spi_valid_pins is empty -- pin validity is left to
     # zephyr_setup_spi_pinctrl() at codegen time, not checked here.
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
-    CORE.data[KEY_ZEPHYR] = {"variant": "STM32F4"}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="STM32F4")
     validate_spi_config([_spi_pin_conf(clk=99, mosi=99, miso=99)])
 
 
@@ -227,3 +246,10 @@ def test_clk_pin_required_non_zephyr_requires_clk() -> None:
     value = {CONF_INTERFACE: "any"}
     with pytest.raises(cv.Invalid):
         _validate_clk_pin_required(value)
+
+
+def test_validate_spi_config_rejects_pin_missing_from_xg24() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="EFR32MG24")
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=10)])  # PA10

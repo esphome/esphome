@@ -206,19 +206,6 @@ class Logger final : public Component {
 #endif
 
 #ifdef USE_ZEPHYR
-  // Routes native Zephyr log lines through the same listener/UART pipeline as ESPHome's
-  // own logs (see logger_zephyr_log_backend.cpp). Uses its own local buffer, not
-  // this->tx_buffer_, since this runs on Zephyr's logging thread concurrently with the
-  // main task's use of tx_buffer_.
-  void write_zephyr_native_msg(uint8_t level, const char *tag, const char *msg, uint16_t len) {
-    char local_buf[300];
-    LogBuffer buf{local_buf, sizeof(local_buf)};
-    buf.write_header(level, tag, 0, nullptr);
-    buf.write_body(msg, len);
-    this->notify_listeners_(level, tag, buf);
-    this->write_log_buffer_to_console_(buf);
-  }
-
   // Called from the watchdog stage0 callback right before a reset. Skips the ring
   // buffer and listeners -- writes straight to the UART, the only path that can
   // still reach the console this late.

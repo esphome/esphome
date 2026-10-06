@@ -620,20 +620,8 @@ def perform_ota(
         features = 0
 
     if alt_filename is not None and not (features & SERVER_FEATURE_ACTIVE_SLOT_1):
-        # Direct-xip has no swap step -- the OTA write always targets whichever slot
-        # ISN'T currently running. The device not reporting slot 1 as active means
-        # it's running slot 0 (the common case), so the write goes to slot 1 and
-        # needs the slot-1-linked build (alt_filename); sending the primary
-        # (slot-0-linked) image there would link-mismatch and fail to boot. The
-        # primary file_handle was already read above (before this was knowable --
-        # the slot is only reported partway through the handshake), so its content
-        # is simply discarded here in favor of alt_filename's.
-        if alt_filename is None:
-            raise OTAError(
-                "Device is running from the primary MCUboot slot and requires "
-                "the matching slot-1 firmware variant, but this upload has none "
-                "available. Recompile with the current ESPHome version and retry."
-            )
+        # Direct-xip writes the slot that isn't running; slot 0 running means the
+        # write goes to slot 1, which needs the slot-1-linked build.
         with alt_filename.open("rb") as alt_handle:
             file_contents = alt_handle.read()
         filename = alt_filename

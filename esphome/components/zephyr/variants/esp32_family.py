@@ -6,6 +6,7 @@ from collections.abc import Callable
 from esphome.types import ConfigType
 
 from ..const import (
+    BOOTLOADER_MCUBOOT,
     ZEPHYR_VARIANT_ESP32,
     ZEPHYR_VARIANT_ESP32_C3,
     ZEPHYR_VARIANT_ESP32_C5,
@@ -327,3 +328,8 @@ def spi_pinctrl(
         return _spi_value_role(value, signal_ids)
 
     return resolver, value_role_decoder
+
+
+def bootloader(advanced: ConfigType) -> str:
+    """Return the bootloader set_core_data() gets, rebuilt from the cached advanced: block."""
+    return BOOTLOADER_MCUBOOT

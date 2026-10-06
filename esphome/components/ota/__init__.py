@@ -74,6 +74,16 @@ SWAP_METHOD_SCHEMA = {
 }
 
 
+def reject_swap_method_off_zephyr(config: ConfigType) -> ConfigType:
+    """swap_method: is only applied on platform: zephyr; reject it elsewhere."""
+    if not CORE.is_zephyr and CONF_SWAP_METHOD in config:
+        raise cv.Invalid(
+            f"'{CONF_SWAP_METHOD}' is only supported on platform: zephyr",
+            path=[CONF_SWAP_METHOD],
+        )
+    return config
+
+
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
 OTAState = ota_ns.enum("OTAState")
@@ -109,7 +119,10 @@ def _ota_final_validate(config: ConfigType) -> None:
         if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
             bootloader = zephyr_data()[KEY_BOOTLOADER]
             if bootloader != BOOTLOADER_MCUBOOT:
-                raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+                raise cv.Invalid(
+                    f"OTA requires the MCUboot bootloader (current: {bootloader or 'none'}); "
+                    f"set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}'"
+                )
 
         if zephyr_data()[KEY_SINGLE_SLOT]:
             # No secondary slot to write into instead of the one currently executing --

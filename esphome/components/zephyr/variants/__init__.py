@@ -24,6 +24,8 @@ from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
 from ..const import (
+    BOOTLOADER_MCUBOOT,
+    CONF_BOOTLOADER,
     CONF_NINJA_VERSION,
     CONF_SINGLE_SLOT,
     CONF_SNIPPETS,
@@ -51,7 +53,7 @@ class ZephyrSDK:
     # Default/minimum supported Zephyr version; a variant overrides these via its own
     # *_version_override fields. 4.4.1: fixes a C++ compile error in ethernet.h that any
     # wifi_mgmt.h consumer hits.
-    default_version: str = "4.4.1"
+    default_version: str = "4.4.2"
     min_version: cv.Version = cv.Version(4, 4, 1)
     # False: boards_repo_url is checked out directly at tag f"v{version}" (mainline's own
     # tag scheme). True: boards_repo_url's *checkout ref* isn't derivable from version at
@@ -203,11 +205,10 @@ class ZephyrVariant:
     # DO NOT assume "gpio" is safe for a new variant just because it's the default here
     # and every existing variant uses it. Before adding a new ZephyrVariant, grep that
     # SoC's actual .dtsi under the Zephyr SDK for "gpio-controller;" and read the node
-    # label a few lines above it -- then set this field to match. Getting it wrong is
-    # silent at compile time: DEVICE_DT_GET_OR_NULL() on a nonexistent node just resolves
-    # to nullptr, so every GPIO pin on the new variant fails at runtime with
-    # "gpio %u is not ready." instead of a build error (see the RA4M1 bug this comment
-    # is here because of).
+    # label a few lines above it -- then set this field to match. Getting it wrong fails
+    # every pin: at codegen when the board's devicetree is readable (gpio.py checks the
+    # node exists), otherwise at runtime with "gpio %u is not ready." (the RA4M1 bug
+    # this comment is here because of).
     gpio_node_prefix: str = "gpio"
     # ESPHome components this variant can actually support. Named after the
     # component/protocol, not the raw radio -- e.g. `openthread` and `zigbee` both need
@@ -353,6 +354,16 @@ def _sdk_min_version(
     if sdk_name == variant.sdk_name:
         return variant.min_version_override or sdk.min_version
     return sdk.min_version
+
+
+def mcuboot_or_none(advanced: dict) -> str:
+    """Return MCUboot if advanced: bootloader: selects it, else "" -- the value
+    variants with an opt-in bootloader pass to set_core_data()."""
+    return (
+        BOOTLOADER_MCUBOOT
+        if advanced.get(CONF_BOOTLOADER) == BOOTLOADER_MCUBOOT
+        else ""
+    )
 
 
 def qualify_board(
@@ -518,7 +529,6 @@ def set_core_data(
         west_version=config.get(CONF_WEST_VERSION),
         ninja_version=config.get(CONF_NINJA_VERSION),
         snippets=config.get(CONF_SNIPPETS, []),
-        swap_method=None,
         single_slot=config.get(CONF_SINGLE_SLOT, False),
         shields=shields if shields is not None else [],
         shield_root=shield_root,
@@ -561,7 +571,7 @@ NCS: ZephyrSDK = ZephyrSDK(
     manifest_url="https://github.com/nrfconnect/sdk-nrf",
     boards_repo_url="https://github.com/nrfconnect/sdk-zephyr",
     tools_subdir="sdk-nrf",
-    default_version="3.4.0",
+    default_version="3.4.1",
     min_version=cv.Version(3, 4, 0),
     resolve_boards_ref_via_manifest=True,
     modules={"zigbee": NCS_ZIGBEE_TEMPLATE},

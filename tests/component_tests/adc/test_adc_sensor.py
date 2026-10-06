@@ -30,3 +30,20 @@ def test_adc_regular_pin_is_not_deprecated(
 
     assert "adc_voltage->set_is_temperature();" not in main_cpp
     assert caplog.text.count("`pin: TEMPERATURE` is deprecated") == 1
+
+
+def test_zephyr_adc_channel_node_name_is_hex(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Zephyr looks the channel node up by its unit address read as hex, so channel
+    22 must be `channel@16`; `channel@22` is address 0x22 and the lookup misses."""
+    from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
+    from esphome.components.zephyr.const import KEY_OVERLAY  # noqa: PLC0415
+
+    generate_main("tests/component_tests/adc/test_adc_zephyr_ra4m1.yaml")
+    overlay = "".join(zephyr_data()[KEY_OVERLAY].values())
+
+    assert "channel@9 {" in overlay  # A0, AN009
+    assert "channel@16 {" in overlay  # A5, AN022
+    assert "reg = <22>;" in overlay
+    assert "channel@22 {" not in overlay

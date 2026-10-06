@@ -5,6 +5,8 @@ investigated. See platform_zephyr_todo memory for the open item."""
 
 from esphome.types import ConfigType
 
+from . import mcuboot_or_none
+
 
 def to_code(config: ConfigType) -> None:
     """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults
@@ -27,3 +29,8 @@ def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every renesas-family variant (core.cpp, etc.).
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RENESAS")
+
+
+def bootloader(advanced: ConfigType) -> str:
+    """Return the bootloader set_core_data() gets, rebuilt from the cached advanced: block."""
+    return mcuboot_or_none(advanced)

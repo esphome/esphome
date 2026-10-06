@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
-    KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
 )
@@ -102,10 +101,8 @@ VARIANT = ZephyrVariant(
     # lettered-port family) even though gpiod's own devicetree node declares only
     # ngpios=10 -- flat pins 58-63 don't physically exist (confirmed against
     # dts/arm/silabs/siwg917.dtsi's gpiod node and its `silabs,pads` property, which
-    # lists 0xff -- not implemented -- for those 6 trailing entries). Per
-    # variants/__init__.py's own warning about gpio_node_prefix: this is silent at
-    # compile time -- a pin in that range just resolves to a null GPIO device and
-    # fails at runtime, not at `esphome config`/build time.
+    # lists 0xff -- not implemented -- for those 6 trailing entries). gpio.py rejects
+    # them at codegen from gpiod's ngpios when the devicetree is readable.
     #
     # The ULP GPIO controller (ulpgpio, 12 pins) and UULP GPIO controller
     # (uulpgpio, 5 pins -- wired to the board's SW0 button) are separate
@@ -160,7 +157,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
-    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "siwx917", config, "SiWx917 support"
     )
     if CONF_COMMANDER_VERSION in config[CONF_ADVANCED] and sdk_name != "silabs":
@@ -179,7 +176,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
         runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 

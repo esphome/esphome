@@ -6,6 +6,12 @@
 
 #include <zephyr/kernel.h>
 
+// With 802.15.4 (OpenThread) enabled on nRF, kernel.h pulls in hal_nordic's
+// nrf_802154_const.h through nrfx_reserved_resources.h, and its generic
+// MAX_PACKET_SIZE macro breaks every component constant of that name
+// (uart/udp packet_transport, bluetooth_connection).
+#undef MAX_PACKET_SIZE
+
 #define IRAM_ATTR
 #define PROGMEM
 

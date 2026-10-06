@@ -5,6 +5,8 @@ from collections.abc import Callable
 
 from esphome.types import ConfigType
 
+from ..const import BOOTLOADER_MCUBOOT
+
 # Devicetree property silabs pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "pins"
 
@@ -140,3 +142,8 @@ def spi_pinctrl(
     """Always available, unlike esp32 which needs bus_label to bind to a
     real instance."""
     return spi_group_roles, spi_value_role
+
+
+def bootloader(advanced: ConfigType) -> str:
+    """Return the bootloader set_core_data() gets, rebuilt from the cached advanced: block."""
+    return BOOTLOADER_MCUBOOT

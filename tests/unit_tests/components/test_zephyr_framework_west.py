@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import platformdirs
@@ -17,7 +19,9 @@ from esphome.components.zephyr.framework_west import (
     check_and_install,
 )
 from esphome.components.zephyr.variants import ZephyrModule, ZephyrSDK
+from esphome.core import EsphomeError
 from esphome.framework_helpers import get_python_env_executable_path
+from esphome.yaml_util import make_data_base
 
 _FAKE_SDK = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
 _CACHE_KEY = "v4.4.1-my-branch-00000000"
@@ -31,13 +35,15 @@ class _Calls(list):
         self.cwds: list[str | None] = []
 
 
-def _make_fake_run_command_ok(tmp_path: Path, manifest_path: str = "zephyr"):
+def _make_fake_run_command_ok(
+    tmp_path: Path, manifest_path: str = "zephyr"
+) -> tuple[_Calls, Callable[..., bool]]:
     """Record every run_command_ok() call; a `west init` also creates the
     framework and .west/config it would leave on disk (manifest.path is where west put
     the manifest repository), since check_and_install() depends on them existing."""
     calls = _Calls()
 
-    def fake_run_command_ok(cmd, **kwargs):
+    def fake_run_command_ok(cmd: list[str], **kwargs: Any) -> bool:
         calls.append(cmd)
         calls.cwds.append(kwargs.get("cwd"))
         if cmd[2:4] == ["west", "init"]:
@@ -59,9 +65,10 @@ def _fake_create_venv(root: Path, msg: str | None = None) -> None:
 
 def _run_check_and_install(
     tmp_path: Path,
-    source: dict,
+    source: dict | None,
     modules: list[ZephyrModule] | None = None,
     manifest_path: str = "zephyr",
+    update_returncode: int = 0,
 ) -> tuple[_Calls, MagicMock]:
     """Return the run_command_ok() calls and the mocked subprocess.run."""
     calls, fake_run_command_ok = _make_fake_run_command_ok(tmp_path, manifest_path)
@@ -84,7 +91,7 @@ def _run_check_and_install(
         ),
         patch("subprocess.run") as mock_subprocess_run,
     ):
-        mock_subprocess_run.return_value.returncode = 0
+        mock_subprocess_run.return_value.returncode = update_returncode
         check_and_install(
             sdk=_FAKE_SDK, version="4.4.1", source=source, modules=modules
         )
@@ -171,6 +178,60 @@ def test_git_source_moved_ref_repins_manifest_repo_without_reinit(
 def test_git_source_unchanged_ref_skips_update(tmp_path: Path) -> None:
     _run_check_and_install(tmp_path, _git_source("a" * 40))
     calls, mock_run = _run_check_and_install(tmp_path, _git_source("a" * 40))
+
+    assert not calls
+    mock_run.assert_not_called()
+
+
+def test_missing_ready_sentinel_reruns_update_without_reinit(tmp_path: Path) -> None:
+    """A workspace whose last `west update` never finished has .west/ but no .ready."""
+    _run_check_and_install(tmp_path, None)
+    framework = tmp_path / "sdk-zephyr" / "frameworks" / _CACHE_KEY
+    (framework / ".ready").unlink()
+
+    calls, mock_run = _run_check_and_install(tmp_path, None)
+
+    assert not [c for c in calls if c[2:4] == ["west", "init"]]
+    assert mock_run.call_args.args[0][2:4] == ["west", "update"]
+    assert (framework / ".ready").is_file()
+
+
+def test_failed_update_leaves_no_ready_sentinel_and_is_retried(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(EsphomeError, match="Can't update Zephyr SDK"):
+        _run_check_and_install(tmp_path, None, update_returncode=1)
+    framework = tmp_path / "sdk-zephyr" / "frameworks" / _CACHE_KEY
+    assert (framework / ".west").is_dir()
+    assert not (framework / ".ready").exists()
+
+    calls, mock_run = _run_check_and_install(tmp_path, None)
+
+    assert not [c for c in calls if c[2:4] == ["west", "init"]]
+    assert mock_run.call_args.args[0][2:4] == ["west", "update"]
+    assert (framework / ".ready").is_file()
+
+
+def test_rebuilt_venv_updates_workspace_without_reclone(tmp_path: Path) -> None:
+    """A missing venv (e.g. its interpreter was removed) must not wipe the workspace."""
+    _run_check_and_install(tmp_path, None)
+    framework = tmp_path / "sdk-zephyr" / "frameworks" / _CACHE_KEY
+    (framework / "keep").touch()
+    python = get_python_env_executable_path(
+        tmp_path / "sdk-zephyr" / "penvs" / "v4.4.1", "python"
+    )
+    python.unlink()
+
+    calls, mock_run = _run_check_and_install(tmp_path, None)
+
+    assert not [c for c in calls if c[2:4] == ["west", "init"]]
+    assert mock_run.call_args.args[0][2:4] == ["west", "update"]
+    assert (framework / "keep").exists()
+
+
+def test_complete_official_install_skips_update(tmp_path: Path) -> None:
+    _run_check_and_install(tmp_path, None)
+    calls, mock_run = _run_check_and_install(tmp_path, None)
 
     assert not calls
     mock_run.assert_not_called()
@@ -359,6 +420,37 @@ def test_generate_synthetic_manifest_root_name_override(tmp_path: Path) -> None:
 
     manifest = yaml.safe_load((manifest_dir / "west.yml").read_text())
     assert manifest["manifest"]["projects"][0]["name"] == "nrf"
+
+
+def test_generate_synthetic_manifest_accepts_yaml_config_strings(
+    tmp_path: Path,
+) -> None:
+    # sdk_source:/modules: values come from the YAML config as str subclasses
+    # (make_data_base), which yaml.safe_dump can't represent on its own.
+    url = make_data_base("https://github.com/nrfconnect/sdk-nrf")
+    module = ZephyrModule(
+        name=make_data_base("ant"),
+        manifest_url=make_data_base("https://github.com/ant-nrfconnect/sdk-ant"),
+        revision=make_data_base("v2.1.1"),
+    )
+    with patch(
+        "esphome.components.zephyr.framework_west.run_command_ok", return_value=True
+    ):
+        manifest_dir = _generate_synthetic_manifest(
+            tmp_path, url, make_data_base("v3.4.0"), [module]
+        )
+
+    projects = yaml.safe_load((manifest_dir / "west.yml").read_text())["manifest"][
+        "projects"
+    ]
+    assert projects[0]["url"] == "https://github.com/nrfconnect/sdk-nrf"
+    assert projects[0]["revision"] == "v3.4.0"
+    assert projects[1] == {
+        "name": "ant",
+        "url": "https://github.com/ant-nrfconnect/sdk-ant",
+        "revision": "v2.1.1",
+        "import": True,
+    }
 
 
 # ---------------------------------------------------------------------------

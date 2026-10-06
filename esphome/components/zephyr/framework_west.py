@@ -152,20 +152,22 @@ def _generate_synthetic_manifest(
     """
     manifest_dir = framework / "esphome-manifest"
     root_name = west_project_name or manifest_url.rstrip("/").rsplit("/", 1)[-1]
-    root_project = {"name": root_name, "url": manifest_url, "import": True}
+    # str(): values straight from the YAML config are str subclasses carrying their
+    # source position, which yaml.safe_dump refuses to represent.
+    root_project = {"name": str(root_name), "url": str(manifest_url), "import": True}
     # A ref-less `sdk_source: {type: git}` means "track the source's default branch"
     # -- omitting revision: here matches that, same as the plain `west init -m`
     # path's `if manifest_rev: cmd += ["--mr", manifest_rev]`. Writing `revision:
     # null` instead would hand west an explicit null the manifest schema doesn't
     # expect.
     if manifest_rev:
-        root_project["revision"] = manifest_rev
+        root_project["revision"] = str(manifest_rev)
     projects = [root_project]
     projects.extend(
         {
-            "name": module.name,
-            "url": module.manifest_url,
-            "revision": module.revision,
+            "name": str(module.name),
+            "url": str(module.manifest_url),
+            "revision": str(module.revision),
             "import": True,
         }
         for module in git_modules
@@ -383,11 +385,15 @@ def _check_and_install(
     label = str(source[CONF_PATH]) if is_local else (manifest_rev or "default branch")
 
     sentinel = framework / ".ready"
-    needs_init = install_venv or not (framework / ".west").is_dir()
+    needs_init = not (framework / ".west").is_dir()
+    # .ready is only written after a complete `west update`; without it a previous
+    # update was interrupted and the workspace may be half-fetched.
+    incomplete = not needs_init and not sentinel.exists()
     # local: (a user-edited checkout) can change between builds, so always re-run
     # `west update` -- cheap/no-op if unchanged. The official source is pinned to an
     # immutable tag and never needs this.
-    needs_refresh = is_local
+    # A rebuilt venv only needs an update, not a fresh clone of the workspace.
+    needs_refresh = is_local or incomplete or install_venv
 
     # A git source: is pinned to one commit per run (dts_fetch.resolve_sdk_source_version()),
     # but the workspace directory is keyed by ref name, so a moved branch must be
@@ -462,9 +468,13 @@ def _check_and_install(
             _pin_manifest_repo(_manifest_repo_dir(framework), manifest_rev, label)
 
     if needs_init or needs_refresh:
+        if incomplete:
+            _LOGGER.info("Previous Zephyr SDK update did not finish; retrying")
         _LOGGER.info(
             "Updating Zephyr SDK %s (%s) (this may take a while) ...", ver_tag, label
         )
+        # Cleared first so an interrupted update is retried on the next build.
+        sentinel.unlink(missing_ok=True)
         cmd = [
             str(python_bin),
             "-m",
@@ -479,7 +489,7 @@ def _check_and_install(
         if result.returncode != 0:
             raise EsphomeError(f"Can't update Zephyr SDK {ver_tag} ({label})")
 
-        if needs_init or pinned:
+        if needs_init or pinned or incomplete or install_venv:
             zephyr_reqs = zephyr_dir / "scripts" / "requirements.txt"
             if zephyr_reqs.exists():
                 _LOGGER.info("Installing Zephyr Python requirements ...")

@@ -7,3 +7,4 @@ recursive-include esphome *.py.script
 recursive-include esphome *.jinja
 recursive-include esphome LICENSE.txt
 recursive-include esphome requirements.txt
+recursive-include esphome requirements_west.txt

@@ -45,6 +45,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_NATIVE_SIM,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -583,12 +584,15 @@ async def _late_logger_init(config: ConfigType) -> None:
             zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:
                 zephyr_add_overlay("""&uart0 { status = "okay";};""")
+                cg.add_define("LOGGER_UART_NODE_LABEL", cg.RawExpression("uart0"))
             if config[CONF_HARDWARE_UART] == UART1:
                 zephyr_add_overlay("""&uart1 { status = "okay";};""")
+                cg.add_define("LOGGER_UART_NODE_LABEL", cg.RawExpression("uart1"))
             if config[CONF_HARDWARE_UART] == USB_CDC:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
-                zephyr_add_cdc_acm(config, 0)
+                label = zephyr_add_cdc_acm(config, 0)
+                cg.add_define("LOGGER_CDC_ACM_UART_LABEL", cg.RawExpression(label))
     if CORE.is_zephyr and has_serial_logging:
         zephyr_add_prj_conf("SERIAL", True)
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)
@@ -670,6 +674,10 @@ async def _late_logger_init(config: ConfigType) -> None:
         # This Kconfig serializes calls into backend process() under LOG_MODE_IMMEDIATE
         # (native_sim's default); a no-op on variants using LOG_MODE_DEFERRED (h2, c6).
         zephyr_add_prj_conf("LOG_IMMEDIATE_CLEAN_OUTPUT", True, required=False)
+
+    if CORE.is_zephyr and zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+        # Default-on stock backend; duplicates every native line on stdout.
+        zephyr_add_prj_conf("LOG_BACKEND_NATIVE_POSIX", False, required=False)
 
     # Register at end for safe mode
     await cg.register_component(log, config)

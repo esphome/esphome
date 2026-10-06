@@ -34,9 +34,7 @@ _DEFAULT_BOARD = "esp32_devkitc"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32-pinctrl.h
-# No GPIO 24, 28-31 (SPI flash pins). Shared by UART tx/rx and SPI clk/mosi/miso --
-# same free-mux GPIO matrix regardless of peripheral. Output-capable excludes
-# GPIO34-39: input-only on original ESP32, no output driver.
+# No GPIO 6-11 (SPI flash) or 24/28-31 (don't exist). GPIO34-39 are input-only.
 _OUTPUT_CAPABLE_PINS = frozenset(
     {
         0,
@@ -45,12 +43,6 @@ _OUTPUT_CAPABLE_PINS = frozenset(
         3,
         4,
         5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
         12,
         13,
         14,
@@ -107,12 +99,10 @@ VARIANT = ZephyrVariant(
 
 
 def config_schema(config: ConfigType) -> ConfigType:
-    # Zephyr's SMP support for Xtensa ESP32 is opt-in via kconfig_options: CONFIG_SMP, and
-    # WIFI_ESP32 requires SMP off regardless -- only warn when APP_CPU is really unused.
     if not config.get(CONF_KCONFIG_OPTIONS, {}).get("CONFIG_SMP"):
         _LOGGER.warning(
-            "Original ESP32 is dual-core, but only one core (PRO_CPU) is used under Zephyr by "
-            "default -- set kconfig_options: CONFIG_SMP: true to enable the second core (APP_CPU)."
+            "Original ESP32 is dual-core, but under Zephyr only one core (PRO_CPU) is "
+            "used, unlike ESP-IDF builds."
         )
     config = dict(config)
     if CONF_BOARD not in config:

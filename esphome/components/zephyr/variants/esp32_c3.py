@@ -30,8 +30,8 @@ _DEFAULT_BOARD = "esp32c3_devkitm"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c3-pinctrl.h
-# GPIO0-21, no gaps; same set for every free-mux GPIO-matrix signal (UART, SPI).
-_GPIO_MATRIX_PINS = frozenset(range(22))
+# GPIO0-21 minus 12-17 (SPI flash); same set for every free-mux signal (UART, SPI).
+_GPIO_MATRIX_PINS = frozenset(range(22)) - frozenset(range(12, 18))
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C3

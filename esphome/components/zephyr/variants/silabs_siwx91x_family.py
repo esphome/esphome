@@ -56,3 +56,8 @@ def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every silabs_siwx91x-family variant.
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X")
+
+
+def bootloader(advanced: ConfigType) -> str:
+    """Return the bootloader set_core_data() gets, rebuilt from the cached advanced: block."""
+    return ""
