@@ -208,6 +208,13 @@ def request_service_enable_disable() -> bool:
     return True
 
 
+def _has_mdns_service(key: str) -> bool:
+    if (conf := CORE.config.get(key)) is None:
+        return False
+    # The native API is only advertised when it listens on IP
+    return key != "api" or conf.get("transport") != "ble"
+
+
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED] is True:
@@ -250,7 +257,7 @@ async def to_code(config: ConfigType) -> None:
 
     # Calculate compile-time service count
     service_count = sum(
-        1 for key in COMPONENTS_WITH_MDNS_SERVICES if key in CORE.config
+        1 for key in COMPONENTS_WITH_MDNS_SERVICES if _has_mdns_service(key)
     ) + len(config[CONF_SERVICES])
 
     if config[CONF_SERVICES]:

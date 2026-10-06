@@ -16,9 +16,22 @@ BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
+#ifdef USE_API_TRANSPORT_BLE
+// The advertisement holds 31 bytes: 3 for the flags, 18 for the API service and 2 for the name header
+static constexpr size_t MAX_ADV_NAME_LEN = 8;
+#else
+// The advertisement holds 31 bytes: 3 for the flags and 2 for the name header
+static constexpr size_t MAX_ADV_NAME_LEN = 26;
+#endif
 static const bt_data AD[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
+#ifdef USE_API_TRANSPORT_BLE
+    // In the advertisement, not the scan response, so passive scanners find the API
+    BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x3e, 0x80, 0x39, 0x53, 0x54, 0x45, 0x64, 0x89, 0x44, 0x44, 0x9c, 0x1c, 0x8b,
+                  0x0d, 0x1b, 0xe5),
+#endif
+    BT_DATA((DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, DEVICE_NAME,
+            (DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? MAX_ADV_NAME_LEN : DEVICE_NAME_LEN),
 };
 
 static const bt_data SD[] = {
@@ -53,12 +66,23 @@ void BLEServer::connected(bt_conn *conn, uint8_t err) {
   }
   ESP_LOGI(TAG, "Connected %s", addr);
 #ifdef CONFIG_BT_SMP
-  if (bt_conn_set_security(conn, BT_SECURITY_L4)) {
+#ifdef USE_BLE_NUMERIC_COMPARISON_REPLY
+  bt_security_t sec = BT_SECURITY_L4;
+#else
+  bt_security_t sec = BT_SECURITY_L1;
+#endif
+  if (bt_conn_set_security(conn, sec)) {
     ESP_LOGE(TAG, "Failed to set security");
   }
 #endif
   conn = bt_conn_ref(conn);
-  global_ble_server->defer([conn]() { global_ble_server->conn_ = conn; });
+  global_ble_server->defer([conn]() {
+    // Several connections can be open; conn_ follows the newest one
+    if (global_ble_server->conn_ != nullptr) {
+      bt_conn_unref(global_ble_server->conn_);
+    }
+    global_ble_server->conn_ = conn;
+  });
 }
 
 void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
@@ -67,10 +91,14 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
   ESP_LOGI(TAG, "Disconnected from %s (reason 0x%02x)", addr, reason);
-  global_ble_server->defer([]() {
-    if (global_ble_server->conn_) {
+  global_ble_server->defer([conn]() {
+    if (global_ble_server->conn_ == conn) {
       bt_conn_unref(global_ble_server->conn_);
       global_ble_server->conn_ = nullptr;
+    }
+    if (global_ble_server->pairing_conn_ == conn) {
+      bt_conn_unref(global_ble_server->pairing_conn_);
+      global_ble_server->pairing_conn_ = nullptr;
     }
   });
   k_work_submit(&advertise_work);
@@ -124,17 +152,6 @@ static void bond_deleted(uint8_t id, const bt_addr_le_t *peer) {
   ESP_LOGD(TAG, "Bond deleted for %s, id %u", addr, id);
 }
 
-static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
-  char addr[BT_ADDR_LE_STR_LEN];
-  char passkey_str[7];
-
-  bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-  snprintk(passkey_str, 7, "%06u", passkey);
-
-  ESP_LOGI(TAG, "Passkey for %s: %s", addr, passkey_str);
-}
-
 static void conn_addr_str(bt_conn *conn, char *addr, size_t len) {
   struct bt_conn_info info;
 
@@ -162,6 +179,18 @@ static void auth_cancel(bt_conn *conn) {
   ESP_LOGI(TAG, "Pairing cancelled: %s", addr);
 }
 
+#ifdef USE_BLE_NUMERIC_COMPARISON_REPLY
+static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
+  char addr[BT_ADDR_LE_STR_LEN];
+  char passkey_str[7];
+
+  bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+
+  snprintk(passkey_str, 7, "%06u", passkey);
+
+  ESP_LOGI(TAG, "Passkey for %s: %s", addr, passkey_str);
+}
+
 void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   char addr[BT_ADDR_LE_STR_LEN];
   char passkey_str[7];
@@ -171,9 +200,17 @@ void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   snprintk(passkey_str, 7, "%06u", passkey);
 
   ESP_LOGI(TAG, "Confirm passkey for %s: %s", addr, passkey_str);
-  global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
+  conn = bt_conn_ref(conn);
+  global_ble_server->defer([conn, passkey]() {
+    // The reply must go to the connection that asked, not to the newest one
+    if (global_ble_server->pairing_conn_ != nullptr) {
+      bt_conn_unref(global_ble_server->pairing_conn_);
+    }
+    global_ble_server->pairing_conn_ = conn;
+    global_ble_server->passkey_cb_(passkey);
+  });
 }
-
+#endif
 static void auth_pairing_confirm(bt_conn *conn) {
   /* Automatically confirm pairing request from the device side. */
   auto err = bt_conn_auth_pairing_confirm(conn);
@@ -188,7 +225,6 @@ static void auth_pairing_confirm(bt_conn *conn) {
 
   ESP_LOGI(TAG, "Pairing confirmed: %s", addr);
 }
-
 #endif
 
 void BLEServer::setup() {
@@ -214,8 +250,10 @@ void BLEServer::setup() {
     ESP_LOGE(TAG, "Failed to register authorization info callbacks.");
   }
   static struct bt_conn_auth_cb auth_cb = {
+#ifdef USE_BLE_NUMERIC_COMPARISON_REPLY
       .passkey_display = auth_passkey_display,
       .passkey_confirm = auth_passkey_confirm,
+#endif
       .cancel = auth_cancel,
       .pairing_confirm = auth_pairing_confirm,
   };
@@ -304,16 +342,18 @@ void BLEServer::dump_config() {
 }
 
 void BLEServer::numeric_comparison_reply(bool accept) {
-  if (this->conn_ == nullptr) {
-    ESP_LOGE(TAG, "Not connected");
+  if (this->pairing_conn_ == nullptr) {
+    ESP_LOGE(TAG, "No pairing in progress");
     return;
   }
   ESP_LOGD(TAG, "Numeric comparison %s", accept ? "accepted" : "rejected");
   if (accept) {
-    bt_conn_auth_passkey_confirm(this->conn_);
+    bt_conn_auth_passkey_confirm(this->pairing_conn_);
   } else {
-    bt_conn_auth_cancel(this->conn_);
+    bt_conn_auth_cancel(this->pairing_conn_);
   }
+  bt_conn_unref(this->pairing_conn_);
+  this->pairing_conn_ = nullptr;
 }
 
 }  // namespace esphome::zephyr_ble_server
