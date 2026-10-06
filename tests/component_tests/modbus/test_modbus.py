@@ -67,6 +67,6 @@ def test_on_request_accepts_synchronous_actions() -> None:
 
 def test_on_request_registers_a_callback(generate_main) -> None:
     main_cpp = generate_main("tests/component_tests/modbus/test_on_request.yaml")
-    assert "master_port->add_on_request_callback(" in main_cpp
+    assert "client_port->add_on_request_callback(" in main_cpp
     # A server hub without a handler gets no callback.
     assert "plain_server->add_on_request_callback(" not in main_cpp

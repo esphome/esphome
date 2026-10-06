@@ -6,7 +6,7 @@ esp32:
   board: nodemcu-32s
 
 uart:
-  - id: master_uart
+  - id: client_uart
     tx_pin: GPIO17
     rx_pin: GPIO16
     baud_rate: 9600
@@ -16,8 +16,8 @@ uart:
     baud_rate: 9600
 
 modbus:
-  - id: master_port
-    uart_id: master_uart
+  - id: client_port
+    uart_id: client_uart
     role: server
     on_request:
       - lambda: |-
