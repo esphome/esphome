@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 from typing import Any
 
 import pytest
@@ -31,6 +32,18 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
+
+
+def _init_sequence(main_cpp: str, display_id: str = r"\w+") -> str:
+    """Return the shared PROGMEM init sequence table passed to a display, as rendered."""
+    match = re.search(rf"{display_id}->set_init_sequence\((\w+), \d+\);", main_cpp)
+    assert match is not None
+    table = re.search(
+        rf"static constexpr uint8_t {match.group(1)}\[\] PROGMEM = (\{{[^;]*\}});",
+        main_cpp,
+    )
+    assert table is not None
+    return table.group(1)
 
 
 def run_schema_validation(config: ConfigType) -> None:
@@ -362,7 +375,7 @@ def test_native_generation(
         in main_cpp
     )
     # A 10ms post-reset delay ({10, 255}) is prepended ahead of the model commands.
-    assert "set_init_sequence({10, 255, 240, 1, 8, 242" in main_cpp
+    assert _init_sequence(main_cpp).startswith("{10, 255, 240, 1, 8, 242")
     assert "show_test_card();" in main_cpp
     assert "set_write_only(true);" in main_cpp
 
@@ -379,7 +392,7 @@ def test_lvgl_generation(
         in main_cpp
     )
     # A 10ms post-reset delay ({10, 255}) is prepended ahead of the model commands.
-    assert "set_init_sequence({10, 255, 177, 3, 1, 44, 45, 178" in main_cpp
+    assert _init_sequence(main_cpp).startswith("{10, 255, 177, 3, 1, 44, 45, 178")
     assert "show_test_card();" not in main_cpp
     assert "set_auto_clear(false);" in main_cpp
 
@@ -428,7 +441,9 @@ def test_swreset_prepended_without_reset_pin(
 
     # SWRESET ({1, 0}) followed by a 10ms delay ({10, 255}) is inserted ahead of
     # the model's own commands.
-    assert "swreset_display->set_init_sequence({1, 0, 10, 255, 160, 1, 1," in main_cpp
+    assert _init_sequence(main_cpp, "swreset_display").startswith(
+        "{1, 0, 10, 255, 160, 1, 1,"
+    )
 
 
 def test_swreset_not_prepended_with_reset_pin(
@@ -449,5 +464,29 @@ def test_swreset_not_prepended_with_reset_pin(
     main_cpp = generate_main(yaml_file)
 
     # The delay ({10, 255}) is still present, but no leading SWRESET ({1, 0}).
-    assert "hwreset_display->set_init_sequence({10, 255, 160, 1, 1," in main_cpp
-    assert "hwreset_display->set_init_sequence({1, 0," not in main_cpp
+    assert _init_sequence(main_cpp, "hwreset_display").startswith(
+        "{10, 255, 160, 1, 1,"
+    )
+
+
+def test_identical_init_sequences_share_one_table(
+    generate_main: Callable[[str | Path], str],
+    tmp_path: Path,
+) -> None:
+    """Two displays with the same init sequence point at one PROGMEM table."""
+    yaml_file = tmp_path / "shared.yaml"
+    display = _SWRESET_YAML.split("display:\n", 1)[1]
+    yaml_file.write_text(
+        _SWRESET_YAML.format(display_id="first", reset_line="    reset_pin: 5")
+        + display.format(display_id="second", reset_line="    reset_pin: 6")
+        .replace("cs_pin: 8", "cs_pin: 9")
+        .replace("dc_pin: 4", "dc_pin: 7")
+    )
+
+    main_cpp = generate_main(yaml_file)
+
+    first = re.search(r"first->set_init_sequence\((\w+), \d+\);", main_cpp)
+    second = re.search(r"second->set_init_sequence\((\w+), \d+\);", main_cpp)
+    assert first is not None and second is not None
+    assert first.group(1) == second.group(1)
+    assert main_cpp.count("mipi_spi_init_sequence[] PROGMEM") == 1

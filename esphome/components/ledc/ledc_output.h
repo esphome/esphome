@@ -35,11 +35,11 @@ class LEDCOutput final : public output::FloatOutput, public Component {
   InternalGPIOPin *pin_;
   uint8_t channel_{};
   uint8_t bit_depth_{};
+  bool initialized_ = false;
   float phase_angle_{0.0f};
   float frequency_{};
   float duty_{0.0f};
   uint32_t last_duty_{UINT32_MAX};
-  bool initialized_ = false;
 };
 
 }  // namespace esphome::ledc
