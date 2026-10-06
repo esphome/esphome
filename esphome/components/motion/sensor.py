@@ -16,6 +16,7 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import std_ns
+from esphome.types import ConfigType
 
 from . import (
     AXES,
@@ -41,7 +42,7 @@ ICON_SEESAW = "mdi:seesaw"
 DEFAULT_FLAT_THRESHOLD = 30.0
 
 
-def _accel_sensor_schema():
+def _accel_sensor_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_G,
         icon=ICON_ACCELERATION,
@@ -50,7 +51,7 @@ def _accel_sensor_schema():
     ).extend(SENSOR_SCHEMA)
 
 
-def _gyro_sensor_schema():
+def _gyro_sensor_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_DEGREE_PER_SECOND,
         icon=ICON_ROTATE_RIGHT,
@@ -59,7 +60,7 @@ def _gyro_sensor_schema():
     ).extend(SENSOR_SCHEMA)
 
 
-def _level_sensor_schema():
+def _level_sensor_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_DEGREES,
         icon=ICON_SEESAW,
@@ -68,7 +69,7 @@ def _level_sensor_schema():
     ).extend(SENSOR_SCHEMA)
 
 
-def _orientation_sensor_schema():
+def _orientation_sensor_schema() -> cv.Schema:
     # Reports a discrete rotation (0/90/180/270) or NAN when flat, so it is not a
     # continuous measurement (no state_class).
     return (
@@ -151,7 +152,7 @@ def build_sensor_expr(sensor_type: str, data: MockObj, config: dict) -> MockObj:
     return getattr(data, str(sensor_type[:-2]))[sensor_offset]
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     sensor_type = config[CONF_TYPE]
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_MOTION_ID])

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import event
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_THRESHOLD
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MOTION_ID,
@@ -44,7 +45,7 @@ def _final_validate(config: dict) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MOTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], parent)
     await event.register_event(var, config, event_types=EVENT_TYPES)

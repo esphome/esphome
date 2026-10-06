@@ -6,7 +6,7 @@
 
 namespace esphome::motion {
 
-enum MotionBinarySensorType {
+enum MotionBinarySensorType : uint8_t {
   MOTION_BINARY_SENSOR_FACE_UP = 0,
   MOTION_BINARY_SENSOR_FACE_DOWN,
   MOTION_BINARY_SENSOR_FREE_FALL,
@@ -32,18 +32,19 @@ class MotionBinarySensor : public Component, public binary_sensor::BinarySensor 
   static bool is_stationary(const MotionData &data);
 
   MotionComponent *parent_;
-  MotionBinarySensorType type_;
   float threshold_{0.0f};
   uint32_t duration_{0};
 
   // Tracking states
   uint32_t last_event_time_{0};
-  bool free_fall_candidate_{false};
   uint32_t free_fall_start_time_{0};
 
   // For derivative/variance tracking
   float last_accel_[3]{NAN, NAN, NAN};
   float last_gyro_[3]{NAN, NAN, NAN};
+
+  MotionBinarySensorType type_;
+  bool free_fall_candidate_{false};
 };
 
 }  // namespace esphome::motion

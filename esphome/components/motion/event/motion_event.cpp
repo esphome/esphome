@@ -15,8 +15,10 @@ void MotionEvent::setup() {
 
 void MotionEvent::dump_config() {
   LOG_EVENT("", "Motion Event", this);
-  ESP_LOGCONFIG(TAG, "  Threshold: %.3f", this->threshold_);
-  ESP_LOGCONFIG(TAG, "  Cooldown: %" PRIu32 "ms", this->cooldown_);
+  ESP_LOGCONFIG(TAG,
+                "  Threshold: %.3f\n"
+                "  Cooldown: %" PRIu32 " ms",
+                this->threshold_, this->cooldown_);
 }
 
 void MotionEvent::process_motion_data_(const MotionData &data) {

@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::motion {
 
@@ -47,17 +48,17 @@ void MotionBinarySensor::setup() {
   this->publish_state(false);  // default to false until the first update
 }
 
-static const char *const MOTION_BINARY_SENSOR_TYPE_NAMES[] = {
-    "face_up",
-    "face_down",
-    "free_fall",
-    "moving",
-};
+PROGMEM_STRING_TABLE(MotionBinarySensorTypeNames, "face_up", "face_down", "free_fall", "moving", "unknown");
+
 void MotionBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Motion Binary Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Type: %s", MOTION_BINARY_SENSOR_TYPE_NAMES[this->type_]);
-  ESP_LOGCONFIG(TAG, "  Threshold: %.3f", this->threshold_);
-  ESP_LOGCONFIG(TAG, "  Duration: %" PRIu32 " ms", this->duration_);
+  ESP_LOGCONFIG(
+      TAG,
+      "  Type: %s\n"
+      "  Threshold: %.3f\n"
+      "  Duration: %" PRIu32 " ms",
+      LOG_STR_ARG(MotionBinarySensorTypeNames::get_log_str(this->type_, MotionBinarySensorTypeNames::LAST_INDEX)),
+      this->threshold_, this->duration_);
 }
 
 void MotionBinarySensor::process_motion_data_(const MotionData &data) {

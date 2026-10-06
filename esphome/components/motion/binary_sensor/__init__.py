@@ -6,6 +6,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID, CONF_THRESHOLD, CONF_TYPE
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MOTION_ID,
@@ -102,7 +103,7 @@ def _final_validate(config: dict) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     sensor_type = config[CONF_TYPE]
     parent = await cg.get_variable(config[CONF_MOTION_ID])
 
