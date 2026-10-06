@@ -500,7 +500,7 @@ def shared_progmem_array(
                     f"'{arg}' must be created with cg.new_Pvariable so its address is known "
                     "at compile time"
                 )
-    key = f"{type_} {rhs}"
+    key = f"{type_} {rhs} {constexpr}"
     if share and (array := arrays.get(key)) is not None:
         return array
     used = {str(i) for i, _ in iter_ids(CORE.config)}

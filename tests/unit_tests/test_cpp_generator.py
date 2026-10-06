@@ -839,6 +839,12 @@ class TestSharedProgmemArray:
         assert cg.is_static_pointer(static)
         assert not cg.is_static_pointer(dynamic)
 
+    def test_constexpr_and_const_arrays_are_not_shared(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1], constexpr=False)
+        b = cg.shared_progmem_array("table", ct.uint8, [1])
+        assert str(a) != str(b)
+
     def test_constexpr_false_rejects_dynamic_pointers(self) -> None:
         CORE.config = {}
         dynamic = cg.Pvariable(
