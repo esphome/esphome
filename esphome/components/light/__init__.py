@@ -39,7 +39,7 @@ from esphome.core import (
     CORE,
     ID,
     CoroPriority,
-    EsphomeError,
+    EsphomeError as EsphomeError,
     HexInt,
     coroutine_with_priority,
 )
