@@ -990,7 +990,9 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
 uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *select = static_cast<select::Select *>(entity);
   ListEntitiesSelectResponse msg;
-  msg.options = &select->traits.get_options();
+  const auto &opts = select->traits.get_options();
+  const std::span<const char *const> options(opts.data(), opts.size());
+  msg.options = &options;
   return fill_and_encode_entity_info(select, msg, conn, remaining_size);
 }
 void APIConnection::on_select_command_request(const SelectCommandRequest &msg) {

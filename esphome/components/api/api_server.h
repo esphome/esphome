@@ -5,7 +5,7 @@
 #include "api_buffer.h"
 // Must precede clients_ so APIConnection is complete for default_delete (libc++).
 #include "api_connection.h"
-#ifdef USE_API_NOISE
+#if defined(USE_API_NOISE) || defined(USE_NOISE_SPARE_EPHEMERAL)
 // Only present in the build when the noise component is loaded
 #include "esphome/components/noise/noise.h"
 #endif
@@ -361,9 +361,7 @@ class APIServer final : public Component
   // Group smaller types together
   uint16_t port_{6053};        // Keep in sync with DEFAULT_PORT in __init__.py
   uint16_t batch_delay_{100};  // Keep in sync with DEFAULT_BATCH_DELAY in __init__.py
-  // Connection limits - these defaults will be overridden by config values
-  // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
-  uint8_t listen_backlog_{4};
+  uint8_t listen_backlog_{4};  // Keep in sync with DEFAULT_LISTEN_BACKLOG in __init__.py
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
 #if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
@@ -371,6 +369,9 @@ class APIServer final : public Component
   uint8_t provisioning_source_{0};
 #endif
 
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+  void refill_spare_ephemeral_();
+#endif
 #ifdef USE_API_NOISE
   noise::NoiseContext noise_ctx_;
 #ifndef USE_API_NOISE_PSK_FROM_YAML
