@@ -380,6 +380,25 @@ static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 /// Cooldown duration in milliseconds after adapter restart or repeated failures
 /// Allows WiFi hardware to stabilize before next connection attempt
 static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
+#ifdef USE_WIFI_AP
+/// Whether the radio runs the fallback AP on its own, without STA alongside.
+#ifdef USE_WIFI_AP_EXCLUSIVE
+static constexpr bool WIFI_AP_EXCLUSIVE = true;
+#else
+static constexpr bool WIFI_AP_EXCLUSIVE = false;
+#endif
+#endif
+#ifdef USE_WIFI_AP_EXCLUSIVE
+/// On a radio that cannot run the AP and STA together: how long the fallback
+/// AP stays up while nobody uses it before it pauses so the networks can be
+/// tried again, and how long new credentials give the portal to answer
+/// before the AP drops.
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_DWELL_MS = 300000;
+/// The AP pauses after this long even with clients counted, so a lost
+/// disconnect event cannot keep the networks from being tried for good.
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_MAX_DWELL_MS = 3 * WIFI_AP_EXCLUSIVE_DWELL_MS;
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
+#endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
 /// Longer interval gives users time to configure WiFi without constant connection attempts
@@ -642,6 +661,14 @@ void WiFiComponent::setup() {
     provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
       if (this->ap_setup_) {
         ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
+#ifdef USE_WIFI_AP_EXCLUSIVE
+        // The networks wait while the AP runs on its own; hand them the radio
+        // now rather than at the end of the dwell.
+        if (this->state_ == WIFI_COMPONENT_STATE_AP && this->has_sta()) {
+          this->pause_exclusive_ap_();
+          return;
+        }
+#endif
         this->wifi_mode_({}, false);
       }
     });
@@ -739,8 +766,11 @@ void WiFiComponent::start() {
     }
 #ifdef USE_CAPTIVE_PORTAL
     if (captive_portal::global_captive_portal != nullptr) {
-      this->wifi_sta_pre_setup_();
-      this->start_scanning();
+      // Where the radio scans alongside the AP, the portal can list networks.
+      if (!WIFI_AP_EXCLUSIVE) {
+        this->wifi_sta_pre_setup_();
+        this->start_scanning();
+      }
       captive_portal::global_captive_portal->start();
     }
 #endif
@@ -862,8 +892,17 @@ void WiFiComponent::loop() {
         }
         break;
       }
-      case WIFI_COMPONENT_STATE_OFF:
       case WIFI_COMPONENT_STATE_AP:
+#ifdef USE_WIFI_AP_EXCLUSIVE
+        // The networks are not tried while the AP is up, so it pauses for
+        // them once nobody has used it for a while. Without networks the AP
+        // is all there is and stays.
+        if (this->has_sta() && now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS &&
+            (this->ap_clients_ == 0 || now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_MAX_DWELL_MS))
+          this->pause_exclusive_ap_();
+        break;
+#endif
+      case WIFI_COMPONENT_STATE_OFF:
         break;
       case WIFI_COMPONENT_STATE_DISABLED:
         return;
@@ -879,11 +918,23 @@ void WiFiComponent::loop() {
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
-      if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
+      if (this->ap_timeout_ != 0 &&
+          (now - this->last_connected_ > this->ap_timeout_)
+#ifdef USE_WIFI_AP_EXCLUSIVE
+          // After a pause, or a start that failed, the networks get a full
+          // ap_timeout before the AP is tried again.
+          && now - this->ap_exclusive_changed_ > this->ap_timeout_
+#endif
+      ) {
         ESP_LOGI(TAG, "Starting fallback AP");
+#ifdef USE_WIFI_AP_EXCLUSIVE
+        this->ap_exclusive_changed_ = now;
+#endif
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        if (captive_portal::global_captive_portal != nullptr) {
+        // Where the AP runs on its own, a portal with no AP behind it would
+        // only stretch the cooldowns.
+        if (captive_portal::global_captive_portal != nullptr && (!WIFI_AP_EXCLUSIVE || this->ap_setup_)) {
           // Reset so we force one full scan after captive portal starts
           // (previous scans were filtered because captive portal wasn't active yet)
           this->has_completed_scan_after_captive_portal_start_ = false;
@@ -972,7 +1023,13 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 
 #ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // The radio cannot run both, so STA goes off while the AP is up.
+  if (!this->wifi_mode_(false, true))
+    return;
+#else
   this->wifi_mode_({}, true);
+#endif
 
   if (this->ap_setup_)
     return;
@@ -1006,6 +1063,12 @@ void WiFiComponent::setup_ap_config_() {
     }
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // A failed start must not leave the radio in AP mode, which would refuse
+  // the STA attempts until the next try.
+  if (!this->ap_setup_)
+    this->wifi_mode_({}, false);
+#endif
 
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
@@ -1030,9 +1093,38 @@ void WiFiComponent::setup_ap_config_() {
   }
 #endif
 
-  if (!this->has_sta()) {
+  // Where the AP runs on its own, the STA state machine also waits in this
+  // state until the AP pauses.
+  if (!this->has_sta() || (WIFI_AP_EXCLUSIVE && this->ap_setup_)) {
     this->state_ = WIFI_COMPONENT_STATE_AP;
   }
+}
+
+#ifdef USE_WIFI_AP_EXCLUSIVE
+void WiFiComponent::pause_exclusive_ap_() {
+  ESP_LOGI(TAG, "Pausing AP to try the networks");
+  // Scanning and connecting turn STA back on.
+  this->disable_ap_();
+  this->ap_setup_ = false;
+  // Clients drop with the AP without a disconnect event for each.
+  this->ap_clients_ = 0;
+  this->ap_exclusive_changed_ = App.get_loop_component_start_time();
+  // A fresh connection cycle, as at boot, rather than resuming the one the
+  // AP cut short.
+  this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
+  this->num_retried_ = 0;
+  this->start_initial_connection_();
+}
+#endif
+
+void WiFiComponent::disable_ap_() {
+#ifdef USE_CAPTIVE_PORTAL
+  if (this->is_captive_portal_active_()) {
+    captive_portal::global_captive_portal->end();
+  }
+#endif
+  ESP_LOGD(TAG, "Disabling AP");
+  this->wifi_mode_({}, false);
 }
 
 void WiFiComponent::set_ap(const WiFiAP &ap) {
@@ -1126,6 +1218,17 @@ void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
 }
 
 void WiFiComponent::connect_soon_() {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // New credentials from the portal: the AP pauses for them once its answer
+  // is out, and the STA state machine picks them up from there.
+  if (this->ap_setup_) {
+    this->set_timeout("wifi-ap-handover", WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
+      if (this->ap_setup_)
+        this->pause_exclusive_ap_();
+    });
+    return;
+  }
+#endif
   // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
   if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
     ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
@@ -1636,15 +1739,11 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
+#ifdef USE_WIFI_AP
     if (this->has_ap()) {
-#ifdef USE_CAPTIVE_PORTAL
-      if (this->is_captive_portal_active_()) {
-        captive_portal::global_captive_portal->end();
-      }
-#endif
-      ESP_LOGD(TAG, "Disabling AP");
-      this->wifi_mode_({}, false);
+      this->disable_ap_();
     }
+#endif
 #ifdef USE_IMPROV_BLE
     if (this->is_improv_ble_active_()) {
       improv_ble::global_improv_component->stop();

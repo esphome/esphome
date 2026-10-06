@@ -15,7 +15,9 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #elif defined(USE_ZEPHYR)
+#ifndef CLANG_TIDY  // NCS 2.9.2 net_if.h has a BUILD_ASSERT clang rejects; gone in NCS 3.4
 #include <zephyr/net/net_if.h>
+#endif
 #else
 #include "lwip/netif.h"
 #endif
@@ -177,6 +179,9 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
     errno = EADDRNOTAVAIL;
   }
   return found_any;
+#elif defined(USE_ZEPHYR) && defined(CLANG_TIDY)
+  (void) callback;
+  return false;
 #elif defined(USE_ZEPHYR)
   // Zephyr has no getifaddrs()/ifaddrs.h; enumerate interfaces via the native net_if API.
   // NET_IF_IPV6_NO_MLD is the direct analog of the LwIP branch's NETIF_FLAG_MLD6 check below.
