@@ -75,7 +75,7 @@ class UartSplitCopy : public ::testing::Test {
   static void fill(UartSplitOutput *output, size_t len) {
     const uint8_t byte = 0x00;
     for (size_t i = 0; i < len; i++) {
-      ASSERT_TRUE(output->push_rx(&byte, 1));
+      ASSERT_TRUE(output->inject_rx(&byte, 1));
     }
   }
 
@@ -104,6 +104,15 @@ TEST_F(UartSplitCopy, OutputsReportTheSettingsOfThePins) {
     EXPECT_EQ(output->get_parity(), uart::UART_CONFIG_PARITY_EVEN);
     EXPECT_EQ(output->get_stop_bits(), 2);
   }
+}
+
+TEST_F(UartSplitCopy, SettingsChangedOnAnOutputAreRestored) {
+  this->pins_.set_baud_rate(19200);
+  this->bus_.set_baud_rate(115200);
+  this->bus_.set_parity(uart::UART_CONFIG_PARITY_ODD);
+  this->bus_.copy_settings();
+  EXPECT_EQ(this->bus_.get_baud_rate(), 19200u);
+  EXPECT_EQ(this->bus_.get_parity(), this->pins_.get_parity());
 }
 
 TEST_F(UartSplitCopy, OutputReportsItsBufferSize) { EXPECT_EQ(this->bus_.get_rx_buffer_size(), RX_BUFFER_SIZE); }
@@ -139,6 +148,11 @@ TEST_F(UartSplitCopy, ReceiveOnlyOutputTakesEveryWrite) {
   // A paced writer like uart_tcp keeps reading its socket, and so sees its client leave.
   EXPECT_EQ(this->tap_.available_for_write(), SIZE_MAX);
   EXPECT_EQ(this->quiet_.available_for_write(), SIZE_MAX);
+}
+
+TEST_F(UartSplitCopy, ReceiveOnlyFlushConfirmsNothing) {
+  EXPECT_EQ(this->tap_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS);
+  EXPECT_EQ(this->bus_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS);
 }
 
 TEST_F(UartSplitCopy, FullWriterStopsTheRead) {

@@ -21,11 +21,7 @@ void UartSplit::add_output(UartSplitOutput *output) {
 void UartSplit::setup() {
   // An output carries the parent's bytes, so it reports the parent's settings to the devices on it.
   for (uint8_t i = 0; i < this->output_count_; i++) {
-    UartSplitOutput *output = this->outputs_[i];
-    output->set_baud_rate(this->parent_->get_baud_rate());
-    output->set_data_bits(this->parent_->get_data_bits());
-    output->set_parity(this->parent_->get_parity());
-    output->set_stop_bits(this->parent_->get_stop_bits());
+    this->outputs_[i]->copy_settings();
   }
 }
 
@@ -77,7 +73,7 @@ void UartSplit::mirror_tx(const UartSplitOutput *from, const uint8_t *data, size
 
 void UartSplit::push_(uint8_t index, const uint8_t *data, size_t len) {
   UartSplitOutput *output = this->outputs_[index];
-  if (!output->push_rx(data, len) && output->start_dropping()) {
+  if (!output->inject_rx(data, len) && output->start_dropping()) {
     ESP_LOGW(TAG, "Output %u is full; dropping bytes until it has been read", index);
   }
 }
@@ -97,14 +93,23 @@ void UartSplit::dump_config() {
   }
 }
 
-bool UartSplitOutput::push_rx(const uint8_t *data, size_t len) {
-  for (size_t i = 0; i < len; i++) {
-    if (!this->rx_.push(data[i])) {
-      return false;
-    }
-  }
-  return true;
+void UartSplitOutput::copy_settings() {
+  uart::UARTComponent *parent = this->split_->parent();
+  this->set_baud_rate(parent->get_baud_rate());
+  this->set_data_bits(parent->get_data_bits());
+  this->set_parity(parent->get_parity());
+  this->set_stop_bits(parent->get_stop_bits());
 }
+
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+void UartSplitOutput::load_settings(bool dump_config) {
+  if (!this->load_settings_warned_) {
+    this->load_settings_warned_ = true;
+    ESP_LOGW(TAG, "load_settings() ignored; change the settings of the UART that is split");
+  }
+  this->copy_settings();
+}
+#endif
 
 void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
   if (len == 0) {
@@ -121,25 +126,6 @@ void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
   this->split_->mirror_tx(this, data, len);
 }
 
-bool UartSplitOutput::peek_byte(uint8_t *data) {
-  if (this->rx_.empty()) {
-    return false;
-  }
-  *data = this->rx_.front();
-  return true;
-}
-
-bool UartSplitOutput::read_array(uint8_t *data, size_t len) {
-  if (this->rx_.size() < len) {
-    return false;
-  }
-  for (size_t i = 0; i < len; i++) {
-    data[i] = this->rx_.front();
-    this->rx_.pop();
-  }
-  return true;
-}
-
 size_t UartSplitOutput::available_for_write() {
   if (this->rx_only_) {
     // Takes and drops every byte without waiting. 0 would make a paced writer such as uart_tcp
@@ -151,7 +137,7 @@ size_t UartSplitOutput::available_for_write() {
 
 uart::UARTFlushResult UartSplitOutput::flush() {
   if (this->rx_only_) {
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
   return this->split_->parent()->flush();
 }

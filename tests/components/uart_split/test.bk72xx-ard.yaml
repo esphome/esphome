@@ -1,3 +1,0 @@
-packages:
-  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
-  uart_split: !include common.yaml

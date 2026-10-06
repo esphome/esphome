@@ -99,6 +99,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
+    uart.require_virtual_uart()
     parent = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], parent)
     await cg.register_component(var, config)
