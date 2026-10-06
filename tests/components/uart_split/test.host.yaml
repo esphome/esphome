@@ -5,5 +5,3 @@ uart:
 
 packages:
   uart_split: !include common.yaml
-
-wifi: !remove
