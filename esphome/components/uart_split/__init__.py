@@ -19,7 +19,7 @@ MULTI_CONF = True
 
 uart_split_ns = cg.esphome_ns.namespace("uart_split")
 UartSplit = uart_split_ns.class_("UartSplit", cg.Component)
-UartSplitOutput = uart_split_ns.class_("UartSplitOutput", uart.UARTComponent)
+UartSplitOutput = uart_split_ns.class_("UartSplitOutput", uart.VirtualUARTComponent)
 
 MAX_OUTPUTS = 8
 
