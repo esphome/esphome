@@ -12,6 +12,8 @@
 namespace esphome::modbus_gateway {
 
 static constexpr uint16_t MAX_FRAME = 256;
+// The longest response to a read: 2000 coils or 125 registers are 250 data bytes.
+static constexpr uint16_t MAX_READ_RESPONSE = 255;
 
 class ModbusGateway;
 
@@ -39,6 +41,9 @@ class GatewayUart final : public uart::VirtualUARTComponent {
 class ModbusGateway : public Component, public uart::UARTDevice {
  public:
   void set_response_timeout(uint32_t ms) { this->response_timeout_us_ = ms * 1000; }
+  void set_cache_time(uint32_t ms) { this->cache_time_ms_ = ms; }
+  void set_cache_entries(uint16_t count) { this->cache_count_ = count; }
+  void set_port_cache(uint8_t index, bool use) { this->ports_[index].use_cache = use; }
   void set_port_count(uint8_t count) { this->port_count_ = count; }
   /// The bus's bytes do not keep the timing of a serial line (TCP, USB, a virtual UART).
   void set_bus_unclocked() { this->bus_clocked_ = false; }
@@ -83,27 +88,46 @@ class ModbusGateway : public Component, public uart::UARTDevice {
     bool local{false};
     bool clocked{true};
     bool batched{false};
+    bool use_cache{false};
     uint8_t data[MAX_FRAME]{};
   };
 
-  void run_(uint32_t now);
+  // The whole response to one read. key is the request's unit, function, start and quantity; used orders the
+  // entries by their last use, so the one used longest ago gives way.
+  struct CacheSlot {
+    uint32_t stored_ms{0};
+    uint32_t used{0};
+    uint16_t len{0};
+    uint8_t key[6]{};
+    uint8_t data[MAX_READ_RESPONSE]{};
+  };
+
+  void run_(uint32_t now, uint32_t now_ms);
   void read_port_(uint8_t index, uint32_t now);
   void take_requests_(uint8_t index, uint32_t now);
   bool sending_(uint8_t index) const { return this->phase_ == Phase::PHASE_SENDING && this->active_ == index; }
-  void start_next_(uint32_t now);
+  void start_next_(uint32_t now, uint32_t now_ms);
   void send_request_(uint32_t now);
-  void read_bus_(uint32_t now);
+  void read_bus_(uint32_t now, uint32_t now_ms);
   void take_response_(uint16_t len, uint32_t now);
   void send_response_(uint32_t now);
   void drain_bus_(uint32_t now);
   Write write_more_(uart::UARTComponent *dest, const uint8_t *data, uint32_t now);
   uint32_t bus_wait_(uint32_t now) const;
   void pace_(uint32_t now);
+  bool serve_cached_(uint8_t index, uint32_t now, uint32_t now_ms);
+  void store_cache_(uint16_t len, uint32_t now_ms);
+  void clear_cache_(uint8_t unit);
   void log_bad_(bool crc);
   void log_mismatch_();
   void log_drop_(const LogString *why, size_t len);
 
   Port ports_[MODBUS_GATEWAY_PORT_COUNT]{};
+  // cache_count_ entries in one block, allocated in setup().
+  CacheSlot *slots_{nullptr};
+  uint32_t cache_time_ms_{0};
+  uint32_t cache_seq_{0};
+  uint32_t last_evict_log_ms_{0};
   uint32_t response_timeout_us_{500000};
   // From setup(): the wire time of a character on the bus (0 without a clock), the quiet time before a request,
   // the one that ends a received frame, the one after a full driver batch and the one after a timeout.
@@ -126,6 +150,9 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   uint32_t last_timeout_log_ms_{0};
   uint32_t last_drop_log_ms_{0};
   uint16_t bus_len_{0};
+  uint16_t cache_count_{0};
+  // Stored reads that gave way while they were still fresh, since the last log.
+  uint16_t cache_evicted_{0};
   // The frame that goes out in parts: out_sent_ of out_len_ bytes are written.
   uint16_t out_len_{0};
   uint16_t out_sent_{0};

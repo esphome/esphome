@@ -98,7 +98,22 @@ class GatewayRoute : public ::testing::Test {
   // Advances the clock and runs one loop pass.
   void run(uint32_t us = 0) {
     this->now_ += us;
-    this->gate_.run_(this->now_);
+    this->gate_.run_(this->now_, this->now_ / 1000);
+  }
+  // Both ports may be answered from a cache of this many entries. A device allocates it once, in setup().
+  void use_cache(uint16_t entries, uint32_t time_ms = 10000) {
+    this->gate_.set_cache_entries(entries);
+    this->gate_.set_cache_time(time_ms);
+    this->gate_.set_port_cache(0, true);
+    this->gate_.set_port_cache(1, true);
+    this->gate_.setup();
+  }
+  // A read of one register at start, answered with value.
+  void read_through(uint8_t unit, uint8_t start, uint8_t value) {
+    this->client_.push(frame({unit, 0x03, 0x00, start, 0x00, 0x01}));
+    this->run(QUIET_US);
+    this->bms_.push(frame({unit, 0x03, 0x02, 0x00, value}));
+    this->run();
   }
   std::vector<uint8_t> local_reply() {
     std::vector<uint8_t> got(this->local_.available());
@@ -605,6 +620,203 @@ TEST_F(GatewayRoute, FastLoopOnlyNearADeadline) {
   this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
   this->run();
   EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+}
+
+TEST_F(GatewayRoute, RepeatedReadUsesTheCache) {
+  this->use_cache(16);
+  this->read_through(0x01, 0x00, 0x64);
+  this->bms_.tx.clear();
+  this->client_.tx.clear();
+
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01}));
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->client_.tx, frame({0x01, 0x03, 0x02, 0x00, 0x64}));
+}
+
+// A write goes to the bus and drops what is stored for its unit only.
+TEST_F(GatewayRoute, WriteDropsTheStoredReadsOfItsUnit) {
+  this->use_cache(16);
+  this->read_through(0x01, 0x00, 0x64);
+  this->read_through(0x02, 0x00, 0x65);
+  auto write = frame({0x01, 0x06, 0x00, 0x10, 0x00, 0x01});
+  this->bms_.tx.clear();
+  this->client_.push(write);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, write);
+  this->bms_.push(write);
+  this->run();
+
+  this->bms_.tx.clear();
+  auto first = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(first);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, first);
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x64}));
+  this->run();
+  this->bms_.tx.clear();
+  this->client_.tx.clear();
+  this->client_.push(frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01}));
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->client_.tx, frame({0x02, 0x03, 0x02, 0x00, 0x65}));
+}
+
+TEST_F(GatewayRoute, UncachedPortRefreshesWhatOthersRead) {
+  this->use_cache(16);
+  this->gate_.set_port_cache(0, false);
+  this->read_through(0x01, 0x00, 0x64);
+  this->bms_.tx.clear();
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(request);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, request);
+  auto fresh = frame({0x01, 0x03, 0x02, 0x00, 0x65});
+  this->bms_.push(fresh);
+  this->run();
+
+  this->bms_.tx.clear();
+  this->local_.write_array(request.data(), request.size());
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->local_reply(), fresh);
+}
+
+// An exception is not stored. A 129-byte response is, and reaches a port with a 128-byte FIFO in two parts.
+TEST_F(GatewayRoute, ExceptionIsNotCachedAndALongReadIs) {
+  this->use_cache(16);
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(request);
+  this->run();
+  this->bms_.push(frame({0x01, 0x83, 0x02}));
+  this->run();
+  this->bms_.tx.clear();
+  this->client_.push(request);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, request);
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+
+  auto wide = frame({0x01, 0x03, 0x00, 0x00, 0x00, 62});
+  std::vector<uint8_t> body{0x01, 0x03, 124};
+  body.resize(3 + 124, 0x11);
+  auto response = frame(body);
+  this->client_.push(wide);
+  this->run(QUIET_US);
+  this->bms_.push(response);
+  this->run();
+  this->bms_.tx.clear();
+  this->client_.tx.clear();
+  this->client_.room = 128;
+  this->client_.push(wide);
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->client_.tx.size(), 128u);
+  this->run();
+  EXPECT_EQ(this->client_.tx, response);
+}
+
+TEST_F(GatewayRoute, LeastRecentlyUsedEntryGivesWay) {
+  this->use_cache(2);
+  this->read_through(0x01, 0x00, 0x01);
+  this->read_through(0x01, 0x0A, 0x02);
+  this->bms_.tx.clear();
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01}));
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  this->read_through(0x01, 0x14, 0x03);
+
+  this->bms_.tx.clear();
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01}));
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  auto second = frame({0x01, 0x03, 0x00, 0x0A, 0x00, 0x01});
+  this->client_.push(second);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, second);
+}
+
+TEST_F(GatewayRoute, NoEntriesDoesNotAnswerFromTheCache) {
+  this->use_cache(0);
+  this->read_through(0x01, 0x00, 0x64);
+  this->bms_.tx.clear();
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(request);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, request);
+}
+
+TEST_F(GatewayRoute, CachedReadExpires) {
+  this->use_cache(16, 1);
+  this->read_through(0x01, 0x00, 0x64);
+  this->bms_.tx.clear();
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(request);
+  this->run(20000);
+  EXPECT_EQ(this->bms_.tx, request);
+}
+
+// The probe case with the cache on: the late answer to the first read is neither delivered nor stored.
+TEST_F(GatewayRoute, LateResponseIsNotCached) {
+  this->use_cache(16);
+  auto first = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x02});
+  auto second = frame({0x01, 0x03, 0x00, 0x0A, 0x00, 0x01});
+  this->client_.push(first);
+  this->local_.write_array(second.data(), second.size());
+  this->run();
+  this->run(500000 + first.size() * CHAR_US);
+  this->run(22300);
+  auto reply = frame({0x01, 0x03, 0x02, 0x00, 0xAA});
+  this->bms_.push(frame({0x01, 0x03, 0x04, 0x11, 0x11, 0x22, 0x22}));
+  this->bms_.push(reply);
+  this->run();
+  ASSERT_EQ(this->local_reply(), reply);
+
+  this->bms_.tx.clear();
+  this->local_.write_array(second.data(), second.size());
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->local_reply(), reply);
+
+  this->client_.push(first);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, first);
+  EXPECT_TRUE(this->client_.tx.empty());
+}
+
+TEST_F(GatewayRoute, TimeoutDropsTheStoredReadsOfThatUnit) {
+  this->use_cache(16);
+  this->read_through(0x01, 0x00, 0x64);
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x0A, 0x00, 0x01}));
+  this->run(QUIET_US);
+  this->run(501000);
+  this->run(22300);
+
+  this->bms_.tx.clear();
+  this->client_.tx.clear();
+  auto read = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(read);
+  this->run(QUIET_US);
+  EXPECT_EQ(this->bms_.tx, read);
+  EXPECT_TRUE(this->client_.tx.empty());
+}
+
+// The unit answered, only the port was gone. What is stored for the unit stays.
+TEST_F(GatewayRoute, DroppedResponseKeepsTheStoredReadsOfItsUnit) {
+  this->use_cache(16);
+  this->read_through(0x01, 0x00, 0x64);
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x0A, 0x00, 0x01}));
+  this->run(QUIET_US);
+  this->client_.connected = false;
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+
+  this->bms_.tx.clear();
+  auto read = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->local_.write_array(read.data(), read.size());
+  this->run(QUIET_US);
+  EXPECT_TRUE(this->bms_.tx.empty());
+  EXPECT_EQ(this->local_reply(), frame({0x01, 0x03, 0x02, 0x00, 0x64}));
 }
 
 }  // namespace esphome::modbus_gateway::testing

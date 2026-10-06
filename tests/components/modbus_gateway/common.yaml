@@ -2,8 +2,11 @@ modbus_gateway:
   - id: gate
     uart_id: uart_bus
     response_timeout: 200ms
+    cache_time: 1s
+    cache_entries: 8
     ports:
       - id: local_bus
+        cache: true
 
 modbus:
   - id: local_hub

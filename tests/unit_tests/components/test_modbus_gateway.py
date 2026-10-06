@@ -8,12 +8,14 @@ from esphome.components import uart
 from esphome.components.modbus_gateway import (
     CONFIG_SCHEMA,
     GatewayUart,
+    _check_cache_entries,
     _clocked,
     _require_bus_framing,
     _require_exclusive,
 )
 from esphome.config import Config
 import esphome.config_validation as cv
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -142,3 +144,29 @@ def test_response_timeout_above_65535_ms_is_rejected() -> None:
     CONFIG_SCHEMA({**config, "response_timeout": "65535ms"})
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA({**config, "response_timeout": "65536ms"})
+
+
+@pytest.mark.parametrize(
+    ("platform", "psram", "entries", "limit"),
+    [
+        ("esp8266", None, 16, None),
+        ("esp8266", None, 17, 16),
+        ("esp32", None, 64, None),
+        ("esp32", None, 65, 64),
+        ("esp32", {"disabled": False, "ignore_not_found": False}, 512, None),
+        ("esp32", {"disabled": False, "ignore_not_found": True}, 65, 64),
+        ("esp32", {"disabled": True, "ignore_not_found": False}, 65, 64),
+        ("rp2040", None, 65, 64),
+    ],
+)
+def test_cache_entries_limit(
+    platform: str, psram: ConfigType | None, entries: int, limit: int | None
+) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    full = _full({"psram": psram} if psram is not None else {})
+    config = {"cache_entries": entries}
+    if limit is None:
+        _run(_check_cache_entries, config, full)
+        return
+    with pytest.raises(cv.Invalid, match=f"at most {limit} "):
+        _run(_check_cache_entries, config, full)

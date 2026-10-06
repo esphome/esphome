@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
+#include <new>
 
 namespace esphome::modbus_gateway {
 
@@ -216,6 +217,19 @@ void ModbusGateway::setup() {
     port.gap_us = gap_after(port_char_us);
     port.batch_us = batch_after(port.uart, port_char_us, port.gap_us);
   }
+  if (this->cache_count_ == 0) {
+    return;
+  }
+  // The whole cache in one block, allocated once. RAMAllocator takes PSRAM when the device has it.
+  this->slots_ = RAMAllocator<CacheSlot>().allocate(this->cache_count_);
+  if (this->slots_ == nullptr) {
+    ESP_LOGE(TAG, "No memory for %u cache entries", this->cache_count_);
+    this->cache_count_ = 0;
+    return;
+  }
+  for (uint16_t i = 0; i < this->cache_count_; i++) {
+    new (&this->slots_[i]) CacheSlot();
+  }
 }
 
 // The bytes behind the waiting request are parsed. A complete request there replaces the waiting one:
@@ -296,7 +310,7 @@ ModbusGateway::Write ModbusGateway::write_more_(uart::UARTComponent *dest, const
   return this->out_sent_ == this->out_len_ ? Write::WRITE_DONE : Write::WRITE_MORE;
 }
 
-void ModbusGateway::start_next_(uint32_t now) {
+void ModbusGateway::start_next_(uint32_t now, uint32_t now_ms) {
   for (uint8_t n = 0; n < this->port_count_; n++) {
     uint8_t index = static_cast<uint8_t>((this->next_port_ + n) % this->port_count_);
     Port &port = this->ports_[index];
@@ -307,6 +321,13 @@ void ModbusGateway::start_next_(uint32_t now) {
     std::memcpy(this->request_key_, port.data, sizeof(this->request_key_));
     this->active_ = index;
     this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
+    if (this->serve_cached_(index, now, now_ms)) {
+      return;
+    }
+    // A write, or any request that is not a read, may change what is stored for its unit.
+    if (!modbus::helpers::is_function_code_read_only(this->request_key_[1])) {
+      this->clear_cache_(this->request_key_[0]);
+    }
     this->out_len_ = port.pending_len;
     this->out_sent_ = 0;
     this->progress_us_ = now;
@@ -347,7 +368,7 @@ void ModbusGateway::send_request_(uint32_t now) {
   this->wait_us_ = this->tx_busy_us_ + this->response_timeout_us_;
 }
 
-void ModbusGateway::read_bus_(uint32_t now) {
+void ModbusGateway::read_bus_(uint32_t now, uint32_t now_ms) {
   size_t n = std::min(this->parent_->available(), static_cast<size_t>(MAX_FRAME - this->bus_len_));
   if (n != 0 && this->parent_->read_array(this->bus_ + this->bus_len_, n)) {
     this->bus_len_ += static_cast<uint16_t>(n);
@@ -374,6 +395,7 @@ void ModbusGateway::read_bus_(uint32_t now) {
       consume(this->bus_, &this->bus_len_, found.len);
       continue;
     }
+    this->store_cache_(found.len, now_ms);
     this->take_response_(found.len, now);
     return;
   }
@@ -406,6 +428,75 @@ void ModbusGateway::send_response_(uint32_t now) {
                     this->out_len_ - this->out_sent_);
   }
   this->phase_ = Phase::PHASE_IDLE;
+}
+
+// A fresh stored response to the same read goes to the port instead of the request going to the bus.
+bool ModbusGateway::serve_cached_(uint8_t index, uint32_t now, uint32_t now_ms) {
+  Port &port = this->ports_[index];
+  if (!port.use_cache || !modbus::helpers::is_function_code_read_only(this->request_key_[1])) {
+    return false;
+  }
+  for (uint16_t i = 0; i < this->cache_count_; i++) {
+    CacheSlot &slot = this->slots_[i];
+    if (slot.len == 0 || now_ms - slot.stored_ms >= this->cache_time_ms_ ||
+        std::memcmp(slot.key, this->request_key_, sizeof(slot.key)) != 0) {
+      continue;
+    }
+    slot.used = ++this->cache_seq_;
+    consume(port.data, &port.len, port.pending_len);
+    port.pending_len = 0;
+    std::memcpy(this->bus_, slot.data, slot.len);
+    this->take_response_(slot.len, now);
+    return true;
+  }
+  return false;
+}
+
+// The response to a read goes into the entry of the same read, else into an empty or expired one, else into the
+// one used longest ago.
+void ModbusGateway::store_cache_(uint16_t len, uint32_t now_ms) {
+  if (this->cache_count_ == 0 || this->bus_[1] != this->request_key_[1] || len > MAX_READ_RESPONSE ||
+      !modbus::helpers::is_function_code_read_only(this->request_key_[1])) {
+    return;
+  }
+  CacheSlot *pick = nullptr;
+  bool pick_free = false;
+  for (uint16_t i = 0; i < this->cache_count_; i++) {
+    CacheSlot &slot = this->slots_[i];
+    if (slot.len != 0 && std::memcmp(slot.key, this->request_key_, sizeof(slot.key)) == 0) {
+      pick = &slot;
+      pick_free = true;
+      break;
+    }
+    const bool free = slot.len == 0 || now_ms - slot.stored_ms >= this->cache_time_ms_;
+    if (pick == nullptr || (free && !pick_free) ||
+        (!free && !pick_free && static_cast<int32_t>(slot.used - pick->used) < 0)) {
+      pick = &slot;
+      pick_free = free;
+    }
+  }
+  if (!pick_free) {
+    this->cache_evicted_++;
+    if (log_due(&this->last_evict_log_ms_)) {
+      ESP_LOGD(TAG, "Replaced %u fresh stored reads, cache_entries %u may be too few", this->cache_evicted_,
+               this->cache_count_);
+      this->cache_evicted_ = 0;
+    }
+  }
+  std::memcpy(pick->data, this->bus_, len);
+  std::memcpy(pick->key, this->request_key_, sizeof(pick->key));
+  pick->len = len;
+  pick->stored_ms = now_ms;
+  pick->used = ++this->cache_seq_;
+}
+
+// Unit 0 drops every stored read.
+void ModbusGateway::clear_cache_(uint8_t unit) {
+  for (uint16_t i = 0; i < this->cache_count_; i++) {
+    if (unit == 0 || this->slots_[i].key[0] == unit) {
+      this->slots_[i].len = 0;
+    }
+  }
 }
 
 // Nothing is expected while no request is open. It is read into bus_ and dropped.
@@ -453,9 +544,9 @@ void ModbusGateway::pace_(uint32_t now) {
 }
 
 // micros(): above 19200 baud the gap before a request is 1.75 ms.
-void ModbusGateway::loop() { this->run_(micros()); }
+void ModbusGateway::loop() { this->run_(micros(), App.get_loop_component_start_time()); }
 
-void ModbusGateway::run_(uint32_t now) {
+void ModbusGateway::run_(uint32_t now, uint32_t now_ms) {
   for (uint8_t i = 0; i < this->port_count_; i++) {
     this->read_port_(i, now);
   }
@@ -464,7 +555,7 @@ void ModbusGateway::run_(uint32_t now) {
       this->send_request_(now);
       break;
     case Phase::PHASE_AWAITING:
-      this->read_bus_(now);
+      this->read_bus_(now, now_ms);
       if (this->phase_ == Phase::PHASE_AWAITING && now - this->sent_us_ >= this->wait_us_) {
         if (log_due(&this->last_timeout_log_ms_)) {
           ESP_LOGW(TAG, "No response from the bus");
@@ -472,6 +563,8 @@ void ModbusGateway::run_(uint32_t now) {
         this->phase_ = Phase::PHASE_IDLE;
         this->quarantine_ = true;
         this->bus_last_us_ = now;
+        // A stored read of a unit that went silent is not served any more.
+        this->clear_cache_(this->request_key_[0]);
       }
       break;
     case Phase::PHASE_TURNAROUND:
@@ -490,19 +583,26 @@ void ModbusGateway::run_(uint32_t now) {
     this->drain_bus_(now);
     if (this->bus_wait_(now) == 0) {
       this->quarantine_ = false;
-      this->start_next_(now);
+      this->start_next_(now, now_ms);
     }
   }
   this->pace_(now);
 }
 
 void ModbusGateway::dump_config() {
+  // One letter per port: y may be answered from the cache, n always uses the bus.
+  char cache[MODBUS_GATEWAY_PORT_COUNT + 1]{};
+  for (uint8_t i = 0; i < this->port_count_; i++) {
+    cache[i] = this->ports_[i].use_cache ? 'y' : 'n';
+  }
   ESP_LOGCONFIG(TAG,
                 "Modbus Gateway:\n"
                 "  Response timeout: %" PRIu32 " ms\n"
                 "  Frame gap: %" PRIu32 " us\n"
-                "  Ports: %u",
-                this->response_timeout_us_ / 1000, this->bus_rx_gap_us_, this->port_count_);
+                "  Cache: %u entries of %u bytes, %" PRIu32 " ms\n"
+                "  Ports: %u, cache per port: %s",
+                this->response_timeout_us_ / 1000, this->bus_rx_gap_us_, this->cache_count_,
+                static_cast<unsigned>(sizeof(CacheSlot)), this->cache_time_ms_, this->port_count_, cache);
 }
 
 }  // namespace esphome::modbus_gateway
