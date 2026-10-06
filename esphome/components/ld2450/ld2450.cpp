@@ -554,6 +554,7 @@ void LD2450Component::handle_periodic_data_() {
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT
+  const uint32_t now = App.get_loop_component_start_time();
   for (PolygonZone *zone : this->polygon_zones_) {
     bool target_inside = false;
     for (const Target &target : this->target_info_) {
@@ -563,7 +564,7 @@ void LD2450Component::handle_periodic_data_() {
         break;
       }
     }
-    zone->update(target_inside);
+    zone->update(target_inside, now, this->get_timeout_status_(zone->get_last_inside_ms()));
   }
 #endif
 
