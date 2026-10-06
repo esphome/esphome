@@ -1,55 +1,117 @@
-"""Direction checks for a gateway port."""
+"""Final validation of modbus_gateway."""
+
+from collections.abc import Callable
 
 import pytest
 
-from esphome.components.modbus_gateway import _reject_port_direction
+from esphome.components.modbus_gateway import _require_bus_framing, _require_exclusive
+from esphome.config import Config
 import esphome.config_validation as cv
-from esphome.core import ID
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 
-def _run(config, full):
+def _full(items: ConfigType, declared: dict[str, list] | None = None) -> Config:
+    full = Config()
+    full.update(items)
+    for name, path in (declared or {}).items():
+        full.declare_ids.append((ID(name, is_declaration=True), path))
+    return full
+
+
+def _run(check: Callable[[ConfigType], None], config: ConfigType, full: Config) -> None:
     token = fv.full_config.set(full)
     try:
-        return _reject_port_direction(config)
+        check(config)
     finally:
         fv.full_config.reset(token)
 
 
-def test_server_hub_on_local_port_is_rejected() -> None:
-    local = ID("local_bus", is_declaration=True)
-    config = {"ports": [{"id": local}]}
-    full = {"modbus": [{"id": ID("hub"), "uart_id": ID("local_bus"), "role": "server"}]}
-    with pytest.raises(cv.Invalid, match="role: client"):
-        _run(config, full)
+def _gateway(*ports: ConfigType) -> ConfigType:
+    return {"uart_id": ID("bus"), "ports": list(ports)}
 
 
-def test_client_hub_on_local_port_passes() -> None:
-    local = ID("local_bus", is_declaration=True)
-    config = {"ports": [{"id": local}]}
-    full = {"modbus": [{"id": ID("hub"), "uart_id": ID("local_bus"), "role": "client"}]}
-    assert _run(config, full) is config
+def test_bus_used_by_a_hub_is_rejected() -> None:
+    gateway = _gateway({"id": ID("local", is_declaration=True)})
+    full = _full(
+        {
+            "modbus_gateway": [gateway],
+            "modbus": [{"id": ID("hub"), "uart_id": ID("bus")}],
+        }
+    )
+    with pytest.raises(cv.Invalid, match="also used by 'modbus'"):
+        _run(_require_exclusive, gateway, full)
 
 
-def test_modbus_tcp_link_cannot_be_a_port() -> None:
-    link = ID("shelly_link")
-    config = {"ports": [{"uart_id": link}]}
-    full = {
-        "modbus_tcp": [
-            {"id": ID("shelly_link", is_declaration=True), "tcp_uart_id": ID("sock")}
-        ]
+def test_port_used_by_another_gateway_is_rejected() -> None:
+    first = _gateway({"uart_id": ID("inverter")})
+    second = {"uart_id": ID("other"), "ports": [{"uart_id": ID("inverter")}]}
+    full = _full({"modbus_gateway": [first, second]})
+    with pytest.raises(cv.Invalid, match="also used by 'modbus_gateway'"):
+        _run(_require_exclusive, first, full)
+
+
+def test_hub_on_a_local_port_passes() -> None:
+    gateway = _gateway(
+        {"uart_id": ID("inverter")}, {"id": ID("local", is_declaration=True)}
+    )
+    full = _full(
+        {
+            "modbus_gateway": [gateway],
+            "modbus": [{"id": ID("hub"), "uart_id": ID("local")}],
+        }
+    )
+    _run(_require_exclusive, gateway, full)
+
+
+def test_shared_bus_passes_in_testing_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    gateway = _gateway({"id": ID("local", is_declaration=True)})
+    full = _full(
+        {
+            "modbus_gateway": [gateway],
+            "modbus": [{"id": ID("hub"), "uart_id": ID("bus")}],
+        }
+    )
+    monkeypatch.setattr(CORE, "testing_mode", True)
+    _run(_require_exclusive, gateway, full)
+
+
+def test_bus_without_framing_is_rejected_for_a_local_port() -> None:
+    gateway = _gateway({"id": ID("local", is_declaration=True)})
+    full = _full(
+        {
+            "uart_split": [{"outputs": [{"id": ID("bus", is_declaration=True)}]}],
+            "modbus_gateway": [gateway],
+        },
+        {"bus": ["uart_split", 0, "outputs", 0, "id"]},
+    )
+    with pytest.raises(cv.Invalid, match="does not set them"):
+        _run(_require_bus_framing, gateway, full)
+
+
+def test_bus_without_framing_passes_without_a_local_port() -> None:
+    gateway = _gateway({"uart_id": ID("inverter")})
+    full = _full(
+        {
+            "uart_split": [{"outputs": [{"id": ID("bus", is_declaration=True)}]}],
+            "modbus_gateway": [gateway],
+        },
+        {"bus": ["uart_split", 0, "outputs", 0, "id"]},
+    )
+    _run(_require_bus_framing, gateway, full)
+
+
+def test_uart_bus_with_framing_passes() -> None:
+    gateway = _gateway({"id": ID("local", is_declaration=True)})
+    bus = {
+        "id": ID("bus", is_declaration=True),
+        "baud_rate": 9600,
+        "data_bits": 8,
+        "parity": "NONE",
+        "stop_bits": 1,
     }
-    with pytest.raises(cv.Invalid, match="modbus_tcp link"):
-        _run(config, full)
-
-
-def test_modbus_tcp_link_elsewhere_does_not_reject_a_uart_port() -> None:
-    """The bus may be a modbus_tcp link. Only a port is rejected."""
-    port = ID("inverter_bus")
-    config = {"ports": [{"uart_id": port}]}
-    full = {
-        "modbus_tcp": [
-            {"id": ID("shelly_link", is_declaration=True), "tcp_uart_id": ID("sock")}
-        ]
-    }
-    assert _run(config, full) is config
+    full = _full(
+        {"uart": [bus], "modbus_gateway": [gateway]}, {"bus": ["uart", 0, "id"]}
+    )
+    _run(_require_bus_framing, gateway, full)

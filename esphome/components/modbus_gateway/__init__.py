@@ -1,11 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.const import (
-    CONF_DATA_BITS,
-    CONF_PARITY,
-    CONF_ROLE,
-    CONF_STOP_BITS,
-)
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
 from esphome.core import CORE
@@ -17,16 +12,16 @@ DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["modbus"]
 MULTI_CONF = True
 
+DOMAIN = "modbus_gateway"
 CONF_PORTS = "ports"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
-CONF_TCP_UART_ID = "tcp_uart_id"
 
 modbus_gateway_ns = cg.esphome_ns.namespace("modbus_gateway")
 ModbusGateway = modbus_gateway_ns.class_("ModbusGateway", cg.Component, uart.UARTDevice)
 GatewayUart = modbus_gateway_ns.class_("GatewayUart", uart.UARTComponent)
 
 
-def _port_schema(value):
+def _port_schema(value: ConfigType) -> ConfigType:
     value = cv.Schema(
         {
             cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
@@ -69,47 +64,59 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _same_id(left, right) -> bool:
-    return str(left) == str(right) and str(left) != ""
-
-
-def _reject_port_direction(config: ConfigType) -> ConfigType:
-    """Ports are masters. A server hub writes replies, and a modbus_tcp link
-    yields replies on read. Neither can be the source of a request.
-    """
-    full = fv.full_config.get()
-    hubs = []
-    links = []
-    if full is not None:
-        hubs = full.get("modbus") or []
-        links.extend(
-            item for item in full.get("modbus_tcp") or [] if CONF_TCP_UART_ID in item
+def _references(node: object, uart_id: str) -> bool:
+    if isinstance(node, dict):
+        return any(
+            (key == CONF_UART_ID and str(value) == uart_id)
+            or _references(value, uart_id)
+            for key, value in node.items()
         )
-    for index, port in enumerate(config[CONF_PORTS]):
-        if CONF_ID in port:
-            local = port[CONF_ID]
-            for hub in hubs:
-                if not _same_id(hub.get(CONF_UART_ID, ""), local):
-                    continue
-                if hub.get(CONF_ROLE, "client") != "server":
-                    continue
+    if isinstance(node, list):
+        return any(_references(item, uart_id) for item in node)
+    return False
+
+
+def _require_exclusive(config: ConfigType) -> None:
+    """The gateway reads the bus and every port UART. A second reader takes its bytes.
+
+    Bare `id:` references (a uart.write action, a lambda) are not seen.
+    """
+    if CORE.testing_mode:
+        # Grouped component tests put many components on one uart_bus.
+        return
+    owned = [([CONF_UART_ID], config[CONF_UART_ID])]
+    owned += [
+        ([CONF_PORTS, index, CONF_UART_ID], port[CONF_UART_ID])
+        for index, port in enumerate(config[CONF_PORTS])
+        if CONF_UART_ID in port
+    ]
+    full = fv.full_config.get()
+    for path, uart_id in owned:
+        for domain, domain_conf in full.items():
+            if domain == DOMAIN:
+                domain_conf = [item for item in domain_conf if item is not config]
+            if _references(domain_conf, str(uart_id)):
                 raise cv.Invalid(
-                    "A modbus hub with role: server writes a response. "
-                    "This port sends that write to the bus as a request. Use role: client",
-                    path=[CONF_PORTS, index],
+                    f"The UART '{uart_id}' is also used by '{domain}'. "
+                    "The gateway needs it for itself",
+                    path=path,
                 )
-        port_uart = port.get(CONF_UART_ID)
-        if port_uart is None:
-            continue
-        for link in links:
-            if not _same_id(link.get(CONF_ID, ""), port_uart):
-                continue
-            raise cv.Invalid(
-                "A modbus_tcp link delivers responses on read and sends requests on write. "
-                "A gateway port has to read requests from a master",
-                path=[CONF_PORTS, index],
-            )
-    return config
+
+
+def _require_bus_framing(config: ConfigType) -> None:
+    if not any(CONF_ID in port for port in config[CONF_PORTS]):
+        return
+    full = fv.full_config.get()
+    bus = full.get_config_for_path(full.get_path_for_id(config[CONF_UART_ID])[:-1])
+    if any(
+        key not in bus
+        for key in (CONF_BAUD_RATE, CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS)
+    ):
+        raise cv.Invalid(
+            "A port with id copies baud_rate, data_bits, parity and stop_bits from the bus. "
+            f"'{config[CONF_UART_ID]}' does not set them. Use a uart bus",
+            path=[CONF_UART_ID],
+        )
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
@@ -121,7 +128,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
             uart.final_validate_device_schema(
                 "modbus_gateway", require_tx=True, require_rx=True
             )(port)
-    return _reject_port_direction(config)
+    _require_bus_framing(config)
+    _require_exclusive(config)
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -147,4 +156,6 @@ async def to_code(config: ConfigType) -> None:
         cg.add(local.set_baud_rate(bus[CONF_BAUD_RATE]))
         cg.add(local.set_data_bits(bus[CONF_DATA_BITS]))
         cg.add(local.set_stop_bits(bus[CONF_STOP_BITS]))
-        cg.add(local.set_parity(bus[CONF_PARITY]))
+        # The C++ default is no parity.
+        if (parity := bus[CONF_PARITY]) != "NONE":
+            cg.add(local.set_parity(parity))
