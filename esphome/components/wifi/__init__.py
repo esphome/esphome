@@ -354,6 +354,40 @@ def _apply_min_auth_mode_default(config):
     return config
 
 
+def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
+    """Reject the ``coexist:``/``napt:`` combinations the target cannot run.
+
+    Both need the ESP-IDF driver: ``coexist:`` puts it in WIFI_MODE_APSTA, and
+    ``napt:`` adds the lwip forwarding that lets the AP subnet out through the
+    station. ``coexist:`` also needs a station to fall back from, and no
+    post-connect roaming, whose scan would take the AP down again.
+    """
+    coexist = ap_config.get(CONF_COEXIST, False)
+    napt = ap_config.get(CONF_NAPT, False)
+    if coexist:
+        if not CORE.is_esp32 or CORE.using_arduino:
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) is only supported on ESP32 (ESP-IDF)."
+            )
+        if not config.get(CONF_NETWORKS):
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) requires at least one STA network configured."
+            )
+        if config[CONF_POST_CONNECT_ROAMING]:
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) is incompatible with post_connect_roaming. "
+                "Please set post_connect_roaming: false in the wifi block."
+            )
+    elif napt:
+        if not CORE.is_esp32 or CORE.using_arduino:
+            raise cv.Invalid(
+                "IP routing / NAPT (napt: true) is only supported on ESP32 (ESP-IDF)."
+            )
+        raise cv.Invalid(
+            "IP routing / NAPT (napt: true) requires AP+STA coexistence (coexist: true) to be enabled."
+        )
+
+
 def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
@@ -366,6 +400,8 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
+    if has_ap:
+        _validate_ap_coexist(config[CONF_AP], config)
     if has_ap and not has_captive_portal and not has_web_server:
         _LOGGER.warning(
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
@@ -674,31 +710,10 @@ async def to_code(config):
             cg.add(var.set_ap_timeout(ap_timeout))
 
         if conf.get(CONF_COEXIST, False):
-            if not CORE.is_esp32:
-                raise cv.Invalid(
-                    "AP+STA coexistence (coexist: true) is only supported on ESP32 (ESP-IDF)."
-                )
-            if not config.get(CONF_NETWORKS) and CONF_SSID not in config:
-                raise cv.Invalid(
-                    "AP+STA coexistence (coexist: true) requires at least one STA network configured."
-                )
-            if config.get(CONF_POST_CONNECT_ROAMING, True):
-                raise cv.Invalid(
-                    "AP+STA coexistence (coexist: true) is incompatible with post_connect_roaming. "
-                    "Please set post_connect_roaming: false in the wifi block."
-                )
             cg.add(var.set_ap_coexist(True))
             cg.add_define("USE_WIFI_APSTA")
 
         if conf.get(CONF_NAPT, False):
-            if not CORE.is_esp32:
-                raise cv.Invalid(
-                    "IP routing / NAPT (napt: true) is only supported on ESP32 (ESP-IDF)."
-                )
-            if not conf.get(CONF_COEXIST, False):
-                raise cv.Invalid(
-                    "IP routing / NAPT (napt: true) requires AP+STA coexistence (coexist: true) to be enabled."
-                )
             cg.add(var.set_ap_napt(True))
             cg.add_define("USE_WIFI_AP_NAPT")
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)

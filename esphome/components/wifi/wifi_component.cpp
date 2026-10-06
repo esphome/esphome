@@ -735,13 +735,6 @@ void WiFiComponent::start() {
       ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
 
-#ifdef USE_WIFI_APSTA
-    if (this->has_ap() && this->ap_coexist_) {
-      // loop() starts the coexist AP on its first pass, so ap_timeout does not apply.
-      this->last_connected_ = millis();
-      this->ap_timeout_ = 0;  // 0 disables the fallback gate this mode never reaches
-    }
-#endif
     this->transition_to_phase_(WiFiRetryPhase::INITIAL_CONNECT);
 #ifdef USE_WIFI_FAST_CONNECT
     WiFiAP params;
@@ -929,6 +922,9 @@ void WiFiComponent::loop() {
       if (this->ap_coexist_) {
         ESP_LOGI(TAG, "Starting coexist AP");
         this->setup_ap_config_();
+#ifdef USE_CAPTIVE_PORTAL
+        this->start_captive_portal_();
+#endif
       } else
 #endif
           if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
@@ -938,14 +934,7 @@ void WiFiComponent::loop() {
 #endif
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        // Where the AP runs on its own, a portal with no AP behind it would
-        // only stretch the cooldowns.
-        if (captive_portal::global_captive_portal != nullptr && (!WIFI_AP_EXCLUSIVE || this->ap_setup_)) {
-          // Reset so we force one full scan after captive portal starts
-          // (previous scans were filtered because captive portal wasn't active yet)
-          this->has_completed_scan_after_captive_portal_start_ = false;
-          captive_portal::global_captive_portal->start();
-        }
+        this->start_captive_portal_();
 #endif
       }
     }
@@ -2354,6 +2343,20 @@ bool WiFiComponent::is_captive_portal_active_() {
   return false;
 #endif
 }
+
+#if defined(USE_CAPTIVE_PORTAL) && defined(USE_WIFI_AP)
+void WiFiComponent::start_captive_portal_() {
+  // Where the AP runs on its own, a portal with no AP behind it would only
+  // stretch the cooldowns.
+  if (captive_portal::global_captive_portal == nullptr || (WIFI_AP_EXCLUSIVE && !this->ap_setup_))
+    return;
+  // Reset so we force one full scan after captive portal starts
+  // (previous scans were filtered because captive portal wasn't active yet)
+  this->has_completed_scan_after_captive_portal_start_ = false;
+  captive_portal::global_captive_portal->start();
+}
+#endif
+
 bool WiFiComponent::is_improv_ble_active_() {
 #ifdef USE_IMPROV_BLE
   return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();
