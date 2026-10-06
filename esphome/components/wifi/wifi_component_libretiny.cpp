@@ -31,6 +31,17 @@ extern "C" {
 #ifdef USE_LN882X
 #include <WiFiPrivate.h>
 #undef DATA  // clashes with setup_priority::DATA
+// LibreTiny 1.13's LN882H reconnect() gives the SDK a NULL bssid; pass on the requested one. Remove once it passes
+// info.bssid. Safe without a BSSID: begin() frees sta.bssid (resetNetworkInfo), so it stays NULL.
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+// Names are mandated by the --wrap linker mechanism.
+extern "C" int __real_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cfg_t *scan_cfg);
+extern "C" int __wrap_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cfg_t *scan_cfg) {
+  if (connect->bssid == nullptr)
+    connect->bssid = static_cast<WiFiData *>(WiFi.data)->sta.bssid;
+  return __real_wifi_sta_connect(connect, scan_cfg);
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif
 
 #include "esphome/core/application.h"
@@ -613,6 +624,9 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+      this->ap_clients_++;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto &it = event->data.sta_connected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -622,6 +636,10 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+      if (this->ap_clients_ > 0)
+        this->ap_clients_--;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto &it = event->data.sta_disconnected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -788,6 +806,17 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
+
+#ifdef USE_LN882X
+void WiFiComponent::on_powerdown() {
+  // Leave the AP so it no longer holds the association when we come back.
+  if (WiFi.status() != WL_CONNECTED)  // associated, even before DHCP has finished
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
+}
+#endif
 
 bool WiFiComponent::wifi_disconnect_() {
   // Reset state first so disconnect events aren't ignored

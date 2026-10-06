@@ -7,6 +7,7 @@ from esphome.components.usb_host import (
     register_usb_client,
     usb_device_schema,
 )
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
+    CONF_TYPE,
 )
 from esphome.core import CORE
 from esphome.cpp_types import Component
@@ -64,6 +66,8 @@ class Type:
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
+        # CDC ACM lives in usb_uart.cpp; each vendor driver has its own <cls>.cpp
+        self.driver = None if cls == "CdcAcm" else cls
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
         self.max_baud = max_baud
@@ -119,6 +123,21 @@ uart_types = (
         baud_rate_required=False,
         has_comm_interface=True,
     ),
+)
+
+_TYPES_BY_NAME = {it.name: it for it in uart_types}
+
+
+def _driver_define(driver: str) -> str:
+    return f"USE_USB_UART_{driver}"
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        f"{it.driver.lower()}.cpp": _driver_define(it.driver)
+        for it in uart_types
+        if it.driver is not None
+    }
 )
 
 
@@ -211,6 +230,8 @@ async def to_code(config: list[ConfigType]) -> None:
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
+        if (driver := _TYPES_BY_NAME[device[CONF_TYPE]].driver) is not None:
+            cg.add_define(_driver_define(driver))
         var = await register_usb_client(device)
         # The C++ default is true; only emit the override
         if not device.get(CONF_CLAIM_COMM_INTERFACE, True):
