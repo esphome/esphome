@@ -242,7 +242,9 @@ void ModbusTcpUart::deliver_mbap_() {
           const uint8_t *units_end = this->units_ + this->units_count_;
           if (frame.unit != 0 && this->units_ != nullptr &&
               std::find(this->units_, units_end, frame.unit) == units_end) {
-            ESP_LOGV(TAG, "No server for unit %u, request dropped", frame.unit);
+            if (drop_log_due(this->drop_log_ms_[DROP_UNKNOWN_UNIT])) {
+              ESP_LOGW(TAG, "No server for unit %u, request dropped", frame.unit);
+            }
             break;
           }
           uint8_t rtu[RTU_FRAME_SIZE];
@@ -256,7 +258,10 @@ void ModbusTcpUart::deliver_mbap_() {
             this->txn_pending_ = true;
           }
           // Last: an attached reader may answer within this call.
-          this->inject_rx(rtu, rtu_len);
+          if (!this->inject_rx(rtu, rtu_len)) {
+            this->txn_pending_ = false;
+            note_drop(this->drop_log_ms_[DROP_RX_FULL], LOG_STR("RX buffer full, dropped the request"));
+          }
           break;
         }
         if (!this->txn_pending_ || frame.txn != this->txn_) {
@@ -359,6 +364,7 @@ void ModbusTcpUart::discard_parent_() {
   while (left != 0) {
     size_t n = std::min(left, sizeof(junk));
     if (!this->parent_->read_array(junk, n)) {
+      note_drop(this->drop_log_ms_[DROP_READ], LOG_STR("Read failed"));
       return;
     }
     left -= n;

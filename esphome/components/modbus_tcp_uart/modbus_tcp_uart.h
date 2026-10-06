@@ -64,6 +64,7 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
     DROP_ENCODE,
     DROP_SEND,
     DROP_BAD_MBAP,
+    DROP_UNKNOWN_UNIT,
     DROP_KIND_COUNT,
   };
 

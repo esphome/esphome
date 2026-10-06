@@ -20,7 +20,7 @@ class Pipe : public tcp_uart::TcpUart {
   size_t available() override { return this->rx_n_; }
   size_t available_for_write() override { return 1024; }
   bool read_array(uint8_t *data, size_t len) override {
-    if (len > this->rx_n_) {
+    if (this->fail_reads_ || len > this->rx_n_) {
       return false;
     }
     std::memcpy(data, this->rx_, len);
@@ -46,6 +46,7 @@ class Pipe : public tcp_uart::TcpUart {
     this->feed(frame, n);
   }
 
+  bool fail_reads_{false};
   size_t n_{0};
   uint8_t buf_[300]{};
   size_t rx_n_{0};
@@ -88,6 +89,11 @@ class ServerLink : public ModbusTcpUart {
   bool pending() const { return this->txn_pending_; }
   uint16_t held() const { return this->tx_len_; }
   void deliver() { this->deliver_mbap_(); }
+  // As if the attached reader were still inside on_block(), so inject_rx() refuses the block.
+  void set_in_rx_sink(bool in) { this->in_rx_sink_ = in; }
+  bool unknown_unit_logged() const { return this->drop_log_ms_[DROP_UNKNOWN_UNIT] != 0; }
+  bool read_failure_logged() const { return this->drop_log_ms_[DROP_READ] != 0; }
+  bool rx_full_logged() const { return this->drop_log_ms_[DROP_RX_FULL] != 0; }
 };
 
 const uint8_t PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
@@ -312,12 +318,45 @@ TEST(ModbusTcpUartServer, RequestToAUnitNoServerAnswersIsDropped) {
   link.push(3, 0, write, sizeof(write));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
+  EXPECT_FALSE(link.unknown_unit_logged());
   link.push(4, 5, PDU, sizeof(PDU));
   EXPECT_EQ(link.available(), 0u);
   EXPECT_FALSE(link.pending());
+  EXPECT_TRUE(link.unknown_unit_logged());
   link.push(5, 1, write, sizeof(write));
   EXPECT_EQ(link.txn(), 5);
   EXPECT_EQ(link.available(), sizeof(write) + 3);
+}
+
+TEST(ModbusTcpUartServer, RefusedRequestDoesNotBlockTheNext) {
+  ServerLink link;
+  AnsweringReader reader(&link);
+  link.set_rx_sink(&reader);
+  link.set_in_rx_sink(true);
+  link.push(7, 1, PDU, sizeof(PDU));
+  EXPECT_EQ(reader.requests, 0);
+  EXPECT_FALSE(link.pending());
+  EXPECT_TRUE(link.rx_full_logged());
+  // The next request goes to the reader at once, without waiting for REPLY_TIMEOUT_MS.
+  link.set_in_rx_sink(false);
+  link.push(8, 1, PDU, sizeof(PDU));
+  EXPECT_EQ(reader.requests, 1);
+  EXPECT_EQ(link.txn(), 8);
+}
+
+TEST(ModbusTcpUartServer, FailedReadWhileResyncingIsLogged) {
+  Pipe pipe;
+  ServerLink link;
+  link.set_pipe(&pipe);
+  const uint8_t bad[] = {0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03};
+  pipe.feed(bad, sizeof(bad));
+  link.loop();
+  EXPECT_FALSE(link.read_failure_logged());
+  pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
+  pipe.fail_reads_ = true;
+  link.loop();
+  EXPECT_TRUE(link.read_failure_logged());
+  EXPECT_EQ(link.available(), 0u);
 }
 
 TEST(ModbusTcpUartServer, BadProtocolIdSkipsOnlyThatFrame) {
