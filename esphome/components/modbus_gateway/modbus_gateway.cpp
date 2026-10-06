@@ -14,6 +14,16 @@ namespace esphome::modbus_gateway {
 static const char *const TAG = "modbus_gateway";
 
 static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
+
+// At most one warning per interval and stamp. A zero stamp means never logged, so the first one after boot is shown.
+static bool log_due(uint32_t *stamp) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (*stamp != 0 && now - *stamp < BAD_LOG_INTERVAL_MS) {
+    return false;
+  }
+  *stamp = now == 0 ? 1 : now;
+  return true;
+}
 // The Modbus client hub's default. A broadcast is never answered. The pause
 // lets the device finish the write before the next frame.
 static constexpr uint32_t BROADCAST_TURNAROUND_MS = 600;
@@ -144,24 +154,21 @@ void ModbusGateway::port_write(uint8_t index, const uint8_t *data, size_t len) {
     consume(port.data, &port.len, port.pending_len);
     port.pending_len = 0;
   }
-  uint32_t now = App.get_loop_component_start_time();
   if (len > static_cast<size_t>(MAX_FRAME - port.len)) {
-    if (now - this->last_response_log_ms_ >= BAD_LOG_INTERVAL_MS) {
-      this->last_response_log_ms_ = now;
+    if (log_due(&this->last_response_log_ms_)) {
       ESP_LOGW(TAG, "Write dropped, the buffer holds one frame");
     }
     return;
   }
   std::memcpy(port.data + port.len, data, len);
   port.len += static_cast<uint16_t>(len);
-  port.last_ms = now;
+  port.last_ms = App.get_loop_component_start_time();
 }
 
-void ModbusGateway::log_bad_(uint32_t now, bool crc) {
-  if (now - this->last_bad_log_ms_ < BAD_LOG_INTERVAL_MS) {
+void ModbusGateway::log_bad_(bool crc) {
+  if (!log_due(&this->last_bad_log_ms_)) {
     return;
   }
-  this->last_bad_log_ms_ = now;
   if (crc) {
     ESP_LOGW(TAG, "Dropping a frame with a bad CRC");
     return;
@@ -169,12 +176,10 @@ void ModbusGateway::log_bad_(uint32_t now, bool crc) {
   ESP_LOGW(TAG, "Dropping an incomplete frame");
 }
 
-void ModbusGateway::log_mismatch_(uint32_t now) {
-  if (now - this->last_mismatch_log_ms_ < BAD_LOG_INTERVAL_MS) {
-    return;
+void ModbusGateway::log_mismatch_() {
+  if (log_due(&this->last_mismatch_log_ms_)) {
+    ESP_LOGW(TAG, "Response ignored, it does not match the request");
   }
-  this->last_mismatch_log_ms_ = now;
-  ESP_LOGW(TAG, "Response ignored, it does not match the request");
 }
 
 bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len) {
@@ -187,27 +192,26 @@ bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data,
   return true;
 }
 
-bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len, uint32_t now) {
+bool ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
   Port &port = this->ports_[index];
   if (port.local) {
     if (!static_cast<GatewayUart *>(port.uart)->inject_rx(data, len)) {
-      this->log_dropped_(now, false, len);
+      this->log_dropped_(false, len);
       return false;
     }
     return true;
   }
   if (!this->write_frame_(port.uart, data, len)) {
-    this->log_dropped_(now, true, len);
+    this->log_dropped_(true, len);
     return false;
   }
   return true;
 }
 
-void ModbusGateway::log_dropped_(uint32_t now, bool on_uart, uint16_t len) {
-  if (now - this->last_response_log_ms_ < BAD_LOG_INTERVAL_MS) {
+void ModbusGateway::log_dropped_(bool on_uart, uint16_t len) {
+  if (!log_due(&this->last_response_log_ms_)) {
     return;
   }
-  this->last_response_log_ms_ = now;
   if (!on_uart) {
     ESP_LOGW(TAG, "Response dropped, the buffer holds one frame");
     return;
@@ -231,13 +235,13 @@ void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
       continue;
     }
     if (found.bad_crc && !found.drop_all) {
-      this->log_bad_(now, true);
+      this->log_bad_(true);
       consume(rest, &rest_len, 1);
       port.len = port.pending_len + rest_len;
       continue;
     }
     if (found.drop_all) {
-      this->log_bad_(now, found.bad_crc);
+      this->log_bad_(found.bad_crc);
       port.len = port.pending_len;
       return;
     }
@@ -275,25 +279,25 @@ void ModbusGateway::read_bus_(uint32_t now) {
     Inspect found = inspect(this->bus_, this->bus_len_, false, silent);
     if (found.len == 0) {
       if (found.bad_crc && !found.drop_all) {
-        this->log_bad_(now, true);
+        this->log_bad_(true);
         consume(this->bus_, &this->bus_len_, 1);
         continue;
       }
       if (found.drop_all) {
-        this->log_bad_(now, found.bad_crc);
+        this->log_bad_(found.bad_crc);
         this->bus_len_ = 0;
       }
       return;
     }
     if (!response_matches(this->request_key_, this->bus_, found.len)) {
-      this->log_mismatch_(now);
+      this->log_mismatch_();
       consume(this->bus_, &this->bus_len_, found.len);
       continue;
     }
     uint8_t index = static_cast<uint8_t>(this->active_);
     // A full port keeps the frame. Dropping it here would end the transaction
     // and the next client could be given this answer.
-    if (!this->deliver_(index, this->bus_, found.len, now)) {
+    if (!this->deliver_(index, this->bus_, found.len)) {
       return;
     }
     consume(this->bus_, &this->bus_len_, found.len);
@@ -356,8 +360,7 @@ void ModbusGateway::run_(uint32_t now) {
     } else {
       this->read_bus_(now);
       if (this->active_ >= 0 && now - this->sent_ms_ >= this->response_timeout_ms_) {
-        if (now - this->last_timeout_log_ms_ >= BAD_LOG_INTERVAL_MS) {
-          this->last_timeout_log_ms_ = now;
+        if (log_due(&this->last_timeout_log_ms_)) {
           ESP_LOGW(TAG, "No response from the bus");
         }
         this->active_ = -1;
