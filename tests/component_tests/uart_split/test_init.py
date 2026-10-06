@@ -3,8 +3,12 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from esphome import config, yaml_util
-from esphome.core import CORE
+import pytest
+
+from esphome import config, config_validation as cv, final_validate as fv, yaml_util
+from esphome.components import uart, uart_split
+from esphome.const import CONF_ID, CONF_OUTPUTS, CONF_RX_ONLY, CONF_UART_ID
+from esphome.core import CORE, ID
 
 BASE = """
 esphome:
@@ -90,6 +94,22 @@ def test_device_that_transmits_on_a_receive_only_output_is_rejected(
         "dfplayer requires the uart referenced by uart_id to transmit" in err
         for err in errors
     ), errors
+
+
+def test_receive_only_output_with_a_generated_id_rejects_tx() -> None:
+    """CONFIG_SCHEMA marks the output before the ID pass gives it a name."""
+    conf = uart_split.CONFIG_SCHEMA(
+        {CONF_UART_ID: "pins", CONF_OUTPUTS: [{CONF_RX_ONLY: True}]}
+    )
+    output_id = conf[CONF_OUTPUTS][0][CONF_ID]
+    name = output_id.resolve([])
+    full = fv.full_config.get()
+    full["uart_split"] = [conf]
+    full.declare_ids.append((output_id, ["uart_split", 0, CONF_OUTPUTS, 0, CONF_ID]))
+    with pytest.raises(cv.Invalid, match="dfplayer requires the uart referenced"):
+        uart.final_validate_device_schema("dfplayer", require_tx=True)(
+            {CONF_UART_ID: ID(name)}
+        )
 
 
 def test_dummy_receiver_on_the_split_uart_is_rejected(tmp_path: Path) -> None:
