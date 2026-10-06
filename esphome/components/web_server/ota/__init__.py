@@ -80,7 +80,7 @@ FINAL_VALIDATE_SCHEMA = _web_server_ota_final_validate
 
 
 @coroutine_with_priority(CoroPriority.WEB_SERVER_OTA)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
     await cg.register_component(var, config)

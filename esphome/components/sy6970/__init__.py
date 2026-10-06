@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@linkedupbits"]
 DEPENDENCIES = ["i2c"]
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_ENABLE_STATUS_LED],

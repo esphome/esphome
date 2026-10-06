@@ -118,8 +118,6 @@ static const LogString *get_exception_cause(uint32_t cause) {
 }
 
 static const LogString *get_reset_reason(uint32_t reason) {
-  if (reason == REASON_WDT_RST)
-    return LOG_STR("Hardware WDT");
   if (reason == REASON_EXCEPTION_RST)
     return LOG_STR("Exception");
   if (reason == REASON_SOFT_WDT_RST)
@@ -162,13 +160,20 @@ void crash_handler_log() {
   if (!is_crash_reason(resetInfo.reason))
     return;
 
+  ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
+  if (resetInfo.reason == REASON_WDT_RST) {
+    // A hardware WDT reset happens entirely in hardware: the postmortem hook
+    // never runs, so rst_info epc1/exccause and the RTC backtrace are
+    // leftovers from an earlier crash. Don't misattribute them (#18596).
+    ESP_LOGE(TAG, "  Reason: Hardware WDT (no crash state is recorded for hardware WDT resets)");
+    return;
+  }
+
   // Read and filter backtrace from RTC into stack-local buffer (no persistent RAM cost).
   // Both resetInfo and RTC data survive until the next reset, so this can be
   // called multiple times (logger init + API subscribe) with the same result.
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t bt_count = read_rtc_backtrace(backtrace, MAX_BACKTRACE);
-
-  ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
   // GCC's ROM divide routine triggers IllegalInstruction (exccause=0) at specific
   // ROM addresses instead of IntegerDivideByZero (exccause=6). Patch to match
   // the Arduino core's postmortem handler behavior.

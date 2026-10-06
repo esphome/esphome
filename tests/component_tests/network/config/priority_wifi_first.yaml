@@ -1,0 +1,26 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+
+ethernet:
+  type: W5500
+  clk_pin: 19
+  mosi_pin: 21
+  miso_pin: 23
+  cs_pin: 18
+  interrupt_pin: 36
+  reset_pin: 22
+  clock_speed: 10Mhz
+
+network:
+  priority:
+    - wifi
+    - ethernet

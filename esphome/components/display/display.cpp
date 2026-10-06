@@ -3,6 +3,7 @@
 #include <utility>
 #include <numbers>
 #include "display_color_utils.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -685,9 +686,6 @@ void Display::show_page(DisplayPage *page) {
   }
 }
 
-void Display::show_next_page() { this->page_->show_next(); }
-void Display::show_prev_page() { this->page_->show_prev(); }
-
 void Display::do_update_() {
   if (this->auto_clear_enabled_) {
     this->clear();
@@ -773,10 +771,12 @@ Rect Display::get_clipping() const {
 
 void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }
 
+void Display::feed_wdt_pixel_slow_() { App.feed_wdt(); }
+
 bool Display::clip(int x, int y) {
   if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
     return false;
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   return true;
 }
@@ -892,9 +892,6 @@ void DisplayPage::show_prev() {
   this->prev_->show();
 }
 
-void DisplayPage::set_parent(Display *parent) { this->parent_ = parent; }
-void DisplayPage::set_prev(DisplayPage *prev) { this->prev_ = prev; }
-void DisplayPage::set_next(DisplayPage *next) { this->next_ = next; }
 const display_writer_t &DisplayPage::get_writer() const { return this->writer_; }
 
 const LogString *text_align_to_string(TextAlign textalign) {

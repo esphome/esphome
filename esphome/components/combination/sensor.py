@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ KALMAN_SOURCE_SCHEMA = cv.Schema(
 )
 
 
-def _migrate_coeffecient(config):
+def _migrate_coeffecient(config: ConfigType) -> ConfigType:
     """Migrate deprecated 'coeffecient' spelling to 'coefficient'."""
     if CONF_COEFFECIENT in config:
         if CONF_COEFFICIENT in config:
@@ -172,7 +173,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
@@ -202,6 +203,5 @@ async def to_code(config):
         else:
             cg.add(var.add_source(source))
 
-    if CONF_STD_DEV in config:
-        sens = await sensor.new_sensor(config[CONF_STD_DEV])
-        cg.add(var.set_std_dev_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_STD_DEV, var.set_std_dev_sensor)

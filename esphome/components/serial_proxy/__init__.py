@@ -21,6 +21,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["api", "uart"]
@@ -29,6 +30,7 @@ MULTI_CONF = True
 
 serial_proxy_ns = cg.esphome_ns.namespace("serial_proxy")
 SerialProxy = serial_proxy_ns.class_("SerialProxy", cg.Component, uart.UARTDevice)
+SerialProxyTap = serial_proxy_ns.class_("SerialProxyTap")
 
 api_enums_ns = cg.esphome_ns.namespace("api").namespace("enums")
 SerialProxyPortType = api_enums_ns.enum("SerialProxyPortType")
@@ -72,14 +74,14 @@ CONFIG_SCHEMA = (
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_serial_proxy_count_define():
+async def _add_serial_proxy_count_define() -> None:
     """Emit the SERIAL_PROXY_COUNT define once with the final instance count."""
     count = _get_data().count
     if count > 0:
         cg.add_define("SERIAL_PROXY_COUNT", count)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

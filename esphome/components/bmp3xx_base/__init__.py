@@ -13,6 +13,8 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras", "@latonita"]
 
@@ -73,23 +75,22 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     cg.add(var.set_iir_filter_config(config[CONF_IIR_FILTER]))
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        temperature_config = config[CONF_TEMPERATURE]
         cg.add(
             var.set_temperature_oversampling_config(
                 temperature_config[CONF_OVERSAMPLING]
             )
         )
 
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        pressure_config = config[CONF_PRESSURE]
         cg.add(var.set_pressure_oversampling_config(pressure_config[CONF_OVERSAMPLING]))
 
     return var

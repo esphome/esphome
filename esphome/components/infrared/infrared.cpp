@@ -59,11 +59,6 @@ void Infrared::setup() {
   // Set up traits based on configuration
   this->traits_.set_supports_transmitter(this->has_transmitter());
   this->traits_.set_supports_receiver(this->has_receiver());
-
-  // Register as listener for received IR data
-  if (this->receiver_ != nullptr) {
-    this->receiver_->register_listener(this);
-  }
 }
 
 void Infrared::dump_config() {
@@ -74,8 +69,6 @@ void Infrared::dump_config() {
                 this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),
                 YESNO(this->traits_.get_supports_receiver()));
 }
-
-InfraredCall Infrared::make_call() { return InfraredCall(this); }
 
 void Infrared::control(const InfraredCall &call) {
   if (this->transmitter_ == nullptr) {

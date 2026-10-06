@@ -26,6 +26,11 @@ void VADModel::log_model_config() {
 }
 
 bool StreamingModel::load_model_() {
+  if (this->model_start_ == nullptr) {
+    ESP_LOGE(TAG, "Streaming model has no data to load");
+    return false;
+  }
+
   RAMAllocator<uint8_t> arena_allocator;
 
   if (this->var_arena_ == nullptr) {
@@ -188,6 +193,13 @@ void StreamingModel::unload_model() {
 }
 
 bool StreamingModel::perform_streaming_inference(const int8_t features[PREPROCESSOR_FEATURE_SIZE]) {
+  if (this->model_start_ == nullptr) {
+    // No usable model data, and that cannot change for this object. Skip the model instead of reporting a
+    // failure, because a false return here stops the inference task for every other model too.
+    this->enabled_ = false;
+    return true;
+  }
+
   if (this->enabled_ && !this->loaded_) {
     // Model is enabled but isn't loaded
     if (!this->load_model_()) {
@@ -266,6 +278,41 @@ WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, 
   } else {
     // If no state saved, then use the default
     this->enabled_ = default_enabled;
+  }
+};
+
+WakeWordModel::WakeWordModel(const std::string &id, std::shared_ptr<ModelData> model_data,
+                             uint8_t default_probability_cutoff, size_t sliding_window_average_size,
+                             const std::string &wake_word, std::vector<std::string> trained_languages,
+                             size_t tensor_arena_size) {
+  this->id_ = id;
+  this->model_data_ = std::move(model_data);
+  // Callers are expected to pass a validated buffer, so this is normally the stable model pointer. Tolerate a
+  // null or unvalidated handle rather than dereferencing it blindly: model_start_ stays null and the model is
+  // never loaded.
+  this->model_start_ = this->model_data_ ? this->model_data_->get_model_pointer() : nullptr;
+  if (this->model_start_ == nullptr) {
+    ESP_LOGE(TAG, "Model '%s' has no valid data and will not be loaded", id.c_str());
+  }
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
+  this->sliding_window_size_ = sliding_window_average_size;
+  this->recent_streaming_probabilities_.resize(sliding_window_average_size, 0);
+  this->wake_word_ = wake_word;
+  this->trained_languages_ = std::move(trained_languages);
+  this->tensor_arena_size_ = tensor_arena_size;
+  this->register_streaming_ops_(this->streaming_op_resolver_);
+  this->current_stride_step_ = 0;
+  this->internal_only_ = false;  // Runtime models are always exposed to Home Assistant
+
+  this->pref_ = global_preferences->make_preference<bool>(fnv1_hash(id));
+  bool enabled;
+  if (this->pref_.load(&enabled)) {
+    // Use the enabled state loaded from flash
+    this->enabled_ = enabled;
+  } else {
+    // No saved state: stay disabled. The activation flow calls enable() explicitly after adding.
+    this->enabled_ = false;
   }
 };
 

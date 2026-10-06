@@ -242,7 +242,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
     return;
   }
 
-  if (data[1] != HlkFm22xResult::SUCCESS) {
+  if (data[1] != HlkFm22xResult::SUCCEEDED) {
     ESP_LOGE(TAG, "Command <0x%.2X> failed. Error: 0x%.2X", data[0], data[1]);
     switch (expected) {
       case HlkFm22xCommand::ENROLL:
@@ -336,7 +336,8 @@ void HlkFm22xComponent::dump_config() {
   }
   if (this->enrolling_binary_sensor_) {
     LOG_BINARY_SENSOR("  ", "Enrolling", this->enrolling_binary_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %s", this->enrolling_binary_sensor_->state ? "ON" : "OFF");
+    ESP_LOGCONFIG(TAG, "    Current Value: %s",
+                  this->enrolling_binary_sensor_->state ? LOG_STR_LITERAL("ON") : LOG_STR_LITERAL("OFF"));
   }
   if (this->face_count_sensor_) {
     LOG_SENSOR("  ", "Face Count", this->face_count_sensor_);

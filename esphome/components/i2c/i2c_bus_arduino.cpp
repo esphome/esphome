@@ -1,4 +1,4 @@
-#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 
 #include "i2c_bus_arduino.h"
 #include <Arduino.h>
@@ -9,7 +9,7 @@
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c.arduino";
+static const char *const TAG = "i2c";
 
 // Maximum bytes to log in hex format (truncates larger transfers)
 static constexpr size_t I2C_MAX_LOG_BYTES = 32;
