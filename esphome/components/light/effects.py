@@ -434,8 +434,8 @@ NO_RANDOM_SLOT = 0xFF
 
 
 def _validate_random_slots(colors: list[ConfigType]) -> list[ConfigType]:
-    if sum(1 for color in colors if color[CONF_RANDOM]) >= NO_RANDOM_SLOT:
-        raise cv.Invalid(f"At most {NO_RANDOM_SLOT - 1} colors can be random")
+    if sum(1 for color in colors if color[CONF_RANDOM]) > NO_RANDOM_SLOT:
+        raise cv.Invalid(f"At most {NO_RANDOM_SLOT} colors can be random")
     return colors
 
 

@@ -47,6 +47,6 @@ def test_color_wipe_requires_a_color() -> None:
 
 def test_color_wipe_random_entry_limit() -> None:
     random_color = {"random": True, "num_leds": 1}
-    assert len(_color_wipe_colors([random_color] * 254)) == 254
-    with pytest.raises(cv.Invalid, match="At most 254 colors can be random"):
-        _color_wipe_colors([random_color] * 255)
+    assert len(_color_wipe_colors([random_color] * 255)) == 255
+    with pytest.raises(cv.Invalid, match="At most 255 colors can be random"):
+        _color_wipe_colors([random_color] * 256)
