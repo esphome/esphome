@@ -28,4 +28,24 @@ TEST(EventTypes, CopiesAnotherEventAndResetsLastType) {
   EXPECT_STREQ(copy.get_event_types()[1], "y");
 }
 
+TEST(EventTypes, CopiesItsOwnList) {
+  Event event;
+  event.set_event_types({"a", "b"});
+  event.set_event_types(event.get_event_types());  // copies before freeing the old list
+  EXPECT_EQ(event.get_event_types().size(), 2u);
+  EXPECT_STREQ(event.get_event_types()[1], "b");
+}
+
+TEST(EventTypes, CopiesFromFixedVector) {
+  FixedVector<const char *> types;
+  types.init(2);
+  types.push_back("on");
+  types.push_back("off");
+  Event event;
+  event.set_event_types(types);
+  EXPECT_NE(event.get_event_types().data(), types.begin());
+  EXPECT_EQ(event.get_event_types().size(), 2u);
+  EXPECT_STREQ(event.get_event_types()[0], "on");
+}
+
 }  // namespace esphome::event::testing
