@@ -4,7 +4,7 @@ from collections.abc import Callable
 import logging
 from typing import Any, Literal, NamedTuple
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ROLE
@@ -47,6 +47,7 @@ MULTI_CONF = True
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_MODBUS_ID = "modbus_id"
+CONF_ON_REQUEST = "on_request"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
@@ -170,6 +171,26 @@ def reject_broadcast_options_for_unicast(
     return validator
 
 
+def synchronous_handler(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
+    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
+
+    def validator(value: ConfigType) -> ConfigType:
+        if automation.has_non_synchronous_actions(value):
+            raise cv.Invalid(
+                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in {component} "
+                "handlers: the request/response data is only valid while the handler runs. Copy what you "
+                "need into globals first, then defer in a separate script or automation."
+            )
+        return value
+
+    return validator
+
+
+# The PDU is handed over undecoded, as a span that dies when the handler returns.
+_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+
+
 def reject_inapplicable_command_options(
     pdu_key: str,
 ) -> Callable[[ConfigType], ConfigType]:
@@ -289,6 +310,10 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusServer),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+                cv.Optional(CONF_ON_REQUEST): cv.All(
+                    automation.validate_automation(single=True),
+                    synchronous_handler("modbus"),
+                ),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -313,6 +338,14 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
+
+    if on_request := config.get(CONF_ON_REQUEST):
+        await automation.build_callback_automation(
+            var,
+            "add_on_request_callback",
+            [(cg.uint8, "address"), (_PDU_SPAN, "request_pdu")],
+            on_request,
+        )
 
 
 # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),

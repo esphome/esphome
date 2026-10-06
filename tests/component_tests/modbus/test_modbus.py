@@ -50,3 +50,23 @@ def test_hub_time_rejects_values_the_hub_would_truncate() -> None:
     # The setters take 16-bit milliseconds: 70 s would silently become 4464 ms.
     with pytest.raises(cv.Invalid):
         _HUB_TIME_PERIOD("70s")
+
+
+def test_on_request_rejects_a_deferring_action() -> None:
+    # The request PDU is only valid while the handler runs.
+    validator = modbus.synchronous_handler("modbus")
+    with pytest.raises(cv.Invalid, match="not allowed in modbus handlers"):
+        validator({"then": [{"delay": 1000}]})
+
+
+def test_on_request_accepts_synchronous_actions() -> None:
+    validator = modbus.synchronous_handler("modbus")
+    config = {"then": [{"lambda": "return;"}]}
+    assert validator(config) is config
+
+
+def test_on_request_registers_a_callback(generate_main) -> None:
+    main_cpp = generate_main("tests/component_tests/modbus/test_on_request.yaml")
+    assert "master_port->add_on_request_callback(" in main_cpp
+    # A server hub without a handler gets no callback.
+    assert "plain_server->add_on_request_callback(" not in main_cpp

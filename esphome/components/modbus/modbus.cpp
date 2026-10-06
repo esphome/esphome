@@ -614,6 +614,14 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                                                    std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
+    if (!this->request_callback_.empty()) {
+      // Whoever handles the request answers it, so no reply from a peer is expected.
+      uint8_t pdu[MAX_PDU_SIZE];
+      pdu[0] = function_code;
+      std::memcpy(pdu + 1, data.data(), data.size());
+      this->request_callback_.call(address, std::span<const uint8_t>(pdu, data.size() + 1));
+      return;
+    }
     this->expecting_peer_response_ = address;
     ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
     return;

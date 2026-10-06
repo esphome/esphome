@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -319,6 +320,12 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
+  /// Called with the address and the request PDU (function code first) of a request to an address no
+  /// device here serves. The PDU is only valid during the call. While a callback is set, the hub does not
+  /// wait for another device on the bus to answer such a request.
+  template<typename F> void add_on_request_callback(F &&callback) {
+    this->request_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   void parse_modbus_frames() override;
@@ -366,6 +373,7 @@ class ModbusServerHub : public Modbus {
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
+  LazyCallbackManager<void(uint8_t, std::span<const uint8_t>)> request_callback_;
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
   // Only one server reply can be waiting at once, so a single fixed buffer avoids heap allocation.
