@@ -1,5 +1,8 @@
 """Tests for modbus configuration validation."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
 from esphome import config_validation as cv
@@ -9,7 +12,9 @@ from esphome.components.modbus import (
     CONF_MODBUS_ID,
     _validate_server_address,
 )
+from esphome.config import read_config
 from esphome.const import CONF_ADDRESS
+from esphome.core import CORE
 
 
 def test_server_address_accepts_valid_unit_address() -> None:
@@ -50,3 +55,21 @@ def test_hub_time_rejects_values_the_hub_would_truncate() -> None:
     # The setters take 16-bit milliseconds: 70 s would silently become 4464 ms.
     with pytest.raises(cv.Invalid):
         _HUB_TIME_PERIOD("70s")
+
+
+def test_device_without_modbus_block_names_the_fix(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The pzemac AUTO_LOAD of modbus no longer creates a hub, so the error has to point at the missing block.
+    CORE.config_path = component_config_path("no_hub.yaml")
+    assert read_config({}) is None
+    assert "Add a 'modbus:' block" in capsys.readouterr().out
+
+
+def test_empty_modbus_block_creates_one_hub(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("empty_hub_block.yaml"))
+    assert main_cpp.count("static modbus::ModbusClientHub *const") == 1

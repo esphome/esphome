@@ -10,6 +10,7 @@ from esphome.components import uart
 from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
@@ -17,6 +18,7 @@ from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
+DOMAIN = "modbus"
 DEPENDENCIES = ["uart"]
 # Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
 # generated unless a config uses one).
@@ -43,6 +45,8 @@ ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
 CommandOptions = modbus_ns.struct("CommandOptions")
 MULTI_CONF = True
+# A hub exists only for a modbus: block; an AUTO_LOAD of modbus creates none.
+MULTI_CONF_NO_DEFAULT = True
 
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
@@ -346,13 +350,26 @@ def _validate_server_address(value: Any) -> int:
     return address
 
 
+def _require_hub(value: ID) -> ID:
+    # An explicit modbus_id is left to the ID pass, whose error names the missing id.
+    if (
+        value.id is None
+        and CORE.raw_config is not None
+        and DOMAIN not in CORE.raw_config
+    ):
+        raise cv.Invalid(
+            "No Modbus hub is configured. Add a 'modbus:' block for the UART bus of this device."
+        )
+    return value
+
+
 def modbus_device_schema(
     default_address: int | None, role: Literal["client", "server"] = "client"
 ) -> cv.Schema:
     hub_type = ModbusClient if role == "client" else ModbusServer
     address_validator = _validate_server_address if role == "server" else cv.hex_uint8_t
     schema = {
-        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(hub_type),
+        cv.GenerateID(CONF_MODBUS_ID): cv.All(cv.use_id(hub_type), _require_hub),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = address_validator

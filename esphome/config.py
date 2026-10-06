@@ -884,10 +884,9 @@ class MetadataValidationStep(ConfigValidationStep):
 
     def run(self, result: Config) -> None:
         if self.conf is None:
-            if self.comp.multi_conf and self.comp.multi_conf_no_default:
-                result[self.domain] = self.conf = []
-            else:
-                result[self.domain] = self.conf = {}
+            # An empty block written by the user is one entry with defaults, also for
+            # MULTI_CONF_NO_DEFAULT; only an AUTO_LOAD creates none (see LoadValidationStep).
+            result[self.domain] = self.conf = {}
 
         success = True
         for dependency in self.comp.dependencies:
