@@ -64,7 +64,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint16_t rx_start_{0};
   uint16_t rx_end_{0};
   bool server_{false};
-  // The link state loop() saw last; edges clear rx_ and publish the sensor.
+  // The link state loop() saw last; edges publish the sensor, the up edge clears rx_.
   bool link_was_up_{false};
   // A read stopped before EAGAIN. ready() stays false until new data arrives.
   bool rx_pending_{false};
