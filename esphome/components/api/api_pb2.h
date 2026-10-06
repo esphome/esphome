@@ -1666,9 +1666,9 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
   bool supports_action{false};
   const climate::ClimateFanModeMask *supported_fan_modes{};
   const climate::ClimateSwingModeMask *supported_swing_modes{};
-  const std::vector<const char *> *supported_custom_fan_modes{};
+  const std::span<const char *const> *supported_custom_fan_modes{};
   const climate::ClimatePresetMask *supported_presets{};
-  const std::vector<const char *> *supported_custom_presets{};
+  const std::span<const char *const> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};

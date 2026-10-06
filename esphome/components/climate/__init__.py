@@ -458,6 +458,24 @@ async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
         await web_server.add_entity_config(var, web_server_config)
 
 
+def set_custom_fan_modes(var: MockObj, modes: list[str]) -> None:
+    """Point the climate at a shared flash table of custom fan modes."""
+    if modes:
+        table = cg.shared_progmem_array(
+            "climate_custom_fan_modes", cg.const_char_ptr, modes
+        )
+        cg.add(var.set_supported_custom_fan_modes_static(table, len(modes)))
+
+
+def set_custom_presets(var: MockObj, presets: list[str]) -> None:
+    """Point the climate at a shared flash table of custom presets."""
+    if presets:
+        table = cg.shared_progmem_array(
+            "climate_custom_presets", cg.const_char_ptr, presets
+        )
+        cg.add(var.set_supported_custom_presets_static(table, len(presets)))
+
+
 async def register_climate(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)

@@ -806,9 +806,13 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.visual_min_humidity = traits.get_visual_min_humidity();
   msg.visual_max_humidity = traits.get_visual_max_humidity();
   msg.supported_fan_modes = &traits.get_supported_fan_modes();
-  msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes();
+  const auto &fan_modes = traits.get_supported_custom_fan_modes();
+  const std::span<const char *const> custom_fan_modes(fan_modes.data(), fan_modes.size());
+  msg.supported_custom_fan_modes = &custom_fan_modes;
   msg.supported_presets = &traits.get_supported_presets();
-  msg.supported_custom_presets = &traits.get_supported_custom_presets();
+  const auto &presets = traits.get_supported_custom_presets();
+  const std::span<const char *const> custom_presets(presets.data(), presets.size());
+  msg.supported_custom_presets = &custom_presets;
   msg.supported_swing_modes = &traits.get_supported_swing_modes();
   return fill_and_encode_entity_info(climate, msg, conn, remaining_size);
 }

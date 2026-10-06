@@ -61,7 +61,7 @@ void BedJetClimate::dump_config() {
 
 void BedJetClimate::setup() {
   // Set custom modes once during setup — stored on Climate base class, wired via get_traits()
-  this->set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES);
+  this->set_supported_custom_fan_modes_static(BEDJET_FAN_STEP_NAMES, BEDJET_FAN_SPEED_COUNT);
   this->set_supported_custom_presets({
       this->heating_mode_ == HEAT_MODE_EXTENDED ? "LTD HT" : "EXT HT",
       "M1",

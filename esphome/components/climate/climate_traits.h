@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstring>
-#include <vector>
+#include <type_traits>
 #include "climate_mode.h"
 #include "esphome/core/finite_set_mask.h"
 #include "esphome/core/helpers.h"
@@ -18,9 +18,12 @@ using ClimateSwingModeMask =
     FiniteSetMask<ClimateSwingMode, DefaultBitPolicy<ClimateSwingMode, CLIMATE_SWING_HORIZONTAL + 1>>;
 using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimatePreset, CLIMATE_PRESET_ACTIVITY + 1>>;
 
-// Lightweight linear search for small vectors (1-20 items) of const char* pointers
+/// Custom fan modes and custom presets: a flash table from codegen, or an owned copy set at runtime.
+using ClimateCustomModes = ConstVector<const char *, true>;
+
+// Lightweight linear search for small lists (1-20 items) of const char* pointers
 // Avoids std::find template overhead
-inline bool vector_contains(const std::vector<const char *> &vec, const char *value, size_t len) {
+template<typename List> inline bool vector_contains(const List &vec, const char *value, size_t len) {
   for (const char *item : vec) {
     if (strncmp(item, value, len) == 0 && item[len] == '\0')
       return true;
@@ -28,12 +31,12 @@ inline bool vector_contains(const std::vector<const char *> &vec, const char *va
   return false;
 }
 
-inline bool vector_contains(const std::vector<const char *> &vec, const char *value) {
+template<typename List> inline bool vector_contains(const List &vec, const char *value) {
   return vector_contains(vec, value, strlen(value));
 }
 
-// Find and return matching pointer from vector, or nullptr if not found
-inline const char *vector_find(const std::vector<const char *> &vec, const char *value, size_t len) {
+// Find and return matching pointer from a list, or nullptr if not found
+template<typename List> inline const char *vector_find(const List &vec, const char *value, size_t len) {
   for (const char *item : vec) {
     if (strncmp(item, value, len) == 0 && item[len] == '\0')
       return item;
@@ -71,7 +74,7 @@ inline const char *vector_find(const std::vector<const char *> &vec, const char 
 class Climate;  // Forward declaration
 
 class ClimateTraits {
-  friend class Climate;  // Allow Climate to access protected find methods
+  friend class Climate;  // Climate wires its custom mode lists into traits
 
  public:
   /// Get/set feature flags (see ClimateFeatures enum in climate_mode.h)
@@ -93,42 +96,14 @@ class ClimateTraits {
     if (!this->supported_fan_modes_.empty()) {
       return true;
     }
-    // Same precedence as get_supported_custom_fan_modes() getter
-    if (this->supported_custom_fan_modes_) {
-      return !this->supported_custom_fan_modes_->empty();
-    }
-    return !this->compat_custom_fan_modes_.empty();  // Compat: remove in 2026.11.0
+    return this->supported_custom_fan_modes_ != nullptr && !this->supported_custom_fan_modes_->empty();
   }
   const ClimateFanModeMask &get_supported_fan_modes() const { return this->supported_fan_modes_; }
 
-  // Remove before 2026.11.0
-  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
-  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    // Compat: store in owned vector. Copies copy the vector (deprecated path still copies this vector).
-    this->compat_custom_fan_modes_ = modes;
-  }
-  // Remove before 2026.11.0
-  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
-  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->compat_custom_fan_modes_ = modes;
-  }
-  // Remove before 2026.11.0
-  template<size_t N>
-  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
-  void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
-    this->compat_custom_fan_modes_.assign(modes, modes + N);
-  }
-
-  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
-  void set_supported_custom_fan_modes(const std::vector<std::string> &modes) = delete;
-  void set_supported_custom_fan_modes(std::initializer_list<std::string> modes) = delete;
-
-  // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
-  const std::vector<const char *> &get_supported_custom_fan_modes() const;
+  /// Empty when the climate has no custom fan modes. Set them on the Climate entity.
+  const ClimateCustomModes &get_supported_custom_fan_modes() const;
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
-    return (this->supported_custom_fan_modes_ &&
-            vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode)) ||
-           vector_contains(this->compat_custom_fan_modes_, custom_fan_mode);  // Compat: remove in 2026.11.0
+    return vector_contains(this->get_supported_custom_fan_modes(), custom_fan_mode);
   }
   bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
     return this->supports_custom_fan_mode(custom_fan_mode.c_str());
@@ -140,32 +115,10 @@ class ClimateTraits {
   bool get_supports_presets() const { return !this->supported_presets_.empty(); }
   const ClimatePresetMask &get_supported_presets() const { return this->supported_presets_; }
 
-  // Remove before 2026.11.0
-  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
-  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
-    this->compat_custom_presets_ = presets;
-  }
-  // Remove before 2026.11.0
-  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
-  void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->compat_custom_presets_ = presets;
-  }
-  // Remove before 2026.11.0
-  template<size_t N>
-  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
-  void set_supported_custom_presets(const char *const (&presets)[N]) {
-    this->compat_custom_presets_.assign(presets, presets + N);
-  }
-
-  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
-  void set_supported_custom_presets(const std::vector<std::string> &presets) = delete;
-  void set_supported_custom_presets(std::initializer_list<std::string> presets) = delete;
-
-  // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
-  const std::vector<const char *> &get_supported_custom_presets() const;
+  /// Empty when the climate has no custom presets. Set them on the Climate entity.
+  const ClimateCustomModes &get_supported_custom_presets() const;
   bool supports_custom_preset(const char *custom_preset) const {
-    return (this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset)) ||
-           vector_contains(this->compat_custom_presets_, custom_preset);  // Compat: remove in 2026.11.0
+    return vector_contains(this->get_supported_custom_presets(), custom_preset);
   }
   bool supports_custom_preset(const std::string &custom_preset) const {
     return this->supports_custom_preset(custom_preset.c_str());
@@ -232,38 +185,8 @@ class ClimateTraits {
   }
 
   /// Set custom mode pointers (only Climate::get_traits() should call these).
-  void set_supported_custom_fan_modes_(const std::vector<const char *> *modes) {
-    this->supported_custom_fan_modes_ = modes;
-  }
-  void set_supported_custom_presets_(const std::vector<const char *> *presets) {
-    this->supported_custom_presets_ = presets;
-  }
-
-  /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found
-  /// This is protected as it's an implementation detail - use Climate::find_custom_fan_mode_() instead
-  const char *find_custom_fan_mode_(const char *custom_fan_mode) const {
-    return this->find_custom_fan_mode_(custom_fan_mode, strlen(custom_fan_mode));
-  }
-  const char *find_custom_fan_mode_(const char *custom_fan_mode, size_t len) const {
-    if (this->supported_custom_fan_modes_) {
-      return vector_find(*this->supported_custom_fan_modes_, custom_fan_mode, len);
-    }
-    // Compat: check owned vector from deprecated setters. Remove in 2026.11.0.
-    return vector_find(this->compat_custom_fan_modes_, custom_fan_mode, len);
-  }
-
-  /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
-  /// This is protected as it's an implementation detail - use Climate::find_custom_preset_() instead
-  const char *find_custom_preset_(const char *custom_preset) const {
-    return this->find_custom_preset_(custom_preset, strlen(custom_preset));
-  }
-  const char *find_custom_preset_(const char *custom_preset, size_t len) const {
-    if (this->supported_custom_presets_) {
-      return vector_find(*this->supported_custom_presets_, custom_preset, len);
-    }
-    // Compat: check owned vector from deprecated setters. Remove in 2026.11.0.
-    return vector_find(this->compat_custom_presets_, custom_preset, len);
-  }
+  void set_supported_custom_fan_modes_(const ClimateCustomModes *modes) { this->supported_custom_fan_modes_ = modes; }
+  void set_supported_custom_presets_(const ClimateCustomModes *presets) { this->supported_custom_presets_ = presets; }
 
   uint32_t feature_flags_{0};
   float visual_min_temperature_{10};
@@ -279,17 +202,10 @@ class ClimateTraits {
   climate::ClimatePresetMask supported_presets_;
   TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
 
-  /** Custom mode storage - pointers to vectors owned by the Climate base class.
-   *
-   * ClimateTraits does not own this data; Climate stores the vectors and
-   * get_traits() wires these pointers automatically.
-   */
-  const std::vector<const char *> *supported_custom_fan_modes_{nullptr};
-  const std::vector<const char *> *supported_custom_presets_{nullptr};
-  // Compat: owned storage for deprecated setters. Copies copy the vector (copies include this vector).
-  // Remove in 2026.11.0.
-  std::vector<const char *> compat_custom_fan_modes_;
-  std::vector<const char *> compat_custom_presets_;
+  /// Owned by the Climate entity; get_traits() wires these pointers.
+  const ClimateCustomModes *supported_custom_fan_modes_{nullptr};
+  const ClimateCustomModes *supported_custom_presets_{nullptr};
 };
+static_assert(std::is_trivially_copyable_v<ClimateTraits>, "ClimateTraits is copied on every traits() call");
 
 }  // namespace esphome::climate

@@ -17,10 +17,10 @@ using MideaPreset = dudanov::midea::ac::Preset;
 
 class Constants {
  public:
-  static const char *const TAG;
-  static const char *const FREEZE_PROTECTION;
-  static const char *const SILENT;
-  static const char *const TURBO;
+  static constexpr const char *TAG = "midea";
+  static constexpr const char *FREEZE_PROTECTION = "Freeze Protection";
+  static constexpr const char *SILENT = "Silent";
+  static constexpr const char *TURBO = "Turbo";
 };
 
 class Converters {
