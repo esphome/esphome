@@ -32,6 +32,8 @@ void PolygonZone::dump_config() {
 void PolygonZone::control(const std::string &value) {
   if (this->polygon_.parse(value.c_str(), value.size())) {
     this->pref_.save(&this->polygon_);
+    // A target seen inside the previous polygon must not keep the new one on
+    this->last_inside_ms_ = 0;
     if (this->polygon_.empty())
       this->presence_->invalidate_state();
   } else {
