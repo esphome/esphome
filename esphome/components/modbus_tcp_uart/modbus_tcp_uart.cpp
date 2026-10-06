@@ -231,8 +231,8 @@ void ModbusTcpUart::deliver_mbap_() {
           }
           // No reply in time. The next request takes its place.
           if (this->txn_pending_) {
+            note_drop(this->drop_log_ms_[DROP_REPLACED], LOG_STR("Unanswered request replaced"));
             if (this->tx_len_ != 0) {
-              note_drop(this->drop_log_ms_[DROP_REPLACED], LOG_STR("Unanswered request replaced"));
               this->clear_tx_();
             }
             this->txn_pending_ = false;

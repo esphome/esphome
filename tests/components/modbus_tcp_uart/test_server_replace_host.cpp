@@ -94,6 +94,7 @@ class ServerLink : public ModbusTcpUart {
   bool unknown_unit_logged() const { return this->drop_log_ms_[DROP_UNKNOWN_UNIT] != 0; }
   bool read_failure_logged() const { return this->drop_log_ms_[DROP_READ] != 0; }
   bool rx_full_logged() const { return this->drop_log_ms_[DROP_RX_FULL] != 0; }
+  bool replaced_logged() const { return this->drop_log_ms_[DROP_REPLACED] != 0; }
 };
 
 const uint8_t PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
@@ -118,6 +119,19 @@ TEST(ModbusTcpUartServer, UnansweredRequestIsReplacedWhenOverdue) {
   EXPECT_TRUE(link.pending());
   EXPECT_EQ(link.held(), 0);
   EXPECT_EQ(link.available(), sizeof(PDU) + 3);
+}
+
+TEST(ModbusTcpUartServer, RequestWithNoReplyIsLoggedWhenReplaced) {
+  ServerLink link;
+  link.push(7, 1, PDU, sizeof(PDU));
+  uint8_t taken[16];
+  ASSERT_TRUE(link.read_array(taken, link.available()));
+  // The hub never answers, not even in part.
+  EXPECT_EQ(link.held(), 0);
+  link.expire();
+  link.push(8, 1, PDU, sizeof(PDU));
+  EXPECT_EQ(link.txn(), 8);
+  EXPECT_TRUE(link.replaced_logged());
 }
 
 TEST(ModbusTcpUartServer, UnreadRequestIsKept) {
