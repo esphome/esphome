@@ -3,7 +3,7 @@ from esphome.components import uart
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
-from esphome.core import CORE
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -55,8 +55,11 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ModbusGateway),
             cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+            # Held in microseconds; at most 65535 ms, like the modbus hub's times.
             cv.Optional(CONF_RESPONSE_TIMEOUT, default="500ms"): cv.All(
-                cv.positive_not_null_time_period, cv.positive_time_period_milliseconds
+                cv.positive_not_null_time_period,
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
             cv.Required(CONF_PORTS): cv.All(
                 cv.ensure_list(_port_schema), cv.Length(min=1, max=4)
@@ -139,11 +142,21 @@ def _final_validate(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _clocked(uart_id: ID) -> bool:
+    """True when the UART's bytes keep the timing of a serial line, so a gap ends a frame."""
+    return not uart_id.type.inherits_from(
+        uart.VirtualUARTComponent
+    ) and not uart.is_unclocked(uart_id)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add(var.set_response_timeout(config[CONF_RESPONSE_TIMEOUT]))
+    bus_id, _ = await cg.get_variable_with_full_id(config[CONF_UART_ID])
+    if not _clocked(bus_id):
+        cg.add(var.set_bus_unclocked())
     ports = config[CONF_PORTS]
     cg.add(var.set_port_count(len(ports)))
     bus = CORE.config.get_config_for_path(
@@ -152,8 +165,8 @@ async def to_code(config: ConfigType) -> None:
     for index, port in enumerate(ports):
         _request_port_slot(str(config[CONF_ID]))
         if CONF_UART_ID in port:
-            parent = await cg.get_variable(port[CONF_UART_ID])
-            cg.add(var.set_port_uart(index, parent))
+            port_id, parent = await cg.get_variable_with_full_id(port[CONF_UART_ID])
+            cg.add(var.set_port_uart(index, parent, _clocked(port_id)))
             continue
         uart.require_virtual_uart()
         local = cg.new_Pvariable(port[CONF_ID])

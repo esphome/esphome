@@ -4,7 +4,14 @@ from collections.abc import Callable
 
 import pytest
 
-from esphome.components.modbus_gateway import _require_bus_framing, _require_exclusive
+from esphome.components import uart
+from esphome.components.modbus_gateway import (
+    CONFIG_SCHEMA,
+    GatewayUart,
+    _clocked,
+    _require_bus_framing,
+    _require_exclusive,
+)
 from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.core import CORE, ID
@@ -115,3 +122,23 @@ def test_uart_bus_with_framing_passes() -> None:
         {"uart": [bus], "modbus_gateway": [gateway]}, {"bus": ["uart", 0, "id"]}
     )
     _run(_require_bus_framing, gateway, full)
+
+
+def test_hardware_uart_is_clocked() -> None:
+    assert _clocked(ID("bus", type=uart.IDFUARTComponent))
+
+
+def test_local_port_is_not_clocked() -> None:
+    assert not _clocked(ID("local", type=GatewayUart))
+
+
+def test_uart_marked_unclocked_is_not_clocked() -> None:
+    uart.mark_unclocked(ID("link", is_declaration=True, type=uart.UARTComponent))
+    assert not _clocked(ID("link", type=uart.UARTComponent))
+
+
+def test_response_timeout_above_65535_ms_is_rejected() -> None:
+    config = {"uart_id": "bus", "ports": [{"id": "local"}]}
+    CONFIG_SCHEMA({**config, "response_timeout": "65535ms"})
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**config, "response_timeout": "65536ms"})

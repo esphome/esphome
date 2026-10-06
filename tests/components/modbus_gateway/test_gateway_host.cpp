@@ -40,6 +40,11 @@ class FakeUart : public uart::UARTComponent {
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 
   void push(const std::vector<uint8_t> &frame) { this->rx.insert(this->rx.end(), frame.begin(), frame.end()); }
+  // An ESP-IDF UART hands over received bytes in batches of threshold, or after timeout quiet characters.
+  void set_batches(size_t threshold, size_t timeout) {
+    this->rx_full_threshold_ = threshold;
+    this->rx_timeout_ = timeout;
+  }
 
  protected:
   void check_logger_conflict() override {}
@@ -47,8 +52,17 @@ class FakeUart : public uart::UARTComponent {
 
 class TestGateway : public ModbusGateway {
  public:
+  // The request count of HighFrequencyLoopRequester is shared; leave none behind for the next test.
+  ~TestGateway() { this->fast_.stop(); }
   using ModbusGateway::run_;
 };
+
+// The bus runs at 115200 baud 8N1: 87 us per character, so the gap is the minimum of 1750 us.
+static constexpr uint32_t GAP_US = 1750;
+static constexpr uint32_t CHAR_US = 87;
+// The fake bus answers at once, while an 8-byte request is still on the wire. The next request waits for the end
+// of that and the gap.
+static constexpr uint32_t QUIET_US = 8 * CHAR_US + GAP_US;
 
 std::vector<uint8_t> frame(std::vector<uint8_t> out) {
   uint16_t crc = crc16(out.data(), static_cast<uint16_t>(out.size()));
@@ -75,14 +89,15 @@ class GatewayRoute : public ::testing::Test {
     this->local_.set_baud_rate(115200);
     this->gate_.set_uart_parent(&this->bms_);
     this->gate_.set_port_count(2);
-    this->gate_.set_port_uart(0, &this->client_);
+    this->gate_.set_port_uart(0, &this->client_, true);
     this->gate_.set_port_local(1, &this->local_);
     this->gate_.set_response_timeout(500);
+    this->gate_.setup();
   }
 
   // Advances the clock and runs one loop pass.
-  void run(uint32_t ms = 0) {
-    this->now_ += ms;
+  void run(uint32_t us = 0) {
+    this->now_ += us;
     this->gate_.run_(this->now_);
   }
   std::vector<uint8_t> local_reply() {
@@ -93,7 +108,7 @@ class GatewayRoute : public ::testing::Test {
     return got;
   }
 
-  uint32_t now_{1000};
+  uint32_t now_{1000000};
   FakeUart bms_;
   FakeUart client_;
   GatewayUart local_;
@@ -123,6 +138,9 @@ TEST_F(GatewayRoute, SecondClientWaitsForTheResponse) {
 
   this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
   this->run();
+  // The next request starts after the bus was quiet for 3.5 characters.
+  EXPECT_EQ(this->bms_.tx, first);
+  this->run(QUIET_US);
   ASSERT_EQ(this->bms_.tx.size(), first.size() + second.size());
   EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + first.size(), this->bms_.tx.end()), second);
 }
@@ -138,7 +156,7 @@ TEST_F(GatewayRoute, RepeatedReadGoesToTheBus) {
   this->client_.tx.clear();
 
   this->client_.push(request);
-  this->run();
+  this->run(QUIET_US);
   EXPECT_EQ(this->bms_.tx, request);
 }
 
@@ -155,8 +173,9 @@ TEST_F(GatewayRoute, ResponseGoesToThePortThatAsked) {
   third.set_baud_rate(9600);
   fourth.set_baud_rate(9600);
   this->gate_.set_port_count(4);
-  this->gate_.set_port_uart(2, &third);
-  this->gate_.set_port_uart(3, &fourth);
+  this->gate_.set_port_uart(2, &third, true);
+  this->gate_.set_port_uart(3, &fourth, true);
+  this->gate_.setup();
 
   auto first = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
   auto second = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
@@ -212,6 +231,7 @@ TEST_F(GatewayRoute, ResponseGoesToThePortThatAsked) {
     this->run();
     take(i, answer(static_cast<uint8_t>(i + 1)));
     quiet();
+    this->run(QUIET_US);
   }
   EXPECT_EQ(this->bms_.tx.size(), sent);
 }
@@ -239,12 +259,12 @@ TEST_F(GatewayRoute, BroadcastIsNotAnsweredAndHoldsTheBus) {
 
   // A broadcast is not answered. A frame that arrives anyway is dropped.
   this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
-  this->run(50);
+  this->run(50000);
   EXPECT_EQ(this->bms_.tx, broadcast);
   EXPECT_TRUE(this->client_.tx.empty());
   EXPECT_EQ(this->local_.available(), 0u);
 
-  this->run(600);
+  this->run(600000);
   ASSERT_EQ(this->bms_.tx.size(), broadcast.size() + next.size());
   EXPECT_EQ(
       std::vector<uint8_t>(this->bms_.tx.begin() + static_cast<std::ptrdiff_t>(broadcast.size()), this->bms_.tx.end()),
@@ -273,17 +293,20 @@ TEST_F(GatewayRoute, LateResponseIsDroppedWhileTheBusIsClosed) {
   this->run();
   ASSERT_EQ(this->bms_.tx, first);
 
-  this->run(500);
+  // The timeout counts from the end of the request on the wire.
+  this->run(500000 + first.size() * CHAR_US);
   this->bms_.push(frame({0x01, 0x03, 0x04, 0x11, 0x11, 0x22, 0x22}));
-  this->run(10);
+  this->run(10000);
   this->bms_.push(frame({0x01, 0x03, 0x04, 0x11, 0x11, 0x22, 0x22}));
-  this->run(20);
+  this->run(20000);
   EXPECT_EQ(this->bms_.tx, first);
   EXPECT_TRUE(this->client_.tx.empty());
   EXPECT_EQ(this->local_.available(), 0u);
 
-  // One 256-byte frame at 115200 baud is 23 ms of quiet.
-  this->run(23);
+  // One 256-byte frame at 115200 baud is 22.3 ms of quiet.
+  this->run(22000);
+  EXPECT_EQ(this->bms_.tx, first);
+  this->run(300);
   ASSERT_EQ(this->bms_.tx.size(), first.size() + second.size());
   auto reply = frame({0x01, 0x03, 0x02, 0x00, 0xAA});
   this->bms_.push(reply);
@@ -299,8 +322,8 @@ TEST_F(GatewayRoute, LateResponseAfterTheNextRequestIsDropped) {
   this->client_.push(first);
   this->local_.write_array(second.data(), second.size());
   this->run();
-  this->run(500);
-  this->run(23);
+  this->run(500000 + first.size() * CHAR_US);
+  this->run(22300);
   ASSERT_EQ(this->bms_.tx.size(), first.size() + second.size());
 
   auto reply = frame({0x01, 0x03, 0x02, 0x00, 0xAA});
@@ -326,6 +349,7 @@ TEST_F(GatewayRoute, NewestRequestWins) {
   this->run();
   this->bms_.push(frame({0x02, 0x03, 0x02, 0x00, 0x01}));
   this->run();
+  this->run(QUIET_US);
   ASSERT_EQ(this->bms_.tx.size(), busy.size() + new_request.size());
   EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + static_cast<std::ptrdiff_t>(busy.size()), this->bms_.tx.end()),
             new_request);
@@ -350,6 +374,7 @@ TEST_F(GatewayRoute, LongNewerRequestTakesTheRoomOfTheWaitingOne) {
 
   this->bms_.push(frame({0x02, 0x03, 0x02, 0x00, 0x01}));
   this->run();
+  this->run(QUIET_US);
   ASSERT_EQ(this->bms_.tx.size(), busy.size() + long_request.size());
   EXPECT_EQ(std::vector<uint8_t>(this->bms_.tx.begin() + static_cast<std::ptrdiff_t>(busy.size()), this->bms_.tx.end()),
             long_request);
@@ -370,6 +395,7 @@ TEST_F(GatewayRoute, LocalPortReportsItsRoom) {
 
   this->bms_.push(frame({0x02, 0x03, 0x02, 0x00, 0x01}));
   this->run();
+  this->run(QUIET_US);
   EXPECT_EQ(this->local_.available_for_write(), MAX_FRAME);
   EXPECT_EQ(this->local_.flush(), uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS);
 }
@@ -387,6 +413,7 @@ TEST_F(GatewayRoute, PortThatIsGoneDoesNotHoldTheBus) {
   this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
   this->run();
   EXPECT_TRUE(this->client_.tx.empty());
+  this->run(QUIET_US);
   ASSERT_EQ(this->bms_.tx.size(), request.size() + next.size());
   auto reply = frame({0x02, 0x03, 0x02, 0x00, 0x02});
   this->bms_.push(reply);
@@ -407,7 +434,7 @@ TEST_F(GatewayRoute, FullLocalPortDoesNotHoldTheBus) {
   ASSERT_EQ(this->local_.available(), reply.size());
 
   this->local_.write_array(request.data(), request.size());
-  this->run();
+  this->run(QUIET_US);
   ASSERT_EQ(this->bms_.tx.size(), 2 * request.size());
   this->bms_.push(reply);
   this->run();
@@ -415,8 +442,169 @@ TEST_F(GatewayRoute, FullLocalPortDoesNotHoldTheBus) {
 
   auto other = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
   this->client_.push(other);
-  this->run();
+  this->run(QUIET_US);
   EXPECT_EQ(this->bms_.tx.size(), 2 * request.size() + other.size());
+}
+
+// The response comes after the request left the wire. The next request waits until the bus was quiet for 3.5
+// characters, not longer.
+TEST_F(GatewayRoute, NextRequestWaitsForTheGap) {
+  auto first = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto second = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(first);
+  this->local_.write_array(second.data(), second.size());
+  this->run();
+  this->run(1000);
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  this->run(GAP_US - 1);
+  EXPECT_EQ(this->bms_.tx, first);
+  this->run(1);
+  EXPECT_EQ(this->bms_.tx.size(), first.size() + second.size());
+}
+
+// The response comes at once. The next request also waits for the end of the first one on the wire.
+TEST_F(GatewayRoute, NextRequestWaitsForTheWireAndTheGap) {
+  auto first = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto second = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(first);
+  this->local_.write_array(second.data(), second.size());
+  this->run();
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  this->run(QUIET_US - 1);
+  EXPECT_EQ(this->bms_.tx, first);
+  this->run(1);
+  EXPECT_EQ(this->bms_.tx.size(), first.size() + second.size());
+}
+
+// The bus UART reports a 128-byte FIFO. A 129-byte request goes out in two parts, the second without a gap.
+TEST_F(GatewayRoute, RequestLongerThanTheFifoGoesOut) {
+  this->bms_.room = 128;
+  auto request = write_registers(0x01, 60);
+  ASSERT_EQ(request.size(), 129u);
+  this->client_.push(request);
+  this->run();
+  EXPECT_EQ(this->bms_.tx.size(), 128u);
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
+  this->run();
+  EXPECT_EQ(this->bms_.tx, request);
+
+  auto reply = frame({0x01, 0x10, 0x00, 0x00, 0x00, 60});
+  this->bms_.push(reply);
+  this->run();
+  EXPECT_EQ(this->client_.tx, reply);
+}
+
+// The port UART reports a 128-byte FIFO. A 129-byte response reaches it in two parts.
+TEST_F(GatewayRoute, ResponseLongerThanTheFifoGoesOut) {
+  this->client_.room = 128;
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x00, 0x00, 62}));
+  this->run();
+  std::vector<uint8_t> body{0x01, 0x03, 124};
+  body.resize(3 + 124, 0x22);
+  auto reply = frame(body);
+  ASSERT_EQ(reply.size(), 129u);
+  this->bms_.push(reply);
+  this->run();
+  EXPECT_EQ(this->client_.tx.size(), 128u);
+  this->run();
+  EXPECT_EQ(this->client_.tx, reply);
+}
+
+// An ESP-IDF bus UART hands over 120 bytes, then nothing until the rest of the frame is in.
+// The wait after a full batch is longer than the gap, so the frame is not cut.
+TEST_F(GatewayRoute, FullBatchDoesNotEndTheFrame) {
+  this->bms_.set_batches(120, 2);
+  this->gate_.setup();
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x00, 0x00, 62}));
+  this->run();
+  std::vector<uint8_t> body{0x01, 0x03, 124};
+  body.resize(3 + 124, 0x33);
+  auto reply = frame(body);
+  this->bms_.push(std::vector<uint8_t>(reply.begin(), reply.begin() + 120));
+  this->run();
+  this->run(5000);
+  this->bms_.push(std::vector<uint8_t>(reply.begin() + 120, reply.end()));
+  this->run();
+  EXPECT_EQ(this->client_.tx, reply);
+}
+
+// The same without batches: 5 ms of quiet ends the frame, and its rest is not taken for an answer.
+TEST_F(GatewayRoute, QuietGapEndsAnIncompleteFrame) {
+  this->client_.push(frame({0x01, 0x03, 0x00, 0x00, 0x00, 62}));
+  this->run();
+  std::vector<uint8_t> body{0x01, 0x03, 124};
+  body.resize(3 + 124, 0x33);
+  auto reply = frame(body);
+  this->bms_.push(std::vector<uint8_t>(reply.begin(), reply.begin() + 120));
+  this->run();
+  this->run(5000);
+  this->bms_.push(std::vector<uint8_t>(reply.begin() + 120, reply.end()));
+  this->run();
+  EXPECT_TRUE(this->client_.tx.empty());
+}
+
+// At 9600 baud a 209-byte request is 218 ms on the wire. The response timeout starts after it.
+TEST_F(GatewayRoute, ResponseTimeoutStartsWhenTheRequestLeftTheWire) {
+  this->bms_.set_baud_rate(9600);
+  this->gate_.set_response_timeout(100);
+  this->gate_.setup();
+  auto request = write_registers(0x01, 100);
+  ASSERT_EQ(request.size(), 209u);
+  this->client_.push(request);
+  this->run();
+  ASSERT_EQ(this->bms_.tx, request);
+
+  this->run(300000);
+  auto reply = frame({0x01, 0x10, 0x00, 0x00, 0x00, 100});
+  this->bms_.push(reply);
+  this->run();
+  EXPECT_EQ(this->client_.tx, reply);
+}
+
+TEST_F(GatewayRoute, ResponseTimeoutCountsTheWireTime) {
+  this->bms_.set_baud_rate(9600);
+  this->gate_.set_response_timeout(100);
+  this->gate_.setup();
+  this->client_.push(write_registers(0x01, 100));
+  this->run();
+  // 209 characters of 1042 us, then 100 ms.
+  this->run(209 * 1042 + 100000);
+  this->bms_.push(frame({0x01, 0x10, 0x00, 0x00, 0x00, 100}));
+  this->run();
+  EXPECT_TRUE(this->client_.tx.empty());
+}
+
+// The port takes nothing. Its response is dropped after 20 ms and the bus goes on.
+TEST_F(GatewayRoute, StalledPortLosesTheResponse) {
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  auto next = frame({0x02, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(request);
+  this->local_.write_array(next.data(), next.size());
+  this->run();
+  this->client_.room = 0;
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  this->run(19000);
+  EXPECT_EQ(this->bms_.tx, request);
+  this->run(2000);
+  EXPECT_TRUE(this->client_.tx.empty());
+  EXPECT_EQ(this->bms_.tx.size(), request.size() + next.size());
+}
+
+// Full-speed passes only near a deadline: here the end of the response timeout.
+TEST_F(GatewayRoute, FastLoopOnlyNearADeadline) {
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+  auto request = frame({0x01, 0x03, 0x00, 0x00, 0x00, 0x01});
+  this->client_.push(request);
+  this->run();
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+  this->run(490000);
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
+  this->bms_.push(frame({0x01, 0x03, 0x02, 0x00, 0x01}));
+  this->run();
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
 }
 
 }  // namespace esphome::modbus_gateway::testing

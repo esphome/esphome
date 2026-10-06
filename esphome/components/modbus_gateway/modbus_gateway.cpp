@@ -2,6 +2,7 @@
 
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -13,7 +14,22 @@ namespace esphome::modbus_gateway {
 
 static const char *const TAG = "modbus_gateway";
 
+static constexpr uint32_t US_PER_SEC = 1000000;
 static constexpr uint32_t BAD_LOG_INTERVAL_MS = 5000;
+// The Modbus client hub's default. A broadcast is never answered. The pause
+// lets the device finish the write before the next frame.
+static constexpr uint32_t BROADCAST_TURNAROUND_US = 600000;
+// A frame ends after 3.5 quiet characters (here in half characters), and after at least 1750 us above 19200 baud,
+// as in Modbus RTU and the modbus hub.
+static constexpr uint32_t FRAME_GAP_HALF_CHARS = 7;
+static constexpr uint32_t MIN_FRAME_GAP_US = 1750;
+// The modbus hub's wait for the rest of a frame from a UART that hands over bytes in chunks.
+static constexpr uint32_t CHUNKED_FRAME_GAP_US = 50000;
+// One character at 9600 baud 8N1, for a bus that reports no baud rate.
+static constexpr uint32_t DEFAULT_CHAR_US = 1042;
+// Loop passes come every 16 ms. Closer to a deadline than this, or while a FIFO is fed, pass at full speed.
+// A UART that takes nothing for this long, and for two characters, has stalled.
+static constexpr uint32_t FAST_WAIT_US = 20000;
 
 // At most one warning per interval and stamp. A zero stamp means never logged, so the first one after boot is shown.
 static bool log_due(uint32_t *stamp) {
@@ -24,44 +40,36 @@ static bool log_due(uint32_t *stamp) {
   *stamp = now == 0 ? 1 : now;
   return true;
 }
-// The Modbus client hub's default. A broadcast is never answered. The pause
-// lets the device finish the write before the next frame.
-static constexpr uint32_t BROADCAST_TURNAROUND_MS = 600;
 
 // Same character size as the Modbus hub: start bit, data bits, parity and stop bits.
 // A UART that never set them is 8N1.
-static uint8_t bits_per_char(uart::UARTComponent *uart) {
-  uint8_t data_bits = 8;
-  uint8_t stop_bits = 1;
-  if (uart != nullptr) {
-    if (uart->get_data_bits() != 0) {
-      data_bits = uart->get_data_bits();
-    }
-    if (uart->get_stop_bits() != 0) {
-      stop_bits = uart->get_stop_bits();
-    }
-  }
-  bool parity = uart != nullptr && uart->get_parity() != uart::UART_CONFIG_PARITY_NONE;
-  return static_cast<uint8_t>(1 + data_bits + (parity ? 1 : 0) + stop_bits);
+static uint32_t bits_per_char(uart::UARTComponent *uart) {
+  const uint32_t data_bits = uart->get_data_bits() != 0 ? uart->get_data_bits() : 8;
+  const uint32_t stop_bits = uart->get_stop_bits() != 0 ? uart->get_stop_bits() : 1;
+  return 1 + data_bits + (uart->get_parity() == uart::UART_CONFIG_PARITY_NONE ? 0 : 1) + stop_bits;
 }
 
-// ceil(3.5 character times). Above 19200 baud the spec fixes the gap at
-// 1.75 ms. Millis cannot see that, and 1 ms can close a frame too early.
-static uint32_t gap_ms(uint32_t baud, uint8_t bits) {
-  if (baud == 0 || baud > 19200) {
-    return 2;
-  }
-  return std::max<uint32_t>(1, (uint32_t(bits) * 3500 + baud - 1) / baud);
+// Wire time of one character in us, rounded up; 0 when the UART has no baud rate.
+static uint32_t char_time_us(uart::UARTComponent *uart) {
+  const uint32_t baud = uart->get_baud_rate();
+  return baud == 0 ? 0 : (bits_per_char(uart) * US_PER_SEC + baud - 1) / baud;
 }
 
-// Time to send one frame of the largest size. After a timeout the bus stays closed
-// until it was quiet this long, so a late response is dropped.
-static uint32_t frame_ms(uint32_t baud, uint8_t bits) {
-  if (baud == 0) {
-    baud = 9600;
-  }
-  return (uint32_t(MAX_FRAME) * bits * 1000 + baud - 1) / baud;
+static uint32_t gap_after(uint32_t char_us) {
+  return std::max(MIN_FRAME_GAP_US, (char_us * FRAME_GAP_HALF_CHARS + 1) / 2);
 }
+
+// ESP-IDF moves received bytes on once rx_full_threshold are in the FIFO, or after rx_timeout quiet characters.
+// After a full batch the rest of a frame can take that long to show up, as the modbus hub allows. 0: no batches.
+static uint32_t batch_after(uart::UARTComponent *uart, uint32_t char_us, uint32_t gap_us) {
+  const size_t threshold = uart->get_rx_full_threshold();
+  if (threshold == uart::UARTComponent::RX_FULL_THRESHOLD_UNSET) {
+    return 0;
+  }
+  return std::max(gap_us, static_cast<uint32_t>(threshold + uart->get_rx_timeout()) * char_us);
+}
+
+static uint32_t remaining(uint32_t elapsed, uint32_t total) { return elapsed < total ? total - elapsed : 0; }
 
 // The address and the function must belong to the request that is on the bus, and a read
 // must carry the byte count of the quantity it asked for. An exception sets the high bit of the function.
@@ -149,8 +157,8 @@ uart::UARTFlushResult GatewayUart::flush() {
 
 void ModbusGateway::port_write(uint8_t index, const uint8_t *data, size_t len) {
   Port &port = this->ports_[index];
-  // A newer request replaces the one that waits for the bus.
-  if (len > static_cast<size_t>(MAX_FRAME - port.len) && port.pending_len != 0) {
+  // A newer request replaces the one that waits for the bus, unless that one is going out already.
+  if (len > static_cast<size_t>(MAX_FRAME - port.len) && port.pending_len != 0 && !this->sending_(index)) {
     consume(port.data, &port.len, port.pending_len);
     port.pending_len = 0;
   }
@@ -160,50 +168,18 @@ void ModbusGateway::port_write(uint8_t index, const uint8_t *data, size_t len) {
   }
   std::memcpy(port.data + port.len, data, len);
   port.len += static_cast<uint16_t>(len);
-  port.last_ms = App.get_loop_component_start_time();
 }
 
 void ModbusGateway::log_bad_(bool crc) {
-  if (!log_due(&this->last_bad_log_ms_)) {
-    return;
+  if (log_due(&this->last_bad_log_ms_)) {
+    ESP_LOGW(TAG, "Dropping %s",
+             crc ? LOG_STR_LITERAL("a frame with a bad CRC") : LOG_STR_LITERAL("an incomplete frame"));
   }
-  if (crc) {
-    ESP_LOGW(TAG, "Dropping a frame with a bad CRC");
-    return;
-  }
-  ESP_LOGW(TAG, "Dropping an incomplete frame");
 }
 
 void ModbusGateway::log_mismatch_() {
   if (log_due(&this->last_mismatch_log_ms_)) {
     ESP_LOGW(TAG, "Response ignored, it does not match the request");
-  }
-}
-
-bool ModbusGateway::write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len) {
-  // A partial write would open a gap on the wire longer than one frame.
-  size_t room = dest->available_for_write();
-  if (room != SIZE_MAX && room < len) {
-    return false;
-  }
-  dest->write_array(data, len);
-  return true;
-}
-
-void ModbusGateway::deliver_(uint8_t index, const uint8_t *data, uint16_t len) {
-  Port &port = this->ports_[index];
-  const LogString *why = nullptr;
-  if (port.local) {
-    if (!static_cast<GatewayUart *>(port.uart)->inject_rx(data, len)) {
-      why = LOG_STR("Port buffer full");
-    }
-  } else if (!port.uart->is_connected()) {
-    why = LOG_STR("Port not connected");
-  } else if (!this->write_frame_(port.uart, data, len)) {
-    why = LOG_STR("Port has no room");
-  }
-  if (why != nullptr) {
-    this->log_drop_(why, len);
   }
 }
 
@@ -213,12 +189,44 @@ void ModbusGateway::log_drop_(const LogString *why, size_t len) {
   }
 }
 
+void ModbusGateway::setup() {
+  const uint32_t char_us = char_time_us(this->parent_);
+  if (this->bus_clocked_ && char_us != 0) {
+    this->bus_char_us_ = char_us;
+    this->bus_tx_gap_us_ = gap_after(char_us);
+    this->bus_rx_gap_us_ = this->bus_tx_gap_us_;
+    this->bus_batch_us_ = batch_after(this->parent_, char_us, this->bus_rx_gap_us_);
+  } else {
+    this->bus_rx_gap_us_ = CHUNKED_FRAME_GAP_US;
+  }
+  // After a timeout the bus stays closed until it was quiet for one frame of the largest size, so a late
+  // response is dropped.
+  this->bus_closed_us_ = std::max(this->bus_rx_gap_us_, MAX_FRAME * (char_us != 0 ? char_us : DEFAULT_CHAR_US));
+  for (uint8_t i = 0; i < this->port_count_; i++) {
+    Port &port = this->ports_[i];
+    // A hub on a local port writes whole frames; they need no gap.
+    if (port.local) {
+      continue;
+    }
+    const uint32_t port_char_us = char_time_us(port.uart);
+    if (!port.clocked || port_char_us == 0) {
+      port.gap_us = CHUNKED_FRAME_GAP_US;
+      continue;
+    }
+    port.gap_us = gap_after(port_char_us);
+    port.batch_us = batch_after(port.uart, port_char_us, port.gap_us);
+  }
+}
+
 // The bytes behind the waiting request are parsed. A complete request there replaces the waiting one:
 // a client that polls again before its turn keeps only the latest request.
 void ModbusGateway::take_requests_(uint8_t index, uint32_t now) {
+  // The request in front goes out to the bus. What the client sent after it waits behind it.
+  if (this->sending_(index)) {
+    return;
+  }
   Port &port = this->ports_[index];
-  uint32_t baud = port.uart->get_baud_rate() != 0 ? port.uart->get_baud_rate() : 9600;
-  bool silent = now - port.last_ms >= gap_ms(baud, bits_per_char(port.uart));
+  bool silent = now - port.last_us >= (port.batched ? port.batch_us : port.gap_us);
   while (port.len > port.pending_len) {
     uint8_t *rest = port.data + port.pending_len;
     uint16_t rest_len = port.len - port.pending_len;
@@ -255,21 +263,99 @@ void ModbusGateway::read_port_(uint8_t index, uint32_t now) {
     size_t n = std::min(port.uart->available(), static_cast<size_t>(MAX_FRAME - port.len));
     if (n != 0 && port.uart->read_array(port.data + port.len, n)) {
       port.len += static_cast<uint16_t>(n);
-      port.last_ms = now;
+      port.last_us = now;
+      port.batched = port.batch_us != 0 && n >= port.uart->get_rx_full_threshold();
     }
   }
   this->take_requests_(index, now);
+}
+
+// Writes what dest takes now. A FIFO gets what fits and the rest on the next passes, without a pause. A UART that
+// cannot report its room (SIZE_MAX) gets all of it in one write, as the modbus hub writes a frame.
+ModbusGateway::Write ModbusGateway::write_more_(uart::UARTComponent *dest, const uint8_t *data, uint32_t now) {
+  if (!dest->is_connected()) {
+    return Write::WRITE_DOWN;
+  }
+  size_t n = std::min(static_cast<size_t>(this->out_len_ - this->out_sent_), dest->available_for_write());
+  if (n == 0) {
+    // A FIFO frees room within a character.
+    return now - this->progress_us_ < std::max(FAST_WAIT_US, 2 * char_time_us(dest)) ? Write::WRITE_MORE
+                                                                                     : Write::WRITE_STALLED;
+  }
+  dest->write_array(data + this->out_sent_, n);
+  if (dest == this->parent_) {
+    // The line sends these bytes after whatever it still has: from now, or from the end of that.
+    if (now - this->tx_start_us_ >= this->tx_busy_us_) {
+      this->tx_start_us_ = now;
+      this->tx_busy_us_ = 0;
+    }
+    this->tx_busy_us_ += static_cast<uint32_t>(n) * this->bus_char_us_;
+  }
+  this->out_sent_ += static_cast<uint16_t>(n);
+  this->progress_us_ = now;
+  return this->out_sent_ == this->out_len_ ? Write::WRITE_DONE : Write::WRITE_MORE;
+}
+
+void ModbusGateway::start_next_(uint32_t now) {
+  for (uint8_t n = 0; n < this->port_count_; n++) {
+    uint8_t index = static_cast<uint8_t>((this->next_port_ + n) % this->port_count_);
+    Port &port = this->ports_[index];
+    if (port.pending_len == 0) {
+      continue;
+    }
+    // The first six bytes are always in the buffer. Bytes past a shorter request are not read.
+    std::memcpy(this->request_key_, port.data, sizeof(this->request_key_));
+    this->active_ = index;
+    this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
+    this->out_len_ = port.pending_len;
+    this->out_sent_ = 0;
+    this->progress_us_ = now;
+    this->phase_ = Phase::PHASE_SENDING;
+    this->send_request_(now);
+    return;
+  }
+}
+
+void ModbusGateway::send_request_(uint32_t now) {
+  Port &port = this->ports_[this->active_];
+  const Write result = this->write_more_(this->parent_, port.data, now);
+  if (result == Write::WRITE_MORE) {
+    return;
+  }
+  if (result != Write::WRITE_DONE) {
+    this->log_drop_(result == Write::WRITE_DOWN ? LOG_STR("Bus not connected") : LOG_STR("Bus stalled"),
+                    this->out_len_ - this->out_sent_);
+  }
+  // What the client sent after the request moves up.
+  consume(port.data, &port.len, port.pending_len);
+  port.pending_len = 0;
+  if (result != Write::WRITE_DONE) {
+    this->phase_ = Phase::PHASE_IDLE;
+    return;
+  }
+  // The response timeout starts when the request has left the wire.
+  this->sent_us_ = this->tx_start_us_;
+  this->bus_len_ = 0;
+  if (this->request_key_[0] == 0) {
+    // Address 0 is a broadcast. Nothing may answer. The bus is held for the turnaround
+    // and anything that arrives meanwhile is dropped.
+    this->phase_ = Phase::PHASE_TURNAROUND;
+    this->wait_us_ = this->tx_busy_us_ + BROADCAST_TURNAROUND_US;
+    return;
+  }
+  this->phase_ = Phase::PHASE_AWAITING;
+  this->wait_us_ = this->tx_busy_us_ + this->response_timeout_us_;
 }
 
 void ModbusGateway::read_bus_(uint32_t now) {
   size_t n = std::min(this->parent_->available(), static_cast<size_t>(MAX_FRAME - this->bus_len_));
   if (n != 0 && this->parent_->read_array(this->bus_ + this->bus_len_, n)) {
     this->bus_len_ += static_cast<uint16_t>(n);
-    this->bus_last_ms_ = now;
+    this->bus_last_us_ = now;
+    this->bus_batched_ = this->bus_batch_us_ != 0 && n >= this->parent_->get_rx_full_threshold();
   }
-  uint32_t gap = gap_ms(this->parent_->get_baud_rate(), bits_per_char(this->parent_));
-  while (this->bus_len_ > 0 && this->active_ >= 0) {
-    bool silent = now - this->bus_last_ms_ >= gap;
+  bool silent = now - this->bus_last_us_ >= (this->bus_batched_ ? this->bus_batch_us_ : this->bus_rx_gap_us_);
+  while (this->bus_len_ > 0) {
     Inspect found = inspect(this->bus_, this->bus_len_, false, silent);
     if (found.len == 0) {
       if (found.bad_crc && !found.drop_all) {
@@ -288,100 +374,135 @@ void ModbusGateway::read_bus_(uint32_t now) {
       consume(this->bus_, &this->bus_len_, found.len);
       continue;
     }
-    // The bus answered. A port that cannot take the response loses it, and the bus is free again.
-    this->deliver_(static_cast<uint8_t>(this->active_), this->bus_, found.len);
-    consume(this->bus_, &this->bus_len_, found.len);
-    this->active_ = -1;
+    this->take_response_(found.len, now);
+    return;
   }
 }
 
-bool ModbusGateway::start_next_(uint32_t now) {
-  if (this->active_ >= 0) {
-    return false;
-  }
-  for (uint8_t n = 0; n < this->port_count_; n++) {
-    uint8_t index = static_cast<uint8_t>((this->next_port_ + n) % this->port_count_);
-    Port &port = this->ports_[index];
-    if (port.pending_len == 0) {
-      continue;
+// The bus answered. A port that cannot take the response loses it, and the bus is free again.
+void ModbusGateway::take_response_(uint16_t len, uint32_t now) {
+  Port &port = this->ports_[this->active_];
+  if (port.local) {
+    if (!static_cast<GatewayUart *>(port.uart)->inject_rx(this->bus_, len)) {
+      this->log_drop_(LOG_STR("Port buffer full"), len);
     }
-    if (!this->write_frame_(this->parent_, port.data, port.pending_len)) {
-      return false;
-    }
-    // The first six bytes are always in the buffer. Bytes past a shorter request are not read.
-    std::memcpy(this->request_key_, port.data, sizeof(this->request_key_));
-    consume(port.data, &port.len, port.pending_len);
-    port.pending_len = 0;
-    this->active_ = static_cast<int8_t>(index);
-    this->sent_ms_ = now;
-    this->bus_len_ = 0;
-    // Address 0 is a broadcast. Nothing may answer. loop() holds the bus
-    // for the turnaround and drops anything that arrives meanwhile.
-    this->awaiting_ = this->request_key_[0] != 0;
-    this->next_port_ = static_cast<uint8_t>((index + 1) % this->port_count_);
-    return true;
+    this->phase_ = Phase::PHASE_IDLE;
+    return;
   }
-  return false;
+  this->out_len_ = len;
+  this->out_sent_ = 0;
+  this->progress_us_ = now;
+  this->phase_ = Phase::PHASE_DELIVERING;
+  this->send_response_(now);
+}
+
+void ModbusGateway::send_response_(uint32_t now) {
+  const Write result = this->write_more_(this->ports_[this->active_].uart, this->bus_, now);
+  if (result == Write::WRITE_MORE) {
+    return;
+  }
+  if (result != Write::WRITE_DONE) {
+    this->log_drop_(result == Write::WRITE_DOWN ? LOG_STR("Port not connected") : LOG_STR("Port stalled"),
+                    this->out_len_ - this->out_sent_);
+  }
+  this->phase_ = Phase::PHASE_IDLE;
 }
 
 // Nothing is expected while no request is open. It is read into bus_ and dropped.
 void ModbusGateway::drain_bus_(uint32_t now) {
   size_t n = std::min(this->parent_->available(), sizeof(this->bus_));
   if (n != 0 && this->parent_->read_array(this->bus_, n)) {
-    this->bus_last_ms_ = now;
+    this->bus_last_us_ = now;
   }
   this->bus_len_ = 0;
 }
 
-void ModbusGateway::loop() { this->run_(App.get_loop_component_start_time()); }
+// Time until the bus was quiet long enough for a request to start: a gap after the last byte either way, and one
+// frame of the largest size after a timeout.
+uint32_t ModbusGateway::bus_wait_(uint32_t now) const {
+  return std::max(remaining(now - this->bus_last_us_, this->quarantine_ ? this->bus_closed_us_ : this->bus_tx_gap_us_),
+                  remaining(now - this->tx_start_us_, this->tx_busy_us_ + this->bus_tx_gap_us_));
+}
+
+// Full-speed loop passes only while a FIFO is fed or a deadline is closer than a normal pass.
+void ModbusGateway::pace_(uint32_t now) {
+  uint32_t wait = FAST_WAIT_US;
+  switch (this->phase_) {
+    case Phase::PHASE_SENDING:
+    case Phase::PHASE_DELIVERING:
+      wait = 0;
+      break;
+    case Phase::PHASE_AWAITING:
+    case Phase::PHASE_TURNAROUND:
+      wait = remaining(now - this->sent_us_, this->wait_us_);
+      break;
+    case Phase::PHASE_IDLE:
+      for (uint8_t i = 0; i < this->port_count_; i++) {
+        if (this->ports_[i].pending_len != 0) {
+          wait = this->bus_wait_(now);
+          break;
+        }
+      }
+      break;
+  }
+  if (wait < FAST_WAIT_US) {
+    this->fast_.start();
+  } else {
+    this->fast_.stop();
+  }
+}
+
+// micros(): above 19200 baud the gap before a request is 1.75 ms.
+void ModbusGateway::loop() { this->run_(micros()); }
 
 void ModbusGateway::run_(uint32_t now) {
-  if (this->port_count_ == 0 || this->parent_ == nullptr) {
-    return;
-  }
   for (uint8_t i = 0; i < this->port_count_; i++) {
     this->read_port_(i, now);
   }
-  if (this->active_ >= 0) {
-    if (!this->awaiting_) {
-      if (now - this->sent_ms_ >= BROADCAST_TURNAROUND_MS) {
-        this->active_ = -1;
-      }
-    } else {
+  switch (this->phase_) {
+    case Phase::PHASE_SENDING:
+      this->send_request_(now);
+      break;
+    case Phase::PHASE_AWAITING:
       this->read_bus_(now);
-      if (this->active_ >= 0 && now - this->sent_ms_ >= this->response_timeout_ms_) {
+      if (this->phase_ == Phase::PHASE_AWAITING && now - this->sent_us_ >= this->wait_us_) {
         if (log_due(&this->last_timeout_log_ms_)) {
           ESP_LOGW(TAG, "No response from the bus");
         }
-        this->active_ = -1;
-        this->bus_len_ = 0;
+        this->phase_ = Phase::PHASE_IDLE;
         this->quarantine_ = true;
-        this->bus_last_ms_ = now;
+        this->bus_last_us_ = now;
       }
-    }
-  }
-  if (this->active_ < 0) {
-    this->drain_bus_(now);
-  }
-  if (this->quarantine_) {
-    if (now - this->bus_last_ms_ < frame_ms(this->parent_->get_baud_rate(), bits_per_char(this->parent_))) {
-      return;
-    }
-    this->quarantine_ = false;
-  }
-  for (uint8_t n = 0; n < this->port_count_ && this->active_ < 0; n++) {
-    if (!this->start_next_(now)) {
       break;
+    case Phase::PHASE_TURNAROUND:
+      this->drain_bus_(now);
+      if (now - this->sent_us_ >= this->wait_us_) {
+        this->phase_ = Phase::PHASE_IDLE;
+      }
+      break;
+    case Phase::PHASE_DELIVERING:
+      this->send_response_(now);
+      break;
+    case Phase::PHASE_IDLE:
+      break;
+  }
+  if (this->phase_ == Phase::PHASE_IDLE) {
+    this->drain_bus_(now);
+    if (this->bus_wait_(now) == 0) {
+      this->quarantine_ = false;
+      this->start_next_(now);
     }
   }
+  this->pace_(now);
 }
 
 void ModbusGateway::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus Gateway:\n"
                 "  Response timeout: %" PRIu32 " ms\n"
+                "  Frame gap: %" PRIu32 " us\n"
                 "  Ports: %u",
-                this->response_timeout_ms_, this->port_count_);
+                this->response_timeout_us_ / 1000, this->bus_rx_gap_us_, this->port_count_);
 }
 
 }  // namespace esphome::modbus_gateway

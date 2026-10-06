@@ -4,6 +4,7 @@
 #include "esphome/components/uart/uart_virtual.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cstdint>
@@ -33,13 +34,18 @@ class GatewayUart final : public uart::VirtualUARTComponent {
   uint8_t index_{0};
 };
 
-/// One Modbus RTU bus, several clients. One request is on the bus at a time.
-/// The response is written back only to the port that sent the request.
+/// One Modbus RTU bus, several clients, one request on the bus at a time; the response goes back to the port that
+/// sent it. A request starts after 3.5 quiet characters; a frame larger than a FIFO goes out in parts without a pause.
 class ModbusGateway : public Component, public uart::UARTDevice {
  public:
-  void set_response_timeout(uint32_t ms) { this->response_timeout_ms_ = ms; }
+  void set_response_timeout(uint32_t ms) { this->response_timeout_us_ = ms * 1000; }
   void set_port_count(uint8_t count) { this->port_count_ = count; }
-  void set_port_uart(uint8_t index, uart::UARTComponent *uart) { this->ports_[index].uart = uart; }
+  /// The bus's bytes do not keep the timing of a serial line (TCP, USB, a virtual UART).
+  void set_bus_unclocked() { this->bus_clocked_ = false; }
+  void set_port_uart(uint8_t index, uart::UARTComponent *uart, bool clocked) {
+    this->ports_[index].uart = uart;
+    this->ports_[index].clocked = clocked;
+  }
   void set_port_local(uint8_t index, GatewayUart *uart) {
     this->ports_[index].uart = uart;
     this->ports_[index].local = true;
@@ -50,46 +56,86 @@ class ModbusGateway : public Component, public uart::UARTDevice {
   size_t port_room(uint8_t index) const { return MAX_FRAME - this->ports_[index].len; }
   bool port_empty(uint8_t index) const { return this->ports_[index].len == 0; }
 
+  void setup() override;
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
  protected:
+  enum class Phase : uint8_t {
+    PHASE_IDLE,
+    PHASE_SENDING,     // the request goes out to the bus
+    PHASE_AWAITING,    // the response is read from the bus
+    PHASE_TURNAROUND,  // after a broadcast, which nothing answers
+    PHASE_DELIVERING,  // the response goes out to the port
+  };
+  enum class Write : uint8_t { WRITE_MORE, WRITE_DONE, WRITE_DOWN, WRITE_STALLED };
+
   // data holds the request that waits for the bus first (pending_len bytes), then what the client sent after it.
   struct Port {
     uart::UARTComponent *uart{nullptr};
-    uint32_t last_ms{0};
+    uint32_t last_us{0};
+    // The quiet time that ends a frame from this port, and the longer one after a full driver batch (0: none).
+    uint32_t gap_us{0};
+    uint32_t batch_us{0};
     uint16_t len{0};
     uint16_t pending_len{0};
     bool local{false};
+    bool clocked{true};
+    bool batched{false};
     uint8_t data[MAX_FRAME]{};
   };
 
   void run_(uint32_t now);
   void read_port_(uint8_t index, uint32_t now);
   void take_requests_(uint8_t index, uint32_t now);
+  bool sending_(uint8_t index) const { return this->phase_ == Phase::PHASE_SENDING && this->active_ == index; }
+  void start_next_(uint32_t now);
+  void send_request_(uint32_t now);
   void read_bus_(uint32_t now);
+  void take_response_(uint16_t len, uint32_t now);
+  void send_response_(uint32_t now);
   void drain_bus_(uint32_t now);
-  bool start_next_(uint32_t now);
-  bool write_frame_(uart::UARTComponent *dest, const uint8_t *data, uint16_t len);
-  void deliver_(uint8_t index, const uint8_t *data, uint16_t len);
+  Write write_more_(uart::UARTComponent *dest, const uint8_t *data, uint32_t now);
+  uint32_t bus_wait_(uint32_t now) const;
+  void pace_(uint32_t now);
   void log_bad_(bool crc);
   void log_mismatch_();
   void log_drop_(const LogString *why, size_t len);
 
   Port ports_[MODBUS_GATEWAY_PORT_COUNT]{};
-  uint32_t response_timeout_ms_{500};
-  uint32_t sent_ms_{0};
-  uint32_t bus_last_ms_{0};
+  uint32_t response_timeout_us_{500000};
+  // From setup(): the wire time of a character on the bus (0 without a clock), the quiet time before a request,
+  // the one that ends a received frame, the one after a full driver batch and the one after a timeout.
+  uint32_t bus_char_us_{0};
+  uint32_t bus_tx_gap_us_{0};
+  uint32_t bus_rx_gap_us_{0};
+  uint32_t bus_batch_us_{0};
+  uint32_t bus_closed_us_{0};
+  uint32_t bus_last_us_{0};
+  // The bus line is busy for tx_busy_us_ from tx_start_us_ with what was written.
+  uint32_t tx_start_us_{0};
+  uint32_t tx_busy_us_{0};
+  // The open request ends wait_us_ after sent_us_: its wire time plus the response timeout or the turnaround.
+  uint32_t sent_us_{0};
+  uint32_t wait_us_{0};
+  // The last time a frame in parts made progress.
+  uint32_t progress_us_{0};
   uint32_t last_bad_log_ms_{0};
   uint32_t last_mismatch_log_ms_{0};
   uint32_t last_timeout_log_ms_{0};
   uint32_t last_drop_log_ms_{0};
   uint16_t bus_len_{0};
+  // The frame that goes out in parts: out_sent_ of out_len_ bytes are written.
+  uint16_t out_len_{0};
+  uint16_t out_sent_{0};
   uint8_t port_count_{0};
   uint8_t next_port_{0};
-  int8_t active_{-1};
-  bool awaiting_{false};
+  uint8_t active_{0};
+  Phase phase_{Phase::PHASE_IDLE};
+  HighFrequencyLoopRequester fast_;
+  bool bus_clocked_{true};
+  bool bus_batched_{false};
   // Set after a timeout. A late response must not reach the next port.
   bool quarantine_{false};
   // Unit, function, start and quantity of the request on the bus.
