@@ -9,6 +9,9 @@ namespace esphome::speed {
 
 class SpeedFan final : public Component, public fan::Fan {
  public:
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use set_supported_preset_modes() instead. Removed in 2027.5.0", "2026.11.0")
+  void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
   SpeedFan(int speed_count) : speed_count_(speed_count) {}
   void setup() override;
   void dump_config() override;

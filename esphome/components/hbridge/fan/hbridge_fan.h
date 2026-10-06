@@ -13,6 +13,9 @@ enum DecayMode {
 
 class HBridgeFan final : public Component, public fan::Fan {
  public:
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use set_supported_preset_modes() instead. Removed in 2027.5.0", "2026.11.0")
+  void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
   HBridgeFan(int speed_count, DecayMode decay_mode) : speed_count_(speed_count), decay_mode_(decay_mode) {}
 
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }

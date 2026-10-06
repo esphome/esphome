@@ -7,6 +7,9 @@ namespace esphome::template_ {
 
 class TemplateFan final : public Component, public fan::Fan {
  public:
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use set_supported_preset_modes() instead. Removed in 2027.5.0", "2026.11.0")
+  void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
   TemplateFan() {}
   void setup() override;
   void dump_config() override;
