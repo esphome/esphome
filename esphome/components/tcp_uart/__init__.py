@@ -72,6 +72,8 @@ CONFIG_SCHEMA = cv.All(
     socket.consume_role_sockets("tcp_uart"),
 )
 
+FINAL_VALIDATE_SCHEMA = socket.final_validate_idle_timeout
+
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
