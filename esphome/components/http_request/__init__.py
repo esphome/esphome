@@ -39,6 +39,7 @@ HttpRequestIDF = http_request_ns.class_("HttpRequestIDF", HttpRequestComponent)
 HttpRequestHost = http_request_ns.class_("HttpRequestHost", HttpRequestComponent)
 
 HttpContainer = http_request_ns.class_("HttpContainer")
+RequestHeader = http_request_ns.struct("RequestHeader")
 
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
@@ -367,12 +368,23 @@ async def http_request_action_to_code(
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    request_headers = config.get(CONF_REQUEST_HEADERS, {})
-    if request_headers:
-        cg.add(var.init_request_headers(len(request_headers)))
-    for key, value in request_headers.items():
-        template_ = await cg.templatable(value, args, cg.const_char_ptr)
-        cg.add(var.add_request_header(key, template_))
+    if request_headers := config.get(CONF_REQUEST_HEADERS):
+        headers = [
+            cg.StructInitializer(
+                "",
+                ("name", key),
+                ("value", await cg.templatable(value, args, cg.const_char_ptr)),
+            )
+            for key, value in request_headers.items()
+        ]
+        table = cg.shared_progmem_array(
+            "http_request_headers",
+            RequestHeader.template(*[arg_type for arg_type, _ in args]),
+            headers,
+            # A user lambda may keep static state, so only all-constant lists are shared
+            share=not any(map(cg.is_template, request_headers.values())),
+        )
+        cg.add(var.set_request_headers(table, len(headers)))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
         cg.add(var.add_collect_header(value.lower()))
