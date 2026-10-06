@@ -45,7 +45,9 @@ button:
           const auto &types = id(some_event).get_event_types();
           for (const char *type : types)
             ESP_LOGD("test", "%s", type);
-          if (!types.empty() && types.size() > 1) {
+          if (types.empty()) {
+            ESP_LOGD("test", "no types");
+          } else if (types.size() > 1) {
             ESP_LOGD("test", "%s %s", types[0], types.at(1));
             const auto *it = std::find(types.begin(), types.end(), types[1]);
             ESP_LOGD("test", "Index %d", (int) (it - types.begin()));
