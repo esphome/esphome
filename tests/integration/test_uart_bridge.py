@@ -10,7 +10,8 @@ test_uart_bridge_virtual:
 
 test_uart_bridge_polled:
   Every end is a uart_mock, so the bridge polls both ends and collects each frame until the end has been
-  quiet for 50 ms (uart_mock is not a hardware line). uart_mock cannot report its free room, so every
+  quiet for a frame gap. uart_mock reports a baud rate of 115200, so it is timed as a line: 3.5 characters
+  are less than 1.75 ms there, so the gap is 1750 us. uart_mock cannot report its free room, so every
   frame leaves in one write.
 """
 
@@ -29,7 +30,7 @@ _LARGE = re.compile(r"BRIDGE_LARGE (\d+) ([0-9a-f]+)")
 # The server has no register at 0x0100, so it answers the 100-register write with exception 2.
 _WRITE_REPLY = re.compile(r"Error function code: 0x90 exception: 2")
 # dump_config continuation lines carry no tag of their own.
-_END_KIND = re.compile(r"\b([AB]): (virtual|polled), frame gap")
+_END_KIND = re.compile(r"\b([AB]): (virtual|polled), frame gap (\d+) us")
 
 
 class _BridgeLog:
@@ -41,7 +42,7 @@ class _BridgeLog:
         self.large = loop.create_future()
         self.write_reply = loop.create_future()
         self.tx: dict[str, list[int]] = {"end_a": [], "end_b": []}
-        self.end_kinds: dict[str, str] = {}
+        self.end_kinds: dict[str, tuple[str, int]] = {}
 
     def on_line(self, line: str) -> None:
         if (match := _TX.search(line)) is not None:
@@ -53,7 +54,7 @@ class _BridgeLog:
         if _WRITE_REPLY.search(line) and not self.write_reply.done():
             self.write_reply.set_result(True)
         if (match := _END_KIND.search(line)) is not None:
-            self.end_kinds[match.group(1)] = match.group(2)
+            self.end_kinds[match.group(1)] = (match.group(2), int(match.group(3)))
 
     async def wait_for_traffic(self) -> None:
         await asyncio.wait_for(
@@ -77,7 +78,7 @@ async def test_uart_bridge_virtual(
     ):
         await log.wait_for_traffic()
 
-    assert log.end_kinds == {"A": "virtual", "B": "virtual"}
+    assert log.end_kinds == {"A": ("virtual", 0), "B": ("virtual", 0)}
     # Read requests (8 bytes) and the 100-register write request (209 bytes) reach end_b whole.
     assert 8 in log.tx["end_b"]
     assert 209 in log.tx["end_b"]
@@ -99,7 +100,7 @@ async def test_uart_bridge_polled(
     ):
         await log.wait_for_traffic()
 
-    assert log.end_kinds == {"A": "polled", "B": "polled"}
+    assert log.end_kinds == {"A": ("polled", 1750), "B": ("polled", 1750)}
     # Each frame leaves whole: read requests, the 209-byte write request, the 255-byte reply.
     assert 8 in log.tx["end_b"]
     assert 209 in log.tx["end_b"]

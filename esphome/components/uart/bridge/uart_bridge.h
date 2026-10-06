@@ -14,9 +14,9 @@ namespace esphome::uart {
 
 /// One direction of a bridge, a block at a time.
 /// Source: a virtual one pushes each block to on_block(). Any other is read in poll() until it has been quiet for a
-/// frame gap, or a block is full. On a hardware line the gap is 3.5 characters and at least 1750 us, as in the modbus
-/// hub; other UARTs (USB, TCP, BLE) hand over bytes in chunks, so they get the hub's 50 ms.
-/// Destination: a virtual one takes each block in one write_array(). On a hardware line, a block that starts a frame
+/// frame gap, or a block is full. On a line (a UART with a baud rate) the gap is 3.5 characters and at least 1750 us,
+/// as in the modbus hub; a TCP UART or a UART without a baud rate hands over bytes in chunks, so it gets 50 ms.
+/// Destination: a virtual one takes each block in one write_array(). On a line, a block that starts a frame
 /// waits until the line has been quiet for a frame gap; one that goes on after a block cut at 256 bytes does not. A
 /// UART that reports its room gets what fits now and the rest on the next passes; one that cannot report it gets the
 /// whole block at once. A block for a destination that is not connected, or that takes nothing for a second, is

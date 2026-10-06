@@ -210,8 +210,8 @@ TEST(UARTBridge, FullDriverBatchWaitsForTheRestOfTheFrame) {
   EXPECT_EQ(b.writes[0], frame(17));
 }
 
-TEST(UARTBridge, SourceThatIsNotAHardwareLineWaitsLikeTheModbusHub) {
-  // tcp_uart, USB: bytes come in chunks, so 20 ms between two parts of one frame is normal.
+TEST(UARTBridge, SourceThatIsNotALineWaitsLikeTheModbusHub) {
+  // tcp_uart: bytes come in chunks, so 20 ms between two parts of one frame is normal; its baud rate is not used.
   WireUart a(9600);
   VirtualEnd b;
   UARTBridgePipe pipe(&a, &b);

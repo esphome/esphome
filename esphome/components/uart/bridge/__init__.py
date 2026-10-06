@@ -15,8 +15,8 @@ CONF_PEER_ID = "peer_id"
 
 UARTBridge = uart_ns.class_("UARTBridge", cg.Component)
 
-# Hardware lines: clocked, and bytes show up as they arrive or in reported batches.
-_WIRE_UART_CLASSES = (*uart.NATIVE_UART_CLASSES, str(uart.HostUartComponent))
+# A TCP UART's baud rate is only a placeholder and its bytes come in chunks, so it is not timed as a line.
+_UNCLOCKED_UART_CLASSES = ("tcp_uart::TcpUart",)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -55,12 +55,13 @@ async def to_code(config: ConfigType) -> None:
     b_id, b = await cg.get_variable_with_full_id(config[CONF_PEER_ID])
     var = cg.new_Pvariable(config[CONF_ID], a, b)
     await cg.register_component(var, config)
-    # A virtual end pushes whole blocks and takes whole writes, so nothing polls it.
+    # A virtual end pushes whole blocks and takes whole writes, so nothing polls it. Any other end is a line,
+    # timed by the baud rate it reports at setup.
     if a_id.type.inherits_from(uart.VirtualUARTComponent):
         cg.add(var.set_virtual_a(a))
-    elif str(a_id.type) in _WIRE_UART_CLASSES:
+    elif str(a_id.type) not in _UNCLOCKED_UART_CLASSES:
         cg.add(var.set_wire_a())
     if b_id.type.inherits_from(uart.VirtualUARTComponent):
         cg.add(var.set_virtual_b(b))
-    elif str(b_id.type) in _WIRE_UART_CLASSES:
+    elif str(b_id.type) not in _UNCLOCKED_UART_CLASSES:
         cg.add(var.set_wire_b())
