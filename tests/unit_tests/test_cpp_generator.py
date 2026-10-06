@@ -829,6 +829,14 @@ class TestSharedProgmemArray:
         assert str(a) != str(b)
         assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
 
+    def test_constexpr_false_emits_a_const_array(self) -> None:
+        CORE.config = {}
+        cg.shared_progmem_array("table", ct.uint8, [1], constexpr=False)
+        (statement,) = (
+            str(st) for st in CORE.global_statements if "PROGMEM" in str(st)
+        )
+        assert statement.startswith("static uint8_t const table[] PROGMEM = {1}")
+
     def test_same_contents_different_type_are_separate(self) -> None:
         CORE.config = {}
         a = cg.shared_progmem_array("table", ct.uint8, [1])

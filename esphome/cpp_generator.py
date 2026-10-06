@@ -440,13 +440,16 @@ class LineComment(Statement):
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
-    __slots__ = ()
+    __slots__ = ("constexpr",)
 
-    def __init__(self, type_, name, rhs):
+    def __init__(self, type_, name, rhs, constexpr: bool = True):
         super().__init__(type_, "", name, rhs)
+        self.constexpr = constexpr
 
     def __str__(self):
-        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        if self.constexpr:
+            return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -469,13 +472,20 @@ def progmem_array(id_, rhs) -> "MockObj":
 
 
 def shared_progmem_array(
-    name: str, type_: "MockObjClass", rhs: SafeExpType, *, share: bool = True
+    name: str,
+    type_: "MockObjClass",
+    rhs: SafeExpType,
+    *,
+    share: bool = True,
+    constexpr: bool = True,
 ) -> "MockObj":
     """Emit a global PROGMEM array once per distinct type and contents; later calls reuse it.
 
     The array is ``static constexpr``, so elements must be constant expressions and lambdas
     must be captureless. Its name is made unique against every config id and variable.
     ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
+    ``constexpr=False`` emits ``static T const`` for address constants such as pointers to
+    generated objects, which GCC still initializes statically but are not constant expressions.
     """
     from esphome.config import iter_ids
     from esphome.config_validation import RESERVED_IDS
@@ -490,7 +500,7 @@ def shared_progmem_array(
     used |= set(RESERVED_IDS) | CORE.loaded_integrations
     id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
     # Global, so any scope can use it; anything a lambda references is already declared.
-    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs))
+    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs, constexpr))
     array = MockObj(id_, ".")
     CORE.register_variable(id_, array)
     if share:

@@ -71,6 +71,7 @@ from .types import (  # noqa: F401
     ChannelColors,
     ColorMode,
     GammaTable,
+    LightEffect,
     LightOutput,
     LightState,
     LightStateRTCState,
@@ -586,7 +587,15 @@ async def setup_light_core_(light_var, config, output_var):
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
-        cg.add(light_var.add_effects(effects))
+        # The effect objects are static, so their addresses form a flash table
+        table = cg.shared_progmem_array(
+            "light_effects",
+            LightEffect.operator("ptr"),
+            cg.ArrayInitializer(*effects),
+            share=False,
+            constexpr=False,
+        )
+        cg.add(light_var.add_effects(table, len(effects)))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
