@@ -1,7 +1,7 @@
 """A host build must survive a write to a peer that has closed the connection.
 
-The device writes twice before it reads the close; the second write must fail
-with EPIPE and drop the link instead of SIGPIPE killing the process.
+The device writes until the link drops; once the closed peer has answered with
+a reset, a write must fail with EPIPE instead of SIGPIPE killing the process.
 """
 
 from __future__ import annotations
@@ -39,12 +39,15 @@ async def test_host_write_after_peer_close(
         ):
             peer = await asyncio.wait_for(peers.get(), 15.0)
             _, services = await client.list_entities_services()
-            write_twice = next(s for s in services if s.name == "write_twice")
+            action = next(s for s in services if s.name == "write_after_close")
 
-            await client.execute_service(write_twice, {})
-            await lines.wait_for("Holding the loop")
+            await client.execute_service(action, {"port": port})
+            # The action opens a second connection and blocks the loop until it gets a byte.
+            sync = await asyncio.wait_for(peers.get(), 15.0)
             peer.close()
             await peer.wait_closed()
+            sync.write(b"g")
+            sync.close()
 
             # EPIPE (32 on Linux and macOS) must come back as an errno.
             await lines.wait_for("Connection lost: 32")
