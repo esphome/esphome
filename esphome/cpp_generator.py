@@ -482,15 +482,11 @@ def shared_progmem_array(
 ) -> "MockObj":
     """Emit a global PROGMEM array once per distinct type and contents; later calls reuse it.
 
-    The array is ``static constexpr``, so elements must be constant expressions and lambdas
-    must be captureless. Its name is made unique against every config id and variable.
+    The array is ``static constexpr`` by default, so elements must be constant expressions and
+    lambdas must be captureless. Its name is made unique against every config id and variable.
     ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
-    ``constexpr=False`` emits ``static T const`` for address constants such as pointers to
-    generated objects, which GCC folds into static initialization even though they are not
-    constant expressions; the C++ standard does not guarantee this, so keep it to those addresses.
-    Every variable element must then be an address known at compile time (see
-    ``is_static_pointer``); a pointer assigned in ``setup()`` would need dynamic init, which
-    faults in ESP8266 flash, so it raises ``EsphomeError``.
+    ``constexpr=False`` is for tables of generated object pointers: each top level variable
+    element must pass ``is_static_pointer`` or ``EsphomeError`` is raised.
     """
     from esphome.config import iter_ids
     from esphome.config_validation import RESERVED_IDS

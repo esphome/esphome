@@ -18,7 +18,7 @@ class LightEffectNames {
     ESPHOME_ALWAYS_INLINE Iterator(const ConstVector<LightEffect *> &effects, size_t index)
         : effects_(effects), index_(index) {}
     ESPHOME_ALWAYS_INLINE StringRef operator*() const {
-      return this->index_ == 0 ? StringRef::from_lit("None") : this->effects_[this->index_ - 1]->get_name();
+      return this->index_ == 0 ? EFFECT_NONE_REF : this->effects_[this->index_ - 1]->get_name();
     }
     ESPHOME_ALWAYS_INLINE Iterator &operator++() {
       ++this->index_;

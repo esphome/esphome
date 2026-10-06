@@ -147,7 +147,7 @@ void LightCall::perform() {
     // EFFECT
     StringRef effect_s;
     if (this->effect_ == 0u) {
-      effect_s = StringRef::from_lit("None");
+      effect_s = EFFECT_NONE_REF;
     } else {
       effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }

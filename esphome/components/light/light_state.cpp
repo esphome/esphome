@@ -194,8 +194,6 @@ void LightState::publish_state() {
 
 LightOutput *LightState::get_output() const { return this->output_; }
 
-static constexpr auto EFFECT_NONE_REF = StringRef::from_lit("None");
-
 StringRef LightState::get_effect_name() {
   if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
