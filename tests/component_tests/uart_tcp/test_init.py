@@ -111,7 +111,7 @@ def test_rejects_two_servers_on_one_port(
 ) -> None:
     _set(set_core_config, _full_config())
     _final_validate(_entry("uart_0", 8899))
-    with pytest.raises(cv.Invalid, match="Port 8899 is already used"):
+    with pytest.raises(cv.Invalid, match="Port 8899 is already the listen port"):
         _final_validate(_entry("uart_1", 8899))
 
 
@@ -124,7 +124,7 @@ def test_rejects_server_on_a_tcp_uart_server_port(
             tcp_uart=[{CONF_ID: ID("tcp"), CONF_ROLE: "server", CONF_PORT: 502}]
         ),
     )
-    with pytest.raises(cv.Invalid, match="Port 502 is already used"):
+    with pytest.raises(cv.Invalid, match="Port 502 is already the listen port"):
         _final_validate(_entry("uart_0", 502))
 
 

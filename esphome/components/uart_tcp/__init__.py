@@ -99,6 +99,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         )
     used.add(uart_id)
     # Grouped CI builds share one bus between components, like uart's pin check.
+    # Bare `id:` references (a uart.write action) and lambdas are not caught.
     if not CORE.testing_mode:
         for domain, domain_conf in full_config.items():
             if domain != DOMAIN and _subtree_references_uart(domain_conf, uart_id):
@@ -110,7 +111,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
     fv.id_declaration_match_schema(_reject_dummy_receiver)(config[CONF_UART_ID])
 
     if config[CONF_ROLE] == "server":
-        # A second listener on the same port retries its bind forever.
+        # Two listeners on one port cannot both serve it. Only uart_tcp and
+        # tcp_uart servers are compared here, not other listeners such as api.
         port = config[CONF_PORT]
         ports = data.setdefault(CONF_PORT, set())
         if port in ports or any(
@@ -118,7 +120,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
             for conf in full_config.get("tcp_uart", [])
         ):
             raise cv.Invalid(
-                f"Port {port} is already used by another uart_tcp or tcp_uart server.",
+                f"Port {port} is already the listen port of another uart_tcp "
+                "server or of a tcp_uart server.",
                 [CONF_PORT],
             )
         ports.add(port)
