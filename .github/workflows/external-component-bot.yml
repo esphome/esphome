@@ -131,8 +131,10 @@ jobs:
                     pull_number: prNumber,
                 });
 
+                // Files used only for development and CI, which do not affect use as an external component
+                const ignoredFiles = ["esphome/core/defines.h", "esphome/idf_component.yml"];
                 const esphomeChanges = changedFiles.data
-                    .filter(file => file.filename !== "esphome/core/defines.h" && file.filename.startsWith('esphome/'))
+                    .filter(file => !ignoredFiles.includes(file.filename) && file.filename.startsWith('esphome/'))
                     .map(file => {
                         const match = file.filename.match(/esphome\/([^/]+)/);
                         return match ? match[1] : null;
