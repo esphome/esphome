@@ -27,8 +27,7 @@ class Event : public EntityBase {
   void trigger(const char *event_type);
   void trigger(const std::string &event_type) { this->trigger(event_type.c_str()); }
 
-  /// Codegen only: points at a table that outlives the event. Call before any runtime set_event_types;
-  /// it does not free a previous copy (generated setup() runs before any lambda or automation).
+  /// Codegen only: points at a table that outlives the event (see ConstVector::assign_static).
   void set_event_types_static(const char *const *event_types, size_t count) {
     this->types_.assign_static(event_types, count);
     this->last_event_type_ = nullptr;

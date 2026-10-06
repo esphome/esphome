@@ -13,15 +13,6 @@ TEST(EventTypes, StaticTableIsViewed) {
   EXPECT_EQ(event.get_event_types().size(), 2u);
 }
 
-TEST(EventTypes, RuntimeListIsCopied) {
-  Event event;
-  event.set_event_types_static(TYPES, 2);
-  event.set_event_types({"a", "b", "c"});
-  EXPECT_NE(event.get_event_types().data(), TYPES);
-  EXPECT_EQ(event.get_event_types().size(), 3u);
-  EXPECT_STREQ(event.get_event_types()[2], "c");
-}
-
 TEST(EventTypes, CopiesAnotherEventAndResetsLastType) {
   Event source;
   source.set_event_types({"x", "y"});
@@ -31,7 +22,9 @@ TEST(EventTypes, CopiesAnotherEventAndResetsLastType) {
   ASSERT_TRUE(copy.has_event());
   copy.set_event_types(source.get_event_types());
   EXPECT_FALSE(copy.has_event());
+  EXPECT_NE(copy.get_event_types().data(), TYPES);
   EXPECT_NE(copy.get_event_types().data(), source.get_event_types().data());
+  EXPECT_EQ(copy.get_event_types().size(), 2u);
   EXPECT_STREQ(copy.get_event_types()[1], "y");
 }
 
