@@ -449,7 +449,7 @@ class ProgmemAssignmentExpression(AssignmentExpression):
     def __str__(self):
         if self.constexpr:
             return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
-        return f"static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
+        return f"ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):

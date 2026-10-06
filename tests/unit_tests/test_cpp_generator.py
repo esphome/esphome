@@ -845,7 +845,9 @@ class TestSharedProgmemArray:
         (statement,) = (
             str(st) for st in CORE.global_statements if "PROGMEM" in str(st)
         )
-        assert statement.startswith("static uint8_t const table[] PROGMEM = {1}")
+        assert statement.startswith(
+            "ESPHOME_FLASH_CONSTINIT static uint8_t const table[] PROGMEM = {1}"
+        )
 
     def test_same_contents_different_type_are_separate(self) -> None:
         CORE.config = {}
