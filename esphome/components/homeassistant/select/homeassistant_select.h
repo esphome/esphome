@@ -36,8 +36,10 @@ class HomeassistantSelect final : public select::Select, public Component {
   const char *entity_id_{nullptr};
 
  private:
-  // The option pointers in traits point into this buffer; its size must match options_buffer_size_
+  // The traits point at option_list_, whose entries point into options_buffer_; both are sized once in
+  // setup() and must match options_buffer_size_ and max_options_
   std::unique_ptr<char[]> options_buffer_;
+  std::unique_ptr<const char *[]> option_list_;
   uint16_t options_buffer_size_;
   uint8_t max_options_;
 };

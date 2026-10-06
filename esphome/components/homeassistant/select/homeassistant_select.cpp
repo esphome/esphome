@@ -126,7 +126,7 @@ template<typename C, typename O> bool parse_option_list(StringRef src, C &&on_ch
 
 void HomeassistantSelect::setup() {
   this->options_buffer_ = std::make_unique<char[]>(this->options_buffer_size_);
-  this->traits.get_options_mutable().init(this->max_options_);
+  this->option_list_ = std::make_unique<const char *[]>(this->max_options_);
 
   // Subscribe to the options first: Home Assistant answers subscriptions in order, so the options are
   // known by the time the first state arrives.
@@ -178,18 +178,19 @@ void HomeassistantSelect::options_changed_(StringRef options) {
   }
 
   // Second pass: the input is known to be valid and to fit, so write it out
-  auto &option_list = this->traits.get_options_mutable();
-  option_list.clear();
   char *buffer = this->options_buffer_.get();
   size_t offset = 0;
   size_t option_start = 0;
+  size_t index = 0;
   parse_option_list(
       options, [&](char c) { buffer[offset++] = c; },
       [&]() {
         buffer[offset++] = '\0';
-        option_list.push_back(buffer + option_start);
+        this->option_list_[index++] = buffer + option_start;
         option_start = offset;
       });
+  // The traits only point at the list, which this select owns; set_options() would copy it to the heap
+  this->traits.set_options_static(this->option_list_.get(), count);
 
   // The active option may have moved to another index, or may be gone
   if (new_active.has_value()) {
