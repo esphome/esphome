@@ -401,7 +401,8 @@ async def to_code(config: ConfigType) -> None:
     init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
-    cg.add(var.set_init_sequence(init_sequence))
+    table = cg.shared_progmem_array("mipi_spi_init_sequence", cg.uint8, init_sequence)
+    cg.add(var.set_init_sequence(table, len(init_sequence)))
     cg.add(var.set_model(config[CONF_MODEL]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
