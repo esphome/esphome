@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALPHA,
@@ -30,9 +29,8 @@ from esphome.const import (
     CONF_WHITE,
     CONF_WIDTH,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.cpp_generator import MockObjClass
-from esphome.helpers import ensure_unique_string
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.util import Registry
@@ -494,7 +492,7 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
             int(round(color[CONF_BLUE] * color_brightness * 255)),
             int(round(color[CONF_WHITE] * 255)),
         )
-        random_slot = NO_RANDOM_SLOT
+        random_slot = cg.RawExpression("light::NO_RANDOM_SLOT")
         if color[CONF_RANDOM]:
             random_slot = len(random_colors)
             random_colors.append(rgbw)
@@ -518,14 +516,7 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     random_storage = cg.nullptr
     if random_colors:
         # One RAM slot per random entry; it starts at the configured color, as before
-        used = {str(i) for i, _ in iter_ids(CORE.config)} | {
-            str(i) for i in CORE.variables
-        }
-        id_ = ID(
-            ensure_unique_string(f"{effect_id.id}_random_colors", used),
-            is_declaration=True,
-            type=Color,
-        )
+        id_ = cg.unique_global_id(f"{effect_id.id}_random_colors", Color)
         values = cg.ArrayInitializer(
             *(Color(r, g, b, w) for r, g, b, w in random_colors)
         )

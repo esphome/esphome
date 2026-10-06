@@ -468,6 +468,17 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
+def unique_global_id(name: str, type_: "MockObjClass") -> ID:
+    """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
+    from esphome.config import iter_ids
+    from esphome.config_validation import RESERVED_IDS
+
+    used = {str(i) for i, _ in iter_ids(CORE.config)}
+    used |= {str(i) for i in CORE.variables}
+    used |= set(RESERVED_IDS) | CORE.loaded_integrations
+    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+
+
 def shared_progmem_array(
     name: str, type_: "MockObjClass", rhs: SafeExpType, *, share: bool = True
 ) -> "MockObj":
@@ -477,18 +488,12 @@ def shared_progmem_array(
     must be captureless. Its name is made unique against every config id and variable.
     ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
     """
-    from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
-
     arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
     rhs = safe_exp(rhs)
     key = f"{type_} {rhs}"
     if share and (array := arrays.get(key)) is not None:
         return array
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    id_ = unique_global_id(name, type_)
     # Global, so any scope can use it; anything a lambda references is already declared.
     CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs))
     array = MockObj(id_, ".")
