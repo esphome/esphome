@@ -732,14 +732,14 @@ async def _new_service_call_action(
     is_event: bool,
     service: Any,
     data: dict[str, Any],
-    data_template: dict[str, Any] | None = None,
-    variables: dict[str, Any] | None = None,
+    data_template: dict[str, Any],
+    variables: dict[str, Any],
 ) -> MockObj:
     """Create the action with its name and fields in one shared flash table."""
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(server_id)
     field_type = HomeAssistantField.template(template_arg)
-    groups = [data, data_template or {}, variables or {}]
+    groups = [data, data_template, variables]
     # A lambda may keep static state, so a table with lambdas is never shared
     has_lambda = cg.is_template(service) or any(
         cg.is_template(value) for group in groups for value in group.values()
@@ -914,6 +914,8 @@ async def homeassistant_tag_scanned_to_code(
         True,
         "esphome.tag_scanned",
         {"tag_id": config[CONF_TAG]},
+        {},
+        {},
     )
 
 

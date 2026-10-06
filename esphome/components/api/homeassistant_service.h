@@ -122,14 +122,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
     size_t flash_len = 0;
 #endif
     for (size_t i = 0; i < total; i++) {
-      if (fields[i].fn != nullptr) {
-        lambda_count++;
+      lambda_count += fields[i].fn != nullptr;
 #ifdef USE_ESP8266
-      } else {
+      if (fields[i].fn == nullptr)
         flash_len += ESPHOME_strlen_P(fields[i].value);
-#endif
-      }
-#ifdef USE_ESP8266
       if (fields[i].key != nullptr)
         flash_len += ESPHOME_strlen_P(fields[i].key);
 #endif
