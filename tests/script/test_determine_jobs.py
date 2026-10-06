@@ -907,6 +907,10 @@ def test_should_run_clang_tidy_with_branch() -> None:
         (["esphome/core.py"], True),
         (["script/test.py"], True),
         (["esphome/test.pyi"], True),  # .pyi files should trigger
+        (["requirements_test.txt"], True),
+        (["requirements.txt"], True),
+        (["pyproject.toml"], True),
+        (["requirements_dev.txt"], False),
         (["README.md"], False),
         ([], False),
     ],

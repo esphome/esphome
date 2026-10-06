@@ -403,13 +403,23 @@ def should_run_clang_format(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)
 
 
+# Linter pins, dependencies and linter config can change findings without a .py change.
+PYTHON_LINTERS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "pyproject.toml",
+    }
+)
+
+
 def should_run_python_linters(branch: str | None = None) -> bool:
     """Determine if Python linters (ruff, flake8, pylint, pyupgrade) should run based on changed files.
 
     This function is used by the CI workflow to skip Python linting checks when no Python files
     have changed, saving CI time and resources.
 
-    Python linters will run when any Python source files have changed.
+    Python linters will run when any Python source files or PYTHON_LINTERS_TRIGGER_FILES have changed.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -417,7 +427,10 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     Returns:
         True if Python linters should run, False otherwise.
     """
-    return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
+    return any(
+        file.endswith(PYTHON_FILE_EXTENSIONS) or file in PYTHON_LINTERS_TRIGGER_FILES
+        for file in changed_files(branch)
+    )
 
 
 # Files outside esphome/**/*.py whose changes can affect `import esphome.__main__`
