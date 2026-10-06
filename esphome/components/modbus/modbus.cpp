@@ -619,6 +619,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       uint8_t pdu[MAX_PDU_SIZE];
       pdu[0] = function_code;
       std::memcpy(pdu + 1, data.data(), data.size());
+      ESP_LOGV(TAG, "Request to %" PRIu8 " handed to on_request", address);
       this->request_callback_.call(address, std::span<const uint8_t>(pdu, data.size() + 1));
       return;
     }

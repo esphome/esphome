@@ -112,16 +112,7 @@ def _packed_bit_bytes(bits: int) -> int:
     return (bits + 7) // 8
 
 
-def _synchronous_handler(value: ConfigType) -> ConfigType:
-    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
-    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in modbus_client "
-            "handlers: the request/response data is only valid while the handler runs. Copy what you "
-            "need into globals first, then defer in a separate script or automation."
-        )
-    return value
+_synchronous_handler = modbus.synchronous_handler("modbus_client")
 
 
 def _handler_schema() -> cv.All:

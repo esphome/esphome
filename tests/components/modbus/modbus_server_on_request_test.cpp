@@ -34,7 +34,7 @@ class ServerOnRequest : public ::testing::Test {
     this->hub_.set_uart_parent(&this->uart_);
     this->hub_.setup();
   }
-  void listen() {
+  void listen_() {
     this->hub_.add_on_request_callback([this](uint8_t address, std::span<const uint8_t> pdu) {
       this->seen_.push_back({address, {pdu.begin(), pdu.end()}});
     });
@@ -52,7 +52,7 @@ constexpr uint8_t WRITE_2[] = {0x06, 0x00, 0x10, 0x00, 0x02};
 }  // namespace
 
 TEST_F(ServerOnRequest, RequestToAnUnservedAddressIsHandedOver) {
-  this->listen();
+  this->listen_();
   this->uart_.inject_frame(0x05, READ);
   this->hub_.loop();
   ASSERT_EQ(this->seen_.size(), 1u);
@@ -64,7 +64,7 @@ TEST_F(ServerOnRequest, RequestToAnUnservedAddressIsHandedOver) {
 // A single write and its reply have the same shape. With a handler set, the second write is not taken
 // for a reply from another device on the bus.
 TEST_F(ServerOnRequest, TwoSingleWritesInARowAreBothHandedOver) {
-  this->listen();
+  this->listen_();
   this->uart_.inject_frame(0x05, WRITE_1);
   this->uart_.inject_frame(0x05, WRITE_2);
   this->hub_.loop();
@@ -76,7 +76,7 @@ TEST_F(ServerOnRequest, TwoSingleWritesInARowAreBothHandedOver) {
 TEST_F(ServerOnRequest, ServedAddressIsAnsweredHere) {
   RegisterDevice device(0x02);
   this->hub_.register_device(&device);
-  this->listen();
+  this->listen_();
   this->uart_.inject_frame(0x02, READ);
   this->hub_.loop();
   EXPECT_TRUE(this->seen_.empty());
@@ -84,7 +84,7 @@ TEST_F(ServerOnRequest, ServedAddressIsAnsweredHere) {
 }
 
 TEST_F(ServerOnRequest, BroadcastIsNotHandedOver) {
-  this->listen();
+  this->listen_();
   this->uart_.inject_frame(BROADCAST_ADDRESS, WRITE_1);
   this->hub_.loop();
   EXPECT_TRUE(this->seen_.empty());
