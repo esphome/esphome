@@ -1237,6 +1237,23 @@ def lint_no_std_nothrow(fname, match):
     )
 
 
+@lint_re_check(
+    r"^(?:static |constexpr )*const char \*(?:const )?TAG = \"",
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+    exclude=["esphome/components/esp32_ble_tracker/esp32_ble_tracker.cpp"],
+)
+def lint_log_tag_macro(fname, match):
+    return (
+        f"Declare log tags with {highlight('ESPHOME_LOG_TAG(TAG, "name");')}, which keeps the tag in flash on "
+        f"ESP8266.\n"
+        f"  Before: {highlight('static const char *const TAG = "name";')}\n"
+        f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
+        f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
 LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
 # Comments, raw/plain string literals and single char literals are consumed whole so ; ( ) ? :
 # inside them are never seen. A char literal is exactly one (escaped) char so a digit separator
