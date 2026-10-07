@@ -9,7 +9,7 @@ namespace esphome::graph {
 
 using namespace display;
 
-static const char *const TAG = "graph";
+ESPHOME_LOG_TAG(TAG, "graph");
 static const char *const TAGL = "graphlegend";
 
 void HistoryData::init(int length) {

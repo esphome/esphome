@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.text_sensor";
+ESPHOME_LOG_TAG(TAG, "template.text_sensor");
 
 void TemplateTextSensor::update() {
   if (!this->f_.has_value())

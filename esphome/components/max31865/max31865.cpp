@@ -6,7 +6,7 @@
 
 namespace esphome::max31865 {
 
-static const char *const TAG = "max31865";
+ESPHOME_LOG_TAG(TAG, "max31865");
 
 void MAX31865Sensor::update() {
   // Check new faults since last measurement

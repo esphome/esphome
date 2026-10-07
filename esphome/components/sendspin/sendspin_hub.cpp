@@ -19,7 +19,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.hub";
+ESPHOME_LOG_TAG(TAG, "sendspin.hub");
 
 #ifdef USE_SENDSPIN_ARTWORK
 // Indexed by the library enums, which start at zero and are contiguous.

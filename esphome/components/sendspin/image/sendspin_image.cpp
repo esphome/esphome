@@ -8,7 +8,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.image";
+ESPHOME_LOG_TAG(TAG, "sendspin.image");
 
 // How long a displayed frame may wait for sendspin.image.transition_finished before a warning
 // names the missing ack. Generous next to a typical fade of a second or two.

@@ -4,7 +4,7 @@
 
 namespace esphome::sx126x {
 
-static const char *const TAG = "sx126x";
+ESPHOME_LOG_TAG(TAG, "sx126x");
 static const uint16_t RAMP[8] = {10, 20, 40, 80, 200, 800, 1700, 3400};
 static const uint32_t BW_HZ[31] = {4800,  5800,  7300,  9700,   11700,  14600,  19500,  23400,  29300,  39000,  46900,
                                    58600, 78200, 93800, 117300, 156200, 187200, 234300, 312000, 373600, 467000, 7810,

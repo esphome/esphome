@@ -9,7 +9,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.media_source";
+ESPHOME_LOG_TAG(TAG, "sendspin.media_source");
 
 static constexpr char URI_PREFIX[] = "sendspin://";
 

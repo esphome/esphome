@@ -4,7 +4,7 @@
 
 namespace esphome::canbus {
 
-static const char *const TAG = "canbus";
+ESPHOME_LOG_TAG(TAG, "canbus");
 
 void Canbus::setup() {
   if (!this->setup_internal()) {

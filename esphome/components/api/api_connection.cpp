@@ -88,7 +88,7 @@ static_assert(sizeof(ESPHOME_VERSION) - 1 <= 32, "Update max_data_length for esp
 static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for name in api.proto");
 static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
-static const char *const TAG = "api.connection";
+ESPHOME_LOG_TAG(TAG, "api.connection");
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 void log_dropped_message(const char *tag, int line, const LogString *what) {
