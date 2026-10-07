@@ -3,6 +3,7 @@
 #include "esphome/core/color.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/components/unicode/unicode.h"
 
 namespace esphome::font {
 static const char *const TAG = "font";
@@ -121,108 +122,6 @@ const Glyph *Font::get_glyph_data_(uint32_t unicode_letter) {
 }
 #endif
 
-/**
- *  Attempt to extract a 32 bit Unicode codepoint from a UTF-8 string.
- *  If successful, return the codepoint and set the length to the number of bytes read.
- *  If the end of the string has been reached and a valid codepoint has not been found, return 0 and set the length to
- * 0.
- *
- * @param utf8_str The input string
- * @param length Pointer to length storage
- * @return The extracted code point
- */
-static uint32_t extract_unicode_codepoint(const char *utf8_str, size_t *length) {
-  // Safely cast to uint8_t* for correct bitwise operations on bytes
-  const uint8_t *current = reinterpret_cast<const uint8_t *>(utf8_str);
-  uint32_t code_point = 0;
-  uint8_t c1 = *current++;
-
-  // check for end of string
-  if (c1 == 0) {
-    *length = 0;
-    return 0;
-  }
-
-  // --- 1-Byte Sequence: 0xxxxxxx (ASCII) ---
-  if (c1 < 0x80) {
-    // Valid ASCII byte.
-    code_point = c1;
-    // Optimization: No need to check for continuation bytes.
-  }
-  // --- 2-Byte Sequence: 110xxxxx 10xxxxxx ---
-  else if ((c1 & 0xE0) == 0xC0) {
-    uint8_t c2 = *current++;
-
-    // Error Check 1: Check if c2 is a valid continuation byte (10xxxxxx)
-    if ((c2 & 0xC0) != 0x80) {
-      *length = 0;
-      return 0;
-    }
-
-    code_point = (c1 & 0x1F) << 6;
-    code_point |= (c2 & 0x3F);
-
-    // Error Check 2: Overlong check (2-byte must be > 0x7F)
-    if (code_point <= 0x7F) {
-      *length = 0;
-      return 0;
-    }
-  }
-  // --- 3-Byte Sequence: 1110xxxx 10xxxxxx 10xxxxxx ---
-  else if ((c1 & 0xF0) == 0xE0) {
-    uint8_t c2 = *current++;
-    uint8_t c3 = *current++;
-
-    // Error Check 1: Check continuation bytes
-    if (((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
-      *length = 0;
-      return 0;
-    }
-
-    code_point = (c1 & 0x0F) << 12;
-    code_point |= (c2 & 0x3F) << 6;
-    code_point |= (c3 & 0x3F);
-
-    // Error Check 2: Overlong check (3-byte must be > 0x7FF)
-    // Also check for surrogates (0xD800-0xDFFF)
-    if (code_point <= 0x7FF || (code_point >= 0xD800 && code_point <= 0xDFFF)) {
-      *length = 0;
-      return 0;
-    }
-  }
-  // --- 4-Byte Sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx ---
-  else if ((c1 & 0xF8) == 0xF0) {
-    uint8_t c2 = *current++;
-    uint8_t c3 = *current++;
-    uint8_t c4 = *current++;
-
-    // Error Check 1: Check continuation bytes
-    if (((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80) || ((c4 & 0xC0) != 0x80)) {
-      *length = 0;
-      return 0;
-    }
-
-    code_point = (c1 & 0x07) << 18;
-    code_point |= (c2 & 0x3F) << 12;
-    code_point |= (c3 & 0x3F) << 6;
-    code_point |= (c4 & 0x3F);
-
-    // Error Check 2: Overlong check (4-byte must be > 0xFFFF)
-    // Also check for valid Unicode range (must be <= 0x10FFFF)
-    if (code_point <= 0xFFFF || code_point > 0x10FFFF) {
-      *length = 0;
-      return 0;
-    }
-  }
-  // --- Invalid leading byte (e.g., 10xxxxxx or 11111xxx) ---
-  else {
-    *length = 0;
-    return 0;
-  }
-  *length = current - reinterpret_cast<const uint8_t *>(utf8_str);
-  return code_point;
-}
-
 Font::Font(const Glyph *data, int data_nr, int baseline, int height, int descender, int xheight, int capheight,
            uint8_t bpp)
     : glyphs_(ConstVector(data, data_nr)),
@@ -271,7 +170,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   int x = 0;
   for (;;) {
     size_t length;
-    auto code_point = extract_unicode_codepoint(str, &length);
+    auto code_point = unicode::extract_unicode_codepoint(str, &length);
     if (length == 0)
       break;
     str += length;
@@ -300,7 +199,7 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
   int x_at = x_start;
   for (;;) {
     size_t length;
-    auto code_point = extract_unicode_codepoint(text, &length);
+    auto code_point = unicode::extract_unicode_codepoint(text, &length);
     if (length == 0)
       break;
     text += length;
@@ -309,7 +208,8 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
       // Unknown char, skip
       ESP_LOGW(TAG, "Codepoint 0x%08" PRIx32 " not found in font", code_point);
       if (!this->glyphs_.empty()) {
-        uint8_t glyph_width = this->glyphs_[0].advance;
+        // Full-width read: a narrowing byte load would fault on a PROGMEM table on ESP8266.
+        int glyph_width = this->glyphs_[0].advance;
         display->rectangle(x_at, y_start, glyph_width, this->height_, color);
         x_at += glyph_width;
       }

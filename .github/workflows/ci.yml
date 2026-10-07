@@ -299,7 +299,7 @@ jobs:
       # Pushes any fixes the hooks made back to the pull request. This step
       # must keep its default name: the GitHub App that performs the push
       # locates the workflow run by that name.
-      - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
+      - uses: pre-commit-ci/lite-action@062bca0919bc9d6e66755cc05074b70c77e111fc # v1.2.0
         if: always()
         with:
           msg: apply automatic formatting fixes
@@ -626,7 +626,7 @@ jobs:
             apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
+        uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5.4.0
         with:
           run: |
             . venv/bin/activate
