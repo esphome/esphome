@@ -3,8 +3,8 @@
 
 namespace esphome::remote_base {
 
-static const char *const CANALSAT_TAG = "remote.canalsat";
-static const char *const CANALSATLD_TAG = "remote.canalsatld";
+ESPHOME_LOG_TAG(CANALSAT_TAG, "remote.canalsat");
+ESPHOME_LOG_TAG(CANALSATLD_TAG, "remote.canalsatld");
 
 static constexpr uint16_t CANALSAT_FREQ = 55500;
 static constexpr uint16_t CANALSATLD_FREQ = 56000;
