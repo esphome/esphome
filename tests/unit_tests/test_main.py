@@ -6705,6 +6705,31 @@ def test_check_permissions_unreadable_port() -> None:
         check_permissions("/dev/ttyUSB99")
 
 
+@pytest.mark.parametrize(
+    ("sys_platform", "machine", "warns"),
+    [
+        pytest.param("darwin", "x86_64", True, id="intel_mac"),
+        pytest.param("darwin", "arm64", False, id="apple_silicon"),
+        pytest.param("linux", "x86_64", False, id="linux_x86_64"),
+    ],
+)
+def test_warn_if_intel_macos(
+    sys_platform: str,
+    machine: str,
+    warns: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only Intel Python on macOS gets the end of support warning."""
+    monkeypatch.setattr(main.sys, "platform", sys_platform)
+    monkeypatch.setattr(main.os, "uname", lambda: SimpleNamespace(machine=machine))
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_intel_macos()
+
+    assert ("2027.6.0" in caplog.text) is warns
+
+
 def _make_checkout(root: Path) -> Path:
     """Create a directory that looks like an esphome checkout."""
     (root / "esphome").mkdir(parents=True)

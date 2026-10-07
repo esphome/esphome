@@ -2614,6 +2614,18 @@ def _warn_if_source_tree_mismatch() -> None:
     )
 
 
+def _warn_if_intel_macos() -> None:
+    """Warn that Intel (x86_64) Python on macOS stops being supported by 2027.6.0."""
+    if sys.platform != "darwin" or os.uname().machine != "x86_64":
+        return
+    _LOGGER.warning(
+        "Support for Intel Macs will end in ESPHome 2027.6.0 or earlier. The "
+        "Python packages ESPHome depends on have stopped publishing Intel macOS "
+        "builds, so future releases will not install on this machine. On an "
+        "Apple Silicon Mac, switch to a native arm64 Python."
+    )
+
+
 def run_esphome(argv):
     from esphome.address_cache import AddressCache
 
@@ -2633,6 +2645,7 @@ def run_esphome(argv):
 
     setup_log(log_level=args.log_level)
     _warn_if_source_tree_mismatch()
+    _warn_if_intel_macos()
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
