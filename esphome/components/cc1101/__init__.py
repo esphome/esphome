@@ -383,9 +383,9 @@ def validate_raw_data(value):
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(CC1101Component),
-        # Variable length mode sends the length as a single byte
+        # The TX FIFO holds 64 bytes, including the length byte in variable length mode
         cv.Required(CONF_DATA): cv.templatable(
-            cv.All(validate_raw_data, cv.Length(max=255))
+            cv.All(validate_raw_data, cv.Length(max=64))
         ),
     },
     key=CONF_DATA,

@@ -9,9 +9,6 @@
 
 namespace esphome::cc1101 {
 
-/// Variable length mode sends the packet length in one byte.
-static constexpr size_t CC1101_MAX_PACKET_SIZE = 255;
-
 enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW, PLL_LOCK };
 
 class CC1101Listener {
@@ -140,8 +137,7 @@ template<typename... Ts> class SendPacketAction final : public Action<Ts...>, pu
   TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-    this->data_.template visit<CC1101_MAX_PACKET_SIZE>(
-        [this](const uint8_t *data, size_t len) { this->parent_->transmit_packet(data, len); }, x...);
+    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->transmit_packet(data, len); }, x...);
   }
 };
 

@@ -27,15 +27,15 @@ def test_constant_payloads_share_progmem_tables(
     assert "set_data_template(" in main_cpp
 
 
-@pytest.mark.parametrize("data", [[0x01] * 255, "a" * 255])
-def test_send_packet_accepts_255_bytes(data: list[int] | str) -> None:
-    """The longest payload whose length fits the one-byte length field."""
+@pytest.mark.parametrize("data", [[0x01] * 64, "a" * 64])
+def test_send_packet_accepts_64_bytes(data: list[int] | str) -> None:
+    """The longest payload that fits the TX FIFO."""
     config = SEND_PACKET_ACTION_SCHEMA({"id": "transceiver", "data": data})
-    assert len(config["data"]) == 255
+    assert len(config["data"]) == 64
 
 
-@pytest.mark.parametrize("data", [[0x01] * 256, "a" * 256])
-def test_send_packet_rejects_256_bytes(data: list[int] | str) -> None:
-    """Payloads longer than the one-byte length field are rejected."""
-    with pytest.raises(cv.Invalid, match="at most 255"):
+@pytest.mark.parametrize("data", [[0x01] * 65, "a" * 65])
+def test_send_packet_rejects_65_bytes(data: list[int] | str) -> None:
+    """Payloads longer than the TX FIFO are rejected."""
+    with pytest.raises(cv.Invalid, match="at most 64"):
         SEND_PACKET_ACTION_SCHEMA({"id": "transceiver", "data": data})
