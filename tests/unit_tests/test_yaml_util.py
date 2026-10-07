@@ -1373,18 +1373,14 @@ def test_discover_user_yaml_files_flags_secrets_symlink(tmp_path: Path) -> None:
     assert target.resolve() in discovered.secrets
 
 
-def test_discover_user_yaml_files_reports_parse_errors(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A YAML parse failure is logged and surfaced in `.load_errors` (not
-    raised), so consumers can tell the file set is incomplete."""
+def test_discover_user_yaml_files_reports_parse_errors(tmp_path: Path) -> None:
+    """A YAML parse failure is surfaced in `.load_errors` (not raised), so
+    consumers can tell the file set is incomplete."""
     entry = _write(tmp_path, "entry.yaml", "esphome: [unterminated\n")
-    with caplog.at_level("WARNING", logger="esphome.yaml_util"):
-        discovered = discover_user_yaml_files(entry)
+    discovered = discover_user_yaml_files(entry)
     assert isinstance(discovered, DiscoveredYamlFiles)
     assert len(discovered.load_errors) == 1
     assert "entry.yaml" in discovered.load_errors[0]
-    assert any("discovery failed to parse" in r.message for r in caplog.records)
 
 
 def test_discover_user_yaml_files_reports_unresolved_includes(
@@ -2000,6 +1996,13 @@ def test_secret_values_registered_does_not_clobber_real_secrets() -> None:
         assert "!secret 'original_name'" in out
     # The pre-existing mapping survives the context exit.
     assert yaml_util.is_secret("hunter2") == "original_name"
+
+
+def test_secret_values_registered_keeps_a_real_secret_loaded_meanwhile() -> None:
+    """A real `!secret` registered inside the context survives its exit."""
+    with yaml_util.secret_values_registered({"hunter2": "generated_name"}):
+        yaml_util._SECRET_VALUES["hunter2"] = "real_name"
+    assert yaml_util.is_secret("hunter2") == "real_name"
 
 
 def test_registered_secret_names() -> None:

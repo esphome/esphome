@@ -71,7 +71,7 @@ def get_remote_package_sources() -> list[RemotePackageSource]:
     """
     if (data := CORE.data.get(DOMAIN)) is None:
         return []
-    return data.remote_sources
+    return list(data.remote_sources)
 
 
 # Guard against infinite include chains (e.g. A includes B includes A).
