@@ -58,6 +58,7 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
+  size_t available_for_write() override;
   UARTFlushResult flush() override;
 
   uint32_t get_config();

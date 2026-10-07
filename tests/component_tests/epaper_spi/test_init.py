@@ -551,6 +551,16 @@ def test_full_update_next_action_code_generation(
     assert "epaper_display->request_full_update();" in main_cpp
 
 
+def test_is_updating_condition_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The epaper_spi.is_updating condition checks the configured display."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert "epaper_display->is_updating()" in main_cpp
+
+
 def test_model_with_no_default_init_sequence_generates(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

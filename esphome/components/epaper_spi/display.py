@@ -62,6 +62,12 @@ automation.register_apply_action(
     automation.ApplyCall("request_full_update()"),
 )
 
+automation.register_apply_condition(
+    "epaper_spi.is_updating",
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
+    "is_updating()",
+)
+
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
     importlib.import_module(f".models.{module_info.name}", package=__package__)

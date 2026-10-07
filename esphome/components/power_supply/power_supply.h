@@ -42,7 +42,7 @@ class PowerSupply final : public Component {
   uint32_t keep_on_time_;
   int16_t active_requests_{0};  // use signed integer to make catching negative requests easier.
   bool enable_on_boot_{false};
-  void turn_off_();
+  void schedule_off_if_idle_();
 };
 
 class PowerSupplyRequester {

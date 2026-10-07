@@ -213,7 +213,7 @@ class APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
 #endif
 
@@ -238,6 +238,10 @@ class APIServerConnectionBase {
 #ifdef USE_SERIAL_PROXY
   void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &value){};
 #endif
+#ifdef USE_SERIAL_PROXY
+  void on_subscribe_serial_proxy_identity_request(){};
+#endif
+
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
 #endif

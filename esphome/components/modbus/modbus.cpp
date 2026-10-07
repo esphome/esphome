@@ -210,7 +210,7 @@ void ModbusServerHub::parse_modbus_frames() {
       this->deferred_payload_len_ = 0;
     }
     size_t size = this->rx_buffer_.size();
-    ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
+    ESP_LOGVV(TAG, "Parsing frames buffer size = %zu", size);
     bool retry_as_client = false;
     // A broadcast is a client request, never a peer response; clear any stale expectation (RTU is half-duplex).
     const bool is_broadcast = this->rx_buffer_[0] == BROADCAST_ADDRESS;
