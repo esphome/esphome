@@ -77,8 +77,9 @@ class PinRegistry(dict):
             # run, so this only has to be hashable. A hub selected by
             # match_config (e.g. address) is given as a dict, which isn't.
             ref = conf[key] if key != CORE.target_platform else key
-            ref_key = ref if isinstance(ref, Hashable) else id(ref)
-            pin_key = (key, ref_key, result[CONF_NUMBER])
+            if not isinstance(ref, Hashable):
+                ref = "match_config"
+            pin_key = (key, ref, result[CONF_NUMBER])
             if pin_key not in self.pins_used:
                 self.pins_used[pin_key] = []
             # client_id identifies the instance of the providing component

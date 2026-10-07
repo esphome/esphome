@@ -103,7 +103,7 @@ def test_use_id_or_address_registers_as_use_id_schema(monkeypatch) -> None:
     from esphome import schema_extractors
 
     monkeypatch.setattr(schema_extractors, "EnableSchemaExtraction", True)
-    schema_extractors.hidden_schemas.clear()
+    monkeypatch.setattr(schema_extractors, "hidden_schemas", {})
 
     validator = pins.use_id_or_address(SomeHub)
 
