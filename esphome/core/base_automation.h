@@ -351,7 +351,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   // Branch-end resume hook: the last action of then_ calls this to loop again or continue the chain
   void play(const Ts &...x) override {
-    if (this->num_running_ > 0 && this->condition_->check(x...)) {
+    // Check num_running_ again after the condition, which may have stopped this automation
+    if (this->num_running_ > 0 && this->condition_->check(x...) && this->num_running_ > 0) {
       this->then_.play(x...);
     } else {
       this->play_next_(x...);

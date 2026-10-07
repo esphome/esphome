@@ -62,6 +62,22 @@ class StoppingCondition : public Condition<> {
   ActionList<> *list{nullptr};
 };
 
+// Stops the given list on the Nth check and keeps returning true
+class StopOnCheckCondition : public Condition<> {
+ public:
+  explicit StopOnCheckCondition(int stop_on) : stop_on_(stop_on) {}
+  bool check() override {
+    if (++this->checks_ == this->stop_on_ && this->list != nullptr)
+      this->list->stop();
+    return true;
+  }
+  ActionList<> *list{nullptr};
+
+ protected:
+  int stop_on_;
+  int checks_{0};
+};
+
 // Turns its condition off after a number of checks
 class CountdownCondition : public Condition<> {
  public:
@@ -162,6 +178,21 @@ TEST(ActionBranchOwner, ConditionThatStopsTheRunStartsNoBranch) {
   EXPECT_TRUE(log.empty());
   EXPECT_FALSE(if_list.is_running());
   EXPECT_FALSE(while_list.is_running());
+}
+
+TEST(ActionBranchOwner, WhileConditionStoppingOnALaterPassEndsTheLoop) {
+  Log log;
+  StopOnCheckCondition cond(2);
+  WhileAction<> loop(&cond);
+  RecordAction body(&log, 1), after(&log, 2);
+  loop.add_then({&body});
+  ActionList<> list;
+  list.add_actions({&loop, &after});
+  cond.list = &list;
+
+  list.play();
+  EXPECT_EQ(log, (Log{1}));
+  EXPECT_FALSE(list.is_running());
 }
 
 TEST(ActionBranchOwner, IfResumesAfterDeferredLastAction) {
