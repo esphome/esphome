@@ -30,6 +30,8 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
 
+void BLECharacteristic::set_value(const uint8_t *data, size_t length) { this->value_.assign(data, data + length); }
+
 void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) { this->value_ = std::move(buffer); }
 
 void BLECharacteristic::set_value(std::initializer_list<uint8_t> data) {

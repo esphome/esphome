@@ -17,7 +17,7 @@ namespace esphome::esp32_ble_server::esp32_ble_server_automations {
 using namespace esp32_ble;
 
 /// Sets a characteristic or descriptor value from a constant flash table or a lambda's vector.
-// The arguments are forwarded as-is, since trigger arguments may be non-const references (#17142).
+// Not TemplatableBytes::visit, which would copy the lambda's vector instead of moving it into the value.
 template<typename T, typename V, typename... Xs> void apply_value(T *target, const V &value, Xs &&...x) {
   if (value.is_static()) {
     target->set_value(value.data(), value.size());

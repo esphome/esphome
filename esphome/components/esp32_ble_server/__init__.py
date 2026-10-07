@@ -27,9 +27,10 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 AUTO_LOAD = ["esp32_ble", "bytebuffer"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
@@ -540,7 +541,9 @@ async def parse_value(value_config, args):
     return cg.ArrayInitializer(*value_bytes(value_config))
 
 
-async def set_value_buffer(var, value_config: ConfigType, args) -> None:
+async def set_value_buffer(
+    var: MockObj, value_config: ConfigType, args: TemplateArgsType
+) -> None:
     value = value_config[CONF_DATA]
     if not isinstance(value, cv.Lambda):
         value = value_bytes(value_config)
