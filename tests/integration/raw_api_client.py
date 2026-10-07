@@ -1,13 +1,13 @@
 """Minimal plaintext native-api client over a raw socket.
 
 Reads only when told to, so tests control when the TCP pipe backs up toward
-the device; payloads are skipped and only message types are counted.
+the device. Message types are counted, and payloads are kept for read_frame().
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections import Counter
+from collections import Counter, deque
 import socket
 from typing import Self
 
@@ -49,6 +49,37 @@ def decode_varint(buf: bytearray, pos: int) -> tuple[int, int] | None:
     return None
 
 
+def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
+    """Split a protobuf payload into its field values by field number.
+
+    For messages the installed aioesphomeapi does not know yet.
+    """
+    fields: dict[int, list[int | bytes]] = {}
+    buf = bytearray(payload)
+
+    def varint(pos: int) -> tuple[int, int]:
+        decoded = decode_varint(buf, pos)
+        assert decoded is not None, "truncated varint in payload"
+        return decoded
+
+    pos = 0
+    while pos < len(buf):
+        tag, pos = varint(pos)
+        wire_type = tag & 0x07
+        value: int | bytes
+        if wire_type == 0:
+            value, pos = varint(pos)
+        elif wire_type == 2:
+            length, pos = varint(pos)
+            value, pos = bytes(buf[pos : pos + length]), pos + length
+        elif wire_type == 5:
+            value, pos = int.from_bytes(buf[pos : pos + 4], "little"), pos + 4
+        else:
+            raise AssertionError(f"unexpected wire type {wire_type}")
+        fields.setdefault(tag >> 3, []).append(value)
+    return fields
+
+
 def encode_frame(msg_type: int, payload: bytes) -> bytes:
     """Encode one plaintext api frame: 0x00, payload length, message type."""
     return b"\x00" + encode_varint(len(payload)) + encode_varint(msg_type) + payload
@@ -59,15 +90,17 @@ class FrameParser:
 
     def __init__(self) -> None:
         self._buf = bytearray()
+        self.frames: deque[tuple[int, bytes]] = deque()
 
     def feed(self, data: bytes) -> list[int]:
         self._buf.extend(data)
         types: list[int] = []
-        while (msg_type := self._try_parse()) is not None:
-            types.append(msg_type)
+        while (frame := self._try_parse()) is not None:
+            self.frames.append(frame)
+            types.append(frame[0])
         return types
 
-    def _try_parse(self) -> int | None:
+    def _try_parse(self) -> tuple[int, bytes] | None:
         buf = self._buf
         if not buf:
             return None
@@ -80,8 +113,9 @@ class FrameParser:
         msg_type, pos = type_decoded
         if len(buf) - pos < size:
             return None
+        payload = bytes(buf[pos : pos + size])
         del buf[: pos + size]
-        return msg_type
+        return msg_type, payload
 
 
 class RawApiClient:
@@ -144,6 +178,24 @@ class RawApiClient:
                 self.frame_counts.update(self._parser.feed(data))
 
         await asyncio.wait_for(_read_loop(), timeout)
+
+    async def read_frame(self, msg_type: int, timeout: float = 10.0) -> bytes:
+        """Return the payload of the next frame of msg_type, dropping other frames before it."""
+        loop = asyncio.get_running_loop()
+        frames = self._parser.frames
+
+        async def _read_loop() -> bytes:
+            while True:
+                while frames:
+                    frame_type, payload = frames.popleft()
+                    if frame_type == msg_type:
+                        return payload
+                data = await loop.sock_recv(self._sock, _READ_CHUNK)
+                assert data, "server closed the connection unexpectedly"
+                self.bytes_received += len(data)
+                self.frame_counts.update(self._parser.feed(data))
+
+        return await asyncio.wait_for(_read_loop(), timeout)
 
     def close(self) -> None:
         self._sock.close()
