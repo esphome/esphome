@@ -136,7 +136,7 @@ def validate_raw_data(value):
     )
 
 
-# Switch and button store payload lengths as uint16_t.
+# Lengths are stored as uint16_t; reject longer payloads at validation.
 validate_raw_payload = cv.All(validate_raw_data, cv.Length(max=65535))
 
 

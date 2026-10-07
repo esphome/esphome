@@ -8,7 +8,6 @@ namespace esphome::uart {
 
 class UARTButton final : public button::Button, public UARTDevice, public Component {
  public:
-  // data points at a shared PROGMEM table emitted by codegen.
   void set_data(const uint8_t *data, uint16_t len) {
     this->data_ = data;
     this->data_len_ = len;

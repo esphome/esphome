@@ -63,7 +63,11 @@ class UARTComponent {
   virtual void write_array(const uint8_t *data, size_t len) = 0;
 
   // Writes bytes that may live in PROGMEM; ESP8266 cannot read flash bytewise, so it copies chunks.
+#ifdef USE_ESP8266
   void write_array_progmem(const uint8_t *data, size_t len);
+#else
+  void write_array_progmem(const uint8_t *data, size_t len) { this->write_array(data, len); }
+#endif
 
   // Reads a single byte from the UART bus.
   // @param data Pointer to the byte where the read data will be stored.

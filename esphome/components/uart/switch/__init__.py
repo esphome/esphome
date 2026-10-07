@@ -40,21 +40,16 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     data = config[CONF_DATA]
-    if isinstance(data, dict):
-        if data_on := data.get(CONF_TURN_ON):
-            cg.add(
-                var.set_data_on(
-                    automation.progmem_bytes("uart_data", data_on), len(data_on)
-                )
-            )
-        if data_off := data.get(CONF_TURN_OFF):
-            cg.add(
-                var.set_data_off(
-                    automation.progmem_bytes("uart_data", data_off), len(data_off)
-                )
-            )
-    else:
-        cg.add(var.set_data_on(automation.progmem_bytes("uart_data", data), len(data)))
+    single_state = not isinstance(data, dict)
+    if single_state:
+        data = {CONF_TURN_ON: data}
+    for key, setter in (
+        (CONF_TURN_ON, var.set_data_on),
+        (CONF_TURN_OFF, var.set_data_off),
+    ):
+        if payload := data.get(key):
+            cg.add(setter(automation.progmem_bytes("uart_data", payload), len(payload)))
+    if single_state:
         cg.add(var.set_single_state(True))
     if CONF_SEND_EVERY in config:
         cg.add(var.set_send_every(config[CONF_SEND_EVERY]))

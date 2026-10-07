@@ -12,7 +12,6 @@ class UARTSwitch final : public switch_::Switch, public UARTDevice, public Compo
  public:
   void loop() override;
 
-  // data points at a shared PROGMEM table emitted by codegen.
   void set_data_on(const uint8_t *data, uint16_t len) {
     this->data_on_ = data;
     this->data_on_len_ = len;
