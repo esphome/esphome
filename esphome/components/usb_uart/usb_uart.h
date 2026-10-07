@@ -197,8 +197,7 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
-  /// Returns false when the bridge driver cannot drive the modem lines.
-  bool set_modem_control(bool dtr, bool rts);
+  void set_modem_control(bool dtr, bool rts);
   bool get_dtr() const { return this->dtr_; }
   bool get_rts() const { return this->rts_; }
 
@@ -259,8 +258,6 @@ class USBUartComponent : public usb_host::USBClient {
   // Apply the DTR/RTS state of a single, already-open channel (used by
   // USBUartChannelBase::set_modem_control()).
   void apply_modem_control(USBUartChannelBase *channel);
-  // Whether the driver can drive the modem lines.
-  virtual bool supports_modem_control() const { return false; }
 
   // Called from loop() when input_buffer_ has insufficient space for the incoming chunk.
   // Default is a no-op; override in device-specific subclasses that need resync on overflow.
@@ -295,8 +292,8 @@ class USBUartComponent : public usb_host::USBClient {
   // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
   virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
   // Issue the one control transfer, via config_transfer_(), that puts the channel's dtr_
-  // and rts_ on the wire. Only called when supports_modem_control() is true.
-  virtual void modem_control_transfer(USBUartChannelBase *channel) {}
+  // and rts_ on the wire.
+  virtual void modem_control_transfer(USBUartChannelBase *channel) = 0;
 
   // The device is only usable once the config machine has applied every channel's line
   // settings, so the connected report waits for run_config_machine_() to finish the init
@@ -329,7 +326,6 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   void on_connected() override;
   void on_disconnected() override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
-  bool supports_modem_control() const override { return true; }
   void modem_control_transfer(USBUartChannelBase *channel) override;
   // Each claimed interface pins one host hardware channel per endpoint; skipping
   // the comm (interrupt) interface frees one on channel-poor hosts (ESP32-S3: 8).

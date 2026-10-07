@@ -714,16 +714,12 @@ void USBUartChannelBase::load_settings(bool /*dump_config*/) {
   this->parent_->apply_channel_settings(this);
 }
 
-bool USBUartChannelBase::set_modem_control(bool dtr, bool rts) {
-  if (!this->parent_->supports_modem_control()) {
-    return false;
-  }
+void USBUartChannelBase::set_modem_control(bool dtr, bool rts) {
   this->dtr_ = dtr;
   this->rts_ = rts;
   if (this->initialised_.load()) {
     this->parent_->apply_modem_control(this);
   }
-  return true;
 }
 
 }  // namespace esphome::usb_uart
