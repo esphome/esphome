@@ -95,18 +95,40 @@ def test_final_validate_ap_mode_warns_for_hosted_page(
     assert ("stays blank" in caplog.text) is expect_warning
 
 
+@pytest.mark.parametrize(
+    ("web_server_config", "wifi_config", "expected"),
+    [
+        # AP only: local is implied, so the port alone blocks captive mode.
+        ({CONF_VERSION: 2, CONF_PORT: 8080}, AP_ONLY, "on the access point"),
+        # Fallback AP with local: true opted into captive mode; say why it is skipped.
+        (
+            {CONF_VERSION: 2, CONF_PORT: 8080, CONF_LOCAL: True},
+            AP_FALLBACK,
+            "on the fallback access point",
+        ),
+        # Fallback AP without local: hosted page, nothing was promised.
+        ({CONF_VERSION: 2, CONF_PORT: 8080}, AP_FALLBACK, None),
+    ],
+)
 def test_final_validate_ap_mode_warns_for_non_default_port(
+    web_server_config: dict,
+    wifi_config: dict,
+    expected: str | None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Captive portal detection needs port 80; other ports get a hint, not captive mode."""
-    config = {CONF_VERSION: 2, CONF_PORT: 8080}
-    token = fv.full_config.set({"web_server": config, CONF_WIFI: AP_ONLY})
+    token = fv.full_config.set(
+        {"web_server": web_server_config, CONF_WIFI: wifi_config}
+    )
     try:
         with caplog.at_level(logging.WARNING):
-            _final_validate_ap_mode(config)
+            _final_validate_ap_mode(web_server_config)
     finally:
         fv.full_config.reset(token)
-    assert "cannot open automatically" in caplog.text
+    if expected is None:
+        assert "cannot open automatically" not in caplog.text
+        return
+    assert expected in caplog.text
     assert "http://192.168.4.1:8080/" in caplog.text
 
 

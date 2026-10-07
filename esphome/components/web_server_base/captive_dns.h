@@ -20,7 +20,7 @@ namespace esphome::web_server_base {
 // The server object only exists while running, so an idle owner (AP not up) pays one pointer.
 class CaptiveDNS {
  public:
-  /// Returns false when the DNS server could not start; nothing is kept, so a later start retries.
+  /// Returns false when the DNS server could not start; nothing is kept, so is_running() stays false.
   bool start(const network::IPAddress &ip) {
     if (this->dns_server_ != nullptr)
       return true;

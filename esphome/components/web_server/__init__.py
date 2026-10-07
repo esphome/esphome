@@ -408,9 +408,28 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             "web_server will act as a captive portal while the %saccess point is active.",
             "" if ap_only else "fallback ",
         )
-    if not ap_only:
-        return
-    if not local:
+    # An embedded interface on an AP (AP only, or a fallback with local: true) that is not
+    # on port 80 cannot be a captive portal; say so, unless captive_portal has that role.
+    if (
+        local
+        and config[CONF_PORT] != 80
+        and wifi_config is not None
+        and CONF_AP in wifi_config
+        and "captive_portal" not in full_config
+    ):
+        ap_ip = "192.168.4.1"
+        if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
+            ap_ip = str(manual_ip[CONF_STATIC_IP])
+        _LOGGER.warning(
+            "web_server uses port %d, so the interface cannot open automatically on the "
+            "%saccess point (captive portal detection only works on port 80); open "
+            "http://%s:%d/ manually, or remove 'port:' to use 80.",
+            config[CONF_PORT],
+            "" if ap_only else "fallback ",
+            ap_ip,
+            config[CONF_PORT],
+        )
+    if ap_only and not local:
         _LOGGER.warning(
             "WiFi is AP only and the web_server interface is loaded from the internet, "
             "which browsers on the access point usually cannot reach; the page stays "
@@ -418,18 +437,6 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             "Remove 'local: false'"
             if config.get(CONF_LOCAL) is False
             else "Migrate to version 2 or 3",
-        )
-    elif config[CONF_PORT] != 80:
-        ap_ip = "192.168.4.1"
-        if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
-            ap_ip = str(manual_ip[CONF_STATIC_IP])
-        _LOGGER.warning(
-            "WiFi is AP only and web_server uses port %d. The interface cannot open "
-            "automatically on the access point (captive portal detection only works on "
-            "port 80); open http://%s:%d/ manually, or remove 'port:' to use 80.",
-            config[CONF_PORT],
-            ap_ip,
-            config[CONF_PORT],
         )
 
 
