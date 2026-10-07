@@ -112,13 +112,14 @@ class ABBWelcomeData {
   }
   void set_message_id(uint8_t message_id) { this->data_[4 + 2 * this->get_address_length()] = message_id; }
   uint8_t get_message_id() const { return this->data_[4 + 2 * this->get_address_length()]; }
-  void set_data(std::vector<uint8_t> data) {
-    uint8_t size = std::min(MAX_DATA_LENGTH, static_cast<uint8_t>(data.size()));
+  void set_data(const uint8_t *data, size_t len) {
+    uint8_t size = static_cast<uint8_t>(std::min<size_t>(MAX_DATA_LENGTH, len));
     this->data_[2] &= (0xff ^ DATA_LENGTH_MASK);
     this->data_[2] |= (size & DATA_LENGTH_MASK);
     if (size)
-      std::copy_n(data.begin(), size, this->data_.begin() + 5 + 2 * this->get_address_length());
+      std::copy_n(data, size, this->data_.begin() + 5 + 2 * this->get_address_length());
   }
+  void set_data(const std::vector<uint8_t> &data) { this->set_data(data.data(), data.size()); }
   std::vector<uint8_t> get_data() const {
     std::vector<uint8_t> data(this->data_.begin() + 5 + 2 * this->get_address_length(),
                               this->data_.begin() + 5 + 2 * this->get_address_length() + this->get_data_size());
@@ -233,14 +234,8 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   TEMPLATABLE_VALUE(uint8_t, message_type)
   TEMPLATABLE_VALUE(uint8_t, message_id)
   TEMPLATABLE_VALUE(bool, auto_message_id)
-  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
-    this->data_.func = func;
-    this->len_ = -1;  // Sentinel value indicates template mode
-  }
-  void set_data_static(const uint8_t *data, size_t len) {
-    this->data_.data = data;
-    this->len_ = len;  // Length >= 0 indicates static mode
-  }
+  TEMPLATABLE_BYTES(data)
+
   void encode(RemoteTransmitData *dst, Ts... x) override {
     ABBWelcomeData data;
     data.set_three_byte_address(this->three_byte_address_.value(x...));
@@ -250,25 +245,11 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
     data.set_message_type(this->message_type_.value(x...));
     data.set_message_id(this->message_id_.value(x...));
     data.auto_message_id = this->auto_message_id_.value(x...);
-    std::vector<uint8_t> data_vec;
-    if (this->len_ > 0) {
-      // Static mode: copy from flash to vector
-      data_vec.assign(this->data_.data, this->data_.data + this->len_);
-    } else if (this->len_ < 0) {
-      // Template mode: call function
-      data_vec = this->data_.func(x...);
-    }
-    data.set_data(data_vec);
+    this->data_.template visit<MAX_DATA_LENGTH>(
+        [&data](const uint8_t *bytes, size_t len) { data.set_data(bytes, len); }, x...);
     data.finalize();
     ABBWelcomeProtocol().encode(dst, data);
   }
-
- protected:
-  ssize_t len_{0};  // <0 = template mode, >=0 = static mode with length
-  union Data {
-    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
-    const uint8_t *data;                  // Pointer to static data in flash
-  } data_;
 };
 
 }  // namespace esphome::remote_base
