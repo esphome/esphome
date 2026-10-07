@@ -8,8 +8,7 @@
 
 namespace esphome::bytebuffer {
 
-// The expressions esp32_ble_server emits for typed constant values, and the bytes they produce.
-// Doubles are written as float literals, so they carry float precision.
+// Typed values as ByteBuffer::wrap packs them; esp32_ble_server's value_bytes() is tested against the same bytes.
 TEST(ByteBufferWrapValues, MatchesGeneratedConstants) {
   EXPECT_EQ(ByteBuffer::wrap(uint8_t(18), LITTLE).get_data(), (std::vector<uint8_t>{0x12}));
   EXPECT_EQ(ByteBuffer::wrap(uint16_t(18), LITTLE).get_data(), (std::vector<uint8_t>{0x12, 0x00}));
