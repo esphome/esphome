@@ -73,6 +73,12 @@ async def test_branch_resume_async(
         assert count("stopped-branch-should-not-run") == 0
         assert count("stopped-after-if-should-not-run") == 0
 
+        # An empty loop body cannot resume the loop, so the while finishes at once
+        done = wait_for("after-empty-while")
+        await client.execute_service(service["run_empty_while"], {})
+        await asyncio.wait_for(done, timeout=2.0)
+        assert count("after-empty-while") == 1
+
         done = wait_for("after-nested-while")
         await client.execute_service(service["run_nested_if_last_in_while"], {})
         await asyncio.wait_for(done, timeout=2.0)

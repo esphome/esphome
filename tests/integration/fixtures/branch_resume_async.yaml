@@ -72,6 +72,14 @@ script:
           format: "parallel-after-if-%d"
           args: ['run']
 
+  - id: empty_while
+    then:
+      - while:
+          condition:
+            lambda: 'return true;'
+          then: []
+      - logger.log: "after-empty-while"
+
   - id: nested_if_last_in_while
     then:
       - lambda: 'id(counter) = 0;'
@@ -206,6 +214,9 @@ api:
             ESP_LOGI("test", "stop-running=%d", id(stop_in_branch).is_running() ? 1 : 0);
         - delay: 600ms
         - logger.log: "stop-check-done"
+    - action: run_empty_while
+      then:
+        - script.execute: empty_while
     - action: run_nested_if_last_in_while
       then:
         - script.execute: nested_if_last_in_while
