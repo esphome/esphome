@@ -51,8 +51,7 @@ async def to_code(config: ConfigType) -> None:
     b_id, b = await cg.get_variable_with_full_id(config[CONF_PEER_ID])
     var = cg.new_Pvariable(config[CONF_ID], a, b)
     await cg.register_component(var, config)
-    # A virtual end pushes whole blocks and takes whole writes, so nothing polls it. Any other end that is not
-    # marked unclocked is a line, timed by the baud rate it reports at setup.
+    # A virtual end is not polled; any other end not marked unclocked is a line.
     if a_id.type.inherits_from(uart.VirtualUARTComponent):
         cg.add(var.set_virtual_a(a))
     elif not uart.is_unclocked(a_id):

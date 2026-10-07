@@ -11,20 +11,18 @@ namespace esphome::uart {
 static const char *const TAG = "uart.bridge";
 
 static constexpr uint32_t US_PER_SEC = 1000000;
-// A frame ends after 3.5 quiet characters (here in half characters), and after at least 1750 us above 19200 baud,
-// as in Modbus RTU and the modbus hub.
+// A frame ends after 3.5 quiet characters (in half characters here), at least 1750 us.
 static constexpr uint32_t FRAME_GAP_HALF_CHARS = 7;
 static constexpr uint32_t MIN_FRAME_GAP_US = 1750;
-// The modbus hub's wait for the rest of a frame from a UART that hands over bytes in chunks.
+// For a UART that hands over bytes in chunks.
 static constexpr uint32_t CHUNKED_FRAME_GAP_US = 50000;
-// A destination that took nothing for this long holds up the source; its block is dropped.
 static constexpr uint32_t STALL_DROP_US = 1000000;
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
-// Normal loop passes come every 16 ms. Closer to a deadline than this, or while a FIFO is fed, pass at full speed.
+// Closer to a deadline than this, or while a FIFO is fed, the loop runs at full speed.
 static constexpr uint32_t FAST_WAIT_US = 20000;
 
 static uint32_t bits_per_char(UARTComponent *uart) {
-  // A zero means the setter was never called; fall back to 8N1 like the modbus hub.
+  // 0 means never set: 8N1.
   const uint32_t data_bits = uart->get_data_bits() != 0 ? uart->get_data_bits() : 8;
   const uint32_t stop_bits = uart->get_stop_bits() != 0 ? uart->get_stop_bits() : 1;
   return 1 + data_bits + (uart->get_parity() == UART_CONFIG_PARITY_NONE ? 0 : 1) + stop_bits;
@@ -49,8 +47,7 @@ void UARTBridgePipe::setup() {
       this->gap_us_ = CHUNKED_FRAME_GAP_US;
     } else {
       this->gap_us_ = gap_after(char_us);
-      // ESP-IDF moves bytes out of the FIFO once more than rx_full_threshold are in, or after rx_timeout quiet
-      // characters (ESP32: about 2.4 for 2). After a full batch, the next part can take this long to show up.
+      // After a full driver batch, the rest can take up to rx_timeout characters longer to show up.
       const size_t threshold = this->from_->get_rx_full_threshold();
       if (threshold != UARTComponent::RX_FULL_THRESHOLD_UNSET) {
         this->batch_bytes_ = static_cast<uint16_t>(threshold);
@@ -76,23 +73,19 @@ void UARTBridgePipe::send_(uint32_t now_us) {
     this->clear_();
     return;
   }
-  // A block that starts a frame waits until the line has been quiet for a frame gap.
   if (this->sent_ == 0 && this->new_frame_ && now_us - this->tx_start_us_ < this->tx_busy_us_ + this->to_gap_us_) {
     return;
   }
   size_t n = this->block_len_ - this->sent_;
   if (!this->to_virtual_) {
-    // A UART that cannot report its room (SIZE_MAX) takes the whole block in one write_array(), as the modbus hub
-    // writes a frame: no gap inside the block, but the call blocks until all but its FIFO's worth is on the wire.
+    // A UART that cannot report its room (SIZE_MAX) takes the whole block in one blocking write.
     n = std::min(n, this->to_->available_for_write());
   }
   if (n == 0) {
-    // A FIFO frees room within a character; one that frees none for this long holds up the source.
     this->stalled_ = now_us - this->progress_us_ >= FAST_WAIT_US;
     return;
   }
   this->to_->write_array(this->buf_ + this->sent_, n);
-  // The line sends these bytes after whatever it still has: from now, or from the end of that.
   if (now_us - this->tx_start_us_ >= this->tx_busy_us_) {
     this->tx_start_us_ = now_us;
     this->tx_busy_us_ = 0;
@@ -106,7 +99,6 @@ void UARTBridgePipe::send_(uint32_t now_us) {
   if (this->sent_ < this->block_len_) {
     return;
   }
-  // A pushed block waiting behind this one is next.
   this->len_ -= this->block_len_;
   std::memmove(this->buf_, this->buf_ + this->block_len_, this->len_);
   this->block_len_ = this->len_;
@@ -169,7 +161,7 @@ void UARTBridgePipe::collect_(uint32_t now_us) {
     return;
   }
   this->block_len_ = this->len_;
-  // A block cut at BLOCK_SIZE goes on in the next one, which follows without a gap.
+  // The block after a cut one follows without a gap.
   this->new_frame_ = !this->cut_;
   this->cut_ = this->len_ == BLOCK_SIZE;
   this->progress_us_ = now_us;
@@ -181,7 +173,6 @@ void UARTBridgePipe::on_block(const uint8_t *data, size_t len) {
     this->to_->write_array(data, len);
     return;
   }
-  // One block goes out and one more may wait behind it, each kept whole.
   if (this->len_ != this->block_len_ || this->len_ + len > BLOCK_SIZE) {
     this->drop_(len, LOG_STR("Destination busy"));
     return;
