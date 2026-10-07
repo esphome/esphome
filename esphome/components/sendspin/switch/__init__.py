@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import switch
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_TYPE, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
 from .. import CONF_SENDSPIN_ID, SendspinHub, sendspin_ns
@@ -12,14 +13,19 @@ DEPENDENCIES = ["sendspin"]
 SendspinSwitch = sendspin_ns.class_("SendspinSwitch", switch.Switch, cg.Component)
 
 CONFIG_SCHEMA = cv.All(
-    switch.switch_schema(
-        SendspinSwitch,
-        block_inverted=True,
-        default_restore_mode="RESTORE_DEFAULT_ON",
-        entity_category=ENTITY_CATEGORY_CONFIG,
-    )
-    .extend({cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub)})
-    .extend(cv.COMPONENT_SCHEMA),
+    cv.typed_schema(
+        {
+            CONF_ENABLED: switch.switch_schema(
+                SendspinSwitch,
+                block_inverted=True,
+                default_restore_mode="RESTORE_DEFAULT_ON",
+                entity_category=ENTITY_CATEGORY_CONFIG,
+            )
+            .extend({cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub)})
+            .extend(cv.COMPONENT_SCHEMA),
+        },
+        key=CONF_TYPE,
+    ),
     cv.only_on_esp32,
 )
 

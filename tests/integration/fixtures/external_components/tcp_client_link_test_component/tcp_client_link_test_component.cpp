@@ -17,9 +17,8 @@ void TcpClientLinkTestComponent::loop() {
   if (!up) {
     return;
   }
-  // Retries a partial echo; inline no-op when nothing is queued.
-  this->link_.flush_tx();
-  if (!this->link_.ready()) {
+  // Echo only once the previous echo is fully sent, so it never drops bytes.
+  if (!this->link_.flush_tx() || !this->link_.ready()) {
     return;
   }
   uint8_t buf[64];

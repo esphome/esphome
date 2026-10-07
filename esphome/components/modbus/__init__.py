@@ -52,6 +52,12 @@ CONF_TURNAROUND_TIME = "turnaround_time"
 
 MODBUS_ROLES = ["client", "server"]
 
+# The client hub takes these times as 16-bit milliseconds; a Modbus timeout is far shorter anyway.
+_HUB_TIME_PERIOD = cv.All(
+    cv.positive_time_period_milliseconds,
+    cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+)
+
 
 # The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
 # (read/write multiple) is included: it mutates, so the hub treats it as a write despite its read half.
@@ -273,12 +279,8 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusClient),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(
-                    CONF_SEND_WAIT_TIME, default="2000ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TURNAROUND_TIME, default="600ms"
-                ): cv.positive_time_period_milliseconds,
+                cv.Optional(CONF_SEND_WAIT_TIME, default="2000ms"): _HUB_TIME_PERIOD,
+                cv.Optional(CONF_TURNAROUND_TIME, default="600ms"): _HUB_TIME_PERIOD,
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
