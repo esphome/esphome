@@ -123,6 +123,15 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\n");
 }
+
+// Helper for bytes fields in flash: copies the shown bytes out with progmem_memcpy first
+static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len,
+                                     int indent = 2) {
+  uint8_t data_buf[160];
+  len = std::min(len, sizeof(data_buf));
+  progmem_memcpy(data_buf, data, len);
+  dump_bytes_field(out, field_name, data_buf, len, indent);
+}
 #pragma GCC diagnostic pop
 
 template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::DisconnectReason value) {
@@ -1119,7 +1128,7 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_WIZARD
 const char *DeviceWizardResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceWizardResponse"));
-  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  dump_progmem_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
   return out.c_str();
 }
 #endif

@@ -1159,6 +1159,14 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
     const_reference_type = "const uint8_t*"
 
     @property
+    def progmem(self) -> bool:
+        """Whether the data is in flash, so encode and dump copy it with progmem_memcpy."""
+        progmem_opt = getattr(pb, "progmem", None)
+        return progmem_opt is not None and get_field_opt(
+            self._field, progmem_opt, False
+        )
+
+    @property
     def public_content(self) -> list[str]:
         # Use uint16_t for length - max packet size is well below 65535
         return [
@@ -1168,6 +1176,14 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.progmem:
+            return _encode_call(
+                "encode_progmem_bytes",
+                str(self.number),
+                f"this->{self.field_name}",
+                f"this->{self.field_name}_len",
+                force=self.force,
+            )
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}", f"this->{self.field_name}_len"
         ):
@@ -1194,8 +1210,9 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def dump_content(self) -> str:
+        dump_fn = "dump_progmem_bytes_field" if self.progmem else "dump_bytes_field"
         return (
-            f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
+            f'{dump_fn}(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}, this->{self.field_name}_len);"
         )
 
@@ -3327,6 +3344,15 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\\n");
+}
+
+// Helper for bytes fields in flash: copies the shown bytes out with progmem_memcpy first
+static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len,
+                                     int indent = 2) {
+  uint8_t data_buf[160];
+  len = std::min(len, sizeof(data_buf));
+  progmem_memcpy(data_buf, data, len);
+  dump_bytes_field(out, field_name, data_buf, len, indent);
 }
 #pragma GCC diagnostic pop
 
