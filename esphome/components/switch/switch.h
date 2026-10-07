@@ -121,6 +121,14 @@ class Switch : public EntityBase {
 
   void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
 
+#ifdef USE_SWITCH_STORAGE
+  /// Keep the restored state in flash (survives power loss) or RTC memory (survives only soft resets).
+  /// Not calling this keeps the platform default (on ESP8266, the `restore_from_flash` setting).
+  void set_restore_in_flash(bool in_flash) {
+    this->restore_storage_ = in_flash ? SWITCH_STORAGE_FLASH : SWITCH_STORAGE_RTC;
+  }
+#endif
+
  protected:
   /** Write the given state to hardware. You should implement this
    * abstract method if you want to create your own switch.
@@ -141,6 +149,10 @@ class Switch : public EntityBase {
   // Small types grouped together
   Deduplicator<bool> publish_dedup_;  // 2 bytes (bool has_value_ + bool last_value_)
   bool inverted_{false};              // 1 byte
+#ifdef USE_SWITCH_STORAGE
+  enum SwitchStorage : uint8_t { SWITCH_STORAGE_DEFAULT, SWITCH_STORAGE_FLASH, SWITCH_STORAGE_RTC };
+  SwitchStorage restore_storage_{SWITCH_STORAGE_DEFAULT};  // 1 byte
+#endif
   // Total: 3 bytes, 1 byte padding
 };
 

@@ -1,4 +1,4 @@
-from esphome import automation
+from esphome import automation, preferences
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
@@ -8,13 +8,16 @@ from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_INITIAL_STATE,
     CONF_INVERTED,
     CONF_MQTT_ID,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_RESTORE_MODE,
+    CONF_RESTORE_STATE,
     CONF_STATE,
+    CONF_STORAGE,
     CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
@@ -29,6 +32,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -60,6 +64,104 @@ RESTORE_MODES = {
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
+RESTORE_STATE_KEEP = "KEEP"
+RESTORE_STATE_INVERT = "INVERT"
+RESTORE_STATE_INITIAL = "INITIAL"
+RESTORE_STATE_ALL = "ALL"
+RESTORE_STATE_NONE = "NONE"
+_RESTORE_STATE_STATES = (
+    RESTORE_STATE_KEEP,
+    RESTORE_STATE_INVERT,
+    RESTORE_STATE_INITIAL,
+)
+
+
+def _validate_restore_state_storage(config: ConfigType) -> ConfigType:
+    if CONF_STORAGE in config and config[CONF_STATE] == RESTORE_STATE_INITIAL:
+        raise cv.Invalid(
+            "'storage' only applies when a saved state is restored (KEEP or INVERT)",
+            path=[CONF_STORAGE],
+        )
+    return config
+
+
+_RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_STATE, default=RESTORE_STATE_KEEP): cv.one_of(
+            *_RESTORE_STATE_STATES, upper=True
+        ),
+        # No default: when unset, the existing restore_mode storage applies (on ESP8266,
+        # restore_from_flash decides), as with wifi
+        cv.Optional(CONF_STORAGE): preferences.validate_storage,
+    }
+)
+_RESTORE_STATE_FIELDS_SCHEMA.add_extra(_validate_restore_state_storage)
+
+
+@schema_extractor("schema")
+def RESTORE_STATE_SCHEMA(value):
+    """A mapping of `state` and `storage`, or a shorthand: a state, `all` (KEEP) or `none`."""
+    if value == SCHEMA_EXTRACT:
+        return _RESTORE_STATE_FIELDS_SCHEMA
+    if isinstance(value, str):
+        upper = value.strip().upper()
+        if upper == RESTORE_STATE_NONE:
+            return RESTORE_STATE_NONE
+        if upper == RESTORE_STATE_ALL:
+            value = {}
+        elif upper in _RESTORE_STATE_STATES:
+            value = {CONF_STATE: upper}
+        else:
+            raise cv.Invalid(
+                f"Unknown restore_state '{value}'; expected KEEP, INVERT, INITIAL, ALL, "
+                "NONE or a mapping"
+            )
+    return _RESTORE_STATE_FIELDS_SCHEMA(value)
+
+
+def _validate_initial_state(config: ConfigType) -> ConfigType:
+    if CONF_INITIAL_STATE in config and CONF_RESTORE_MODE in config:
+        raise cv.Invalid(
+            "'initial_state' can't be combined with 'restore_mode', which already sets "
+            "the boot state; use 'restore_state' instead",
+            path=[CONF_INITIAL_STATE],
+        )
+    return config
+
+
+def _apply_default_restore_mode(default_restore_mode: str):
+    # cv.Exclusive has no default, so apply it here when no restore option is configured.
+    def validator(config: ConfigType) -> ConfigType:
+        if not any(
+            key in config
+            for key in (CONF_RESTORE_MODE, CONF_RESTORE_STATE, CONF_INITIAL_STATE)
+        ):
+            config[CONF_RESTORE_MODE] = cv.enum(RESTORE_MODES, upper=True, space="_")(
+                default_restore_mode
+            )
+        return config
+
+    return validator
+
+
+def _resolve_restore_mode(config: ConfigType) -> str:
+    """Translate `initial_state` / `restore_state` into one of the RESTORE_MODES."""
+    if CONF_RESTORE_MODE in config:
+        return str(config[CONF_RESTORE_MODE])
+    default = "ON" if config.get(CONF_INITIAL_STATE, False) else "OFF"
+    restore_state = config.get(CONF_RESTORE_STATE, RESTORE_STATE_NONE)
+    state = (
+        RESTORE_STATE_INITIAL
+        if restore_state == RESTORE_STATE_NONE
+        else restore_state[CONF_STATE]
+    )
+    if state == RESTORE_STATE_KEEP:
+        return f"RESTORE_DEFAULT_{default}"
+    if state == RESTORE_STATE_INVERT:
+        return f"RESTORE_INVERTED_DEFAULT_{default}"
+    return f"ALWAYS_{default}"
+
+
 _SWITCH_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -68,9 +170,11 @@ _SWITCH_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
             cv.Optional(CONF_INVERTED): cv.boolean,
-            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
+            cv.Exclusive(CONF_RESTORE_MODE, "restore"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
+            cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
+            cv.Optional(CONF_INITIAL_STATE): cv.boolean,
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({}),
@@ -84,6 +188,7 @@ _SWITCH_SCHEMA = (
 
 _SWITCH_SCHEMA.add_extra(entity_duplicate_validator("switch"))
 _SWITCH_SCHEMA.add_extra(zigbee.validate_switch)
+_SWITCH_SCHEMA.add_extra(_validate_initial_state)
 
 
 def switch_schema(
@@ -101,13 +206,6 @@ def switch_schema(
         (CONF_DEVICE_CLASS, device_class, validate_device_class),
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_ICON, icon, cv.icon),
-        (
-            CONF_RESTORE_MODE,
-            default_restore_mode,
-            cv.enum(RESTORE_MODES, upper=True, space="_")
-            if default_restore_mode is not cv.UNDEFINED
-            else cv.UNDEFINED,
-        ),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
@@ -117,7 +215,15 @@ def switch_schema(
             "Inverted is not supported for this platform!"
         )
 
-    return _SWITCH_SCHEMA.extend(schema)
+    result = _SWITCH_SCHEMA.extend(schema)
+    result.add_extra(
+        _apply_default_restore_mode(
+            "ALWAYS_OFF"
+            if default_restore_mode is cv.UNDEFINED
+            else default_restore_mode
+        )
+    )
+    return result
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -158,7 +264,15 @@ async def setup_switch_core_(var, config):
 
     setup_device_class(config)
 
-    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+    cg.add(var.set_restore_mode(RESTORE_MODES[_resolve_restore_mode(config)]))
+    restore_state = config.get(CONF_RESTORE_STATE)
+    if isinstance(restore_state, dict) and CONF_STORAGE in restore_state:
+        cg.add_define("USE_SWITCH_STORAGE")
+        cg.add(
+            var.set_restore_in_flash(
+                preferences.is_in_flash(restore_state[CONF_STORAGE])
+            )
+        )
     await zigbee.setup_switch(var, config)
 
 

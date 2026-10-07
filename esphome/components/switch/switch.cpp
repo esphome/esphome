@@ -33,7 +33,15 @@ optional<bool> Switch::get_initial_state() {
   if (!(restore_mode & RESTORE_MODE_PERSISTENT_MASK))
     return {};
 
+#ifdef USE_SWITCH_STORAGE
+  if (this->restore_storage_ != SWITCH_STORAGE_DEFAULT) {
+    this->rtc_ = this->make_entity_preference<bool>(0, this->restore_storage_ == SWITCH_STORAGE_FLASH);
+  } else {
+    this->rtc_ = this->make_entity_preference<bool>();
+  }
+#else
   this->rtc_ = this->make_entity_preference<bool>();
+#endif
   bool initial_state;
   if (!this->rtc_.load(&initial_state))
     return {};
