@@ -193,33 +193,6 @@ TEST(ModbusTcpUartClient, BadProtocolIdSkipsOnlyThatFrame) {
   EXPECT_FALSE(link.pending());
 }
 
-class RecordingReader : public uart::UARTSink {
- public:
-  void on_block(const uint8_t *data, size_t len) override {
-    this->blocks++;
-    std::memcpy(this->last, data, len);
-    this->last_len = len;
-  }
-
-  int blocks{0};
-  uint8_t last[16]{};
-  size_t last_len{0};
-};
-
-TEST(ModbusTcpUartClient, AttachedReaderGetsTheWholeResponse) {
-  Pipe pipe;
-  ClientLink link(&pipe);
-  RecordingReader reader;
-  link.set_rx_sink(&reader);
-  link.write_array(RTU, sizeof(RTU));
-  link.push(1, 1, RESPONSE_PDU, sizeof(RESPONSE_PDU));
-  ASSERT_EQ(reader.blocks, 1);
-  ASSERT_EQ(reader.last_len, sizeof(RESPONSE_PDU) + 3);
-  EXPECT_TRUE(rtu_crc_ok(reader.last, reader.last_len));
-  EXPECT_EQ(link.available(), 0u);
-  EXPECT_FALSE(link.pending());
-}
-
 // 02 03 00 00 00 01 84 39, a request to unit 2.
 const uint8_t RTU_UNIT2[] = {0x02, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x39};
 

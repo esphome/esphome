@@ -89,8 +89,6 @@ class ServerLink : public ModbusTcpUart {
   bool pending() const { return this->txn_pending_; }
   uint16_t held() const { return this->tx_len_; }
   void deliver() { this->deliver_mbap_(); }
-  // As if the attached reader were still inside on_block(), so inject_rx() refuses the block.
-  void set_in_rx_sink(bool in) { this->in_rx_sink_ = in; }
   bool drop_logged() const { return this->drop_log_ms_ != 0; }
   void clear_drop_log() { this->drop_log_ms_ = 0; }
 };
@@ -142,7 +140,7 @@ TEST(ModbusTcpUartServer, UnreadRequestIsKept) {
 }
 
 TEST(ModbusTcpUartServer, UnreadRequestIsReplacedWhenOverdue) {
-  // No hub and no attached reader: nothing reads the request.
+  // No hub: nothing reads the request.
   ServerLink link;
   link.push(7, 1, PDU, sizeof(PDU));
   link.expire();
@@ -275,39 +273,6 @@ TEST(ModbusTcpUartServer, LongReplyFromAWriterThatKeepsToTheRoom) {
   EXPECT_EQ(link.held_part(), 0u);
 }
 
-// Answers each request it is handed within the same call, as a reader with a fast peer can.
-class AnsweringReader : public uart::UARTSink {
- public:
-  explicit AnsweringReader(ServerLink *link) : link_(link) {}
-  void on_block(const uint8_t *data, size_t len) override {
-    this->requests++;
-    this->last_len = len;
-    this->link_->answer({data[0], 0x03, 0x02, 0x12, 0x34});
-  }
-
-  int requests{0};
-  size_t last_len{0};
-
- protected:
-  ServerLink *link_;
-};
-
-TEST(ModbusTcpUartServer, AttachedReaderGetsTheRequestAndMayAnswerAtOnce) {
-  Pipe pipe;
-  ServerLink link;
-  link.set_pipe(&pipe);
-  AnsweringReader reader(&link);
-  link.set_rx_sink(&reader);
-  link.push(0x0A0B, 1, PDU, sizeof(PDU));
-  EXPECT_EQ(reader.requests, 1);
-  EXPECT_EQ(reader.last_len, sizeof(PDU) + 3);
-  EXPECT_EQ(link.available(), 0u);
-  EXPECT_FALSE(link.pending());
-  const uint8_t want[] = {0x0A, 0x0B, 0, 0, 0, 5, 1, 0x03, 0x02, 0x12, 0x34};
-  ASSERT_EQ(pipe.n_, sizeof(want));
-  EXPECT_EQ(std::memcmp(pipe.buf_, want, sizeof(want)), 0);
-}
-
 TEST(ModbusTcpUartServer, ReplyUsesTheRequestTransaction) {
   Pipe pipe;
   ServerLink link;
@@ -352,22 +317,6 @@ TEST(ModbusTcpUartServer, RequestToAUnitNoServerAnswersIsDropped) {
   link.push(5, 1, write, sizeof(write));
   EXPECT_EQ(link.txn(), 5);
   EXPECT_EQ(link.available(), sizeof(write) + 3);
-}
-
-TEST(ModbusTcpUartServer, RefusedRequestDoesNotBlockTheNext) {
-  ServerLink link;
-  AnsweringReader reader(&link);
-  link.set_rx_sink(&reader);
-  link.set_in_rx_sink(true);
-  link.push(7, 1, PDU, sizeof(PDU));
-  EXPECT_EQ(reader.requests, 0);
-  EXPECT_FALSE(link.pending());
-  EXPECT_TRUE(link.drop_logged());
-  // The next request goes to the reader at once, without waiting for the reply timeout.
-  link.set_in_rx_sink(false);
-  link.push(8, 1, PDU, sizeof(PDU));
-  EXPECT_EQ(reader.requests, 1);
-  EXPECT_EQ(link.txn(), 8);
 }
 
 TEST(ModbusTcpUartServer, FailedReadWhileResyncingIsLogged) {

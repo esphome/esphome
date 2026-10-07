@@ -257,7 +257,7 @@ void ModbusTcpUart::deliver_mbap_() {
             this->function_ = frame.pdu[0];
             this->txn_pending_ = true;
           }
-          // Last: an attached reader may answer within this call.
+          // Last: the reader may answer within this call.
           if (!this->inject_rx(rtu, rtu_len)) {
             this->txn_pending_ = false;
             this->note_drop_(LOG_STR("RX buffer full, dropped the request"));
@@ -273,7 +273,7 @@ void ModbusTcpUart::deliver_mbap_() {
         // [TCP 4.4.1.3] The client discards the response's unit. The hub expects the address it asked.
         uint8_t rtu[RTU_FRAME_SIZE];
         size_t rtu_len = write_rtu(rtu, this->unit_, frame.pdu, frame.pdu_len);
-        // Before handing it on: an attached reader may send the next request within the call.
+        // Before handing it on: the reader may send the next request within the call.
         this->txn_pending_ = false;
         if (!this->inject_rx(rtu, rtu_len)) {
           this->note_drop_(LOG_STR("RX buffer full, dropped the response"));
