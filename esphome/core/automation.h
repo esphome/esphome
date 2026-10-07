@@ -616,11 +616,9 @@ template<typename... Ts> class ActionList {
   Action<Ts...> **tail_() {
     Action<Ts...> **tail = &this->actions_;
     while (*tail != nullptr) {
-      if ((*tail)->next_is_owner_()) {
-        // Appending after set_owner(): stop here rather than walk through the tag
-        ESPHOME_DEBUG_ASSERT(false);
-        return &(*tail)->next_;
-      }
+      // Not checked in release builds: only automation.py builds these lists, calling add_then/add_else
+      // once per action, so appending after set_owner() would be a codegen bug, which tests cover.
+      ESPHOME_DEBUG_ASSERT(!(*tail)->next_is_owner_());
       tail = &(*tail)->next_;
     }
     return tail;
