@@ -3990,9 +3990,9 @@ class UsbDeviceDescriptor final : public ProtoMessage {
   uint32_t product_id{0};
   uint32_t bcd_device{0};
   uint32_t interface_number{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -4016,9 +4016,9 @@ class SerialProxyIdentity final : public ProtoMessage {
   StringRef product{nullptr, 0};        // null until set, encode only
   StringRef serial_number{nullptr, 0};  // null until set, encode only
   UsbDeviceDescriptor usb{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }

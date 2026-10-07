@@ -4104,9 +4104,8 @@ void SerialProxySetModeRequest::decode_field(void *self, uint32_t tag, const uin
       break;
   }
 }
-uint8_t *UsbDeviceDescriptor::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *UsbDeviceDescriptor::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const UsbDeviceDescriptor *>(self);
-  uint8_t *__restrict__ pos = buffer.get_pos();
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.vendor_id);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.product_id);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.bcd_device);
@@ -4122,16 +4121,15 @@ uint32_t UsbDeviceDescriptor::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.interface_number);
   return size;
 }
-uint8_t *SerialProxyIdentity::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *SerialProxyIdentity::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const SerialProxyIdentity *>(self);
-  uint8_t *__restrict__ pos = buffer.get_pos();
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.instance);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.source));
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.flags);
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.manufacturer);
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.product);
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.serial_number);
-  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 7, msg.usb);
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.usb);
   return pos;
 }
 uint32_t SerialProxyIdentity::calc_size_msg(const void *self) {
