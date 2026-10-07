@@ -1,9 +1,12 @@
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/network/util.h"
 #include "udp_component.h"
+
+#include <algorithm>
 
 namespace esphome::udp {
 
@@ -176,6 +179,33 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   }
 #endif
 }
+
+#ifdef USE_ESP8266
+void UDPComponent::send_packet_progmem(const uint8_t *data, size_t size) {
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+  // WiFiUDP::write appends to the open packet, so copy the flash table through a small stack chunk
+  auto iface = IPAddress(0, 0, 0, 0);
+  uint8_t chunk[32];
+  for (const auto &saddr : this->ipaddrs_) {
+    if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) == 0)
+      continue;
+    for (size_t offset = 0; offset < size; offset += sizeof(chunk)) {
+      const size_t len = std::min(size - offset, sizeof(chunk));
+      progmem_memcpy(chunk, data + offset, len);
+      this->udp_client_.write(chunk, len);
+    }
+    if (this->udp_client_.endPacket() == 0) {
+      ESP_LOGW(TAG, "udp.write() error");
+    }
+  }
+#else
+  SmallBufferWithHeapFallback<64> buf(size);
+  if (size != 0)
+    progmem_memcpy(buf.get(), data, size);
+  this->send_packet(buf.get(), size);
+#endif
+}
+#endif
 }  // namespace esphome::udp
 
 #endif
