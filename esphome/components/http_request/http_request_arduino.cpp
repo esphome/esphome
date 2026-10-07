@@ -2,6 +2,8 @@
 
 #if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 
+#include <cstring>
+
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
 
@@ -22,8 +24,7 @@ static const char *const TAG = "http_request";
 static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 #endif
 
-std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
-                                                           const std::string &body,
+std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, const char *method, const std::string &body,
                                                            const std::vector<Header> &request_headers,
                                                            const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
@@ -37,7 +38,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 
   const uint32_t start = millis();
 
-  bool secure = url.find("https:") != std::string::npos;
+  bool secure = strstr(url, "https:") != nullptr;
   container->set_secure(secure);
 
   watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
@@ -70,19 +71,19 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   stream_ptr = std::make_unique<WiFiClient>();
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 
-  bool status = container->client_.begin(*stream_ptr, url.c_str());
+  bool status = container->client_.begin(*stream_ptr, url);
 
 #elif defined(USE_RP2)
   if (secure) {
     container->client_.setInsecure();
   }
-  bool status = container->client_.begin(url.c_str());
+  bool status = container->client_.begin(url);
 #endif
 
   App.feed_wdt();
 
   if (!status) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s", url.c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s", url);
     container->end();
     this->status_momentary_error("failed", 1000);
     return nullptr;
@@ -107,7 +108,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   container->client_.collectHeaders(header_keys, index);
 
   App.feed_wdt();
-  container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
+  container->status_code = container->client_.sendRequest(method, body.c_str());
   App.feed_wdt();
   if (container->status_code < 0) {
 #if defined(USE_ESP8266) && defined(USE_HTTP_REQUEST_ESP8266_HTTPS)
@@ -139,7 +140,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     }
 #endif
 
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url.c_str(),
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", url,
              HTTPClient::errorToString(container->status_code).c_str());
 
     this->status_momentary_error("failed", 1000);
@@ -147,7 +148,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     return nullptr;
   }
   if (!is_success(container->status_code)) {
-    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
+    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, container->status_code);
     this->status_momentary_error("failed", 1000);
     // Still return the container, so it can be used to get the status code and error message
   }

@@ -1,0 +1,5 @@
+substitutions:
+  pin: GPIO2
+
+packages:
+  bare: !include bare-common.yaml

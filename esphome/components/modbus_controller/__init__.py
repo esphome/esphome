@@ -103,12 +103,20 @@ def _warn_removed_options(config: ConfigType) -> ConfigType:
 
 
 def _reject_broadcast_address(config: ConfigType) -> ConfigType:
-    """A modbus_controller polls one device, so its address cannot be the broadcast address (0):
-    a broadcast is never answered (Modbus 4.1), so no register could ever read back."""
+    """Address 0 is rejected unless allow_broadcast_read, which in turn requires address 0."""
+    if config[modbus.CONF_ALLOW_BROADCAST_READ]:
+        if config.get(CONF_ADDRESS) != modbus.BROADCAST_ADDRESS:
+            raise cv.Invalid(
+                f"'{modbus.CONF_ALLOW_BROADCAST_READ}' only applies to the broadcast address; "
+                f"set 'address: 0' or remove the option.",
+                [modbus.CONF_ALLOW_BROADCAST_READ],
+            )
+        return config
     modbus.reject_broadcast_address(
         config.get(CONF_ADDRESS),
         "a modbus_controller device address",
-        "Assign the unit address of the device you want to poll.",
+        "Assign the unit address of the device you want to poll, or set allow_broadcast_read if "
+        "it answers address 0.",
         [CONF_ADDRESS],
     )
     return config
@@ -346,12 +354,52 @@ def _reject_continuous_write_custom_pdu(config: ConfigType) -> None:
         )
 
 
+def _reject_broadcastable_custom_pdu(config: ConfigType) -> None:
+    """A broadcastable custom_pdu under an address-0 controller is a real broadcast, never answered."""
+    pdu = config.get(CONF_CUSTOM_PDU)
+    if pdu is None or not modbus.is_function_code_broadcastable(pdu[0]):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if (
+        controller.get(CONF_ADDRESS) == modbus.BROADCAST_ADDRESS
+        and controller.get(modbus.CONF_ALLOW_BROADCAST_READ) is True
+    ):
+        raise cv.Invalid(
+            f"a '{CONF_CUSTOM_PDU}' with function code 0x{pdu[0] & 0x7F:02X} is a real broadcast at "
+            f"address 0 and is never answered, so it can't be polled through the "
+            f"'{controller[CONF_ID]}' modbus_controller; use a read function code.",
+            [CONF_CUSTOM_PDU],
+        )
+
+
 def validate_custom_pdu_item(config: ConfigType) -> None:
-    """Final-validate for the read platforms that accept custom_pdu (sensor, binary_sensor,
-    text_sensor): migrate the deprecated custom_command, then reject a write-coded custom_pdu under a
-    continuously-polling controller."""
+    """Final-validate for the platforms that accept custom_pdu."""
     migrate_custom_command(config)
     _reject_continuous_write_custom_pdu(config)
+    _reject_broadcastable_custom_pdu(config)
+
+
+def _reject_write_option_off_broadcast(config: ConfigType) -> None:
+    if not any(config.get(key) is True for key in modbus.broadcast_only_option_keys()):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if controller.get(CONF_ADDRESS) != modbus.BROADCAST_ADDRESS:
+        raise cv.Invalid(
+            f"'{modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE}' only applies when the "
+            f"'{controller[CONF_ID]}' modbus_controller is at address 0; remove the option.",
+            [modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE],
+        )
+
+
+def validate_writer_item(config: ConfigType) -> None:
+    """Final-validate for the writer platforms (number, output, select, switch)."""
+    if CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config:
+        validate_custom_pdu_item(config)
+    _reject_write_option_off_broadcast(config)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -448,11 +496,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
-    cg.add(
-        var.set_read_options(
-            modbus.command_options_expression(config, direction="read")
-        )
-    )
+    modbus.add_command_options(var, "set_read_options", config, direction="read")
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 

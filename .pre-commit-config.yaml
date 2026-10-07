@@ -10,7 +10,7 @@ ci:
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.16.6
+    rev: v0.16.10
     hooks:
       # Run the linter.
       - id: ruff
@@ -18,7 +18,7 @@ repos:
       # Run the formatter.
       - id: ruff-format
   - repo: https://github.com/PyCQA/flake8
-    rev: 7.3.0
+    rev: 7.4.1
     hooks:
       - id: flake8
         additional_dependencies:

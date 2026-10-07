@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
     CONF_ID,
+    CONF_MDNS,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_PROTOCOL,
     CONF_SERVICE,
@@ -182,6 +184,28 @@ def enable_mdns_storage() -> None:
     Public API for external components. Do not remove.
     """
     cg.add_define("USE_MDNS_STORE_SERVICES")
+
+
+def request_service_enable_disable() -> bool:
+    """Request MDNSComponent::set_service_enabled() support.
+
+    ESP32 only, not with OpenThread. Returns True when the
+    USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added; guard C++ usage with it.
+
+    Public API for external components. Do not remove.
+    """
+    mdns_config = CORE.config.get(CONF_MDNS)
+    if (
+        mdns_config is None
+        or mdns_config[CONF_DISABLED]
+        or not CORE.is_esp32
+        or CONF_OPENTHREAD in CORE.config
+    ):
+        return False
+    cg.add_define("USE_MDNS_SUPPORTS_ENABLE_DISABLE")
+    # Services must stay stored so a disabled service can be re-registered
+    enable_mdns_storage()
+    return True
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)

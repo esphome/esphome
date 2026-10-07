@@ -56,11 +56,6 @@ def AUTO_LOAD() -> list[str]:
     return base
 
 
-NextionSetBrightnessAction = nextion_ns.class_(
-    "NextionSetBrightnessAction", automation.Action
-)
-
-
 def _deprecated_dump_device_info(value):
     _LOGGER.warning(
         "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
@@ -160,9 +155,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "display.nextion.set_brightness",
-    NextionSetBrightnessAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Nextion),
@@ -170,16 +164,9 @@ CONFIG_SCHEMA = cv.All(
         },
         key=CONF_BRIGHTNESS,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_BRIGHTNESS, "set_brightness", cg.float_),
+    automation.ApplyField(CONF_BRIGHTNESS, "set_backlight_brightness", cg.float_),
 )
-async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.float_)
-    cg.add(var.set_brightness(template_))
-
-    return var
 
 
 _CALLBACK_AUTOMATIONS = (

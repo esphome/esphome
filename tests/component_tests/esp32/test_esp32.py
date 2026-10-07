@@ -4,16 +4,21 @@ Test ESP32 configuration
 
 import asyncio
 from collections.abc import Callable
+import logging
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from esphome.components.esp32 import (
+    ESP32_FLASH_CHIPS,
     KEY_FATFS_REQUIRED,
+    KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
+    KEY_MBEDTLS_TLS_SERVER_REQUIRED,
     KEY_VFS_DIR_REQUIRED,
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
+    MBEDTLS_TLS_EXTRA_OPTIONS,
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
@@ -248,6 +253,51 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             },
             r"value must be at most 5 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]\['key_id'\]",
             id="nvs_encryption_key_id_out_of_range",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' is only supported on ESP32S3 @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_only_on_s3",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "flash_mode": "opi",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "gd"},
+                },
+            },
+            r"'flash_chip: gd' does not match 'flash_mode: opi'; octal flash uses mxic_opi @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_must_match_opi_mode",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' requires 'flash_mode: opi' @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_requires_opi_mode",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "flash_mode": "opi",
+                "framework": {"type": "esp-idf"},
+            },
+            r"'flash_mode: opi' is only supported on ESP32S3 @ data\['flash_mode'\]",
+            id="flash_mode_opi_only_on_s3",
         ),
     ],
 )
@@ -655,6 +705,27 @@ def test_platformio_arduino_enables_reproducible_build(
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
 
 
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        ("reproducible_build.yaml", True),
+        ("reproducible_build_arduino.yaml", True),
+        ("file_macro_idf_5_0.yaml", False),
+    ],
+)
+def test_file_macro_is_basename_only(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """__FILE__ becomes the basename on GCC 12 toolchains; IDF 5.0 (GCC 11) is skipped."""
+    generate_main(component_config_path(config_file))
+
+    assert ("-D__FILE__=__FILE_NAME__" in CORE.build_flags) is expected
+    assert ("-Wno-builtin-macro-redefined" in CORE.build_flags) is expected
+
+
 def test_native_idf_enables_reproducible_build(
     component_config_path: Callable[[str], Path],
 ) -> None:
@@ -680,8 +751,57 @@ def test_flash_mode_sets_sdkconfig_and_pio_option(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is False
     assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
     assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+@pytest.mark.parametrize(
+    ("config_file", "enabled"),
+    [
+        pytest.param("flash_chip_gd.yaml", "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP", id="gd"),
+        pytest.param("flash_chip_generic.yaml", None, id="generic"),
+        pytest.param(
+            "flash_chip_mxic_opi_s3.yaml",
+            "CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP",
+            id="mxic_opi_s3",
+        ),
+    ],
+)
+def test_flash_chip_keeps_one_vendor_driver(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    enabled: str | None,
+) -> None:
+    """flash_chip enables only the chosen vendor driver."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    vendors = {
+        k: v for k, v in sdkconfig.items() if k.startswith("CONFIG_SPI_FLASH_SUPPORT_")
+    }
+    assert vendors == {flag: flag == enabled for flag in ESP32_FLASH_CHIPS.values()}
+
+
+def test_flash_chip_unset_keeps_idf_defaults(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without flash_chip every vendor driver stays at its ESP-IDF default."""
+    generate_main(component_config_path("flash_mode_default.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(key.startswith("CONFIG_SPI_FLASH_SUPPORT_") for key in sdkconfig)
+
+
+def test_flash_mode_opi_enables_octal_flash(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """flash_mode: opi needs the octal flash switch or ESP-IDF ignores the mode."""
+    generate_main(component_config_path("flash_mode_opi_s3.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_OPI") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is True
 
 
 def test_flash_mode_unset_leaves_defaults(
@@ -1338,4 +1458,255 @@ def test_esp32_s31_gpio_validation(
     pin = {CONF_NUMBER: 36, CONF_MODE: input_mode}
     with caplog.at_level("WARNING"):
         validate_supports(pin)
-    assert "GPIO36 is a strapping PIN" in caplog.text
+    assert "GPIO36 is a strapping pin" in caplog.text
+
+
+_TLS_SERVER_OPTIONS = (
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
+)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "server", "extras"),
+    [
+        pytest.param("mbedtls_tls_default.yaml", (True, False), False, id="default"),
+        pytest.param("mbedtls_tls_opt_out.yaml", (None, None), None, id="opt_out"),
+        pytest.param("mbedtls_tls_wifi_eap.yaml", (True, False), None, id="wifi_eap"),
+    ],
+)
+def test_mbedtls_tls_trim_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    server: tuple[bool | None, bool | None],
+    extras: bool | None,
+) -> None:
+    """Client-only TLS and the unused-feature trims apply unless opted out or required."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == server
+    assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
+
+
+_CCM_ECDSA_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
+
+
+def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The OpenThread config keeps the DTLS server, CCM and deterministic ECDSA; the rest is trimmed."""
+    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
+
+
+def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee config keeps CCM and deterministic ECDSA; the rest is trimmed."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (True, False)
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
+
+
+def test_mbedtls_tls_user_sdkconfig_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A user-set TLS role member leaves the whole choice alone; other user values are kept."""
+    generate_main(component_config_path("mbedtls_tls_user_sdkconfig.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY") is None
+    role = sdkconfig["CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT"]
+    assert isinstance(role, RawSdkconfigValue) and role.value == "y"
+    ccm = sdkconfig["CONFIG_MBEDTLS_CCM_C"]
+    assert isinstance(ccm, RawSdkconfigValue) and ccm.value == "y"
+    assert {
+        sdkconfig.get(name)
+        for name in MBEDTLS_TLS_EXTRA_OPTIONS
+        if name != "CONFIG_MBEDTLS_CCM_C"
+    } == {False}
+
+
+def test_mbedtls_tls_openthread_requires_server_and_extras(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
+    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
+
+
+def test_mbedtls_tls_zigbee_requires_extras(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
+
+
+_VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("vasprintf_stub_c6.yaml", True, id="c6"),
+        pytest.param("vasprintf_stub_c6_full_printf.yaml", False, id="c6_full_printf"),
+        pytest.param("exclusion_reincludes.yaml", False, id="esp32"),
+    ],
+)
+def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """The vasprintf wrap is emitted only where the ROM lacks vasprintf but has vsnprintf."""
+    generate_main(component_config_path(config_file))
+    assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ("nvs_cache_psram_guaranteed.yaml", True),
+        ("nvs_cache_psram_explicit.yaml", True),
+        ("nvs_cache_psram_not_guaranteed.yaml", None),
+        ("nvs_cache_psram_disabled.yaml", None),
+        # the encryption keys must stay in internal RAM, whichever way encryption is enabled
+        ("nvs_cache_psram_encrypted.yaml", None),
+        ("nvs_cache_psram_encrypted_sdkconfig.yaml", None),
+    ],
+)
+def test_nvs_cache_in_psram_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    fixture: str,
+    expected: bool | None,
+) -> None:
+    """The NVS cache moves to PSRAM only with guaranteed PSRAM, the option not off and no NVS encryption."""
+    generate_main(component_config_path(fixture))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is expected
+
+
+def test_nvs_cache_in_psram_user_sdkconfig_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A raw sdkconfig_options value for the NVS cache option is left alone."""
+    generate_main(component_config_path("nvs_cache_psram_user_off.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig["CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"] == RawSdkconfigValue("n")
+
+
+@pytest.mark.parametrize(
+    ("full_config", "error_match"),
+    [
+        pytest.param(
+            {CONF_ESPHOME: {}, "psram": {"disabled": False, "ignore_not_found": True}},
+            r"'nvs_cache_in_psram' requires PSRAM with 'ignore_not_found: false'",
+            id="nvs_cache_in_psram_needs_guaranteed_psram",
+        ),
+        pytest.param(
+            {CONF_ESPHOME: {}},
+            r"'nvs_cache_in_psram' requires PSRAM with 'ignore_not_found: false'",
+            id="nvs_cache_in_psram_needs_psram",
+        ),
+    ],
+)
+def test_nvs_cache_in_psram_explicit_true_errors(
+    full_config: dict, error_match: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """An explicit nvs_cache_in_psram: true that cannot apply is a config error, not a silent no-op."""
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
+    from esphome.components.esp32 import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = {
+        "variant": "esp32s3",
+        "framework": {"type": "esp-idf", "advanced": {"nvs_cache_in_psram": True}},
+    }
+    with pytest.raises(cv.Invalid, match=error_match):
+        FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+def test_nvs_cache_in_psram_explicit_true_rejects_encryption(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            CONF_ESPHOME: {},
+            "psram": {"disabled": False, "ignore_not_found": False},
+        },
+    )
+    from esphome.components.esp32 import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = {
+        "variant": "esp32s3",
+        "framework": {
+            "type": "esp-idf",
+            "advanced": {"nvs_cache_in_psram": True, "nvs_encryption": {"key_id": 0}},
+        },
+    }
+    with pytest.raises(cv.Invalid, match="cannot be used with NVS encryption"):
+        FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+def test_nvs_cache_in_psram_default_with_encryption_is_quiet(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Encryption on a board that never mentioned the option must not warn about it."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path("nvs_cache_psram_encrypted.yaml"))
+    assert "nvs_cache_in_psram" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_nvs_cache_in_psram_explicit_request_warns_when_encrypted(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An explicit request dropped for NVS encryption enabled elsewhere logs a warning."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_SDKCONFIG_OPTIONS: {}}
+    )
+    from esphome.components.esp32 import (
+        _apply_nvs_cache_in_psram,
+        add_idf_sdkconfig_option,
+    )
+
+    add_idf_sdkconfig_option("CONFIG_NVS_ENCRYPTION", True)
+    with caplog.at_level(logging.WARNING):
+        await _apply_nvs_cache_in_psram(True)
+    assert "nvs_cache_in_psram ignored" in caplog.text
+    assert (
+        "CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"
+        not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    )
+
+
+def test_nvs_cache_in_psram_explicit_true_on_valid_board_is_quiet(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An explicit true that applies sets the option and warns about nothing."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path("nvs_cache_psram_explicit.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is True
+    assert "nvs_cache_in_psram" not in caplog.text

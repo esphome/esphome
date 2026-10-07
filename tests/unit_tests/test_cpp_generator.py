@@ -4,6 +4,7 @@ import math
 import pytest
 
 from esphome import cpp_generator as cg, cpp_types as ct
+from esphome.core import CORE, ID
 
 
 class TestExpressions:
@@ -83,6 +84,15 @@ class TestCallExpression:
         actual = str(target)
 
         assert actual == 'my_function<int32_t, float>(1, "2", false)'
+
+
+class TestStaticCastExpression:
+    def test_str(self):
+        target = cg.StaticCastExpression(ct.bool_, 42)
+
+        actual = str(target)
+
+        assert actual == "static_cast<bool>(42)"
 
 
 class TestStructInitializer:
@@ -227,6 +237,94 @@ class TestLambdaExpression:
         assert actual == (
             "[captured_var](int32_t x) -> int32_t {\n  return captured_var + x;\n}"
         )
+
+
+class TestCallLambda:
+    """Tests for the call_lambda() function."""
+
+    def test_call_lambda__return_expression_casts_to_return_type(self):
+        """A lambda body that is just a return statement reduces to the
+        expression, cast to the lambda's return type."""
+        lamb = cg.LambdaExpression(("return foo + 1;",), (), "", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.StaticCastExpression)
+        assert str(result) == "static_cast<bool>(foo + 1)"
+
+    def test_call_lambda__return_with_trailing_statements_is_called(self) -> None:
+        """Only a lone return statement reduces; a longer body is called as is."""
+        lamb = cg.LambdaExpression(("return 1;\nfoo();",), (), "", ct.int_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result).endswith("}()")
+
+    def test_call_lambda__braced_return_is_called(self) -> None:
+        """A braced return needs the lambda's return type, so it is not reduced."""
+        lamb = cg.LambdaExpression(("return {};",), (), "", ct.int_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert "static_cast" not in str(result)
+
+    def test_call_lambda__return_expression_with_class_return_type_no_cast(self):
+        """A class return type is not cast, since static_cast doesn't apply
+        to arbitrary class types."""
+        mock_class = cg.MockObjClass("foo::Bar", parents=())
+        lamb = cg.LambdaExpression(("return get_bar();",), (), "", mock_class)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.RawExpression)
+        assert str(result) == "get_bar()"
+
+    def test_call_lambda__no_return_with_parameters_calls_with_names(self):
+        """A multi-statement lambda with parameters is called with the
+        parameter names as arguments."""
+        lamb = cg.LambdaExpression(
+            ("do_something(x, y);",), ((int, "x"), (float, "y")), "=", ct.bool_
+        )
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == (
+            "[=](int32_t x, float y) -> bool {\n  do_something(x, y);\n}(x, y)"
+        )
+
+    def test_call_lambda__no_return_type_raises(self):
+        """Calling a lambda with no declared return type is a developer
+        error: call_lambda is only for value-returning lambdas."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "=")
+
+        with pytest.raises(AssertionError):
+            cg.call_lambda(lamb)
+
+    def test_call_lambda__identifier_starting_with_return_is_not_a_return_statement(
+        self,
+    ):
+        """A body that merely starts with the substring "return" (e.g. a call
+        to a function named returnValue()) must not be mistaken for a return
+        statement -- the match requires a word boundary after "return"."""
+        lamb = cg.LambdaExpression(("returnValue();",), (), "=", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == "[=]() -> bool {\n  returnValue();\n}()"
+
+    def test_call_lambda__no_return_no_parameters_calls_with_no_args(self):
+        """A multi-statement lambda without parameters is called with no
+        arguments."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == "[]() -> bool {\n  do_something();\n}()"
 
 
 class TestLiterals:
@@ -711,3 +809,39 @@ async def test_templatable__lambda_with_std_string() -> None:
     result = await cg.templatable(lambda_obj, [], ct.std_string)
 
     assert isinstance(result, cg.LambdaExpression)
+
+
+class TestSharedProgmemArray:
+    def test_identical_contents_share_one_array(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1, 2, 3])
+        b = cg.shared_progmem_array("table", ct.uint8, [1, 2, 3])
+        c = cg.shared_progmem_array("table", ct.uint8, [4])
+        assert a is b
+        assert str(a) != str(c)
+        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+        assert not any("PROGMEM" in str(st) for st in CORE.main_statements)
+
+    def test_share_false_always_emits_a_new_array(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
+        b = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
+        assert str(a) != str(b)
+        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+
+    def test_same_contents_different_type_are_separate(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1])
+        b = cg.shared_progmem_array("table", ct.uint16, [1])
+        assert str(a) != str(b)
+
+    def test_name_avoids_config_ids(self) -> None:
+        CORE.config = {"sensor": [{"id": ID("table", is_declaration=True)}]}
+        array = cg.shared_progmem_array("table", ct.uint8, [1])
+        assert str(array) == "table_2"
+
+    def test_name_avoids_registered_variables(self) -> None:
+        CORE.config = {}
+        CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
+        array = cg.shared_progmem_array("table", ct.uint8, [1])
+        assert str(array) == "table_2"

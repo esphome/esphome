@@ -712,6 +712,17 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       this->on_device_capabilities_request();
       break;
     }
+#ifdef USE_SERIAL_PROXY
+    case SerialProxySetModeRequest::MESSAGE_TYPE: {
+      SerialProxySetModeRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_set_mode_request"), msg);
+#endif
+      this->on_serial_proxy_set_mode_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }

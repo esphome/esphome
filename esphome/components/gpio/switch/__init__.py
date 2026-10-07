@@ -15,9 +15,13 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
             cv.Optional(
-                CONF_INTERLOCK_WAIT_TIME, default="0ms"
+                CONF_INTERLOCK, visibility=cv.Visibility.ADVANCED
+            ): cv.ensure_list(cv.use_id(switch.Switch)),
+            cv.Optional(
+                CONF_INTERLOCK_WAIT_TIME,
+                default="0ms",
+                visibility=cv.Visibility.ADVANCED,
             ): cv.positive_time_period_milliseconds,
         }
     )

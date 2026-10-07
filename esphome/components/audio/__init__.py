@@ -339,10 +339,7 @@ async def to_code(config: ConfigType) -> None:
     # HTTPS streams verify the server against the root certificate bundle
     require_certificate_bundle()
 
-    add_idf_component(
-        name="esphome/esp-audio-libs",
-        ref="3.2.1",
-    )
+    add_idf_component(name="esphome/esp-audio-libs", ref="4.0.1")
 
     data = _get_data()
 

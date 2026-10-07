@@ -70,7 +70,7 @@ FINAL_VALIDATE_SCHEMA = validate_transport
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await improv_base.setup_improv_core(var, config, "improv_serial")
+    await improv_base.setup_improv_core(var, config)
     cg.add_define("USE_IMPROV_SERIAL")
     if (uart_id := config.get(CONF_UART_ID)) is not None:
         cg.add(var.set_uart(await cg.get_variable(uart_id)))
