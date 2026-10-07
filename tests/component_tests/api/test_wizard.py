@@ -793,7 +793,7 @@ def test_the_blob_is_in_flash_on_esp8266(
 
     assert "esphome::api::API_WIZARD_DATA[] PROGMEM = {" in main_cpp
     assert (
-        "const esphome::api::WizardInputEntry esphome::api::API_WIZARD_INPUTS[] PROGMEM = {"
+        "const api::WizardInputEntry esphome::api::API_WIZARD_INPUTS[] PROGMEM = {"
         in main_cpp
     )
     # Only the compressed data and the input table are emitted, no strings or row tables

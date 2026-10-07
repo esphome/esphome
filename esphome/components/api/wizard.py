@@ -435,21 +435,14 @@ def wizard_blob(wizard: ConfigType, config: fv.FinalValidateConfig) -> bytes:
 async def to_code(wizard: ConfigType) -> None:
     """Emit the compressed wizard, the table of inputs and the defines.
 
-    The data and the table have external linkage, as the API reads them from its own sources, so
-    they cannot be the static arrays cg.shared_progmem_array makes. PROGMEM keeps them in flash.
+    The API reads both tables from its own sources, so they are externally linked PROGMEM arrays.
     """
     blob = wizard_blob(wizard, CORE.config)
-    cg.add_global(
-        cg.RawStatement(
-            "const uint8_t esphome::api::API_WIZARD_DATA[] PROGMEM = {"
-            + ", ".join(str(byte) for byte in blob)
-            + "};"
-        )
-    )
+    cg.extern_progmem_array("esphome::api::API_WIZARD_DATA", cg.uint8, list(blob))
     cg.add_define("API_WIZARD_DATA_SIZE", len(blob))
     for define in sorted(_wizard_defines(wizard)):
         cg.add_define(define)
-    entries: list[str] = []
+    entries: list[cg.RawExpression] = []
     for conf in _wizard_inputs(wizard):
         input_id = _wizard_input_id(conf)
         # Every buffer starts empty, until the wizard sets it. A linked homeassistant entity uses it as its entity id.
@@ -461,13 +454,11 @@ async def to_code(wizard: ConfigType) -> None:
         )
         if CONF_ID in conf:
             cg.new_Pvariable(input_id, cg.RawExpression(buffer))
-        entries.append(f"{{{fnv1_hash(input_id.id)}u, {buffer}}}")
+        entries.append(cg.RawExpression(f"{{{fnv1_hash(input_id.id)}u, {buffer}}}"))
     if entries:
-        cg.add_global(
-            cg.RawStatement(
-                "const esphome::api::WizardInputEntry esphome::api::API_WIZARD_INPUTS[] PROGMEM = {"
-                + ", ".join(entries)
-                + "};"
-            )
+        cg.extern_progmem_array(
+            "esphome::api::API_WIZARD_INPUTS",
+            cg.esphome_ns.namespace("api").struct("WizardInputEntry"),
+            entries,
         )
         cg.add_define("API_WIZARD_INPUT_COUNT", len(entries))
