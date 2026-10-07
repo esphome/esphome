@@ -22,7 +22,6 @@ class MideaData {
   MideaData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
-  // Make from a static code, which may be in PROGMEM
   MideaData(const uint8_t *data, size_t len) {
     progmem_memcpy(this->data_.data(), data, std::min(len, this->data_.size()));
   }
