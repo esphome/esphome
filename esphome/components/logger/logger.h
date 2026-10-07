@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdarg>
 #include <map>
 #include <span>
@@ -12,6 +13,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
@@ -86,9 +88,17 @@ class LoggerLevelListener {
 #endif
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-// Comparison function for const char* keys in log_levels_ map
+// A tag being looked up; may be in PROGMEM on ESP8266, while map keys are always in RAM
+struct FlashTag {
+  const char *tag;
+};
+
+// Transparent comparison so log_levels_.find(FlashTag{tag}) needs no RAM copy of the tag
 struct CStrCompare {
+  using is_transparent = void;
   bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+  bool operator()(const char *key, FlashTag t) const { return ESPHOME_strcmp_P(key, t.tag) < 0; }
+  bool operator()(FlashTag t, const char *key) const { return ESPHOME_strcmp_P(key, t.tag) > 0; }
 };
 #endif
 
@@ -481,14 +491,20 @@ class Logger final : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+static constexpr size_t TAG_RAM_SIZE = 33;
+
+/// Returns the tag readable from RAM; on ESP8266 a PROGMEM tag is copied into buf, truncated to 32 characters.
+inline const char *tag_to_ram(const char *tag, char (&buf)[TAG_RAM_SIZE]) {
 #ifdef USE_ESP8266
-/// Copies a tag that may be in PROGMEM into RAM, truncated to 32 characters.
-inline const char *tag_to_ram(const char *tag, char (&buf)[33]) {
-  ESPHOME_strncpy_P(buf, tag, sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
+  const size_t len = std::min(ESPHOME_strlen_P(tag), TAG_RAM_SIZE - 1);
+  progmem_memcpy(buf, tag, len);
+  buf[len] = '\0';
   return buf;
-}
+#else
+  (void) buf;
+  return tag;
 #endif
+}
 
 class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
  public:
@@ -497,11 +513,9 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
                              [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
                                auto *trigger = static_cast<LoggerMessageTrigger *>(self);
                                if (level <= trigger->level_) {
-#ifdef USE_ESP8266
                                  // User lambdas may strcmp the tag, which may be in PROGMEM
-                                 char ram_tag[33];
+                                 char ram_tag[TAG_RAM_SIZE];
                                  tag = tag_to_ram(tag, ram_tag);
-#endif
                                  trigger->trigger(level, tag, message);
                                }
                              });

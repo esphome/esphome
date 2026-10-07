@@ -192,9 +192,19 @@ struct LogBuffer {
   // Copy string without null terminator, updates pointer in place
   // Caller is responsible for ensuring buffer has sufficient space. Tags may be in PROGMEM on ESP8266.
   void copy_string_(char *&p, const char *str) {
-    const size_t len = ESPHOME_strlen_P(str);
-    progmem_memcpy(p, str, len);
+#ifdef USE_ESP8266
+    for (size_t i = 0; i < 32; i++) {
+      const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(str + i)));
+      if (c == '\0')
+        break;
+      *p++ = c;
+    }
+#else
+    const size_t len = strlen(str);
+    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator
+    memcpy(p, str, len);
     p += len;
+#endif
   }
 };
 

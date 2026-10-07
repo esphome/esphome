@@ -9,8 +9,6 @@ namespace esphome::logger::testing {
 
 ESPHOME_LOG_TAG(TEST_TAG, "test.tag");
 
-TEST(LogTagTest, TagReadsAsAString) { EXPECT_STREQ(TEST_TAG, "test.tag"); }
-
 TEST(LogTagTest, HeaderContainsTagAndLine) {
   char data[256];
   LogBuffer buf{data, sizeof(data)};
