@@ -1,13 +1,14 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
-from esphome.components.const import CONF_ON_REQUEST
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["modbus"]
 MULTI_CONF = True
+
+CONF_ON_REQUEST = "on_request"
 
 CONFIG_SCHEMA = cv.Schema(
     {

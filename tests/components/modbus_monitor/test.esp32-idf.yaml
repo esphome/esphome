@@ -1,4 +1,3 @@
 packages:
   modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
-
-<<: !include common.yaml
+  modbus_monitor: !include common.yaml

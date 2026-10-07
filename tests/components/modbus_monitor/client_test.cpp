@@ -7,7 +7,12 @@
 #include "../modbus/common.h"
 #include "esphome/components/modbus/modbus.h"
 
-namespace esphome::modbus::testing {
+namespace esphome::modbus_monitor::testing {
+
+using modbus::ModbusClientDevice;
+using modbus::ModbusClientHub;
+using modbus::BROADCAST_ADDRESS;
+using modbus::testing::NullUART;
 
 namespace {
 
@@ -122,4 +127,4 @@ TEST(MonitorClientBlocked, NotSentIsNotSeen) {
   EXPECT_EQ(seen, 0);
 }
 
-}  // namespace esphome::modbus::testing
+}  // namespace esphome::modbus_monitor::testing

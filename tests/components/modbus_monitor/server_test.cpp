@@ -7,7 +7,14 @@
 #include "../modbus/common.h"
 #include "esphome/components/modbus/modbus.h"
 
-namespace esphome::modbus::testing {
+namespace esphome::modbus_monitor::testing {
+
+using modbus::ModbusServerDevice;
+using modbus::ModbusServerHub;
+using modbus::RegisterValues;
+using modbus::ResponseStatus;
+using modbus::BROADCAST_ADDRESS;
+using modbus::testing::InjectableUART;
 
 namespace {
 
@@ -160,4 +167,4 @@ TEST_F(MonitorServer, UnknownFunctionIsSeen) {
   EXPECT_EQ(this->seen_[0].pdu, vec_(pdu));
 }
 
-}  // namespace esphome::modbus::testing
+}  // namespace esphome::modbus_monitor::testing
