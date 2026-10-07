@@ -14,24 +14,17 @@ void EzspProxyTap::dump_config() { ESP_LOGCONFIG(TAG, "EZSP Proxy Tap:\n  Port: 
 
 void EzspProxyTap::on_device_rx(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
-    // Observation only: this never gates forwarding, so it adds no latency and a frame it
-    // cannot parse still reaches the client, which judges it for itself.
-    this->acknowledger_.feed(data[i]);
-
-    uint8_t ack_num;
-    if (this->acknowledger_.take_pending_ack(ack_num)) {
-      // The client suppresses its own ACKs, so this is the only acknowledgement the NCP
-      // will see. Only ever sent for a frame that passed CRC and arrived in sequence.
-      uint8_t frame[ASH_ACK_FRAME_MAX_SIZE];
-      this->parent_->write_from_tap(frame, ash_build_ack_frame(frame, ack_num));
-      ESP_LOGV(TAG, "Sent ACK for frame %u", ack_num);
+    if (this->acknowledger_.feed(data[i])) {
+      uint8_t frame[ASH_ACK_FRAME_SIZE];
+      ash_build_ack_frame(frame, this->acknowledger_.ack_num());
+      this->parent_->write_from_tap(frame, sizeof(frame));
+      ESP_LOGV(TAG, "Sent ACK %u", this->acknowledger_.ack_num());
     }
   }
 }
 
 void EzspProxyTap::on_protocol_enabled() {
-  // The frame numbering we last followed may be from an earlier session. The client resets
-  // the NCP as it starts, and its RSTACK sets the numbering again.
+  // Numbering from an earlier session is stale
   this->acknowledger_.reset();
 }
 

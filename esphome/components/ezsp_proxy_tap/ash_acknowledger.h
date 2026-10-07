@@ -7,19 +7,14 @@
 
 namespace esphome::ezsp_proxy_tap {
 
-enum class ScanResult : uint8_t {
-  NONE,     // Mid-frame, or a delimiter that carried nothing
-  FRAME,    // frame()/length() hold a complete body with a verified CRC
-  INVALID,  // A delimited chunk arrived but was not a well-formed ASH frame
-};
-
 // Reassembles one direction of the byte stream into unstuffed, CRC-checked frames.
 // FLAG ends a frame, CANCEL discards what precedes it, SUBSTITUTE poisons everything up
 // to the next FLAG, and XON/XOFF are transport flow control removed without disturbing
 // the frame around them.
 class AshFrameScanner {
  public:
-  ScanResult feed(uint8_t byte);
+  // Returns true when the byte completes a frame with a valid CRC
+  bool feed(uint8_t byte);
   void reset();
 
   // Valid only until the next feed() call, which begins overwriting the buffer.
@@ -29,8 +24,6 @@ class AshFrameScanner {
  private:
   void begin_frame_();
 
-  // Frames are bounded by the ASH maximum, so a stream carrying no delimiters cannot
-  // grow the buffer without limit; it just keeps failing.
   uint8_t buffer_[MAX_ASH_FRAME_SIZE];
   size_t index_{0};         // accumulation position for the frame being read
   size_t frame_length_{0};  // body length of the last completed frame
@@ -47,19 +40,15 @@ class AshAcknowledger {
  public:
   void reset();
 
-  // Feed bytes from the NCP. Never gates forwarding: this only watches.
-  void feed(uint8_t byte);
-
-  // An acknowledgement became owed after the last feed() call. Clears the flag.
-  bool take_pending_ack(uint8_t &ack_num);
+  // Feed a byte from the NCP. Returns true when it completes a frame that is owed ack_num().
+  bool feed(uint8_t byte);
+  uint8_t ack_num() const { return this->rx_sequence_; }
 
  protected:
-  void handle_frame_();
+  bool handle_frame_();
 
   AshFrameScanner scanner_;
   uint8_t rx_sequence_{0};
-  uint8_t pending_ack_{0};
-  bool ack_owed_{false};
 };
 
 }  // namespace esphome::ezsp_proxy_tap
