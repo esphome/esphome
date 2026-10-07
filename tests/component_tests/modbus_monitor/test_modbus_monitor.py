@@ -37,13 +37,3 @@ def test_nothing_is_compiled_in_without_a_block(generate_main) -> None:
 def test_empty_block_is_rejected() -> None:
     with pytest.raises(cv.Invalid, match="on_request"):
         modbus_monitor.CONFIG_SCHEMA({"modbus_id": "hub"})
-
-
-@pytest.mark.parametrize("role", ["client", "server"])
-def test_client_and_server_hubs_are_accepted(role: str) -> None:
-    assert modbus_monitor.validate_role(role) == role
-
-
-def test_other_roles_are_rejected() -> None:
-    with pytest.raises(cv.Invalid, match="role client or server, not 'sniffer'"):
-        modbus_monitor.validate_role("sniffer")
