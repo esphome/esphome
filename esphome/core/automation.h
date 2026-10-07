@@ -91,6 +91,23 @@ template<typename... Ts> class TemplatableBytes {
       return this->code_.func(x...);
     return to_vector(this->code_.data, this->size());
   }
+  /// Calls fn(const uint8_t *data, size_t len) with the payload readable from RAM: a lambda's vector, a static
+  /// table directly, or on ESP8266 a copy of the PROGMEM table (on the stack up to N bytes).
+  template<size_t N = 64, typename F> void visit(F &&fn, const Ts &...x) const {
+    if (this->len_ < 0) {
+      const std::vector<uint8_t> bytes = this->code_.func(x...);
+      fn(bytes.data(), bytes.size());
+      return;
+    }
+#ifdef USE_ESP8266
+    SmallBufferWithHeapFallback<N> buf(this->size());
+    if (this->len_ != 0)
+      progmem_memcpy(buf.get(), this->code_.data, this->size());
+    fn(buf.get(), this->size());
+#else
+    fn(this->code_.data, this->size());
+#endif
+  }
 
  protected:
   static std::vector<uint8_t> to_vector(const uint8_t *data, size_t len) {
