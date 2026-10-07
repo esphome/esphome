@@ -126,3 +126,13 @@ async def test_branch_resume_async(
         for run in (1, 2, 3):
             assert count(f"parallel-branch-done-{run}") == 1
             assert count(f"parallel-after-if-{run}") == 1
+
+        # A condition that stops its own script must not start a branch or continue the chain
+        done = wait_for("stop-in-conditions-done")
+        await client.execute_service(service["run_stop_in_conditions"], {})
+        await asyncio.wait_for(done, timeout=2.0)
+        assert count("if-stopped-by-condition-should-not-run") == 0
+        assert count("if-else-stopped-by-condition-should-not-run") == 0
+        assert count("after-if-stopped-by-condition-should-not-run") == 0
+        assert count("while-stopped-by-condition-should-not-run") == 0
+        assert count("after-while-stopped-by-condition-should-not-run") == 0

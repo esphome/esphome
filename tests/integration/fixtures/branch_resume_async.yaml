@@ -148,6 +148,29 @@ script:
             - delay: 30ms
       - logger.log: "after-delay-last"
 
+  - id: stop_in_if_condition
+    then:
+      - if:
+          condition:
+            lambda: |-
+              id(stop_in_if_condition).stop();
+              return true;
+          then:
+            - logger.log: "if-stopped-by-condition-should-not-run"
+          else:
+            - logger.log: "if-else-stopped-by-condition-should-not-run"
+      - logger.log: "after-if-stopped-by-condition-should-not-run"
+  - id: stop_in_while_condition
+    then:
+      - while:
+          condition:
+            lambda: |-
+              id(stop_in_while_condition).stop();
+              return true;
+          then:
+            - logger.log: "while-stopped-by-condition-should-not-run"
+      - logger.log: "after-while-stopped-by-condition-should-not-run"
+
 globals:
   - id: counter
     type: int
@@ -208,6 +231,12 @@ api:
     - action: run_delay_last_in_branch
       then:
         - script.execute: delay_last_in_branch
+    - action: run_stop_in_conditions
+      then:
+        - script.execute: stop_in_if_condition
+        - script.execute: stop_in_while_condition
+        - delay: 200ms
+        - logger.log: "stop-in-conditions-done"
     - action: run_parallel_branch
       then:
         - script.execute:
