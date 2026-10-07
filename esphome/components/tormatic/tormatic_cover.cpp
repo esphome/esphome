@@ -408,7 +408,7 @@ void Tormatic::send_gate_command_(GateStatus s) {
 // Send a light on/off command to the unit.
 void Tormatic::send_light_command(bool state) {
   auto ls = state ? LIGHT_ON : LIGHT_OFF;
-  ESP_LOGI(TAG, "Sending light command %s", state ? "On" : "Off");
+  ESP_LOGI(TAG, "Sending light command %s", state ? LOG_STR_LITERAL("On") : LOG_STR_LITERAL("Off"));
   LightCommandRequestReply req(ls);
   this->send_message_(COMMAND, req);
 }
