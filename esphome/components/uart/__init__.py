@@ -402,7 +402,9 @@ async def to_code(config):
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
-    cg.add(var.set_parity(config[CONF_PARITY]))
+    # Skip the setter when the config matches the C++ initializer (UART_CONFIG_PARITY_NONE).
+    if (parity := config[CONF_PARITY]) != "NONE":
+        cg.add(var.set_parity(parity))
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
@@ -487,7 +489,8 @@ def final_validate_device_schema(
         return value
 
     def validate_stop_bits(value):
-        if value != stop_bits:
+        # usb_uart channels store stop bits as strings ("1", "1.5", "2").
+        if float(value) != stop_bits:
             raise cv.Invalid(
                 f"Component {name} requires {stop_bits} stop bits for the uart referenced by {uart_bus}"
             )
