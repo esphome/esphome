@@ -160,6 +160,16 @@ script:
           else:
             - logger.log: "if-else-stopped-by-condition-should-not-run"
       - logger.log: "after-if-stopped-by-condition-should-not-run"
+  - id: stop_in_if_else_condition
+    then:
+      - if:
+          condition:
+            lambda: |-
+              id(stop_in_if_else_condition).stop();
+              return false;
+          else:
+            - logger.log: "else-stopped-by-condition-should-not-run"
+      - logger.log: "after-else-stopped-by-condition-should-not-run"
   - id: stop_in_while_condition
     then:
       - while:
@@ -234,6 +244,7 @@ api:
     - action: run_stop_in_conditions
       then:
         - script.execute: stop_in_if_condition
+        - script.execute: stop_in_if_else_condition
         - script.execute: stop_in_while_condition
         - delay: 200ms
         - logger.log: "stop-in-conditions-done"

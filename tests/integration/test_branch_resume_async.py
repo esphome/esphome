@@ -134,5 +134,7 @@ async def test_branch_resume_async(
         assert count("if-stopped-by-condition-should-not-run") == 0
         assert count("if-else-stopped-by-condition-should-not-run") == 0
         assert count("after-if-stopped-by-condition-should-not-run") == 0
+        assert count("else-stopped-by-condition-should-not-run") == 0
+        assert count("after-else-stopped-by-condition-should-not-run") == 0
         assert count("while-stopped-by-condition-should-not-run") == 0
         assert count("after-while-stopped-by-condition-should-not-run") == 0
