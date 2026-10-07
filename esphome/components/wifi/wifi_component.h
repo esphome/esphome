@@ -303,7 +303,7 @@ class WiFiAP {
   bssid_t bssid_{};     // 6 bytes, all zeros = any/not set
   uint8_t channel_{0};  // 1 byte, 0 = auto/not set
   int8_t priority_{0};  // 1 byte
-  bool hidden_{false};  // 1 byte (+ 3 bytes end padding to 4-byte align)
+  bool hidden_{false};  // 1 byte; WiFiAP is byte aligned unless manual IP or EAP adds a 4 byte aligned member
 };
 
 class WiFiScanResult {
@@ -506,6 +506,9 @@ class WiFiComponent final : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
+#ifdef USE_LN882X
+  void on_powerdown() override;
+#endif
   void start();
   void dump_config() override;
   void restart_adapter();
@@ -684,6 +687,12 @@ class WiFiComponent final : public Component {
  protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
+  /// End the captive portal and turn the AP off.
+  void disable_ap_();
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
+  void pause_exclusive_ap_();
+#endif
 #endif  // USE_WIFI_AP
 
   void print_connect_params_();
@@ -874,9 +883,6 @@ class WiFiComponent final : public Component {
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   Mutex scan_result_lock_;
 #endif
-#ifdef USE_WIFI_AP
-  WiFiAP ap_;
-#endif
 #ifdef USE_WIFI_IP_STATE_LISTENERS
   StaticVector<WiFiIPStateListener *, ESPHOME_WIFI_IP_STATE_LISTENERS> ip_state_listeners_;
 #endif
@@ -919,11 +925,17 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  uint32_t ap_exclusive_changed_{0};  // When the AP was last started or paused
+#endif
   uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t roaming_last_check_{0};
   uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{90000};  // Keep in sync with DEFAULT_AP_TIMEOUT in __init__.py
+  // WiFiAP is byte aligned unless manual IP or EAP is enabled; placed before the
+  // 1-byte members so they pack into its trailing bytes instead of padding after it
+  WiFiAP ap_;
 #endif
 
   // 1-byte enums and integers
@@ -983,7 +995,8 @@ class WiFiComponent final : public Component {
 
   // Bools and bitfields
   // Pending listener callbacks deferred from platform callbacks to main loop.
-  struct {
+  // Empty when no listener needs deferring (e.g. ESP32 without connect state listeners)
+  [[no_unique_address]] struct {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Deferred until state machine reaches STA_CONNECTED so wifi.connected
     // condition returns true in listener automations.
@@ -1007,6 +1020,9 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  uint8_t ap_clients_{0};  // Devices joined to the AP, which keep it from pausing
+#endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT

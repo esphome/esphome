@@ -649,6 +649,19 @@ def phy_register(address: int, value: int, page: int) -> cg.StructInitializer:
     )
 
 
+def _add_phy_registers(var: cg.MockObj, config: ConfigType) -> None:
+    if not (registers := config.get(CONF_PHY_REGISTERS)):
+        return
+    cg.add_define("ESPHOME_ETHERNET_PHY_REGISTER_COUNT", len(registers))
+    for register_value in registers:
+        reg = phy_register(
+            register_value.get(CONF_ADDRESS),
+            register_value.get(CONF_VALUE),
+            register_value.get(CONF_PAGE_ID),
+        )
+        cg.add(var.add_phy_register(reg))
+
+
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -762,13 +775,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
         _add_mdio_setters(var, config)
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
-        for register_value in config.get(CONF_PHY_REGISTERS, []):
-            reg = phy_register(
-                register_value.get(CONF_ADDRESS),
-                register_value.get(CONF_VALUE),
-                register_value.get(CONF_PAGE_ID),
-            )
-            cg.add(var.add_phy_register(reg))
+        _add_phy_registers(var, config)
     else:
         _add_mdio_setters(var, config)
         if (clk_mode := config[CONF_CLK][CONF_MODE]) != DEFAULT_CLK_MODE:
@@ -777,13 +784,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             cg.add(var.set_clk_pin(clk_pin))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
-        for register_value in config.get(CONF_PHY_REGISTERS, []):
-            reg = phy_register(
-                register_value.get(CONF_ADDRESS),
-                register_value.get(CONF_VALUE),
-                register_value.get(CONF_PAGE_ID),
-            )
-            cg.add(var.add_phy_register(reg))
+        _add_phy_registers(var, config)
 
     # Register Ethernet with the esp32 sdkconfig reconciler. It disables the
     # WiFi stack and WiFi/BT coexistence only when Ethernet runs without WiFi,
