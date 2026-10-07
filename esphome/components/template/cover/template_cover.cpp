@@ -69,6 +69,7 @@ void TemplateCover::control(const CoverCall &call) {
   }
   if (call.get_stop_tilt()) {
     this->tilt_trigger_.stop_action();
+    this->stop_tilt_trigger_.stop_action();
     this->stop_tilt_trigger_.trigger();
   }
   if (call.get_toggle().has_value()) {
@@ -100,6 +101,7 @@ void TemplateCover::control(const CoverCall &call) {
   auto tilt_val = call.get_tilt();
   if (tilt_val.has_value()) {
     auto tilt = *tilt_val;
+    this->stop_tilt_trigger_.stop_action();
     this->tilt_trigger_.trigger(tilt);
 
     if (this->optimistic_) {
