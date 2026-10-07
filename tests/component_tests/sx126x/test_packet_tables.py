@@ -4,6 +4,11 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
+import pytest
+
+from esphome.components.sx126x import validate_packet_data
+import esphome.config_validation as cv
+
 
 def test_constant_packets_share_progmem_tables(
     generate_main: Callable[[str | Path], str],
@@ -23,3 +28,12 @@ def test_constant_packets_share_progmem_tables(
     shared = next(k for k, v in tables.items() if v == "{0xC5, 0x51, 0x78, 0x82}")
     assert main_cpp.count(f"set_data_static({shared}, 4);") == 2
     assert "set_data_template(" in main_cpp
+
+
+def test_packet_data_length_limit() -> None:
+    """Constant packets must be 1 to 255 bytes long."""
+    assert len(validate_packet_data([0x01] * 255)) == 255
+    with pytest.raises(cv.Invalid):
+        validate_packet_data([0x01] * 256)
+    with pytest.raises(cv.Invalid):
+        validate_packet_data([])

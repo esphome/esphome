@@ -146,8 +146,8 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     )
 
 
-# The radio cannot send packets longer than 255 bytes.
-validate_packet_data = cv.All(validate_raw_data, cv.Length(max=255))
+# The radio sends packets of 1 to 255 bytes.
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=255))
 
 
 def validate_config(config: ConfigType) -> ConfigType:
