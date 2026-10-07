@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
@@ -444,6 +445,34 @@ UART_DEVICE_SCHEMA = cv.Schema(
 )
 
 KEY_UART_DEVICES = "uart_devices"
+
+
+@dataclass
+class UARTData:
+    # UARTs whose received bytes do not keep the timing of a serial line.
+    unclocked: list[ID] = field(default_factory=list)
+
+
+def _get_data() -> UARTData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = UARTData()
+    return CORE.data[DOMAIN]
+
+
+def mark_unclocked(uart_id: ID) -> ID:
+    """Record that the bytes of uart_id do not arrive with the timing of a serial line, e.g. over TCP or USB.
+
+    A gap between them says nothing about where a frame ends. Use it on the UART's declared id,
+    cv.All(cv.declare_id(MyUart), uart.mark_unclocked), so that every to_code sees it.
+    """
+    _get_data().unclocked.append(uart_id)
+    return uart_id
+
+
+def is_unclocked(uart_id: ID) -> bool:
+    """Return True if uart_id was passed to mark_unclocked()."""
+    # By name: a generated id is named only after the schemas ran.
+    return any(str(uart) == str(uart_id) for uart in _get_data().unclocked)
 
 
 def final_validate_device_schema(
