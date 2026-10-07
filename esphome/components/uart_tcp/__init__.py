@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, socket, uart
+from esphome.components import binary_sensor, sensor, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
     CONF_CONNECTED,
@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_UART_ID,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_TOTAL_INCREASING,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -24,8 +25,10 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@Bascht74"]
 DOMAIN = "uart_tcp"
 DEPENDENCIES = ["network", "uart"]
-AUTO_LOAD = ["binary_sensor", "socket"]
+AUTO_LOAD = ["binary_sensor", "sensor", "socket"]
 MULTI_CONF = True
+
+CONF_DISCONNECTS = "disconnects"
 
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
@@ -41,6 +44,11 @@ BASE_SCHEMA = cv.Schema(
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_CONNECTIVITY,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+        cv.Optional(CONF_DISCONNECTS): sensor.sensor_schema(
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
@@ -149,3 +157,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_host(host))
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_DISCONNECTS, var.set_disconnects_sensor)
