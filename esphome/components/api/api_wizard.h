@@ -24,7 +24,7 @@ extern const uint8_t API_WIZARD_DATA[] PROGMEM;
 
 /// Encodes a DeviceWizardResponse like the generated encoder would. The data is in flash, which ESP8266 can only read
 /// with progmem_memcpy, so the generated encoder (a plain memcpy) cannot be used. Plain memcpy elsewhere.
-uint8_t *wizard_encode_response(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+uint8_t *wizard_encode_response(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
 
 #ifdef USE_API_WIZARD_INPUTS
 /// Where the entity id of an input is kept, found by the key the client uses for it.
