@@ -379,7 +379,7 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
   this->disable();
 }
 
-CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
+CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
     return CC1101Error::PARAMS;
   }
@@ -388,9 +388,9 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
   this->enter_idle_();
   this->strobe_(Command::FTX);
   if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
-    this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
+    this->write_(Register::FIFO, static_cast<uint8_t>(len));
   }
-  this->write_(Register::FIFO, packet.data(), packet.size());
+  this->write_(Register::FIFO, data, len);
 
   // Calibrate PLL
   if (!this->enter_calibrated_(State::FSTXON, Command::FSTXON)) {
