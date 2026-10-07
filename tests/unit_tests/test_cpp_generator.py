@@ -4,6 +4,12 @@ import math
 import pytest
 
 from esphome import cpp_generator as cg, cpp_types as ct
+from esphome.const import (
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+)
 from esphome.core import CORE, ID
 
 
@@ -845,3 +851,28 @@ class TestSharedProgmemArray:
         CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
+
+
+class TestProgmemString:
+    @staticmethod
+    def _set_platform(platform: str) -> None:
+        CORE.config = {}
+        CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+
+    def test_esp8266_shares_one_array_per_text(self) -> None:
+        self._set_platform(PLATFORM_ESP8266)
+        a = cg.progmem_string("level")
+        b = cg.progmem_string("level")
+        c = cg.progmem_string('say "hi"')
+        assert a is b
+        assert str(a) == "progmem_str"
+        assert str(c) == "progmem_str_2"
+        assert [str(st) for st in CORE.global_statements] == [
+            'static constexpr char progmem_str[] PROGMEM = "level";',
+            'static constexpr char progmem_str_2[] PROGMEM = "say \\042hi\\042";',
+        ]
+
+    def test_other_platforms_return_the_literal(self) -> None:
+        self._set_platform(PLATFORM_ESP32)
+        assert str(cg.progmem_string('say "hi"')) == '"say \\042hi\\042"'
+        assert not CORE.global_statements

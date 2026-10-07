@@ -498,6 +498,19 @@ def shared_progmem_array(
     return array
 
 
+def progmem_string(value: str) -> Expression:
+    """Return a string that stays in flash: one shared PROGMEM array per text on ESP8266.
+
+    Other platforms keep string literals in flash already, so they get the plain literal.
+    """
+    from esphome.cpp_types import char
+
+    text = StringLiteral(value)
+    if CORE.is_esp8266:
+        return shared_progmem_array("progmem_str", char, text)
+    return text
+
+
 def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")

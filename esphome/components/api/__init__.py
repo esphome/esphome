@@ -49,7 +49,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
-from esphome.helpers import cpp_string_escape, fnv1_hash
+from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
 
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
@@ -435,28 +435,11 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
 
 
-def _add_action_strings(
-    index: int, strings: list[str | None], interned: dict[str, MockObj]
-) -> MockObj:
-    """Emit the PROGMEM string table for one action.
-
-    Each string is its own PROGMEM array because on ESP8266 .rodata is RAM, and identical
-    strings are shared between actions through `interned`.
-    """
-    entries: list[MockObj] = []
-    for string in strings:
-        if string is None:
-            entries.append(cg.nullptr)
-            continue
-        if (var := interned.get(string)) is None:
-            var = interned[string] = cg.progmem_array(
-                ID(f"api_action_str{len(interned)}", is_declaration=True, type=cg.char),
-                string,
-            )
-        entries.append(var)
+def _add_action_strings(index: int, strings: list[str | None]) -> MockObj:
+    """Emit the PROGMEM string table for one action."""
     return cg.progmem_array(
         ID(f"api_action{index}_strings", is_declaration=True, type=cg.const_char_ptr),
-        entries,
+        [cg.nullptr if s is None else cg.progmem_string(s) for s in strings],
     )
 
 
@@ -509,7 +492,6 @@ async def to_code(config: ConfigType) -> None:
         has_metadata = _has_action_metadata(actions)
         if has_metadata:
             cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
-        interned_strings: dict[str, MockObj] = {}
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.MockObj] = []
         for index, conf in enumerate(actions):
@@ -554,7 +536,7 @@ async def to_code(config: ConfigType) -> None:
                 service_template_args.append(native)
                 func_args.append((native, name))
             strings = _action_strings(conf, has_metadata)
-            table = _add_action_strings(index, strings, interned_strings)
+            table = _add_action_strings(index, strings)
             if CORE.is_esp8266:
                 scratch_size = max(scratch_size, _action_strings_size(strings))
             # Template args: supports_response mode, then user service arg types
@@ -716,14 +698,6 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
-def _field_string(value: str) -> Expression:
-    # ESP8266 can only keep a string in flash as its own PROGMEM array
-    literal = cg.RawExpression(cpp_string_escape(value))
-    if CORE.is_esp8266:
-        return cg.shared_progmem_array("ha_field_str", cg.char, literal)
-    return literal
-
-
 async def _new_service_call_action(
     server_id: ID,
     action_id: ID,
@@ -746,12 +720,12 @@ async def _new_service_call_action(
     )
 
     async def field(key: str | None, value: Any, output_type: Any = None) -> Expression:
-        key_exp = cg.nullptr if key is None else _field_string(key)
+        key_exp = cg.nullptr if key is None else cg.progmem_string(key)
         if cg.is_template(value):
             # output_type=None lets lambdas return numbers or char pointers; C++ converts them
             lam = await cg.process_lambda(value, args, return_type=output_type)
             return cg.RawExpression(f"{field_type}::from_lambda({key_exp}, {lam})")
-        return cg.ArrayInitializer(key_exp, _field_string(value), cg.nullptr)
+        return cg.ArrayInitializer(key_exp, cg.progmem_string(value), cg.nullptr)
 
     entries = [await field(None, service, cg.std_string)]
     for group in groups:

@@ -28,33 +28,37 @@ CONFIG_SHORTHAND = "tests/component_tests/api/test_action_metadata_shorthand.yam
 def test_metadata_is_emitted_as_progmem_table(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """Every action string is a PROGMEM array referenced from one PROGMEM table."""
+    """Every action string is a literal referenced from one PROGMEM table."""
     main_cpp = generate_main(CONFIG)
 
     assert (
-        'static constexpr char api_action_str0[] PROGMEM = "play_buzzer";' in main_cpp
-    )
-    assert (
-        'static constexpr char api_action_str1[] PROGMEM = "Play an RTTTL melody on the buzzer";'
-        in main_cpp
-    )
-    assert (
-        'static constexpr char api_action_str4[] PROGMEM = "two_short:d=4,o=5,b=100:16e6,16e6";'
-        in main_cpp
-    )
-    assert (
         "static constexpr const char * api_action0_strings[] PROGMEM = {"
-        "api_action_str0, api_action_str1, api_action_str2, api_action_str3, "
-        "api_action_str4, api_action_str5, nullptr, nullptr};" in main_cpp
+        '"play_buzzer", "Play an RTTTL melody on the buzzer", "song_str", '
+        '"RTTTL melody string", "two_short:d=4,o=5,b=100:16e6,16e6", "volume", '
+        "nullptr, nullptr};" in main_cpp
     )
     # An action without metadata still carries the metadata slots (as nullptr)
     assert (
         "static constexpr const char * api_action1_strings[] PROGMEM = {"
-        "api_action_str6, nullptr, api_action_str7, nullptr, nullptr};" in main_cpp
+        '"plain_action", nullptr, "value", nullptr, nullptr};' in main_cpp
     )
     assert f"(api_action0_strings, {safe_exp(fnv1_hash('play_buzzer'))});" in main_cpp
     assert "USE_API_USER_DEFINED_ACTION_METADATA" in {d.name for d in CORE.defines}
     assert get_define_value("API_USER_ACTION_STRINGS_SCRATCH_SIZE") is None
+
+
+def test_esp8266_strings_are_shared_progmem_arrays(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """On ESP8266 each string is its own PROGMEM array, referenced from the table."""
+    main_cpp = generate_main(CONFIG_ESP8266)
+
+    assert 'static constexpr char progmem_str[] PROGMEM = "play_buzzer";' in main_cpp
+    assert 'static constexpr char progmem_str_8[] PROGMEM = "value";' in main_cpp
+    assert (
+        "static constexpr const char * api_action1_strings[] PROGMEM = {"
+        "progmem_str_7, nullptr, progmem_str_8, nullptr, nullptr};" in main_cpp
+    )
 
 
 def test_esp8266_sizes_scratch_buffer_for_largest_action(
@@ -76,7 +80,7 @@ def test_shorthand_variables_emit_no_metadata(
 
     assert (
         "static constexpr const char * api_action0_strings[] PROGMEM = "
-        "{api_action_str0, api_action_str1};" in main_cpp
+        '{"plain_action", "value"};' in main_cpp
     )
     assert "USE_API_USER_DEFINED_ACTION_METADATA" not in {d.name for d in CORE.defines}
 
