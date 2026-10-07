@@ -24,11 +24,6 @@ inline bool ash_is_reserved(uint8_t byte) {
          byte == ASH_SUBSTITUTE_BYTE || byte == ASH_CANCEL_BYTE;
 }
 
-// CRC-CCITT (init 0xFFFF, polynomial 0x1021, transmitted big-endian). Note this is a
-// different variant from the Kermit FCS that Spinel/HDLC-lite uses over the same
-// 0x7E framing, so Spinel frames systematically fail this check.
-uint16_t ash_crc16(const uint8_t *data, size_t length, uint16_t init = 0xFFFF);
-
 // ASH bounds a frame's Data Field at 128 bytes, so the largest body a scanner has to
 // hold is that field plus the control byte and the two CRC bytes ahead of the closing
 // delimiter. Byte stuffing happens on the wire only and is undone as bytes arrive, so it
@@ -37,8 +32,12 @@ static constexpr size_t ASH_MAX_DATA_FIELD_SIZE = 128;
 static constexpr size_t MAX_ASH_FRAME_SIZE = 1 + ASH_MAX_DATA_FIELD_SIZE + 2;
 
 // Protocol limits
-static constexpr uint8_t ASH_MAX_SEQUENCE = 7;    // 3-bit sequence number (0-7)
-static constexpr uint16_t ASH_CRC_INIT = 0xFFFF;  // CRC-CCITT initial value
+static constexpr uint8_t ASH_MAX_SEQUENCE = 7;  // 3-bit sequence number (0-7)
+
+// The frame CRC is CRC-CCITT: crc16be() with this initial value, transmitted big-endian.
+// Note this is a different variant from the Kermit FCS that Spinel/HDLC-lite uses over
+// the same 0x7E framing, so Spinel frames systematically fail this check.
+static constexpr uint16_t ASH_CRC_INIT = 0xFFFF;
 
 // An ACK is FLAG, control byte, two CRC bytes, FLAG. Every byte but the delimiters may
 // need escaping, so the worst case is 2 + 3 * 2 = 8.

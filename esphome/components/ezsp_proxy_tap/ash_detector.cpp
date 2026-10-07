@@ -2,6 +2,8 @@
 
 #ifdef USE_EZSP_PROXY_TAP
 
+#include "esphome/core/helpers.h"
+
 namespace esphome::ezsp_proxy_tap {
 
 // Control byte of an RSTACK, and the only ASH version byte that can follow it
@@ -127,7 +129,7 @@ ScanResult AshFrameScanner::feed(uint8_t byte) {
   }
 
   this->buffer_[this->index_++] = value;
-  this->crc_ = ash_crc16(&value, 1, this->crc_);
+  this->crc_ = crc16be(&value, 1, this->crc_);
   return ScanResult::NONE;
 }
 
