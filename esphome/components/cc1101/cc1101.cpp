@@ -405,7 +405,7 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
 #ifdef USE_ESP32
   // SPI DMA cannot read flash or unaligned buffers; stage them here so the driver does not allocate a copy
   alignas(4) uint8_t staged[TX_FIFO_SIZE];
-  if (!esp_ptr_dma_capable(data) || (reinterpret_cast<uintptr_t>(data) & 3) != 0) {
+  if (len != 0 && (!esp_ptr_dma_capable(data) || (reinterpret_cast<uintptr_t>(data) & 3) != 0)) {
     std::memcpy(staged, data, len);
     data = staged;
   }
