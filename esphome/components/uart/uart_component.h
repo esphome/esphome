@@ -94,6 +94,20 @@ class UARTComponent {
   // Hardware UARTs always return true. USB-backed UARTs override to reflect actual connection state.
   virtual bool is_connected() { return true; }
 
+  // Returns true if this UART drives the DTR and RTS modem lines itself.
+  virtual bool supports_modem_control() const { return false; }
+
+  // Sets the DTR and RTS modem lines. Does nothing unless supports_modem_control() is true.
+  // @param dtr True to assert DTR.
+  // @param rts True to assert RTS.
+  virtual void set_modem_control(bool dtr, bool rts) {}
+
+  // Gets whether DTR is asserted. Always false unless supports_modem_control() is true.
+  virtual bool get_dtr() const { return false; }
+
+  // Gets whether RTS is asserted. Always false unless supports_modem_control() is true.
+  virtual bool get_rts() const { return false; }
+
   // Sets the maximum time to wait for TX to drain during flush().
   // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
   // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.

@@ -381,6 +381,11 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
     this->dtr_state_ = dtr;
     this->dtr_pin_->digital_write(dtr);
   }
+  if (this->parent_->supports_modem_control()) {
+    // A line with a GPIO pin keeps the UART's current state
+    this->parent_->set_modem_control(this->dtr_pin_ != nullptr ? this->parent_->get_dtr() : dtr,
+                                     this->rts_pin_ != nullptr ? this->parent_->get_rts() : rts);
+  }
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
@@ -439,8 +444,11 @@ void SerialProxy::on_usb_connection_changed_(bool connected) {
 #endif
 
 uint32_t SerialProxy::get_modem_pins() const {
-  return (this->rts_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
-         (this->dtr_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+  const bool uart_lines = this->parent_->supports_modem_control();
+  const bool rts = this->rts_pin_ == nullptr && uart_lines ? this->parent_->get_rts() : this->rts_state_;
+  const bool dtr = this->dtr_pin_ == nullptr && uart_lines ? this->parent_->get_dtr() : this->dtr_state_;
+  return (rts ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+         (dtr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
 }
 
 SerialProxyResult SerialProxy::flush_port(api::APIConnection *api_connection) {

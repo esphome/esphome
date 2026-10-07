@@ -153,10 +153,12 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Get current modem pin states as a bitmask of SerialProxyLineStateFlag values
   uint32_t get_modem_pins() const;
 
-  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values
+  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values.
+  /// A line is driven by its GPIO pin when one is configured, otherwise by the UART if it can.
   uint32_t get_configured_modem_pins() const {
-    return (this->rts_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
-           (this->dtr_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+    const bool uart_lines = this->parent_->supports_modem_control();
+    return (this->rts_pin_ != nullptr || uart_lines ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+           (this->dtr_pin_ != nullptr || uart_lines ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
   }
 
   /// Flush the serial port (block until all TX data is sent)
