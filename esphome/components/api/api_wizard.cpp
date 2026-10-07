@@ -13,9 +13,8 @@ namespace esphome::api {
 
 static const char *const TAG = "api.wizard";
 
-uint8_t *wizard_encode_response(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *wizard_encode_response(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
-  uint8_t *__restrict__ pos = buffer.get_pos();
   if (msg.data_len == 0)
     return pos;
   pos = ProtoEncode::encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, 1, 2);  // type 2: Length-delimited
