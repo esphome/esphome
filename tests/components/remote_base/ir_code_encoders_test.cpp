@@ -54,10 +54,8 @@ const RawTimings AEHA_GOLDEN = {
 std::vector<uint8_t> haier_code() { return {std::begin(HAIER_CODE), std::end(HAIER_CODE)}; }
 std::vector<uint8_t> mirage_code() { return {std::begin(MIRAGE_CODE), std::end(MIRAGE_CODE)}; }
 std::vector<uint8_t> aeha_code() { return {std::begin(AEHA_CODE), std::end(AEHA_CODE)}; }
-uint16_t aeha_address() { return AEHA_ADDRESS; }
-uint32_t aeha_carrier() { return 38000; }
 
-// The Haier and Mirage decoders expect one item after the final mark, as a receiver capture has
+// The Haier and Mirage decoders expect an item after the last mark (pre-existing)
 RawTimings with_trailing_space(RawTimings timings) {
   timings.push_back(-10000);
   return timings;
@@ -75,29 +73,40 @@ template<typename A> class Open : public A {
   using A::encode;
 };
 
+// A constant and a lambda code must both encode to the golden timings
+template<typename A>
+void expect_static_and_lambda_match(const uint8_t *code, size_t len, std::vector<uint8_t> (*lambda)(),
+                                    const RawTimings &golden) {
+  Open<A> fixed, from_lambda;
+  fixed.set_code_static(code, len);
+  from_lambda.set_code_template(lambda);
+  EXPECT_EQ(encode(fixed), golden);
+  EXPECT_EQ(encode(from_lambda), golden);
+}
+
+template<typename P> void expect_decodes_to(const RawTimings &timings, const std::vector<uint8_t> &code) {
+  auto decoded = P().decode(RemoteReceiveData(timings, 25, TOLERANCE_MODE_PERCENTAGE));
+  ASSERT_TRUE(decoded.has_value());
+  // clang-tidy's unchecked-optional-access models neither gtest's ASSERT_TRUE nor value() as a check
+  EXPECT_EQ(decoded.value_or(typename P::ProtocolData{}).data, code);
+}
+
 }  // namespace
 
 TEST(IrCodeEncodersTest, HaierStaticAndLambdaMatchGolden) {
-  Open<HaierAction<>> fixed, lambda;
-  fixed.set_code_static(HAIER_CODE, sizeof(HAIER_CODE));
-  lambda.set_code_template(haier_code);
-  EXPECT_EQ(encode(fixed), HAIER_GOLDEN);
-  EXPECT_EQ(encode(lambda), HAIER_GOLDEN);
+  expect_static_and_lambda_match<HaierAction<>>(HAIER_CODE, sizeof(HAIER_CODE), haier_code, HAIER_GOLDEN);
 }
 
 TEST(IrCodeEncodersTest, MirageStaticAndLambdaMatchGolden) {
-  Open<MirageAction<>> fixed, lambda;
-  fixed.set_code_static(MIRAGE_CODE, sizeof(MIRAGE_CODE));
-  lambda.set_code_template(mirage_code);
-  EXPECT_EQ(encode(fixed), MIRAGE_GOLDEN);
-  EXPECT_EQ(encode(lambda), MIRAGE_GOLDEN);
+  expect_static_and_lambda_match<MirageAction<>>(MIRAGE_CODE, sizeof(MIRAGE_CODE), mirage_code, MIRAGE_GOLDEN);
 }
 
 TEST(IrCodeEncodersTest, AehaStaticAndLambdaMatchGolden) {
   Open<AEHAAction<>> fixed, lambda;
   for (auto *action : {&fixed, &lambda}) {
-    action->set_address(aeha_address);
-    action->set_carrier_frequency(aeha_carrier);
+    // TemplatableFn fields take functions, not raw constants
+    action->set_address([]() -> uint16_t { return AEHA_ADDRESS; });
+    action->set_carrier_frequency([]() -> uint32_t { return 38000; });
   }
   fixed.set_data_static(AEHA_CODE, sizeof(AEHA_CODE));
   lambda.set_data_template(aeha_code);
@@ -119,24 +128,11 @@ TEST(IrCodeEncodersTest, StructEncodersMatchGolden) {
 }
 
 TEST(IrCodeEncodersTest, RoundTripDecodes) {
-  auto haier =
-      HaierProtocol().decode(RemoteReceiveData(with_trailing_space(HAIER_GOLDEN), 25, TOLERANCE_MODE_PERCENTAGE));
-  ASSERT_TRUE(haier.has_value());
-  if (haier.has_value()) {
-    EXPECT_EQ(haier->data, haier_code());
-  }
-  auto mirage =
-      MirageProtocol().decode(RemoteReceiveData(with_trailing_space(MIRAGE_GOLDEN), 25, TOLERANCE_MODE_PERCENTAGE));
-  ASSERT_TRUE(mirage.has_value());
-  if (mirage.has_value()) {
-    EXPECT_EQ(mirage->data, mirage_code());
-  }
+  expect_decodes_to<HaierProtocol>(with_trailing_space(HAIER_GOLDEN), haier_code());
+  expect_decodes_to<MirageProtocol>(with_trailing_space(MIRAGE_GOLDEN), mirage_code());
+  expect_decodes_to<AEHAProtocol>(AEHA_GOLDEN, aeha_code());
   auto aeha = AEHAProtocol().decode(RemoteReceiveData(AEHA_GOLDEN, 25, TOLERANCE_MODE_PERCENTAGE));
-  ASSERT_TRUE(aeha.has_value());
-  if (aeha.has_value()) {
-    EXPECT_EQ(aeha->address, AEHA_ADDRESS);
-    EXPECT_EQ(aeha->data, aeha_code());
-  }
+  EXPECT_EQ(aeha.value_or(AEHAData{}).address, AEHA_ADDRESS);
 }
 
 }  // namespace esphome::remote_base::testing
