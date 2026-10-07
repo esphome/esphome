@@ -14,20 +14,15 @@ class UARTSink {
   virtual void on_block(const uint8_t *data, size_t len) = 0;
 };
 
-/// Receive half of a UART without a wire: the class that derives from it feeds its reader with inject_rx() and
-/// implements write_array(), available_for_write() and flush() itself.
-/// Reads never wait: a short read_array() or an empty peek_byte() returns false and consumes nothing.
-/// read_array() of 0 bytes returns true, as on ESP8266, RP2040 and LibreTiny (ESP-IDF and host return false).
-/// Main loop only.
+/// Receive half of a UART without a wire. The derived class feeds the reader with inject_rx() and does the writing.
+/// Reads never wait; a short read takes nothing. Main loop only.
 class VirtualUARTComponent : public UARTComponent {
  public:
-  /// The RX ring is allocated here, once; 0 means nothing is kept for a reader that is not attached.
+  /// The RX ring is allocated here, once; 0 means no ring.
   explicit VirtualUARTComponent(uint16_t rx_buffer_size);
 
-  /// One whole block for this UART's reader, e.g. one frame: an attached reader gets it in one on_block() call,
-  /// else it goes into the RX ring. Returns false when the ring has no room for all of it (nothing is kept then),
-  /// or when the attached reader is still inside on_block() for an earlier block (a reader that writes back can be
-  /// handed a block again; it is refused rather than recursing).
+  /// Hands one whole block to the attached reader, else adds it to the RX ring. False, and nothing kept, when it
+  /// does not fit or the reader is still inside on_block().
   bool inject_rx(const uint8_t *data, size_t len);
   /// A reader that takes every received block as it arrives, so nothing waits in the ring.
   void set_rx_sink(UARTSink *sink) { this->rx_sink_ = sink; }
