@@ -128,7 +128,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
             cv.Required(CONF_URL): cv.url,
             cv.Optional(CONF_PATH): cv.string,
             cv.Optional(CONF_USERNAME): cv.string,
-            cv.Optional(CONF_PASSWORD): cv.string,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.string),
             cv.Exclusive(CONF_FILE, CONF_FILES): validate_yaml_filename,
             cv.Exclusive(CONF_FILES, CONF_FILES): cv.All(
                 cv.ensure_list(

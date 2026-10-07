@@ -224,15 +224,24 @@ def flash_string(config: ConfigType, value: str) -> str:
     return str(cg.safe_exp(value))
 
 
+def literal_with_length(config: ConfigType, value: str) -> str:
+    """Renderer for a ``(const char *, size_t)`` target: a plain literal plus its byte length.
+
+    The target compares or copies the bytes in place, so it needs the RAM literal rather than
+    the PROGMEM rendering on ESP8266, and the length saves a strlen.
+    """
+    return f"{cg.safe_exp(value)}, {len(value.encode('utf-8'))}"
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
 
     Each arg is ``(conf_key, type_)`` or ``(conf_key, type_, const_fn)``. A ``conf_key`` may be a
     path into nested sections. A plain ``str`` ``type_`` is raw C++ type text and may use
-    ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda bypasses
-    it. The statement is skipped when none of its keys is set, always emitted when it has no
-    keys, and a partial set is a config error.
+    ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
+    id bypasses it. The statement is skipped when none of its keys is set, always emitted when it
+    has no keys, and a partial set is a config error.
     """
 
     target: str
@@ -271,8 +280,8 @@ class ApplyField:
     Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
     ``type_`` may be a C++ type string using ``{parent}`` when the type is only known per
     instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
-    is not the right spelling (unit conversion belongs in the validator); a lambda bypasses it,
-    so the target must also take a plain ``type_``. An absent key emits nothing.
+    is not the right spelling (unit conversion belongs in the validator); a lambda or an id
+    bypasses it, so the target must also take a plain ``type_``. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
@@ -330,18 +339,32 @@ def _check_key_in_schema(
         schema = schema.schema[markers[part]]
 
 
-async def _apply_parent(config: ConfigType) -> str:
+async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
     # Global-scope qualified so a trigger arg named like the id cannot shadow it.
-    return f"::{await cg.get_variable(config[CONF_ID])}"
+    return f"::{await cg.get_variable(config[id_key])}"
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
-    # Must match ApplyAction::ApplyFn and ApplyCondition::CheckFn exactly for the function
-    # pointer conversion.
+    # The generated function's parameters; a std::string arg is never copied.
     return [
         (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), arg)
         for t, arg in args
     ]
+
+
+def _apply_function(
+    id_: ID,
+    return_type: SafeExpType,
+    template_arg: cg.TemplateArguments,
+    lambda_args: TemplateArgsType,
+    statements: list[str],
+) -> MockObj:
+    """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
+    ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
+    fn = cg.static_function(
+        f"esphome__{id_.id}__fn", return_type, lambda_args, statements
+    )
+    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
 
 async def _render_values(
@@ -371,6 +394,9 @@ async def _render_values(
             expr = call_lambda(inner)
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
+        elif isinstance(value, ID):
+            # Qualified like the parent, so a trigger arg named like the id cannot shadow it.
+            exprs.append(f"::{await cg.get_variable(value)}")
         elif const_fn is not None:
             exprs.append(const_fn(config, value))
         else:
@@ -387,12 +413,15 @@ def register_apply_action(
     schema: cv.Schema,
     *fields: ApplyField | ApplyCall,
     call: str | None = None,
+    id_key: str = CONF_ID,
 ) -> None:
     """Register an action that only forwards config values to its parent, with no C++ class.
 
-    Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
-    in, lambdas are called inline with the trigger args. With ``call`` every statement targets
-    the call object ``auto apply_call = parent->call()``, and ``apply_call.perform()`` is appended.
+    Generates one static function with the parent (read from ``id_key``) and constants baked
+    in, lambdas called inline with the trigger args, and an ``ApplyAction`` templated on it.
+    A constant that is an id (``cv.use_id`` under ``cv.templatable``) is the object it names.
+    With ``call`` every statement targets the call object ``auto apply_call = parent->call()``,
+    and ``apply_call.perform()`` is appended.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
     statements_spec = [
@@ -405,6 +434,7 @@ def register_apply_action(
         )
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
+    _check_key_in_schema(name, schema, id_key)
     for _, members in statements_spec:
         for conf_key, _, _ in members:
             _check_key_in_schema(name, schema, conf_key)
@@ -415,7 +445,7 @@ def register_apply_action(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config)
+        parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
@@ -433,16 +463,15 @@ def register_apply_action(
                 *statements,
                 "apply_call.perform();",
             ]
-        apply_lambda = LambdaExpression(
-            ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
+        return _apply_function(
+            action_id, cg.void, template_arg, lambda_args, statements
         )
-        return cg.new_Pvariable(action_id, template_arg, apply_lambda)
 
     register_action(name, ApplyAction, schema, synchronous=True)(builder)
 
 
 def register_apply_condition(
-    name: str, schema: cv.Schema, check: str | ApplyCall
+    name: str, schema: cv.Schema, check: str | ApplyCall, id_key: str = CONF_ID
 ) -> None:
     """Register a condition that is one expression on its parent, with no C++ class.
 
@@ -450,10 +479,11 @@ def register_apply_condition(
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
     String constants are plain literals, so compare a ``std::string`` or ``StringRef`` member.
-    Generates one stateless function for ``ApplyCondition<Ts...>``.
+    Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = call.members
+    _check_key_in_schema(name, schema, id_key)
     for conf_key, _, _ in members:
         _check_key_in_schema(name, schema, conf_key)
 
@@ -463,7 +493,7 @@ def register_apply_condition(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config)
+        parent = await _apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         exprs = await _render_values(
             name,
@@ -475,13 +505,13 @@ def register_apply_condition(
             lambda_args,
             compare=True,
         )
-        check_lambda = LambdaExpression(
-            [f"return {parent}->{call.target.format(*exprs)};"],
+        return _apply_function(
+            condition_id,
+            cg.bool_,
+            template_arg,
             lambda_args,
-            capture="",
-            return_type=cg.bool_,
+            [f"return {parent}->{call.target.format(*exprs)};"],
         )
-        return cg.new_Pvariable(condition_id, template_arg, check_lambda)
 
     register_condition(name, ApplyCondition, schema)(builder)
 

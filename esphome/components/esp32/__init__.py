@@ -11,7 +11,10 @@ from typing import Any
 
 from esphome import yaml_util
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
+from esphome.components.const import (
+    CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
+    CONF_IGNORE_NOT_FOUND,
+)
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -54,7 +57,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf.component import generate_idf_components
+from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -111,6 +114,7 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_NVS_CACHE_IN_PSRAM = "nvs_cache_in_psram"
 CONF_FLASH_CHIP = "flash_chip"
 CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
@@ -317,6 +321,34 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "espressif__rmaker_common",  # RainMaker common - not used
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
 )
+
+# Entries arduino-esp32 only declares below the given IDF version; stubbing one past
+# it clashes with ESPHome's own managed component of the same short name.
+ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
+    "espressif__libsodium": cv.Version(6, 0, 0),
+}
+
+
+def arduino_bundles_libsodium() -> bool:
+    """arduino-esp32 ships its own libsodium below IDF 6.0."""
+    return (
+        CORE.using_arduino
+        and idf_version()
+        < ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF["espressif__libsodium"]
+    )
+
+
+def arduino_excluded_idf_components() -> set[str]:
+    """The arduino-bundled components to stub for this build's IDF version."""
+    version = idf_version()
+    return {
+        component
+        for component in ARDUINO_EXCLUDED_IDF_COMPONENTS
+        if (max_version := ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF.get(component))
+        is None
+        or version < max_version
+    }
+
 
 # Mapping of Arduino libraries to IDF managed components they require
 # When an Arduino library is enabled via cg.add_library(), these components
@@ -638,20 +670,29 @@ def get_download_types(storage_json):
     # No recorded firmware path means nothing was built; no downloads.
     if storage_json.firmware_bin_path is None:
         return []
-    return [
-        {
-            "title": "Factory format (Previously Modern)",
-            "description": "For use with ESPHome Web and other tools.",
-            "file": "firmware.factory.bin",
-            "download": f"{storage_json.name}.factory.bin",
-        },
+    from esphome.espidf.toolchain import tree_skips_bootloader
+
+    types = []
+    # A --skip-bootloader tree deliberately has no factory image; an
+    # unreadable tree (PlatformIO, capability probes) reads as full.
+    if not tree_skips_bootloader(Path(storage_json.firmware_bin_path).parent):
+        types.append(
+            {
+                "title": "Factory format (Previously Modern)",
+                "description": "For use with ESPHome Web and other tools.",
+                "file": "firmware.factory.bin",
+                "download": f"{storage_json.name}.factory.bin",
+            }
+        )
+    types.append(
         {
             "title": "OTA format (Previously Legacy)",
             "description": "For OTA updating a device.",
             "file": "firmware.ota.bin",
             "download": f"{storage_json.name}.ota.bin",
-        },
-    ]
+        }
+    )
+    return types
 
 
 def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This feature"):
@@ -701,9 +742,10 @@ def is_idf_sdkconfig_option_enabled(name: str) -> bool:
 def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
     """Set an sdkconfig option unless it is already set.
 
-    For the FINAL priority reconcile jobs: they run after every to_code,
-    including the user's sdkconfig_options, and must not override an
-    existing value.
+    User sdkconfig_options take precedence regardless of to_code order:
+    esp32.to_code applies them unconditionally, and this helper preserves
+    values that are already set. FINAL priority reconcile jobs use the same
+    guard because they run after every to_code, including the user's options.
     """
     if name not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
         add_idf_sdkconfig_option(name, value)
@@ -1595,6 +1637,29 @@ def final_validate(config) -> None:
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
+    if advanced.get(CONF_NVS_CACHE_IN_PSRAM):
+        psram_conf = full_config.get(PSRAM_DOMAIN)
+        if (
+            psram_conf is None
+            or psram_conf[CONF_DISABLED]
+            or psram_conf[CONF_IGNORE_NOT_FOUND]
+        ):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_NVS_CACHE_IN_PSRAM}' requires PSRAM with 'ignore_not_found: false'",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_CACHE_IN_PSRAM],
+                )
+            )
+        if (
+            advanced.get(CONF_NVS_ENCRYPTION) is not None
+            or conf_fw[CONF_SDKCONFIG_OPTIONS].get("CONFIG_NVS_ENCRYPTION") == "y"
+        ):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_NVS_CACHE_IN_PSRAM}' cannot be used with NVS encryption; the keys must stay in internal RAM",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_CACHE_IN_PSRAM],
+                )
+            )
 
     final_validate_pins(full_config)
 
@@ -2035,6 +2100,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
+                cv.Optional(CONF_NVS_CACHE_IN_PSRAM): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
@@ -2359,6 +2425,20 @@ async def _set_libc_picolibc_newlib_compat() -> None:
         option,
         CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
     )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _apply_nvs_cache_in_psram(explicit: bool) -> None:
+    """Keep the NVS cache in PSRAM unless NVS encryption is on, however it was enabled."""
+    # The encrypted partition object holds the derived keys, which must stay in internal RAM
+    if is_idf_sdkconfig_option_enabled("CONFIG_NVS_ENCRYPTION"):
+        if explicit:
+            _LOGGER.warning(
+                "%s ignored: NVS encryption keeps the NVS cache in internal RAM",
+                CONF_NVS_CACHE_IN_PSRAM,
+            )
+        return
+    set_idf_sdkconfig_default("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM", True)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2794,6 +2874,8 @@ async def to_code(config):
             "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
+        # Work around ESP-IDF bug: see https://github.com/espressif/esp-idf/issues/19020
+        add_idf_sdkconfig_option("CONFIG_ESP_MAIN_TASK_STACK_SIZE", 8192)
 
     # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
     # understand %zu or %lld and crashes on any %s that follows one.
@@ -2912,6 +2994,17 @@ async def to_code(config):
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+
+    # Imported here as psram imports this module
+    from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+
+    # Frees internal heap (the cache scales with the NVS partition) but slows NVS, so only
+    # where PSRAM is known to be fitted. Decided at FINAL so every way of enabling NVS
+    # encryption has been seen and a user's sdkconfig_options value wins.
+    # Unset means on; only an explicit true is worth a warning when it has to be dropped.
+    requested = advanced.get(CONF_NVS_CACHE_IN_PSRAM)
+    if requested is not False and psram_is_guaranteed():
+        CORE.add_job(_apply_nvs_cache_in_psram, requested is True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
@@ -3447,6 +3540,30 @@ def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
 
+    converted: list[IDFComponent] = []
+    if CORE.using_toolchain_esp_idf:
+        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
+        # PlatformIO resolves the whole dependency tree at once -- deduplicating
+        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
+        # and esp_wireguard) to a single version instead of clashing
+        # override_path entries.
+        libraries = [
+            library
+            for name, library in CORE.platformio_libraries.items()
+            # Don't process arduino libraries
+            if name not in ARDUINO_DISABLED_LIBRARIES
+        ]
+        # A library also declared as a managed component is not converted too, or
+        # IDF sees the same requirement twice; converted components reach it through
+        # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
+        managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
+        converted = generate_idf_components(libraries, managed=managed)
+    # IDF names a component after its directory and a later registration of the
+    # same name replaces the earlier one, so a stub beside a converted library of
+    # the same name (espressif/libsodium vs esphome/libsodium) would win or lose
+    # on path order. Such a stub points at the converted library instead.
+    converted_by_name = {component.path.name: component for component in converted}
+
     # For Arduino builds, override unused managed components from the Arduino framework
     # by pointing them to empty stub directories using override_path
     # This prevents the IDF component manager from downloading the real components
@@ -3460,9 +3577,7 @@ def _write_idf_component_yml():
         }
 
         # Only stub components that are not required by any enabled Arduino library
-        components_to_stub = (
-            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
-        )
+        components_to_stub = arduino_excluded_idf_components() - required_idf_components
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
@@ -3472,8 +3587,17 @@ def _write_idf_component_yml():
         # always writes, and ninja keeps triggering CMake re-runs on
         # otherwise-cached rebuilds.
         for component_name in sorted(components_to_stub):
+            stub_name = _idf_component_stub_name(component_name)
+            stub_path = stubs_dir / stub_name
+            if (component := converted_by_name.get(stub_name)) is not None:
+                if stub_path.exists():
+                    rmtree(stub_path)
+                dependencies[_idf_component_dep_name(component_name)] = {
+                    "version": "*",
+                    "override_path": str(component.path),
+                }
+                continue
             # Create stub directory with minimal CMakeLists.txt
-            stub_path = stubs_dir / _idf_component_stub_name(component_name)
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
@@ -3515,22 +3639,10 @@ def _write_idf_component_yml():
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
-    if CORE.using_toolchain_esp_idf:
-        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
-        # PlatformIO resolves the whole dependency tree at once -- deduplicating
-        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
-        # and esp_wireguard) to a single version instead of clashing
-        # override_path entries.
-        libraries = [
-            library
-            for name, library in CORE.platformio_libraries.items()
-            # Don't process arduino libraries
-            if name not in ARDUINO_DISABLED_LIBRARIES
-        ]
-        for component in generate_idf_components(libraries):
-            dependencies[component.get_sanitized_name()] = {
-                "override_path": str(component.path)
-            }
+    for component in converted:
+        dependencies[component.get_sanitized_name()] = {
+            "override_path": str(component.path)
+        }
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]

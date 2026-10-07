@@ -61,8 +61,6 @@ RESTORE_MODES = {
 }
 
 # Actions
-TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
-ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
 FanStateTrigger = fan_ns.class_(
@@ -82,9 +80,6 @@ FanSpeedSetTrigger = fan_ns.class_(
 FanPresetSetTrigger = fan_ns.class_(
     "FanPresetSetTrigger", automation.Trigger.template(cg.StringRef)
 )
-
-FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
-FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.template())
 
 _FAN_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -313,21 +308,8 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
-)
-async def fan_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
-)
-async def fan_turn_off_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
+automation.register_apply_action("fan.toggle", FAN_ACTION_SCHEMA, call="toggle")
+automation.register_apply_action("fan.turn_off", FAN_ACTION_SCHEMA, call="turn_off")
 
 automation.register_apply_action(
     "fan.turn_on",
@@ -367,27 +349,16 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
-    "fan.is_on",
-    FanIsOnCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(Fan),
-        }
-    ),
+FAN_CONDITION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Fan),
+    }
 )
-@automation.register_condition(
-    "fan.is_off",
-    FanIsOffCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(Fan),
-        }
-    ),
+
+automation.register_apply_condition("fan.is_on", FAN_CONDITION_SCHEMA, "state")
+automation.register_apply_condition(
+    "fan.is_off", FAN_CONDITION_SCHEMA, "state == false"
 )
-async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

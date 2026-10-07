@@ -39,9 +39,6 @@ DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
 DisplayPageShowAction = display_ns.class_("DisplayPageShowAction", automation.Action)
-DisplayIsDisplayingPageCondition = display_ns.class_(
-    "DisplayIsDisplayingPageCondition", automation.Condition
-)
 DisplayOnPageChangeTrigger = display_ns.class_(
     "DisplayOnPageChangeTrigger", automation.Trigger
 )
@@ -301,9 +298,8 @@ automation.register_apply_action(
 )
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "display.is_displaying_page",
-    DisplayIsDisplayingPageCondition,
     cv.maybe_simple_value(
         {
             cv.GenerateID(CONF_ID): cv.use_id(Display),
@@ -311,13 +307,8 @@ automation.register_apply_action(
         },
         key=CONF_PAGE_ID,
     ),
+    automation.ApplyCall("get_active_page() == {}", ((CONF_PAGE_ID, DisplayPagePtr),)),
 )
-async def display_is_displaying_page_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    page = await cg.get_variable(config[CONF_PAGE_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-    cg.add(var.set_page(page))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)

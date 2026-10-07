@@ -230,23 +230,27 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 bool OpenThreadComponent::teardown() {
   switch (this->teardown_stage_) {
     case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
-      auto lock = InstanceLock::try_acquire(100);
-      if (!lock) {
-        // Try again on next teardown loop
-        ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
-        return false;
-      }
-      // Start tearing down
-      this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
-      ESP_LOGV(TAG, "Clear SRP");
-      otInstance *instance = lock.get_instance();
-      otSrpClientClearHostAndServices(instance);
-      otSrpClientBuffersFreeAllServices(instance);
-      if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
-        ESP_LOGW(TAG, "Failed to disable Thread during teardown");
-      }
-      if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
-        ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+      {
+        auto lock = InstanceLock::try_acquire(100);
+        // The OT task may still be starting up; stay pending and retry on
+        // the next call rather than giving up after a single failed attempt.
+        if (!lock) {
+          ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
+          return false;
+        }
+        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
+        ESP_LOGV(TAG, "Clear SRP");
+        otInstance *instance = lock.get_instance();
+        otSrpClientClearHostAndServices(instance);
+        otSrpClientBuffersFreeAllServices(instance);
+        if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
+          ESP_LOGW(TAG, "Failed to disable Thread during teardown");
+        }
+        if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
+          ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+        }
+        // Release the lock before stopping -- openthread_stop_() (esp_openthread_stop() on
+        // ESP32) acquires it internally, and the lock is not recursive.
       }
       // Stop OpenThread
       global_openthread_component = nullptr;
@@ -254,11 +258,11 @@ bool OpenThreadComponent::teardown() {
       int error = this->openthread_stop_();
       if (error != 0) {
         ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
-        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
       }
     } break;
     case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
-      // Waiting on OpenThread stop
+      // Unreachable today; teardown is synchronous on both platforms. Kept for a future
+      // graceful-exit path, or a platform whose teardown() cannot be made synchronous.
       break;
     case TeardownStage::TEARDOWN_STAGE_COMPLETED:
       ESP_LOGV(TAG, "OpenThreadComponent Teardown Complete");
@@ -280,6 +284,25 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
     return;
   }
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
+}
+
+void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
+#if CONFIG_OPENTHREAD_MTD
+  this->set_poll_period(poll_period);
+  if (!this->is_lock_initialized()) {
+    // The action may run before the stack is up, e.g. from a restore mode; setup() applies the stored value.
+    ESP_LOGD(TAG, "Not (yet) ready to apply");
+    return;
+  }
+  auto lock = InstanceLock::try_acquire(100);
+  if (!lock) {
+    ESP_LOGW(TAG, "Failed to acquire lock in action");
+    return;
+  }
+  this->apply_linkmode_(lock.get_instance());
+#else
+  ESP_LOGW(TAG, "OpenThread action has no effect on FTD devices (MTD only)");
+#endif
 }
 
 void OpenThreadComponent::apply_linkmode_(otInstance *instance) {

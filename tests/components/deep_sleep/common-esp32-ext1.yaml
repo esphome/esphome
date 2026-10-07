@@ -1,4 +1,5 @@
 deep_sleep:
+  id: deep_sleep_1
   run_duration:
     default: 10s
     gpio_wakeup_reason: 30s

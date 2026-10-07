@@ -27,36 +27,4 @@ static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
 static_assert(sizeof(StateEnterForwarder<ACP_STATE_TRIGGERED>) <= sizeof(void *));
 static_assert(std::is_trivially_copyable_v<StateEnterForwarder<ACP_STATE_TRIGGERED>>);
 
-template<typename... Ts> class PendingAction final : public Action<Ts...> {
- public:
-  explicit PendingAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
-
-  void play(const Ts &...x) override { this->alarm_control_panel_->make_call().pending().perform(); }
-
- protected:
-  AlarmControlPanel *alarm_control_panel_;
-};
-
-template<typename... Ts> class TriggeredAction final : public Action<Ts...> {
- public:
-  explicit TriggeredAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
-
-  void play(const Ts &...x) override { this->alarm_control_panel_->make_call().triggered().perform(); }
-
- protected:
-  AlarmControlPanel *alarm_control_panel_;
-};
-
-template<typename... Ts> class AlarmControlPanelCondition final : public Condition<Ts...> {
- public:
-  AlarmControlPanelCondition(AlarmControlPanel *parent) : parent_(parent) {}
-  bool check(const Ts &...x) override {
-    return this->parent_->is_state_armed(this->parent_->get_state()) ||
-           this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_TRIGGERED;
-  }
-
- protected:
-  AlarmControlPanel *parent_;
-};
-
 }  // namespace esphome::alarm_control_panel

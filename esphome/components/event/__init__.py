@@ -133,10 +133,17 @@ TRIGGER_EVENT_SCHEMA = cv.Schema(
 )
 
 
+def _event_type_literal(config: ConfigType, value: str) -> str:
+    """A constant event type is a plain literal; trigger() only compares it, so no copy is needed."""
+    return str(cg.safe_exp(value))
+
+
 automation.register_apply_action(
     "event.trigger",
     TRIGGER_EVENT_SCHEMA,
-    automation.ApplyField(CONF_EVENT_TYPE, "trigger", cg.std_string),
+    automation.ApplyField(
+        CONF_EVENT_TYPE, "trigger", cg.std_string, _event_type_literal
+    ),
 )
 
 

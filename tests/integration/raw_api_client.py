@@ -125,11 +125,12 @@ class RawApiClient:
         await self.read_until_frame(MESSAGE_TYPE_OF[api_pb2.HelloResponse])
 
     async def send_message(self, msg: message.Message) -> None:
+        await self.send_raw(MESSAGE_TYPE_OF[type(msg)], msg.SerializeToString())
+
+    async def send_raw(self, msg_type: int, payload: bytes) -> None:
+        """Send a frame with a hand built payload, for shapes protobuf will not serialize."""
         loop = asyncio.get_running_loop()
-        await loop.sock_sendall(
-            self._sock,
-            encode_frame(MESSAGE_TYPE_OF[type(msg)], msg.SerializeToString()),
-        )
+        await loop.sock_sendall(self._sock, encode_frame(msg_type, payload))
 
     async def read_until_frame(self, msg_type: int, timeout: float = 10.0) -> None:
         """Read until at least one frame of msg_type has been received."""

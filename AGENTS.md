@@ -322,6 +322,25 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
+          `sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`,
+          `sub_selects` in their domains), adding `parent=hub` for entities that derive from `Parented<T>`,
+          then make one call per key, even when there is only one. A call creates the entity only when its key
+          is configured, passes it to the setter and returns it (or `None`); extra arguments such as
+          `min_value` or `options` go on the call. Always name the setter explicitly on the object that owns
+          it, never with `getattr` and an f-string, and keep that variable short (`var` for the component
+          itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
+          setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
+          ```python
+          async def to_code(config):
+              var = cg.new_Pvariable(config[CONF_ID])
+              sensors = sensor.sub_sensors(config)
+              await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+              buttons = button.sub_buttons(config, parent=var)
+              await buttons(CONF_RESTART, var.set_restart_button)
+          ```
+
 *   **Automations (Triggers, Actions, Conditions):**
 
     Automations have three building blocks: **Triggers** (fire when something happens), **Actions** (do something), and **Conditions** (check if something is true).
@@ -737,7 +756,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
         6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
 
-        7. **Detection:** Look for these patterns in compiler output:
+        7. **Never use `new (std::nothrow)`:** On ESP-IDF exceptions are disabled, so a failed nothrow allocation aborts instead of returning `nullptr`. Use `RAMAllocator` from `esphome/core/helpers.h`; CI rejects `std::nothrow`.
+
+        8. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
