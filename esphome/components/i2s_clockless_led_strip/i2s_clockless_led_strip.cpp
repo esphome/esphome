@@ -163,11 +163,12 @@ bool I2SClocklessLedStrip::allocate_buffers_() {
         memset(this->effect_data_, 0, this->num_leds_);
         return true;
       }
-      allocator.deallocate(this->i2s_data_, i2s_data_bytes);
+      allocator.deallocate(this->color_data_, this->color_data_bytes_);
+      this->color_data_ = nullptr;
     }
-    allocator.deallocate(this->color_data_, this->color_data_bytes_);
+    allocator.deallocate(this->i2s_data_, i2s_data_bytes);
+    this->i2s_data_ = nullptr;
   }
-  allocator.deallocate(this->effect_data_, this->num_leds_);
   return false;
 }
 
