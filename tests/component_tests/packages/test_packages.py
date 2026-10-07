@@ -653,6 +653,8 @@ def test_get_remote_package_sources_records_each_fetch_once(
     packages_pass(config)
 
     sources = get_remote_package_sources()
+    sources.clear()
+    sources = get_remote_package_sources()
     assert sorted(sources, key=lambda source: source.url) == [
         RemotePackageSource("https://github.com/esphome/repo-a", "main"),
         RemotePackageSource("https://github.com/esphome/repo-b", None),

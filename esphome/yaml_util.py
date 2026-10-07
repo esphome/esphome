@@ -626,9 +626,6 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
             try:
                 data = load_yaml(config_path)
             except EsphomeError as err:
-                _LOGGER.warning(
-                    "YAML discovery failed to parse %s: %s", config_path, err
-                )
                 return DiscoveredYamlFiles(
                     list(loaded), secrets, load_errors=[f"{config_path}: {err}"]
                 )
@@ -1191,6 +1188,10 @@ def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
     Yields a set that collects the name of every ``!secret`` reference the
     dumper emits while the context is active, so callers can tell exactly
     which registered values were actually swapped.
+
+    A wrapper (``!extend``, ``!remove``, scalar ``!include``) whose value is
+    registered dumps as a bare ``!secret``, dropping its tag rather than the
+    value leaking.
     """
     added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
     _SECRET_VALUES.update(added)
@@ -1203,8 +1204,11 @@ def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
         # pop() removes by position where remove() would match the first
         # *equal* set and could strip an outer context's collector.
         _EMITTED_SECRET_NAMES.pop()
-        for value in added:
-            _SECRET_VALUES.pop(value, None)
+        # Only drop mappings this context still owns; a real !secret loaded
+        # meanwhile may have registered the same value under its own name.
+        for value, name in added.items():
+            if _SECRET_VALUES.get(value) == name:
+                del _SECRET_VALUES[value]
 
 
 def dump(
@@ -1506,7 +1510,8 @@ class ESPHomeDumper(yaml.SafeDumper):
 
     def represent_extend(self, value):
         # Consult is_secret like the other scalar representers so a payload
-        # equal to a registered secret is never written out in cleartext.
+        # equal to a registered secret is never written out in cleartext; the
+        # tag is lost then, which beats leaking the value.
         if is_secret(value.value):
             return self.represent_secret(value.value)
         return self.represent_scalar(tag="!extend", value=value.value)
