@@ -4,15 +4,10 @@
 #include <span>
 #include <vector>
 
-#include "../modbus/common.h"
+#include "common.h"
 #include "esphome/components/modbus/modbus.h"
 
-namespace esphome::modbus_monitor::testing {
-
-using modbus::ModbusClientDevice;
-using modbus::ModbusClientHub;
-using modbus::BROADCAST_ADDRESS;
-using modbus::testing::NullUART;
+namespace esphome::modbus::testing {
 
 namespace {
 
@@ -127,4 +122,4 @@ TEST(MonitorClientBlocked, NotSentIsNotSeen) {
   EXPECT_EQ(seen, 0);
 }
 
-}  // namespace esphome::modbus_monitor::testing
+}  // namespace esphome::modbus::testing

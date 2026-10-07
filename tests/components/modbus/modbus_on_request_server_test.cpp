@@ -4,17 +4,10 @@
 #include <span>
 #include <vector>
 
-#include "../modbus/common.h"
+#include "common.h"
 #include "esphome/components/modbus/modbus.h"
 
-namespace esphome::modbus_monitor::testing {
-
-using modbus::ModbusServerDevice;
-using modbus::ModbusServerHub;
-using modbus::RegisterValues;
-using modbus::ResponseStatus;
-using modbus::BROADCAST_ADDRESS;
-using modbus::testing::InjectableUART;
+namespace esphome::modbus::testing {
 
 namespace {
 
@@ -150,7 +143,7 @@ TEST_F(MonitorServer, EveryCallbackRuns) {
   EXPECT_EQ(second, 1);
 }
 
-// The largest request: write 123 registers, a PDU of 252 bytes.
+// The largest register write: 123 registers, a PDU of 252 bytes.
 TEST_F(MonitorServer, LargestRequestIsSeenWhole) {
   std::vector<uint8_t> pdu = {0x10, 0x00, 0x00, 0x00, 123, 246};
   for (int i = 0; i < 246; i++)
@@ -167,4 +160,4 @@ TEST_F(MonitorServer, UnknownFunctionIsSeen) {
   EXPECT_EQ(this->seen_[0].pdu, vec_(pdu));
 }
 
-}  // namespace esphome::modbus_monitor::testing
+}  // namespace esphome::modbus::testing

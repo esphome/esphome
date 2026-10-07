@@ -70,7 +70,7 @@ ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 
 # Lambda argument types for the reply handlers: the device address the send targeted, and the
 # request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
-_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+_PDU_SPAN = modbus.PDU_SPAN
 
 # The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit
 # (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.

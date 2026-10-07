@@ -332,7 +332,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
     this->process_modbus_client_frame_(address, function_code, data);
   }
 #ifdef MODBUS_ON_REQUEST_COUNT
-  // After the dispatch: a local device has answered, or the reply of another device is expected.
+  // After the dispatch: a local device has answered or queued its answer, or the reply of another device is expected.
   this->request_callback_.call(address, pdu);
 #endif
 

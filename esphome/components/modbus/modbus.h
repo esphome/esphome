@@ -61,8 +61,8 @@ class Modbus : public uart::UARTDevice, public Component {
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 #ifdef MODBUS_ON_REQUEST_COUNT
-  /// Called with the address and the request PDU (function code first) of every request: each one a server hub
-  /// reads, each one a client hub sends, broadcasts included. The PDU is only valid during the call.
+  /// Called with the address and the request PDU (function code first) of every request: each frame a server hub
+  /// parses as a request, each one a client hub sends, broadcasts included. The PDU is only valid during the call.
   template<typename F> void add_on_request_callback(F &&callback) {
     this->request_callback_.add(std::forward<F>(callback));
   }
