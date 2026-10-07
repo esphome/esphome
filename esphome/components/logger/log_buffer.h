@@ -9,6 +9,8 @@ namespace esphome::logger {
 
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
+// Longest tag the header budget allows
+static constexpr size_t MAX_TAG_LENGTH = 32;
 
 // ANSI color code last digit (30-38 range, store only last digit to save RAM on ESP8266)
 static const char LOG_LEVEL_COLOR_DIGIT[] PROGMEM = {
@@ -193,7 +195,8 @@ struct LogBuffer {
   // Caller is responsible for ensuring buffer has sufficient space. Tags may be in PROGMEM on ESP8266.
   void copy_string_(char *&p, const char *str) {
 #ifdef USE_ESP8266
-    for (size_t i = 0; i < 32; i++) {
+    // Only ESP8266 caps the length; tags may be in PROGMEM, so read each byte once
+    for (size_t i = 0; i < MAX_TAG_LENGTH; i++) {
       const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(str + i)));
       if (c == '\0')
         break;
@@ -201,7 +204,8 @@ struct LogBuffer {
     }
 #else
     const size_t len = strlen(str);
-    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator
+    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator, building string piece by
+    // piece
     memcpy(p, str, len);
     p += len;
 #endif

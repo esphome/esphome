@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cstdarg>
 #include <map>
 #include <span>
@@ -88,12 +87,10 @@ class LoggerLevelListener {
 #endif
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-// A tag being looked up; may be in PROGMEM on ESP8266, while map keys are always in RAM
+// RAM map keys compared with a tag that may be in PROGMEM, without copying it
 struct FlashTag {
   const char *tag;
 };
-
-// Transparent comparison so log_levels_.find(FlashTag{tag}) needs no RAM copy of the tag
 struct CStrCompare {
   using is_transparent = void;
   bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
@@ -491,14 +488,13 @@ class Logger final : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static constexpr size_t TAG_RAM_SIZE = 33;
+static constexpr size_t TAG_RAM_SIZE = MAX_TAG_LENGTH + 1;
 
 /// Returns the tag readable from RAM; on ESP8266 a PROGMEM tag is copied into buf, truncated to 32 characters.
 inline const char *tag_to_ram(const char *tag, char (&buf)[TAG_RAM_SIZE]) {
 #ifdef USE_ESP8266
-  const size_t len = std::min(ESPHOME_strlen_P(tag), TAG_RAM_SIZE - 1);
-  progmem_memcpy(buf, tag, len);
-  buf[len] = '\0';
+  ESPHOME_strncpy_P(buf, tag, TAG_RAM_SIZE - 1);
+  buf[TAG_RAM_SIZE - 1] = '\0';
   return buf;
 #else
   (void) buf;
