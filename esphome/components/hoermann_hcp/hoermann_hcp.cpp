@@ -187,6 +187,9 @@ void HoermannHcp::dump_config() {
                 "Hoermann HCP bridge:\n"
                 "  Modbus server address: 0x%02X",
                 this->get_address());
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Actuator Error", this->actuator_error_binary_sensor_);
+#endif
 #ifdef USE_HOERMANN_HCP_IDENTITY
   LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_text_sensor_);
   log_identity_value(this->serial_number_text_sensor_);
@@ -551,10 +554,25 @@ void HoermannHcp::on_state_reg_(uint16_t value) {
 }
 
 // Low byte of register 6: bit 0x10 is the lamp, bit 0x04 the relay. The reference implementation records
-// 0x00, 0x04, 0x10 and 0x14, so only the lamp bit decides here.
+// 0x00, 0x04, 0x10 and 0x14, so only the lamp bit decides here. In the high byte, Hoermann's own bus accessory
+// treats either bit of 0x30 as an actuator error; what sets them is not known.
 void HoermannHcp::on_light_reg_(uint16_t value) {
   this->set_light_seen_(true);
   this->set_light_on_((value & 0x0010) != 0);
+  const bool actuator_error = (value & 0x3000) != 0;
+#ifdef USE_BINARY_SENSOR
+  // Unknown until first reported, then kept like the other entities here while the bus is quiet.
+  if (this->actuator_error_binary_sensor_ != nullptr)
+    this->actuator_error_binary_sensor_->publish_state(actuator_error);
+#endif
+  if (this->actuator_error_ == actuator_error)
+    return;
+  this->actuator_error_ = actuator_error;
+  if (actuator_error) {
+    ESP_LOGW(TAG, "Motor reports an actuator error (0x%04X)", value);
+  } else {
+    ESP_LOGI(TAG, "Actuator error cleared");
+  }
 }
 
 bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
