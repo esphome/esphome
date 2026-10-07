@@ -42,7 +42,7 @@ class MonitorServer : public ::testing::Test {
     this->uart_.inject_frame(address, pdu);
     this->hub_.loop();
   }
-  static std::vector<uint8_t> vec_(std::span<const uint8_t> pdu) { return {pdu.begin(), pdu.end()}; }
+  static std::vector<uint8_t> vec(std::span<const uint8_t> pdu) { return {pdu.begin(), pdu.end()}; }
 
   InjectableUART uart_;
   ModbusServerHub hub_;
@@ -63,7 +63,7 @@ TEST_F(MonitorServer, ServedRequestIsSeenAfterTheReply) {
   this->receive_(0x02, READ);
   ASSERT_EQ(this->seen_.size(), 1u);
   EXPECT_EQ(this->seen_[0].address, 0x02);
-  EXPECT_EQ(this->seen_[0].pdu, vec_(READ));
+  EXPECT_EQ(this->seen_[0].pdu, vec(READ));
   EXPECT_FALSE(this->uart_.written.empty());
   EXPECT_EQ(this->seen_[0].written_before, this->uart_.written.size());
 }
@@ -72,7 +72,7 @@ TEST_F(MonitorServer, UnservedRequestIsSeen) {
   this->receive_(0x05, READ);
   ASSERT_EQ(this->seen_.size(), 1u);
   EXPECT_EQ(this->seen_[0].address, 0x05);
-  EXPECT_EQ(this->seen_[0].pdu, vec_(READ));
+  EXPECT_EQ(this->seen_[0].pdu, vec(READ));
   EXPECT_TRUE(this->uart_.written.empty());
 }
 
@@ -93,8 +93,8 @@ TEST_F(MonitorServer, PeerWriteReplyIsNotSeen) {
   this->receive_(0x05, WRITE_1);  // the other device's reply
   this->receive_(0x05, WRITE_2);
   ASSERT_EQ(this->seen_.size(), 2u);
-  EXPECT_EQ(this->seen_[0].pdu, vec_(WRITE_1));
-  EXPECT_EQ(this->seen_[1].pdu, vec_(WRITE_2));
+  EXPECT_EQ(this->seen_[0].pdu, vec(WRITE_1));
+  EXPECT_EQ(this->seen_[1].pdu, vec(WRITE_2));
 }
 
 // Known gap, pinned: when the other device does not answer, the next request with the same shape to
@@ -104,8 +104,8 @@ TEST_F(MonitorServer, RepeatedWriteWithoutReplyIsTakenForTheReply) {
   this->receive_(0x05, WRITE_2);  // no reply came; this request is taken for it
   this->receive_(0x05, WRITE_1);
   ASSERT_EQ(this->seen_.size(), 2u);
-  EXPECT_EQ(this->seen_[0].pdu, vec_(WRITE_1));
-  EXPECT_EQ(this->seen_[1].pdu, vec_(WRITE_1));
+  EXPECT_EQ(this->seen_[0].pdu, vec(WRITE_1));
+  EXPECT_EQ(this->seen_[1].pdu, vec(WRITE_1));
 }
 
 // The same holds for a request to another address: any frame with the shape of a reply ends the wait.
@@ -115,7 +115,7 @@ TEST_F(MonitorServer, WriteToAnotherAddressWithoutReplyIsTakenForTheReply) {
   this->receive_(0x06, WRITE_1);
   ASSERT_EQ(this->seen_.size(), 2u);
   EXPECT_EQ(this->seen_[1].address, 0x06);
-  EXPECT_EQ(this->seen_[1].pdu, vec_(WRITE_1));
+  EXPECT_EQ(this->seen_[1].pdu, vec(WRITE_1));
 }
 
 // With no reply expected (at boot, after a broadcast), a write echo has the shape of a request.
@@ -124,14 +124,14 @@ TEST_F(MonitorServer, WriteEchoWithNothingExpectedIsSeen) {
   this->receive_(0x05, WRITE_2);  // in fact the echo of a request sent before this hub listened
   ASSERT_EQ(this->seen_.size(), 2u);
   EXPECT_EQ(this->seen_[1].address, 0x05);
-  EXPECT_EQ(this->seen_[1].pdu, vec_(WRITE_2));
+  EXPECT_EQ(this->seen_[1].pdu, vec(WRITE_2));
 }
 
 TEST_F(MonitorServer, BroadcastIsSeen) {
   this->receive_(BROADCAST_ADDRESS, WRITE_1);
   ASSERT_EQ(this->seen_.size(), 1u);
   EXPECT_EQ(this->seen_[0].address, BROADCAST_ADDRESS);
-  EXPECT_EQ(this->seen_[0].pdu, vec_(WRITE_1));
+  EXPECT_EQ(this->seen_[0].pdu, vec(WRITE_1));
   EXPECT_TRUE(this->uart_.written.empty());
 }
 
@@ -157,7 +157,7 @@ TEST_F(MonitorServer, UnknownFunctionIsSeen) {
   const uint8_t pdu[] = {0x49, 0x02, 0xAA, 0xBB};
   this->receive_(0x05, pdu);
   ASSERT_EQ(this->seen_.size(), 1u);
-  EXPECT_EQ(this->seen_[0].pdu, vec_(pdu));
+  EXPECT_EQ(this->seen_[0].pdu, vec(pdu));
 }
 
 }  // namespace esphome::modbus::testing
