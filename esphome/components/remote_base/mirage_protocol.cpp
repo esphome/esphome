@@ -16,18 +16,18 @@ constexpr unsigned int MIRAGE_IR_PACKET_BIT_SIZE = 120;
 // Max data bytes in packet (excluding checksum)
 constexpr size_t MIRAGE_MAX_DATA_BYTES = (MIRAGE_IR_PACKET_BIT_SIZE / 8);
 
-void MirageProtocol::encode(RemoteTransmitData *dst, const MirageData &data) {
+void MirageProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t len) {
   char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
-  ESP_LOGI(TAG, "Transmit Mirage: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
+  ESP_LOGI(TAG, "Transmit Mirage: %s", format_hex_pretty_to(hex_buf, data, len));
   dst->set_carrier_frequency(38000);
-  dst->reserve(5 + ((data.data.size() + 1) * 2));
+  dst->reserve(5 + ((len + 1) * 2));
   dst->mark(HEADER_MARK_US);
   dst->space(HEADER_SPACE_US);
   dst->mark(BIT_MARK_US);
   uint8_t checksum = 0;
-  for (uint8_t item : data.data) {
-    this->encode_byte_(dst, item);
-    checksum += (item >> 4) + (item & 0xF);
+  for (size_t i = 0; i < len; i++) {
+    this->encode_byte_(dst, data[i]);
+    checksum += (data[i] >> 4) + (data[i] & 0xF);
   }
   this->encode_byte_(dst, checksum);
 }
