@@ -11,9 +11,7 @@ SPD2010Touchscreen = spd2010_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    touchscreen.touchscreen_schema(
-        "50ms", defaults={"x_min": 0, "x_max": 411, "y_min": 0, "y_max": 411}
-    )
+    touchscreen.touchscreen_schema("50ms")
     .extend(
         {
             cv.GenerateID(): cv.declare_id(SPD2010Touchscreen),

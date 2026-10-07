@@ -16,14 +16,13 @@ class SPD2010Touchscreen final : public touchscreen::Touchscreen, public i2c::I2
   void initialize_();
   void update_touches() override;
   bool read_data_();
-  bool read_register_(uint16_t reg, uint8_t *data, size_t length);
-  bool write_command_(uint16_t reg, uint16_t value);
-  bool start_controller_(uint8_t status);
+  bool read_register_(uint16_t reg, uint8_t *data, size_t length) const;
+  bool write_command_(uint16_t reg, uint16_t value) const;
+  bool clear_interrupt_() const;
   bool finish_report_();
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
-  uint8_t setup_attempts_{0};
   bool ready_{false};
 };
 
