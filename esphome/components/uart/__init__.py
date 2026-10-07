@@ -489,7 +489,8 @@ def final_validate_device_schema(
         return value
 
     def validate_stop_bits(value):
-        if value != stop_bits:
+        # usb_uart channels store stop bits as strings ("1", "1.5", "2").
+        if float(value) != stop_bits:
             raise cv.Invalid(
                 f"Component {name} requires {stop_bits} stop bits for the uart referenced by {uart_bus}"
             )
