@@ -10,3 +10,5 @@ tcp_uart:
     timeout: 30s
     connected:
       name: TCP UART Connected
+    disconnects:
+      name: TCP UART Disconnects
