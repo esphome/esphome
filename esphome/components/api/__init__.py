@@ -51,9 +51,9 @@ from esphome.const import (
     CONF_VARIABLES,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
 import esphome.final_validate as fv
-from esphome.helpers import fnv1_hash
+from esphome.helpers import cpp_string_escape, fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -93,6 +93,7 @@ APIServer = api_ns.class_("APIServer", cg.Component)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
 )
+HomeAssistantField = api_ns.struct("HomeAssistantField")
 ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
@@ -772,6 +773,11 @@ VARIABLES_SCHEMA = cv.Schema(
     {cv.string: cv.All(_coerce_implicit_lambda, cv.templatable(cv.string_strict))}
 )
 
+# The action stores each map's entry count in a uint8_t
+_FIELD_MAP_MAX = 255
+DATA_FIELDS_SCHEMA = cv.All(KEY_VALUE_SCHEMA, cv.Length(max=_FIELD_MAP_MAX))
+VARIABLES_FIELDS_SCHEMA = cv.All(VARIABLES_SCHEMA, cv.Length(max=_FIELD_MAP_MAX))
+
 
 def _validate_response_config(config: ConfigType) -> ConfigType:
     # Validate dependencies:
@@ -806,9 +812,9 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
             cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.templatable(
                 cv.string
             ),
-            cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
-            cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-            cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
+            cv.Optional(CONF_DATA, default={}): DATA_FIELDS_SCHEMA,
+            cv.Optional(CONF_DATA_TEMPLATE, default={}): DATA_FIELDS_SCHEMA,
+            cv.Optional(CONF_VARIABLES, default={}): VARIABLES_FIELDS_SCHEMA,
             cv.Optional(CONF_RESPONSE_TEMPLATE): cv.templatable(cv.string),
             cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
             cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
@@ -819,6 +825,62 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     cv.rename_key(CONF_SERVICE, CONF_ACTION),
     _validate_response_config,
 )
+
+
+def _field_string(value: str) -> Expression:
+    # ESP8266 can only keep a string in flash as its own PROGMEM array
+    literal = cg.RawExpression(cpp_string_escape(value))
+    if CORE.is_esp8266:
+        return cg.shared_progmem_array("ha_field_str", cg.char, literal)
+    return literal
+
+
+async def _new_service_call_action(
+    server_id: ID,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    is_event: bool,
+    service: Any,
+    data: dict[str, Any],
+    data_template: dict[str, Any],
+    variables: dict[str, Any],
+) -> MockObj:
+    """Create the action with its name and fields in one shared flash table."""
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
+    serv = await cg.get_variable(server_id)
+    field_type = HomeAssistantField.template(template_arg)
+    groups = [data, data_template, variables]
+    # A lambda may keep static state, so a table with lambdas is never shared
+    has_lambda = cg.is_template(service) or any(
+        cg.is_template(value) for group in groups for value in group.values()
+    )
+
+    async def field(key: str | None, value: Any, output_type: Any = None) -> Expression:
+        key_exp = cg.nullptr if key is None else _field_string(key)
+        if cg.is_template(value):
+            # output_type=None lets lambdas return numbers or char pointers; C++ converts them
+            lam = await cg.process_lambda(value, args, return_type=output_type)
+            return cg.RawExpression(f"{field_type}::from_lambda({key_exp}, {lam})")
+        return cg.ArrayInitializer(key_exp, _field_string(value), cg.nullptr)
+
+    entries = [await field(None, service, cg.std_string)]
+    for group in groups:
+        for key, value in group.items():
+            entries.append(await field(key, value))
+    table = cg.shared_progmem_array(
+        "ha_action_fields",
+        field_type,
+        cg.ArrayInitializer(*entries, multiline=True),
+        share=not has_lambda,
+    )
+    return cg.new_Pvariable(
+        action_id, template_arg, serv, is_event, table, *(len(g) for g in groups)
+    )
+
+
+def _service_call_fields(config: ConfigType) -> tuple[dict[str, Any], ...]:
+    return config[CONF_DATA], config[CONF_DATA_TEMPLATE], config[CONF_VARIABLES]
 
 
 # synchronous=False: when on_success/on_error is configured, play() stores the
@@ -842,36 +904,15 @@ async def homeassistant_service_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    serv = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = await cg.templatable(config[CONF_ACTION], args, cg.std_string)
-    cg.add(var.set_service(templ))
-
-    # Initialize FixedVectors with exact sizes from config
-    cg.add(var.init_data(len(config[CONF_DATA])))
-    for key, value in config[CONF_DATA].items():
-        # output_type=None because lambdas can return non-string types (int,
-        # float, char*) that TemplatableStringValue converts via to_string.
-        # Static strings are manually wrapped for PROGMEM on ESP8266.
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
-        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
-
-    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
-    for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
-        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
-
-    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
-    for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
-        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
+    var = await _new_service_call_action(
+        config[CONF_ID],
+        action_id,
+        template_arg,
+        args,
+        False,
+        config[CONF_ACTION],
+        *_service_call_fields(config),
+    )
 
     if on_error := config.get(CONF_ON_ERROR):
         cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
@@ -923,9 +964,9 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(APIServer),
         cv.Required(CONF_EVENT): validate_homeassistant_event,
-        cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
+        cv.Optional(CONF_DATA, default={}): DATA_FIELDS_SCHEMA,
+        cv.Optional(CONF_DATA_TEMPLATE, default={}): DATA_FIELDS_SCHEMA,
+        cv.Optional(CONF_VARIABLES, default={}): VARIABLES_FIELDS_SCHEMA,
     }
 )
 
@@ -944,38 +985,15 @@ async def homeassistant_event_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    serv = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    templ = await cg.templatable(config[CONF_EVENT], args, cg.std_string)
-    cg.add(var.set_service(templ))
-
-    # Initialize FixedVectors with exact sizes from config
-    cg.add(var.init_data(len(config[CONF_DATA])))
-    for key, value in config[CONF_DATA].items():
-        # output_type=None because lambdas can return non-string types (int,
-        # float, char*) that TemplatableStringValue converts via to_string.
-        # Static strings are manually wrapped for PROGMEM on ESP8266.
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
-        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
-
-    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
-    for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
-        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
-
-    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
-    for key, value in config[CONF_VARIABLES].items():
-        templ = await cg.templatable(value, args, None)
-        if isinstance(templ, str):
-            templ = cg.FlashStringLiteral(templ)
-        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
-
-    return var
+    return await _new_service_call_action(
+        config[CONF_ID],
+        action_id,
+        template_arg,
+        args,
+        True,
+        config[CONF_EVENT],
+        *_service_call_fields(config),
+    )
 
 
 HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
@@ -999,15 +1017,17 @@ async def homeassistant_tag_scanned_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    serv = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    cg.add(var.set_service(cg.FlashStringLiteral("esphome.tag_scanned")))
-    # Initialize FixedVector with exact size (1 data field)
-    cg.add(var.init_data(1))
-    templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
-    cg.add(var.add_data(cg.FlashStringLiteral("tag_id"), templ))
-    return var
+    return await _new_service_call_action(
+        config[CONF_ID],
+        action_id,
+        template_arg,
+        args,
+        True,
+        "esphome.tag_scanned",
+        {"tag_id": config[CONF_TAG]},
+        {},
+        {},
+    )
 
 
 CONF_SUCCESS = "success"
