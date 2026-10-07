@@ -331,7 +331,8 @@ class ModbusServerHub : public Modbus {
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
-  // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
+  // Dispatches a broadcast (address 0) write to every registered device and to on_request; broadcasts are never
+  // answered.
   void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
   // Passes the request as a PDU (function code first) to the on_request callbacks, if any.
   void hand_to_on_request_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);

@@ -625,9 +625,10 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                                                    std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
-    this->hand_to_on_request_(address, function_code, data);
+    // Set before the handler runs, so an answer sent from it can clear the expectation.
     this->expecting_peer_response_ = address;
     ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
+    this->hand_to_on_request_(address, function_code, data);
     return;
   }
 
