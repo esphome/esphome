@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <iterator>
 #include <vector>
 #include "esphome/components/remote_base/aeha_protocol.h"
 #include "esphome/components/remote_base/haier_protocol.h"
