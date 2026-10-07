@@ -405,6 +405,8 @@ esphome/components/openthread/* @mrene
 esphome/components/opt3001/* @ccutrer
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/packet_interface/* @clydebarrow
+esphome/components/packet_interface/packet_transport/* @clydebarrow
 esphome/components/packet_transport/* @clydebarrow
 esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
@@ -605,10 +607,12 @@ esphome/components/tuya/water_heater/* @iago-veiga
 esphome/components/uart/* @esphome/core
 esphome/components/uart/button/* @ssieb
 esphome/components/uart/event/* @eoasmxd
+esphome/components/uart/packet_interface/* @clydebarrow
 esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/uart_mux/* @kbx81
 esphome/components/uart_tcp/* @Bascht74
 esphome/components/udp/* @clydebarrow
+esphome/components/udp/packet_interface/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ufm01/* @ljungqvist

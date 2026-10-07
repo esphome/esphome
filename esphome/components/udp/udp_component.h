@@ -25,8 +25,8 @@ class UDPComponent final : public Component {
   void set_listen_address(const char *listen_addr) { this->listen_address_ = network::IPAddress(listen_addr); }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
-  void set_should_broadcast() { this->should_broadcast_ = true; }
-  void set_should_listen() { this->should_listen_ = true; }
+  void set_should_broadcast(bool should_broadcast = true) { this->should_broadcast_ = should_broadcast; }
+  void set_should_listen(bool should_listen = true);
   template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
   void loop() override;
@@ -40,7 +40,7 @@ class UDPComponent final : public Component {
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
-  CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
+  LazyCallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;

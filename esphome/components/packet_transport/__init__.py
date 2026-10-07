@@ -206,8 +206,10 @@ async def register_packet_transport(var: MockObj, config: ConfigType) -> set[str
     return providers
 
 
-async def new_packet_transport(config: ConfigType) -> tuple[MockObj, set[str]]:
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_packet_transport(
+    config: ConfigType, *args: Any
+) -> tuple[MockObj, set[str]]:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_platform_name(config[CONF_PLATFORM]))
     providers = await register_packet_transport(var, config)
     return var, providers
