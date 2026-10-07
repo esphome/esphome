@@ -11,7 +11,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.wizard";
+ESPHOME_LOG_TAG(TAG, "api.wizard");
 
 uint8_t *wizard_encode_response(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
