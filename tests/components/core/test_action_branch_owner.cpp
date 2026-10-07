@@ -51,6 +51,17 @@ class FlagCondition : public Condition<> {
   bool value{true};
 };
 
+// Stops the given list while it is being checked, like a lambda condition calling script.stop
+class StoppingCondition : public Condition<> {
+ public:
+  bool check() override {
+    if (this->list != nullptr)
+      this->list->stop();
+    return true;
+  }
+  ActionList<> *list{nullptr};
+};
+
 // Turns its condition off after a number of checks
 class CountdownCondition : public Condition<> {
  public:
@@ -129,6 +140,28 @@ TEST(ActionBranchOwner, IfThenResumesAfterTheIfOnce) {
   EXPECT_EQ(log, (Log{3, 4}));
   EXPECT_FALSE(top.is_running());
   EXPECT_EQ(top.num_running(), 0);
+}
+
+TEST(ActionBranchOwner, ConditionThatStopsTheRunStartsNoBranch) {
+  Log log;
+  StoppingCondition cond;
+  IfAction<true> if_action(&cond);
+  WhileAction<> loop(&cond);
+  RecordAction t1(&log, 1), e1(&log, 2), body(&log, 3), after(&log, 4);
+  if_action.add_then({&t1});
+  if_action.add_else({&e1});
+  loop.add_then({&body});
+  ActionList<> if_list, while_list;
+  if_list.add_actions({&if_action, &after});
+  while_list.add_actions({&loop, &after});
+
+  cond.list = &if_list;
+  if_list.play();
+  cond.list = &while_list;
+  while_list.play();
+  EXPECT_TRUE(log.empty());
+  EXPECT_FALSE(if_list.is_running());
+  EXPECT_FALSE(while_list.is_running());
 }
 
 TEST(ActionBranchOwner, IfResumesAfterDeferredLastAction) {

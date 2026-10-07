@@ -286,13 +286,14 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
 
   void play_complex(const Ts &...x) final {
     this->num_running_++;
+    // The condition may stop this automation (e.g. a lambda calling script.stop), so re-check num_running_
     if (this->condition_->check(x...)) {
-      if (!this->then_.empty()) {
+      if (!this->then_.empty() && this->num_running_ > 0) {
         this->then_.play(x...);
         return;
       }
     } else if constexpr (HasElse) {
-      if (!this->else_.empty()) {
+      if (!this->else_.empty() && this->num_running_ > 0) {
         this->else_.play(x...);
         return;
       }
@@ -337,6 +338,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
       return;
     }
 
+    // The condition may have stopped this automation
+    if (this->num_running_ == 0)
+      return;
     // An empty body has no last action to resume this loop, so finish immediately
     if (this->then_.empty()) {
       this->play_next_(x...);
