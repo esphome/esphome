@@ -23,6 +23,7 @@ enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_TTL = 0,
   SERIAL_PROXY_PORT_TYPE_RS232 = 1,
   SERIAL_PROXY_PORT_TYPE_RS485 = 2,
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3,
 };
 enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -371,7 +372,17 @@ enum SerialProxyMode : uint32_t {
   SERIAL_PROXY_MODE_RAW = 0,
   SERIAL_PROXY_MODE_PROTOCOL = 1,
 };
+enum SerialProxyIdentitySource : uint32_t {
+  SERIAL_PROXY_IDENTITY_SOURCE_NONE = 0,
+  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1,
+  SERIAL_PROXY_IDENTITY_SOURCE_USB = 2,
+};
 #endif
+enum SerialProxyIdentityFlag : uint32_t {
+  SERIAL_PROXY_IDENTITY_FLAG_NONE = 0,
+  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1,
+  SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2,
+};
 
 }  // namespace enums
 
@@ -448,9 +459,9 @@ class HelloResponse final : public ProtoMessage {
   uint32_t api_version_minor{0};
   StringRef server_info{};
   StringRef name{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -471,9 +482,9 @@ class DisconnectRequest final : public ProtoDecodableMessage {
   void decode(const uint8_t *buffer, size_t length) {
     ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -528,9 +539,9 @@ class AreaInfo final : public ProtoMessage {
  public:
   uint32_t area_id{0};
   StringRef name{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -547,9 +558,9 @@ class DeviceInfo final : public ProtoMessage {
   uint32_t device_id{0};
   StringRef name{};
   uint32_t area_id{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -566,9 +577,9 @@ class SerialProxyInfo final : public ProtoMessage {
   StringRef name{nullptr, 0};  // null until set, encode only
   enums::SerialProxyPortType port_type{};
   uint32_t configured_line_states{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -644,9 +655,9 @@ class DeviceInfoResponse final : public ProtoMessage {
 #ifdef USE_API_OUTGOING_CONNECTION
   bool api_outgoing_connection_supported{false};
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -661,9 +672,9 @@ class BluetoothProxyCapabilities final : public ProtoMessage {
  public:
   uint32_t feature_flags{0};
   StringRef mac_address{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -678,9 +689,9 @@ class BluetoothProxyCapabilities final : public ProtoMessage {
 class VoiceAssistantCapabilities final : public ProtoMessage {
  public:
   uint32_t feature_flags{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -696,9 +707,26 @@ class ZWaveProxyCapabilities final : public ProtoMessage {
  public:
   uint32_t feature_flags{0};
   uint32_t home_id{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_API_WIZARD
+class WizardCapabilities final : public ProtoMessage {
+ public:
+  bool configured{false};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -712,7 +740,7 @@ class ZWaveProxyCapabilities final : public ProtoMessage {
 class DeviceCapabilitiesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 150;
-  static constexpr uint8_t ESTIMATED_SIZE = 102;
+  static constexpr uint8_t ESTIMATED_SIZE = 119;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_capabilities_response"); }
 #endif
@@ -728,9 +756,12 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 #ifdef USE_SERIAL_PROXY
   std::array<SerialProxyInfo, SERIAL_PROXY_COUNT> serial_proxies{};
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+#ifdef USE_API_WIZARD
+  WizardCapabilities wizard{};
+#endif
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -740,6 +771,50 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_API_WIZARD
+class DeviceWizardResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 157;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("device_wizard_response"); }
+#endif
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+class WizardInputSetRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 158;
+  static constexpr uint8_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("wizard_input_set_request"); }
+#endif
+  uint32_t key{0};
+  StringRef entity_id{};
+  void decode(const uint8_t *buffer, size_t length) {
+    ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
+  }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
+};
+#endif
 class ListEntitiesDoneResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 19;
@@ -763,9 +838,9 @@ class ListEntitiesBinarySensorResponse final : public InfoResponseProtoMessage {
 #endif
   StringRef device_class{nullptr, 0};  // null until set, encode only
   bool is_status_binary_sensor{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -784,9 +859,9 @@ class BinarySensorStateResponse final : public StateResponseProtoMessage {
 #endif
   bool state{false};
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -810,9 +885,9 @@ class ListEntitiesCoverResponse final : public InfoResponseProtoMessage {
   bool supports_tilt{false};
   StringRef device_class{nullptr, 0};  // null until set, encode only
   bool supports_stop{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -832,9 +907,9 @@ class CoverStateResponse final : public StateResponseProtoMessage {
   float position{0.0f};
   float tilt{0.0f};
   enums::CoverOperation current_operation{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -880,9 +955,9 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_direction{false};
   int32_t supported_speed_count{0};
   const std::vector<const char *> *supported_preset_modes{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -904,9 +979,9 @@ class FanStateResponse final : public StateResponseProtoMessage {
   enums::FanDirection direction{};
   int32_t speed_level{0};
   StringRef preset_mode{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -956,9 +1031,9 @@ class ListEntitiesLightResponse final : public InfoResponseProtoMessage {
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   const FixedVector<const char *> *effects{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -987,9 +1062,9 @@ class LightStateResponse final : public StateResponseProtoMessage {
   float cold_white{0.0f};
   float warm_white{0.0f};
   StringRef effect{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1056,9 +1131,9 @@ class ListEntitiesSensorResponse final : public InfoResponseProtoMessage {
   bool force_update{false};
   StringRef device_class{nullptr, 0};  // null until set, encode only
   enums::SensorStateClass state_class{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1077,9 +1152,9 @@ class SensorStateResponse final : public StateResponseProtoMessage {
 #endif
   float state{0.0f};
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1100,9 +1175,9 @@ class ListEntitiesSwitchResponse final : public InfoResponseProtoMessage {
 #endif
   bool assumed_state{false};
   StringRef device_class{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1121,9 +1196,9 @@ class SwitchStateResponse final : public StateResponseProtoMessage {
 #endif
   bool state{false};
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1161,9 +1236,9 @@ class ListEntitiesTextSensorResponse final : public InfoResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("list_entities_text_sensor_response"); }
 #endif
   StringRef device_class{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1182,9 +1257,9 @@ class TextSensorStateResponse final : public StateResponseProtoMessage {
 #endif
   StringRef state{nullptr, 0};  // null until set, encode only
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1228,9 +1303,9 @@ class SubscribeLogsResponse final : public ProtoMessage {
     this->message_ptr_ = data;
     this->message_len_ = len;
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1268,9 +1343,9 @@ class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
   const LogString *message_name() const override { return LOG_STR("noise_encryption_set_key_response"); }
 #endif
   bool success{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1286,9 +1361,9 @@ class HomeassistantServiceMap final : public ProtoMessage {
  public:
   StringRef key{nullptr, 0};    // null until set, encode only
   StringRef value{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1319,9 +1394,9 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   StringRef response_template{nullptr, 0};  // null until set, encode only
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1369,9 +1444,9 @@ class SubscribeHomeAssistantStateResponse final : public ProtoMessage {
   StringRef entity_id{nullptr, 0};  // null until set, encode only
   StringRef attribute{nullptr, 0};  // null until set, encode only
   bool once{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1480,9 +1555,9 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   StringRef example{nullptr, 0};  // null until set, encode only
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1506,9 +1581,9 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   StringRef description{nullptr, 0};  // null until set, encode only
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1576,9 +1651,9 @@ class ExecuteServiceResponse final : public ProtoMessage {
   const uint8_t *response_data{nullptr};
   uint16_t response_data_len{0};
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1597,9 +1672,9 @@ class ListEntitiesCameraResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_camera_response"); }
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1623,9 +1698,9 @@ class CameraImageResponse final : public StateResponseProtoMessage {
     this->data_len_ = len;
   }
   bool done{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1682,9 +1757,9 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
   float visual_max_humidity{0.0f};
   uint32_t feature_flags{0};
   enums::TemperatureUnit temperature_unit{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1715,9 +1790,9 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
   float current_humidity{0.0f};
   float target_humidity{0.0f};
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1779,9 +1854,9 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
   const water_heater::WaterHeaterModeMask *supported_modes{};
   uint32_t supported_features{0};
   enums::TemperatureUnit temperature_unit{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1805,9 +1880,9 @@ class WaterHeaterStateResponse final : public StateResponseProtoMessage {
   float target_temperature_low{0.0f};
   float target_temperature_high{0.0f};
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1855,9 +1930,9 @@ class ListEntitiesNumberResponse final : public InfoResponseProtoMessage {
   StringRef unit_of_measurement{nullptr, 0};  // null until set, encode only
   enums::NumberMode mode{};
   StringRef device_class{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1876,9 +1951,9 @@ class NumberStateResponse final : public StateResponseProtoMessage {
 #endif
   float state{0.0f};
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1916,9 +1991,9 @@ class ListEntitiesSelectResponse final : public InfoResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("list_entities_select_response"); }
 #endif
   const std::span<const char *const> *options{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1937,9 +2012,9 @@ class SelectStateResponse final : public StateResponseProtoMessage {
 #endif
   StringRef state{nullptr, 0};  // null until set, encode only
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1979,9 +2054,9 @@ class ListEntitiesSirenResponse final : public InfoResponseProtoMessage {
   const FixedVector<const char *> *tones{};
   bool supports_duration{false};
   bool supports_volume{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -1999,9 +2074,9 @@ class SirenStateResponse final : public StateResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("siren_state_response"); }
 #endif
   bool state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2049,9 +2124,9 @@ class ListEntitiesLockResponse final : public InfoResponseProtoMessage {
   bool supports_open{false};
   bool requires_code{false};
   StringRef code_format{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2069,9 +2144,9 @@ class LockStateResponse final : public StateResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("lock_state_response"); }
 #endif
   enums::LockState state{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2111,9 +2186,9 @@ class ListEntitiesButtonResponse final : public InfoResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("list_entities_button_response"); }
 #endif
   StringRef device_class{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2149,9 +2224,9 @@ class MediaPlayerSupportedFormat final : public ProtoMessage {
   uint32_t num_channels{0};
   enums::MediaPlayerFormatPurpose purpose{};
   uint32_t sample_bytes{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2170,9 +2245,9 @@ class ListEntitiesMediaPlayerResponse final : public InfoResponseProtoMessage {
 #endif
   std::vector<MediaPlayerSupportedFormat> supported_formats{};
   uint32_t feature_flags{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2192,9 +2267,9 @@ class MediaPlayerStateResponse final : public StateResponseProtoMessage {
   enums::MediaPlayerState state{};
   float volume{0.0f};
   bool muted{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2271,9 +2346,9 @@ class BluetoothLERawAdvertisementsResponse final : public ProtoMessage {
 #endif
   std::array<BluetoothLERawAdvertisement, BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE> advertisements{};
   uint16_t advertisements_len{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2317,9 +2392,9 @@ class BluetoothDeviceConnectionResponse final : public ProtoMessage {
   bool connected{false};
   uint32_t mtu{0};
   int32_t error{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2352,9 +2427,9 @@ class BluetoothGATTDescriptor final : public ProtoMessage {
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   uint32_t short_uuid{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2371,9 +2446,9 @@ class BluetoothGATTCharacteristic final : public ProtoMessage {
   uint32_t properties{0};
   FixedVector<BluetoothGATTDescriptor> descriptors{};
   uint32_t short_uuid{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2389,9 +2464,9 @@ class BluetoothGATTService final : public ProtoMessage {
   uint32_t handle{0};
   FixedVector<BluetoothGATTCharacteristic> characteristics{};
   uint32_t short_uuid{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2410,9 +2485,9 @@ class BluetoothGATTGetServicesResponse final : public ProtoMessage {
 #endif
   uint64_t address{0};
   std::vector<BluetoothGATTService> services{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2430,9 +2505,9 @@ class BluetoothGATTGetServicesDoneResponse final : public ProtoMessage {
   const LogString *message_name() const override { return LOG_STR("bluetooth_gatt_get_services_done_response"); }
 #endif
   uint64_t address{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2476,9 +2551,9 @@ class BluetoothGATTReadResponse final : public ProtoMessage {
     this->data_ptr_ = data;
     this->data_len_ = len;
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2585,9 +2660,9 @@ class BluetoothGATTNotifyDataResponse final : public ProtoMessage {
     this->data_ptr_ = data;
     this->data_len_ = len;
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2607,9 +2682,9 @@ class BluetoothConnectionsFreeResponse final : public ProtoMessage {
   uint32_t free{0};
   uint32_t limit{0};
   std::array<uint64_t, BLUETOOTH_PROXY_MAX_CONNECTIONS> allocated{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2629,9 +2704,9 @@ class BluetoothGATTErrorResponse final : public ProtoMessage {
   uint64_t address{0};
   uint32_t handle{0};
   int32_t error{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2650,9 +2725,9 @@ class BluetoothGATTWriteResponse final : public ProtoMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2671,9 +2746,9 @@ class BluetoothGATTNotifyResponse final : public ProtoMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2693,9 +2768,9 @@ class BluetoothDevicePairingResponse final : public ProtoMessage {
   uint64_t address{0};
   bool paired{false};
   int32_t error{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2715,9 +2790,9 @@ class BluetoothDeviceUnpairingResponse final : public ProtoMessage {
   uint64_t address{0};
   bool success{false};
   int32_t error{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2737,9 +2812,9 @@ class BluetoothDeviceClearCacheResponse final : public ProtoMessage {
   uint64_t address{0};
   bool success{false};
   int32_t error{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2761,9 +2836,9 @@ class BluetoothScannerStateResponse final : public ProtoMessage {
   enums::BluetoothScannerState state{};
   enums::BluetoothScannerMode mode{};
   enums::BluetoothScannerMode configured_mode{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2817,9 +2892,9 @@ class VoiceAssistantAudioSettings final : public ProtoMessage {
   uint32_t noise_suppression_level{0};
   uint32_t auto_gain{0};
   float volume_multiplier{0.0f};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2841,9 +2916,9 @@ class VoiceAssistantRequest final : public ProtoMessage {
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
   StringRef wake_word_phrase{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2920,9 +2995,9 @@ class VoiceAssistantAudio final : public ProtoDecodableMessage {
   void decode(const uint8_t *buffer, size_t length) {
     ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -2985,9 +3060,9 @@ class VoiceAssistantAnnounceFinished final : public ProtoMessage {
   const LogString *message_name() const override { return LOG_STR("voice_assistant_announce_finished"); }
 #endif
   bool success{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3002,9 +3077,9 @@ class VoiceAssistantWakeWord final : public ProtoMessage {
   StringRef id{nullptr, 0};         // null until set, encode only
   StringRef wake_word{nullptr, 0};  // null until set, encode only
   std::vector<std::string> trained_languages{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3061,9 +3136,9 @@ class VoiceAssistantConfigurationResponse final : public ProtoMessage {
   std::vector<VoiceAssistantWakeWord> available_wake_words{};
   const std::vector<std::string> *active_wake_words{};
   uint32_t max_active_wake_words{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3103,9 +3178,9 @@ class ListEntitiesAlarmControlPanelResponse final : public InfoResponseProtoMess
   uint32_t supported_features{0};
   bool requires_code{false};
   bool requires_code_to_arm{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3123,9 +3198,9 @@ class AlarmControlPanelStateResponse final : public StateResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("alarm_control_panel_state_response"); }
 #endif
   enums::AlarmControlPanelState state{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3167,9 +3242,9 @@ class ListEntitiesTextResponse final : public InfoResponseProtoMessage {
   uint32_t max_length{0};
   StringRef pattern{nullptr, 0};  // null until set, encode only
   enums::TextMode mode{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3188,9 +3263,9 @@ class TextStateResponse final : public StateResponseProtoMessage {
 #endif
   StringRef state{nullptr, 0};  // null until set, encode only
   bool missing_state{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3227,9 +3302,9 @@ class ListEntitiesDateResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_date_response"); }
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3250,9 +3325,9 @@ class DateStateResponse final : public StateResponseProtoMessage {
   uint32_t year{0};
   uint32_t month{0};
   uint32_t day{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3291,9 +3366,9 @@ class ListEntitiesTimeResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_time_response"); }
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3314,9 +3389,9 @@ class TimeStateResponse final : public StateResponseProtoMessage {
   uint32_t hour{0};
   uint32_t minute{0};
   uint32_t second{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3357,9 +3432,9 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
 #endif
   StringRef device_class{nullptr, 0};  // null until set, encode only
   const FixedVector<const char *> *event_types{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3377,9 +3452,9 @@ class EventResponse final : public StateResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("event_response"); }
 #endif
   StringRef event_type{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3402,9 +3477,9 @@ class ListEntitiesValveResponse final : public InfoResponseProtoMessage {
   bool assumed_state{false};
   bool supports_position{false};
   bool supports_stop{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3423,9 +3498,9 @@ class ValveStateResponse final : public StateResponseProtoMessage {
 #endif
   float position{0.0f};
   enums::ValveOperation current_operation{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3464,9 +3539,9 @@ class ListEntitiesDateTimeResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_date_time_response"); }
 #endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3485,9 +3560,9 @@ class DateTimeStateResponse final : public StateResponseProtoMessage {
 #endif
   bool missing_state{false};
   uint32_t epoch_seconds{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3525,9 +3600,9 @@ class ListEntitiesUpdateResponse final : public InfoResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("list_entities_update_response"); }
 #endif
   StringRef device_class{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3553,9 +3628,9 @@ class UpdateStateResponse final : public StateResponseProtoMessage {
   StringRef title{nullptr, 0};            // null until set, encode only
   StringRef release_summary{nullptr, 0};  // null until set, encode only
   StringRef release_url{nullptr, 0};      // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3597,9 +3672,9 @@ class ZWaveProxyFrame final : public ProtoDecodableMessage {
   void decode(const uint8_t *buffer, size_t length) {
     ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3623,9 +3698,9 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   void decode(const uint8_t *buffer, size_t length) {
     ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3645,9 +3720,9 @@ class ZWaveProxyRequestResponse final : public ProtoMessage {
 #endif
   enums::ZWaveProxyRequestType type{};
   enums::ZWaveProxyStatus status{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3668,9 +3743,9 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
 #endif
   uint32_t capabilities{0};
   uint32_t receiver_frequency{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3681,7 +3756,7 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  protected:
 };
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 136;
@@ -3721,9 +3796,33 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
 #endif
   uint32_t key{0};
   const std::vector<int32_t> *timings{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class InfraredRFTransmitCompleteResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 153;
+  static constexpr uint8_t ESTIMATED_SIZE = 11;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("infrared_rf_transmit_complete_response"); }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  uint32_t key{0};
+  bool success{false};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3746,9 +3845,9 @@ class ListEntitiesRadioFrequencyResponse final : public InfoResponseProtoMessage
   uint32_t frequency_min{0};
   uint32_t frequency_max{0};
   uint32_t supported_modulations{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3797,9 +3896,9 @@ class SerialProxyDataReceived final : public ProtoMessage {
     this->data_ptr_ = data;
     this->data_len_ = len;
   }
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3876,9 +3975,9 @@ class SerialProxyGetModemPinsResponse final : public ProtoMessage {
   uint32_t instance{0};
   uint32_t line_states{0};
   enums::SerialProxyStatus status{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3918,9 +4017,9 @@ class SerialProxyRequestResponse final : public ProtoMessage {
   enums::SerialProxyRequestType type{};
   enums::SerialProxyStatus status{};
   StringRef error_message{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
@@ -3948,6 +4047,50 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
 
  protected:
   static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
+};
+class UsbDeviceDescriptor final : public ProtoMessage {
+ public:
+  uint32_t vendor_id{0};
+  uint32_t product_id{0};
+  uint32_t bcd_device{0};
+  uint32_t interface_number{0};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class SerialProxyIdentity final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 155;
+  static constexpr uint8_t ESTIMATED_SIZE = 54;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_identity"); }
+#endif
+  uint32_t instance{0};
+  enums::SerialProxyIdentitySource source{};
+  uint32_t flags{0};
+  StringRef manufacturer{nullptr, 0};   // null until set, encode only
+  StringRef product{nullptr, 0};        // null until set, encode only
+  StringRef serial_number{nullptr, 0};  // null until set, encode only
+  UsbDeviceDescriptor usb{};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
@@ -3982,9 +4125,9 @@ class BluetoothSetConnectionParamsResponse final : public ProtoMessage {
 #endif
   uint64_t address{0};
   int32_t error{0};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }

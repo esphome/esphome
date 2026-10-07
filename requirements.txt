@@ -19,6 +19,7 @@ puremagic==2.2.0
 ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.0
+backports.zstd==1.7.0; python_version < "3.14"  # api wizard; compression.zstd is in the standard library from 3.14
 pillow==12.3.0
 resvg-py==0.5.0
 freetype-py==2.5.1
@@ -27,9 +28,9 @@ bleak==3.0.2
 smpclient==7.3.0
 requests==2.34.2
 py7zr==1.1.3
-platformdirs==4.12.2  # native esp-idf toolchain global cache dir
+platformdirs==4.12.3  # native esp-idf toolchain global cache dir
 ninja==1.13.2  # native host and esp8266 arduino toolchain build driver
-filelock==4.0.9  # inter-process locks (PlatformIO cache heal, git clone cache); >=3.32 for FileLock(fallback_to_soft=...), older versions silently drop the kwarg
+filelock==4.0.10  # inter-process locks (PlatformIO cache heal, git clone cache); >=3.32 for FileLock(fallback_to_soft=...), older versions silently drop the kwarg
 
 # esp-idf >= 5.0 requires this
 pyparsing >= 3.3.3
