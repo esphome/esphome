@@ -526,8 +526,7 @@ def value_bytes(value_config: ConfigType) -> list[int]:
     if isinstance(value, list):
         return value
     type_ = value_config[CONF_TYPE]
-    if type_ in ("float", "double"):
-        # Both were emitted as float literals, so a double carries float precision
+    if type_ == "float":
         value = _to_float32(value)
     order = ">" if value_config[CONF_ENDIANNESS] == "BIG" else "<"
     return list(struct.pack(order + _STRUCT_FORMATS[type_], value))
