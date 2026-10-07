@@ -399,6 +399,7 @@ def test_ternary_error_message_names_the_literal() -> None:
         'static constexpr char TAG[] = "x";',
         'static constexpr char TAG[] = {"x"};',
         'static const char TAG[8] = "x";',
+        '  static const char *const TAG = "x";',
     ],
 )
 def test_log_tag_macro_flags_plain_tags(line: str) -> None:
@@ -420,6 +421,8 @@ def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:
         "strcmp(TAG, name);",
         "strcmp(name, TAG);",
         "strncpy(buf, TAG, sizeof(buf));",
+        "strcmp(get_name(), TAG);",
+        "this->set_timeout(make_id(x), TAG, cb);",
         "std::string(TAG);",
         "std::string name = TAG;",
         "std::string name{TAG};",

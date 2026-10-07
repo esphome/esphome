@@ -1238,7 +1238,7 @@ def lint_no_std_nothrow(fname, match):
 
 
 @lint_re_check(
-    r"^(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
     r"\s*(?:=\s*\{?|[{(])\s*\"",
     prefilter="TAG",
     include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
@@ -1262,7 +1262,7 @@ def lint_log_tag_macro(fname, match):
 
 @lint_re_check(
     r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
-    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:[^();]*,)?\s*TAG\b"
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*TAG\b"
     r"|\bstd::string\s+\w+\s*[={(]\s*TAG\b",
     mask=True,
     prefilter="TAG",
