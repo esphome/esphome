@@ -6,6 +6,7 @@
 
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
+#include "core/lv_obj_private.h"
 
 #include <numeric>
 
@@ -223,6 +224,36 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
   add_event_cb(obj, callback, event1, user_data);
   add_event_cb(obj, callback, event2, user_data);
   add_event_cb(obj, callback, event3, user_data);
+}
+
+void LvglComponent::lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value) {
+  // LVGL 9.6 keeps these flags in spec_attr->user_flags, in the same bits as its deprecated lv_obj_add_flag()
+  uint8_t mask;
+  switch (flag) {
+    case LV_OBJ_FLAG_LAYOUT_2:
+      mask = 1 << 1;
+      break;
+    case LV_OBJ_FLAG_WIDGET_1:
+      mask = 1 << 2;
+      break;
+    case LV_OBJ_FLAG_WIDGET_2:
+      mask = 1 << 3;
+      break;
+    default:
+      return;
+  }
+  if (value) {
+    lv_obj_spec_attr_t *spec_attr = lv_obj_allocate_spec_attr(obj);
+    if (spec_attr == nullptr)
+      return;
+    spec_attr->user_flags |= mask;
+  } else if (obj->spec_attr != nullptr) {
+    obj->spec_attr->user_flags &= ~mask;
+  }
+  if (flag == LV_OBJ_FLAG_LAYOUT_2) {
+    lv_obj_mark_layout_as_dirty(lv_obj_get_parent(obj));
+    lv_obj_mark_layout_as_dirty(obj);
+  }
 }
 
 void LvglComponent::add_page(LvPageType *page) {

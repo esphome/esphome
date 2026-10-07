@@ -981,6 +981,12 @@ lvgl:
             state_trickle: true
             radio_button: true
             flex_in_new_track: !lambda return true;
+        - spinner:
+            align: top_mid
+            layout_1: true
+            layout_2: true
+            widget_1: !lambda return false;
+            widget_2: false
         - image:
             id: lv_image
             src: cat_image

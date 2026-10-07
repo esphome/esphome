@@ -621,7 +621,15 @@ OBJ_FLAGS = (
     "state_trickle",
     "radio_button",
     "flex_in_new_track",
+    "layout_1",
+    "layout_2",
+    "widget_1",
+    "widget_2",
 )
+# Flags whose lv_obj_set_<flag>() setter has a different name
+FLAG_SETTER_ALIASES = {"layout_1": "flex_in_new_track"}
+# Custom flags that have no lv_obj_set_<flag>() setter
+CUSTOM_FLAGS = ("layout_2", "widget_1", "widget_2")
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")

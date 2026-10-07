@@ -37,6 +37,8 @@ from ..defines import (
     CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
+    CUSTOM_FLAGS,
+    FLAG_SETTER_ALIASES,
     LOGGER,
     OBJ_FLAGS,
     PARTS,
@@ -333,7 +335,15 @@ class Widget:
         """
         Set or clear an object flag, given as the lower case name without the LV_OBJ_FLAG_ prefix
         """
-        lv_obj.call(f"set_{flag}", self.obj, value)
+        flag = FLAG_SETTER_ALIASES.get(flag, flag)
+        if flag in CUSTOM_FLAGS:
+            lv_add(
+                lvgl_static.lv_obj_set_custom_flag(
+                    self.obj, literal(f"LV_OBJ_FLAG_{flag.upper()}"), value
+                )
+            )
+        else:
+            lv_obj.call(f"set_{flag}", self.obj, value)
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
