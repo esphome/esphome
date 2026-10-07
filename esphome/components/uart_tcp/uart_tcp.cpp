@@ -37,11 +37,8 @@ void UartTcp::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval());
-  uint32_t timeout = this->link_.idle_timeout();
-  if (timeout != 0) {
-    ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", timeout);
-  } else {
-    ESP_LOGCONFIG(TAG, "  Timeout: off");
+  if (this->link_.idle_timeout() != 0) {
+    ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->link_.idle_timeout());
   }
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
