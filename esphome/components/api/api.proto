@@ -20,6 +20,8 @@ service APIConnection {
     option (needs_authentication) = false;
   }
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
+  rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
+  rpc wizard_input_set (WizardInputSetRequest) returns (void) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -391,6 +393,11 @@ message ZWaveProxyCapabilities {
   uint32 home_id = 2;
 }
 
+message WizardCapabilities {
+  // True when the device has a wizard configured, so DeviceWizardRequest will be answered
+  bool configured = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -400,6 +407,90 @@ message DeviceCapabilitiesResponse {
   ZWaveProxyCapabilities zwave_proxy = 3 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   repeated SerialProxyInfo serial_proxies = 4
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
+  WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
+}
+
+// ==================== DEVICE WIZARD ====================
+
+// Asks the device for the onboarding wizard that Home Assistant presents when the
+// device is added.
+//
+// The wizard is read once, when the device is added, whereas capabilities are read
+// on every connect, so it is a separate message rather than part of
+// DeviceCapabilitiesResponse. It is only served on an authenticated connection.
+//
+// A device without a wizard does not have this message at all and never answers it,
+// as a device ignores messages it does not know. Clients therefore check
+// DeviceCapabilitiesResponse.wizard.configured before sending it.
+message DeviceWizardRequest {
+  option (id) = 156;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_WIZARD";
+  // Empty
+}
+
+// The wizard, as UTF-8 JSON compressed into a single zstd frame. The device builds it
+// when it is compiled and sends it unchanged, so its size varies with the wizard and
+// its format can grow without new fields here. Clients decompress it, then read:
+//
+//   {"version": 1,
+//    "pages": [{"title": "...", "description": "...",
+//      "entities": [{"key": 123, "device_id": 456, "description": "..."}],
+//      "inputs": [{"key": 789, "description": "...",
+//        "entity_filters": [{"integration": "...", "domain": ["..."],
+//                            "device_class": ["..."], "supported_features": ["..."]}]}]}]}
+//
+// Values that are empty or unset are left out, and so are empty lists. Strings may be
+// Home Assistant translation placeholders such as "[%key:component::domain::name%]",
+// passed through verbatim. The pages are shown in the order listed. A client that does
+// not know the version must not use the wizard.
+//
+// An entity is an entity of this device that the page shows to the user (for example to
+// turn it on or off). Its key is the key ListEntitiesResponse sends for it. Its
+// device_id is the device_id ListEntitiesResponse sends, and is left out when that is 0.
+//
+// An input is filled in by the user with the id of a Home Assistant entity. It either
+// stands for one entity of the device's homeassistant platform (sensor, binary_sensor,
+// text_sensor, number, switch, text, select or button) that sets no entity_id of its own,
+// as Home Assistant supplies it, or it is a standalone input that only stores the entity
+// id for the device's own automations. Its key is the FNV-1 hash
+// of the input's ESPHome id, not an entity key. The client sends the chosen entity id to
+// the device with a WizardInputSetRequest. entity_filters says which Home Assistant
+// entities the user may choose, and mirrors Home Assistant's EntityFilterSelectorConfig:
+// an entity matches a filter when it satisfies every field that is set, and an entity
+// that matches any one of the filters is accepted.
+//
+// The device keeps the entity id of an input in RAM only and does not store it across
+// restarts. The client therefore stores the choice itself and, after every connection
+// and before it sends SubscribeHomeAssistantStatesRequest, sends a WizardInputSetRequest
+// for each input. It sends one again whenever the user changes the choice.
+message DeviceWizardResponse {
+  option (id) = 157;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_WIZARD";
+  // Not logged: the data is in flash, which ESP8266 cannot read for a dump
+  option (log) = false;
+
+  // The data is in flash, and the device sends it from there
+  bytes data = 1 [(pointer_to_buffer) = true];
+}
+
+// Sets the entity id of a wizard input (see WizardInputField.key). Clients send
+// this only when DeviceCapabilitiesResponse.wizard.configured is set. There is no
+// reply. The device ignores a request whose key matches no input or whose entity_id
+// is empty, longer than 255 bytes or has no '.'. Otherwise it keeps the id in RAM,
+// not across restarts, and when the input belongs to a homeassistant platform entity
+// it subscribes to that entity's state. Clients send this for every input right
+// after connecting, before SubscribeHomeAssistantStatesRequest. A request that
+// arrives later still works: the device then sends the affected state subscriptions
+// again.
+message WizardInputSetRequest {
+  option (id) = 158;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_WIZARD_INPUTS";
+
+  fixed32 key = 1;
+  string entity_id = 2 [(max_data_length) = 255];
 }
 
 message ListEntitiesRequest {

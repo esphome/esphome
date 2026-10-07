@@ -2086,6 +2086,9 @@ bool APIConnection::send_device_capabilities_response_() {
     info.configured_line_states = proxy->get_configured_modem_pins();
   }
 #endif
+#ifdef USE_API_WIZARD
+  resp.wizard.configured = true;
+#endif
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {
@@ -2299,7 +2302,13 @@ void APIConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSet
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void APIConnection::on_subscribe_home_assistant_states_request() { state_subs_at_ = 0; }
+void APIConnection::on_subscribe_home_assistant_states_request() {
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // Remember it, as a client that subscribed also gets the subscriptions again when a wizard input is set
+  this->flags_.home_assistant_states = true;
+#endif
+  state_subs_at_ = 0;
+}
 #endif
 bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   delay(0);
@@ -2742,6 +2751,13 @@ void APIConnection::process_state_subscriptions_() {
   }
 
   const auto &it = subs[this->state_subs_at_];
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // An entity id that is not set yet (a wizard input) has nothing to subscribe to; it is sent once it is set
+  if (it.entity_id[0] == '\0') {
+    this->state_subs_at_++;
+    return;
+  }
+#endif
   SubscribeHomeAssistantStateResponse resp;
   resp.entity_id = StringRef(it.entity_id);
 

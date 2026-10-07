@@ -57,6 +57,8 @@ from esphome.helpers import fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
 
+from . import wizard
+
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
 # schema by its old private name before it moved to the noise component
 _encryption_schema = encryption_schema
@@ -389,6 +391,7 @@ CONFIG_SCHEMA = cv.All(
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
+            cv.Optional(wizard.CONF_WIZARD): wizard.WIZARD_SCHEMA,
             cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
             cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -520,9 +523,15 @@ def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_wizard(config: ConfigType) -> ConfigType:
+    wizard.final_validate(config)
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = cv.All(
     _validate_esp8266_action_strings,
     _validate_outgoing_host_ipv6,
+    _validate_wizard,
 )
 
 
@@ -677,6 +686,9 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp8266 and has_user_actions:
         # Stack buffer that list-entities copies PROGMEM strings into, sized for the largest action
         cg.add_define("API_USER_ACTION_STRINGS_SCRATCH_SIZE", max(scratch_size, 1))
+
+    if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
+        await wizard.to_code(wizard_config)
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
@@ -1106,6 +1118,7 @@ _define_filter = filter_source_files_from_defines(
         "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
         "api_frame_helper_noise.cpp": "USE_API_NOISE",
         "api_frame_helper_plaintext.cpp": "USE_API_PLAINTEXT",
+        "api_wizard.cpp": "USE_API_WIZARD",
         "api_outgoing_connection.cpp": "USE_API_OUTGOING_CONNECTION",
     }
 )

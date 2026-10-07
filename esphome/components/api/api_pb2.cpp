@@ -302,6 +302,20 @@ uint32_t ZWaveProxyCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_API_WIZARD
+uint8_t *WizardCapabilities::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const WizardCapabilities *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.configured);
+  return pos;
+}
+uint32_t WizardCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const WizardCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_bool(1, msg.configured);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
   uint8_t *__restrict__ pos = buffer.get_pos();
@@ -318,6 +332,9 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, ProtoWriteBuff
   for (const auto &it : msg.serial_proxies) {
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
   }
+#endif
+#ifdef USE_API_WIZARD
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 5, msg.wizard);
 #endif
   return pos;
 }
@@ -338,8 +355,39 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
     size += ProtoSize::calc_message_force(1, it.calculate_size());
   }
 #endif
+#ifdef USE_API_WIZARD
+  size += ProtoSize::calc_message(1, msg.wizard.calculate_size());
+#endif
   return size;
 }
+#ifdef USE_API_WIZARD
+uint8_t *DeviceWizardResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
+  return pos;
+}
+uint32_t DeviceWizardResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_length(1, msg.data_len);
+  return size;
+}
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+void WizardInputSetRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  auto &msg = *static_cast<WizardInputSetRequest *>(self);
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_FIXED32):
+      msg.key = value.as_fixed32();
+      break;
+    case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
+      msg.entity_id = StringRef(value.data(), value.size());
+      break;
+  }
+}
+#endif
 #ifdef USE_BINARY_SENSOR
 uint8_t *ListEntitiesBinarySensorResponse::encode_msg(const void *self,
                                                       ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
@@ -4284,6 +4332,9 @@ uint32_t BluetoothSetConnectionParamsResponse::calc_size_msg(const void *self) {
 #ifndef HAS_PROTO_MESSAGE_DUMP
 static_assert(!std::is_polymorphic_v<HelloRequest>, "decodable messages carry no vtable");
 static_assert(!std::is_polymorphic_v<DisconnectRequest>, "decodable messages carry no vtable");
+#ifdef USE_API_WIZARD_INPUTS
+static_assert(!std::is_polymorphic_v<WizardInputSetRequest>, "decodable messages carry no vtable");
+#endif
 #ifdef USE_COVER
 static_assert(!std::is_polymorphic_v<CoverCommandRequest>, "decodable messages carry no vtable");
 #endif
