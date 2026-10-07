@@ -500,20 +500,22 @@ template<typename... Ts> class Action {
   /// the following actions in the chain.
   int num_running_total() {
     int total = this->num_running_;
-    if (this->next_ != nullptr)
-      total += this->next_->num_running_total();
+    if (Action *next = this->chain_next_())
+      total += next->num_running_total();
     return total;
   }
 
  protected:
   friend ActionList<Ts...>;
-  template<typename... Us> friend class ContinuationAction;
 
+  /// For a flow-control action that owns a branch (if, while), play() is called when that branch finishes.
   virtual void play(const Ts &...x) = 0;
   void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
-      if (this->next_ != nullptr) {
+      if (this->next_is_owner_()) {
+        this->owner_()->play(x...);
+      } else if (this->next_ != nullptr) {
         this->next_->play_complex(x...);
       }
     }
@@ -527,15 +529,24 @@ template<typename... Ts> class Action {
 
   virtual void stop() {}
   void stop_next_() {
-    if (this->next_ != nullptr) {
-      this->next_->stop_complex();
-    }
+    if (Action *next = this->chain_next_())
+      next->stop_complex();
   }
 
   bool is_running_next_() {
-    if (this->next_ == nullptr)
-      return false;
-    return this->next_->is_running();
+    Action *next = this->chain_next_();
+    return next != nullptr && next->is_running();
+  }
+
+  // The last action of a branch points at the branch's owner with the low bit set, so the owner
+  // resumes without an extra continuation action. Only Action object pointers are tagged, never
+  // function pointers: ARM Thumb function pointers already use the low bit (see #9283).
+  static constexpr uintptr_t OWNER_TAG = 1;
+  bool next_is_owner_() const { return reinterpret_cast<uintptr_t>(this->next_) & OWNER_TAG; }
+  Action *owner_() const { return reinterpret_cast<Action *>(reinterpret_cast<uintptr_t>(this->next_) & ~OWNER_TAG); }
+  Action *chain_next_() const { return this->next_is_owner_() ? nullptr : this->next_; }
+  static Action *tag_owner_(Action *owner) {
+    return reinterpret_cast<Action *>(reinterpret_cast<uintptr_t>(owner) | OWNER_TAG);
   }
 
   Action<Ts...> *next_{nullptr};
@@ -545,24 +556,29 @@ template<typename... Ts> class Action {
   int num_running_{0};
 };
 
+// Every Action holds a vtable pointer, so all instantiations share this alignment.
+static_assert(alignof(Action<>) >= 2, "the owner tag needs a free low bit in Action object pointers");
+
 template<typename... Ts> class ActionList {
  public:
   void add_action(Action<Ts...> *action) {
     // Walk to end of chain - action lists are short and only built during setup()
-    Action<Ts...> **tail = &this->actions_;
-    while (*tail != nullptr)
-      tail = &(*tail)->next_;
-    *tail = action;
+    *this->tail_() = action;
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     // Find tail once, then append all actions in a single pass
-    Action<Ts...> **tail = &this->actions_;
-    while (*tail != nullptr)
-      tail = &(*tail)->next_;
+    Action<Ts...> **tail = this->tail_();
     for (auto *action : actions) {
       *tail = action;
       tail = &action->next_;
     }
+  }
+  /// Make the last action resume `owner` (via its play()) when the list finishes; call once, after adding actions.
+  void set_owner(Action<Ts...> *owner) {
+    // An empty list has no last action to tag; actions_ never holds a tagged pointer
+    if (this->actions_ == nullptr)
+      return;
+    *this->tail_() = Action<Ts...>::tag_owner_(owner);
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
@@ -595,6 +611,15 @@ template<typename... Ts> class ActionList {
  protected:
   template<size_t... S> void play_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play(std::get<S>(tuple)...);
+  }
+  // Lists with an owner are complete; never append after set_owner()
+  Action<Ts...> **tail_() {
+    Action<Ts...> **tail = &this->actions_;
+    while (*tail != nullptr) {
+      ESPHOME_DEBUG_ASSERT(!(*tail)->next_is_owner_());
+      tail = &(*tail)->next_;
+    }
+    return tail;
   }
 
   Action<Ts...> *actions_{nullptr};
