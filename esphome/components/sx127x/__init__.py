@@ -135,8 +135,9 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     )
 
 
+MAX_PACKET_SIZE = 255
 # The radio's payload length register is 8 bits, and empty packets are rejected.
-validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=255))
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
 def validate_config(config: ConfigType) -> ConfigType:

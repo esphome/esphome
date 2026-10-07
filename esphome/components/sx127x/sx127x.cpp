@@ -250,10 +250,9 @@ size_t SX127x::get_max_packet_size() {
     return this->payload_length_;
   }
   if (this->modulation_ == MOD_LORA) {
-    return SX127X_MAX_PACKET_SIZE;  // the payload length register is 8 bits
-  } else {
-    return 64;
+    return SX127X_MAX_PACKET_SIZE;
   }
+  return 64;
 }
 
 SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {

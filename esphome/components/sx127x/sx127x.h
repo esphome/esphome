@@ -9,7 +9,7 @@
 
 namespace esphome::sx127x {
 
-static constexpr size_t SX127X_MAX_PACKET_SIZE = 255;
+static constexpr size_t SX127X_MAX_PACKET_SIZE = 255;  // the payload length register is 8 bits
 
 enum SX127xBw : uint8_t {
   SX127X_BW_2_6,
