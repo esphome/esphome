@@ -207,7 +207,7 @@ class APIServer final : public Component
   /// Tell every subscribed client that a serial proxy port's identity changed
   void send_serial_proxy_identity(const SerialProxyIdentity &msg);
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 

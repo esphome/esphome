@@ -11,6 +11,8 @@
 #include <cstring>
 #include <atomic>
 #include <span>
+#include <string>
+
 namespace esphome::usb_host {
 
 #pragma GCC diagnostic ignored "-Wparentheses"
@@ -165,12 +167,38 @@ bool copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STR
   return true;
 }
 
+// Folds UTF-16 to Latin-1 for logging, dropping anything that does not fit
+template<typename T>
+static const char *utf16_to_latin1(const T *data, size_t count, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  char *p = buffer.data();
+  char *end = p + buffer.size() - 1;
+  for (size_t i = 0; i != count && p < end; i++) {
+    if (data[i] < 0x100)
+      *p++ = static_cast<char>(data[i]);
+  }
+  *p = '\0';
+  return buffer.data();
+}
+
 static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
   if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
-  if (!copy_descriptor_string(desc, buffer))
-    return "(non-ASCII)";
-  return buffer.data();
+  return utf16_to_latin1(desc->wData, (desc->bLength - 2) / 2, buffer);
+}
+
+static const char *filter_string(const char16_t *filter, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  return utf16_to_latin1(filter, std::char_traits<char16_t>::length(filter), buffer);
+}
+
+// Both sides are UTF-16: the descriptor by specification, the filter because code
+// generation emits it as a u"" literal
+static bool descriptor_string_equals(const usb_str_desc_t *desc, const char16_t *expected) {
+  const int char_count = (desc == nullptr || desc->bLength < 2) ? 0 : (desc->bLength - 2) / 2;
+  for (int i = 0; i != char_count; i++) {
+    if (expected[i] == u'\0' || desc->wData[i] != expected[i])
+      return false;
+  }
+  return expected[char_count] == u'\0';
 }
 
 bool USBClient::get_device_info(UsbDeviceInfo &info) const {
@@ -343,12 +371,10 @@ void USBClient::handle_open_state_() {
     return;
   }
   ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
-  if (desc->idVendor != this->vid_ || desc->idProduct != this->pid_) {
-    if (this->vid_ != 0 || this->pid_ != 0) {
-      ESP_LOGD(TAG, "Not our device, closing");
-      this->disconnect();
-      return;
-    }
+  if ((this->vid_ != 0 && desc->idVendor != this->vid_) || (this->pid_ != 0 && desc->idProduct != this->pid_)) {
+    ESP_LOGD(TAG, "Not our device, closing");
+    this->disconnect();
+    return;
   }
   usb_device_info_t dev_info;
   err = usb_host_device_info(this->device_handle_, &dev_info);
@@ -357,9 +383,21 @@ void USBClient::handle_open_state_() {
     this->disconnect();
     return;
   }
-  this->state_ = USB_CLIENT_CONNECTED;
   char buf_manuf[DESC_STRING_BUF_SIZE];
   char buf_product[DESC_STRING_BUF_SIZE];
+  const bool manufacturer_matches =
+      this->manufacturer_filter_ == nullptr ||
+      descriptor_string_equals(dev_info.str_desc_manufacturer, this->manufacturer_filter_);
+  const bool product_matches =
+      this->product_filter_ == nullptr || descriptor_string_equals(dev_info.str_desc_product, this->product_filter_);
+  if (!manufacturer_matches || !product_matches) {
+    ESP_LOGD(TAG, "Device does not match filter, closing. Manuf: %s; Prod: %s",
+             get_descriptor_string(dev_info.str_desc_manufacturer, buf_manuf),
+             get_descriptor_string(dev_info.str_desc_product, buf_product));
+    this->disconnect();
+    return;
+  }
+  this->state_ = USB_CLIENT_CONNECTED;
   char buf_serial[DESC_STRING_BUF_SIZE];
   ESP_LOGD(TAG, "Device connected: Manuf: %s; Prod: %s; Serial: %s",
            get_descriptor_string(dev_info.str_desc_manufacturer, buf_manuf),
@@ -617,6 +655,13 @@ void USBClient::dump_config() {
                 "  Vendor id %04X\n"
                 "  Product id %04X",
                 this->vid_, this->pid_);
+  char buf[DESC_STRING_BUF_SIZE];
+  if (this->manufacturer_filter_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Manufacturer %s", filter_string(this->manufacturer_filter_, buf));
+  }
+  if (this->product_filter_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Product %s", filter_string(this->product_filter_, buf));
+  }
 }
 // THREAD CONTEXT: Called from both USB task and main loop threads
 // - USB task: Immediately after transfer callback completes
