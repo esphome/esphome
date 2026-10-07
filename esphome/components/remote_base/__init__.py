@@ -2312,7 +2312,7 @@ async def abbwelcome_action(var, config, args):
                 await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)
             )
         )
-    # TemplatableBytes starts as a lambda, so a transmit without data needs an empty table
+    # TemplatableBytes starts in lambda mode with no function, so a transmit without data sets an empty payload
     await automation.templatable_bytes(
         config.get(CONF_DATA, []),
         args,
