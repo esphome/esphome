@@ -257,7 +257,11 @@ void CC1101Component::begin_tx() {
   this->write_(Register::PKTCTRL0, 0x32);
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
-    this->gdo0_pin_->detach_interrupt();
+    // setup() only attaches the interrupt in packet mode. In async serial mode the pin may be
+    // shared with remote_receiver, and detaching here would remove the receiver's interrupt.
+    if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+      this->gdo0_pin_->detach_interrupt();
+    }
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
   // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can
