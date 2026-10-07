@@ -618,7 +618,11 @@ template<typename... Ts> class ActionList {
   Action<Ts...> **tail_() {
     Action<Ts...> **tail = &this->actions_;
     while (*tail != nullptr) {
-      ESPHOME_DEBUG_ASSERT(!(*tail)->next_is_owner_());
+      if ((*tail)->next_is_owner_()) {
+        // Appending after set_owner() is a bug; never walk through the tagged pointer
+        ESPHOME_DEBUG_ASSERT(false);
+        return &(*tail)->next_;
+      }
       tail = &(*tail)->next_;
     }
     return tail;
