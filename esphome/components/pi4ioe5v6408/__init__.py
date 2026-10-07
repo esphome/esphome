@@ -74,7 +74,7 @@ PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_PI4IOE5V6408): cv.use_id(PI4IOE5V6408Component),
+        cv.Required(CONF_PI4IOE5V6408): pins.use_id_or_address(PI4IOE5V6408Component),
     }
 )
 
