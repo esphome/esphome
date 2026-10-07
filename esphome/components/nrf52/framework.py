@@ -225,6 +225,19 @@ def get_build_env(ccache: str | None) -> dict:
         env.setdefault("CCACHE_DISABLE", "1")
     else:
         env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
+        # Drop only the per build map entry (posix, CMake's spelling);
+        # its from side covers no compiled sources. A spaced path cannot
+        # survive ccache's space split list, so it stays hashed.
+        source_dir = CORE.relative_build_path("zephyr").as_posix()
+        if any(ch.isspace() for ch in source_dir):
+            _LOGGER.debug(
+                "Whitespace in %s; the per build map stays hashed", source_dir
+            )
+        else:
+            device_map = f"-fmacro-prefix-map={source_dir}=CMAKE_SOURCE_DIR"
+            env["CCACHE_IGNOREOPTIONS"] = (
+                f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
+            )
     return env
 
 
@@ -301,21 +314,62 @@ def setup_platformio_python_env() -> None:
     _prepend_env_path("PATH", str(env_python_path.parent))
 
 
+def _patch_framework_file(path: Path, old: str, new: str) -> bool:
+    """Replace ``old`` with ``new`` in a framework script, atomically and
+    keeping the file mode (helpers.write_file would flatten it to 0o644).
+    Returns False when nothing matched."""
+    import tempfile
+
+    content = path.read_text(encoding="utf-8")
+    patched = content.replace(old, new)
+    if patched == content:
+        return False
+    # Unique sibling tmp: the install lock is best effort, so two builds
+    # may patch at once and a shared tmp name could rename a half
+    # written file into place.
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(patched)
+        shutil.copymode(path, tmp)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    return True
+
+
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
     # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
     uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
-    if not uf2conv.exists():
+    if uf2conv.exists():
+        _patch_framework_file(
+            uf2conv, "re.split('\\s+', line)", "re.split('\\\\s+', line)"
+        )
+
+
+def _patch_gen_defines_dts_path(framework_path: Path) -> None:
+    # The absolute zephyr.dts.pre path in the header's top comment is
+    # its only per device byte and blocks ccache sharing; emit the
+    # basename. Upstream candidate.
+    gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    if not gen_defines.exists():
         return
-    content = uf2conv.read_text(encoding="utf-8")
-    patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
-    if patched == content:
+    if _patch_framework_file(
+        gen_defines, "  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}"
+    ):
         return
-    # Write atomically so a concurrent build never sees a truncated file
-    tmp = uf2conv.with_suffix(".py.tmp")
-    tmp.write_text(patched, encoding="utf-8")
-    shutil.copymode(uf2conv, tmp)
-    tmp.replace(uf2conv)
+    if "{os.path.basename(edt.dts_path)}" not in gen_defines.read_text(
+        encoding="utf-8"
+    ):
+        # Upstream reformatted the comment; sharing silently degrading
+        # would be invisible, so say it out loud.
+        _LOGGER.warning(
+            "gen_defines.py no longer matches; the devicetree header "
+            "stays per device and ccache sharing between devices degrades"
+        )
 
 
 # West projects every build needs; components add others with include_west_project()
@@ -349,7 +403,7 @@ def bluetooth_west_projects() -> tuple[str, ...]:
     return ("tinycrypt",)
 
 
-def _wanted_west_projects() -> set[str]:
+def wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6
     if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
@@ -587,7 +641,7 @@ def _check_and_install(version: str) -> None:
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    projects = _wanted_west_projects()
+    projects = wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -596,6 +650,8 @@ def _check_and_install(version: str) -> None:
         sentinel.touch()
     else:
         _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
+    # Every run: existing installs need it too, and it is a no-op once applied
+    _patch_gen_defines_dts_path(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (

@@ -28,6 +28,7 @@
 
 // Standard library includes that might be needed
 #include <set>
+#include <span>
 #include <vector>
 #include <string>
 
