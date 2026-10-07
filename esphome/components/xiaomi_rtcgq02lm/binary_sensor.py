@@ -47,14 +47,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_ID])
+    hub = await cg.get_variable(config[CONF_ID])
 
-    if await binary_sensor.new_sub_binary_sensor(
-        config, CONF_MOTION, parent.set_motion
-    ):
-        cg.add(parent.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
-    await binary_sensor.new_sub_binary_sensor(config, CONF_LIGHT, parent.set_light)
-    if await binary_sensor.new_sub_binary_sensor(
-        config, CONF_BUTTON, parent.set_button
-    ):
-        cg.add(parent.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    if await binary_sensors(CONF_MOTION, hub.set_motion):
+        cg.add(hub.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
+    await binary_sensors(CONF_LIGHT, hub.set_light)
+    if await binary_sensors(CONF_BUTTON, hub.set_button):
+        cg.add(hub.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))

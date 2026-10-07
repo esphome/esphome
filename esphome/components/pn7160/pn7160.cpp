@@ -68,9 +68,8 @@ uint8_t PN7160::verify_reset(nfc::NciMessage &rx, const bool reset_config) {
 uint8_t PN7160::process_init_response(nfc::NciMessage &rx) {
   // the chip's version information is logged from CORE_RESET_NTF in verify_reset()
   if (rx.get_message().size() >= 8) {
-    std::vector<uint8_t> features(rx.get_message().begin() + 4, rx.get_message().begin() + 8);
     char feat_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
-    ESP_LOGD(TAG, "NFCC features: %s", nfc::format_bytes_to(feat_buf, features));
+    ESP_LOGD(TAG, "NFCC features: %s", nfc::format_bytes_to(feat_buf, rx.get_payload().subspan(1, 4)));
   }
 
   return rx.get_simple_status_response();

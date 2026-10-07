@@ -208,6 +208,11 @@ class LightState : public EntityBase, public Component {
   /// Set whether this light persists its state to preferences at all.
   void set_save_enabled(bool save_enabled) { this->save_enabled_ = save_enabled; }
 
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// Set whether a plain turn-on restores the effect that was active when the light was turned off.
+  void set_resume_effect(bool resume_effect) { this->resume_effect_ = resume_effect; }
+#endif  // USE_LIGHT_RESUME_EFFECT
+
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects() const { return !this->effects_.empty(); }
 
@@ -392,6 +397,10 @@ class LightState : public EntityBase, public Component {
 
   /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
   uint16_t active_effect_index_{};
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// The effect index that was active when the light was last turned off; shares the active index's word
+  uint16_t previous_effect_index_{0};
+#endif  // USE_LIGHT_RESUME_EFFECT
   /// Whether the light value should be written in the next cycle.
   bool next_write_{true};  // a plain bool: it is the most written flag, and still shares the index's word
   // for effects, true if a transformer (transition) is active.
@@ -402,6 +411,10 @@ class LightState : public EntityBase, public Component {
   /// True while the active transformer publishes current_values on an interval from loop().
   bool transition_publish_enabled_ : 1 {false};
 #endif
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// Whether a plain turn-on restores the effect that was active when the light was turned off.
+  bool resume_effect_ : 1 {false};
+#endif  // USE_LIGHT_RESUME_EFFECT
 };
 
 }  // namespace esphome::light

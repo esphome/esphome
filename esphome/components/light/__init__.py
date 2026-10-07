@@ -87,6 +87,7 @@ IS_PLATFORM_COMPONENT = True
 
 DOMAIN = "light"
 CONF_GAMMA_TABLE_ID = "gamma_table_id"
+CONF_RESUME_EFFECT = "resume_effect"
 
 
 @dataclass
@@ -394,6 +395,7 @@ LIGHT_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_INITIAL_STATE): LIGHT_STATE_SCHEMA,
+            cv.Optional(CONF_RESUME_EFFECT, default=False): cv.boolean,
         }
     )
 )
@@ -524,6 +526,9 @@ async def setup_light_core_(light_var, config, output_var):
     # runtime actually understands.
     initial_state_config = config.get(CONF_INITIAL_STATE)
     initial_statements = await _initial_state_statements(initial_state_config)
+    if config[CONF_RESUME_EFFECT]:
+        cg.add_define("USE_LIGHT_RESUME_EFFECT")
+        cg.add(light_var.set_resume_effect(True))
 
     restore_mode = config.get(CONF_RESTORE_MODE)
     restore_state_config = config.get(CONF_RESTORE_STATE)

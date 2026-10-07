@@ -20,14 +20,16 @@ from esphome.const import (
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -171,6 +173,13 @@ async def new_switch(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_switch(var, config)
     return var
+
+
+def sub_switches(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_switch."""
+    return SubEntities(new_switch, config, parent)
 
 
 SWITCH_ACTION_SCHEMA = maybe_simple_id(

@@ -468,23 +468,32 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
-async def new_sub_entity(
-    new_entity: Callable[..., Awaitable[MockObj]],
-    config: ConfigType,
-    key: str,
-    setter: Callable[[MockObj], Expression],
-    *args: SafeExpType,
-    **kwargs: Any,
-) -> MockObj | None:
-    """Create the entity configured under key, if any, and pass it to setter.
+@dataclass(frozen=True, slots=True)
+class SubEntities:
+    """Create the child entity configured under key, set parent (if bound) and pass it to setter.
 
-    Returns None only when key is not configured, so the result can be used directly as a condition.
+    Extra arguments go to new_entity. Returns None only when key is absent, so the result can be
+    used directly as a condition.
     """
-    if (conf := config.get(key)) is None:
-        return None
-    var = await new_entity(conf, *args, **kwargs)
-    add(setter(var))
-    return var
+
+    new_entity: Callable[..., Awaitable[MockObj]]
+    config: ConfigType
+    parent: MockObj | ID | None = None
+
+    async def __call__(
+        self,
+        key: str,
+        setter: Callable[[MockObj], Expression],
+        *args: SafeExpType,
+        **kwargs: Any,
+    ) -> MockObj | None:
+        if (conf := self.config.get(key)) is None:
+            return None
+        var = await self.new_entity(conf, *args, **kwargs)
+        if self.parent is not None:
+            await cg.register_parented(var, self.parent)
+        add(setter(var))
+        return var
 
 
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
