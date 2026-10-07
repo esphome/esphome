@@ -1,5 +1,6 @@
 #include "uart_tcp.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -10,16 +11,22 @@ namespace esphome::uart_tcp {
 
 static const char *const TAG = "uart_tcp";
 
-// One client at a time; a second connection waits in the stack until the first drops.
-static constexpr int LISTEN_BACKLOG = 1;
-// Bytes per 16 ms loop pass at 10 bits per byte: baud / 10 / 62.5.
-static constexpr uint32_t BAUD_PACE_DIVISOR = 625;
+// Keeps the pacing product in 32 bits up to about 10 Mbaud.
+static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.begin(TAG);
+#endif
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
+#ifdef USE_SENSOR
+  if (this->disconnects_sensor_ != nullptr) {
+    this->disconnects_sensor_->publish_state(0);
+  }
+#endif
 }
 
 void UartTcp::dump_config() {
@@ -30,12 +37,20 @@ void UartTcp::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval());
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.dump_config();
+#endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
+#endif
 }
 
 void UartTcp::on_shutdown() {
   this->link_.close();
-  this->listen_.reset();
+#ifdef USE_SOCKET_TCP_LISTENER
+  this->listener_.close();
+#endif
 }
 
 void UartTcp::sync_link_() {
@@ -48,49 +63,13 @@ void UartTcp::sync_link_() {
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
-}
-
-void UartTcp::try_listen_() {
-  this->listen_ = socket::socket_ip_loop_monitored(SOCK_STREAM, IPPROTO_TCP);
-  int err = errno;
-  if (this->listen_ != nullptr) {
-    int yes = 1;
-    this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    struct sockaddr_storage local;
-    socklen_t local_len =
-        socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->link_.port());
-    // A blocking listener would stall loop() inside accept(), so its
-    // setblocking result is part of the success condition.
-    if (this->listen_->setblocking(false) == 0 && local_len != 0 &&
-        this->listen_->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) == 0 &&
-        this->listen_->listen(LISTEN_BACKLOG) == 0) {
-      ESP_LOGI(TAG, "Listening on %u", this->link_.port());
-      return;
-    }
-    // Captured before reset(); the close inside can overwrite errno.
-    err = errno;
-    this->listen_.reset();
+#ifdef USE_SENSOR
+  // Only edges get here, so down is the falling edge.
+  if (!up && this->disconnects_sensor_ != nullptr) {
+    this->disconnects_++;
+    this->disconnects_sensor_->publish_state(this->disconnects_);
   }
-  ESP_LOGW(TAG, "Listen on %u failed: %d", this->link_.port(), err);
-  this->link_.note_attempt();
-}
-
-void UartTcp::accept_client_() {
-  auto client = this->listen_->accept_loop_monitored(nullptr, nullptr);
-  if (client == nullptr) {
-    // A reset during the handshake or a signal only affects that connection.
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR) {
-      return;
-    }
-    // Rebuild the listener after the backoff instead of spinning on it.
-    int err = errno;
-    this->listen_.reset();
-    ESP_LOGW(TAG, "Accept failed: %d", err);
-    this->link_.note_attempt();
-    return;
-  }
-  this->link_.adopt(std::move(client));
-  ESP_LOGI(TAG, "Client connected");
+#endif
 }
 
 void UartTcp::read_socket_() {
@@ -98,9 +77,13 @@ void UartTcp::read_socket_() {
   // not fit in the socket, so TCP flow control throttles the peer.
   size_t room = this->parent_->available_for_write();
   if (room == SIZE_MAX) {
-    // Capacity unknown on this platform; pace to one loop pass of UART time
-    // (16 ms at 10 bits per byte) so a blocking write stays short.
-    room = std::max<size_t>(1, this->parent_->get_baud_rate() / BAUD_PACE_DIVISOR);
+    // Capacity unknown on this platform; pace to the UART time since the last write,
+    // at most one loop interval and 4 s, so a pass woken early by the socket writes little.
+    uint32_t span = std::min(
+        {App.get_loop_component_start_time() - this->last_write_ms_, App.get_loop_interval(), MAX_PACE_SPAN_MS});
+    // 10 bits per byte on the line.
+    uint32_t paced = this->parent_->get_baud_rate() / 10 * span / 1000;
+    room = std::max<size_t>(1, paced);
   }
   if (room == 0) {
     this->rx_pending_ = true;
@@ -118,11 +101,12 @@ void UartTcp::read_socket_() {
   }
   this->rx_pending_ = static_cast<size_t>(count) == want;
   this->write_array(tmp, static_cast<size_t>(count));
+  this->last_write_ms_ = App.get_loop_component_start_time();
 }
 
 void UartTcp::discard_uart_() {
   // Drain exactly what was buffered while the link was down; later bytes are live.
-  uint8_t dump[32];
+  uint8_t dump[DISCARD_CHUNK];
   size_t left = this->available();
   while (left != 0) {
     size_t n = std::min(left, sizeof(dump));
@@ -141,18 +125,17 @@ void UartTcp::read_uart_() {
 }
 
 void UartTcp::loop() {
+#ifdef USE_SOCKET_TCP_LISTENER
   if (this->server_) {
-    if (this->listen_ == nullptr && !this->link_.in_backoff()) {
-      this->try_listen_();
-    }
     // link_was_up_ holds the accept until the previous drop's edge has run,
     // so the sensor and the stale UART discard always see the disconnect.
-    if (this->listen_ != nullptr && !this->link_.connected() && !this->link_was_up_ && this->listen_->ready()) {
-      this->accept_client_();
-    }
+    this->listener_.poll(this->link_, !this->link_was_up_);
   } else {
     this->link_.poll();
   }
+#else
+  this->link_.poll();
+#endif
   if (this->link_.connected() != this->link_was_up_) {
     this->sync_link_();
   }

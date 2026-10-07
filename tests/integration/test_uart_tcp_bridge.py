@@ -25,13 +25,19 @@ async def test_uart_tcp_bridge(
     unused_tcp_port_factory,
 ) -> None:
     server_port = unused_tcp_port_factory()
+    denied_port = unused_tcp_port_factory()
     controller_fd, device_fd = os.openpty()
+    denied_controller_fd, denied_device_fd = os.openpty()
     os.set_blocking(controller_fd, False)
     # uart's validate_port wants a two segment device path; Linux ptys live at
     # /dev/pts/N, so hand the config a /tmp symlink instead.
     pty_link = f"/tmp/uart-tcp-pty-{os.getpid()}"
     pathlib.Path(pty_link).symlink_to(os.ttyname(device_fd))
+    denied_pty_link = f"/tmp/uart-tcp-denied-pty-{os.getpid()}"
+    pathlib.Path(denied_pty_link).symlink_to(os.ttyname(denied_device_fd))
     yaml_config = yaml_config.replace("port: 18126", f"port: {server_port}")
+    yaml_config = yaml_config.replace("port: 18127", f"port: {denied_port}")
+    yaml_config = yaml_config.replace("DENIED_PTY_PATH", denied_pty_link)
     yaml_config = yaml_config.replace("PTY_PATH", pty_link)
 
     lines = LineWaiter()
@@ -103,8 +109,19 @@ async def test_uart_tcp_bridge(
             await writer.drain()
             assert await read_uart(5) == b"down2"
             writer.close()
+
+            # A peer outside the allow list is rejected and closed.
+            denied_reader, denied_writer = await asyncio.open_connection(
+                "127.0.0.1", denied_port
+            )
+            await lines.wait_for("Rejected 127.0.0.1")
+            assert await asyncio.wait_for(denied_reader.read(8), 10) == b""
+            denied_writer.close()
     finally:
         loop.remove_reader(controller_fd)
         os.close(controller_fd)
         os.close(device_fd)
+        os.close(denied_controller_fd)
+        os.close(denied_device_fd)
         pathlib.Path(pty_link).unlink()
+        pathlib.Path(denied_pty_link).unlink()

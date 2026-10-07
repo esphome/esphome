@@ -20,6 +20,11 @@ void HelloRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, p
     case proto_tag(3, WIRE_TYPE_VARINT):
       msg.api_version_minor = value.as_varint();
       break;
+#ifdef USE_API_OUTGOING_CONNECTION
+    case proto_tag(4, WIRE_TYPE_VARINT):
+      msg.outgoing_connection_target = value.as_bool();
+      break;
+#endif
   }
 }
 uint8_t *HelloResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
@@ -177,6 +182,9 @@ uint8_t *DeviceInfoResponse::encode_msg(const void *self, ProtoWriteBuffer &buff
 #ifdef USE_API_NOISE
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.api_encryption_provisionable);
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, msg.api_outgoing_connection_supported);
+#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calc_size_msg(const void *self) {
@@ -242,6 +250,9 @@ uint32_t DeviceInfoResponse::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, msg.api_encryption_provisionable);
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  size += ProtoSize::calc_bool(2, msg.api_outgoing_connection_supported);
 #endif
   return size;
 }
@@ -3923,7 +3934,7 @@ uint32_t ListEntitiesInfraredResponse::calc_size_msg(const void *self) {
   return size;
 }
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void InfraredRFTransmitRawTimingsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
                                                        proto_varint_value_t scalar) {
   auto &msg = *static_cast<InfraredRFTransmitRawTimingsRequest *>(self);
@@ -3981,6 +3992,27 @@ InfraredRFReceiveEvent::calc_size_msg(const void *self) {
       size += ProtoSize::calc_sint32_force(1, it);
     }
   }
+  return size;
+}
+uint8_t *InfraredRFTransmitCompleteResponse::encode_msg(const void *self,
+                                                        ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const InfraredRFTransmitCompleteResponse *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+#ifdef USE_DEVICES
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.device_id);
+#endif
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.success);
+  return pos;
+}
+uint32_t InfraredRFTransmitCompleteResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const InfraredRFTransmitCompleteResponse *>(self);
+  uint32_t size = 0;
+#ifdef USE_DEVICES
+  size += ProtoSize::calc_uint32(1, msg.device_id);
+#endif
+  size += 5;
+  size += ProtoSize::calc_bool(1, msg.success);
   return size;
 }
 #endif
@@ -4167,6 +4199,48 @@ void SerialProxySetModeRequest::decode_field(void *self, uint32_t tag, const uin
       break;
   }
 }
+uint8_t *UsbDeviceDescriptor::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const UsbDeviceDescriptor *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.vendor_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.product_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.bcd_device);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.interface_number);
+  return pos;
+}
+uint32_t UsbDeviceDescriptor::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const UsbDeviceDescriptor *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.vendor_id);
+  size += ProtoSize::calc_uint32(1, msg.product_id);
+  size += ProtoSize::calc_uint32(1, msg.bcd_device);
+  size += ProtoSize::calc_uint32(1, msg.interface_number);
+  return size;
+}
+uint8_t *SerialProxyIdentity::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SerialProxyIdentity *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.instance);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.source));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.flags);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.manufacturer);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.product);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.serial_number);
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 7, msg.usb);
+  return pos;
+}
+uint32_t SerialProxyIdentity::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SerialProxyIdentity *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.instance);
+  size += msg.source ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, msg.flags);
+  size += ProtoSize::calc_length(1, msg.manufacturer.size());
+  size += ProtoSize::calc_length(1, msg.product.size());
+  size += ProtoSize::calc_length(1, msg.serial_number.size());
+  size += ProtoSize::calc_message(1, msg.usb.calculate_size());
+  return size;
+}
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothSetConnectionParamsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
@@ -4318,7 +4392,7 @@ static_assert(!std::is_polymorphic_v<UpdateCommandRequest>, "decodable messages 
 static_assert(!std::is_polymorphic_v<ZWaveProxyFrame>, "decodable messages carry no vtable");
 static_assert(!std::is_polymorphic_v<ZWaveProxyRequest>, "decodable messages carry no vtable");
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 static_assert(!std::is_polymorphic_v<InfraredRFTransmitRawTimingsRequest>, "decodable messages carry no vtable");
 #endif
 #ifdef USE_SERIAL_PROXY
