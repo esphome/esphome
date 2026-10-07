@@ -150,11 +150,13 @@ void AshAcknowledger::handle_frame_() {
   }
 
   const uint8_t frame_num = (control >> 4) & ASH_MAX_SEQUENCE;
-  if (frame_num != this->rx_sequence_) {
+  const bool re_tx = (control & 0x08) != 0;
+  if (frame_num == this->rx_sequence_) {
+    this->rx_sequence_ = (this->rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
+  } else if (!re_tx) {
     return;
   }
 
-  this->rx_sequence_ = (this->rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
   this->pending_ack_ = this->rx_sequence_;
   this->ack_owed_ = true;
 }

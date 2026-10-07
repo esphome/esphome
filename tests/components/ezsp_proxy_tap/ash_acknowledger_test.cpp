@@ -15,6 +15,7 @@ namespace {
 const std::vector<uint8_t> RSTACK = {0xC1, 0x02, 0x02, 0x9B, 0x7B, 0x7E};
 const std::vector<uint8_t> DATA_FRAME_0 = {0x00, 0x43, 0x21, 0xA8, 0x50, 0x9B, 0x98, 0x7E};
 const std::vector<uint8_t> DATA_FRAME_1 = {0x10, 0x43, 0x21, 0xA8, 0x50, 0x9F, 0xC2, 0x7E};
+const std::vector<uint8_t> DATA_FRAME_0_RETRANSMITTED = {0x08, 0x43, 0x21, 0xA8, 0x50, 0x99, 0xB5, 0x7E};
 
 void feed(AshAcknowledger &acknowledger, const std::vector<uint8_t> &bytes) {
   for (uint8_t byte : bytes)
@@ -41,6 +42,11 @@ TEST(AshAcknowledger, AcknowledgesFramesInSequence) {
   // A repeat not marked as a retransmission is out of sequence
   feed(acknowledger, DATA_FRAME_0);
   EXPECT_FALSE(acknowledger.take_pending_ack(ack_num));
+
+  // A retransmission means the NCP missed our ACK, so it gets the same one again
+  feed(acknowledger, DATA_FRAME_0_RETRANSMITTED);
+  ASSERT_TRUE(acknowledger.take_pending_ack(ack_num));
+  EXPECT_EQ(ack_num, 1);
 
   feed(acknowledger, DATA_FRAME_1);
   ASSERT_TRUE(acknowledger.take_pending_ack(ack_num));
