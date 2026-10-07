@@ -760,8 +760,10 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif
+#ifdef USE_SERIAL_PROXY
     uint8_t serial_proxy_identity_subscription : 1;
-  } flags_{};  // 2 bytes total
+#endif
+  } flags_{};  // 2 bytes; 3 with HAS_PROTO_MESSAGE_DUMP + USE_API_OUTGOING_CONNECTION + USE_SERIAL_PROXY
 
   // 2-byte type immediately after flags_ (no padding between them)
   uint16_t batch_message_type_{0};  // Current message type during batch encoding
