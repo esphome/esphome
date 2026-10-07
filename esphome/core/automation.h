@@ -543,10 +543,12 @@ template<typename... Ts> class Action {
   // function pointers: ARM Thumb function pointers already use the low bit (see #9283).
   static constexpr uintptr_t OWNER_TAG = 1;
   bool next_is_owner_() const { return reinterpret_cast<uintptr_t>(this->next_) & OWNER_TAG; }
-  Action *owner_() const { return reinterpret_cast<Action *>(reinterpret_cast<uintptr_t>(this->next_) & ~OWNER_TAG); }
+  // Byte offsets rather than integer casts keep the tag a plain pointer adjustment.
+  /// Only valid when next_is_owner_().
+  Action *owner_() const { return reinterpret_cast<Action *>(reinterpret_cast<char *>(this->next_) - OWNER_TAG); }
   Action *chain_next_() const { return this->next_is_owner_() ? nullptr : this->next_; }
-  static Action *tag_owner_(Action *owner) {
-    return reinterpret_cast<Action *>(reinterpret_cast<uintptr_t>(owner) | OWNER_TAG);
+  static Action *tag_owner(Action *owner) {
+    return reinterpret_cast<Action *>(reinterpret_cast<char *>(owner) + OWNER_TAG);
   }
 
   Action<Ts...> *next_{nullptr};
@@ -578,7 +580,7 @@ template<typename... Ts> class ActionList {
     // An empty list has no last action to tag; actions_ never holds a tagged pointer
     if (this->actions_ == nullptr)
       return;
-    *this->tail_() = Action<Ts...>::tag_owner_(owner);
+    *this->tail_() = Action<Ts...>::tag_owner(owner);
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
