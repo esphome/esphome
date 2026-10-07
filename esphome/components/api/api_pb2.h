@@ -4166,12 +4166,8 @@ class GetYamlResponse final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("get_yaml_response"); }
 #endif
-  const uint8_t *data_ptr_{nullptr};
-  size_t data_len_{0};
-  void set_data(const uint8_t *data, size_t len) {
-    this->data_ptr_ = data;
-    this->data_len_ = len;
-  }
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
   bool done{false};
   uint32_t total_size{0};
   StringRef encoding{nullptr, 0};  // null until set, encode only

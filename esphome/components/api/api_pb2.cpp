@@ -4251,9 +4251,7 @@ uint32_t BluetoothSetConnectionParamsResponse::calc_size_msg(const void *self) {
 #ifdef USE_STORE_YAML
 uint8_t *GetYamlResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const GetYamlResponse *>(self);
-  pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
-  pos = ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, msg.data_len_);
-  pos = ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, msg.data_ptr_, msg.data_len_);
+  pos = ProtoEncode::encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
   pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
   pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, msg.done ? 0x01 : 0x00);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.total_size);
@@ -4263,7 +4261,7 @@ uint8_t *GetYamlResponse::encode_msg(const void *self, uint8_t *__restrict__ pos
 uint32_t GetYamlResponse::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const GetYamlResponse *>(self);
   uint32_t size = 0;
-  size += ProtoSize::calc_length_force(1, msg.data_len_);
+  size += ProtoSize::calc_length_force(1, msg.data_len);
   size += ProtoSize::calc_bool_force(1);
   size += ProtoSize::calc_uint32(1, msg.total_size);
   size += !msg.encoding.empty() ? 2 + msg.encoding.size() : 0;

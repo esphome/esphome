@@ -15,13 +15,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_API, CONF_ID, CONF_KEY, CONF_RAW_DATA_ID
 from esphome.core import CORE, EsphomeError, HexInt, Lambda
 import esphome.final_validate as fv
-from esphome.helpers import ensure_unique_string
+from esphome.helpers import ensure_unique_string, zstd_module
 from esphome.types import ConfigType
-
-try:
-    from compression import zstd  # Python 3.14+ stdlib
-except ImportError:
-    from backports import zstd  # pinned in requirements.txt for Python < 3.14
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -528,7 +523,7 @@ async def to_code(config: ConfigType) -> None:
     if (note := _uncaptured_note(discovered.unresolved, remote_packages)) is not None:
         files.append(note)
     envelope = _pack_envelope(files)
-    compressed = zstd.compress(envelope, level=ZSTD_LEVEL)
+    compressed = zstd_module().compress(envelope, level=ZSTD_LEVEL)
 
     _LOGGER.info(
         "store_yaml: embedding %d file(s) as %d bytes (%d uncompressed, %.1f%% ratio)",

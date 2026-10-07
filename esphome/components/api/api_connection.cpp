@@ -1222,26 +1222,12 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 #endif
 
 #ifdef USE_STORE_YAML
-#ifdef USE_ESP8266
-// On ESP8266 the blob lives in instruction flash and can't be read directly, so
-// each chunk is bounced through a heap buffer via progmem_memcpy. The buffer
-// exists only while a transfer is in flight; retrieval is rare, so no RAM is
-// held for the firmware's lifetime. Every other platform sends straight from
-// the blob, zero-copy, in MTU-sized chunks.
-static constexpr size_t STORE_YAML_CHUNK_SIZE = 512;
-#endif
-
 void APIConnection::on_get_yaml_request() {
   // A re-request while a transfer is in flight is ignored; see the
   // GetYamlRequest comment in api.proto. A client that wants to restart
   // must reconnect.
   if (this->store_yaml_pos_ != std::numeric_limits<size_t>::max())
     return;
-#ifdef USE_ESP8266
-  // OOM aborts by design (NEW_OOM_ABORT): a heap that cannot supply this
-  // buffer is already failing, and the post-reset retry gets a clean heap.
-  this->store_yaml_chunk_buf_ = std::make_unique<uint8_t[]>(STORE_YAML_CHUNK_SIZE);
-#endif
   // All responses go through the loop-driven retry below, so a full TX
   // buffer at request time can't strand the client without a terminal frame.
   this->store_yaml_pos_ = 0;
@@ -1260,11 +1246,7 @@ void APIConnection::try_send_store_yaml_() {
   // Codegen always embeds a non-empty blob, so total > 0 here.
   const size_t total = comp->get_size();
 
-#ifdef USE_ESP8266
-  const size_t chunk_size = STORE_YAML_CHUNK_SIZE;
-#else
   const size_t chunk_size = MAX_BATCH_PACKET_SIZE;
-#endif
 
   // Camera-style streaming: advance the position only after a successful send,
   // so a WOULD_BLOCK simply retries the same chunk on the next loop iteration.
@@ -1276,12 +1258,8 @@ void APIConnection::try_send_store_yaml_() {
     const size_t to_send = std::min(remaining, chunk_size);
 
     GetYamlResponse resp;
-#ifdef USE_ESP8266
-    progmem_memcpy(this->store_yaml_chunk_buf_.get(), comp->get_data() + this->store_yaml_pos_, to_send);
-    resp.set_data(this->store_yaml_chunk_buf_.get(), to_send);
-#else
-    resp.set_data(comp->get_data() + this->store_yaml_pos_, to_send);
-#endif
+    resp.data = comp->get_data() + this->store_yaml_pos_;
+    resp.data_len = to_send;
     if (this->store_yaml_pos_ == 0) {
       resp.total_size = static_cast<uint32_t>(total);
       resp.encoding = StringRef(store_yaml::ENCODING);
@@ -1298,9 +1276,6 @@ void APIConnection::try_send_store_yaml_() {
 
   // Final response (with done=true) sent successfully.
   this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
-#ifdef USE_ESP8266
-  this->store_yaml_chunk_buf_.reset();
-#endif
 }
 #endif
 

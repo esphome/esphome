@@ -3099,7 +3099,8 @@ message GetYamlResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_STORE_YAML";
 
-  bytes data = 1 [(force) = true];
+  // The blob is in flash, and the device sends it from there
+  bytes data = 1 [(force) = true, (pointer_to_buffer) = true, (progmem) = true];
   bool done = 2 [(force) = true];
   // Sent on the first chunk only — the client is expected to cache it.
   // (firmware bandwidth/flash is expensive; the client has gigabytes.)

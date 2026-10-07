@@ -1,159 +1,28 @@
 """End-to-end test for the `store_yaml` recovery flow over the native API.
 
-Talks plaintext API to a host build directly via asyncio sockets rather than
-through aioesphomeapi: the released aioesphomeapi shipped with this PR does
-not yet know about `GetYamlRequest` / `GetYamlResponse`, so the high-level
-client would silently drop the streamed bytes as "unknown message type".
-
-The raw client implements just enough of the plaintext framing
-(``0x00 | varint(size) | varint(msg_type) | payload``, see
-``api_frame_helper_plaintext.cpp``) to send the empty `GetYamlRequest`
-(message type 159) and accumulate every `GetYamlResponse` (message type 160)
-until ``done=true``.
+Uses the raw plaintext client: the released aioesphomeapi does not know
+`GetYamlRequest` / `GetYamlResponse` yet, so the high-level client would drop
+the streamed bytes as an unknown message type.
 """
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
-
+from aioesphomeapi import api_pb2
 import pytest
 
-# The component resolves the stdlib-vs-backport zstd import once; reuse it.
-from esphome.components.store_yaml import unpack_envelope, zstd
+from esphome.components.store_yaml import unpack_envelope
+from esphome.helpers import zstd_module
 from esphome.yaml_util import find_secret_references
 
+from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, decode_fields
 from .types import RunCompiledFunction
 
-# Message IDs from esphome/components/api/api.proto.
-HELLO_REQUEST = 1
-HELLO_RESPONSE = 2
-DEVICE_CAPABILITIES_REQUEST = 149
-DEVICE_CAPABILITIES_RESPONSE = 150
+# Not in the released aioesphomeapi yet; see esphome/components/api/api.proto.
 GET_YAML_REQUEST = 159
 GET_YAML_RESPONSE = 160
-
-
-def _encode_varint(value: int) -> bytes:
-    """Encode an unsigned integer as a protobuf varint."""
-    out = bytearray()
-    while True:
-        byte = value & 0x7F
-        value >>= 7
-        if value:
-            out.append(byte | 0x80)
-        else:
-            out.append(byte)
-            return bytes(out)
-
-
-def _read_varint(buf: bytes, pos: int) -> tuple[int, int]:
-    result = 0
-    shift = 0
-    while True:
-        b = buf[pos]
-        pos += 1
-        result |= (b & 0x7F) << shift
-        if not (b & 0x80):
-            return result, pos
-        shift += 7
-
-
-def _parse_get_yaml_response(payload: bytes) -> tuple[bytes, bool, int, str]:
-    """Hand-rolled parser for `GetYamlResponse`.
-
-    Returns ``(data, done, total_size, encoding)``.
-    """
-    data = b""
-    done = False
-    total_size = 0
-    encoding = ""
-    pos = 0
-    while pos < len(payload):
-        tag, pos = _read_varint(payload, pos)
-        field_number = tag >> 3
-        wire_type = tag & 0x07
-        if wire_type == 0:  # varint
-            value, pos = _read_varint(payload, pos)
-            if field_number == 2:
-                done = bool(value)
-            elif field_number == 3:
-                total_size = value
-        elif wire_type == 2:  # length-delimited
-            length, pos = _read_varint(payload, pos)
-            chunk = payload[pos : pos + length]
-            pos += length
-            if field_number == 1:
-                data = chunk
-            elif field_number == 4:
-                encoding = chunk.decode("utf-8")
-        else:
-            raise AssertionError(f"unexpected wire type {wire_type}")
-    return data, done, total_size, encoding
-
-
-def _parse_store_yaml_supported(payload: bytes) -> bool:
-    """Read `store_yaml.supported` (field 6, field 1) from `DeviceCapabilitiesResponse`."""
-    pos = 0
-    while pos < len(payload):
-        tag, pos = _read_varint(payload, pos)
-        wire_type = tag & 0x07
-        if wire_type == 0:
-            _, pos = _read_varint(payload, pos)
-            continue
-        assert wire_type == 2, f"unexpected wire type {wire_type}"
-        length, pos = _read_varint(payload, pos)
-        chunk = payload[pos : pos + length]
-        pos += length
-        if tag >> 3 != 6:
-            continue
-        sub_pos = 0
-        while sub_pos < len(chunk):
-            sub_tag, sub_pos = _read_varint(chunk, sub_pos)
-            value, sub_pos = _read_varint(chunk, sub_pos)
-            if sub_tag == 0x08:
-                return bool(value)
-    return False
-
-
-async def _read_varint_from(reader: asyncio.StreamReader) -> int:
-    """Read a protobuf varint byte-by-byte from a stream."""
-    result = 0
-    shift = 0
-    while True:
-        byte = (await reader.readexactly(1))[0]
-        result |= (byte & 0x7F) << shift
-        if not (byte & 0x80):
-            return result
-        shift += 7
-
-
-class _PlaintextClient:
-    """Just-enough plaintext API client for one short streaming exchange."""
-
-    def __init__(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
-        self._reader = reader
-        self._writer = writer
-
-    async def send(self, msg_type: int, payload: bytes = b"") -> None:
-        # Frame: 0x00 | varint(payload_size) | varint(message_id) | payload
-        frame = (
-            b"\x00" + _encode_varint(len(payload)) + _encode_varint(msg_type) + payload
-        )
-        self._writer.write(frame)
-        await self._writer.drain()
-
-    async def recv(self) -> tuple[int, bytes]:
-        # Read preamble byte (must be 0x00 for plaintext).
-        preamble = await self._reader.readexactly(1)
-        assert preamble == b"\x00", f"unexpected preamble {preamble!r}"
-
-        payload_size = await _read_varint_from(self._reader)
-        msg_type = await _read_varint_from(self._reader)
-        payload = await self._reader.readexactly(payload_size) if payload_size else b""
-        return msg_type, payload
+# DeviceCapabilitiesResponse.store_yaml and StoreYamlCapabilities.supported
+CAPABILITIES_STORE_YAML_FIELD = 6
+STORE_YAML_SUPPORTED_FIELD = 1
 
 
 @pytest.mark.asyncio
@@ -162,62 +31,34 @@ async def test_store_yaml_recovery(
     run_compiled: RunCompiledFunction,
     unused_tcp_port: int,
 ) -> None:
-    """Compile a host build with `store_yaml`, ask it to stream the YAML back,
-    decompress, and verify the recovered file tree matches the source fixture."""
-    async with run_compiled(yaml_config):
-        # Open a raw TCP connection to the API server.
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection("127.0.0.1", unused_tcp_port),
-            timeout=10.0,
+    """Stream the embedded YAML back from a host build and check the recovered files."""
+    async with run_compiled(yaml_config), RawApiClient(unused_tcp_port) as client:
+        await client.connect("store_yaml integration test")
+
+        # Clients learn the device can answer get_yaml from its capabilities.
+        await client.send_message(api_pb2.DeviceCapabilitiesRequest())
+        capabilities = decode_fields(
+            await client.read_frame(MESSAGE_TYPE_OF[api_pb2.DeviceCapabilitiesResponse])
         )
-        client = _PlaintextClient(reader, writer)
-        try:
-            # HelloRequest: client_info (field 1, length-delimited string).
-            # Password auth (the old ConnectRequest/Response exchange at message
-            # IDs 3/4) was removed in 2026.1.0, so a successful HelloResponse is
-            # all the handshake we need before issuing application requests.
-            client_info = b"store_yaml integration test"
-            api_version = b"\x10\x01\x18\x0e"  # api_version_major=1, minor=14
-            hello_payload = (
-                b"\x0a" + _encode_varint(len(client_info)) + client_info + api_version
-            )
-            await client.send(HELLO_REQUEST, hello_payload)
-            msg_type, _ = await asyncio.wait_for(client.recv(), timeout=5.0)
-            assert msg_type == HELLO_RESPONSE, f"expected HelloResponse, got {msg_type}"
+        (store_yaml,) = capabilities[CAPABILITIES_STORE_YAML_FIELD]
+        assert decode_fields(store_yaml).get(STORE_YAML_SUPPORTED_FIELD) == [1], (
+            "expected DeviceCapabilitiesResponse to report store_yaml.supported"
+        )
 
-            # Clients learn the device can answer get_yaml from its capabilities.
-            await client.send(DEVICE_CAPABILITIES_REQUEST, b"")
-            while True:
-                msg_type, payload = await asyncio.wait_for(client.recv(), timeout=5.0)
-                if msg_type == DEVICE_CAPABILITIES_RESPONSE:
-                    break
-            assert _parse_store_yaml_supported(payload), (
-                "expected DeviceCapabilitiesResponse to report store_yaml.supported"
-            )
-
-            # The actual request under test.
-            await client.send(GET_YAML_REQUEST, b"")
-
-            chunks: list[bytes] = []
-            advertised_total: int | None = None
-            advertised_encoding: str | None = None
-            done = False
-            while not done:
-                msg_type, payload = await asyncio.wait_for(client.recv(), timeout=5.0)
-                if msg_type != GET_YAML_RESPONSE:
-                    # Tolerate intervening server messages (e.g. pings).
-                    continue
-                chunk, done, total_size, encoding = _parse_get_yaml_response(payload)
-                if encoding:
-                    advertised_encoding = encoding
-                if total_size and advertised_total is None:
-                    advertised_total = total_size
-                if chunk:
-                    chunks.append(chunk)
-        finally:
-            writer.close()
-            with contextlib.suppress(ConnectionError, OSError):
-                await writer.wait_closed()
+        await client.send_raw(GET_YAML_REQUEST, b"")
+        chunks: list[bytes] = []
+        advertised_total: int | None = None
+        advertised_encoding: str | None = None
+        done = False
+        while not done:
+            fields = decode_fields(await client.read_frame(GET_YAML_RESPONSE))
+            if data := fields.get(1):
+                chunks.append(data[0])
+            done = fields.get(2) == [1]
+            if total := fields.get(3):
+                advertised_total = total[0]
+            if encoding := fields.get(4):
+                advertised_encoding = encoding[0].decode("utf-8")
 
     compressed = b"".join(chunks)
     assert advertised_encoding == "zstd", (
@@ -227,7 +68,7 @@ async def test_store_yaml_recovery(
         f"server advertised {advertised_total} bytes but we received {len(compressed)}"
     )
 
-    envelope = zstd.decompress(compressed)
+    envelope = zstd_module().decompress(compressed)
     files = unpack_envelope(envelope)
 
     assert files, "envelope should contain at least one file"
