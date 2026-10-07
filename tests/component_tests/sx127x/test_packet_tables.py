@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from esphome.components.sx127x import validate_packet_data
+from esphome.components.sx127x import CONFIG_SCHEMA, validate_packet_data
 import esphome.config_validation as cv
 
 
@@ -39,3 +39,13 @@ def test_packet_data_length_limit() -> None:
         validate_packet_data("x" * 256)
     with pytest.raises(cv.Invalid):
         validate_packet_data([])
+
+
+def test_payload_length_limit() -> None:
+    """payload_length goes into an 8 bit register, so 256 is rejected."""
+    validator = next(
+        v for k, v in CONFIG_SCHEMA.schema.items() if str(k) == "payload_length"
+    )
+    assert validator(255) == 255
+    with pytest.raises(cv.Invalid):
+        validator(256)
