@@ -439,7 +439,7 @@ def _add_action_strings(index: int, strings: list[str | None]) -> MockObj:
     """Emit the PROGMEM string table for one action."""
     return cg.progmem_array(
         ID(f"api_action{index}_strings", is_declaration=True, type=cg.const_char_ptr),
-        [cg.nullptr if s is None else cg.progmem_string(s) for s in strings],
+        [cg.nullptr if s is None else cg.shared_progmem_string(s) for s in strings],
     )
 
 
@@ -720,12 +720,12 @@ async def _new_service_call_action(
     )
 
     async def field(key: str | None, value: Any, output_type: Any = None) -> Expression:
-        key_exp = cg.nullptr if key is None else cg.progmem_string(key)
+        key_exp = cg.nullptr if key is None else cg.shared_progmem_string(key)
         if cg.is_template(value):
             # output_type=None lets lambdas return numbers or char pointers; C++ converts them
             lam = await cg.process_lambda(value, args, return_type=output_type)
             return cg.RawExpression(f"{field_type}::from_lambda({key_exp}, {lam})")
-        return cg.ArrayInitializer(key_exp, cg.progmem_string(value), cg.nullptr)
+        return cg.ArrayInitializer(key_exp, cg.shared_progmem_string(value), cg.nullptr)
 
     entries = [await field(None, service, cg.std_string)]
     for group in groups:

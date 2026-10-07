@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -53,11 +54,18 @@ def test_esp8266_strings_are_shared_progmem_arrays(
     """On ESP8266 each string is its own PROGMEM array, referenced from the table."""
     main_cpp = generate_main(CONFIG_ESP8266)
 
-    assert 'static constexpr char progmem_str[] PROGMEM = "play_buzzer";' in main_cpp
-    assert 'static constexpr char progmem_str_8[] PROGMEM = "value";' in main_cpp
+    def array_for(text: str) -> str:
+        match = re.search(
+            rf'static constexpr char (progmem_str\w*)\[\] PROGMEM = "{text}";', main_cpp
+        )
+        assert match, text
+        return match.group(1)
+
+    assert array_for("play_buzzer")
     assert (
         "static constexpr const char * api_action1_strings[] PROGMEM = {"
-        "progmem_str_7, nullptr, progmem_str_8, nullptr, nullptr};" in main_cpp
+        f"{array_for('plain_action')}, nullptr, {array_for('value')}, nullptr, nullptr}};"
+        in main_cpp
     )
 
 

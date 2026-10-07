@@ -861,9 +861,9 @@ class TestProgmemString:
 
     def test_esp8266_shares_one_array_per_text(self) -> None:
         self._set_platform(PLATFORM_ESP8266)
-        a = cg.progmem_string("level")
-        b = cg.progmem_string("level")
-        c = cg.progmem_string('say "hi"')
+        a = cg.shared_progmem_string("level")
+        b = cg.shared_progmem_string("level")
+        c = cg.shared_progmem_string('say "hi"')
         assert a is b
         assert str(a) == "progmem_str"
         assert str(c) == "progmem_str_2"
@@ -874,5 +874,5 @@ class TestProgmemString:
 
     def test_other_platforms_return_the_literal(self) -> None:
         self._set_platform(PLATFORM_ESP32)
-        assert str(cg.progmem_string('say "hi"')) == '"say \\042hi\\042"'
+        assert str(cg.shared_progmem_string('say "hi"')) == '"say \\042hi\\042"'
         assert not CORE.global_statements
