@@ -1,17 +1,20 @@
 """Tests for the api wizard: schema, final validation and generated tables."""
 
 from collections.abc import Callable
+import json
 from pathlib import Path
+import random
 import re
+import string
 import textwrap
 
 import pytest
 
-from esphome.components.api import _varint_size, wizard_response_size
+from esphome.components.api import wizard
 from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS as SWITCH_DOMAINS
 from esphome.config import load_config
 from esphome.core import CORE
-from esphome.helpers import fnv1_hash
+from esphome.helpers import fnv1_hash, fnv1a_32bit_hash
 from tests.component_tests.helpers import get_define_value
 
 ESP32_HEADER = """
@@ -176,99 +179,6 @@ def config_errors(path: Path) -> list[str]:
 def wizard_api(pages: str) -> str:
     return "api:\n  wizard:\n    pages:\n" + textwrap.indent(
         textwrap.dedent(pages).strip("\n"), "      "
-    )
-
-
-def test_generates_flash_tables(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    """Every row is emitted as a constant table, and the pages table is the exported one."""
-    main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
-
-    assert (
-        "static const esphome::api::WizardEntityRow api_wizard_0[] = {\n"
-        '  {[]() -> esphome::EntityBase * { return sw; }, "Enable"},\n'
-        '  {[]() -> esphome::EntityBase * { return sw; }, ""},\n};'
-    ) in main_cpp
-    # A single string is a one entry list, and an unset list is an empty span
-    assert 'static const char *const api_wizard_1[] = {\n  "sensor",\n};' in main_cpp
-    assert (
-        '{"met", {api_wizard_1, 1}, {api_wizard_2, 2}, {api_wizard_3, 1}},' in main_cpp
-    )
-    assert '{"", {api_wizard_4, 2}, {nullptr, 0}, {nullptr, 0}},' in main_cpp
-    assert (
-        '{"Setup", "[%key:component::domain::section::name%]", {api_wizard_0, 2}, {nullptr, 0}}'
-        in main_cpp
-    )
-    assert any(define.name == "USE_API_WIZARD" for define in CORE.defines)
-    # Only ESP8266 copies text out of flash
-    assert get_define_value("API_WIZARD_PAGE_SCRATCH_SIZE") is None
-
-
-def test_inputs_have_buffers_hashes_and_default_filters(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
-
-    # The buffer holds the YAML entity ID until the wizard sets another
-    assert 'static char api_wizard_input_ha_sensor[256] = "";' in main_cpp
-    assert (
-        'static char api_wizard_input_ha_default_sensor[256] = "sensor.default";'
-        in main_cpp
-    )
-    for entity in (
-        "ha_sensor",
-        "ha_default_sensor",
-        "ha_binary",
-        "ha_text",
-        "ha_number",
-        "ha_switch",
-        "ha_txt",
-        "ha_select",
-        "ha_button",
-    ):
-        assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
-        assert f"{{{fnv1_hash(entity)}u, api_wizard_input_{entity}, " in main_cpp
-    # Not an input, so it keeps its constant
-    assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
-    # Without a target a switch accepts what the platform supports, and a number only numbers
-    for domain in SWITCH_DOMAINS:
-        assert f'"{domain}",' in main_cpp
-    assert re.search(
-        r'\{"", \{api_wizard_\d+, 1\}, \{nullptr, 0\}, \{nullptr, 0\}\},', main_cpp
-    )
-    assert main_cpp.count('"number",') == 2
-
-
-def test_esp8266_keeps_text_in_progmem(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    main_cpp = generate_main(write_input_config(tmp_path, ESP8266_HEADER))
-
-    # Equal strings are shared, and an unset one is nullptr
-    assert main_cpp.count('PROGMEM = "sensor";') == 1
-    assert re.search(
-        r'static const char api_wizard_\d+\[\] PROGMEM = "Enable";', main_cpp
-    )
-    assert re.search(
-        r"static const esphome::api::WizardEntityRow api_wizard_\d+\[\] PROGMEM = \{",
-        main_cpp,
-    )
-    assert re.search(r"return sw; \}, api_wizard_\d+\},", main_cpp)
-    assert "return sw; }, nullptr}," in main_cpp
-    assert "static const char *const api_wizard_" in main_cpp
-    assert "PROGMEM = {\n  api_wizard_" in main_cpp
-    assert "{nullptr, {api_wizard_" in main_cpp
-    # Room for the longest text of each kind, with its terminator: the page title and description
-    # together, a field description, a filter integration and a list entry
-    description = "[%key:component::domain::section::name%]"
-    assert get_define_value("API_WIZARD_PAGE_SCRATCH_SIZE") == str(
-        len("Setup") + len(description) + 2
-    )
-    assert get_define_value("API_WIZARD_FIELD_SCRATCH_SIZE") == str(len("Weather") + 1)
-    assert get_define_value("API_WIZARD_FILTER_SCRATCH_SIZE") == str(len("met") + 1)
-    assert get_define_value("API_WIZARD_LIST_SCRATCH_SIZE") == str(
-        len("weather.WeatherEntityFeature.FORECAST_DAILY") + 1
     )
 
 
@@ -507,36 +417,6 @@ def test_no_pages_is_rejected(tmp_path: Path) -> None:
     )
 
 
-def test_standalone_inputs_declare_an_object_with_a_buffer(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
-
-    assert 'static char api_wizard_input_weather_input[256] = "";' in main_cpp
-    assert 'static char api_wizard_input_unset_input[256] = "";' in main_cpp
-    # The object reads the same buffer the wizard writes
-    assert (
-        re.search(
-            r"weather_input = .*WizardInput\(api_wizard_input_weather_input\)", main_cpp
-        )
-        or "WizardInput(api_wizard_input_weather_input)" in main_cpp
-    )
-    assert f"{{{fnv1_hash('weather_input')}u, api_wizard_input_weather_input, " in (
-        main_cpp
-    )
-    # A standalone input has no default filter, only the one it sets
-    assert main_cpp.count('"weather",') == 1
-
-
-def test_standalone_input_on_esp8266(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    main_cpp = generate_main(write_input_config(tmp_path, ESP8266_HEADER))
-
-    assert 'PROGMEM = "weather";' in main_cpp
-    assert "WizardInput(api_wizard_input_unset_input)" in main_cpp
-
-
 def test_input_is_set_condition(
     tmp_path: Path, generate_main: Callable[[str | Path], str]
 ) -> None:
@@ -610,8 +490,6 @@ def test_standalone_input_is_valid(tmp_path: Path) -> None:
 
 WIZARD_DEFINES = {
     "USE_API_WIZARD",
-    "USE_API_WIZARD_ENTITIES",
-    "USE_API_WIZARD_ENTITY_FILTERS",
     "USE_API_WIZARD_INPUTS",
     "USE_API_WIZARD_LINKED_INPUTS",
     "USE_API_WIZARD_STANDALONE_INPUTS",
@@ -623,7 +501,7 @@ WIZARD_DEFINES = {
     [
         pytest.param(
             "- entities: [{id: sw}]",
-            {"USE_API_WIZARD", "USE_API_WIZARD_ENTITIES"},
+            {"USE_API_WIZARD"},
             id="entity-only",
         ),
         pytest.param(
@@ -641,7 +519,6 @@ WIZARD_DEFINES = {
                 "USE_API_WIZARD",
                 "USE_API_WIZARD_INPUTS",
                 "USE_API_WIZARD_STANDALONE_INPUTS",
-                "USE_API_WIZARD_ENTITY_FILTERS",
             },
             id="standalone-input-with-filter",
         ),
@@ -660,7 +537,6 @@ WIZARD_DEFINES = {
                 "USE_API_WIZARD",
                 "USE_API_WIZARD_INPUTS",
                 "USE_API_WIZARD_LINKED_INPUTS",
-                "USE_API_WIZARD_ENTITY_FILTERS",
             },
             id="linked-sensor-with-filter",
         ),
@@ -671,7 +547,6 @@ WIZARD_DEFINES = {
                 "USE_API_WIZARD",
                 "USE_API_WIZARD_INPUTS",
                 "USE_API_WIZARD_LINKED_INPUTS",
-                "USE_API_WIZARD_ENTITY_FILTERS",
             },
             id="linked-switch-default-filter",
         ),
@@ -692,42 +567,6 @@ def test_only_the_defines_the_wizard_needs_are_emitted(
     generate_main(write_config(tmp_path, ESP32_HEADER, api))
 
     assert {d.name for d in CORE.defines} & WIZARD_DEFINES == expected
-
-
-def test_entity_rows_only_have_the_members_that_are_compiled_in(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    main_cpp = generate_main(
-        write_config(
-            tmp_path, ESP32_HEADER, wizard_api("- title: T\n  entities: [{id: sw}]")
-        )
-    )
-
-    assert re.search(r'\{"T", "", \{api_wizard_\d+, 1\}\}', main_cpp)
-
-
-def test_input_rows_only_have_the_members_that_are_compiled_in(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    main_cpp = generate_main(
-        write_config(tmp_path, ESP32_HEADER, wizard_api("- inputs: [{id: standalone}]"))
-    )
-
-    assert re.search(r'\{\d+u, api_wizard_input_standalone, ""\}', main_cpp)
-    assert re.search(r'\{"", "", \{api_wizard_\d+, 1\}\}', main_cpp)
-
-
-def test_esp8266_without_filters_has_no_filter_scratch(
-    tmp_path: Path, generate_main: Callable[[str | Path], str]
-) -> None:
-    generate_main(
-        write_config(tmp_path, ESP8266_HEADER, wizard_api("- entities: [{id: sw}]"))
-    )
-
-    assert get_define_value("API_WIZARD_PAGE_SCRATCH_SIZE") is not None
-    assert get_define_value("API_WIZARD_FIELD_SCRATCH_SIZE") is not None
-    assert get_define_value("API_WIZARD_FILTER_SCRATCH_SIZE") is None
-    assert get_define_value("API_WIZARD_LIST_SCRATCH_SIZE") is None
 
 
 @pytest.mark.parametrize(
@@ -763,10 +602,20 @@ def test_text_select_and_button_default_to_their_domains(
     tmp_path: Path, generate_main: Callable[[str | Path], str]
 ) -> None:
     main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
+    document = json.loads(wizard.zstd_module().decompress(blob_in(main_cpp)))
+    filters = {
+        entry["key"]: entry.get("entity_filters")
+        for page in document["pages"]
+        for entry in page.get("inputs", [])
+    }
 
     # ha_txt and ha_button have no target, so they take every supported domain
-    for domain in ("input_text", "text", "button", "input_button"):
-        assert f'"{domain}",' in main_cpp
+    assert filters[fnv1_hash("ha_txt")] == [{"domain": ["input_text", "text"]}]
+    assert filters[fnv1_hash("ha_button")] == [{"domain": ["button", "input_button"]}]
+    assert filters[fnv1_hash("ha_select")] == [{"domain": ["input_select", "select"]}]
+    # A number only takes numbers, and the other sensors take anything
+    assert filters[fnv1_hash("ha_number")] == [{"domain": ["number"]}]
+    assert filters[fnv1_hash("ha_binary")] is None
     for entity in ("ha_txt", "ha_select", "ha_button"):
         assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
 
@@ -788,66 +637,6 @@ def test_new_platforms_need_an_entity_id_unless_they_are_inputs(
         "entity_id is required unless this entity is a wizard input" in error
         for error in errors
     ), errors
-
-
-def test_response_size_matches_the_encoder() -> None:
-    """The same wizard as the byte exact C++ test (test_wizard.cpp), which asserts the same 155 bytes."""
-    wizard = {
-        "pages": [
-            {
-                "title": "Setup",
-                "description": "Pick",
-                "entities": [{"description": "Enable"}, {}],
-            },
-            {
-                "inputs": [
-                    {
-                        "description": "Weather",
-                        "target": {
-                            "entity": [
-                                {
-                                    "integration": "met",
-                                    "domain": ["weather", "sensor"],
-                                    "device_class": ["temperature"],
-                                    "supported_features": [
-                                        "weather.WeatherEntityFeature.FORECAST_DAILY"
-                                    ],
-                                },
-                                {"domain": ["weather"]},
-                            ]
-                        },
-                    },
-                    {},
-                ]
-            },
-        ]
-    }
-
-    assert wizard_response_size(wizard, None, device_ids=False) == 155
-    # Two entity fields, each with room for a device_id
-    assert wizard_response_size(wizard, None, device_ids=True) == 155 + 2 * 6
-
-
-def test_varint_sizes_grow_with_the_value() -> None:
-    assert [_varint_size(v) for v in (0, 127, 128, 16383, 16384)] == [1, 1, 2, 2, 3]
-
-
-def test_a_wizard_too_big_for_one_message_is_rejected(tmp_path: Path) -> None:
-    entities = ",\n".join(["{id: sw, description: " + "x" * 255 + "}"] * 260)
-    api = wizard_api(f"- entities: [\n{entities}\n]")
-    errors = config_errors(write_config(tmp_path, ESP32_HEADER, api))
-
-    assert any(
-        "bytes when encoded" in error and "bytes over the 65512 bytes" in error
-        for error in errors
-    ), errors
-
-
-def test_a_wizard_just_inside_the_limit_is_valid(tmp_path: Path) -> None:
-    entities = ",\n".join(["{id: sw, description: " + "x" * 255 + "}"] * 240)
-    api = wizard_api(f"- entities: [\n{entities}\n]")
-
-    assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
 
 
 def test_a_linked_default_longer_than_the_buffer_is_rejected(tmp_path: Path) -> None:
@@ -882,3 +671,259 @@ def test_a_linked_default_of_the_longest_length_is_valid(tmp_path: Path) -> None
         )
         == []
     )
+
+
+DEVICES_HEADER = """
+    esphome:
+      name: test
+      devices:
+        - id: kitchen_dev
+          name: Kitchen
+
+    esp32:
+      variant: esp32
+
+    wifi:
+      ssid: test
+      password: testtest
+
+    logger:
+    """
+
+JSON_ENTITIES = """
+    switch:
+      - platform: template
+        id: sw
+        name: Switch
+        optimistic: true
+      - platform: template
+        id: sw2
+        name: Kitchen Switch
+        device_id: kitchen_dev
+        optimistic: true
+      - platform: homeassistant
+        id: ha_switch
+    sensor:
+      - platform: homeassistant
+        id: ha_sensor
+    """
+
+JSON_PAGES = """
+    - title: Audio
+      description: Pick
+      entities:
+        - id: sw
+          description: Enable
+        - id: sw2
+      inputs:
+        - id: weather
+          description: Weather
+          target:
+            entity:
+              - integration: met
+                domain: weather
+                device_class: [temperature, humidity]
+              - domain: [weather, sensor]
+        - entity: ha_switch
+    - inputs: [{entity: ha_sensor}]
+    """
+
+
+def blob_in(main_cpp: str) -> bytes:
+    """The compressed wizard that the generated code puts in flash."""
+    match = re.search(
+        r"const uint8_t esphome::api::API_WIZARD_DATA\[\] PROGMEM = \{([^}]*)\};",
+        main_cpp,
+    )
+    assert match is not None
+    return bytes(int(byte) for byte in match.group(1).split(", "))
+
+
+def entity_hash(main_cpp: str, variable: str) -> int:
+    """The key the generated code passes to configure_entity_, which ListEntities then sends."""
+    match = re.search(
+        rf'App\.register_switch\({variable}, "[^"]*", (\d+)UL, \d+\)', main_cpp
+    )
+    assert match is not None, variable
+    return int(match.group(1))
+
+
+def test_the_blob_is_the_exact_json_document(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    main_cpp = generate_main(
+        write_config(tmp_path, DEVICES_HEADER, wizard_api(JSON_PAGES), JSON_ENTITIES)
+    )
+    blob = blob_in(main_cpp)
+
+    text = wizard.zstd_module().decompress(blob).decode("utf-8")
+    expected = {
+        "version": 1,
+        "pages": [
+            {
+                "title": "Audio",
+                "description": "Pick",
+                "entities": [
+                    # No device_id for the main device, and no description when unset
+                    {"key": entity_hash(main_cpp, "sw"), "description": "Enable"},
+                    {
+                        "key": entity_hash(main_cpp, "sw2"),
+                        "device_id": fnv1a_32bit_hash("kitchen_dev"),
+                    },
+                ],
+                "inputs": [
+                    {
+                        "key": fnv1_hash("weather"),
+                        "description": "Weather",
+                        "entity_filters": [
+                            {
+                                "integration": "met",
+                                "domain": ["weather"],
+                                "device_class": ["temperature", "humidity"],
+                            },
+                            {"domain": ["weather", "sensor"]},
+                        ],
+                    },
+                    {
+                        "key": fnv1_hash("ha_switch"),
+                        # The default filter of a switch
+                        "entity_filters": [{"domain": SWITCH_DOMAINS}],
+                    },
+                ],
+            },
+            {"inputs": [{"key": fnv1_hash("ha_sensor")}]},
+        ],
+    }
+    assert text == json.dumps(
+        expected, separators=(",", ":"), sort_keys=True, ensure_ascii=False
+    )
+    # The device id is the one the generated code gives the device
+    assert f"set_device_id({fnv1a_32bit_hash('kitchen_dev')})" in main_cpp
+    assert get_define_value("API_WIZARD_DATA_SIZE") == str(len(blob))
+
+
+def test_the_blob_is_deterministic_and_the_same_on_every_platform(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    api = wizard_api(JSON_PAGES)
+    first = blob_in(
+        generate_main(write_config(tmp_path, DEVICES_HEADER, api, JSON_ENTITIES))
+    )
+    # Compressing the same document again gives the same bytes
+    document = wizard.wizard_document(CORE.config["api"]["wizard"], CORE.config)
+    again = wizard.zstd_module().compress(
+        json.dumps(
+            document, separators=(",", ":"), sort_keys=True, ensure_ascii=False
+        ).encode("utf-8"),
+        level=wizard.WIZARD_ZSTD_LEVEL,
+    )
+
+    assert again == first
+    assert first[:4] == b"\x28\xb5\x2f\xfd"  # a zstd frame
+
+
+def test_the_blob_is_in_flash_on_esp8266(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    main_cpp = generate_main(write_input_config(tmp_path, ESP8266_HEADER))
+
+    assert "esphome::api::API_WIZARD_DATA[] PROGMEM = {" in main_cpp
+    assert (
+        "const esphome::api::WizardInputEntry esphome::api::API_WIZARD_INPUTS[] PROGMEM = {"
+        in main_cpp
+    )
+    # Only the compressed data and the input table are emitted, no strings or row tables
+    assert "api_wizard_str" not in main_cpp
+    assert "WizardEntityRow" not in main_cpp
+
+
+def test_inputs_have_buffers_hashes_and_a_table(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
+
+    # The buffer holds the YAML entity ID until the wizard sets another
+    assert 'static char api_wizard_input_ha_sensor[256] = "";' in main_cpp
+    assert (
+        'static char api_wizard_input_ha_default_sensor[256] = "sensor.default";'
+        in main_cpp
+    )
+    entities = (
+        "ha_sensor",
+        "ha_default_sensor",
+        "ha_binary",
+        "ha_text",
+        "ha_number",
+        "ha_switch",
+        "ha_txt",
+        "ha_select",
+        "ha_button",
+        "weather_input",
+        "unset_input",
+    )
+    for entity in entities:
+        assert f"{{{fnv1_hash(entity)}u, api_wizard_input_{entity}}}" in main_cpp
+    assert get_define_value("API_WIZARD_INPUT_COUNT") == str(len(entities))
+    for entity in entities[:-2]:
+        assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+    # The standalone inputs are objects that read the same buffer
+    assert "WizardInput(api_wizard_input_weather_input)" in main_cpp
+    assert "WizardInput(api_wizard_input_unset_input)" in main_cpp
+    # Not an input, so it keeps its constant
+    assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
+
+
+def test_an_entity_without_a_name_cannot_be_in_the_wizard(tmp_path: Path) -> None:
+    yaml_entities = 'switch:\n  - platform: template\n    id: nameless\n    name: ""\n    optimistic: true\n'
+    errors = config_errors(
+        write_config(
+            tmp_path,
+            ESP32_HEADER,
+            wizard_api("- entities: [{id: nameless}]"),
+            yaml_entities,
+        )
+    )
+
+    assert any("has no name of its own" in error for error in errors), errors
+
+
+def test_zstd_falls_back_to_the_backport(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Before Python 3.14 the standard library has no zstd, so the backport is used."""
+    backport = object()
+
+    def import_module(name: str) -> object:
+        if name == "compression.zstd":
+            raise ImportError(name)
+        assert name == "backports.zstd"
+        return backport
+
+    monkeypatch.setattr(wizard.importlib, "import_module", import_module)
+
+    assert wizard.zstd_module() is backport
+
+
+def test_a_wizard_too_big_for_one_message_is_rejected(tmp_path: Path) -> None:
+    # Random text does not compress, so this needs more than the limit even compressed
+    rng = random.Random(1)
+    alphabet = string.ascii_letters + string.digits
+    entities = ",\n".join(
+        "{id: sw, description: "
+        + "".join(rng.choice(alphabet) for _ in range(255))
+        + "}"
+        for _ in range(400)
+    )
+    api = wizard_api(f"- entities: [\n{entities}\n]")
+    errors = config_errors(write_config(tmp_path, ESP32_HEADER, api))
+
+    assert any(
+        "The compressed wizard is" in error and "bytes over the 65512 bytes" in error
+        for error in errors
+    ), errors
+
+
+def test_repeated_text_compresses_well_inside_the_limit(tmp_path: Path) -> None:
+    # 400 identical entities are far over the limit as JSON, but compress to very little
+    entities = ",\n".join(["{id: sw, description: " + "x" * 255 + "}"] * 400)
+    api = wizard_api(f"- entities: [\n{entities}\n]")
+
+    assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []

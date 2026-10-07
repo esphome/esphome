@@ -380,26 +380,8 @@ def test_device_wizard_messages_keep_their_wire_ids() -> None:
 def test_device_wizard_message_fields_keep_their_wire_numbers() -> None:
     """Clients decode the wizard purely by field number."""
     fields: dict[str, dict[str, int]] = {
-        "WizardEntityFilter": {
-            "integration": 1,
-            "domain": 2,
-            "device_class": 3,
-            "supported_features": 4,
-        },
-        "WizardEntityField": {"key": 1, "device_id": 2, "description": 3},
-        "WizardInputField": {
-            "key": 1,
-            "description": 2,
-            "entity_filters": 3,
-        },
         "WizardInputSetRequest": {"key": 1, "entity_id": 2},
-        "WizardPage": {
-            "title": 1,
-            "description": 2,
-            "entities": 3,
-            "inputs": 4,
-        },
-        "DeviceWizardResponse": {"pages": 1},
+        "DeviceWizardResponse": {"data": 1},
     }
     for message, message_fields in fields.items():
         body = _extract_proto_message(PROTO_TEXT, message)
@@ -429,20 +411,14 @@ WIZARD_MESSAGE_DEFINES: dict[str, str] = {
     "DeviceWizardResponse": "USE_API_WIZARD",
     "WizardInputSetRequest": "USE_API_WIZARD_INPUTS",
 }
-# Not marked in api.proto: the generator gives them the guard of the field that uses them
-NESTED_WIZARD_MESSAGE_DEFINES: dict[str, str] = {
-    "WizardCapabilities": "USE_API_WIZARD",
-    "WizardPage": "USE_API_WIZARD",
-    "WizardEntityField": "USE_API_WIZARD_ENTITIES",
-    "WizardInputField": "USE_API_WIZARD_INPUTS",
-    "WizardEntityFilter": "USE_API_WIZARD_ENTITY_FILTERS",
-}
+# Not marked in api.proto: the generator gives it the guard of the field that uses it
+NESTED_WIZARD_MESSAGE_DEFINES: dict[str, str] = {"WizardCapabilities": "USE_API_WIZARD"}
 
 
 def test_wizard_messages_are_compiled_out_without_a_wizard() -> None:
     """A device must pay nothing for wizard parts it does not use: every wizard
     message carries its define in api.proto, and the generated code guards the
-    nested messages with the define of the field that holds them.
+    nested message with the define of the field that holds it.
     """
     for message, define in WIZARD_MESSAGE_DEFINES.items():
         body = _extract_proto_message(PROTO_TEXT, message)

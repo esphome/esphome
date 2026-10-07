@@ -47,9 +47,11 @@ def final_validate_entity_id(config: ConfigType) -> ConfigType:
     """Without an entity_id, the entity must be a wizard input, as Home Assistant then supplies it."""
     if CONF_ENTITY_ID in config:
         return config
-    from esphome.components import api
+    from esphome.components.api import wizard
 
-    if config[CONF_ID].id not in api.wizard_input_ids(fv.full_config.get()[api.DOMAIN]):
+    if config[CONF_ID].id not in wizard.wizard_input_ids(
+        fv.full_config.get()[wizard.API_DOMAIN]
+    ):
         raise cv.Invalid(
             f"{CONF_ENTITY_ID} is required unless this entity is a wizard input"
         )
@@ -57,9 +59,9 @@ def final_validate_entity_id(config: ConfigType) -> ConfigType:
 
 
 def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:
-    from esphome.components import api
+    from esphome.components.api import wizard
 
-    if (buffer := api.wizard_input_buffer(config[CONF_ID])) is not None:
+    if (buffer := wizard.wizard_input_buffer(config[CONF_ID])) is not None:
         # The entity ID is chosen in the wizard and lives in a buffer the API owns
         cg.add(var.set_entity_id(cg.RawExpression(buffer)))
     else:

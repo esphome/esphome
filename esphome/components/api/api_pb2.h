@@ -754,99 +754,16 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 
  protected:
 };
-#ifdef USE_API_WIZARD_ENTITY_FILTERS
-class WizardEntityFilter final : public ProtoMessage {
- public:
-  StringRef integration{nullptr, 0};  // null until set, encode only
-  const WizardSpan<const char *> *domain{};
-  const WizardSpan<const char *> *device_class{};
-  const WizardSpan<const char *> *supported_features{};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
-  }
-  static uint32_t calc_size_msg(const void *self);
-  uint32_t calculate_size() const { return calc_size_msg(this); }
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
-#endif
-#ifdef USE_API_WIZARD_ENTITIES
-class WizardEntityField final : public ProtoMessage {
- public:
-  uint32_t key{0};
-#ifdef USE_DEVICES
-  uint32_t device_id{0};
-#endif
-  StringRef description{nullptr, 0};  // null until set, encode only
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
-  }
-  static uint32_t calc_size_msg(const void *self);
-  uint32_t calculate_size() const { return calc_size_msg(this); }
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
-#endif
-#ifdef USE_API_WIZARD_INPUTS
-class WizardInputField final : public ProtoMessage {
- public:
-  uint32_t key{0};
-  StringRef description{nullptr, 0};  // null until set, encode only
-#ifdef USE_API_WIZARD_ENTITY_FILTERS
-  const WizardView<WizardEntityFilter, WizardFilterRow> *entity_filters{};
-#endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
-  }
-  static uint32_t calc_size_msg(const void *self);
-  uint32_t calculate_size() const { return calc_size_msg(this); }
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
-#endif
 #ifdef USE_API_WIZARD
-class WizardPage final : public ProtoMessage {
- public:
-  StringRef title{nullptr, 0};        // null until set, encode only
-  StringRef description{nullptr, 0};  // null until set, encode only
-#ifdef USE_API_WIZARD_ENTITIES
-  const WizardView<WizardEntityField, WizardEntityRow> *entities{};
-#endif
-#ifdef USE_API_WIZARD_INPUTS
-  const WizardView<WizardInputField, WizardInputRow> *inputs{};
-#endif
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
-  }
-  static uint32_t calc_size_msg(const void *self);
-  uint32_t calculate_size() const { return calc_size_msg(this); }
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
 class DeviceWizardResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 157;
-  static constexpr uint8_t ESTIMATED_SIZE = 34;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_wizard_response"); }
 #endif
-  const WizardView<WizardPage, WizardPageRow> *pages{};
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);

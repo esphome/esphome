@@ -1,7 +1,6 @@
 #ifdef USE_HOST
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -11,20 +10,8 @@
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_wizard.h"
 #include "esphome/components/api/proto.h"
-#include "esphome/core/entity_base.h"
 
 namespace esphome::api {
-
-// Entity with a settable key. Entities get their key from codegen in setup(), which a unit test does not run.
-class WizardTestEntity : public EntityBase {
- public:
-  void set_key(uint32_t key) { this->object_id_hash_ = key; }
-};
-
-static WizardTestEntity &wizard_switch() {
-  static WizardTestEntity entity;
-  return entity;
-}
 
 // RAM buffers of the inputs, as codegen defines them
 static char *wizard_input_weather() {
@@ -39,61 +26,26 @@ static char *wizard_input_other() {
 static constexpr uint32_t WEATHER_KEY = 0x0a0b0c0d;
 static constexpr uint32_t OTHER_KEY = 0x11223344;
 
-// The same shapes the generated code emits.
-static const char *const WIZARD_DOMAINS[] = {"weather", "sensor"};
-static const char *const WIZARD_DEVICE_CLASSES[] = {"temperature"};
-static const char *const WIZARD_FEATURES[] = {"weather.WeatherEntityFeature.FORECAST_DAILY"};
-static const WizardFilterRow WIZARD_FILTERS[] = {
-    {"met", {WIZARD_DOMAINS, 2}, {WIZARD_DEVICE_CLASSES, 1}, {WIZARD_FEATURES, 1}},
-    {nullptr, {WIZARD_DOMAINS, 1}, {nullptr, 0}, {nullptr, 0}},
+// The same shapes the generated code emits. The data is 200 bytes (API_WIZARD_DATA_SIZE), so its length takes two
+// bytes as a varint.
+const uint8_t API_WIZARD_DATA[API_WIZARD_DATA_SIZE] = {
+    0x03, 0x0a, 0x11, 0x18, 0x1f, 0x26, 0x2d, 0x34, 0x3b, 0x42, 0x49, 0x50, 0x57, 0x5e, 0x65, 0x6c, 0x73, 0x7a, 0x81,
+    0x88, 0x8f, 0x96, 0x9d, 0xa4, 0xab, 0xb2, 0xb9, 0xc0, 0xc7, 0xce, 0xd5, 0xdc, 0xe3, 0xea, 0xf1, 0xf8, 0xff, 0x06,
+    0x0d, 0x14, 0x1b, 0x22, 0x29, 0x30, 0x37, 0x3e, 0x45, 0x4c, 0x53, 0x5a, 0x61, 0x68, 0x6f, 0x76, 0x7d, 0x84, 0x8b,
+    0x92, 0x99, 0xa0, 0xa7, 0xae, 0xb5, 0xbc, 0xc3, 0xca, 0xd1, 0xd8, 0xdf, 0xe6, 0xed, 0xf4, 0xfb, 0x02, 0x09, 0x10,
+    0x17, 0x1e, 0x25, 0x2c, 0x33, 0x3a, 0x41, 0x48, 0x4f, 0x56, 0x5d, 0x64, 0x6b, 0x72, 0x79, 0x80, 0x87, 0x8e, 0x95,
+    0x9c, 0xa3, 0xaa, 0xb1, 0xb8, 0xbf, 0xc6, 0xcd, 0xd4, 0xdb, 0xe2, 0xe9, 0xf0, 0xf7, 0xfe, 0x05, 0x0c, 0x13, 0x1a,
+    0x21, 0x28, 0x2f, 0x36, 0x3d, 0x44, 0x4b, 0x52, 0x59, 0x60, 0x67, 0x6e, 0x75, 0x7c, 0x83, 0x8a, 0x91, 0x98, 0x9f,
+    0xa6, 0xad, 0xb4, 0xbb, 0xc2, 0xc9, 0xd0, 0xd7, 0xde, 0xe5, 0xec, 0xf3, 0xfa, 0x01, 0x08, 0x0f, 0x16, 0x1d, 0x24,
+    0x2b, 0x32, 0x39, 0x40, 0x47, 0x4e, 0x55, 0x5c, 0x63, 0x6a, 0x71, 0x78, 0x7f, 0x86, 0x8d, 0x94, 0x9b, 0xa2, 0xa9,
+    0xb0, 0xb7, 0xbe, 0xc5, 0xcc, 0xd3, 0xda, 0xe1, 0xe8, 0xef, 0xf6, 0xfd, 0x04, 0x0b, 0x12, 0x19, 0x20, 0x27, 0x2e,
+    0x35, 0x3c, 0x43, 0x4a, 0x51, 0x58, 0x5f, 0x66, 0x6d, 0x74};
+const WizardInputEntry API_WIZARD_INPUTS[API_WIZARD_INPUT_COUNT] = {
+    {WEATHER_KEY, wizard_input_weather()},
+    {OTHER_KEY, wizard_input_other()},
 };
-static const WizardEntityRow WIZARD_ENTITIES[] = {
-    {[]() -> EntityBase * { return &wizard_switch(); }, "Enable"},
-    {[]() -> EntityBase * { return &wizard_switch(); }, nullptr},
-};
-static const WizardInputRow WIZARD_INPUTS[] = {
-    {WEATHER_KEY, wizard_input_weather(), "Weather", {WIZARD_FILTERS, 2}},
-    {OTHER_KEY, wizard_input_other(), nullptr, {nullptr, 0}},
-};
-static const WizardPageRow WIZARD_PAGES[] = {
-    {"Setup", "Pick", {WIZARD_ENTITIES, 2}, {nullptr, 0}},
-    {nullptr, nullptr, {nullptr, 0}, {WIZARD_INPUTS, 2}},
-};
-const WizardView<WizardPage, WizardPageRow> API_WIZARD_PAGES = {WIZARD_PAGES, 2};
 
 using Bytes = std::vector<uint8_t>;
-
-static constexpr size_t WIZARD_RESPONSE_SIZE = 155;
-
-static Bytes cat(std::initializer_list<Bytes> parts) {
-  Bytes out;
-  for (const auto &part : parts)
-    out.insert(out.end(), part.begin(), part.end());
-  return out;
-}
-
-static Bytes length_prefixed(uint8_t number, const Bytes &body) {
-  Bytes out{static_cast<uint8_t>(number << 3 | 2)};
-  size_t length = body.size();
-  while (length >= 0x80) {
-    out.push_back(static_cast<uint8_t>(length | 0x80));
-    length >>= 7;
-  }
-  out.push_back(static_cast<uint8_t>(length));
-  out.insert(out.end(), body.begin(), body.end());
-  return out;
-}
-
-static Bytes str_field(uint8_t number, const std::string &value) {
-  return length_prefixed(number, Bytes(value.begin(), value.end()));
-}
-
-static Bytes msg_field(uint8_t number, const Bytes &body) { return length_prefixed(number, body); }
-
-static Bytes key_field(uint32_t key) {
-  return {0x0d, static_cast<uint8_t>(key), static_cast<uint8_t>(key >> 8), static_cast<uint8_t>(key >> 16),
-          static_cast<uint8_t>(key >> 24)};
-}
 
 static Bytes encode(const ProtoMessage &msg, uint32_t (*calc)(const void *),
                     uint8_t *(*enc)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM)) {
@@ -109,36 +61,41 @@ static Bytes encode(const ProtoMessage &msg, uint32_t (*calc)(const void *),
   return Bytes(buffer.data(), buffer.data() + size);
 }
 
-TEST(DeviceWizard, EncodesEveryPageFromFlashTables) {
-  wizard_switch().set_key(0x01020304);
-
+TEST(DeviceWizard, ResponseSendsTheDataUnchanged) {
   DeviceWizardResponse resp;
-  resp.pages = &API_WIZARD_PAGES;
+  resp.data = API_WIZARD_DATA;
+  resp.data_len = API_WIZARD_DATA_SIZE;
 
-  Bytes filter_met = cat({str_field(1, "met"), str_field(2, "weather"), str_field(2, "sensor"),
-                          str_field(3, "temperature"), str_field(4, "weather.WeatherEntityFeature.FORECAST_DAILY")});
-  Bytes filter_domain = str_field(2, "weather");
-  Bytes page_one =
-      cat({str_field(1, "Setup"), str_field(2, "Pick"),
-           msg_field(3, cat({key_field(0x01020304), str_field(3, "Enable")})), msg_field(3, key_field(0x01020304))});
-  Bytes page_two = cat({msg_field(4, cat({key_field(WEATHER_KEY), str_field(2, "Weather"), msg_field(3, filter_met),
-                                          msg_field(3, filter_domain)})),
-                        msg_field(4, key_field(OTHER_KEY))});
-  Bytes expected = cat({msg_field(1, page_one), msg_field(1, page_two)});
-  // The same size the Python helper wizard_response_size() computes for this wizard (test_wizard.py)
-  EXPECT_EQ(expected.size(), WIZARD_RESPONSE_SIZE);
+  // Field 1, length delimited, then the 200 byte length as a two byte varint, then the data
+  Bytes expected{0x0a, 0xc8, 0x01};
+  expected.insert(expected.end(), API_WIZARD_DATA, API_WIZARD_DATA + API_WIZARD_DATA_SIZE);
 
-  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg), expected);
+  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response), expected);
 }
 
-TEST(DeviceWizard, CopiesFlashStringsAndTruncatesToTheBuffer) {
-  char buffer[8];
-  EXPECT_EQ(wizard_copy_flash_string("abc", buffer, sizeof(buffer)), 3u);
-  EXPECT_STREQ(buffer, "abc");
-  EXPECT_EQ(wizard_copy_flash_string("abcdefghij", buffer, sizeof(buffer)), 7u);
-  EXPECT_STREQ(buffer, "abcdefg");
-  EXPECT_EQ(wizard_copy_flash_string(nullptr, buffer, sizeof(buffer)), 0u);
-  EXPECT_STREQ(buffer, "");
+TEST(DeviceWizard, ShortDataHasAOneByteLength) {
+  DeviceWizardResponse resp;
+  resp.data = API_WIZARD_DATA;
+  resp.data_len = 3;
+
+  Bytes expected{0x0a, 0x03, API_WIZARD_DATA[0], API_WIZARD_DATA[1], API_WIZARD_DATA[2]};
+  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response), expected);
+}
+
+TEST(DeviceWizard, NoDataEncodesNothing) {
+  DeviceWizardResponse resp;
+  EXPECT_EQ(resp.calculate_size(), 0u);
+  EXPECT_TRUE(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response).empty());
+}
+
+TEST(DeviceWizard, CapabilitiesAnnounceTheWizard) {
+  DeviceCapabilitiesResponse resp;
+  EXPECT_TRUE(
+      encode(resp, &DeviceCapabilitiesResponse::calc_size_msg, &DeviceCapabilitiesResponse::encode_msg).empty());
+  resp.wizard.configured = true;
+  // Field 5 (the wizard), length delimited, holding field 1 (configured) set to 1
+  EXPECT_EQ(encode(resp, &DeviceCapabilitiesResponse::calc_size_msg, &DeviceCapabilitiesResponse::encode_msg),
+            (Bytes{0x2a, 0x02, 0x08, 0x01}));
 }
 
 // A request for the input with the given key and entity id
@@ -161,6 +118,13 @@ TEST(DeviceWizard, SetInputStoresTheEntityIdInTheBuffer) {
   EXPECT_EQ(std::string(wizard_input_other()), longest);
 }
 
+TEST(DeviceWizard, SetInputFindsTheInputByItsKey) {
+  EXPECT_EQ(set_input(WEATHER_KEY, "weather.home"), wizard_input_weather());
+  EXPECT_STREQ(wizard_input_weather(), "weather.home");
+  EXPECT_EQ(set_input(OTHER_KEY, "weather.away"), wizard_input_other());
+  EXPECT_STREQ(wizard_input_weather(), "weather.home");
+}
+
 TEST(DeviceWizard, SetInputIgnoresWhatIsNotAnEntityId) {
   std::string before = wizard_input_weather();
   EXPECT_EQ(set_input(WEATHER_KEY, ""), nullptr);
@@ -180,23 +144,6 @@ TEST(DeviceWizard, StandaloneInputReadsTheBufferTheWizardWrites) {
   ASSERT_EQ(set_input(OTHER_KEY, "weather.home"), wizard_input_other());
   EXPECT_TRUE(input.has_entity_id());
   EXPECT_EQ(input.entity_id(), "weather.home");
-}
-
-TEST(DeviceWizard, CapabilitiesAnnounceTheWizard) {
-  DeviceCapabilitiesResponse resp;
-  EXPECT_TRUE(
-      encode(resp, &DeviceCapabilitiesResponse::calc_size_msg, &DeviceCapabilitiesResponse::encode_msg).empty());
-  resp.wizard.configured = true;
-  EXPECT_EQ(encode(resp, &DeviceCapabilitiesResponse::calc_size_msg, &DeviceCapabilitiesResponse::encode_msg),
-            msg_field(5, Bytes{0x08, 0x01}));
-}
-
-TEST(DeviceWizard, EmptyViewEncodesNothing) {
-  static const WizardView<WizardPage, WizardPageRow> EMPTY_VIEW = {nullptr, 0};
-  DeviceWizardResponse resp;
-  resp.pages = &EMPTY_VIEW;
-  EXPECT_EQ(resp.calculate_size(), 0u);
-  EXPECT_TRUE(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg).empty());
 }
 
 }  // namespace esphome::api

@@ -418,72 +418,49 @@ message DeviceWizardRequest {
   // Empty
 }
 
-// Mirrors Home Assistant's EntityFilterSelectorConfig. A device matches when it
-// satisfies every field that is set, and a selector with several filters accepts
-// an entity that matches any one of them.
+// The wizard, as UTF-8 JSON compressed into a single zstd frame. The device builds it
+// when it is compiled and sends it unchanged, so its size varies with the wizard and
+// its format can grow without new fields here. Clients decompress it, then read:
 //
-// Length limits are validated in components/api/__init__.py: integration, domain
-// and device_class entries are at most 63 bytes, supported_features entries 127.
-message WizardEntityFilter {
-  string integration = 1 [(max_data_length) = 63];
-  repeated string domain = 2 [(container_pointer_no_template) = "WizardSpan<const char *>"];
-  repeated string device_class = 3 [(container_pointer_no_template) = "WizardSpan<const char *>"];
-  // Like "weather.WeatherEntityFeature.FORECAST_DAILY"
-  repeated string supported_features = 4 [(container_pointer_no_template) = "WizardSpan<const char *>"];
-}
-
-// An entity of this device that the wizard shows to the user (for example to turn
-// it on or off). The entity is identified by the same key and device_id used in
-// ListEntitiesResponse.
-message WizardEntityField {
-  fixed32 key = 1;
-  uint32 device_id = 2 [(field_ifdef) = "USE_DEVICES"];
-  // Shown next to the entity. May be a Home Assistant translation placeholder
-  // such as "[%key:component::domain::section::name%]", passed through verbatim.
-  string description = 3 [(max_data_length) = 255];
-}
-
-// An input that the wizard fills in with the id of a Home Assistant entity chosen
-// by the user. An input either stands for one entity of the device's homeassistant
-// platform (sensor, binary_sensor, text_sensor, number, switch, text, select or
-// button) that has no entity id yet, or only a default one, or it is a standalone
-// input that only stores the entity id for the device's own automations.
+//   {"version": 1,
+//    "pages": [{"title": "...", "description": "...",
+//      "entities": [{"key": 123, "device_id": 456, "description": "..."}],
+//      "inputs": [{"key": 789, "description": "...",
+//        "entity_filters": [{"integration": "...", "domain": ["..."],
+//                            "device_class": ["..."], "supported_features": ["..."]}]}]}]}
 //
-// The key is the FNV-1 hash of the input's ESPHome id, not an entity key. The client
-// sends the chosen entity id to the device with a WizardInputSetRequest.
+// Values that are empty or unset are left out, and so are empty lists. Strings may be
+// Home Assistant translation placeholders such as "[%key:component::domain::name%]",
+// passed through verbatim. The pages are shown in the order listed. A client that does
+// not know the version must not use the wizard.
 //
-// The device keeps the entity id in RAM only and does not store it across restarts.
-// The client therefore stores the choice itself and, after every connection and
-// before it sends SubscribeHomeAssistantStatesRequest, sends a WizardInputSetRequest
+// An entity is an entity of this device that the page shows to the user (for example to
+// turn it on or off). Its key is the key ListEntitiesResponse sends for it. Its
+// device_id is the device_id ListEntitiesResponse sends, and is left out when that is 0.
+//
+// An input is filled in by the user with the id of a Home Assistant entity. It either
+// stands for one entity of the device's homeassistant platform (sensor, binary_sensor,
+// text_sensor, number, switch, text, select or button), or it is a standalone input that
+// only stores the entity id for the device's own automations. Its key is the FNV-1 hash
+// of the input's ESPHome id, not an entity key. The client sends the chosen entity id to
+// the device with a WizardInputSetRequest. entity_filters says which Home Assistant
+// entities the user may choose, and mirrors Home Assistant's EntityFilterSelectorConfig:
+// an entity matches a filter when it satisfies every field that is set, and an entity
+// that matches any one of the filters is accepted.
+//
+// The device keeps the entity id of an input in RAM only and does not store it across
+// restarts. The client therefore stores the choice itself and, after every connection
+// and before it sends SubscribeHomeAssistantStatesRequest, sends a WizardInputSetRequest
 // for each input. It sends one again whenever the user changes the choice.
-message WizardInputField {
-  fixed32 key = 1;
-  // Shown next to the input. May be a Home Assistant translation placeholder
-  string description = 2 [(max_data_length) = 255];
-  // Which entities the user may choose. Several filters are ORed together.
-  repeated WizardEntityFilter entity_filters = 3
-      [(field_ifdef) = "USE_API_WIZARD_ENTITY_FILTERS",
-       (container_pointer_no_template) = "WizardView<WizardEntityFilter, WizardFilterRow>"];
-}
-
-message WizardPage {
-  string title = 1 [(max_data_length) = 127];
-  string description = 2 [(max_data_length) = 255];
-  repeated WizardEntityField entities = 3
-      [(field_ifdef) = "USE_API_WIZARD_ENTITIES",
-       (container_pointer_no_template) = "WizardView<WizardEntityField, WizardEntityRow>"];
-  repeated WizardInputField inputs = 4
-      [(field_ifdef) = "USE_API_WIZARD_INPUTS",
-       (container_pointer_no_template) = "WizardView<WizardInputField, WizardInputRow>"];
-}
-
-// The pages are fixed at compile time and are shown in the order they are listed here.
 message DeviceWizardResponse {
   option (id) = 157;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_API_WIZARD";
+  // Not logged: the data is in flash, which ESP8266 cannot read for a dump
+  option (log) = false;
 
-  repeated WizardPage pages = 1 [(container_pointer_no_template) = "WizardView<WizardPage, WizardPageRow>"];
+  // The data is in flash, and the device sends it from there
+  bytes data = 1 [(pointer_to_buffer) = true];
 }
 
 // Sets the entity id of a wizard input (see WizardInputField.key). Clients send
