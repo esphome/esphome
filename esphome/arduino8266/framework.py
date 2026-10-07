@@ -24,9 +24,10 @@ from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
 from esphome.platformio.registry import (
     Download,
+    PackageSpec,
     Resolver,
     get_systype,
-    install_package,
+    install_packages,
     prefetch_packages,
 )
 
@@ -151,14 +152,14 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
     toolchain_path = get_toolchain_path()
     # One spec per package: the prefetch and the installs must agree
     specs = (
-        (
+        PackageSpec(
             FRAMEWORK_PACKAGE,
             release.tag,
             framework_path,
             ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
             ("cores/esp8266", "tools/sdk", "libraries"),
         ),
-        (
+        PackageSpec(
             TOOLCHAIN_PACKAGE,
             TOOLCHAIN_VERSION,
             toolchain_path,
@@ -174,18 +175,10 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
         resolvers[FRAMEWORK_PACKAGE] = release.download
     if not ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS:
         resolvers[TOOLCHAIN_PACKAGE] = toolchain_download
-    # Fetch both archives at once; the installs below verify and extract
-    prefetch_packages([spec[:4] for spec in specs], downloads_dir, resolvers)
-    for name, version, dest, mirrors, expect in specs:
-        install_package(
-            name,
-            version,
-            dest,
-            mirrors,
-            downloads_dir,
-            expect=expect,
-            resolve=resolvers.get(name),
-        )
+    # Fetch both archives at once; the installs verify and extract them.
+    # One spec list for both, so the two phases cannot drift.
+    prefetch_packages(specs, downloads_dir, resolvers)
+    install_packages(specs, downloads_dir, resolvers)
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
     )
