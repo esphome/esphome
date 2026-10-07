@@ -1,0 +1,30 @@
+esphome:
+  name: ir-rf-transmit-complete-test
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+remote_transmitter_mock:
+  - id: rf_tx
+  - id: ir_tx
+
+# two entities on one transmitter: each must get only its own completion
+radio_frequency:
+  - platform: ir_rf_proxy
+    name: RF Transmitter A
+    remote_transmitter_id: rf_tx
+  - platform: ir_rf_proxy
+    name: RF Transmitter B
+    remote_transmitter_id: rf_tx
+
+infrared:
+  - platform: ir_rf_proxy
+    name: IR Transmitter
+    remote_transmitter_id: ir_tx
