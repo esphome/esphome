@@ -37,3 +37,5 @@ def test_packet_data_length_limit() -> None:
         validate_packet_data([0x01] * 256)
     with pytest.raises(cv.Invalid):
         validate_packet_data("x" * 256)
+    with pytest.raises(cv.Invalid):
+        validate_packet_data([])

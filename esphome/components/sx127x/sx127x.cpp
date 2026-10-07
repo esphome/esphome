@@ -250,7 +250,7 @@ size_t SX127x::get_max_packet_size() {
     return this->payload_length_;
   }
   if (this->modulation_ == MOD_LORA) {
-    return 256;
+    return 255;  // the payload length register is 8 bits
   } else {
     return 64;
   }
