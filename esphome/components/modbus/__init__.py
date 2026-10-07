@@ -47,7 +47,6 @@ MULTI_CONF = True
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_MODBUS_ID = "modbus_id"
-CONF_ON_REQUEST = "on_request"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
@@ -187,8 +186,25 @@ def synchronous_handler(component: str) -> Callable[[ConfigType], ConfigType]:
     return validator
 
 
-# The PDU is handed over undecoded, as a span that dies when the handler returns.
-_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+# A PDU handed to an automation undecoded, as a span that dies when the handler returns.
+PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+
+# Each hub holds the on_request callbacks of the blocks attached to it. The count is the most on any one hub.
+_request_on_request_slot = cg.slot_counter("MODBUS_ON_REQUEST_COUNT")
+
+
+async def register_on_request_automation(hub: MockObj, config: ConfigType) -> None:
+    """Run an automation for every request the hub reads (server) or sends (client).
+
+    The callback storage on the hubs is compiled in only when an automation is attached.
+    """
+    _request_on_request_slot(str(hub))
+    await automation.build_callback_automation(
+        hub,
+        "add_on_request_callback",
+        [(cg.uint8, "address"), (PDU_SPAN, "request_pdu")],
+        config,
+    )
 
 
 def reject_inapplicable_command_options(
@@ -310,10 +326,6 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusServer),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-                cv.Optional(CONF_ON_REQUEST): cv.All(
-                    automation.validate_automation(single=True),
-                    synchronous_handler("modbus"),
-                ),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -338,14 +350,6 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
-
-    if on_request := config.get(CONF_ON_REQUEST):
-        await automation.build_callback_automation(
-            var,
-            "add_on_request_callback",
-            [(cg.uint8, "address"), (_PDU_SPAN, "request_pdu")],
-            on_request,
-        )
 
 
 # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),

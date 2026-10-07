@@ -318,11 +318,11 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   // Clear before processing: process_modbus_client_frame_ dispatches to a server device which sends
   // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
   // This requires copying the frame data to a local buffer beforehand.
-  uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
-  uint16_t data_len = frame_length - 2 - data_offset;
-  uint8_t data_buffer[MAX_FRAME_SIZE] = {};
-  std::memcpy(data_buffer, this->rx_buffer_.data() + data_offset, data_len);
-  std::span<const uint8_t> data(data_buffer, data_len);
+  const uint16_t pdu_len = frame_length - 3;  // less the address byte and the CRC
+  uint8_t pdu_buffer[MAX_PDU_SIZE] = {};
+  std::memcpy(pdu_buffer, this->rx_buffer_.data() + 1, pdu_len);
+  const std::span<const uint8_t> pdu(pdu_buffer, pdu_len);
+  const std::span<const uint8_t> data = pdu.subspan(1);  // after the function code
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
   if (address == BROADCAST_ADDRESS) {
@@ -331,6 +331,10 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   } else {
     this->process_modbus_client_frame_(address, function_code, data);
   }
+#ifdef MODBUS_ON_REQUEST_COUNT
+  // After the dispatch: a local device has answered, or the reply of another device is expected.
+  this->request_callback_.call(address, pdu);
+#endif
 
   return true;
 }
@@ -512,22 +516,11 @@ void ModbusServerHub::assemble_registers_(std::span<const uint8_t> values, Regis
   }
 }
 
-void ModbusServerHub::hand_to_on_request_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) {
-  if (this->request_callback_.empty())
-    return;
-  uint8_t pdu[MAX_PDU_SIZE];
-  pdu[0] = function_code;
-  std::memcpy(pdu + 1, data.data(), data.size());
-  ESP_LOGV(TAG, "Request to %" PRIu8 " handed to on_request", address);
-  this->request_callback_.call(address, std::span<const uint8_t>(pdu, data.size() + 1));
-}
-
 void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) {
   // Broadcasts are only meaningful for writes and are never answered (Modbus 4.1 / 6.12), so an unsupported
   // function code or a validation failure is silently dropped instead of replying with an exception. Both
   // register writes (FC 0x06/0x10) and coil writes (FC 0x05/0x0F) are broadcastable by spec, and each shares
   // its parser with the addressed path so a broadcast is validated exactly as the unicast form would be.
-  this->hand_to_on_request_(BROADCAST_ADDRESS, function_code, data);
   uint16_t start_address;
   RegisterValues registers;
   uint16_t coil_count = 0;
@@ -625,10 +618,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                                                    std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
-    // Set before the handler runs, so an answer sent from it can clear the expectation.
     this->expecting_peer_response_ = address;
     ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
-    this->hand_to_on_request_(address, function_code, data);
     return;
   }
 
@@ -859,9 +850,14 @@ void ModbusClientHub::send_next_frame_() {
     ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected");
     cmd->complete_broadcast();
     this->sweep_needed_ = true;
-    return;
+  } else {
+    this->waiting_for_response_ = true;
   }
-  this->waiting_for_response_ = true;
+#ifdef MODBUS_ON_REQUEST_COUNT
+  // Once per frame on the wire, retries included. After the bookkeeping, so a request queued from the
+  // handler is not taken into a broadcast that has just been completed.
+  this->request_callback_.call(cmd->frame.address(), cmd->frame.pdu());
+#endif
 }
 
 void ModbusClientHub::dump_config() {

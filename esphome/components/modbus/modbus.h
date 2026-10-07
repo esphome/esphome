@@ -14,6 +14,7 @@
 #include <vector>
 #include <deque>
 #include <optional>
+#include <utility>
 
 namespace esphome::modbus {
 
@@ -59,6 +60,13 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual bool tx_blocked();
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+#ifdef MODBUS_ON_REQUEST_COUNT
+  /// Called with the address and the request PDU (function code first) of every request: each one a server hub
+  /// reads, each one a client hub sends, broadcasts included. The PDU is only valid during the call.
+  template<typename F> void add_on_request_callback(F &&callback) {
+    this->request_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
  protected:
   void receive_bytes_();
@@ -87,6 +95,9 @@ class Modbus : public uart::UARTDevice, public Component {
   GPIOPin *flow_control_pin_{nullptr};
 
   std::vector<uint8_t> rx_buffer_;
+#ifdef MODBUS_ON_REQUEST_COUNT
+  StaticCallbackManager<MODBUS_ON_REQUEST_COUNT, void(uint8_t, std::span<const uint8_t>)> request_callback_;
+#endif
 };
 
 class ModbusClientDevice;
@@ -320,22 +331,14 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
-  /// Called with the address and the request PDU (function code first) of a request to an address no
-  /// device here serves, and of every broadcast. The PDU is only valid during the call.
-  template<typename F> void add_on_request_callback(F &&callback) {
-    this->request_callback_.add(std::forward<F>(callback));
-  }
 
  protected:
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
-  // Dispatches a broadcast (address 0) write to every registered device and to on_request; broadcasts are never
-  // answered.
+  // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
   void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
-  // Passes the request as a PDU (function code first) to the on_request callbacks, if any.
-  void hand_to_on_request_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
   // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the address order register
   // values, validating the register count and address range. Shared by unicast and broadcast writes.
   ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);
@@ -375,7 +378,6 @@ class ModbusServerHub : public Modbus {
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
-  LazyCallbackManager<void(uint8_t, std::span<const uint8_t>)> request_callback_;
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
   // Only one server reply can be waiting at once, so a single fixed buffer avoids heap allocation.
@@ -402,6 +404,7 @@ class ModbusServerHub : public Modbus {
 /// - Callbacks are delivered only from within loop().
 /// - At most one callback is ever issued between calls to sweep_():
 ///     sweep_ -> parse (response OR error) OR timeout (no_response) -> sweep_ -> send (sent) -> sweep_ (next loop)
+///   The hub's own on_request callbacks run in the send step right after on_sent; they are not device callbacks.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
