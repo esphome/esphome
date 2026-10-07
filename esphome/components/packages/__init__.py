@@ -54,7 +54,8 @@ class RemotePackageSource:
 class PackagesData:
     """Per-run package state, keyed under DOMAIN in CORE.data."""
 
-    remote_sources: list[RemotePackageSource] = field(default_factory=list)
+    # Insertion-ordered and de-duplicated
+    remote_sources: dict[RemotePackageSource, None] = field(default_factory=dict)
 
 
 def _get_data() -> PackagesData:
@@ -63,15 +64,15 @@ def _get_data() -> PackagesData:
     return CORE.data[DOMAIN]
 
 
-def get_remote_package_sources() -> list[RemotePackageSource]:
+def get_remote_package_sources() -> tuple[RemotePackageSource, ...]:
     """Remote sources fetched while processing this config, in fetch order.
 
     Consumers (e.g. store_yaml) use this to tell which parts of the config
     came from remote repositories rather than local files.
     """
     if (data := CORE.data.get(DOMAIN)) is None:
-        return []
-    return list(data.remote_sources)
+        return ()
+    return tuple(data.remote_sources)
 
 
 # Guard against infinite include chains (e.g. A includes B includes A).
@@ -227,10 +228,9 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
-    source = RemotePackageSource(config[CONF_URL], config.get(CONF_REF))
-    remote_sources = _get_data().remote_sources
-    if source not in remote_sources:
-        remote_sources.append(source)
+    _get_data().remote_sources[
+        RemotePackageSource(config[CONF_URL], config.get(CONF_REF))
+    ] = None
     files: list[dict[str, Any]] = []
 
     # ``repo_root`` is the directory containing ``.git`` and must be passed

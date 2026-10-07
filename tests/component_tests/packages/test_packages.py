@@ -618,7 +618,7 @@ def test_package_remove_by_missing_id() -> None:
 
 def test_get_remote_package_sources_empty_without_remote_packages() -> None:
     """A config without remote packages records no sources."""
-    assert get_remote_package_sources() == []
+    assert get_remote_package_sources() == ()
 
 
 @patch("esphome.yaml_util.load_yaml")
@@ -652,8 +652,6 @@ def test_get_remote_package_sources_records_each_fetch_once(
     }
     packages_pass(config)
 
-    sources = get_remote_package_sources()
-    sources.clear()
     sources = get_remote_package_sources()
     assert sorted(sources, key=lambda source: source.url) == [
         RemotePackageSource("https://github.com/esphome/repo-a", "main"),

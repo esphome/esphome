@@ -166,22 +166,23 @@ class RawApiClient:
         loop = asyncio.get_running_loop()
         await loop.sock_sendall(self._sock, encode_frame(msg_type, payload))
 
+    async def _recv_once(self) -> None:
+        data = await asyncio.get_running_loop().sock_recv(self._sock, _READ_CHUNK)
+        assert data, "server closed the connection unexpectedly"
+        self.bytes_received += len(data)
+        self.frame_counts.update(self._parser.feed(data))
+
     async def read_until_frame(self, msg_type: int, timeout: float = 10.0) -> None:
         """Read until at least one frame of msg_type has been received."""
-        loop = asyncio.get_running_loop()
 
         async def _read_loop() -> None:
             while not self.frame_counts[msg_type]:
-                data = await loop.sock_recv(self._sock, _READ_CHUNK)
-                assert data, "server closed the connection unexpectedly"
-                self.bytes_received += len(data)
-                self.frame_counts.update(self._parser.feed(data))
+                await self._recv_once()
 
         await asyncio.wait_for(_read_loop(), timeout)
 
     async def read_frame(self, msg_type: int, timeout: float = 10.0) -> bytes:
         """Return the payload of the next frame of msg_type, dropping other frames before it."""
-        loop = asyncio.get_running_loop()
         frames = self._parser.frames
 
         async def _read_loop() -> bytes:
@@ -190,10 +191,7 @@ class RawApiClient:
                     frame_type, payload = frames.popleft()
                     if frame_type == msg_type:
                         return payload
-                data = await loop.sock_recv(self._sock, _READ_CHUNK)
-                assert data, "server closed the connection unexpectedly"
-                self.bytes_received += len(data)
-                self.frame_counts.update(self._parser.feed(data))
+                await self._recv_once()
 
         return await asyncio.wait_for(_read_loop(), timeout)
 
