@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
@@ -19,10 +20,14 @@ async def test_branch_resume_async(
     lines: list[str] = []
     waiters: list[tuple[str, asyncio.Future[None]]] = []
 
+    def has_marker(text: str, line: str) -> bool:
+        # Whole markers only: "after-if" must not match "queued-after-if-1"
+        return re.search(rf"(?<![\w-]){re.escape(text)}(?![\w-])", line) is not None
+
     def check_output(line: str) -> None:
         lines.append(line)
         for text, future in waiters:
-            if text in line and not future.done():
+            if has_marker(text, line) and not future.done():
                 future.set_result(None)
 
     def wait_for(text: str) -> asyncio.Future[None]:
@@ -31,7 +36,7 @@ async def test_branch_resume_async(
         return future
 
     def count(text: str) -> int:
-        return sum(text in line for line in lines)
+        return sum(has_marker(text, line) for line in lines)
 
     async with (
         run_compiled(yaml_config, line_callback=check_output),
@@ -75,7 +80,8 @@ async def test_branch_resume_async(
         assert count("nested-if-in-while-3") == 0
         assert count("after-nested-while") == 1
 
-        # Stop mid-delay: the body and the line after the loop never run; a fresh run then completes
+        # Stop during the second iteration's delay: that iteration and the line after the loop never run;
+        # a fresh run then completes
         done = wait_for("stop-while-done")
         await client.execute_service(service["run_stop_mid_while"], {})
         await asyncio.wait_for(done, timeout=3.0)
