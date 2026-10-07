@@ -13,6 +13,15 @@ VirtualUARTComponent::VirtualUARTComponent(uint16_t rx_buffer_size) {
 }
 
 bool VirtualUARTComponent::inject_rx(const uint8_t *data, size_t len) {
+  if (this->rx_sink_ != nullptr) {
+    if (this->in_rx_sink_) {
+      return false;
+    }
+    this->in_rx_sink_ = true;
+    this->rx_sink_->on_block(data, len);
+    this->in_rx_sink_ = false;
+    return true;
+  }
   if (len > static_cast<size_t>(this->rx_.capacity() - this->rx_.size())) {
     return false;
   }
