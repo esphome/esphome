@@ -23,6 +23,7 @@ enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_TTL = 0,
   SERIAL_PROXY_PORT_TYPE_RS232 = 1,
   SERIAL_PROXY_PORT_TYPE_RS485 = 2,
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3,
 };
 enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -371,7 +372,17 @@ enum SerialProxyMode : uint32_t {
   SERIAL_PROXY_MODE_RAW = 0,
   SERIAL_PROXY_MODE_PROTOCOL = 1,
 };
+enum SerialProxyIdentitySource : uint32_t {
+  SERIAL_PROXY_IDENTITY_SOURCE_NONE = 0,
+  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1,
+  SERIAL_PROXY_IDENTITY_SOURCE_USB = 2,
+};
 #endif
+enum SerialProxyIdentityFlag : uint32_t {
+  SERIAL_PROXY_IDENTITY_FLAG_NONE = 0,
+  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1,
+  SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2,
+};
 
 }  // namespace enums
 
@@ -709,10 +720,27 @@ class ZWaveProxyCapabilities final : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_API_WIZARD
+class WizardCapabilities final : public ProtoMessage {
+ public:
+  bool configured{false};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 class DeviceCapabilitiesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 150;
-  static constexpr uint8_t ESTIMATED_SIZE = 102;
+  static constexpr uint8_t ESTIMATED_SIZE = 119;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_capabilities_response"); }
 #endif
@@ -728,6 +756,9 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 #ifdef USE_SERIAL_PROXY
   std::array<SerialProxyInfo, SERIAL_PROXY_COUNT> serial_proxies{};
 #endif
+#ifdef USE_API_WIZARD
+  WizardCapabilities wizard{};
+#endif
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -740,6 +771,50 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 
  protected:
 };
+#ifdef USE_API_WIZARD
+class DeviceWizardResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 157;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("device_wizard_response"); }
+#endif
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+class WizardInputSetRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 158;
+  static constexpr uint8_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("wizard_input_set_request"); }
+#endif
+  uint32_t key{0};
+  StringRef entity_id{};
+  void decode(const uint8_t *buffer, size_t length) {
+    ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
+  }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
+};
+#endif
 class ListEntitiesDoneResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 19;
@@ -3681,7 +3756,7 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  protected:
 };
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 136;
@@ -3721,6 +3796,30 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
 #endif
   uint32_t key{0};
   const std::vector<int32_t> *timings{};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class InfraredRFTransmitCompleteResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 153;
+  static constexpr uint8_t ESTIMATED_SIZE = 11;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("infrared_rf_transmit_complete_response"); }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  uint32_t key{0};
+  bool success{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -3948,6 +4047,50 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
 
  protected:
   static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
+};
+class UsbDeviceDescriptor final : public ProtoMessage {
+ public:
+  uint32_t vendor_id{0};
+  uint32_t product_id{0};
+  uint32_t bcd_device{0};
+  uint32_t interface_number{0};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class SerialProxyIdentity final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 155;
+  static constexpr uint8_t ESTIMATED_SIZE = 54;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_identity"); }
+#endif
+  uint32_t instance{0};
+  enums::SerialProxyIdentitySource source{};
+  uint32_t flags{0};
+  StringRef manufacturer{nullptr, 0};   // null until set, encode only
+  StringRef product{nullptr, 0};        // null until set, encode only
+  StringRef serial_number{nullptr, 0};  // null until set, encode only
+  UsbDeviceDescriptor usb{};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS

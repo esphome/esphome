@@ -20,6 +20,7 @@ from esphome.automation import (
     has_non_synchronous_actions,
     literal_with_length,
     maybe_simple_id,
+    progmem_bytes,
     register_apply_action,
     register_apply_condition,
     register_bare_action,
@@ -28,6 +29,7 @@ from esphome.automation import (
     register_parented_condition,
     register_simple_action,
     register_simple_condition,
+    templatable_bytes,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -989,3 +991,48 @@ async def test_apply_condition_string_lambda_paths(
     text = _apply_definition(mock_cg)
     assert expected in text
     assert ("-> std::string {" in text) is called
+
+
+def test_progmem_bytes_shares_equal_payloads() -> None:
+    CORE.config = {}
+    a = progmem_bytes("payload", [1, 2])
+    b = progmem_bytes("payload", b"\x01\x02")
+    assert a is b
+    assert str(progmem_bytes("payload", [])) == "nullptr"
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_static_payload() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    await templatable_bytes(
+        [0xA1, 0x02], [], var.set_code_template, var.set_code_static, "payload"
+    )
+    assert "act->set_code_static(payload, 2);" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_lambda_payload() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    await templatable_bytes(
+        Lambda("return {0x01, 0x02};"),
+        [],
+        var.set_code_template,
+        var.set_code_static,
+        "payload",
+    )
+    text = CORE.cpp_main_section
+    assert "act->set_code_template(" in text
+    assert "-> std::vector<uint8_t>" in text
+    assert "set_code_static" not in text
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_rejects_oversized_payload() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    with pytest.raises(EsphomeError, match="maximum is 65535"):
+        await templatable_bytes(
+            [0] * 0x10000, [], var.set_code_template, var.set_code_static, "payload"
+        )
