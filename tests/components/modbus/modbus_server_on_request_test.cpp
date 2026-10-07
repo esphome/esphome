@@ -46,6 +46,7 @@ class ServerOnRequest : public ::testing::Test {
 };
 
 constexpr uint8_t READ[] = {0x03, 0x00, 0x10, 0x00, 0x01};
+constexpr uint8_t READ_REPLY[] = {0x03, 0x02, 0x00, 0x2A};
 constexpr uint8_t WRITE_1[] = {0x06, 0x00, 0x10, 0x00, 0x01};
 constexpr uint8_t WRITE_2[] = {0x06, 0x00, 0x10, 0x00, 0x02};
 
@@ -61,16 +62,26 @@ TEST_F(ServerOnRequest, RequestToAnUnservedAddressIsHandedOver) {
   EXPECT_TRUE(this->uart_.written.empty());
 }
 
-// A single write and its reply have the same shape. With a handler set, the second write is not taken
-// for a reply from another device on the bus.
-TEST_F(ServerOnRequest, TwoSingleWritesInARowAreBothHandedOver) {
+// The hub still expects the other device's reply: the reply is not handed over as a request, and the next
+// request is. A single write and its reply have the same shape, so this also covers two writes in a row.
+TEST_F(ServerOnRequest, PeerReplyIsNotHandedOver) {
   this->listen_();
   this->uart_.inject_frame(0x05, WRITE_1);
+  this->uart_.inject_frame(0x05, WRITE_1);  // the other device's reply
   this->uart_.inject_frame(0x05, WRITE_2);
   this->hub_.loop();
   ASSERT_EQ(this->seen_.size(), 2u);
   EXPECT_EQ(this->seen_[0].pdu, std::vector<uint8_t>(std::begin(WRITE_1), std::end(WRITE_1)));
   EXPECT_EQ(this->seen_[1].pdu, std::vector<uint8_t>(std::begin(WRITE_2), std::end(WRITE_2)));
+}
+
+TEST_F(ServerOnRequest, PeerReadReplyIsNotHandedOver) {
+  this->listen_();
+  this->uart_.inject_frame(0x05, READ);
+  this->uart_.inject_frame(0x05, READ_REPLY);
+  this->hub_.loop();
+  ASSERT_EQ(this->seen_.size(), 1u);
+  EXPECT_EQ(this->seen_[0].pdu, std::vector<uint8_t>(std::begin(READ), std::end(READ)));
 }
 
 TEST_F(ServerOnRequest, ServedAddressIsAnsweredHere) {
@@ -83,11 +94,14 @@ TEST_F(ServerOnRequest, ServedAddressIsAnsweredHere) {
   EXPECT_FALSE(this->uart_.written.empty());
 }
 
-TEST_F(ServerOnRequest, BroadcastIsNotHandedOver) {
+TEST_F(ServerOnRequest, BroadcastIsHandedOver) {
   this->listen_();
   this->uart_.inject_frame(BROADCAST_ADDRESS, WRITE_1);
   this->hub_.loop();
-  EXPECT_TRUE(this->seen_.empty());
+  ASSERT_EQ(this->seen_.size(), 1u);
+  EXPECT_EQ(this->seen_[0].address, BROADCAST_ADDRESS);
+  EXPECT_EQ(this->seen_[0].pdu, std::vector<uint8_t>(std::begin(WRITE_1), std::end(WRITE_1)));
+  EXPECT_TRUE(this->uart_.written.empty());
 }
 
 }  // namespace esphome::modbus::testing

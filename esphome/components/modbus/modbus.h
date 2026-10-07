@@ -321,8 +321,7 @@ class ModbusServerHub : public Modbus {
   void dump_config() override;
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
   /// Called with the address and the request PDU (function code first) of a request to an address no
-  /// device here serves. The PDU is only valid during the call. While a callback is set, the hub does not
-  /// wait for another device on the bus to answer such a request.
+  /// device here serves, and of every broadcast. The PDU is only valid during the call.
   template<typename F> void add_on_request_callback(F &&callback) {
     this->request_callback_.add(std::forward<F>(callback));
   }
@@ -334,6 +333,8 @@ class ModbusServerHub : public Modbus {
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
   void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
+  // Passes the request as a PDU (function code first) to the on_request callbacks, if any.
+  void hand_to_on_request_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
   // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the address order register
   // values, validating the register count and address range. Shared by unicast and broadcast writes.
   ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);

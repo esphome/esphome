@@ -512,11 +512,22 @@ void ModbusServerHub::assemble_registers_(std::span<const uint8_t> values, Regis
   }
 }
 
+void ModbusServerHub::hand_to_on_request_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) {
+  if (this->request_callback_.empty())
+    return;
+  uint8_t pdu[MAX_PDU_SIZE];
+  pdu[0] = function_code;
+  std::memcpy(pdu + 1, data.data(), data.size());
+  ESP_LOGV(TAG, "Request to %" PRIu8 " handed to on_request", address);
+  this->request_callback_.call(address, std::span<const uint8_t>(pdu, data.size() + 1));
+}
+
 void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) {
   // Broadcasts are only meaningful for writes and are never answered (Modbus 4.1 / 6.12), so an unsupported
   // function code or a validation failure is silently dropped instead of replying with an exception. Both
   // register writes (FC 0x06/0x10) and coil writes (FC 0x05/0x0F) are broadcastable by spec, and each shares
   // its parser with the addressed path so a broadcast is validated exactly as the unicast form would be.
+  this->hand_to_on_request_(BROADCAST_ADDRESS, function_code, data);
   uint16_t start_address;
   RegisterValues registers;
   uint16_t coil_count = 0;
@@ -614,15 +625,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                                                    std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
-    if (!this->request_callback_.empty()) {
-      // Whoever handles the request answers it, so no reply from a peer is expected.
-      uint8_t pdu[MAX_PDU_SIZE];
-      pdu[0] = function_code;
-      std::memcpy(pdu + 1, data.data(), data.size());
-      ESP_LOGV(TAG, "Request to %" PRIu8 " handed to on_request", address);
-      this->request_callback_.call(address, std::span<const uint8_t>(pdu, data.size() + 1));
-      return;
-    }
+    this->hand_to_on_request_(address, function_code, data);
     this->expecting_peer_response_ = address;
     ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
     return;
