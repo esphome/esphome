@@ -6722,7 +6722,10 @@ def test_warn_if_intel_macos(
 ) -> None:
     """Only Intel Python on macOS gets the end of support warning."""
     monkeypatch.setattr(main, "IS_MACOS", is_macos)
-    monkeypatch.setattr(main.os, "uname", lambda: SimpleNamespace(machine=machine))
+    # os.uname does not exist on Windows.
+    monkeypatch.setattr(
+        main.os, "uname", lambda: SimpleNamespace(machine=machine), raising=False
+    )
 
     with caplog.at_level(logging.WARNING):
         main._warn_if_intel_macos()
