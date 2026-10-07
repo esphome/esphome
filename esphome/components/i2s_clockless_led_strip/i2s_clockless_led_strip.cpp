@@ -87,65 +87,60 @@ void I2SClocklessLedStrip::setup() {
   esp_err_t err = i2s_new_channel(&chan_config, &this->tx_handle_, NULL);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Error in i2s_new_channel: %s", esp_err_to_name(err));
-    this->mark_failed(LOG_STR(ERROR_I2S));
-    return;
+  } else {
+    i2s_tdm_config_t tdm_config = {
+        .clk_cfg =
+            {
+                .sample_rate_hz = I2S_SAMPLE_RATE_HZ,
+                .clk_src = I2S_CLK_SRC_DEFAULT,
+                .mclk_multiple = I2S_MCLK_MULTIPLE_384,
+            },
+        .slot_cfg =
+            {
+                .data_bit_width = I2S_DATA_BIT_WIDTH_24BIT,
+                .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                .slot_mode = I2S_SLOT_MODE_MONO,
+                .slot_mask = I2S_TDM_SLOT0,
+                .ws_width = 1,
+                .big_endian = true,
+                .total_slot = I2S_TDM_AUTO_SLOT_NUM,
+            },
+        .gpio_cfg =
+            {
+                .mclk = I2S_GPIO_UNUSED,
+                .bclk = I2S_GPIO_UNUSED,
+                .ws = I2S_GPIO_UNUSED,
+                .dout = gpio_num_t(this->pin_),
+                .din = I2S_GPIO_UNUSED,
+                .invert_flags =
+                    {
+                        .mclk_inv = false,
+                        .bclk_inv = false,
+                        .ws_inv = false,
+                    },
+            },
+    };
+    err = i2s_channel_init_tdm_mode(this->tx_handle_, &tdm_config);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Error in i2s_channel_init_tdm_mode: %s", esp_err_to_name(err));
+    } else {
+      i2s_event_callbacks_t event_callbacks = {
+          .on_sent = i2s_on_sent_callback,
+      };
+      err = i2s_channel_register_event_callback(this->tx_handle_, &event_callbacks, this);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error in i2s_channel_register_event_callback: %s", esp_err_to_name(err));
+      } else {
+        err = i2s_channel_enable(this->tx_handle_);
+        if (err == ESP_OK)
+          return;  // Success!
+        ESP_LOGE(TAG, "Error in i2s_channel_enable: %s", esp_err_to_name(err));
+      }
+    }
+    i2s_del_channel(this->tx_handle_);
+    this->tx_handle_ = {};
   }
-
-  i2s_tdm_config_t tdm_config = {
-      .clk_cfg =
-          {
-              .sample_rate_hz = I2S_SAMPLE_RATE_HZ,
-              .clk_src = I2S_CLK_SRC_DEFAULT,
-              .mclk_multiple = I2S_MCLK_MULTIPLE_384,
-          },
-      .slot_cfg =
-          {
-              .data_bit_width = I2S_DATA_BIT_WIDTH_24BIT,
-              .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-              .slot_mode = I2S_SLOT_MODE_MONO,
-              .slot_mask = I2S_TDM_SLOT0,
-              .ws_width = 1,
-              .big_endian = true,
-              .total_slot = I2S_TDM_AUTO_SLOT_NUM,
-          },
-      .gpio_cfg =
-          {
-              .mclk = I2S_GPIO_UNUSED,
-              .bclk = I2S_GPIO_UNUSED,
-              .ws = I2S_GPIO_UNUSED,
-              .dout = gpio_num_t(this->pin_),
-              .din = I2S_GPIO_UNUSED,
-              .invert_flags =
-                  {
-                      .mclk_inv = false,
-                      .bclk_inv = false,
-                      .ws_inv = false,
-                  },
-          },
-  };
-  err = i2s_channel_init_tdm_mode(this->tx_handle_, &tdm_config);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error in i2s_channel_init_tdm_mode: %s", esp_err_to_name(err));
-    this->mark_failed(LOG_STR(ERROR_I2S));
-    return;
-  }
-
-  i2s_event_callbacks_t event_callbacks = {
-      .on_sent = i2s_on_sent_callback,
-  };
-  err = i2s_channel_register_event_callback(this->tx_handle_, &event_callbacks, this);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error in i2s_channel_register_event_callback: %s", esp_err_to_name(err));
-    this->mark_failed(LOG_STR(ERROR_I2S));
-    return;
-  }
-
-  err = i2s_channel_enable(this->tx_handle_);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Error in i2s_channel_enable: %s", esp_err_to_name(err));
-    this->mark_failed(LOG_STR(ERROR_I2S));
-    return;
-  }
+  this->mark_failed(LOG_STR(ERROR_I2S));
 }
 
 bool I2SClocklessLedStrip::allocate_buffers_() {
