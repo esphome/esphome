@@ -26,8 +26,9 @@ void MirageProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t
   dst->mark(BIT_MARK_US);
   uint8_t checksum = 0;
   for (size_t i = 0; i < len; i++) {
-    this->encode_byte_(dst, data[i]);
-    checksum += (data[i] >> 4) + (data[i] & 0xF);
+    const uint8_t item = data[i];
+    this->encode_byte_(dst, item);
+    checksum += (item >> 4) + (item & 0xF);
   }
   this->encode_byte_(dst, checksum);
 }
