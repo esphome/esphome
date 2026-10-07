@@ -292,8 +292,8 @@ BASE_PROPS = {
         "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
     ).several_of,
     "text_font": lv_font,
-    "text_letter_space": lvalid.lv_positive_int,
-    "text_line_space": lvalid.lv_positive_int,
+    "text_letter_space": lvalid.lv_int,
+    "text_line_space": lvalid.lv_int,
     "text_opa": lvalid.opacity,
     "text_outline_stroke_color": lvalid.lv_color,
     "text_outline_stroke_opa": lvalid.opacity,
@@ -670,11 +670,7 @@ def theme_update_schema(value: dict) -> dict:
     for w_name, style in validated.items():
         for part, states in collect_parts(style).items():
             for state, props in states.items():
-                # collect_parts() unconditionally seeds a main/default entry
-                # even when nothing was set for it (e.g. `{pressed: {...}}`
-                # alone) -- skip combos with no properties so a request for
-                # one state doesn't also create an unused, empty main/default
-                # style that gets attached to every widget of this type.
+                # Skip states with no properties
                 if not props:
                     continue
                 df.get_theme_update_requests().setdefault(w_name, {})[(part, state)] = (
@@ -724,6 +720,26 @@ ALL_STYLES = {
     cv.Optional(df.CONF_PAD_ROW): lvalid.padding,
     cv.Optional(df.CONF_PAD_COLUMN): lvalid.padding,
 }
+
+
+def apply_style_driven_defines(props: set[str]) -> None:
+    """Given a set of style-property names in use, registers everything their use
+    drives: add_lv_use(image) if any of them is image-typed (per BASE_PROPS), and
+    the LV_COLOR_SCREEN_TRANSP / LV_DRAW_SW_SUPPORT_A8 defines. Shared between
+    __init__.py (driven by df.get_styles_used(), for statically-declared widgets)
+    and lv_list.py's _register_dynamic_widget_style_uses (driven by scanning a
+    dynamically-added widget's own config), so a future style-driven define added
+    to one can't be missed in the other.
+    """
+    # Local import: avoids a module-load-time cycle (widgets.img -> ... -> schemas).
+    from .widgets.img import CONF_IMAGE
+
+    if any(BASE_PROPS.get(prop) is lvalid.lv_image for prop in props):
+        df.add_lv_use(CONF_IMAGE)
+    if df.TRANSFORM_STYLE_PROPS & props:
+        df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
+    if df.DROP_SHADOW_STYLE_PROPS & props:
+        df.add_define("LV_DRAW_SW_SUPPORT_A8", "1")
 
 
 def strip_defaults(schema: cv.Schema):

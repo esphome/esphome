@@ -38,7 +38,8 @@ from esphome.const import (
     PLATFORM_NRF52,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 WAKEUP_PINS = {
@@ -162,6 +163,11 @@ def validate_config(config: ConfigType) -> ConfigType:
                     "You need to remove the global wakeup_pin_mode and define it per pin"
                 )
             if wakeup_pins:
+                if CONF_WAKEUP_PIN_MODE in wakeup_pins[0]:
+                    raise cv.Invalid(
+                        "Specify wakeup_pin_mode either at the top level under deep_sleep "
+                        "or under the pin entry, not both"
+                    )
                 wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
     elif (
         isinstance(config.get(CONF_WAKEUP_PIN), list)
@@ -174,7 +180,7 @@ def validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_ex1_wakeup_mode(value):
+def _validate_ex1_wakeup_mode(value: str) -> str:
     if value == "ALL_LOW":
         esp32.only_on_variant(supported=[VARIANT_ESP32], msg_prefix="ALL_LOW")(value)
     if value == "ANY_LOW":
@@ -208,16 +214,6 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
 EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
-PreventDeepSleepAction = deep_sleep_ns.class_(
-    "PreventDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
-AllowDeepSleepAction = deep_sleep_ns.class_(
-    "AllowDeepSleepAction",
-    automation.Action,
-    cg.Parented.template(DeepSleepComponent),
-)
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
 WAKEUP_PIN_MODES = {
@@ -345,7 +341,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -416,8 +412,12 @@ async def to_code(config):
 
     if CONF_TOUCH_WAKEUP in config:
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
-    if CORE.using_zephyr and "zigbee" not in CORE.loaded_integrations:
-        zephyr_add_prj_conf("POWEROFF", True)
+    if CORE.using_zephyr:
+        # Devices are suspended when CPU is entering a low power state
+        # https://github.com/nrfconnect/sdk-zephyr/blob/v3.7.99-ncs2-2/doc/services/pm/device.rst#system-managed-device-power-management
+        zephyr_add_prj_conf("PM_DEVICE", True)
+        if "zigbee" not in CORE.loaded_integrations:
+            zephyr_add_prj_conf("POWEROFF", True)
 
     cg.add_define("USE_DEEP_SLEEP")
 
@@ -458,7 +458,12 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
     DEEP_SLEEP_ENTER_SCHEMA,
     synchronous=True,
 )
-async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
+async def deep_sleep_enter_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_SLEEP_DURATION in config:
@@ -475,22 +480,15 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
-    "deep_sleep.prevent",
-    PreventDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-@automation.register_action(
-    "deep_sleep.allow",
-    AllowDeepSleepAction,
-    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
-    synchronous=True,
-)
-async def deep_sleep_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("deep_sleep.prevent", "prevent_deep_sleep()"),
+    ("deep_sleep.allow", "allow_deep_sleep()"),
+):
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
+        automation.ApplyCall(_call),
+    )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

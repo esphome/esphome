@@ -1,0 +1,23 @@
+# The deprecated rgb_order / is_rgbw / is_wrgb keys, kept working until 2027.3.0.
+# Config-only: each strip below must migrate to the channel_colors shown in the comment.
+light:
+  - platform: esp32_rmt_led_strip
+    id: legacy_rgb
+    pin: GPIO13
+    num_leds: 60
+    chipset: ws2812
+    rgb_order: GRB # -> GRB
+  - platform: esp32_rmt_led_strip
+    id: legacy_rgbw
+    pin: GPIO14
+    num_leds: 60
+    chipset: sk6812
+    rgb_order: GRB
+    is_rgbw: true # -> GRBW
+  - platform: esp32_rmt_led_strip
+    id: legacy_wrgb
+    pin: GPIO15
+    num_leds: 60
+    chipset: sk6812
+    rgb_order: GRB
+    is_wrgb: true # -> WGRB

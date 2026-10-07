@@ -3,7 +3,7 @@ esphome:
     then:
       - mixer_speaker.apply_ducking:
           id: source_speaker_1_id
-          decibel_reduction: 10
+          decibel_reduction: 255
           duration: 1s
 
 speaker:

@@ -129,14 +129,17 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 
 void ESPNowComponent::dump_config() {
-  uint32_t version = 0;
-  esp_now_get_version(&version);
-
   ESP_LOGCONFIG(TAG, "espnow:");
-  if (this->is_disabled()) {
-    ESP_LOGCONFIG(TAG, "  Disabled");
+  // Only report driver details once enabled; with enable_on_boot: false the
+  // Wi-Fi driver is not initialized yet and esp_now_get_version() would crash,
+  // and after a failed enable_() the values would be meaningless.
+  if (this->state_ != ESPNOW_STATE_ENABLED) {
+    // OFF here means enable_() failed; the core logs the FAILED marker separately
+    ESP_LOGCONFIG(TAG, "  %s", this->is_disabled() ? LOG_STR_LITERAL("Disabled") : LOG_STR_LITERAL("Not enabled"));
     return;
   }
+  uint32_t version = 0;
+  esp_now_get_version(&version);
   char own_addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(this->own_address_, own_addr_buf);
   ESP_LOGCONFIG(TAG,

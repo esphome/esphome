@@ -37,8 +37,6 @@ void DateEntity::publish_state() {
 #endif
 }
 
-DateCall DateEntity::make_call() { return DateCall(this); }
-
 void DateCall::validate_() {
   if (this->year_.has_value() && (this->year_ < 1970 || this->year_ > 3000)) {
     ESP_LOGE(TAG, "Year must be between 1970 and 3000");

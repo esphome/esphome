@@ -81,3 +81,40 @@ def test_read_file_bytes(tmp_path: Path) -> None:
     result = clang_tidy_hash.read_file_bytes(test_file)
 
     assert result == test_content
+
+
+def test_calculate_idedata_cache_hash_changes_with_infra_code(tmp_path: Path) -> None:
+    _populate(tmp_path)
+    infra = tmp_path / "esphome" / "espidf" / "clang_tidy.py"
+    infra.parent.mkdir(parents=True)
+    infra.write_text("a")
+    before = clang_tidy_hash.calculate_idedata_cache_hash(repo_root=tmp_path)
+    assert before == clang_tidy_hash.calculate_idedata_cache_hash(repo_root=tmp_path)
+    infra.write_text("b")
+    assert clang_tidy_hash.calculate_idedata_cache_hash(repo_root=tmp_path) != before
+
+
+def test_calculate_idedata_cache_hash_includes_listed_files(tmp_path: Path) -> None:
+    _populate(tmp_path)
+    before = clang_tidy_hash.calculate_idedata_cache_hash(repo_root=tmp_path)
+    listed = tmp_path / "esphome" / "platformio" / "library.py"
+    listed.parent.mkdir(parents=True)
+    listed.write_text("x")
+    assert clang_tidy_hash.calculate_idedata_cache_hash(repo_root=tmp_path) != before
+
+
+def test_idedata_cache_hash_only_widens_for_esp32(tmp_path: Path) -> None:
+    _populate(tmp_path)
+    infra = tmp_path / "esphome" / "espidf" / "clang_tidy.py"
+    infra.parent.mkdir(parents=True)
+    infra.write_text("a")
+    esp32_before = clang_tidy_hash.idedata_cache_hash("esp32-idf-tidy", tmp_path)
+    other_before = clang_tidy_hash.idedata_cache_hash("esp8266-arduino-tidy", tmp_path)
+    infra.write_text("b")
+    assert (
+        clang_tidy_hash.idedata_cache_hash("esp32-idf-tidy", tmp_path) != esp32_before
+    )
+    assert (
+        clang_tidy_hash.idedata_cache_hash("esp8266-arduino-tidy", tmp_path)
+        == other_before
+    )

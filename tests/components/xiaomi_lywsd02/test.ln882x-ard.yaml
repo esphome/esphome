@@ -1,0 +1,3 @@
+packages:
+  ln882h_ble_tracker: !include ../ln882h_ble_tracker/common.yaml
+  xiaomi_lywsd02: !include common-ln.yaml

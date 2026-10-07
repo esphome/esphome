@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -24,6 +25,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -179,7 +181,7 @@ CONF_ON_IMAGE = "on_image"
 camera_range_param = cv.int_range(min=-2, max=2)
 
 
-def validate_fb_location_(value):
+def validate_fb_location_(value: Any) -> MockObj:
     validator = cv.enum(ENUM_FB_LOCATION, upper=True)
     if value.lower() == psram_domain:
         validator = cv.All(validator, cv.requires_component(psram_domain))
@@ -310,7 +312,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     # Check psram requirement for non-JPEG formats
     if (
         config.get(CONF_PIXEL_FORMAT, "JPEG") != "JPEG"
@@ -368,7 +370,7 @@ SETTERS = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CAMERA")
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_entity(var, config, "camera")

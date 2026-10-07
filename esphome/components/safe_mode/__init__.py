@@ -12,6 +12,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import RawExpression
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
 
@@ -21,10 +22,9 @@ CONF_ON_SAFE_MODE = "on_safe_mode"
 
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
 SafeModeComponent = safe_mode_ns.class_("SafeModeComponent", cg.Component)
-MarkSuccessfulAction = safe_mode_ns.class_("MarkSuccessfulAction", automation.Action)
 
 
-def _remove_id_if_disabled(value):
+def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
     value = value.copy()
     if value[CONF_DISABLED]:
         value.pop(CONF_ID)
@@ -52,21 +52,15 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "safe_mode.mark_successful",
-    MarkSuccessfulAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SafeModeComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("mark_successful()"),
 )
-async def safe_mode_mark_successful_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(parent))
-    return var
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -75,7 +69,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 @coroutine_with_priority(CoroPriority.APPLICATION)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)

@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_DLMS_METER_ID, CONF_OBIS_CODE, DlmsMeterComponent, obis_code
 
@@ -47,7 +48,7 @@ DYNAMIC_SCHEMA = sensor.sensor_schema().extend(
 )
 
 
-def deprecation_warning(config):
+def deprecation_warning(config: ConfigType) -> ConfigType:
     _LOGGER.warning(
         "The dlms_meter sensor schema using predefined keys (e.g., 'voltage_l1') is deprecated and will be removed in 2026.11.0. "
         "Please update your configuration to use the new schema with 'obis_code'."
@@ -145,7 +146,7 @@ OLD_SCHEMA = cv.All(
 CONFIG_SCHEMA = cv.Any(DYNAMIC_SCHEMA, OLD_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DLMS_METER_ID])
 
     if obis := config.get(CONF_OBIS_CODE):

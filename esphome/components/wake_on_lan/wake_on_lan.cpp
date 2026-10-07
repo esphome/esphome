@@ -34,14 +34,19 @@ void WakeOnLanButton::press_action() {
   struct sockaddr_storage saddr {};
   auto addr_len =
       socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), "255.255.255.255", this->port_);
+  if (addr_len == 0) {
+    ESP_LOGW(TAG, "Invalid broadcast address");
+    return;
+  }
   uint8_t buffer[6 + sizeof this->macaddr_ * 16];
   memcpy(buffer, PREFIX, sizeof(PREFIX));
   for (size_t i = 0; i != 16; i++) {
     memcpy(buffer + i * sizeof(this->macaddr_) + sizeof(PREFIX), this->macaddr_, sizeof(this->macaddr_));
   }
   if (this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
-                                      addr_len) <= 0)
+                                      addr_len) <= 0) {
     ESP_LOGW(TAG, "sendto() error %d", errno);
+  }
 #else
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
   for (auto ip : esphome::network::get_ip_addresses()) {

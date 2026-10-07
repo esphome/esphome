@@ -11,9 +11,15 @@ static const char *const TAG = "udp";
 
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  for (const auto &address : this->addresses_) {
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     struct sockaddr saddr {};
-    socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_);
+    if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      // A dropped address silently receives nothing; surface the misconfiguration
+      this->status_set_warning(LOG_STR("invalid address"));
+      continue;
+    }
     this->sockaddrs_.push_back(saddr);
   }
   // set up broadcast socket
@@ -92,9 +98,14 @@ void UDPComponent::setup() {
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   // 8266 and RP2040 `Duino
-  for (const auto &address : this->addresses_) {
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     auto ipaddr = IPAddress();
-    ipaddr.fromString(address);
+    if (!ipaddr.fromString(address)) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      this->status_set_warning(LOG_STR("invalid address"));
+      continue;
+    }
     this->ipaddrs_.push_back(ipaddr);
   }
   if (this->should_listen_)
@@ -129,8 +140,10 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const char *address : this->addresses_)
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     ESP_LOGCONFIG(TAG, "  Address: %s", address);
+  }
   if (this->listen_address_.has_value()) {
     char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
     ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
@@ -145,8 +158,9 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &saddr : this->sockaddrs_) {
     auto result = this->broadcast_socket_->sendto(data, size, 0, &saddr, sizeof(saddr));
-    if (result < 0)
+    if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
+    }
   }
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
@@ -155,8 +169,9 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
     if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) != 0) {
       this->udp_client_.write(data, size);
       auto result = this->udp_client_.endPacket();
-      if (result == 0)
+      if (result == 0) {
         ESP_LOGW(TAG, "udp.write() error");
+      }
     }
   }
 #endif

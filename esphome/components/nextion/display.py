@@ -14,12 +14,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 
-from . import (  # noqa: F401  pylint: disable=unused-import
-    FILTER_SOURCE_FILES,
-    Nextion,
-    nextion_ns,
-    nextion_ref,
-)
+from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
@@ -59,11 +54,6 @@ def AUTO_LOAD() -> list[str]:
     if CORE.is_esp32:
         base.append("watchdog")
     return base
-
-
-NextionSetBrightnessAction = nextion_ns.class_(
-    "NextionSetBrightnessAction", automation.Action
-)
 
 
 def _deprecated_dump_device_info(value):
@@ -165,9 +155,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "display.nextion.set_brightness",
-    NextionSetBrightnessAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Nextion),
@@ -175,16 +164,9 @@ CONFIG_SCHEMA = cv.All(
         },
         key=CONF_BRIGHTNESS,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_BRIGHTNESS, "set_brightness", cg.float_),
+    automation.ApplyField(CONF_BRIGHTNESS, "set_backlight_brightness", cg.float_),
 )
-async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.float_)
-    cg.add(var.set_brightness(template_))
-
-    return var
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -290,7 +272,9 @@ async def to_code(config):
 
         if CORE.is_esp32:
             # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+            # and esp-tls, whose sdkconfig options below need the component present
             esp32.include_builtin_idf_component("esp_http_client")
+            esp32.include_builtin_idf_component("esp-tls")
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True

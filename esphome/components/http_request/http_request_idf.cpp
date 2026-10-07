@@ -2,6 +2,8 @@
 
 #ifdef USE_ESP32
 
+#include <cstring>
+
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
 
@@ -16,7 +18,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request.idf";
+static const char *const TAG = "http_request";
 static constexpr uint32_t ERROR_DURATION_MS = 1000;
 
 void HttpRequestIDF::dump_config() {
@@ -48,8 +50,7 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
   return ESP_OK;
 }
 
-std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, const std::string &method,
-                                                       const std::string &body,
+std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const char *method, const std::string &body,
                                                        const std::vector<Header> &request_headers,
                                                        const std::vector<std::string> &lower_case_collect_headers) {
   if (!network::is_connected()) {
@@ -59,15 +60,15 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   }
 
   esp_http_client_method_t method_idf;
-  if (method == "GET") {
+  if (strcmp(method, "GET") == 0) {
     method_idf = HTTP_METHOD_GET;
-  } else if (method == "POST") {
+  } else if (strcmp(method, "POST") == 0) {
     method_idf = HTTP_METHOD_POST;
-  } else if (method == "PUT") {
+  } else if (strcmp(method, "PUT") == 0) {
     method_idf = HTTP_METHOD_PUT;
-  } else if (method == "DELETE") {
+  } else if (strcmp(method, "DELETE") == 0) {
     method_idf = HTTP_METHOD_DELETE;
-  } else if (method == "PATCH") {
+  } else if (strcmp(method, "PATCH") == 0) {
     method_idf = HTTP_METHOD_PATCH;
   } else {
     this->status_momentary_error("failed", ERROR_DURATION_MS);
@@ -75,11 +76,11 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
     return nullptr;
   }
 
-  bool secure = url.find("https:") != std::string::npos;
+  bool secure = strstr(url, "https:") != nullptr;
 
   esp_http_client_config_t config = {};
 
-  config.url = url.c_str();
+  config.url = url;
   config.method = method_idf;
   config.timeout_ms = this->timeout_;
   config.disable_auto_redirect = !this->follow_redirects_;
@@ -142,12 +143,13 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
     const char *buf = body.c_str();
     while (write_left > 0) {
       int written = esp_http_client_write(client, buf + write_index, write_left);
-      if (written < 0) {
+      if (written <= 0) {
         err = ESP_FAIL;
         break;
       }
       write_left -= written;
       write_index += written;
+      container->feed_wdt();
     }
   }
 
@@ -196,6 +198,9 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
       }
 
       container->feed_wdt();
+      // IDF is the only backend reusing the container across redirect hops;
+      // drop the previous hop's headers (Arduino/host collect only the final response)
+      container->response_headers_.clear();
       container->content_length = esp_http_client_fetch_headers(client);
       container->set_chunked(esp_http_client_is_chunked_response(client));
       container->feed_wdt();
@@ -214,7 +219,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
     }
   }
 
-  ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
+  ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, container->status_code);
   this->status_momentary_error("failed", ERROR_DURATION_MS);
   return container;
 }

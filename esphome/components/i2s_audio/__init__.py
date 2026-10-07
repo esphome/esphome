@@ -21,8 +21,9 @@ from esphome.components.esp32.const import (
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
 from esphome.core import CORE
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
@@ -145,7 +146,7 @@ I2S_MCLK_MULTIPLE = {
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
-def validate_mclk_divisible_by_3(config):
+def validate_mclk_divisible_by_3(config: ConfigType) -> ConfigType:
     if config[CONF_BITS_PER_SAMPLE] == 24 and config[CONF_MCLK_MULTIPLE] % 3 != 0:
         raise cv.Invalid(
             f"{CONF_MCLK_MULTIPLE} must be divisible by 3 when bits per sample is 24"
@@ -159,7 +160,7 @@ def i2s_audio_component_schema(
     default_sample_rate: int,
     default_channel: str,
     default_bits_per_sample: str,
-):
+) -> cv.Schema:
     return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(class_),
@@ -182,7 +183,7 @@ def i2s_audio_component_schema(
     )
 
 
-async def register_i2s_audio_component(var, config):
+async def register_i2s_audio_component(var: MockObj, config: ConfigType) -> None:
     await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
     cg.add(var.set_i2s_role(I2S_ROLE_OPTIONS[config[CONF_I2S_MODE]]))
     slot_mode = config[CONF_CHANNEL]
@@ -260,7 +261,7 @@ def _assign_ports() -> None:
             next_port += 1
 
 
-def _final_validate(_):
+def _final_validate(_: ConfigType) -> None:
     i2s_audio_configs = fv.full_config.get()[CONF_I2S_AUDIO]
     variant = get_esp32_variant()
     if variant not in I2S_PORTS:
@@ -275,7 +276,7 @@ def _final_validate(_):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

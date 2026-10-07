@@ -33,8 +33,6 @@ void TimeEntity::publish_state() {
 #endif
 }
 
-TimeCall TimeEntity::make_call() { return TimeCall(this); }
-
 void TimeCall::validate_() {
   if (this->hour_.has_value() && this->hour_ > 23) {
     ESP_LOGE(TAG, "Hour must be between 0 and 23");
