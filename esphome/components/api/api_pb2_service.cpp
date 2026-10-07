@@ -628,7 +628,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
     case InfraredRFTransmitRawTimingsRequest::MESSAGE_TYPE: {
       InfraredRFTransmitRawTimingsRequest msg;
       msg.decode(msg_data, msg_size);
@@ -720,6 +720,15 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       this->log_receive_message_(LOG_STR("on_serial_proxy_set_mode_request"), msg);
 #endif
       this->on_serial_proxy_set_mode_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case 154 /* SubscribeSerialProxyIdentityRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_subscribe_serial_proxy_identity_request"));
+#endif
+      this->on_subscribe_serial_proxy_identity_request();
       break;
     }
 #endif
