@@ -569,7 +569,12 @@ def test_only_the_defines_the_wizard_needs_are_emitted(
 
 @pytest.mark.parametrize(
     ("entity", "bad_domain"),
-    [("ha_txt", "select"), ("ha_select", "text"), ("ha_button", "switch")],
+    [
+        ("ha_txt", "select"),
+        ("ha_select", "text"),
+        ("ha_button", "switch"),
+        ("ha_number", "sensor"),
+    ],
 )
 def test_text_select_and_button_inputs_keep_to_their_domains(
     tmp_path: Path, entity: str, bad_domain: str
@@ -584,7 +589,7 @@ def test_text_select_and_button_inputs_keep_to_their_domains(
     ), errors
 
 
-@pytest.mark.parametrize("entity", ["ha_txt", "ha_select", "ha_button"])
+@pytest.mark.parametrize("entity", ["ha_txt", "ha_select", "ha_button", "ha_number"])
 def test_text_select_and_button_filters_must_set_a_domain(
     tmp_path: Path, entity: str
 ) -> None:
@@ -594,6 +599,14 @@ def test_text_select_and_button_filters_must_set_a_domain(
     errors = config_errors(write_config(tmp_path, ESP32_HEADER, api))
 
     assert any("must set domain" in error for error in errors), errors
+
+
+def test_number_input_accepts_input_number(tmp_path: Path) -> None:
+    api = wizard_inputs(
+        "- entity: ha_number\n  target:\n    entity:\n      - domain: input_number"
+    )
+
+    assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
 
 
 def test_text_select_and_button_default_to_their_domains(
@@ -611,8 +624,8 @@ def test_text_select_and_button_default_to_their_domains(
     assert filters[fnv1_hash("ha_txt")] == [{"domain": ["input_text", "text"]}]
     assert filters[fnv1_hash("ha_button")] == [{"domain": ["button", "input_button"]}]
     assert filters[fnv1_hash("ha_select")] == [{"domain": ["input_select", "select"]}]
-    # A number only takes numbers, and the other sensors take anything
-    assert filters[fnv1_hash("ha_number")] == [{"domain": ["number"]}]
+    # A number takes number and input_number entities, and the other sensors take anything
+    assert filters[fnv1_hash("ha_number")] == [{"domain": ["input_number", "number"]}]
     assert filters[fnv1_hash("ha_binary")] is None
     for entity in ("ha_txt", "ha_select", "ha_button"):
         assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp

@@ -185,7 +185,7 @@ WIZARD_INPUT_DOMAINS = (
     "text_sensor",
 )
 # Platforms that act on one family of Home Assistant domains, which the input's filters must stay within
-WIZARD_DOMAIN_LIMITED_PLATFORMS = ("button", "select", "switch", "text")
+WIZARD_DOMAIN_LIMITED_PLATFORMS = ("button", "number", "select", "switch", "text")
 
 
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
@@ -223,7 +223,7 @@ def _wizard_input_declaration(
 def _wizard_input_filters(
     conf: ConfigType, config: fv.FinalValidateConfig
 ) -> list[ConfigType]:
-    """The entity filters of an input, with the defaults of a linked switch or number."""
+    """The entity filters of an input, with the defaults of a domain limited linked platform."""
     if (filters := conf.get(CONF_TARGET, {}).get(CONF_ENTITY)) is not None:
         return filters
     if CONF_ENTITY in conf:
@@ -251,9 +251,6 @@ def _wizard_default_domains(domain: str) -> list[str] | None:
     if domain in WIZARD_DOMAIN_LIMITED_PLATFORMS:
         platform = importlib.import_module(f"esphome.components.homeassistant.{domain}")
         return list(platform.SUPPORTED_DOMAINS)
-    if domain == "number":
-        # The platform calls number.set_value, which input_number does not offer
-        return ["number"]
     return None
 
 
