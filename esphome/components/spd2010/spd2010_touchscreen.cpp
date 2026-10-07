@@ -34,6 +34,7 @@ static constexpr uint8_t HDP_STATUS_DONE = 0x82;
 static constexpr uint8_t HDP_STATUS_MORE = 0x00;
 
 static constexpr uint8_t MAX_CONTACT_ID = 0x0A;
+static constexpr uint8_t GESTURE_REPORT_ID = 0xF6;
 static constexpr size_t REPORT_HEADER_LENGTH = 4;
 static constexpr size_t CONTACT_LENGTH = 6;
 static constexpr size_t MAX_REPORT_LENGTH = REPORT_HEADER_LENGTH + 10 * CONTACT_LENGTH;
@@ -115,10 +116,13 @@ bool SPD2010Touchscreen::finish_report_() {
   return false;
 }
 
+// Returns true only when touch data was read correctly and should be published.
 bool SPD2010Touchscreen::read_data_() {
   uint8_t status[4];
-  if (!this->read_register_(REG_STATUS, status, sizeof(status)))
+  if (!this->read_register_(REG_STATUS, status, sizeof(status))) {
+    this->status_set_warning(LOG_STR("Failed to read status"));
     return false;
+  }
   const uint8_t status_low = status[0];
   const uint8_t status_high = status[1];
   const uint16_t length = encode_uint16(status[3], status[2]);
@@ -126,43 +130,59 @@ bool SPD2010Touchscreen::read_data_() {
   // These conditions have not been observed, but are logged here for debugging if they occur.
   // Other driver implementations test for these.
   if (status_high & STATUS_BIOS) {
-    this->status_set_warning(LOG_STR("BIOS status; stop point mode, start CPU"));
-    this->skip_update_ = true;
-    return this->clear_interrupt_() && this->write_command_(REG_CPU_START, 1);
+    this->status_set_warning(LOG_STR("BIOS status; start CPU"));
+    (void) (this->clear_interrupt_() && this->write_command_(REG_CPU_START, 1));
+    return false;
   }
   if (status_high & STATUS_CPU) {
-    this->status_set_warning(LOG_STR("CPU status; stop point mode, start CPU"));
-    this->skip_update_ = true;
-    return this->write_command_(REG_POINT_MODE, 0) && this->write_command_(REG_TOUCH_START, 0) &&
-           this->clear_interrupt_();
+    this->status_set_warning(LOG_STR("CPU status; stop point mode, start touch"));
+    (void) (this->write_command_(REG_POINT_MODE, 0) && this->write_command_(REG_TOUCH_START, 0) &&
+            this->clear_interrupt_());
+    return false;
   }
-  if ((status_high & STATUS_RUNNING) && length == 0)
-    return this->clear_interrupt_();
-  if (!(status_low & (STATUS_POINT | STATUS_GESTURE))) {
-    this->skip_update_ = true;
-    if ((status_high & STATUS_RUNNING) && (status_low & STATUS_AUX))
-      return this->clear_interrupt_();
+  if ((status_high & STATUS_RUNNING) && length == 0) {
+    if (!this->clear_interrupt_()) {
+      this->status_set_warning(LOG_STR("Failed to clear interrupt"));
+      return false;
+    }
+    this->status_clear_warning();
     return true;
+  }
+  if (!(status_low & (STATUS_POINT | STATUS_GESTURE))) {
+    if ((status_high & STATUS_RUNNING) && (status_low & STATUS_AUX) && !this->clear_interrupt_()) {
+      this->status_set_warning(LOG_STR("Failed to clear interrupt"));
+      return false;
+    }
+    this->status_clear_warning();
+    return false;
   }
   if (length < REPORT_HEADER_LENGTH || length > MAX_REPORT_LENGTH ||
       (length - REPORT_HEADER_LENGTH) % CONTACT_LENGTH != 0) {
     ESP_LOGW(TAG, "Invalid report length: %u", length);
+    this->status_set_warning(LOG_STR("Invalid report length"));
     (void) this->clear_interrupt_();
     return false;
   }
   uint8_t report[MAX_REPORT_LENGTH];
-  if (!this->read_register_(REG_HDP, report, length) || !this->finish_report_())
+  if (!this->read_register_(REG_HDP, report, length) || !this->finish_report_()) {
+    this->status_set_warning(LOG_STR("Failed to read report"));
     return false;
+  }
   // Gesture reports are not used.
-  if (!(status_low & STATUS_POINT)) {
-    this->skip_update_ = true;
-    return true;
+  if (!(status_low & STATUS_POINT) ||
+      (length > REPORT_HEADER_LENGTH && report[REPORT_HEADER_LENGTH] == GESTURE_REPORT_ID)) {
+    this->status_clear_warning();
+    return false;
+  }
+  // Check every ID before adding any point, so a bad report leaves the stored touches unchanged.
+  for (size_t offset = REPORT_HEADER_LENGTH; offset < length; offset += CONTACT_LENGTH) {
+    if (report[offset] > MAX_CONTACT_ID) {
+      this->status_set_warning(LOG_STR("Invalid contact ID"));
+      return false;
+    }
   }
   for (size_t offset = REPORT_HEADER_LENGTH; offset < length; offset += CONTACT_LENGTH) {
     const uint8_t *contact = report + offset;
-    // A bad ID means a corrupt frame; returning false stops any points already added from being published.
-    if (contact[0] > MAX_CONTACT_ID)
-      return false;
     // Zero strength marks a released contact.
     if (contact[4] == 0)
       continue;
@@ -170,20 +190,13 @@ bool SPD2010Touchscreen::read_data_() {
     const uint16_t y = ((contact[3] & 0x0Fu) << 8u) | contact[2];
     this->add_raw_touch_position_(contact[0], x, y, contact[4]);
   }
+  this->status_clear_warning();
   return true;
 }
 
 void SPD2010Touchscreen::update_touches() {
-  if (!this->ready_) {
+  if (!this->ready_ || !this->read_data_())
     this->skip_update_ = true;
-    return;
-  }
-  if (!this->read_data_()) {
-    this->skip_update_ = true;
-    this->status_set_warning(LOG_STR("Failed to read touch data"));
-  } else {
-    this->status_clear_warning();
-  }
 }
 
 void SPD2010Touchscreen::dump_config() {
