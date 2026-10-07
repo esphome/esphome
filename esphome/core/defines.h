@@ -467,6 +467,11 @@
 #define USE_USB_UART_CP210X
 #define USE_USB_UART_FT23XX
 #define USE_USB_UART_PL2303
+// USB identity on serial proxy ports needs the usb_host stack
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
+#define USE_SERIAL_PROXY_USB_IDENTITY
+#endif
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 7)
