@@ -50,10 +50,10 @@ void PowerSupply::unrequest_high_power() {
     return;
   }
   this->active_requests_--;
-  this->turn_off_();
+  this->schedule_off_if_idle_();
 }
 
-void PowerSupply::turn_off_() {
+void PowerSupply::schedule_off_if_idle_() {
   if (this->active_requests_ == 0) {
     this->set_timeout("power-supply-off", this->keep_on_time_, [this]() {
       ESP_LOGV(TAG, "Disabling");
@@ -64,9 +64,9 @@ void PowerSupply::turn_off_() {
 
 #if defined(USE_GPIO_HOLD)
 void PowerSupply::loop() {
-  // Run once after setup().
+  // Run once after setup(). Depends on components with setup_priority POWER/IO or HARDWARE not blocking in setup().
   // Need to turn off the pin if no component requested it during setup() otherwise it will stay on forever.
-  this->turn_off_();
+  this->schedule_off_if_idle_();
   this->disable_loop();
 }
 #endif
