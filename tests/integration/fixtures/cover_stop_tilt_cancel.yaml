@@ -11,7 +11,10 @@ cover:
     id: test_cover
     optimistic: true
     tilt_action:
-      - logger.log: tilt_action
+      - delay: 1s
+      - cover.template.publish:
+          id: test_cover
+          tilt: 0.9
     stop_tilt_action:
       - delay: 1s
       - cover.template.publish:
