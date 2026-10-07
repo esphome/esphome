@@ -1538,9 +1538,7 @@ def validate_rc_switch_raw_code(value):
     return value
 
 
-def build_rc_switch_protocol(config):
-    if isinstance(config, int):
-        return rc_switch_protocol(config)
+def build_custom_rc_switch_protocol(config: ConfigType) -> MockObj:
     pl = config[CONF_PULSE_LENGTH]
     return RCSwitchBase(
         config[CONF_SYNC][0] * pl,
@@ -1551,6 +1549,24 @@ def build_rc_switch_protocol(config):
         config[CONF_ONE][1] * pl,
         config[CONF_INVERTED],
     )
+
+
+def rc_switch_protocol_in_flash(config: int | ConfigType) -> MockObj:
+    """Pointer to the protocol in flash: a built-in table entry or a shared custom table."""
+    if isinstance(config, int):
+        return cg.RawExpression(f"&{RC_SWITCH_PROTOCOLS}[{config}]")
+    return cg.shared_progmem_array(
+        "rc_switch_custom_protocol",
+        RCSwitchBase,
+        [build_custom_rc_switch_protocol(config)],
+    )
+
+
+def rc_switch_protocol_value(config: int | ConfigType) -> MockObj:
+    """RAM copy of a constant protocol for the transmit actions, read from its flash table."""
+    if isinstance(config, int):
+        return rc_switch_protocol(config)
+    return rc_switch_protocol_copy(rc_switch_protocol_in_flash(config))
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema(
@@ -1628,6 +1644,8 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
 )
 
 rc_switch_protocol = ns.rc_switch_protocol
+rc_switch_protocol_copy = ns.rc_switch_protocol_copy
+RC_SWITCH_PROTOCOLS = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
@@ -1642,7 +1660,7 @@ RCSwitchRawReceiver = ns.class_("RCSwitchRawReceiver", RemoteReceiverBinarySenso
 
 @register_binary_sensor("rc_switch_raw", RCSwitchRawReceiver, RC_SWITCH_RAW_SCHEMA)
 def rc_switch_raw_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_code(config[CONF_CODE]))
 
 
@@ -1653,7 +1671,7 @@ def rc_switch_raw_binary_sensor(var, config):
 )
 async def rc_switch_raw_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
@@ -1663,7 +1681,7 @@ async def rc_switch_raw_action(var, config, args):
     "rc_switch_type_a", RCSwitchRawReceiver, RC_SWITCH_TYPE_A_SCHEMA
 )
 def rc_switch_type_a_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_type_a(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
@@ -1674,7 +1692,7 @@ def rc_switch_type_a_binary_sensor(var, config):
 )
 async def rc_switch_type_a_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
@@ -1688,7 +1706,7 @@ async def rc_switch_type_a_action(var, config, args):
     "rc_switch_type_b", RCSwitchRawReceiver, RC_SWITCH_TYPE_B_SCHEMA
 )
 def rc_switch_type_b_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(
         var.set_type_b(config[CONF_ADDRESS], config[CONF_CHANNEL], config[CONF_STATE])
     )
@@ -1701,7 +1719,7 @@ def rc_switch_type_b_binary_sensor(var, config):
 )
 async def rc_switch_type_b_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
@@ -1713,7 +1731,7 @@ async def rc_switch_type_b_action(var, config, args):
     "rc_switch_type_c", RCSwitchRawReceiver, RC_SWITCH_TYPE_C_SCHEMA
 )
 def rc_switch_type_c_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(
         var.set_type_c(
             config[CONF_FAMILY],
@@ -1731,7 +1749,7 @@ def rc_switch_type_c_binary_sensor(var, config):
 )
 async def rc_switch_type_c_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(
@@ -1748,7 +1766,7 @@ async def rc_switch_type_c_action(var, config, args):
     RC_SWITCH_TYPE_D_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
 )
 def rc_switch_type_d_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_type_d(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
@@ -1759,7 +1777,7 @@ def rc_switch_type_d_binary_sensor(var, config):
 )
 async def rc_switch_type_d_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))

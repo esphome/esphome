@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
@@ -66,6 +68,9 @@ class RCSwitchBase {
   uint32_t one_high_{};
   uint32_t one_low_{};
   uint32_t inverted_{};  // bool widened so every field is a word: the table is read from flash
+
+  // A bool here would still pad to 28 bytes, so the size check below alone would not catch it.
+  static_assert(std::is_same_v<decltype(inverted_), uint32_t>, "inverted_ must stay a word for flash reads");
 };
 
 // Constant-initialized and kept in flash on every platform. The decoder reads entries in place
@@ -87,6 +92,9 @@ inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
 /// RAM copy of RC_SWITCH_PROTOCOLS[index] (0 when out of range) for the transmit actions and the dumper, made with
 /// progmem_memcpy so no byte load ever touches the flash table on ESP8266
 RCSwitchBase rc_switch_protocol(uint8_t index);
+/// RAM copy of a protocol stored in flash, made with progmem_memcpy (own name: `rc_switch_protocol(0)` stays
+/// unambiguous)
+RCSwitchBase rc_switch_protocol_copy(const RCSwitchBase *protocol);
 
 uint64_t decode_binary_string(const std::string &data);
 
@@ -200,7 +208,8 @@ template<typename... Ts> class RCSwitchTypeDAction : public RemoteTransmitterAct
 
 class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
  public:
-  void set_protocol(const RCSwitchBase &a_protocol) { this->protocol_ = a_protocol; }
+  /// `protocol` must outlive the receiver: a RC_SWITCH_PROTOCOLS entry or a codegen flash table.
+  void set_protocol(const RCSwitchBase *protocol) { this->protocol_ = protocol; }
   void set_code(uint64_t code) { this->code_ = code; }
   void set_code(const std::string &code) {
     this->code_ = decode_binary_string(code);
@@ -228,7 +237,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
  protected:
   bool matches(RemoteReceiveData src) override;
 
-  RCSwitchBase protocol_;
+  const RCSwitchBase *protocol_{nullptr};  // in flash; decoded in place (word-only fields)
   uint64_t code_;
   uint64_t mask_{0xFFFFFFFFFFFFFFFF};
   uint8_t nbits_;

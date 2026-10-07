@@ -495,7 +495,8 @@ bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const
 
 #ifdef USE_WEBSERVER_ALLOWED_ORIGINS
   // Otherwise the origin must be explicitly allowed via configuration.
-  for (const char *allowed_origin : this->allowed_origins_) {
+  for (const char *const *it = this->allowed_origins_; *it != nullptr; it++) {
+    const char *allowed_origin = *it;
     // A single "*" entry allows any origin.
     if (allowed_origin[0] == '*' && allowed_origin[1] == '\0')
       return true;

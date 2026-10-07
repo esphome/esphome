@@ -320,8 +320,14 @@ class APIConnection final : public APIServerConnectionBase {
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
+  // How long a new connection holds off the spare ephemeral refill
+  static constexpr uint32_t CONNECT_GRACE_MS = 1000;
   bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
+  }
+  // An older unauthenticated connection is a stale half open client and does not count
+  bool is_still_connecting(uint32_t now) {
+    return !this->is_authenticated() && now - this->last_traffic_ < CONNECT_GRACE_MS;
   }
   bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
@@ -374,6 +380,23 @@ class APIConnection final : public APIServerConnectionBase {
   const char *get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
     return this->helper_->get_peername_to(buf);
   }
+
+#ifdef USE_API_OUTGOING_CONNECTION
+  /// Get the peer address itself, for remembering a dial-back target
+  int getpeername(struct sockaddr *addr, socklen_t *addrlen) const { return this->helper_->getpeername(addr, addrlen); }
+  /// Outgoing connection: send our server hello immediately so the peer can
+  /// pick the matching key. Outgoing connections are only dialed when a PSK
+  /// is set, so the helper is always the noise helper. Call after start().
+  void mark_outgoing() {
+    if (this->flags_.remove) {
+      return;  // start() failed; the connection is already being torn down
+    }
+    APIError err = static_cast<APINoiseFrameHelper *>(this->helper_.get())->send_server_hello_first();
+    if (err != APIError::OK) {
+      this->fatal_error_with_log_(LOG_STR("Server hello failed"), err);
+    }
+  }
+#endif
 
  protected:
   bool try_to_clear_buffer_slow_(bool log_out_of_space);
@@ -731,6 +754,9 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
     uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+#ifdef USE_API_OUTGOING_CONNECTION
+    uint8_t outgoing_connection_target : 1;  // Client declared itself a dial-back target in its hello
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif

@@ -1001,7 +1001,9 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
 uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *select = static_cast<select::Select *>(entity);
   ListEntitiesSelectResponse msg;
-  msg.options = &select->traits.get_options();
+  const auto &opts = select->traits.get_options();
+  const std::span<const char *const> options(opts.data(), opts.size());
+  msg.options = &options;
   return fill_and_encode_entity_info(select, msg, conn, remaining_size);
 }
 void APIConnection::on_select_command_request(const SelectCommandRequest &msg) {
@@ -1877,6 +1879,19 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
 
+#ifdef USE_API_OUTGOING_CONNECTION
+  // With a PSK set only key-verified transports reach hello: plaintext and
+  // zero-PSK are rejected, and pre-activation sessions are force-closed
+  if (msg.outgoing_connection_target && !this->flags_.outgoing_connection_target) {
+    if (this->parent_->get_noise_ctx().has_psk()) {
+      this->flags_.outgoing_connection_target = true;
+      this->parent_->on_outgoing_target_client(this);
+    } else {
+      this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Dial-back target refused; no key active"));
+    }
+  }
+#endif
+
   return this->send_message(resp);
 }
 
@@ -1998,6 +2013,9 @@ bool APIConnection::send_device_info_response_() {
   // zero-PSK Noise connection. Gated on the YAML define (not the plaintext
   // one) so this advertisement survives the plaintext removal in 2027.2.0.
   resp.api_encryption_provisionable = !this->parent_->get_noise_ctx().has_psk();
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  resp.api_outgoing_connection_supported = true;
 #endif
 #endif
 #ifdef USE_DEVICES
