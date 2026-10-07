@@ -11,7 +11,7 @@ from unittest.mock import ANY, call, patch
 import platformdirs
 import pytest
 
-from esphome.components.nrf52 import _resolve_toolchain
+from esphome.components.nrf52 import _resolve_toolchain, framework
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
@@ -20,13 +20,14 @@ from esphome.components.nrf52.framework import (
     _get_penv_site_packages,
     _get_platformio_penv_path,
     _get_toolchain_platform_info,
+    _install_toolchain,
     _needs_venv_rebuild,
-    _wanted_west_projects,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
     include_west_project,
     setup_platformio_python_env,
+    wanted_west_projects,
 )
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
@@ -538,7 +539,7 @@ class TestCheckAndInstall:
         """Zephyr 4.1 moved the Cortex-M core headers to the cmsis_6 module."""
         CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(sdk_version)}
 
-        assert ("cmsis_6" in _wanted_west_projects()) is has_cmsis_6
+        assert ("cmsis_6" in wanted_west_projects()) is has_cmsis_6
 
     def test_default_projects_never_read_the_stamp(
         self,
@@ -808,6 +809,63 @@ class TestCheckAndInstall:
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
 
+    def test_toolchain_download_uses_gnu_url_for_sdk_3_4_0(
+        self,
+        tmp_path: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """For nRF Connect SDK >= 3.4.0 the toolchain archive name includes 'toolchain_gnu_'."""
+        CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+        sdk_version = "3.4.0"
+        tools = get_sdk_nrf_tools_path()
+        python_env = tools / "penvs" / f"v{sdk_version}"
+        framework = tools / "frameworks" / f"v{sdk_version}"
+        toolchain_dir = tools / "toolchains" / "1.0.1"
+        for d in (python_env, framework, toolchain_dir):
+            d.mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts").mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts" / "requirements.txt").touch()
+        _mark_venv_ready(python_env)
+        (framework / ".ready").touch()
+
+        check_and_install()
+
+        # Two download calls: minimal SDK first, toolchain second
+        toolchain_call = mock_nrf52_ops.download_from_mirrors.call_args_list[1]
+        mirrors = toolchain_call.args[0]
+        assert all("toolchain_gnu_" in m for m in mirrors)
+
+    def test_toolchain_extracts_under_gnu_for_sdk_3_4_0(
+        self,
+        tmp_path: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """SDK 1.0+ toolchain archive must land in gnu/arm-zephyr-eabi/.
+
+        Zephyr-sdkConfig.cmake validates the toolchain at gnu/arm-zephyr-eabi/
+        in SDK 1.0+; if the archive is extracted to arm-zephyr-eabi/ instead,
+        cmake reports the package as not found.
+        """
+        CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+        sdk_version = "3.4.0"
+        tools = get_sdk_nrf_tools_path()
+        python_env = tools / "penvs" / f"v{sdk_version}"
+        framework = tools / "frameworks" / f"v{sdk_version}"
+        toolchain_dir = tools / "toolchains" / "1.0.1"
+        for d in (python_env, framework, toolchain_dir):
+            d.mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts").mkdir(parents=True, exist_ok=True)
+        (framework / "zephyr" / "scripts" / "requirements.txt").touch()
+        _mark_venv_ready(python_env)
+        (framework / ".ready").touch()
+
+        check_and_install()
+
+        # Two extract calls: minimal SDK first (to toolchain root), toolchain second
+        extract_calls = mock_nrf52_ops.archive_extract_all.call_args_list
+        _, toolchain_extract_dir = extract_calls[1].args[:2]
+        assert toolchain_extract_dir == toolchain_dir / "gnu" / "arm-zephyr-eabi"
+
 
 # ---------------------------------------------------------------------------
 # setup_platformio_python_env tests
@@ -1020,8 +1078,9 @@ def test_get_build_env(
     containerized non-root builds and was removed.
     """
     monkeypatch.setenv("SOME_PREEXISTING_VAR", "kept")
+    monkeypatch.delenv("CCACHE_DISABLE", raising=False)
 
-    env = get_build_env()
+    env = get_build_env(None)
 
     tools = get_sdk_nrf_tools_path()
     venv_bin_dir = get_python_env_executable_path(
@@ -1038,6 +1097,84 @@ def test_get_build_env(
     assert "Zephyr-sdk_DIR" not in env
     # The rest of the process environment is inherited
     assert env["SOME_PREEXISTING_VAR"] == "kept"
+    # No managed settings without a resolved binary; the self-enabled
+    # Zephyr ccache must not cache
+    assert "CCACHE_DIR" not in env or "CCACHE_DIR" in os.environ
+    assert env["CCACHE_DISABLE"] == "1"
+
+
+def test_get_build_env_with_ccache(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A resolved ccache brings the shared managed settings."""
+    for key in (
+        "CCACHE_DIR",
+        "CCACHE_DEPEND",
+        "CCACHE_NOHASHDIR",
+        "CCACHE_BASEDIR",
+        "CCACHE_DISABLE",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    CORE.build_path = tmp_path / "build"
+    env = get_build_env("/usr/bin/ccache")
+    assert env["CCACHE_DIR"] == str(get_sdk_nrf_tools_path() / "ccache")
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    assert "CCACHE_DISABLE" not in env
+    # Only the per build map entry leaves the hash; user maps stay in
+    assert env["CCACHE_IGNOREOPTIONS"] == (
+        f"-fmacro-prefix-map={(tmp_path / 'build' / 'zephyr').as_posix()}"
+        "=CMAKE_SOURCE_DIR"
+    )
+
+
+def test_get_build_env_skips_the_map_entry_on_whitespace(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The ignore list splits on spaces; a spaced path cannot be
+    expressed, so the entry is left hashed rather than emitted broken."""
+    monkeypatch.delenv("CCACHE_IGNOREOPTIONS", raising=False)
+    CORE.build_path = tmp_path / "with space" / "build"
+    env = get_build_env("/usr/bin/ccache")
+    assert "CCACHE_IGNOREOPTIONS" not in env
+
+
+def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
+    setup_core: Path,
+) -> None:
+    """For NCS >= 3.4.0, ZEPHYR_SDK_INSTALL_DIR still points at the toolchain root."""
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+
+    env = get_build_env(None)
+
+    tools = get_sdk_nrf_tools_path()
+    assert env["ZEPHYR_SDK_INSTALL_DIR"] == str(tools / "toolchains" / "1.0.1")
+    assert "Zephyr-sdk_DIR" not in env
+
+
+def test_install_toolchain_keeps_other_live_toolchain_leftovers(
+    setup_core: Path,
+) -> None:
+    """Pruning must not delete a partial download of the other toolchain in use."""
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse("3.4.0")}
+    toolchains = get_sdk_nrf_tools_path() / "toolchains"
+    toolchains.mkdir(parents=True)
+    own = toolchains / "1.0.1.toolchain.archive.part"
+    other = toolchains / f"{TOOLCHAIN_VERSION}.toolchain.archive.part"
+    retired = toolchains / "0.16.8.toolchain.archive.part"
+    for leftover in (own, other, retired):
+        leftover.write_text("")
+
+    with patch(
+        "esphome.components.nrf52.framework.download_and_extract",
+        side_effect=lambda *args, **kwargs: args[3].mkdir(parents=True),
+    ):
+        _install_toolchain()
+
+    assert not own.exists()
+    assert other.exists()
+    assert not retired.exists()
+    assert (toolchains / "1.0.1" / ".ready").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -1129,3 +1266,30 @@ def test_resolve_toolchain_rejects_unsupported() -> None:
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
         _resolve_toolchain({})
+
+
+def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
+    """The absolute dts.pre path is the only per device byte in the
+    devicetree header; the patch makes gen_defines emit the basename."""
+    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    gen.parent.mkdir(parents=True)
+    gen.write_text("s = f'DTS input file:\\n  {edt.dts_path}\\n'\n")
+    framework._patch_gen_defines_dts_path(tmp_path)
+    assert "{os.path.basename(edt.dts_path)}" in gen.read_text()
+    assert not list(gen.parent.glob("*.tmp"))  # no leftovers
+    before = gen.read_text()
+    framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
+    assert gen.read_text() == before
+    framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
+
+
+def test_patch_gen_defines_warns_when_the_anchor_is_gone(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A reformatted upstream must not silently cost the sharing."""
+    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    gen.parent.mkdir(parents=True)
+    gen.write_text("s = 'something else entirely'\n")
+    with caplog.at_level("WARNING"):
+        framework._patch_gen_defines_dts_path(tmp_path)
+    assert "gen_defines.py no longer matches" in caplog.text

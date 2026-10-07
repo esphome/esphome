@@ -48,7 +48,7 @@ void SX1509Component::loop() {
     uint16_t key_data = this->read_key_data();
     for (auto *binary_sensor : this->keypad_binary_sensors_)
       binary_sensor->process(key_data);
-    if (this->keys_.empty())
+    if (this->keys_ == nullptr)
       return;
     if (key_data == 0) {
       this->last_key_ = 0;
@@ -64,7 +64,9 @@ void SX1509Component::loop() {
         break;
     }
     col -= 8;
-    uint8_t key = this->keys_[row * this->cols_ + col];
+    if (row >= this->rows_ || col >= this->cols_)  // a partial read can leave only a row or a column bit
+      return;
+    uint8_t key = progmem_read_byte(&this->keys_[row * this->cols_ + col]);
     if (key == this->last_key_)
       return;
     this->last_key_ = key;

@@ -28,13 +28,13 @@ struct MediaCallCommand {
   optional<float> volume;
   optional<bool> announce;
   optional<std::string *> url;  // Must be manually deleted after receiving this struct from a queue
-  optional<audio::AudioFile *> file;
+  optional<const audio::AudioFile *> file;
   optional<bool> enqueue;
 };
 
 struct PlaylistItem {
   optional<std::string> url;
-  optional<audio::AudioFile *> file;
+  optional<const audio::AudioFile *> file;
 };
 
 struct VolumeRestoreState {
@@ -87,7 +87,7 @@ class SpeakerMediaPlayer final : public Component,
   Trigger<> *get_unmute_trigger() { return &this->unmute_trigger_; }
   Trigger<float> *get_volume_trigger() { return &this->volume_trigger_; }
 
-  void play_file(audio::AudioFile *media_file, bool announcement, bool enqueue);
+  void play_file(const audio::AudioFile *media_file, bool announcement, bool enqueue);
 
   void set_playlist_delay_ms(AudioPipelineType pipeline_type, uint32_t delay_ms);
 
