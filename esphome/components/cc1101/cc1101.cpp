@@ -3,6 +3,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#include <cstring>
+
+#ifdef USE_ESP32
+#include <esp_memory_utils.h>
+#endif
 
 namespace esphome::cc1101 {
 
@@ -397,6 +402,14 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   if (variable) {
     this->write_(Register::FIFO, static_cast<uint8_t>(len));
   }
+#ifdef USE_ESP32
+  // SPI DMA cannot read flash or unaligned buffers; stage them here so the driver does not allocate a copy
+  alignas(4) uint8_t staged[TX_FIFO_SIZE];
+  if (!esp_ptr_dma_capable(data) || (reinterpret_cast<uintptr_t>(data) & 3) != 0) {
+    std::memcpy(staged, data, len);
+    data = staged;
+  }
+#endif
   this->write_(Register::FIFO, data, len);
 
   // Calibrate PLL
