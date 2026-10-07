@@ -941,7 +941,7 @@ class MessageType(TypeInfo):
         return False
 
     def encode_element(self, number: int, element: str) -> str:
-        return _encode_call("encode_sub_message", "buffer", str(number), element)
+        return _encode_call("encode_sub_message", str(number), element)
 
     @property
     def cpp_type(self) -> str:
@@ -964,9 +964,8 @@ class MessageType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Sub-message encoding needs buffer for backpatch/sync
         return _encode_call(
-            self.encode_func, "buffer", str(self.number), f"this->{self.field_name}"
+            self.encode_func, str(self.number), f"this->{self.field_name}"
         )
 
     @property
@@ -2722,19 +2721,18 @@ def build_message_type(
             )
             for line in encode
         ]
-        o = f"{speed_attr}uint8_t *{desc.name}::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {{\n"
+        o = f"{speed_attr}uint8_t *{desc.name}::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {{\n"
         o += f"  const auto &msg = *static_cast<const {desc.name} *>(self);\n"
-        o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
         o += indent("\n".join(encode_debug)).replace("this->", "msg.") + "\n"
         o += "  return pos;\n"
         o += "}\n"
         cpp += o
         public_content.append(
-            "static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);"
+            "static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);"
         )
         public_content.append(
             "uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {\n"
-            "  return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);\n"
+            "  return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);\n"
             "}"
         )
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
