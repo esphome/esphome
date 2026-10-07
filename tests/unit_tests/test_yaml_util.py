@@ -2005,6 +2005,16 @@ def test_secret_values_registered_keeps_a_real_secret_loaded_meanwhile() -> None
     assert yaml_util.is_secret("hunter2") == "real_name"
 
 
+def test_secret_values_registered_nested_keeps_the_outer_collector() -> None:
+    """An inner context does not stop the outer one from collecting names."""
+    with yaml_util.secret_values_registered({"outer_value": "outer"}) as outer:
+        with yaml_util.secret_values_registered({"inner_value": "inner"}) as inner:
+            yaml_util.dump({"a": make_data_base("inner_value")})
+        yaml_util.dump({"b": make_data_base("outer_value")})
+    assert inner == {"inner"}
+    assert outer == {"outer"}
+
+
 def test_registered_secret_names() -> None:
     yaml_util._SECRET_VALUES["value_a"] = "name_a"
     assert "name_a" in yaml_util.registered_secret_names()
