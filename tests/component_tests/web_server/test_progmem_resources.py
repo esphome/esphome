@@ -7,9 +7,11 @@ import re
 
 
 def _table(main_cpp: str, name: str) -> bytes:
+    # Anchored so a static table does not match
     match = re.search(
-        rf"const uint8_t ESPHOME_WEBSERVER_{name}\[\] PROGMEM = \{{([^}}]*)\}};",
+        rf"^const uint8_t ESPHOME_WEBSERVER_{name}\[\] PROGMEM = \{{([^}}]*)\}};",
         main_cpp,
+        re.MULTILINE,
     )
     assert match is not None
     return bytes(int(byte) for byte in match.group(1).split(","))
