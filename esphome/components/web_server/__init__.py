@@ -413,7 +413,16 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
-        cg.add(var.set_allowed_origins(allowed_origins))
+        # Shared flash table ended by nullptr, so the server stores only a pointer.
+        cg.add(
+            var.set_allowed_origins(
+                cg.shared_progmem_array(
+                    "web_server_allowed_origins",
+                    cg.const_char_ptr,
+                    [*allowed_origins, cg.nullptr],
+                )
+            )
+        )
     if (auth := config.get(CONF_AUTH)) is not None:
         cg.add_define("USE_WEBSERVER_AUTH")
         # The scheme is fixed at build time so the unused Basic/Digest code path is compiled

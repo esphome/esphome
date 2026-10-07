@@ -761,7 +761,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
     this->has_pending_sessions_.store(false, std::memory_order_relaxed);
   }
   for (auto *rsp : incoming) {
-    // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
+    // Already disconnected? Drop it; skip session start on a dead session.
     if (rsp->safe_to_delete_()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
@@ -775,12 +775,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       continue;
     }
     this->sessions_.push_back(rsp);
-    // Prime first so on_connect_ observes a session that has already sent its
-    // initial ping/config/sorting_groups, matching the pre-refactor ordering.
     rsp->start_session_main_loop_();
-    if (this->on_connect_) {
-      this->on_connect_(rsp);
-    }
   }
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
