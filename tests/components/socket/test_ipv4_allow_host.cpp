@@ -70,6 +70,41 @@ TEST(Ipv4Allow, InstancesKeepIndependentLists) {
   EXPECT_FALSE(first.allows(htonl(0x0A00002A)));
 }
 
+TEST(Ipv4Allow, HostEntryMatchesOnlyThatAddress) {
+  static const Ipv4AllowEntry HOST[] = {{htonl(0xC0A8AF14), htonl(0xFFFFFFFF)}};
+  Ipv4Allow list;
+  list.set(HOST, std::size(HOST));
+  EXPECT_TRUE(allows_peer(list, "192.168.175.20"));
+  EXPECT_FALSE(allows_peer(list, "192.168.175.21"));
+  EXPECT_FALSE(allows_peer(list, "192.168.175.19"));
+}
+
+TEST(Ipv4Allow, CatchAllAllowsEveryV4PeerOnly) {
+  static const Ipv4AllowEntry ANY[] = {{0, 0}};
+  Ipv4Allow list;
+  list.set(ANY, std::size(ANY));
+  EXPECT_TRUE(allows_peer(list, "0.0.0.0"));
+  EXPECT_TRUE(allows_peer(list, "255.255.255.255"));
+  EXPECT_TRUE(allows_peer(list, "::ffff:10.1.2.3"));
+  // Unlike an empty list, 0.0.0.0/0 still turns a native IPv6 peer away.
+  EXPECT_FALSE(allows_peer(list, "fe80::1"));
+}
+
+TEST(Ipv4Allow, LastEntryOfAFullListMatches) {
+  // 255 is the schema's cap: 10.0.0.1/32 to 10.0.0.255/32.
+  static Ipv4AllowEntry full[255];
+  for (uint32_t i = 0; i < std::size(full); i++) {
+    full[i] = {htonl(0x0A000001 + i), htonl(0xFFFFFFFF)};
+  }
+  Ipv4Allow list;
+  list.set(full, std::size(full));
+  EXPECT_EQ(list.size(), 255u);
+  EXPECT_TRUE(allows_peer(list, "10.0.0.1"));
+  EXPECT_TRUE(allows_peer(list, "10.0.0.255"));
+  EXPECT_FALSE(allows_peer(list, "10.0.1.0"));
+  EXPECT_FALSE(allows_peer(list, "10.0.0.0"));
+}
+
 }  // namespace esphome::socket::testing
 
 #endif
