@@ -8,10 +8,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_ESPHOME, CONF_TIMEOUT
-from esphome.core import CORE, ID, TimePeriodMilliseconds
-from esphome.core.config import CONF_LOOP_INTERVAL
-import esphome.final_validate as fv
+from esphome.const import CONF_TIMEOUT
+from esphome.core import CORE, ID
+from esphome.core.config import CONF_LOOP_INTERVAL, get_loop_interval
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,9 +39,6 @@ MIN_TCP_SOCKETS = 8
 MIN_UDP_SOCKETS = 6
 # Minimum listening sockets — at least api + ota baseline.
 MIN_TCP_LISTEN_SOCKETS = 2
-
-# Application::loop_interval_ when esphome: sets no loop_interval.
-_DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
 
 
 class SocketType(StrEnum):
@@ -231,9 +227,7 @@ def final_validate_idle_timeout(config: ConfigType) -> ConfigType:
     timeout = config[CONF_TIMEOUT]
     if timeout.total_milliseconds == 0:
         return config
-    loop_interval = fv.full_config.get()[CONF_ESPHOME].get(
-        CONF_LOOP_INTERVAL, _DEFAULT_LOOP_INTERVAL
-    )
+    loop_interval = get_loop_interval()
     if timeout.total_milliseconds < loop_interval.total_milliseconds:
         raise cv.Invalid(
             f"{CONF_TIMEOUT} of {timeout} is shorter than one main loop pass "
