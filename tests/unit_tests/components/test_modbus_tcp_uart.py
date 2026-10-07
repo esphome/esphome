@@ -2,9 +2,13 @@
 
 import pytest
 
-from esphome.components.modbus_tcp_uart import _final_validate, _served_units
+from esphome.components.modbus_tcp_uart import (
+    _final_validate,
+    _reply_timeout_ms,
+    _served_units,
+)
 import esphome.config_validation as cv
-from esphome.core import ID
+from esphome.core import ID, TimePeriod
 import esphome.final_validate as fv
 
 
@@ -67,3 +71,33 @@ def test_served_units_are_those_on_the_link_hubs() -> None:
     }
     assert _served_units(full, "mb_link") == [1, 255]
     assert _served_units(full, "bridge_link") == []
+
+
+def test_a_hub_with_on_request_takes_every_unit() -> None:
+    full = {
+        "modbus": [
+            {
+                "id": ID("hub"),
+                "uart_id": ID("mb_link"),
+                "role": "server",
+                "on_request": [],
+            },
+        ],
+        "modbus_server": [{"id": ID("a"), "modbus_id": ID("hub"), "address": 1}],
+    }
+    assert _served_units(full, "mb_link") == []
+
+
+def test_reply_timeout_covers_the_longest_client_send_wait_time() -> None:
+    full = {
+        "modbus": [
+            {
+                "id": ID("rtu"),
+                "role": "client",
+                "send_wait_time": TimePeriod(seconds=3),
+            },
+            {"id": ID("tcp"), "role": "server"},
+        ],
+    }
+    assert _reply_timeout_ms(full) == 3000
+    assert _reply_timeout_ms({"modbus": [{"id": ID("tcp"), "role": "server"}]}) == 1000

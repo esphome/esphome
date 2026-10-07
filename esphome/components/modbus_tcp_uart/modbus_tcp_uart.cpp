@@ -15,23 +15,22 @@ static const char *const TAG = "modbus_tcp_uart";
 
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 // A peer sends a whole frame and then waits. After this much quiet the next byte starts a frame.
-static constexpr uint32_t RESYNC_QUIET_US = 100000;
+static constexpr uint32_t RESYNC_QUIET_MS = 100;
 
-static bool drop_log_due(uint32_t &last_ms) {
+bool ModbusTcpUart::drop_log_due_() {
   uint32_t now = App.get_loop_component_start_time();
-  if (last_ms != 0 && now - last_ms < DROP_LOG_INTERVAL_MS) {
+  if (this->drop_log_ms_ != 0 && now - this->drop_log_ms_ < DROP_LOG_INTERVAL_MS) {
     return false;
   }
   // A zero stamp would look like "never logged" on the next pass.
-  last_ms = now == 0 ? 1 : now;
+  this->drop_log_ms_ = now == 0 ? 1 : now;
   return true;
 }
 
-static void note_drop(uint32_t &last_ms, const LogString *message) {
-  if (!drop_log_due(last_ms)) {
-    return;
+void ModbusTcpUart::note_drop_(const LogString *message) {
+  if (this->drop_log_due_()) {
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
   }
-  ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
 }
 
 void ModbusTcpUart::dump_config() {
@@ -81,24 +80,24 @@ void ModbusTcpUart::loop() {
 void ModbusTcpUart::write_array(const uint8_t *data, size_t len) {
   // The new request is still buffered, so this write answers the previous one.
   if (this->server_ && this->available() != 0) {
-    note_drop(this->drop_log_ms_[DROP_REPLY_PREVIOUS], LOG_STR("Reply to the previous request, dropped"));
+    this->note_drop_(LOG_STR("Reply to the previous request, dropped"));
     return;
   }
   // A whole frame is only still here because the transport could not take it.
   // The writer has moved on, so the next write replaces it.
   if (this->tx_frame_len_ != 0) {
-    note_drop(this->drop_log_ms_[DROP_HELD], LOG_STR("Dropping a held Modbus frame"));
+    this->note_drop_(LOG_STR("Dropping a held Modbus frame"));
     this->consume_tx_(this->tx_frame_len_);
   }
   // A part from earlier cannot go on with a write that does not fit or that starts with a whole frame.
   size_t frame_len = 0;
   if (this->tx_len_ != 0 &&
       (this->tx_len_ + len > sizeof(this->tx_) || take_rtu(data, len, this->server_, &frame_len) == RtuTake::FRAME)) {
-    note_drop(this->drop_log_ms_[DROP_INCOMPLETE], LOG_STR("Part of a Modbus frame dropped"));
+    this->note_drop_(LOG_STR("Part of a Modbus frame dropped"));
     this->tx_len_ = 0;
   }
   if (len > sizeof(this->tx_)) {
-    note_drop(this->drop_log_ms_[DROP_INCOMPLETE], LOG_STR("Not a Modbus frame, dropped"));
+    this->note_drop_(LOG_STR("Not a Modbus frame, dropped"));
     return;
   }
   const size_t held = this->tx_len_;
@@ -117,8 +116,8 @@ void ModbusTcpUart::send_tx_(size_t held) {
       }
       if (take == RtuTake::BAD) {
         // The part from earlier and the last write do not make a frame: try the write on its own.
-        note_drop(this->drop_log_ms_[DROP_INCOMPLETE],
-                  held != 0 ? LOG_STR("Part of a Modbus frame dropped") : LOG_STR("Not a Modbus frame, dropped"));
+        this->note_drop_(held != 0 ? LOG_STR("Part of a Modbus frame dropped")
+                                   : LOG_STR("Not a Modbus frame, dropped"));
         if (held == 0) {
           this->tx_len_ = 0;
           return;
@@ -163,10 +162,10 @@ void ModbusTcpUart::read_parent_() {
   if (this->resync_) {
     if (this->parent_->available() != 0) {
       this->discard_parent_();
-      this->resync_from_us_ = micros();
+      this->resync_from_ms_ = App.get_loop_component_start_time();
       return;
     }
-    if (micros() - this->resync_from_us_ < RESYNC_QUIET_US) {
+    if (App.get_loop_component_start_time() - this->resync_from_ms_ < RESYNC_QUIET_MS) {
       return;
     }
     this->resync_ = false;
@@ -182,7 +181,7 @@ void ModbusTcpUart::read_parent_() {
   }
   size_t n = std::min(room, have);
   if (!this->parent_->read_array(this->tcp_buf_ + this->tcp_len_, n)) {
-    note_drop(this->drop_log_ms_[DROP_READ], LOG_STR("Read failed"));
+    this->note_drop_(LOG_STR("Read failed"));
     return;
   }
   this->tcp_len_ += static_cast<uint16_t>(n);
@@ -206,17 +205,16 @@ void ModbusTcpUart::deliver_mbap_() {
         size_t size = mbap_announced_size(this->tcp_buf_ + pos, left);
         if (size == 0) {
           // No frame boundary. A byte-wise search could hand the hub a mid-frame match with a fresh CRC.
-          note_drop(this->drop_log_ms_[DROP_BAD_MBAP],
-                    LOG_STR("Invalid MBAP length, dropped until the stream is quiet"));
+          this->note_drop_(LOG_STR("Invalid MBAP length, dropped until the stream is quiet"));
           this->tcp_len_ = 0;
           this->resync_ = true;
-          this->resync_from_us_ = micros();
+          this->resync_from_ms_ = App.get_loop_component_start_time();
           return;
         }
         // Any frame fits the buffer. Wait for all of it, then skip it.
         used = size <= left ? size : 0;
         if (used != 0) {
-          note_drop(this->drop_log_ms_[DROP_BAD_MBAP], LOG_STR("Invalid MBAP protocol id, frame skipped"));
+          this->note_drop_(LOG_STR("Invalid MBAP protocol id, frame skipped"));
         }
         break;
       }
@@ -226,13 +224,13 @@ void ModbusTcpUart::deliver_mbap_() {
           // or the last one is overdue.
           uint32_t now = App.get_loop_component_start_time();
           bool busy = this->available() != 0 || this->txn_pending_;
-          if (busy && now - this->request_ms_ < REPLY_TIMEOUT_MS) {
+          if (busy && now - this->request_ms_ < this->reply_timeout_ms_) {
             used = 0;
             break;
           }
           // Not read or not answered in time. The next request takes its place.
           if (busy) {
-            note_drop(this->drop_log_ms_[DROP_REPLACED], LOG_STR("Unanswered request replaced"));
+            this->note_drop_(LOG_STR("Unanswered request replaced"));
             this->rx_.clear();
             if (this->tx_len_ != 0) {
               this->clear_tx_();
@@ -244,7 +242,7 @@ void ModbusTcpUart::deliver_mbap_() {
           const uint8_t *units_end = this->units_ + this->units_count_;
           if (frame.unit != 0 && this->units_ != nullptr &&
               std::find(this->units_, units_end, frame.unit) == units_end) {
-            if (drop_log_due(this->drop_log_ms_[DROP_UNKNOWN_UNIT])) {
+            if (this->drop_log_due_()) {
               ESP_LOGW(TAG, "No server for unit %u, request dropped", frame.unit);
             }
             break;
@@ -262,12 +260,12 @@ void ModbusTcpUart::deliver_mbap_() {
           // Last: an attached reader may answer within this call.
           if (!this->inject_rx(rtu, rtu_len)) {
             this->txn_pending_ = false;
-            note_drop(this->drop_log_ms_[DROP_RX_FULL], LOG_STR("RX buffer full, dropped the request"));
+            this->note_drop_(LOG_STR("RX buffer full, dropped the request"));
           }
           break;
         }
         if (!this->txn_pending_ || frame.txn != this->txn_) {
-          if (drop_log_due(this->drop_log_ms_[DROP_STALE])) {
+          if (this->drop_log_due_()) {
             ESP_LOGW(TAG, "Dropped transaction %u, expected %u", frame.txn, this->txn_);
           }
           break;
@@ -278,7 +276,7 @@ void ModbusTcpUart::deliver_mbap_() {
         // Before handing it on: an attached reader may send the next request within the call.
         this->txn_pending_ = false;
         if (!this->inject_rx(rtu, rtu_len)) {
-          note_drop(this->drop_log_ms_[DROP_RX_FULL], LOG_STR("RX buffer full, dropped the response"));
+          this->note_drop_(LOG_STR("RX buffer full, dropped the response"));
         }
         break;
       }
@@ -300,7 +298,7 @@ void ModbusTcpUart::deliver_mbap_() {
 // Sends the whole frame at the front of tx_, or keeps it there while the transport has no room.
 void ModbusTcpUart::send_rtu_as_mbap_() {
   if (!this->is_connected()) {
-    note_drop(this->drop_log_ms_[DROP_NOT_CONNECTED], LOG_STR("Not connected, dropped the Modbus frame"));
+    this->note_drop_(LOG_STR("Not connected, dropped the Modbus frame"));
     this->clear_tx_();
     if (this->server_) {
       this->txn_pending_ = false;
@@ -312,7 +310,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
     // A late reply to an earlier request, or one from another unit, must not take this request's id.
     if (!this->txn_pending_ || this->tx_[0] != this->unit_ ||
         (this->tx_[1] & modbus::FUNCTION_CODE_MASK) != this->function_) {
-      note_drop(this->drop_log_ms_[DROP_NO_REQUEST], LOG_STR("Reply without a matching request, dropped"));
+      this->note_drop_(LOG_STR("Reply without a matching request, dropped"));
       this->consume_tx_(this->tx_frame_len_);
       return;
     }
@@ -323,7 +321,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   uint8_t frame[TCP_FRAME_SIZE];
   size_t n = write_mbap(frame, sizeof(frame), txn, this->tx_[0], this->tx_ + 1, this->tx_frame_len_ - 3);
   if (n == 0) {
-    note_drop(this->drop_log_ms_[DROP_ENCODE], LOG_STR("Cannot encode the Modbus frame, dropped"));
+    this->note_drop_(LOG_STR("Cannot encode the Modbus frame, dropped"));
     this->consume_tx_(this->tx_frame_len_);
     if (this->server_) {
       this->txn_pending_ = false;
@@ -331,7 +329,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
     return;
   }
   // A short queue would put a partial MBAP on the wire. Hold the RTU and retry.
-  // Logged once per frame, and not through note_drop(), so a later drop is still visible.
+  // Logged once per frame, and not through note_drop_(), so a later drop is still visible.
   size_t free = this->parent_->available_for_write();
   if (free < n) {
     if (!this->tx_hold_logged_) {
@@ -353,7 +351,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   uart::UARTFlushResult sent = this->parent_->flush();
   // TIMEOUT means the bytes are still queued on a link that is up. They leave later.
   if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED) {
-    note_drop(this->drop_log_ms_[DROP_SEND], LOG_STR("Send failed"));
+    this->note_drop_(LOG_STR("Send failed"));
     if (!this->server_) {
       this->txn_pending_ = false;
     }
@@ -366,7 +364,7 @@ void ModbusTcpUart::discard_parent_() {
   while (left != 0) {
     size_t n = std::min(left, sizeof(junk));
     if (!this->parent_->read_array(junk, n)) {
-      note_drop(this->drop_log_ms_[DROP_READ], LOG_STR("Read failed"));
+      this->note_drop_(LOG_STR("Read failed"));
       return;
     }
     left -= n;

@@ -2,6 +2,7 @@
 
 #include "esphome/components/uart/uart_virtual.h"
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 #include <cstdint>
 
@@ -14,7 +15,7 @@ namespace esphome::modbus_tcp_uart {
 /// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
 /// Client: Response must match the request transaction ID (else dropped). It keeps the request's unit.
 /// Server: Response is sent with transaction ID matching the most recent request. One request at a time goes to the
-/// hub, the next waits until it is read and answered, or REPLY_TIMEOUT_MS. The reply must match its unit and
+/// hub, the next waits until it is read and answered, or the reply timeout. The reply must match its unit and
 /// function (else dropped).
 /// With servers on the hub, a request to a unit that none of them answers is dropped.
 /// Bad MBAP: skipped if its length is usable, else bytes are dropped until the peer has been quiet.
@@ -27,6 +28,7 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
 
   void set_parent(tcp_uart::TcpUart *parent) { this->parent_ = parent; }
   void set_server(bool server) { this->server_ = server; }
+  void set_reply_timeout(uint32_t ms) { this->reply_timeout_ms_ = ms; }
   // Server: the units that the server devices on the hub answer.
   void set_units(const uint8_t *units, uint8_t count) {
     this->units_ = units;
@@ -50,35 +52,20 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   void consume_tx_(size_t len);
   void clear_tx_();
   void discard_parent_();
-
-  // One stamp per message. A stale transaction must not hide a failed send.
-  enum DropKind : uint8_t {
-    DROP_INCOMPLETE = 0,
-    DROP_REPLY_PREVIOUS,
-    DROP_HELD,
-    DROP_READ,
-    DROP_REPLACED,
-    DROP_STALE,
-    DROP_RX_FULL,
-    DROP_NOT_CONNECTED,
-    DROP_NO_REQUEST,
-    DROP_ENCODE,
-    DROP_SEND,
-    DROP_BAD_MBAP,
-    DROP_UNKNOWN_UNIT,
-    DROP_KIND_COUNT,
-  };
+  bool drop_log_due_();
+  void note_drop_(const LogString *message);
 
   static constexpr size_t TCP_FRAME_SIZE = 260;
   // One RTU frame. The hub reads it before the next request, so nothing else is waiting.
   static constexpr uint16_t RTU_FRAME_SIZE = 256;
-  // Server: how long the next request waits for the reply to the current one.
-  static constexpr uint32_t REPLY_TIMEOUT_MS = 1000;
 
   tcp_uart::TcpUart *parent_{nullptr};
   const uint8_t *units_{nullptr};
-  uint32_t drop_log_ms_[DROP_KIND_COUNT]{};
-  uint32_t resync_from_us_{0};
+  // One stamp for all drop warnings, so a burst of drops logs once per interval.
+  uint32_t drop_log_ms_{0};
+  uint32_t resync_from_ms_{0};
+  // Server: how long the next request waits for the reply to the current one.
+  uint32_t reply_timeout_ms_{1000};
   // Server: when the last request was handed to the hub.
   uint32_t request_ms_{0};
   uint16_t txn_{0};

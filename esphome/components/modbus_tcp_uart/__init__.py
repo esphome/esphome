@@ -17,6 +17,8 @@ DEPENDENCIES = ["modbus", "tcp_uart"]
 MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
+CONF_ON_REQUEST = "on_request"
+DEFAULT_REPLY_TIMEOUT_MS = 1000
 
 modbus_tcp_uart_ns = cg.esphome_ns.namespace("modbus_tcp_uart")
 ModbusTcpUart = modbus_tcp_uart_ns.class_(
@@ -56,12 +58,18 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _served_units(full: ConfigType, link_id: str) -> list[int]:
-    """Addresses of the server devices on the hubs that use this link."""
-    hubs = {
-        str(hub[CONF_ID])
+    """Addresses of the server devices on the hubs that use this link.
+
+    Empty when a hub on the link has on_request: it takes every unit.
+    """
+    link_hubs = [
+        hub
         for hub in full.get("modbus") or []
         if str(hub.get(CONF_UART_ID, "")) == link_id
-    }
+    ]
+    if any(CONF_ON_REQUEST in hub for hub in link_hubs):
+        return []
+    hubs = {str(hub[CONF_ID]) for hub in link_hubs}
     return sorted(
         {
             item[CONF_ADDRESS]
@@ -73,6 +81,17 @@ def _served_units(full: ConfigType, link_id: str) -> list[int]:
     )
 
 
+def _reply_timeout_ms(full: ConfigType) -> int:
+    """Server: a forwarded request may wait the longest send_wait_time of a client hub."""
+    waits = [
+        hub[modbus.CONF_SEND_WAIT_TIME].total_milliseconds
+        for hub in full.get("modbus") or []
+        if hub.get(CONF_ROLE, "client") == "client"
+        and modbus.CONF_SEND_WAIT_TIME in hub
+    ]
+    return max([DEFAULT_REPLY_TIMEOUT_MS, *waits])
+
+
 async def to_code(config: ConfigType) -> None:
     uart.require_virtual_uart()
     var = cg.new_Pvariable(config[CONF_ID])
@@ -81,6 +100,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_parent(parent))
     if config[CONF_ROLE] == "server":
         cg.add(var.set_server(True))
+        if (timeout := _reply_timeout_ms(CORE.config)) != DEFAULT_REPLY_TIMEOUT_MS:
+            cg.add(var.set_reply_timeout(timeout))
         # No hub on this link (another reader takes the requests): every request goes on.
         if units := _served_units(CORE.config, str(config[CONF_ID])):
             arr = cg.static_const_array(

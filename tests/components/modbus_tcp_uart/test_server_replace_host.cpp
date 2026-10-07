@@ -69,9 +69,9 @@ class ServerLink : public ModbusTcpUart {
   }
 
   void hold_reply(uint8_t n) { this->tx_len_ = n; }
-  void expire() { this->request_ms_ -= REPLY_TIMEOUT_MS; }
+  void expire() { this->request_ms_ -= this->reply_timeout_ms_; }
   // Moves the start of the quiet period back, as if the stream had been quiet that long.
-  void quiet_for(uint32_t us) { this->resync_from_us_ -= us; }
+  void quiet_for(uint32_t ms) { this->resync_from_ms_ -= ms; }
 
   // Writes an RTU frame with its CRC, the way the hub answers.
   void answer(std::initializer_list<uint8_t> body) {
@@ -91,10 +91,8 @@ class ServerLink : public ModbusTcpUart {
   void deliver() { this->deliver_mbap_(); }
   // As if the attached reader were still inside on_block(), so inject_rx() refuses the block.
   void set_in_rx_sink(bool in) { this->in_rx_sink_ = in; }
-  bool unknown_unit_logged() const { return this->drop_log_ms_[DROP_UNKNOWN_UNIT] != 0; }
-  bool read_failure_logged() const { return this->drop_log_ms_[DROP_READ] != 0; }
-  bool rx_full_logged() const { return this->drop_log_ms_[DROP_RX_FULL] != 0; }
-  bool replaced_logged() const { return this->drop_log_ms_[DROP_REPLACED] != 0; }
+  bool drop_logged() const { return this->drop_log_ms_ != 0; }
+  void clear_drop_log() { this->drop_log_ms_ = 0; }
 };
 
 const uint8_t PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
@@ -131,7 +129,7 @@ TEST(ModbusTcpUartServer, RequestWithNoReplyIsLoggedWhenReplaced) {
   link.expire();
   link.push(8, 1, PDU, sizeof(PDU));
   EXPECT_EQ(link.txn(), 8);
-  EXPECT_TRUE(link.replaced_logged());
+  EXPECT_TRUE(link.drop_logged());
 }
 
 TEST(ModbusTcpUartServer, UnreadRequestIsKept) {
@@ -150,7 +148,7 @@ TEST(ModbusTcpUartServer, UnreadRequestIsReplacedWhenOverdue) {
   link.expire();
   link.push(8, 1, PDU_REG1, sizeof(PDU_REG1));
   EXPECT_EQ(link.txn(), 8);
-  EXPECT_TRUE(link.replaced_logged());
+  EXPECT_TRUE(link.drop_logged());
   uint8_t taken[16];
   ASSERT_EQ(link.available(), sizeof(PDU_REG1) + 3);
   ASSERT_TRUE(link.read_array(taken, link.available()));
@@ -346,11 +344,11 @@ TEST(ModbusTcpUartServer, RequestToAUnitNoServerAnswersIsDropped) {
   link.push(3, 0, write, sizeof(write));
   uint8_t taken[16];
   ASSERT_TRUE(link.read_array(taken, link.available()));
-  EXPECT_FALSE(link.unknown_unit_logged());
+  EXPECT_FALSE(link.drop_logged());
   link.push(4, 5, PDU, sizeof(PDU));
   EXPECT_EQ(link.available(), 0u);
   EXPECT_FALSE(link.pending());
-  EXPECT_TRUE(link.unknown_unit_logged());
+  EXPECT_TRUE(link.drop_logged());
   link.push(5, 1, write, sizeof(write));
   EXPECT_EQ(link.txn(), 5);
   EXPECT_EQ(link.available(), sizeof(write) + 3);
@@ -364,8 +362,8 @@ TEST(ModbusTcpUartServer, RefusedRequestDoesNotBlockTheNext) {
   link.push(7, 1, PDU, sizeof(PDU));
   EXPECT_EQ(reader.requests, 0);
   EXPECT_FALSE(link.pending());
-  EXPECT_TRUE(link.rx_full_logged());
-  // The next request goes to the reader at once, without waiting for REPLY_TIMEOUT_MS.
+  EXPECT_TRUE(link.drop_logged());
+  // The next request goes to the reader at once, without waiting for the reply timeout.
   link.set_in_rx_sink(false);
   link.push(8, 1, PDU, sizeof(PDU));
   EXPECT_EQ(reader.requests, 1);
@@ -379,11 +377,11 @@ TEST(ModbusTcpUartServer, FailedReadWhileResyncingIsLogged) {
   const uint8_t bad[] = {0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03};
   pipe.feed(bad, sizeof(bad));
   link.loop();
-  EXPECT_FALSE(link.read_failure_logged());
+  link.clear_drop_log();  // the bad header was logged
   pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
   pipe.fail_reads_ = true;
   link.loop();
-  EXPECT_TRUE(link.read_failure_logged());
+  EXPECT_TRUE(link.drop_logged());
   EXPECT_EQ(link.available(), 0u);
 }
 
@@ -412,7 +410,7 @@ TEST(ModbusTcpUartServer, BadLengthWaitsForAQuietStream) {
   pipe.feed_mbap(7, 1, PDU, sizeof(PDU));
   link.loop();
   EXPECT_EQ(link.available(), 0u);
-  link.quiet_for(120000);
+  link.quiet_for(120);
   link.loop();
   pipe.feed_mbap(8, 1, PDU, sizeof(PDU));
   link.loop();
