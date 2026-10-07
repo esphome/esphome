@@ -83,13 +83,11 @@ void ModbusTcpUart::write_array(const uint8_t *data, size_t len) {
     this->note_drop_(LOG_STR("Reply to the previous request, dropped"));
     return;
   }
-  // A whole frame is only still here because the transport could not take it.
-  // The writer has moved on, so the next write replaces it.
+  // A held frame is replaced by the next write.
   if (this->tx_frame_len_ != 0) {
     this->note_drop_(LOG_STR("Dropping a held Modbus frame"));
     this->consume_tx_(this->tx_frame_len_);
   }
-  // A part from earlier cannot go on with a write that does not fit or that starts with a whole frame.
   size_t frame_len = 0;
   if (this->tx_len_ != 0 &&
       (this->tx_len_ + len > sizeof(this->tx_) || take_rtu(data, len, this->server_, &frame_len) == RtuTake::FRAME)) {
@@ -115,7 +113,7 @@ void ModbusTcpUart::send_tx_(size_t held) {
         return;
       }
       if (take == RtuTake::BAD) {
-        // The part from earlier and the last write do not make a frame: try the write on its own.
+        // Not a frame with the earlier part: try the write alone.
         this->note_drop_(held != 0 ? LOG_STR("Part of a Modbus frame dropped")
                                    : LOG_STR("Not a Modbus frame, dropped"));
         if (held == 0) {
@@ -137,7 +135,6 @@ void ModbusTcpUart::send_tx_(size_t held) {
 }
 
 size_t ModbusTcpUart::available_for_write() {
-  // Anything written now would replace a whole frame that still waits for the transport.
   if (!this->is_connected() || this->tx_frame_len_ != 0) {
     return 0;
   }
@@ -148,7 +145,6 @@ uart::UARTFlushResult ModbusTcpUart::flush() {
   if (this->tx_frame_len_ != 0) {
     this->send_tx_(0);
   }
-  // A whole frame is still here, so the writer must not be told that the flush finished.
   if (this->parent_ == nullptr || this->tx_frame_len_ != 0) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
@@ -171,7 +167,7 @@ void ModbusTcpUart::read_parent_() {
     this->resync_ = false;
   }
   size_t room = sizeof(this->tcp_buf_) - this->tcp_len_;
-  // Any frame fits, so a full buffer starts with a whole frame that waits for the hub. Leave it.
+  // A full buffer holds a whole frame that waits for the reader.
   if (room == 0) {
     return;
   }
@@ -204,14 +200,13 @@ void ModbusTcpUart::deliver_mbap_() {
         // [TCP 4.4.2.2] discards only the bad frame. A usable length says where it ends.
         size_t size = mbap_announced_size(this->tcp_buf_ + pos, left);
         if (size == 0) {
-          // No frame boundary. A byte-wise search could hand the hub a mid-frame match with a fresh CRC.
+          // No frame boundary; a byte-wise search could find a false CRC match.
           this->note_drop_(LOG_STR("Invalid MBAP length, dropped until the stream is quiet"));
           this->tcp_len_ = 0;
           this->resync_ = true;
           this->resync_from_ms_ = App.get_loop_component_start_time();
           return;
         }
-        // Any frame fits the buffer. Wait for all of it, then skip it.
         used = size <= left ? size : 0;
         if (used != 0) {
           this->note_drop_(LOG_STR("Invalid MBAP protocol id, frame skipped"));
@@ -220,15 +215,13 @@ void ModbusTcpUart::deliver_mbap_() {
       }
       case MbapTake::FRAME: {
         if (this->server_) {
-          // One request at a time. This one stays here until the hub has read the last one and its reply went out,
-          // or the last one is overdue.
+          // One request at a time, until the last one is answered or overdue.
           uint32_t now = App.get_loop_component_start_time();
           bool busy = this->available() != 0 || this->txn_pending_;
           if (busy && now - this->request_ms_ < this->reply_timeout_ms_) {
             used = 0;
             break;
           }
-          // Not read or not answered in time. The next request takes its place.
           if (busy) {
             this->note_drop_(LOG_STR("Unanswered request replaced"));
             this->rx_.clear();
@@ -237,8 +230,7 @@ void ModbusTcpUart::deliver_mbap_() {
             }
             this->txn_pending_ = false;
           }
-          // The hub leaves a request for another unit to the RTU device that has it, and takes the next frame as
-          // that device's reply. No such device is on this link, so the next request would be lost. Drop it here.
+          // The hub would wait for another device's reply to it, and none is on this link.
           const uint8_t *units_end = this->units_ + this->units_count_;
           if (frame.unit != 0 && this->units_ != nullptr &&
               std::find(this->units_, units_end, frame.unit) == units_end) {
@@ -328,8 +320,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
     }
     return;
   }
-  // A short queue would put a partial MBAP on the wire. Hold the RTU and retry.
-  // Logged once per frame, and not through note_drop_(), so a later drop is still visible.
+  // Never put a partial MBAP frame on the wire; hold and retry.
   size_t free = this->parent_->available_for_write();
   if (free < n) {
     if (!this->tx_hold_logged_) {
@@ -347,9 +338,9 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   }
   this->consume_tx_(this->tx_frame_len_);
   this->parent_->write_array(frame, n);
-  // tcp_uart may already have run this pass. Flush so the request leaves now.
+  // Send now, not on the next pass.
   uart::UARTFlushResult sent = this->parent_->flush();
-  // TIMEOUT means the bytes are still queued on a link that is up. They leave later.
+  // TIMEOUT: still queued on a link that is up.
   if (sent == uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED) {
     this->note_drop_(LOG_STR("Send failed"));
     if (!this->server_) {

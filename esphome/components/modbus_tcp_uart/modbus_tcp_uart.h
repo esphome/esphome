@@ -12,16 +12,8 @@ class TcpUart;
 
 namespace esphome::modbus_tcp_uart {
 
-/// RTU toward the modbus hub, Modbus TCP on a raw tcp_uart.
-/// Client: Response must match the request transaction ID (else dropped). It keeps the request's unit.
-/// Server: Response is sent with transaction ID matching the most recent request. One request at a time goes to the
-/// hub, the next waits until it is read and answered, or the reply timeout. The reply must match its unit and
-/// function (else dropped).
-/// With servers on the hub, a request to a unit that none of them answers is dropped.
-/// Bad MBAP: skipped if its length is usable, else bytes are dropped until the peer has been quiet.
-/// Writes are joined into RTU frames: a frame ends at the length its function code gives, else at the first CRC
-/// match, so a frame may come in pieces and one write may hold several frames. A part that the next write cannot
-/// continue is dropped.
+/// RTU toward the reader, Modbus TCP on a tcp_uart. Client: a response must match the request's transaction id.
+/// Server: one request at a time; the reply gets its transaction id.
 class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
  public:
   ModbusTcpUart() : VirtualUARTComponent(RTU_FRAME_SIZE) {}
@@ -56,37 +48,33 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   void note_drop_(const LogString *message);
 
   static constexpr size_t TCP_FRAME_SIZE = 260;
-  // One RTU frame. The hub reads it before the next request, so nothing else is waiting.
+  // One RTU frame.
   static constexpr uint16_t RTU_FRAME_SIZE = 256;
 
   tcp_uart::TcpUart *parent_{nullptr};
   const uint8_t *units_{nullptr};
-  // One stamp for all drop warnings, so a burst of drops logs once per interval.
+  // One rate limit for all drop warnings.
   uint32_t drop_log_ms_{0};
   uint32_t resync_from_ms_{0};
-  // Server: how long the next request waits for the reply to the current one.
+  // Server: how long the next request waits for the reply.
   uint32_t reply_timeout_ms_{1000};
   // Server: when the last request was handed to the hub.
   uint32_t request_ms_{0};
   uint16_t txn_{0};
   uint16_t tcp_len_{0};
-  // tx_[0, tx_len_): written, not sent. A whole frame of tx_frame_len_ bytes at the front waits for room in the
-  // transport; the rest is the start of the next frame.
+  // tx_[0, tx_len_): written, not sent; a whole frame of tx_frame_len_ bytes at the front waits for room.
   uint16_t tx_len_{0};
   uint16_t tx_frame_len_{0};
   uint8_t units_count_{0};
-  // The open request's unit. Client: the response's RTU address. Server: with the function, it marks the reply.
+  // The open request's unit and function.
   uint8_t unit_{0};
   uint8_t function_{0};
-  // Client: set after a request is sent. Server: set after a request is delivered.
-  // txn_ starts at 0. For a client that is not a request. For a server it may be.
+  // Client: a request was sent. Server: a request was delivered.
   bool txn_pending_{false};
   bool server_{false};
-  // The hold warning is logged once per frame, so it does not hide a later drop.
   bool tx_hold_logged_{false};
-  // Edge for the disconnect log.
   bool link_was_up_{false};
-  // A header without a usable length. Nothing is parsed until the peer has been quiet.
+  // After a header without a usable length: wait until the peer has been quiet.
   bool resync_{false};
   uint8_t tcp_buf_[TCP_FRAME_SIZE]{};
   uint8_t tx_[RTU_FRAME_SIZE]{};

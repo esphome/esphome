@@ -102,15 +102,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_server(True))
         if (timeout := _reply_timeout_ms(CORE.config)) != DEFAULT_REPLY_TIMEOUT_MS:
             cg.add(var.set_reply_timeout(timeout))
-        # No hub on this link (another reader takes the requests): every request goes on.
         if units := _served_units(CORE.config, str(config[CONF_ID])):
             arr = cg.static_const_array(
                 ID(f"{config[CONF_ID]}_units", is_declaration=True, type=cg.uint8),
                 cg.ArrayInitializer(*units),
             )
             cg.add(var.set_units(arr, len(units)))
-    # The socket is not clocked. The hub reads these from its UART during
-    # setup(), and every cg.add() runs before App.setup().
+    # The reader takes these in setup(); every cg.add() runs before that.
     parent_config = CORE.config.get_config_for_path(
         CORE.config.get_path_for_id(config[CONF_TCP_UART_ID])[:-1]
     )
