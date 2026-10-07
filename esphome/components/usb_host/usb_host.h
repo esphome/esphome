@@ -222,11 +222,11 @@ class USBClient : public Component {
   usb_device_handle_t device_handle_{};
   int device_addr_{-1};
   int state_{USB_CLIENT_INIT};
+  LazyCallbackManager<void(bool)> connection_callback_;
   // Lock-free pool management using atomic bitmask (no dynamic allocation)
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
   std::atomic<trq_bitmask_t> trq_in_use_;
-  LazyCallbackManager<void(bool)> connection_callback_;
   uint16_t vid_{};
   uint16_t pid_{};
   // Whether the connection callbacks were told about the current device, so a removal is
