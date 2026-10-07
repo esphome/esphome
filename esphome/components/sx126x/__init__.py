@@ -146,8 +146,9 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     )
 
 
-# The radio sends packets of 1 to 255 bytes.
-validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=255))
+MAX_PACKET_SIZE = 255
+# The radio sends packets of 1 to MAX_PACKET_SIZE bytes.
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
 def validate_config(config: ConfigType) -> ConfigType:
@@ -209,7 +210,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
             cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=-3, max=22),
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
-            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
+                min=0, max=MAX_PACKET_SIZE
+            ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=2): cv.int_range(min=0, max=4),
             cv.Optional(CONF_PREAMBLE_SIZE, default=8): cv.int_range(min=1, max=65535),
             cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
