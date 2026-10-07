@@ -3934,7 +3934,7 @@ uint32_t ListEntitiesInfraredResponse::calc_size_msg(const void *self) {
   return size;
 }
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void InfraredRFTransmitRawTimingsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
                                                        proto_varint_value_t scalar) {
   auto &msg = *static_cast<InfraredRFTransmitRawTimingsRequest *>(self);
@@ -3992,6 +3992,27 @@ InfraredRFReceiveEvent::calc_size_msg(const void *self) {
       size += ProtoSize::calc_sint32_force(1, it);
     }
   }
+  return size;
+}
+uint8_t *InfraredRFTransmitCompleteResponse::encode_msg(const void *self,
+                                                        ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const InfraredRFTransmitCompleteResponse *>(self);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+#ifdef USE_DEVICES
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.device_id);
+#endif
+  pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.success);
+  return pos;
+}
+uint32_t InfraredRFTransmitCompleteResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const InfraredRFTransmitCompleteResponse *>(self);
+  uint32_t size = 0;
+#ifdef USE_DEVICES
+  size += ProtoSize::calc_uint32(1, msg.device_id);
+#endif
+  size += 5;
+  size += ProtoSize::calc_bool(1, msg.success);
   return size;
 }
 #endif
@@ -4329,7 +4350,7 @@ static_assert(!std::is_polymorphic_v<UpdateCommandRequest>, "decodable messages 
 static_assert(!std::is_polymorphic_v<ZWaveProxyFrame>, "decodable messages carry no vtable");
 static_assert(!std::is_polymorphic_v<ZWaveProxyRequest>, "decodable messages carry no vtable");
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 static_assert(!std::is_polymorphic_v<InfraredRFTransmitRawTimingsRequest>, "decodable messages carry no vtable");
 #endif
 #ifdef USE_SERIAL_PROXY
