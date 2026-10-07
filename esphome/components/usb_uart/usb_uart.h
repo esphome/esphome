@@ -343,8 +343,7 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
-  // TODO: implement the vendor-specific protocol
-  bool supports_modem_control() const override { return false; }
+  void modem_control_transfer(USBUartChannelBase *channel) override;
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
