@@ -30,8 +30,7 @@ void UartSplit::loop() {
   if (waiting == 0) {
     return;
   }
-  // A full writer leaves new bytes in the parent's buffer, so it loses nothing. Once that buffer is
-  // half full, the split reads on: the writer drops instead, and the other outputs keep receiving.
+  // A full writer leaves new bytes in the parent's buffer until it is half full; then the writer drops.
   size_t hold_limit = this->parent_->get_rx_buffer_size() / 2;
   if (hold_limit == 0) {
     hold_limit = RX_BUFFER_SIZE / 2;
@@ -128,8 +127,7 @@ void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
 
 size_t UartSplitOutput::available_for_write() {
   if (this->rx_only_) {
-    // Takes and drops every byte without waiting. 0 would make a paced writer such as uart_tcp
-    // stop reading its socket, so it would never see its client leave.
+    // Takes and drops every byte; 0 would stall a writer that paces on it.
     return SIZE_MAX;
   }
   return this->split_->parent()->available_for_write();

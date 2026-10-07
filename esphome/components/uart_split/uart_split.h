@@ -69,7 +69,7 @@ class UartSplit final : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  // After the hardware UART (BUS), before the devices on the outputs (modbus is BUS - 1), which read the settings.
+  // After the hardware UART, before the devices on the outputs, which read the settings.
   float get_setup_priority() const override { return setup_priority::BUS - 0.5f; }
 
   /// Copy bytes a writer just sent into every other output that asked for them.
