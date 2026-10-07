@@ -1238,10 +1238,9 @@ def lint_no_std_nothrow(fname, match):
 
 
 @lint_re_check(
-    r"^(?:static |constexpr )*const char \*(?:const )?TAG = \"",
+    r"^(?:static |constexpr )*(?:const )?char (?:\*(?:const )?TAG|TAG\[\]) ?(?:= ?\"|[{(]\")",
     prefilter="TAG",
     include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
-    exclude=["esphome/components/esp32_ble_tracker/esp32_ble_tracker.cpp"],
 )
 def lint_log_tag_macro(fname, match):
     return (
@@ -1250,6 +1249,21 @@ def lint_log_tag_macro(fname, match):
         f"  Before: {highlight('static const char *const TAG = "name";')}\n"
         f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
         f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\(\s*TAG\b",
+    mask=True,
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+)
+def lint_log_tag_as_string(fname, match):
+    return (
+        f"{highlight('TAG')} is in flash on ESP8266 (ESPHOME_LOG_TAG), so it can only be used for logging.\n"
+        f"Use a separate name or a numeric id for scheduler calls, and do not pass it to string functions.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 
