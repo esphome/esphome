@@ -52,7 +52,7 @@ from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
 
-
+CONF_ADDRESS2 = "address2"
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
@@ -1929,7 +1929,12 @@ async def toshibaac_action(var, config, args):
 PANASONIC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Optional(CONF_ADDRESS2, default=0x00): cv.hex_uint8_t,
         cv.Required(CONF_COMMAND): cv.hex_uint32_t,
+        cv.Optional(CONF_NBITS, default=48): cv.one_of(48, 56, int=True),
+        cv.Optional(CONF_CARRIER_FREQUENCY, default="35000Hz"): cv.All(
+            cv.frequency, cv.int_
+        ),
     }
 )
 
@@ -1941,7 +1946,10 @@ def panasonic_binary_sensor(var, config):
             cg.StructInitializer(
                 PanasonicData,
                 ("address", config[CONF_ADDRESS]),
+                ("address2", config[CONF_ADDRESS2]),
                 ("command", config[CONF_COMMAND]),
+                ("nbits", config[CONF_NBITS]),
+                ("carrier_frequency", config[CONF_CARRIER_FREQUENCY]),
             )
         )
     )
@@ -1961,8 +1969,14 @@ def panasonic_dumper(var, config):
 async def panasonic_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_ADDRESS2], args, cg.uint8)
+    cg.add(var.set_address2(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint16)
+    cg.add(var.set_nbits(template_))
+    template_ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint16)
+    cg.add(var.set_carrier_frequency(template_))
 
 
 # Nexa
