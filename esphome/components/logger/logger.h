@@ -86,7 +86,6 @@ class LoggerLevelListener {
 };
 #endif
 
-#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 // RAM map keys compared with a tag that may be in PROGMEM, without copying it
 struct FlashTag {
   const char *tag;
@@ -97,7 +96,6 @@ struct CStrCompare {
   bool operator()(const char *key, FlashTag t) const { return ESPHOME_strcmp_P(key, t.tag) < 0; }
   bool operator()(FlashTag t, const char *key) const { return ESPHOME_strcmp_P(key, t.tag) > 0; }
 };
-#endif
 
 // Stack buffer size for retrieving thread/task names from the OS
 // macOS allows up to 64 bytes, Linux up to 16
