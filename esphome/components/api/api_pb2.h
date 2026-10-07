@@ -3681,7 +3681,7 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  protected:
 };
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 136;
@@ -3724,6 +3724,30 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class InfraredRFTransmitCompleteResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 153;
+  static constexpr uint8_t ESTIMATED_SIZE = 11;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("infrared_rf_transmit_complete_response"); }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  uint32_t key{0};
+  bool success{false};
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
