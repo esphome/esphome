@@ -398,11 +398,11 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
   // The define is global, so a hardware UART port in the same config also gets here
   if (this->usb_channel_ != nullptr) {
     msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_USB;
-    auto *client = this->usb_channel_->get_parent();
-    // A channel the device has no CDC function for is unusable, even with the device attached
-    if (!client->is_connected() || this->usb_channel_->get_interface_number() == 0xFF) {
+    // Covers a removed device, a channel the device has no CDC function for and a failed channel setup
+    if (!this->usb_channel_->is_connected()) {
       return;
     }
+    auto *client = this->usb_channel_->get_parent();
     msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
     if (!client->get_device_info(scratch)) {
       msg.flags |= api::enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR;

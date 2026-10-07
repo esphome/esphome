@@ -768,7 +768,7 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
   } flags_{};  // 2 bytes; 3 with HAS_PROTO_MESSAGE_DUMP + USE_API_OUTGOING_CONNECTION + USE_SERIAL_PROXY_USB_IDENTITY
 
-  // 2-byte type immediately after flags_ (no padding between them)
+  // 2-byte type immediately after flags_ (one padding byte when flags_ is 3 bytes)
   uint16_t batch_message_type_{0};  // Current message type during batch encoding
   // 1-byte types to fill remaining space before next 4-byte boundary
   // Client API versions are clamped to 255 on receive (see send_hello_response_)
