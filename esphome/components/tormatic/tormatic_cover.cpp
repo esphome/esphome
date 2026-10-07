@@ -1,5 +1,5 @@
 #include <cinttypes>
-#include <vector>
+#include <array>
 
 #include "tormatic_cover.h"
 
@@ -36,6 +36,13 @@ cover::CoverTraits Tormatic::get_traits() {
 
 void Tormatic::dump_config() {
   LOG_COVER("", "Tormatic Cover", this);
+#ifdef USE_SWITCH
+  if (this->light_switch_ != nullptr) {
+    LOG_SWITCH("", "Tormatic Light Switch", this->light_switch_);
+  }
+#endif
+  this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
+
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",
@@ -56,7 +63,6 @@ void Tormatic::update() {
   static constexpr uint32_t LIGHT_POLL_INTERVAL_MS = 5000;
   if (this->current_operation == COVER_OPERATION_IDLE && now - this->last_light_poll_time_ >= LIGHT_POLL_INTERVAL_MS) {
     this->last_light_poll_time_ = now;
-    this->pending_status_type_ = StatusType::LIGHT;
     this->request_light_status_();
     return;
   }
@@ -78,6 +84,7 @@ void Tormatic::loop() {
 
 void Tormatic::control(const cover::CoverCall &call) {
   if (call.get_stop()) {
+    this->target_position_.reset();
     this->send_gate_command_(PAUSED);
     return;
   }
@@ -123,7 +130,7 @@ void Tormatic::recalibrate_duration_(GateStatus s) {
 
   // Record the start time of a state transition if the gate was in the fully
   // open or closed position before the command.
-  if ((old == CLOSED && s == OPENING) || (old == OPENED && s == CLOSING)) {
+  if (this->position_known_ && ((old == CLOSED && s == OPENING) || (old == OPENED && s == CLOSING))) {
     ESP_LOGD(TAG, "Gate started moving from fully open or closed state");
     this->direction_start_time_ = now;
     return;
@@ -163,12 +170,17 @@ void Tormatic::handle_gate_status_(GateStatus s) {
       this->send_gate_command_(PAUSED);
 
       this->position = COVER_OPEN;
+      this->position_known_ = true;
       break;
     case CLOSED:
       this->position = COVER_CLOSED;
+      this->position_known_ = true;
       break;
     case VENTILATING:
-      this->position = COVER_VENTILATION;
+      this->position = COVER_OPEN;
+      this->position_known_ = false;
+      this->target_position_.reset();
+      this->direction_start_time_ = 0;
       break;
     default:
       break;
@@ -188,7 +200,7 @@ void Tormatic::handle_gate_status_(GateStatus s) {
 // Recompute the gate's position and publish the results while
 // the gate is moving. No-op when the gate is idle.
 void Tormatic::recompute_position_() {
-  if (this->current_operation == COVER_OPERATION_IDLE) {
+  if (this->current_operation == COVER_OPERATION_IDLE || !this->position_known_) {
     return;
   }
 
@@ -216,24 +228,25 @@ void Tormatic::recompute_position_() {
 
 // Start moving the gate in the direction of the target position.
 void Tormatic::control_position_(float target) {
-  if (target == this->position) {
+  if (this->position_known_ && target == this->position && this->current_operation == COVER_OPERATION_IDLE) {
     return;
   }
 
   if (target == COVER_OPEN) {
+    this->target_position_.reset();
     ESP_LOGI(TAG, "Fully opening gate");
     this->send_gate_command_(OPENED);
     return;
   }
   if (target == COVER_CLOSED) {
+    this->target_position_.reset();
     ESP_LOGI(TAG, "Fully closing gate");
     this->send_gate_command_(CLOSED);
     return;
   }
 
-  if (target == COVER_VENTILATION) {
-    ESP_LOGI(TAG, "Setting gate to ventilating position");
-    this->send_gate_command_(VENTILATING);
+  if (!this->position_known_) {
+    ESP_LOGW(TAG, "Position unknown after ventilation; fully open or close the gate before setting a partial position");
     return;
   }
 
@@ -309,21 +322,13 @@ optional<GateStatus> Tormatic::read_status_response_() {
     return {};
   }
 
-  // Log full RX message (header + payload)
-  auto hdr_bytes = serialize(hdr);
-  std::vector<uint8_t> payload(hdr.payload_size());
+  std::array<uint8_t, sizeof(CommandRequestReply)> payload{};
   if (hdr.payload_size() > 0) {
-    this->read_array(payload.data(), payload.size());
+    if (!this->read_array(payload.data(), hdr.payload_size())) {
+      this->pending_hdr_.reset();
+      return {};
+    }
   }
-  size_t total = hdr_bytes.size() + payload.size();
-  char rx_hex[total * 3 + 1];
-  for (size_t i = 0; i < hdr_bytes.size(); i++) {
-    snprintf(rx_hex + i * 3, 4, "%02X ", hdr_bytes[i]);
-  }
-  for (size_t i = 0; i < payload.size(); i++) {
-    snprintf(rx_hex + (hdr_bytes.size() + i) * 3, 4, "%02X ", payload[i]);
-  }
-  ESP_LOGD(TAG, "RX (%zu bytes): %s", total, rx_hex);
 
   this->pending_hdr_.reset();
 
@@ -332,7 +337,6 @@ optional<GateStatus> Tormatic::read_status_response_() {
       if (hdr.payload_size() != sizeof(StatusReply)) {
         ESP_LOGE(TAG, "Header specifies payload size %" PRIu32 " but size of StatusReply is %zu", hdr.payload_size(),
                  sizeof(StatusReply));
-        this->drain_rx_(hdr.payload_size());
         return {};
       }
 
@@ -340,20 +344,22 @@ optional<GateStatus> Tormatic::read_status_response_() {
       memcpy(&reply, payload.data(), sizeof(reply));
       reply.byteswap();
 
-      // Interpret the response based on what was requested.
-      if (this->pending_status_type_ == LIGHT) {
-        bool light_on = static_cast<uint8_t>(reply.trailer);
-        ESP_LOGI(TAG, "**Light** status: %s (raw=0x%02X)", light_on ? LOG_STR_LITERAL("On") : LOG_STR_LITERAL("Off"),
-                 static_cast<uint8_t>(reply.trailer));
-        // if (light_on != this->current_light_state_) {
-        //   this->current_light_state_ = light_on;
-        this->light_state_callback_.call(light_on);
-        //}
-        this->pending_status_type_.reset();
+      if (this->pending_light_seq_ == hdr.seq) {
+        this->pending_light_seq_.reset();
+#ifdef USE_SWITCH
+        if (this->light_switch_ != nullptr) {
+          this->light_switch_->publish_state(reply.trailer != 0);
+        }
+#endif
         return {};
       }
 
-      return reply.state;
+      if (this->pending_gate_seq_ == hdr.seq) {
+        this->pending_gate_seq_.reset();
+        return reply.state;
+      }
+      ESP_LOGV(TAG, "Ignoring unmatched status sequence %u", hdr.seq);
+      return {};
     }
 
     case COMMAND:
@@ -365,13 +371,9 @@ optional<GateStatus> Tormatic::read_status_response_() {
       break;
 
     default:
-      // Unknown message type, drain the remaining amount of bytes specified in
-      // the header.
-      ESP_LOGE(TAG, "Reading remaining %" PRIu32 " payload bytes of unknown type 0x%x", hdr.payload_size(), hdr.type);
+      ESP_LOGE(TAG, "Ignoring unknown message type 0x%x", hdr.type);
       break;
   }
-
-  // Payload bytes already consumed for logging above, no drain needed.
 
   return {};
 }
@@ -380,23 +382,25 @@ optional<GateStatus> Tormatic::read_status_response_() {
 void Tormatic::request_light_status_() {
   StatusRequest req(LIGHT);
   this->send_message_(STATUS, req);
+  this->pending_light_seq_ = this->seq_tx_;
 }
 
 // Send a message to the unit requesting the gate's status.
 void Tormatic::request_gate_status_() {
   ESP_LOGV(TAG, "Requesting gate status");
-  this->pending_status_type_ = GATE;
   StatusRequest req(GATE);
   this->send_message_(STATUS, req);
+  this->pending_gate_seq_ = this->seq_tx_;
 }
 
 // Send a message to the unit issuing a command.
 void Tormatic::send_gate_command_(GateStatus s) {
   ESP_LOGI(TAG, "Sending gate command %s", gate_status_to_str(s));
-  // Do NOT set pending_status_type_ here. Commands receive COMMAND echoes
-  // (not STATUS responses), so overwriting pending_status_type_ would cause
-  // a pending light status response to be misinterpreted as a gate status
-  // (with state=0x00=PAUSED), making the ESP think the gate stopped.
+  if (s == VENTILATING) {
+    this->target_position_.reset();
+    this->position_known_ = false;
+    this->direction_start_time_ = 0;
+  }
   CommandRequestReply req(s);
   this->send_message_(COMMAND, req);
 }
@@ -404,23 +408,23 @@ void Tormatic::send_gate_command_(GateStatus s) {
 // Send a light on/off command to the unit.
 void Tormatic::send_light_command(bool state) {
   auto ls = state ? LIGHT_ON : LIGHT_OFF;
-  ESP_LOGI(TAG, "Sending light command %s", light_state_to_str(ls));
+  ESP_LOGD(TAG, "Sending light command %s", state ? "On" : "Off");
   LightCommandRequestReply req(ls);
   this->send_message_(COMMAND, req);
 }
 
 template<typename T> void Tormatic::send_message_(MessageType t, T req) {
   MessageHeader hdr(t, ++this->seq_tx_, sizeof(req));
+  if (this->pending_gate_seq_ == hdr.seq) {
+    this->pending_gate_seq_.reset();
+  }
+  if (this->pending_light_seq_ == hdr.seq) {
+    this->pending_light_seq_.reset();
+  }
 
   auto out = serialize(hdr);
   auto reqv = serialize(req);
   out.insert(out.end(), reqv.begin(), reqv.end());
-
-  char hex_buf[out.size() * 3 + 1];
-  for (size_t i = 0; i < out.size(); i++) {
-    snprintf(hex_buf + i * 3, 4, "%02X ", out[i]);
-  }
-  ESP_LOGD(TAG, "TX (%zu bytes): %s", out.size(), hex_buf);
 
   this->write_array(out);
 }

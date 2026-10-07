@@ -3,10 +3,10 @@ import esphome.codegen as cg
 from esphome.components import cover, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_CLOSE_DURATION, CONF_ID, CONF_OPEN_DURATION
-from esphome.types import ConfigType
 
 tormatic_ns = cg.esphome_ns.namespace("tormatic")
 Tormatic = tormatic_ns.class_("Tormatic", cover.Cover, cg.PollingComponent)
+VentilateAction = tormatic_ns.class_("VentilateAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cover.cover_schema(Tormatic)
@@ -51,6 +51,9 @@ TORMATIC_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-automation.register_apply_action(
-    "tormatic.ventilate", TORMATIC_ACTION_SCHEMA, automation.ApplyCall("ventilate()")
+@automation.register_action(
+    "tormatic.ventilate", VentilateAction, TORMATIC_ACTION_SCHEMA, synchronous=True
 )
+async def tormatic_ventilate_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

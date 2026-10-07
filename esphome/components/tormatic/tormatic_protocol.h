@@ -18,10 +18,8 @@
  * | 0xF3 0xCB | 0x00 0x00 0x00 0x06 | 0x01 0x04 | 0x00 0x0A 0x00 0x01 |
  * | 0xF3 0xCB | 0x00 0x00 0x00 0x05 | 0x01 0x04 | 0x02 0x03 0x00      |
  *
- * This request asks for the gate status (0x0A); the only other value observed
- * in the request was 0x0B, but replies were always zero. Presumably this
- * queries another sensor on the unit like a safety breaker, but this is not
- * relevant for an esphome cover component.
+ * This request asks for the gate status (0x0A). Light status requests use
+ * 0x0B; the last byte of the reply indicates whether the light is on.
  *
  * The second byte of the reply is set to 0x03 when the gate is in fully open
  * position. Other valid values for the second byte are: (0x0) Paused, (0x1)
@@ -126,8 +124,6 @@ struct MessageHeader {
 } __attribute__((packed));
 
 // StatusType denotes which 'page' of information needs to be retrieved.
-// On my Novoferm 423, only the GATE status type returns values, Unknown
-// only contains zeroes.
 enum StatusType : uint16_t {
   GATE = 0x0A,
   LIGHT = 0x0B,
@@ -252,17 +248,6 @@ enum LightState : uint8_t {
   LIGHT_ON = 1,
 };
 
-inline const char *light_state_to_str(LightState s) {
-  switch (s) {
-    case LIGHT_OFF:
-      return "Off";
-    case LIGHT_ON:
-      return "On";
-    default:
-      return "Unknown";
-  }
-}
-
 // LightCommandRequestReply tells the light to turn on or off.
 // It is echoed back by the unit on success.
 struct LightCommandRequestReply {
@@ -272,13 +257,6 @@ struct LightCommandRequestReply {
 
   LightCommandRequestReply() = default;
   LightCommandRequestReply(LightState state) : state(state) {}
-
-  std::string print() {
-    // 48 bytes: "LightCommandRequestReply: state " (32) + state (7) + safety margin
-    char buf[48];
-    buf_append_printf(buf, sizeof(buf), 0, "LightCommandRequestReply: state %s", light_state_to_str(this->state));
-    return buf;
-  }
 
   void byteswap() { this->type = convert_big_endian(this->type); }
 } __attribute__((packed));
