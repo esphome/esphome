@@ -197,10 +197,9 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
-  bool supports_modem_control() const override { return true; }
-  void set_modem_control(bool dtr, bool rts) override;
-  bool get_dtr() const override { return this->dtr_; }
-  bool get_rts() const override { return this->rts_; }
+  void set_modem_control(bool dtr, bool rts);
+  bool get_dtr() const { return this->dtr_; }
+  bool get_rts() const { return this->rts_; }
 
  protected:
   // Not directly instantiable; construct a concrete channel type instead.

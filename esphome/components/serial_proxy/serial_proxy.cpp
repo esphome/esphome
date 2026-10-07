@@ -18,6 +18,10 @@
 #include "esphome/components/usb_uart/usb_uart.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_HOST_UART
+#include "esphome/components/uart/uart_component_host.h"
+#endif
+
 namespace esphome::serial_proxy {
 
 static const char *const TAG = "serial_proxy";
@@ -381,11 +385,11 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
     this->dtr_state_ = dtr;
     this->dtr_pin_->digital_write(dtr);
   }
-  if (this->parent_->supports_modem_control()) {
+  this->with_modem_uart_([this, dtr, rts](auto *uart) {
     // A line with a GPIO pin keeps the UART's current state
-    this->parent_->set_modem_control(this->dtr_pin_ != nullptr ? this->parent_->get_dtr() : dtr,
-                                     this->rts_pin_ != nullptr ? this->parent_->get_rts() : rts);
-  }
+    uart->set_modem_control(this->dtr_pin_ != nullptr ? uart->get_dtr() : dtr,
+                            this->rts_pin_ != nullptr ? uart->get_rts() : rts);
+  });
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
@@ -444,9 +448,14 @@ void SerialProxy::on_usb_connection_changed_(bool connected) {
 #endif
 
 uint32_t SerialProxy::get_modem_pins() const {
-  const bool uart_lines = this->parent_->supports_modem_control();
-  const bool rts = this->rts_pin_ == nullptr && uart_lines ? this->parent_->get_rts() : this->rts_state_;
-  const bool dtr = this->dtr_pin_ == nullptr && uart_lines ? this->parent_->get_dtr() : this->dtr_state_;
+  bool rts = this->rts_state_;
+  bool dtr = this->dtr_state_;
+  this->with_modem_uart_([this, &rts, &dtr](auto *uart) {
+    if (this->rts_pin_ == nullptr)
+      rts = uart->get_rts();
+    if (this->dtr_pin_ == nullptr)
+      dtr = uart->get_dtr();
+  });
   return (rts ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
          (dtr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
 }

@@ -19,10 +19,9 @@ class HostUartComponent final : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   UARTFlushResult flush() override;
-  bool supports_modem_control() const override { return true; }
-  void set_modem_control(bool dtr, bool rts) override;
-  bool get_dtr() const override;
-  bool get_rts() const override;
+  void set_modem_control(bool dtr, bool rts);
+  bool get_dtr() const;
+  bool get_rts() const;
   void set_name(std::string port_name) { port_name_ = port_name; };
 
  protected:
