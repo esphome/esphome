@@ -247,7 +247,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
   void on_subscribe_serial_proxy_identity_request();
-  /// Forward a changed port identity to this client, if it subscribed
+  /// Send a port identity to this client
   void send_serial_proxy_identity(const SerialProxyIdentity &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
   void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
@@ -763,10 +763,10 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif
-#ifdef USE_SERIAL_PROXY
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
     uint8_t serial_proxy_identity_subscription : 1;
 #endif
-  } flags_{};  // 2 bytes; 3 with HAS_PROTO_MESSAGE_DUMP + USE_API_OUTGOING_CONNECTION + USE_SERIAL_PROXY
+  } flags_{};  // 2 bytes; 3 with HAS_PROTO_MESSAGE_DUMP + USE_API_OUTGOING_CONNECTION + USE_SERIAL_PROXY_USB_IDENTITY
 
   // 2-byte type immediately after flags_ (no padding between them)
   uint16_t batch_message_type_{0};  // Current message type during batch encoding

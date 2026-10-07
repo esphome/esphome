@@ -507,7 +507,8 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
 #ifdef USE_SERIAL_PROXY_USB_IDENTITY
 void APIServer::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
   for (auto &c : this->active_clients()) {
-    c->send_serial_proxy_identity(msg);
+    if (c->flags_.serial_proxy_identity_subscription)
+      c->send_serial_proxy_identity(msg);
   }
 }
 #endif

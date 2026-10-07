@@ -2921,15 +2921,14 @@ message SubscribeSerialProxyIdentityRequest {
 // Where a port's identity comes from
 enum SerialProxyIdentitySource {
   SERIAL_PROXY_IDENTITY_SOURCE_NONE = 0;        // The port carries no identity
-  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1;  // Stated in the device configuration; fixed for the life of the firmware
+  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1;  // Reserved for identities stated in the device configuration; not sent yet
   SERIAL_PROXY_IDENTITY_SOURCE_USB = 2;         // Read from the descriptors of the USB device behind the port;
                                                 // changes when a device is attached or removed
 }
 
 enum SerialProxyIdentityFlag {
   SERIAL_PROXY_IDENTITY_FLAG_NONE = 0;
-  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1;  // The backend believes the device is present. Always set for a
-                                             // CONFIGURED identity, which cannot observe presence
+  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1;  // The backend believes the device is present and usable on this port
   SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2;      // The USB host stack refused the descriptor query; the strings and
                                              // IDs below are empty
 }

@@ -399,7 +399,8 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
   if (this->usb_channel_ != nullptr) {
     msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_USB;
     auto *client = this->usb_channel_->get_parent();
-    if (!client->is_connected()) {
+    // A channel the device has no CDC function for is unusable, even with the device attached
+    if (!client->is_connected() || this->usb_channel_->get_interface_number() == 0xFF) {
       return;
     }
     msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
