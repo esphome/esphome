@@ -54,7 +54,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
-from esphome.helpers import get_bool_env, indent, is_ip_address
+from esphome.helpers import IS_MACOS, get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
@@ -2614,15 +2614,19 @@ def _warn_if_source_tree_mismatch() -> None:
     )
 
 
+_INTEL_MACOS_REMOVAL = "2027.6.0"
+
+
 def _warn_if_intel_macos() -> None:
-    """Warn that Intel (x86_64) Python on macOS stops being supported by 2027.6.0."""
-    if sys.platform != "darwin" or os.uname().machine != "x86_64":
+    """Warn that Intel (x86_64) Python on macOS loses support by _INTEL_MACOS_REMOVAL."""
+    if not IS_MACOS or os.uname().machine != "x86_64":
         return
     _LOGGER.warning(
-        "Support for Intel Macs will end in ESPHome 2027.6.0 or earlier. The "
-        "Python packages ESPHome depends on have stopped publishing Intel macOS "
-        "builds, so future releases will not install on this machine. On an "
-        "Apple Silicon Mac, switch to a native arm64 Python."
+        "Support for Intel Macs will end in ESPHome %s or earlier. The Python "
+        "packages ESPHome depends on have stopped publishing Intel macOS builds, "
+        "so future releases will not install on this machine. On an Apple "
+        "Silicon Mac, switch to a native arm64 Python.",
+        _INTEL_MACOS_REMOVAL,
     )
 
 

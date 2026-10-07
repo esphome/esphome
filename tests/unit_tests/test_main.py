@@ -6706,28 +6706,28 @@ def test_check_permissions_unreadable_port() -> None:
 
 
 @pytest.mark.parametrize(
-    ("sys_platform", "machine", "warns"),
+    ("is_macos", "machine", "warns"),
     [
-        pytest.param("darwin", "x86_64", True, id="intel_mac"),
-        pytest.param("darwin", "arm64", False, id="apple_silicon"),
-        pytest.param("linux", "x86_64", False, id="linux_x86_64"),
+        pytest.param(True, "x86_64", True, id="intel_mac"),
+        pytest.param(True, "arm64", False, id="apple_silicon"),
+        pytest.param(False, "x86_64", False, id="linux_x86_64"),
     ],
 )
 def test_warn_if_intel_macos(
-    sys_platform: str,
+    is_macos: bool,
     machine: str,
     warns: bool,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Only Intel Python on macOS gets the end of support warning."""
-    monkeypatch.setattr(main.sys, "platform", sys_platform)
+    monkeypatch.setattr(main, "IS_MACOS", is_macos)
     monkeypatch.setattr(main.os, "uname", lambda: SimpleNamespace(machine=machine))
 
     with caplog.at_level(logging.WARNING):
         main._warn_if_intel_macos()
 
-    assert ("2027.6.0" in caplog.text) is warns
+    assert (main._INTEL_MACOS_REMOVAL in caplog.text) is warns
 
 
 def _make_checkout(root: Path) -> Path:
