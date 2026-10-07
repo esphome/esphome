@@ -286,7 +286,7 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
 
   void play_complex(const Ts &...x) final {
     this->num_running_++;
-    // The condition may stop this automation (e.g. a lambda calling script.stop), so re-check num_running_
+    // The condition may stop this automation (e.g. script.stop in a lambda)
     if (this->condition_->check(x...)) {
       if (!this->then_.empty() && this->num_running_ > 0) {
         this->then_.play(x...);
@@ -301,7 +301,7 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     this->play_next_(x...);
   }
 
-  // Branch-end resume hook: the last action of then_/else_ calls this, so it must continue the chain
+  // Branch-end resume hook
   void play(const Ts &...x) override { this->play_next_(x...); }
 
   void stop() override {
@@ -341,7 +341,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     // The condition may have stopped this automation
     if (this->num_running_ == 0)
       return;
-    // An empty body has no last action to resume this loop, so finish immediately
+    // An empty body cannot resume the loop
     if (this->then_.empty()) {
       this->play_next_(x...);
       return;
@@ -349,9 +349,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     this->then_.play(x...);
   }
 
-  // Branch-end resume hook: the last action of then_ calls this to loop again or continue the chain
+  // Branch-end resume hook: loop again or continue
   void play(const Ts &...x) override {
-    // Check num_running_ again after the condition, which may have stopped this automation
+    // The condition may stop this automation
     if (this->num_running_ > 0 && this->condition_->check(x...) && this->num_running_ > 0) {
       this->then_.play(x...);
     } else {
@@ -370,7 +370,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 template<typename... Ts> class RepeatAction;
 
 /// Loop continuation for RepeatAction that increments iteration and repeats or continues.
-/// The body takes an extra uint32_t, so its last action cannot be tagged with the RepeatAction.
+/// Repeat keeps a continuation: its body takes an extra uint32_t, so it cannot be tagged.
 template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, Ts...> {
  public:
   explicit RepeatLoopContinuation(RepeatAction<Ts...> *parent) : parent_(parent) {}
@@ -385,8 +385,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
-  // Precondition: must be called at most once per instance. A second call would re-append the
-  // same continuation and form a self-loop in the next_ chain.
+  // Precondition: call once; a second call forms a self-loop in the next_ chain.
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
@@ -410,8 +409,6 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 
  protected:
   ActionList<uint32_t, Ts...> then_;
-  // The body is Action<uint32_t, Ts...> but this is Action<Ts...>, so it cannot be tagged as the
-  // body's owner; it keeps a continuation action instead.
   RepeatLoopContinuation<Ts...> loop_continuation_{this};
 };
 

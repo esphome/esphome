@@ -508,7 +508,7 @@ template<typename... Ts> class Action {
  protected:
   friend ActionList<Ts...>;
 
-  /// For a flow-control action that owns a branch (if, while), play() is called when that branch finishes.
+  /// For a branch owner (if, while), play() runs when the branch finishes.
   virtual void play(const Ts &...x) = 0;
   void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
@@ -538,12 +538,10 @@ template<typename... Ts> class Action {
     return next != nullptr && next->is_running();
   }
 
-  // The last action of a branch points at the branch's owner with the low bit set, so the owner
-  // resumes without an extra continuation action. Only Action object pointers are tagged, never
-  // function pointers: ARM Thumb function pointers already use the low bit (see #9283).
+  // A branch's last action points at its owner with the low bit set. Only Action objects are
+  // tagged, never function pointers, which use that bit on ARM Thumb (#9283).
   static constexpr uintptr_t OWNER_TAG = 1;
   bool next_is_owner_() const { return reinterpret_cast<uintptr_t>(this->next_) & OWNER_TAG; }
-  // Byte offsets rather than integer casts keep the tag a plain pointer adjustment.
   /// Only valid when next_is_owner_().
   Action *owner_() const { return reinterpret_cast<Action *>(reinterpret_cast<char *>(this->next_) - OWNER_TAG); }
   Action *chain_next_() const { return this->next_is_owner_() ? nullptr : this->next_; }
@@ -558,7 +556,7 @@ template<typename... Ts> class Action {
   int num_running_{0};
 };
 
-// Every Action holds a vtable pointer, so all instantiations share this alignment.
+// The vtable pointer gives every instantiation this alignment.
 static_assert(alignof(Action<>) >= 2, "the owner tag needs a free low bit in Action object pointers");
 
 template<typename... Ts> class ActionList {
@@ -575,9 +573,9 @@ template<typename... Ts> class ActionList {
       tail = &action->next_;
     }
   }
-  /// Make the last action resume `owner` (via its play()) when the list finishes; call once, after adding actions.
+  /// Resume `owner` via play() when the list finishes; call once, after adding actions.
   void set_owner(Action<Ts...> *owner) {
-    // An empty list has no last action to tag; actions_ never holds a tagged pointer
+    // Nothing to tag in an empty list
     if (this->actions_ == nullptr)
       return;
     *this->tail_() = Action<Ts...>::tag_owner(owner);
@@ -619,7 +617,7 @@ template<typename... Ts> class ActionList {
     Action<Ts...> **tail = &this->actions_;
     while (*tail != nullptr) {
       if ((*tail)->next_is_owner_()) {
-        // Appending after set_owner() is a bug; never walk through the tagged pointer
+        // Appending after set_owner(): stop here rather than walk through the tag
         ESPHOME_DEBUG_ASSERT(false);
         return &(*tail)->next_;
       }

@@ -51,7 +51,7 @@ class FlagCondition : public Condition<> {
   bool value{true};
 };
 
-// Stops the given list while it is being checked, like a lambda condition calling script.stop
+// Stops the given list during check(), like script.stop in a lambda condition
 class StoppingCondition : public Condition<> {
  public:
   bool check() override {
