@@ -73,19 +73,15 @@ def test_served_units_are_those_on_the_link_hubs() -> None:
     assert _served_units(full, "bridge_link") == []
 
 
-def test_a_hub_with_on_request_takes_every_unit() -> None:
+def test_a_monitored_hub_takes_every_unit() -> None:
     full = {
-        "modbus": [
-            {
-                "id": ID("hub"),
-                "uart_id": ID("mb_link"),
-                "role": "server",
-                "on_request": [],
-            },
-        ],
+        "modbus": [{"id": ID("hub"), "uart_id": ID("mb_link"), "role": "server"}],
         "modbus_server": [{"id": ID("a"), "modbus_id": ID("hub"), "address": 1}],
+        "modbus_monitor": [{"modbus_id": ID("hub"), "on_request": []}],
     }
     assert _served_units(full, "mb_link") == []
+    full["modbus_monitor"] = [{"modbus_id": ID("other"), "on_request": []}]
+    assert _served_units(full, "mb_link") == [1]
 
 
 def test_reply_timeout_covers_the_longest_client_send_wait_time() -> None:

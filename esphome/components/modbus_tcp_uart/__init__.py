@@ -17,7 +17,6 @@ DEPENDENCIES = ["modbus", "tcp_uart"]
 MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
-CONF_ON_REQUEST = "on_request"
 DEFAULT_REPLY_TIMEOUT_MS = 1000
 
 modbus_tcp_uart_ns = cg.esphome_ns.namespace("modbus_tcp_uart")
@@ -60,22 +59,25 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 def _served_units(full: ConfigType, link_id: str) -> list[int]:
     """Addresses of the server devices on the hubs that use this link.
 
-    Empty when a hub on the link has on_request: it takes every unit.
+    Empty when a modbus_monitor watches a hub on the link: it takes every unit.
     """
-    link_hubs = [
-        hub
+    hubs = {
+        str(hub[CONF_ID])
         for hub in full.get("modbus") or []
         if str(hub.get(CONF_UART_ID, "")) == link_id
-    ]
-    if any(CONF_ON_REQUEST in hub for hub in link_hubs):
+    }
+    if any(
+        str(monitor.get(modbus.CONF_MODBUS_ID, "")) in hubs
+        for monitor in full.get("modbus_monitor") or []
+    ):
         return []
-    hubs = {str(hub[CONF_ID]) for hub in link_hubs}
     return sorted(
         {
             item[CONF_ADDRESS]
             for domain in full.values()
             for item in (domain if isinstance(domain, list) else [domain])
             if isinstance(item, dict)
+            and CONF_ADDRESS in item
             and str(item.get(modbus.CONF_MODBUS_ID, "")) in hubs
         }
     )
