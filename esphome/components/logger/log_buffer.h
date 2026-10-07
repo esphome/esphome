@@ -3,6 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::logger {
 
@@ -189,12 +190,10 @@ struct LogBuffer {
     *p++ = 'm';
   }
   // Copy string without null terminator, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space
+  // Caller is responsible for ensuring buffer has sufficient space. Tags may be in PROGMEM on ESP8266.
   void copy_string_(char *&p, const char *str) {
-    const size_t len = strlen(str);
-    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator, building string piece by
-    // piece
-    memcpy(p, str, len);
+    const size_t len = ESPHOME_strlen_P(str);
+    progmem_memcpy(p, str, len);
     p += len;
   }
 };

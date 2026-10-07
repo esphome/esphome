@@ -488,6 +488,13 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
                              [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
                                auto *trigger = static_cast<LoggerMessageTrigger *>(self);
                                if (level <= trigger->level_) {
+#ifdef USE_ESP8266
+                                 // User lambdas may strcmp the tag, which may be in PROGMEM
+                                 char ram_tag[33];
+                                 ESPHOME_strncpy_P(ram_tag, tag, sizeof(ram_tag) - 1);
+                                 ram_tag[sizeof(ram_tag) - 1] = '\0';
+                                 tag = ram_tag;
+#endif
                                  trigger->trigger(level, tag, message);
                                }
                              });

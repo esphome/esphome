@@ -6,7 +6,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "entity_base";
+ESPHOME_LOG_TAG(TAG, "entity_base");
 
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = StringRef(name);

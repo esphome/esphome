@@ -144,6 +144,15 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
+  if (this->log_levels_.empty())
+    return this->current_level_;
+#ifdef USE_ESP8266
+  // Tags may be in PROGMEM; the map compares with strcmp, so look up a RAM copy
+  char ram_tag[33];
+  ESPHOME_strncpy_P(ram_tag, tag, sizeof(ram_tag) - 1);
+  ram_tag[sizeof(ram_tag) - 1] = '\0';
+  tag = ram_tag;
+#endif
   auto it = this->log_levels_.find(tag);
   if (it != this->log_levels_.end())
     return it->second;

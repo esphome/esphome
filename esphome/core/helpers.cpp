@@ -28,7 +28,7 @@ std::string progmem_string(ProgmemStr str) {
 }
 #endif
 
-static const char *const TAG = "helpers";
+ESPHOME_LOG_TAG(TAG, "helpers");
 
 __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
                                                             size_t elem_size) {
