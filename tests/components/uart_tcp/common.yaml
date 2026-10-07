@@ -1,0 +1,14 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+uart_tcp:
+  - id: bridge
+    uart_id: uart_bus
+    role: server
+    port: 502
+    allowed_ips:
+      - 192.168.1.10
+      - 192.168.1.0/24
+    connected:
+      name: UART TCP Connected

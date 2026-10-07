@@ -1,0 +1,8 @@
+---
+esphome:
+  name: test
+
+rtl87xx:
+  board: generic-rtl8710bn-2mb-788k
+
+logger:

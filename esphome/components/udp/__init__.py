@@ -1,5 +1,4 @@
-from collections.abc import Callable
-from typing import Any, NoReturn
+from typing import Any
 
 from esphome import automation
 from esphome.automation import Trigger
@@ -48,17 +47,10 @@ UDP_SCHEMA = cv.Schema(
 )
 
 
-def is_relocated(option: str) -> Callable[[Any], NoReturn]:
-    def validator(value: Any) -> NoReturn:
-        raise cv.Invalid(
-            f"The '{option}' option should now be configured in the 'packet_transport' component"
-        )
-
-    return validator
-
-
 RELOCATED = {
-    cv.Optional(x): is_relocated(x)
+    cv.Optional(x): cv.invalid(
+        f"The '{x}' option should now be configured in the 'packet_transport' component"
+    )
     for x in (
         CONF_PROVIDERS,
         CONF_ENCRYPTION,
@@ -132,7 +124,15 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_broadcast_port(conf_port[CONF_BROADCAST_PORT]))
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
-    cg.add(var.set_addresses([str(addr) for addr in config[CONF_ADDRESSES]]))
+    # Shared flash table ended by nullptr, so the component stores only a pointer.
+    if addresses := [str(addr) for addr in config[CONF_ADDRESSES]]:
+        cg.add(
+            var.set_addresses(
+                cg.shared_progmem_array(
+                    "udp_addresses", cg.const_char_ptr, [*addresses, cg.nullptr]
+                )
+            )
+        )
     for conf in config.get(CONF_ON_RECEIVE, []):
         trigger_id = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         trigger = await automation.build_automation(trigger_id, trigger_argtype, conf)

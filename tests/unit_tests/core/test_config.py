@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from esphome import config_validation as cv, core
+import esphome.codegen as cg
 from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
     CONF_AREA,
@@ -23,8 +24,9 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE, config
+from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_SUSPEND_LOOP,
     Area,
     make_app_name_cpp,
     preload_core_config,
@@ -175,6 +177,27 @@ async def test_core_area_recorded_at_config_load(
     assert CORE.area == expected_area
 
 
+@pytest.mark.asyncio
+async def test_app_is_default_initialized(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """App is constructed with `new (&App) Application`, no parentheses.
+
+    `Application()` would value-initialize and memset the whole object into
+    storage that is already zero."""
+    result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    raw_expressions = [c.args[0] for c in mock_cg.RawExpression.call_args_list]
+    assert "new (&App) Application" in raw_expressions
+    assert "new (&App) Application()" not in raw_expressions
+
+
 def test_config_load_without_area_clears_stale_core_area(
     yaml_file: Callable[[str], Path],
 ) -> None:
@@ -224,6 +247,97 @@ def test_area_id_collision(
     captured = capsys.readouterr()
     # Exact duplicates are now caught by IDPassValidationStep
     assert "ID duplicate_id redefined! Check esphome->area->id." in captured.out
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected_platform"),
+    [
+        ("suspend_loop_host.yaml", "host"),
+        ("suspend_loop_rp2.yaml", "rp2"),
+    ],
+)
+def test_suspend_loop_fail(
+    yaml_file: Callable[[str], str],
+    capsys: pytest.CaptureFixture[str],
+    fixture: str,
+    expected_platform: str,
+) -> None:
+    """Test that suspend_loop fails."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is None
+
+    # Check for the specific error message in stdout
+    captured = capsys.readouterr()
+    assert (
+        f"Suspend loop is not available on {expected_platform} platform" in captured.out
+    )
+
+
+def test_loop_interval_warn_esp32(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(
+        yaml_file, "loop_interval_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    assert (
+        "loop_interval of 7s exceeds the 2400ms maximum sleep on this platform; the loop will still "
+        "wake every 2400ms. Raise esp32.watchdog_timeout to sleep longer."
+        in caplog.text
+    )
+
+
+@pytest.mark.parametrize(
+    ("fixture", "interval", "max_loop"),
+    [
+        ("loop_interval_bk72xx.yaml", "5000ms", "4000"),
+        ("loop_interval_nrf52.yaml", "700ms", "600"),
+    ],
+)
+def test_loop_interval_warn(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+    fixture: str,
+    interval: str,
+    max_loop: str,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+
+    assert (
+        f"loop_interval of {interval} exceeds the {max_loop}ms maximum sleep on this platform; the loop will still "
+        f"wake every {max_loop}ms." in caplog.text
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_suspend_loop_and_loop_interval(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """Test suspend_loop and loop_interval on esp32"""
+    result = load_config_from_fixture(
+        yaml_file, "suspend_loop_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    esphome_config = result["esphome"]
+    assert esphome_config.get(CONF_SUSPEND_LOOP)
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
+    mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
+    mock_cg.App.set_loop_interval.assert_called_once_with(
+        cv.TimePeriodMilliseconds(milliseconds=50)
+    )
 
 
 def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
@@ -511,6 +625,35 @@ async def test_add_looping_components_with_entries() -> None:
     # Deduplicated by type, with per-type counts as multiplier.
     assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
     assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
+
+
+@pytest.mark.asyncio
+async def test_add_controller_registry_dispatch_without_controllers() -> None:
+    """Nothing is emitted when no controller registered."""
+    CORE.data.pop(KEY_CONTROLLER_REGISTRY_CONTROLLERS, None)
+
+    await config._add_controller_registry_dispatch()
+
+    assert "USE_CONTROLLER_REGISTRY" not in {d.name for d in CORE.defines}
+    assert not [s for s in CORE.global_statements if "controller" in str(s)]
+
+
+@pytest.mark.asyncio
+async def test_add_controller_registry_dispatch_with_controllers() -> None:
+    """Registered controllers become one tuple plus the dispatch include."""
+    CORE.register_controller(cg.MockObj("api_apiserver_id"))
+    CORE.register_controller(cg.MockObj("web_server_webserver_id"))
+
+    await config._add_controller_registry_dispatch()
+
+    assert "USE_CONTROLLER_REGISTRY" in {d.name for d in CORE.defines}
+    statements = [str(s) for s in CORE.global_statements]
+    assert "#include <tuple>" in statements
+    assert (
+        "static auto esphome_controllers() { return std::tuple{api_apiserver_id, web_server_webserver_id}; }"
+        in statements
+    )
+    assert '#include "esphome/core/controller_dispatch.h"' in statements
 
 
 def test_valid_include_with_angle_brackets() -> None:
@@ -1369,6 +1512,8 @@ async def test_add_platformio_options_native_idf(
             "lib_ignore": "libsodium",
             "upload_speed": "115200",
             "board_build.f_flash": "80000000L",
+            # Silently dropped on arduino only; warns here
+            "board_upload.flash_size": "2MB",
         }
     )
 
@@ -1379,6 +1524,9 @@ async def test_add_platformio_options_native_idf(
     # nothing else lands in platformio_options on the native toolchain.
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
     assert "esphome->platformio_options->board_build.f_flash is ignored" in caplog.text
+    assert (
+        "esphome->platformio_options->board_upload.flash_size is ignored" in caplog.text
+    )
     assert "upload_speed" not in caplog.text
     # build_flags has a first-class esphome equivalent, so it is deprecated.
     # lib_deps/lib_ignore are kept as valid platformio_options (no warning).
@@ -1492,13 +1640,21 @@ async def test_add_platformio_options_native_arduino(
             "board_build.ldscript": ["eagle.flash.2m.ld", "eagle.flash.4m2m.ld"],
             "board_build.filesystem": "littlefs",
             "upload_speed": "115200",
+            # The Athom shape: maximum_size is the elf2bin fallback,
+            # flash_size is dropped silently (PlatformIO never reads it)
+            "board_upload.maximum_size": "2097152",
+            "board_upload.flash_size": "2MB",
         }
     )
 
     assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
     assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
+    assert CORE.platformio_options["board_upload.maximum_size"] == "2097152"
+    assert "board_upload.flash_size" not in CORE.platformio_options
     assert "board_build.f_cpu is ignored" not in caplog.text
     assert "board_build.ldscript is ignored" not in caplog.text
+    assert "board_upload.maximum_size is ignored" not in caplog.text
+    assert "board_upload.flash_size is ignored" not in caplog.text
     assert (
         "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
     )
@@ -1510,10 +1666,18 @@ async def test_add_platformio_options_native_arduino(
     assert "upload_speed" not in caplog.text
 
 
-def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
-    """Until the native backend lands, ESP8266 serves only PlatformIO."""
-    from esphome.components.esp8266 import CONFIG_SCHEMA
+def test_filter_source_files_drops_util_cpp_without_mqtt() -> None:
+    """util.cpp compiles only on MQTT builds; the header stubs it otherwise."""
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.defines = set()
 
-    CORE.toolchain = Toolchain.ARDUINO
-    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
-        CONFIG_SCHEMA({"board": "nodemcuv2"})
+    excluded = config.FILTER_SOURCE_FILES()
+    assert "util.cpp" in excluded
+    # The platform map still contributes through the composed function.
+    assert "static_task.cpp" in excluded
+
+    CORE.defines = {core.Define("USE_API"), core.Define("USE_MQTT")}
+    assert "util.cpp" not in config.FILTER_SOURCE_FILES()

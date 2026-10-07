@@ -99,29 +99,48 @@ bool RemoteReceiverBinarySensorBase::on_receive(RemoteReceiveData src) {
 
 /* RemoteReceiverBase */
 
+// Slots are counted at code generation; a registration from C++ setup() has none
+#ifdef REMOTE_BASE_LISTENER_COUNT
+void RemoteReceiverBase::register_listener(RemoteReceiverListener *listener) {
+  if (this->listeners_.size() == REMOTE_BASE_LISTENER_COUNT) {
+    ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("listener"),
+             LOG_STR_LITERAL("listener"));
+    return;
+  }
+  this->listeners_.push_back(listener);
+}
+#endif
+
+#ifdef REMOTE_BASE_DUMPER_COUNT
 void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
   if (dumper->is_secondary()) {
-    this->secondary_dumpers_.push_back(dumper);
-  } else {
+    if (this->secondary_dumper_ == nullptr) {
+      this->secondary_dumper_ = dumper;
+      return;
+    }
+  } else if (this->dumpers_.size() != REMOTE_BASE_DUMPER_COUNT) {
     this->dumpers_.push_back(dumper);
+    return;
   }
+  ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("dumper"),
+           LOG_STR_LITERAL("dumper"));
 }
+#endif
 
-void RemoteReceiverBase::call_listeners_() {
+void RemoteReceiverBase::call_listeners_dumpers_() {
+#ifdef REMOTE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
     listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
-}
-
-void RemoteReceiverBase::call_dumpers_() {
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
   bool success = false;
   for (auto *dumper : this->dumpers_) {
     if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_)))
       success = true;
   }
-  if (!success) {
-    for (auto *dumper : this->secondary_dumpers_)
-      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
-  }
+  if (!success && this->secondary_dumper_ != nullptr)
+    this->secondary_dumper_->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+#endif
 }
 
 void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }

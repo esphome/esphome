@@ -209,14 +209,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   http_client.setTimeout(this->tft_upload_http_timeout_);
 
   bool begin_status = false;
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http_client.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-#elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-  http_client.setFollowRedirects(true);
-#endif
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   http_client.setRedirectLimit(3);
-#endif
   begin_status = http_client.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
   if (!begin_status) {
     this->connection_state_.is_updating_ = false;

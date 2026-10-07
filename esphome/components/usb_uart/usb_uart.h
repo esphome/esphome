@@ -34,7 +34,10 @@ struct CdcEps {
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
   uint8_t bulk_interface_number;
+  // Also the wIndex target for CDC class requests (SET_LINE_CODING etc.), so it
+  // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number;
+  bool interrupt_interface_claimed{false};
 };
 
 enum CH34xChipType : uint8_t {
@@ -152,7 +155,22 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
-  void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
+  void set_parity(UARTParityOptions parity) {
+    this->parity_ = parity;
+    // Keep the base-class parity in sync so uart::UARTComponent::get_parity() reports the configured value.
+    // MARK/SPACE have no uart:: equivalent and report as NONE.
+    switch (parity) {
+      case UART_CONFIG_PARITY_EVEN:
+        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_EVEN);
+        break;
+      case UART_CONFIG_PARITY_ODD:
+        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_ODD);
+        break;
+      default:
+        uart::UARTComponent::set_parity(uart::UART_CONFIG_PARITY_NONE);
+        break;
+    }
+  }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
@@ -268,12 +286,16 @@ class USBUartComponent : public usb_host::USBClient {
 class USBUartTypeCdcAcm : public USBUartComponent {
  public:
   USBUartTypeCdcAcm(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
+  void set_claim_comm_interface(bool claim) { this->claim_comm_interface_ = claim; }
 
  protected:
   virtual std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl);
   void on_connected() override;
   void on_disconnected() override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
+  // Each claimed interface pins one host hardware channel per endpoint; skipping
+  // the comm (interrupt) interface frees one on channel-poor hosts (ESP32-S3: 8).
+  bool claim_comm_interface_{true};
 };
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {

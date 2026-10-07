@@ -25,8 +25,8 @@ class TemplateNumber final : public number::Number, public PollingComponent {
  protected:
   void control(float value) override;
   bool optimistic_{false};
-  float initial_value_{NAN};
   bool restore_value_{false};
+  float initial_value_{NAN};
   Trigger<float> set_trigger_;
   TemplateLambda<float> f_;
 

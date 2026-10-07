@@ -218,7 +218,7 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
   }
   size_t bytes_written = 0;
   std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-  if (temp_ring_buffer.use_count() > 0) {
+  if (temp_ring_buffer != nullptr) {
     // Only write to the ring buffer if the reference is valid
     bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
     if (bytes_written > 0) {
@@ -250,14 +250,14 @@ esp_err_t SourceSpeaker::start_() {
   // avoids unnecessary single-frame splices.
   const size_t ring_buffer_size =
       (this->audio_stream_info_.ms_to_bytes(this->buffer_duration_ms_) / bytes_per_frame) * bytes_per_frame;
-  if (this->audio_source_.use_count() == 0) {
+  if (this->audio_source_ == nullptr) {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (!temp_ring_buffer) {
+    if (temp_ring_buffer == nullptr) {
       temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
       this->ring_buffer_ = temp_ring_buffer;
     }
 
-    if (!temp_ring_buffer) {
+    if (temp_ring_buffer == nullptr) {
       return ESP_ERR_NO_MEM;
     }
 
@@ -278,7 +278,7 @@ void SourceSpeaker::stop() { this->send_command_(SOURCE_SPEAKER_COMMAND_STOP); }
 void SourceSpeaker::finish() { this->send_command_(SOURCE_SPEAKER_COMMAND_FINISH); }
 
 bool SourceSpeaker::has_buffered_data() const {
-  return ((this->audio_source_.use_count() > 0) && this->audio_source_->has_buffered_data());
+  return ((this->audio_source_ != nullptr) && this->audio_source_->has_buffered_data());
 }
 
 void SourceSpeaker::set_mute_state(bool mute_state) {
@@ -306,9 +306,9 @@ size_t SourceSpeaker::process_data_from_source(std::shared_ptr<audio::RingBuffer
 
   uint32_t samples_to_duck = this->audio_stream_info_.bytes_to_samples(bytes_read);
   if (samples_to_duck > 0) {
-    esp_audio_libs::ducking::apply(audio_source->mutable_data(),
-                                   static_cast<uint8_t>(this->audio_stream_info_.get_bits_per_sample() / 8),
-                                   samples_to_duck, this->ducking_state_);
+    this->ducking_ramp_.process(audio_source->mutable_data(),
+                                static_cast<uint8_t>(this->audio_stream_info_.get_bits_per_sample() / 8),
+                                samples_to_duck);
   }
 
   return bytes_read;
@@ -316,7 +316,7 @@ size_t SourceSpeaker::process_data_from_source(std::shared_ptr<audio::RingBuffer
 
 void SourceSpeaker::apply_ducking(uint8_t decibel_reduction, uint32_t duration) {
   const uint32_t transition_samples = duration > 0 ? this->audio_stream_info_.ms_to_samples(duration) : 0;
-  esp_audio_libs::ducking::set_target(this->ducking_state_, decibel_reduction, transition_samples);
+  this->ducking_ramp_.set_target_db_reduction_over(decibel_reduction, transition_samples);
 }
 
 void SourceSpeaker::enter_stopping_state_() {
@@ -382,10 +382,11 @@ void MixerSpeaker::loop() {
     ESP_LOGV(TAG, "Stopping");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STOPPING);
   }
-  if (event_group_bits & MIXER_TASK_STATE_STOPPED) {
-    this->task_.deallocate();
+  // Retries on a subsequent loop if the task is still running on the other core
+  if ((event_group_bits & MIXER_TASK_STATE_STOPPED) && this->task_.deallocate()) {
     ESP_LOGD(TAG, "Stopped");
-    xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
+    // Keep a start request that arrived while the task was stopping, otherwise it is lost for good
+    xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS & ~MIXER_TASK_COMMAND_START);
     this->all_stopped_since_ms_ = 0;
   }
 
@@ -496,7 +497,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
         if (speaker->is_running() && !speaker->get_pause_state()) {
           // Speaker is running and not paused, so it possibly can provide audio data
           std::shared_ptr<audio::RingBufferAudioSource> audio_source = speaker->get_audio_source().lock();
-          if (audio_source.use_count() == 0) {
+          if (audio_source == nullptr) {
             // No audio source allocated, so skip processing this speaker
             continue;
           }

@@ -81,13 +81,4 @@ class PCF85063Component final : public time::RealTimeClock, public i2c::I2CDevic
   } pcf85063_;
 };
 
-template<typename... Ts> class WriteAction final : public Action<Ts...>, public Parented<PCF85063Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->write_time(); }
-};
-
-template<typename... Ts> class ReadAction final : public Action<Ts...>, public Parented<PCF85063Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->read_time(); }
-};
 }  // namespace esphome::pcf85063

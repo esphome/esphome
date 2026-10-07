@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
+#include "esphome/core/entity_includes.h"
 #include "esphome/core/helpers.h"
 
 #ifdef USE_CAMERA
