@@ -1,5 +1,6 @@
 from collections import UserDict
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from functools import reduce
 import logging
 from pathlib import Path
@@ -34,11 +35,45 @@ from esphome.const import (
     CONF_VARS,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import EsphomeError
+from esphome.core import CORE, EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_PACKAGES
+
+
+@dataclass(frozen=True)
+class RemotePackageSource:
+    """A remote source a package was fetched from while processing the config."""
+
+    url: str
+    ref: str | None
+
+
+@dataclass
+class PackagesData:
+    """Per-run package state, keyed under DOMAIN in CORE.data."""
+
+    remote_sources: list[RemotePackageSource] = field(default_factory=list)
+
+
+def _get_data() -> PackagesData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = PackagesData()
+    return CORE.data[DOMAIN]
+
+
+def get_remote_package_sources() -> list[RemotePackageSource]:
+    """Remote sources fetched while processing this config, in fetch order.
+
+    Consumers (e.g. store_yaml) use this to tell which parts of the config
+    came from remote repositories rather than local files.
+    """
+    if (data := CORE.data.get(DOMAIN)) is None:
+        return []
+    return data.remote_sources
+
+
 # Guard against infinite include chains (e.g. A includes B includes A).
 MAX_INCLUDE_DEPTH = 20
 
@@ -192,6 +227,10 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
+    source = RemotePackageSource(config[CONF_URL], config.get(CONF_REF))
+    remote_sources = _get_data().remote_sources
+    if source not in remote_sources:
+        remote_sources.append(source)
     files: list[dict[str, Any]] = []
 
     # ``repo_root`` is the directory containing ``.git`` and must be passed
