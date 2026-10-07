@@ -35,7 +35,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config: ConfigType) -> None:
+async def to_code(config) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
