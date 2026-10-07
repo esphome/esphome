@@ -11,10 +11,13 @@ from unittest.mock import patch
 import pytest
 
 from esphome.components.zephyr.build_zephyr import (
+    _imgtool_sign_commands,
     _runner_supports_dev_id,
+    resign_direct_xip_images,
     resolve_dev_id,
     run_west_blobs_fetch,
 )
+from esphome.core import EsphomeError
 
 # ---------------------------------------------------------------------------
 # _runner_supports_dev_id
@@ -192,3 +195,78 @@ def test_blobs_refetched_for_legacy_empty_sentinel(tmp_path: Path) -> None:
 def test_blobs_always_fetched_when_revision_unknown(tmp_path: Path) -> None:
     (tmp_path / _SENTINEL).write_text("a" * 40)
     assert len(_fetch_blobs(tmp_path, None)) == 1
+
+
+# ---------------------------------------------------------------------------
+# direct-xip re-signing
+# ---------------------------------------------------------------------------
+
+_SIGN = (
+    "/penv/bin/python /mcuboot/scripts/imgtool.py sign --version 0.0.0+0 "
+    '--header-size 0x20 --slot-size 1376256 --align 4 --key "/mcuboot/root$ ec.pem" '
+    "{extra}/b/zephyr.bin /b/{out}"
+)
+_NINJA = (
+    "build zephyr/zephyr.elf: LINK\n"
+    "  POST_BUILD = cd /b && /penv/bin/python check.py --elf-file=/b/zephyr.elf && "
+    + _SIGN.format(extra="", out="zephyr.signed.bin")
+    + " && "
+    + _SIGN.format(extra="--pad --confirm ", out="zephyr.signed.confirmed.bin")
+    + "\n"
+)
+
+
+def _write_ninja(build_dir: Path, text: str = _NINJA) -> None:
+    for image_dir in ("zephyr", "zephyr_slot1_variant"):
+        (build_dir / image_dir).mkdir(parents=True)
+        (build_dir / image_dir / "build.ninja").write_text(text)
+
+
+def test_imgtool_sign_commands_finds_every_signed_output() -> None:
+    commands = _imgtool_sign_commands(_NINJA)
+
+    assert [c[-1] for c in commands] == [
+        "/b/zephyr.signed.bin",
+        "/b/zephyr.signed.confirmed.bin",
+    ]
+    assert commands[0][:3] == [
+        "/penv/bin/python",
+        "/mcuboot/scripts/imgtool.py",
+        "sign",
+    ]
+    assert "--confirm" in commands[1]
+    # Ninja's "$ " escape inside the shell quotes is a plain space
+    assert "/mcuboot/root ec.pem" in commands[0]
+
+
+def test_resign_uses_one_new_version_for_every_image(tmp_path: Path) -> None:
+    _write_ninja(tmp_path)
+    with (
+        patch("esphome.components.zephyr.build_zephyr.time.time", return_value=1234),
+        patch("esphome.components.zephyr.build_zephyr.subprocess.run") as run,
+    ):
+        run.return_value.returncode = 0
+        resign_direct_xip_images(tmp_path)
+
+    calls = [c.args[0] for c in run.call_args_list]
+    assert len(calls) == 4
+    assert {c[c.index("--version") + 1] for c in calls} == {"0.0.0+1234"}
+    assert {c.kwargs["cwd"] for c in run.call_args_list} == {
+        tmp_path / "zephyr",
+        tmp_path / "zephyr_slot1_variant",
+    }
+
+
+def test_resign_fails_when_no_sign_command_found(tmp_path: Path) -> None:
+    _write_ninja(tmp_path, "build zephyr/zephyr.elf: LINK\n")
+
+    with pytest.raises(EsphomeError, match="No imgtool sign command"):
+        resign_direct_xip_images(tmp_path)
+
+
+def test_resign_fails_when_signing_fails(tmp_path: Path) -> None:
+    _write_ninja(tmp_path)
+    with patch("esphome.components.zephyr.build_zephyr.subprocess.run") as run:
+        run.return_value.returncode = 1
+        with pytest.raises(EsphomeError, match="Signing"):
+            resign_direct_xip_images(tmp_path)

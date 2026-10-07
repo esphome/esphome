@@ -10,8 +10,6 @@ it has no zephyr dependency, and platform: esphome needs it at module-load
 time on every platform, not just Zephyr.
 """
 
-import time
-
 import esphome.codegen as cg
 from esphome.components.ota import CONF_SWAP_METHOD, reject_swap_method_off_zephyr
 import esphome.config_validation as cv
@@ -75,7 +73,9 @@ def apply_swap_method(config: ConfigType) -> None:
         # the same major.minor.revision (the default, absent an app VERSION file)
         # would tie forever.
         zephyr_add_prj_conf("BOOT_VERSION_CMP_USE_BUILD_NUMBER", True, image="mcuboot")
-        zephyr_add_prj_conf("MCUBOOT_IMGTOOL_SIGN_VERSION", f"0.0.0+{int(time.time())}")
+        # Constant: a changing value rewrites autoconf.h and rebuilds everything.
+        # build_zephyr.resign_direct_xip_images() applies the per-build number.
+        zephyr_add_prj_conf("MCUBOOT_IMGTOOL_SIGN_VERSION", "0.0.0+0")
 
 
 def zephyr_swap_method() -> str | None:

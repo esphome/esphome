@@ -1,6 +1,9 @@
 import logging
 from pathlib import Path
+import re
+import shlex
 import subprocess
+import time
 
 import yaml
 
@@ -280,6 +283,52 @@ def run_west_blobs_fetch(
     sentinel.write_text(revision or "")
 
 
+# Both direct-xip images are built and signed separately, each in its own directory.
+_DIRECT_XIP_IMAGE_DIRS = ("zephyr", "zephyr_slot1_variant")
+
+
+def _imgtool_sign_commands(ninja_text: str) -> list[list[str]]:
+    """Every `imgtool.py sign` command in a build.ninja, as an argument list.
+
+    Zephyr bakes them into a POST_BUILD `&&` chain, one per signed output.
+    """
+    commands = []
+    for line in ninja_text.splitlines():
+        if "imgtool.py sign" not in line:
+            continue
+        for segment in line.split(" && "):
+            if "imgtool.py sign" not in segment:
+                continue
+            # Undo ninja's escaping of space, colon and dollar
+            args = shlex.split(re.sub(r"\$([ :$])", r"\1", segment))
+            # Keep the interpreter that precedes imgtool.py
+            script = next(i for i, a in enumerate(args) if a.endswith("imgtool.py"))
+            commands.append(args[script - 1 :])
+    return commands
+
+
+def resign_direct_xip_images(build_dir: Path) -> None:
+    """Sign the direct-xip images again with a new build number.
+
+    MCUboot boots the slot with the newer version, so each build needs a higher one.
+    Zephyr takes the version from Kconfig at configure time, and changing that rebuilds
+    everything, so it stays constant and the signing step is repeated here instead.
+    """
+    version = f"0.0.0+{int(time.time())}"
+    for image_dir in _DIRECT_XIP_IMAGE_DIRS:
+        ninja_file = build_dir / image_dir / "build.ninja"
+        commands = _imgtool_sign_commands(ninja_file.read_text())
+        if not commands:
+            raise EsphomeError(f"No imgtool sign command found in {ninja_file}")
+        for args in commands:
+            if "--version" not in args:
+                raise EsphomeError(f"imgtool sign command without --version: {args}")
+            args[args.index("--version") + 1] = version
+            if subprocess.run(args, check=False, cwd=build_dir / image_dir).returncode:
+                raise EsphomeError(f"Signing {args[-1]} failed")
+    _LOGGER.info("Signed the direct-xip images as version %s", version)
+
+
 def run_west_build(
     python_executable: Path,
     framework_path: Path,
@@ -347,6 +396,10 @@ def run_west_build(
         cwd=str(framework_path),
     ):
         raise EsphomeError("Zephyr native build failed")
+    from .mcuboot import zephyr_swap_method  # noqa: PLC0415
+
+    if zephyr_swap_method() == "direct":
+        resign_direct_xip_images(build_dir)
     log_available_runners(build_dir, requested_runner)
 
 
