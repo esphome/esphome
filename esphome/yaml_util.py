@@ -47,10 +47,9 @@ _LOGGER = logging.getLogger(__name__)
 SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
-# Stack of collectors (one per active secret_values_registered context); the
-# dumper records every emitted `!secret` name into the innermost one. YAML
-# processing is single-threaded.
-_EMITTED_SECRET_NAMES: list[set[str]] = []
+# Set while a secret_values_registered context is active; the dumper records
+# every emitted `!secret` name into it.
+_EMITTED_SECRET_NAMES: set[str] | None = None
 # Not thread-safe — config processing is single-threaded today.
 _load_listeners: list[Callable[[Path], None]] = []
 
@@ -439,7 +438,7 @@ def _load_include_candidates(
         # The throwaway IncludeFile is this tree's only owner; keep the tree
         # alive so ids recorded in ``seen`` stay unique for the traversal.
         keepalive.append(loaded)
-        force_load_include_files(
+        _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
             _seen=seen,
@@ -476,13 +475,7 @@ class ForceLoadResult(NamedTuple):
 
 
 def force_load_include_files(
-    obj: Any,
-    *,
-    warn_on_unresolved: bool = True,
-    _seen: set[int] | None = None,
-    _expanded_paths: set[Path] | None = None,
-    _keepalive: list[Any] | None = None,
-    _result: ForceLoadResult | None = None,
+    obj: Any, *, warn_on_unresolved: bool = True
 ) -> ForceLoadResult:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
@@ -500,6 +493,23 @@ def force_load_include_files(
     run on a fresh re-parse where substitutions haven't been applied yet) to
     demote it to a debug log.
     """
+    result = ForceLoadResult([], [])
+    _force_load_include_files(
+        obj, warn_on_unresolved=warn_on_unresolved, _result=result
+    )
+    return result
+
+
+def _force_load_include_files(
+    obj: Any,
+    *,
+    warn_on_unresolved: bool = True,
+    _seen: set[int] | None = None,
+    _expanded_paths: set[Path] | None = None,
+    _keepalive: list[Any] | None = None,
+    _result: ForceLoadResult,
+) -> None:
+    """Walk for :func:`force_load_include_files`, adding to ``result``."""
     from voluptuous import Invalid
 
     if _seen is None:
@@ -513,12 +523,10 @@ def force_load_include_files(
         # fresh tree look already seen. Discovery is a one-shot operation,
         # so holding the parsed trees costs nothing.
         _keepalive = []
-    if _result is None:
-        _result = ForceLoadResult([], [])
 
     if isinstance(obj, IncludeFile):
         if id(obj) in _seen:
-            return _result
+            return
         _seen.add(id(obj))
         if obj.has_unresolved_file():
             _load_include_candidates(
@@ -529,7 +537,7 @@ def force_load_include_files(
                 keepalive=_keepalive,
                 result=_result,
             )
-            return _result
+            return
         try:
             loaded = obj.load()
         except (EsphomeError, Invalid) as err:
@@ -540,8 +548,8 @@ def force_load_include_files(
                 err,
             )
             _result.errors.append(f"{obj.file}: {err}")
-            return _result
-        force_load_include_files(
+            return
+        _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
             _seen=_seen,
@@ -551,10 +559,10 @@ def force_load_include_files(
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
-            return _result
+            return
         _seen.add(id(obj))
         for value in obj.values():
-            force_load_include_files(
+            _force_load_include_files(
                 value,
                 warn_on_unresolved=warn_on_unresolved,
                 _seen=_seen,
@@ -564,10 +572,10 @@ def force_load_include_files(
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
-            return _result
+            return
         _seen.add(id(obj))
         for item in obj:
-            force_load_include_files(
+            _force_load_include_files(
                 item,
                 warn_on_unresolved=warn_on_unresolved,
                 _seen=_seen,
@@ -575,7 +583,6 @@ def force_load_include_files(
                 _keepalive=_keepalive,
                 _result=_result,
             )
-    return _result
 
 
 @dataclass(slots=True)
@@ -1193,17 +1200,15 @@ def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
     registered dumps as a bare ``!secret``, dropping its tag rather than the
     value leaking.
     """
+    global _EMITTED_SECRET_NAMES  # noqa: PLW0603
     added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
     _SECRET_VALUES.update(added)
     emitted: set[str] = set()
-    _EMITTED_SECRET_NAMES.append(emitted)
+    _EMITTED_SECRET_NAMES = emitted
     try:
         yield emitted
     finally:
-        # Contexts unwind LIFO, so the innermost collector is always last;
-        # pop() removes by position where remove() would match the first
-        # *equal* set and could strip an outer context's collector.
-        _EMITTED_SECRET_NAMES.pop()
+        _EMITTED_SECRET_NAMES = None
         # Only drop mappings this context still owns; a real !secret loaded
         # meanwhile may have registered the same value under its own name.
         for value, name in added.items():
@@ -1426,8 +1431,8 @@ class ESPHomeDumper(yaml.SafeDumper):
 
     def represent_secret(self, value):
         name = _SECRET_VALUES[str(value)]
-        if _EMITTED_SECRET_NAMES:
-            _EMITTED_SECRET_NAMES[-1].add(name)
+        if _EMITTED_SECRET_NAMES is not None:
+            _EMITTED_SECRET_NAMES.add(name)
         return self.represent_scalar(tag="!secret", value=name)
 
     def represent_stringify(self, value):
