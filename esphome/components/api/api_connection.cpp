@@ -1685,6 +1685,22 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   }
 }
 
+void APIConnection::on_subscribe_serial_proxy_identity_request() {
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  // Only USB ports change identity after this snapshot
+  this->flags_.serial_proxy_identity_subscription = true;
+#endif
+  for (auto *proxy : App.get_serial_proxies()) {
+    proxy->send_identity(this);
+  }
+}
+
+void APIConnection::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
+  if (!this->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy identity");
+  }
+}
+
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
