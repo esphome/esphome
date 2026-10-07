@@ -33,10 +33,6 @@ class UDPComponent final : public Component {
   void dump_config() override;
   void send_packet(const uint8_t *data, size_t size);
   void send_packet(const std::vector<uint8_t> &buf) { this->send_packet(buf.data(), buf.size()); }
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  /// Sends a payload that may be in PROGMEM without copying it to the heap.
-  void send_packet_progmem(const uint8_t *data, size_t size);
-#endif
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
@@ -52,7 +48,6 @@ class UDPComponent final : public Component {
   std::vector<struct sockaddr> sockaddrs_{};
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-  template<typename W> void send_lwip_tcp_(W &&write);
   std::vector<IPAddress> ipaddrs_{};
   WiFiUDP udp_client_{};
 #endif

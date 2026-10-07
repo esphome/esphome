@@ -10,13 +10,9 @@ template<typename... Ts> class UDPWriteAction final : public Action<Ts...>, publ
   TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-    if (this->data_.is_static()) {
-      this->parent_->send_packet_progmem(this->data_.data(), this->data_.size());
-      return;
-    }
-#endif
-    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->send_packet(data, len); }, x...);
+    // One write per packet: WiFiUDP appends all or nothing, so a failed allocation never sends a partial packet
+    this->data_.template visit<128>([this](const uint8_t *data, size_t len) { this->parent_->send_packet(data, len); },
+                                    x...);
   }
 };
 

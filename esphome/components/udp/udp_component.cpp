@@ -1,12 +1,9 @@
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/network/util.h"
 #include "udp_component.h"
-
-#include <algorithm>
 
 namespace esphome::udp {
 
@@ -157,20 +154,6 @@ void UDPComponent::dump_config() {
                 YESNO(this->should_broadcast_), YESNO(this->should_listen_));
 }
 
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-template<typename W> void UDPComponent::send_lwip_tcp_(W &&write) {
-  auto iface = IPAddress(0, 0, 0, 0);
-  for (const auto &saddr : this->ipaddrs_) {
-    if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) == 0)
-      continue;
-    write();
-    if (this->udp_client_.endPacket() == 0) {
-      ESP_LOGW(TAG, "udp.write() error");
-    }
-  }
-}
-#endif
-
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &saddr : this->sockaddrs_) {
@@ -181,23 +164,18 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   }
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-  this->send_lwip_tcp_([this, data, size]() { this->udp_client_.write(data, size); });
-#endif
-}
-
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-void UDPComponent::send_packet_progmem(const uint8_t *data, size_t size) {
-  // WiFiUDP::write appends to the open packet, so copy the flash table through a small stack chunk
-  this->send_lwip_tcp_([this, data, size]() {
-    uint8_t chunk[32];
-    for (size_t offset = 0; offset < size; offset += sizeof(chunk)) {
-      const size_t len = std::min(size - offset, sizeof(chunk));
-      progmem_memcpy(chunk, data + offset, len);
-      this->udp_client_.write(chunk, len);
+  auto iface = IPAddress(0, 0, 0, 0);
+  for (const auto &saddr : this->ipaddrs_) {
+    if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) != 0) {
+      this->udp_client_.write(data, size);
+      auto result = this->udp_client_.endPacket();
+      if (result == 0) {
+        ESP_LOGW(TAG, "udp.write() error");
+      }
     }
-  });
-}
+  }
 #endif
+}
 }  // namespace esphome::udp
 
 #endif
