@@ -1,0 +1,34 @@
+# Entities with the same name on different sub-devices: with sub_device_topics each
+# gets its own topics and discovery ids (<topic_prefix>/<sub_device>/sensor/<name>/...).
+esphome:
+  devices:
+    - id: living_room
+      name: Living Room
+    - id: bedroom
+      name: Bedroom
+
+mqtt:
+  sub_device_topics: true
+
+sensor:
+  - platform: template
+    name: Temperature
+    lambda: return 21.0;
+  - platform: template
+    name: Temperature
+    device_id: living_room
+    lambda: return 22.5;
+  - platform: template
+    name: Temperature
+    device_id: bedroom
+    lambda: return 19.5;
+
+switch:
+  - platform: template
+    name: Heater
+    device_id: living_room
+    optimistic: true
+  - platform: template
+    name: Heater
+    device_id: bedroom
+    optimistic: true

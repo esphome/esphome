@@ -69,6 +69,11 @@ StringRef MQTTComponent::get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_
   p = append_char(p, '/');
   p = append_str(p, sanitized_name, strlen(sanitized_name));
   p = append_char(p, '/');
+  // <sub_device>_<object_id>: Home Assistant's discovery object id is a single topic level.
+  size_t seg_len = this->write_sub_device_segment_to_(p);
+  if (seg_len > 0) {
+    p = append_char(p + seg_len, '_');
+  }
   p = append_str(p, object_id.c_str(), object_id.size());
   p = append_str(p, "/config", 7);
   *p = '\0';
@@ -91,6 +96,11 @@ StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_
 
   p = append_str(p, topic_prefix.data(), topic_prefix.size());
   p = append_char(p, '/');
+  // <topic_prefix>/<sub_device>/<component>/<object_id>/<suffix> for an entity on a sub-device.
+  size_t seg_len = this->write_sub_device_segment_to_(p);
+  if (seg_len > 0) {
+    p = append_char(p + seg_len, '/');
+  }
   p = append_str(p, comp_type, strlen(comp_type));
   p = append_char(p, '/');
   p = append_str(p, object_id.c_str(), object_id.size());
@@ -99,6 +109,24 @@ StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_
   *p = '\0';
 
   return StringRef(buf.data(), p - buf.data());
+}
+
+size_t MQTTComponent::write_sub_device_segment_to_(char *buf) const {
+#if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
+  Device *device = this->get_entity()->get_device();
+  if (device == nullptr) {
+    return 0;
+  }
+  const char *name = device->get_name();
+  size_t len = std::min(strlen(name), ESPHOME_FRIENDLY_NAME_MAX_LEN);
+  for (size_t i = 0; i < len; i++) {
+    buf[i] = to_sanitized_char(to_snake_case_char(name[i]));
+  }
+  return len;
+#else
+  (void) buf;
+  return 0;
+#endif
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
@@ -252,10 +280,18 @@ bool MQTTComponent::send_discovery_() {
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
         char object_id_buf[OBJECT_ID_MAX_LEN];
         StringRef object_id = this->get_default_object_id_to_(object_id_buf);
+        // For an entity on a sub-device (with sub_device_topics), its ids carry the sub-device too, so
+        // equally named entities on different sub-devices stay distinct in Home Assistant.
+        char sub_device[MQTT_SUB_DEVICE_SEGMENT_MAX_LEN + 1];
+        size_t sub_device_len = this->write_sub_device_segment_to_(sub_device);
+        sub_device[sub_device_len] = '\0';
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
-          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
-                            fnv1_hash(this->friendly_name_().c_str()));
+          uint32_t name_hash = fnv1_hash(this->friendly_name_().c_str());
+          if (sub_device_len > 0) {
+            name_hash = fnv1_hash_extend(name_hash, sub_device);
+          }
+          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32, name_hash);
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
@@ -268,17 +304,28 @@ bool MQTTComponent::send_discovery_() {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
           // "ESP" (3) + component_type (max 20) + object_id (max 128) + null
-          char unique_id_buf[3 + MQTT_COMPONENT_TYPE_MAX_LEN + OBJECT_ID_MAX_LEN + 1];
-          buf_append_printf(unique_id_buf, sizeof(unique_id_buf), 0, "ESP%s%s", this->component_type(),
-                            object_id.c_str());
+          char unique_id_buf[3 + MQTT_COMPONENT_TYPE_MAX_LEN + MQTT_SUB_DEVICE_SEGMENT_MAX_LEN + OBJECT_ID_MAX_LEN + 1];
+          if (sub_device_len > 0) {
+            buf_append_printf(unique_id_buf, sizeof(unique_id_buf), 0, "ESP%s%s_%s", this->component_type(), sub_device,
+                              object_id.c_str());
+          } else {
+            buf_append_printf(unique_id_buf, sizeof(unique_id_buf), 0, "ESP%s%s", this->component_type(),
+                              object_id.c_str());
+          }
           root[MQTT_UNIQUE_ID] = unique_id_buf;
         }
 
         const auto &node_name = App.get_name();
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR) {
           // node_name (max 31) + "_" (1) + object_id (max 128) + null
-          char object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1];
-          buf_append_printf(object_id_full, sizeof(object_id_full), 0, "%s_%s", node_name.c_str(), object_id.c_str());
+          char
+              object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MQTT_SUB_DEVICE_SEGMENT_MAX_LEN + OBJECT_ID_MAX_LEN + 1];
+          if (sub_device_len > 0) {
+            buf_append_printf(object_id_full, sizeof(object_id_full), 0, "%s_%s_%s", node_name.c_str(), sub_device,
+                              object_id.c_str());
+          } else {
+            buf_append_printf(object_id_full, sizeof(object_id_full), 0, "%s_%s", node_name.c_str(), object_id.c_str());
+          }
           root[MQTT_OBJECT_ID] = object_id_full;
         }
 
@@ -289,6 +336,19 @@ bool MQTTComponent::send_discovery_() {
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
         char mac[MAC_ADDRESS_BUFFER_SIZE];
         get_mac_address_into_buffer(mac);
+#if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
+        if (sub_device_len > 0) {
+          // A sub-device is its own Home Assistant device, reached through this node: the same
+          // grouping the native API gives. No connections: a shared MAC would merge it into the node.
+          Device *device = this->get_entity()->get_device();
+          char sub_device_ids[MAC_ADDRESS_BUFFER_SIZE + 1 + 8 + 1];
+          buf_append_printf(sub_device_ids, sizeof(sub_device_ids), 0, "%s-%08" PRIx32, mac, device->get_device_id());
+          device_info[MQTT_DEVICE_IDENTIFIERS] = sub_device_ids;
+          device_info[MQTT_DEVICE_NAME] = device->get_name();
+          device_info[MQTT_DEVICE_VIA_DEVICE] = mac;
+          return;
+        }
+#endif
         device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
 #ifdef ESPHOME_PROJECT_NAME

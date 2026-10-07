@@ -30,12 +30,22 @@ static constexpr size_t MQTT_SUFFIX_MAX_LEN = 32;
 static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
 // Stack buffer size - safe because all inputs are length-validated at config time
 // Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
-static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
-    MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
+#ifdef USE_MQTT_SUB_DEVICE_TOPICS
+// The sanitized sub-device name and its separator, added to the topics of an
+// entity on a sub-device so that equally named entities on different
+// sub-devices do not share a topic.
+static constexpr size_t MQTT_SUB_DEVICE_SEGMENT_MAX_LEN = ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+#else
+static constexpr size_t MQTT_SUB_DEVICE_SEGMENT_MAX_LEN = 0;
+#endif
+static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN = MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_SUB_DEVICE_SEGMENT_MAX_LEN +
+                                                     MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 +
+                                                     MQTT_SUFFIX_MAX_LEN + 1;
 static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
 // Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
 static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
-                                                       1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
+                                                       1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 +
+                                                       MQTT_SUB_DEVICE_SEGMENT_MAX_LEN + OBJECT_ID_MAX_LEN + 7 + 1;
 
 class MQTTComponent;  // Forward declaration
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
@@ -285,6 +295,15 @@ class MQTTComponent : public Component {
    */
   StringRef get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf, const char *suffix,
                                       size_t suffix_len) const;
+
+  /** Write the sanitized name of the sub-device this entity is on into `buf` (not terminated).
+   *
+   * Only with `sub_device_topics` enabled (USE_MQTT_SUB_DEVICE_TOPICS); otherwise, or for an entity
+   * on the main device, nothing is written.
+   * @param buf At least ESPHOME_FRIENDLY_NAME_MAX_LEN bytes.
+   * @return The number of characters written, 0 for none.
+   */
+  size_t write_sub_device_segment_to_(char *buf) const;
 
   /** Get this components state/command/... topic (allocates std::string).
    *
