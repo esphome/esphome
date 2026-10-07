@@ -72,9 +72,6 @@ ENTITIES = """
       - platform: homeassistant
         id: ha_sensor
         %(sensor)s
-      - platform: homeassistant
-        id: ha_default_sensor
-        entity_id: sensor.default
     binary_sensor:
       - platform: homeassistant
         id: ha_binary
@@ -102,19 +99,21 @@ ENTITIES = """
     """
 
 
-def build_entities(entity_ids: bool) -> str:
-    """The test entities. The homeassistant ones that GOOD_PAGES uses as inputs get a YAML entity_id or not."""
+def build_entities(inputs: set[str]) -> str:
+    """The test entities. The homeassistant ones that are wizard inputs set no entity_id, the others do."""
     ids = {
-        "light": "entity_id: light.lamp",
-        "sensor": "entity_id: sensor.a",
-        "binary": "entity_id: binary_sensor.a",
-        "text": "entity_id: sensor.b",
-        "number": "entity_id: number.a",
-        "text_entity": "entity_id: text.a",
-        "select": "entity_id: select.a",
-        "button": "entity_id: button.a",
+        "light": ("ha_switch", "entity_id: light.lamp"),
+        "sensor": ("ha_sensor", "entity_id: sensor.a"),
+        "binary": ("ha_binary", "entity_id: binary_sensor.a"),
+        "text": ("ha_text", "entity_id: sensor.b"),
+        "number": ("ha_number", "entity_id: number.a"),
+        "text_entity": ("ha_txt", "entity_id: text.a"),
+        "select": ("ha_select", "entity_id: select.a"),
+        "button": ("ha_button", "entity_id: button.a"),
     }
-    return ENTITIES % {k: v if entity_ids else "" for k, v in ids.items()}
+    return ENTITIES % {
+        key: "" if name in inputs else yaml for key, (name, yaml) in ids.items()
+    }
 
 
 GOOD_PAGES = """
@@ -137,7 +136,6 @@ GOOD_PAGES = """
                       device_class: [temperature, humidity]
                       supported_features: weather.WeatherEntityFeature.FORECAST_DAILY
                     - domain: [sensor, number]
-              - entity: ha_default_sensor
               - entity: ha_binary
               - entity: ha_text
               - entity: ha_number
@@ -156,10 +154,10 @@ GOOD_PAGES = """
 def write_config(
     tmp_path: Path, header: str, api: str, yaml_entities: str | None = None
 ) -> Path:
-    """Write a config. By default the homeassistant entities have an entity_id."""
+    """Write a config. By default the homeassistant entities that the wizard does not use as inputs set an entity_id."""
     path = tmp_path / "test.yaml"
     if yaml_entities is None:
-        yaml_entities = build_entities(True)
+        yaml_entities = build_entities(set(re.findall(r"entity: (\w+)", api)))
     path.write_text(
         textwrap.dedent(header) + textwrap.dedent(yaml_entities) + textwrap.dedent(api)
     )
@@ -167,8 +165,8 @@ def write_config(
 
 
 def write_input_config(tmp_path: Path, header: str) -> Path:
-    """Write a config with GOOD_PAGES, whose inputs have no entity_id."""
-    return write_config(tmp_path, header, GOOD_PAGES, build_entities(False))
+    """Write a config with GOOD_PAGES."""
+    return write_config(tmp_path, header, GOOD_PAGES)
 
 
 def config_errors(path: Path) -> list[str]:
@@ -639,40 +637,6 @@ def test_new_platforms_need_an_entity_id_unless_they_are_inputs(
     ), errors
 
 
-def test_a_linked_default_longer_than_the_buffer_is_rejected(tmp_path: Path) -> None:
-    long_id = "sensor." + "x" * 249  # 256 bytes
-    yaml_entities = f"sensor:\n  - platform: homeassistant\n    id: long_sensor\n    entity_id: {long_id}\n"
-    errors = config_errors(
-        write_config(
-            tmp_path,
-            ESP32_HEADER,
-            wizard_inputs("- entity: long_sensor"),
-            yaml_entities,
-        )
-    )
-
-    assert any(
-        "is 256 bytes" in error and "at most 255" in error for error in errors
-    ), errors
-
-
-def test_a_linked_default_of_the_longest_length_is_valid(tmp_path: Path) -> None:
-    long_id = "sensor." + "x" * 248  # 255 bytes
-    yaml_entities = f"sensor:\n  - platform: homeassistant\n    id: long_sensor\n    entity_id: {long_id}\n"
-
-    assert (
-        config_errors(
-            write_config(
-                tmp_path,
-                ESP32_HEADER,
-                wizard_inputs("- entity: long_sensor"),
-                yaml_entities,
-            )
-        )
-        == []
-    )
-
-
 DEVICES_HEADER = """
     esphome:
       name: test
@@ -844,13 +808,8 @@ def test_inputs_have_buffers_hashes_and_a_table(
 
     # The buffer holds the YAML entity ID until the wizard sets another
     assert 'static char api_wizard_input_ha_sensor[256] = "";' in main_cpp
-    assert (
-        'static char api_wizard_input_ha_default_sensor[256] = "sensor.default";'
-        in main_cpp
-    )
     entities = (
         "ha_sensor",
-        "ha_default_sensor",
         "ha_binary",
         "ha_text",
         "ha_number",
@@ -927,3 +886,44 @@ def test_repeated_text_compresses_well_inside_the_limit(tmp_path: Path) -> None:
     api = wizard_api(f"- entities: [\n{entities}\n]")
 
     assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
+
+
+@pytest.mark.parametrize(
+    ("platform", "entity_id"),
+    [
+        ("sensor", "sensor.a"),
+        ("switch", "light.a"),
+        ("text", "text.a"),
+        ("button", "button.a"),
+    ],
+)
+def test_a_linked_entity_must_not_set_an_entity_id(
+    tmp_path: Path, platform: str, entity_id: str
+) -> None:
+    yaml_entities = (
+        f"{platform}:\n  - platform: homeassistant\n    id: fixed\n"
+        f"    entity_id: {entity_id}\n"
+    )
+    errors = config_errors(
+        write_config(
+            tmp_path, ESP32_HEADER, wizard_inputs("- entity: fixed"), yaml_entities
+        )
+    )
+
+    assert any(
+        "'fixed' has an entity_id set in its configuration" in error
+        and "Remove entity_id" in error
+        for error in errors
+    ), errors
+
+
+def test_an_entity_with_an_entity_id_that_is_no_input_is_valid(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
+
+    # Static entries keep their literal and are kept apart from the wizard buffers
+    assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
+    assert "api_wizard_input_ha_plain_sensor" not in main_cpp
+    # Every buffer starts empty
+    assert '] = "sensor.' not in main_cpp.split("API_WIZARD_INPUTS")[0]

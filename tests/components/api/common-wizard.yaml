@@ -63,7 +63,9 @@ sensor:
     id: outdoor_temp
   - platform: homeassistant
     id: default_temp
-    entity_id: sensor.default_temperature
+  - platform: homeassistant
+    id: fixed_temp
+    entity_id: sensor.fixed_temperature
 
 binary_sensor:
   - platform: homeassistant
@@ -88,6 +90,8 @@ select:
 button:
   - platform: homeassistant
     id: ha_button
+  - platform: homeassistant
+    id: fixed_button
     entity_id: button.restart
 
 interval:

@@ -101,7 +101,8 @@ WIZARD_ENTITY_SCHEMA = cv.Schema(
 )
 
 
-# An input is either standalone (id declares a new WizardInput) or linked to a homeassistant entity
+# An input is either standalone (id declares a new WizardInput) or linked to a homeassistant entity that has no
+# entity_id of its own: Home Assistant sets it
 WIZARD_INPUT_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -270,12 +271,11 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
             f"Wizard input '{conf[CONF_ENTITY].id}' must be a homeassistant "
             f"{', '.join(WIZARD_INPUT_DOMAINS)} entity"
         )
-    if (default := declaration.get(CONF_ENTITY_ID)) is not None and len(
-        default.encode("utf-8")
-    ) >= WIZARD_ENTITY_ID_BUFFER_SIZE:
+    if CONF_ENTITY_ID in declaration:
+        # An entity_id in the configuration is a static entry, which is kept apart from the dynamic ones
         raise cv.Invalid(
-            f"The entity_id of '{conf[CONF_ENTITY].id}' is {len(default.encode('utf-8'))} bytes, "
-            f"but a wizard input holds at most {WIZARD_ENTITY_ID_BUFFER_SIZE - 1}"
+            f"'{conf[CONF_ENTITY].id}' has an entity_id set in its configuration, so it cannot be a "
+            "wizard input. Remove entity_id to let Home Assistant set it through the wizard."
         )
     if domain in WIZARD_DOMAIN_LIMITED_PLATFORMS:
         supported = _wizard_default_domains(domain)
@@ -400,7 +400,8 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
     - An entity key is the key ListEntitiesResponse sends for the entity: the FNV-1 hash of the
       object id made from its name (entity_helpers). device_id is the hash of the ESPHome id of
       the device it belongs to (esphome/core/config.py), and is left out for the main device.
-    - An input key is the FNV-1 hash of the ESPHome id of the input, or of the linked entity.
+    - An input key is the FNV-1 hash of the ESPHome id of the input, or of the linked entity. A linked
+      entity must not set entity_id, as that is a static entry kept apart from the ones the wizard sets.
     - entity_filters are the filters of the input, or the default filters of a linked switch,
       number, text, select or button.
     """
@@ -451,15 +452,11 @@ async def to_code(wizard: ConfigType) -> None:
     entries: list[str] = []
     for conf in _wizard_inputs(wizard):
         input_id = _wizard_input_id(conf)
-        default = None
-        if CONF_ENTITY in conf:
-            # Linked: the homeassistant entity uses the buffer, and its entity_id is the default
-            _, declaration = _wizard_input_declaration(CORE.config, input_id)
-            default = declaration.get(CONF_ENTITY_ID)
+        # Every buffer starts empty, until the wizard sets it. A linked homeassistant entity uses it as its entity id.
         buffer = _wizard_buffer_name(input_id)
         cg.add_global(
             cg.RawStatement(
-                f"static char {buffer}[{WIZARD_ENTITY_ID_BUFFER_SIZE}] = {cg.safe_exp(default or '')};"
+                f'static char {buffer}[{WIZARD_ENTITY_ID_BUFFER_SIZE}] = "";'
             )
         )
         if CONF_ID in conf:

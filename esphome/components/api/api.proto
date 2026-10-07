@@ -440,8 +440,9 @@ message DeviceWizardRequest {
 //
 // An input is filled in by the user with the id of a Home Assistant entity. It either
 // stands for one entity of the device's homeassistant platform (sensor, binary_sensor,
-// text_sensor, number, switch, text, select or button), or it is a standalone input that
-// only stores the entity id for the device's own automations. Its key is the FNV-1 hash
+// text_sensor, number, switch, text, select or button) that sets no entity_id of its own,
+// as Home Assistant supplies it, or it is a standalone input that only stores the entity
+// id for the device's own automations. Its key is the FNV-1 hash
 // of the input's ESPHome id, not an entity key. The client sends the chosen entity id to
 // the device with a WizardInputSetRequest. entity_filters says which Home Assistant
 // entities the user may choose, and mirrors Home Assistant's EntityFilterSelectorConfig:
