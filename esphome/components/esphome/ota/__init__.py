@@ -133,20 +133,12 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             _resolve_encryption_key(encryption_conf, api_conf)
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
-                "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
-                "bytes plus the password on the heap): the device already offers "
-                "encryption with the '%s' %s %s, which authenticates any uploader "
-                "that takes it, and a password only matters for uploaders without "
-                "encryption support; remove '%s' and add '%s' under '%s' so "
-                "uploads use the key and encryption is required",
+                "'%s' %s wastes significant flash and RAM; "
+                "using '%s' instead is recommended - "
+                "see https://esphome.io/components/ota/esphome/#configuration-variables",
                 CONF_OTA,
                 CONF_PASSWORD,
-                CONF_API,
                 CONF_ENCRYPTION,
-                CONF_KEY,
-                CONF_PASSWORD,
-                CONF_ENCRYPTION,
-                CONF_OTA,
             )
         elif (
             CONF_PASSWORD in ota_conf
