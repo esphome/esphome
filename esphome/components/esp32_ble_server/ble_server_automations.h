@@ -16,6 +16,16 @@ namespace esphome::esp32_ble_server::esp32_ble_server_automations {
 
 using namespace esp32_ble;
 
+/// Sets a characteristic or descriptor value from a constant flash table or a lambda's vector.
+// The arguments are forwarded as-is, since trigger arguments may be non-const references (#17142).
+template<typename T, typename V, typename... Xs> void apply_value(T *target, const V &value, Xs &&...x) {
+  if (value.is_static()) {
+    target->set_value(value.data(), value.size());
+  } else {
+    target->set_value(value.value(x...));
+  }
+}
+
 class BLETriggers {
  public:
 #ifdef USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE
@@ -67,25 +77,23 @@ class BLECharacteristicSetValueActionManager {
 template<typename... Ts> class BLECharacteristicSetValueAction final : public Action<Ts...> {
  public:
   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
-  void set_buffer(std::initializer_list<uint8_t> buffer) { this->buffer_ = std::vector<uint8_t>(buffer); }
-  void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
+  TEMPLATABLE_BYTES(buffer)
   void play(const Ts &...x) override {
     // If the listener is already set, do nothing
     if (BLECharacteristicSetValueActionManager::get_instance()->has_listener(this->parent_))
       return;
     // Set initial value
-    this->parent_->set_value(this->buffer_.value(x...));
+    apply_value(this->parent_, this->buffer_, x...);
     // Set the listener for read events
     // ``mutable`` keeps by-copy captures non-const for triggers passing args by reference
     // (e.g. climate on_control's ClimateCall&). See #17142.
     this->parent_->on_read([this, x...](uint16_t id) mutable {
       // Set the value of the characteristic every time it is read
-      this->parent_->set_value(this->buffer_.value(x...));
+      apply_value(this->parent_, this->buffer_, x...);
     });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(
-        this->parent_, [this, x...]() mutable { this->parent_->set_value(this->buffer_.value(x...)); });
+        this->parent_, [this, x...]() mutable { apply_value(this->parent_, this->buffer_, x...); });
   }
 
  protected:
@@ -115,10 +123,8 @@ template<typename... Ts> class BLECharacteristicNotifyAction final : public Acti
 template<typename... Ts> class BLEDescriptorSetValueAction final : public Action<Ts...> {
  public:
   BLEDescriptorSetValueAction(BLEDescriptor *descriptor) : parent_(descriptor) {}
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
-  void set_buffer(std::initializer_list<uint8_t> buffer) { this->buffer_ = std::vector<uint8_t>(buffer); }
-  void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
-  void play(const Ts &...x) override { this->parent_->set_value(this->buffer_.value(x...)); }
+  TEMPLATABLE_BYTES(buffer)
+  void play(const Ts &...x) override { apply_value(this->parent_, this->buffer_, x...); }
 
  protected:
   BLEDescriptor *parent_;

@@ -1,4 +1,6 @@
 import encodings
+import math
+import struct
 
 from esphome import automation
 import esphome.codegen as cg
@@ -27,6 +29,7 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble", "bytebuffer"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
@@ -111,8 +114,6 @@ BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
 )
 bytebuffer_ns = cg.esphome_ns.namespace("bytebuffer")
 Endianness_ns = bytebuffer_ns.namespace("Endian")
-ByteBuffer_ns = bytebuffer_ns.namespace("ByteBuffer")
-ByteBuffer = bytebuffer_ns.class_("ByteBuffer")
 
 
 PROPERTY_MAP = {
@@ -495,19 +496,57 @@ def parse_uuid(uuid):
     return ESPBTUUID_ns.from_raw(uuid)
 
 
+_STRUCT_FORMATS = {
+    "uint8_t": "B",
+    "uint16_t": "H",
+    "uint32_t": "I",
+    "uint64_t": "Q",
+    "int8_t": "b",
+    "int16_t": "h",
+    "int32_t": "i",
+    "int64_t": "q",
+    "float": "f",
+    "double": "d",
+}
+
+
+def _to_float32(value: float) -> float:
+    try:
+        return struct.unpack("<f", struct.pack("<f", value))[0]
+    except OverflowError:
+        return math.copysign(math.inf, value)
+
+
+def value_bytes(value_config: ConfigType) -> list[int]:
+    """The bytes of a constant value, as ByteBuffer::wrap packed them at runtime."""
+    value = value_config[CONF_DATA]
+    if isinstance(value, str):
+        return list(value.encode(value_config[CONF_STRING_ENCODING]))
+    if isinstance(value, list):
+        return value
+    type_ = value_config[CONF_TYPE]
+    if type_ in ("float", "double"):
+        # Both were emitted as float literals, so a double carries float precision
+        value = _to_float32(value)
+    order = ">" if value_config[CONF_ENDIANNESS] == "BIG" else "<"
+    return list(struct.pack(order + _STRUCT_FORMATS[type_], value))
+
+
 async def parse_value(value_config, args):
     value = value_config[CONF_DATA]
     if isinstance(value, cv.Lambda):
         return await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
+    # An initializer list calls the set_value(std::initializer_list<uint8_t>) overload
+    return cg.ArrayInitializer(*value_bytes(value_config))
 
-    if isinstance(value, str):
-        value = list(value.encode(value_config[CONF_STRING_ENCODING]))
-    if isinstance(value, list):
-        # Generate initializer list {1, 2, 3} instead of std::vector<uint8_t>({1, 2, 3})
-        # This calls the set_value(std::initializer_list<uint8_t>) overload
-        return cg.ArrayInitializer(*value)
-    val = cg.RawExpression(f"{value_config[CONF_TYPE]}({cg.safe_exp(value)})")
-    return ByteBuffer_ns.wrap(val, value_config[CONF_ENDIANNESS])
+
+async def set_value_buffer(var, value_config: ConfigType, args) -> None:
+    value = value_config[CONF_DATA]
+    if not isinstance(value, cv.Lambda):
+        value = value_bytes(value_config)
+    await automation.templatable_bytes(
+        value, args, var.set_buffer_template, var.set_buffer_static, "ble_server_value"
+    )
 
 
 def calculate_num_handles(service_config):
@@ -662,8 +701,7 @@ async def to_code(config):
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    value = await parse_value(config[CONF_VALUE], args)
-    cg.add(var.set_buffer(value))
+    await set_value_buffer(var, config[CONF_VALUE], args)
     cg.add_define("USE_ESP32_BLE_SERVER_SET_VALUE_ACTION")
     return var
 
@@ -682,8 +720,7 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
 async def ble_server_descriptor_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    value = await parse_value(config[CONF_VALUE], args)
-    cg.add(var.set_buffer(value))
+    await set_value_buffer(var, config[CONF_VALUE], args)
     cg.add_define("USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION")
     return var
 

@@ -49,11 +49,11 @@ void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   this->state_ = CREATING;
 }
 
-void BLEDescriptor::set_value(std::vector<uint8_t> &&buffer) { this->set_value_impl_(buffer.data(), buffer.size()); }
+void BLEDescriptor::set_value(std::vector<uint8_t> &&buffer) { this->set_value(buffer.data(), buffer.size()); }
 
-void BLEDescriptor::set_value(std::initializer_list<uint8_t> data) { this->set_value_impl_(data.begin(), data.size()); }
+void BLEDescriptor::set_value(std::initializer_list<uint8_t> data) { this->set_value(data.begin(), data.size()); }
 
-void BLEDescriptor::set_value_impl_(const uint8_t *data, size_t length) {
+void BLEDescriptor::set_value(const uint8_t *data, size_t length) {
   if (length > this->value_.attr_max_len) {
     ESP_LOGE(TAG, "Size %d too large, must be no bigger than %d", length, this->value_.attr_max_len);
     return;

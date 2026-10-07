@@ -30,6 +30,7 @@ class BLECharacteristic final {
   ~BLECharacteristic();
 
   void set_value(ByteBuffer buffer);
+  void set_value(const uint8_t *data, size_t length) { this->value_.assign(data, data + length); }
   void set_value(std::vector<uint8_t> &&buffer);
   void set_value(std::initializer_list<uint8_t> data);
   void set_value(const std::string &buffer);
