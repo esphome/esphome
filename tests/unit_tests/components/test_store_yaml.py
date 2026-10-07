@@ -57,7 +57,9 @@ def _sources(
 
 def _gather_redacted(discovered: DiscoveredYamlFiles) -> dict[str, bytes]:
     entries, secret_rels = _gather_files(discovered)
-    return dict(_generate_redacted_files(entries, secret_rels))
+    return dict(
+        _generate_redacted_files(entries, secret_rels, _remote_package_descriptions())
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -306,12 +308,12 @@ def test_remote_package_descriptions_read_packages_record(
     processing are formatted as url@ref (url alone when ref is absent)."""
     monkeypatch.delitem(CORE.data, packages.DOMAIN, raising=False)
     data = packages._get_data()
-    data.remote_sources.append(
+    data.remote_sources[
         packages.RemotePackageSource("https://github.com/org/repo", "main")
-    )
-    data.remote_sources.append(
+    ] = None
+    data.remote_sources[
         packages.RemotePackageSource("https://github.com/org/other", None)
-    )
+    ] = None
     assert _remote_package_descriptions() == [
         "https://github.com/org/repo@main",
         "https://github.com/org/other",

@@ -366,7 +366,7 @@ void APIConnection::loop() {
 
 #ifdef USE_STORE_YAML
   // Guard inline so the idle hot path pays a compare, not a function call.
-  if (this->store_yaml_pos_ != std::numeric_limits<size_t>::max()) {
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE) {
     this->try_send_store_yaml_();
   }
 #endif
@@ -1223,59 +1223,33 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 
 #ifdef USE_STORE_YAML
 void APIConnection::on_get_yaml_request() {
-  // A re-request while a transfer is in flight is ignored; see the
-  // GetYamlRequest comment in api.proto. A client that wants to restart
-  // must reconnect.
-  if (this->store_yaml_pos_ != std::numeric_limits<size_t>::max())
+  // A re-request while a transfer is in flight is ignored (see api.proto)
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE)
     return;
-  // All responses go through the loop-driven retry below, so a full TX
-  // buffer at request time can't strand the client without a terminal frame.
   this->store_yaml_pos_ = 0;
   this->try_send_store_yaml_();
 }
 
-// Caller guarantees: store_yaml_pos_ != SIZE_MAX (a request is in flight).
 void APIConnection::try_send_store_yaml_() {
-  // A client connecting while later components are still setting up (the app
-  // loop runs for already-initialized components during setup) can request
-  // YAML before store_yaml's setup() registered the component. Leave the
-  // request pending; this is retried from loop() until the component appears.
-  auto *comp = store_yaml::global_store_yaml;
-  if (comp == nullptr)
-    return;
-  // Codegen always embeds a non-empty blob, so total > 0 here.
-  const size_t total = comp->get_size();
-
-  const size_t chunk_size = MAX_BATCH_PACKET_SIZE;
-
-  // Camera-style streaming: advance the position only after a successful send,
-  // so a WOULD_BLOCK simply retries the same chunk on the next loop iteration.
-  while (true) {
-    if (!this->helper_->can_write_without_blocking())
-      return;
-
-    const size_t remaining = total - this->store_yaml_pos_;
-    const size_t to_send = std::min(remaining, chunk_size);
-
+  // Advance only after a successful send, so a full TX buffer retries the same chunk from loop()
+  while (this->helper_->can_write_without_blocking()) {
+    const size_t to_send = std::min(STORE_YAML_DATA_SIZE - this->store_yaml_pos_, MAX_BATCH_PACKET_SIZE);
     GetYamlResponse resp;
-    resp.data = comp->get_data() + this->store_yaml_pos_;
+    resp.data = store_yaml::STORE_YAML_DATA + this->store_yaml_pos_;
     resp.data_len = to_send;
     if (this->store_yaml_pos_ == 0) {
-      resp.total_size = static_cast<uint32_t>(total);
+      resp.total_size = STORE_YAML_DATA_SIZE;
       resp.encoding = StringRef(store_yaml::ENCODING);
     }
-    resp.done = (this->store_yaml_pos_ + to_send) >= total;
-
+    resp.done = this->store_yaml_pos_ + to_send == STORE_YAML_DATA_SIZE;
     if (!this->send_message(resp))
-      return;  // retry on next loop, pos unchanged
-
+      return;
+    if (resp.done) {
+      this->store_yaml_pos_ = STORE_YAML_IDLE;
+      return;
+    }
     this->store_yaml_pos_ += to_send;
-    if (resp.done)
-      break;
   }
-
-  // Final response (with done=true) sent successfully.
-  this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
 }
 #endif
 
@@ -2158,9 +2132,6 @@ bool APIConnection::send_device_capabilities_response_() {
   resp.wizard.configured = true;
 #endif
 #ifdef USE_STORE_YAML
-  // Compile-time knowledge: codegen always embeds a non-empty blob when the
-  // component is compiled in. Deriving this from the runtime pointer could
-  // report false to a client connecting before store_yaml's setup() ran.
   resp.store_yaml.supported = true;
 #endif
   return this->send_message(resp);

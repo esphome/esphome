@@ -286,6 +286,7 @@
 #define API_MAX_SEND_QUEUE 8
 #define API_USER_ACTION_STRINGS_SCRATCH_SIZE 64
 #define API_WIZARD_DATA_SIZE 1
+#define STORE_YAML_DATA_SIZE 1
 #define API_WIZARD_INPUT_COUNT 1
 #define MAX_API_CONNECTIONS 6
 // The Improv library is not in the Zephyr tidy environment

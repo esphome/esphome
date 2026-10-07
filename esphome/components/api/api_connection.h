@@ -30,7 +30,6 @@
 
 #include <functional>
 #include <limits>
-#include <memory>
 #include <vector>
 
 namespace esphome {
@@ -443,8 +442,9 @@ class APIConnection final : public APIServerConnectionBase {
 
 #ifdef USE_STORE_YAML
   void try_send_store_yaml_();
-  // Streaming offset into the PROGMEM blob; max() means "not streaming".
-  size_t store_yaml_pos_{std::numeric_limits<size_t>::max()};
+  static constexpr size_t STORE_YAML_IDLE = std::numeric_limits<size_t>::max();
+  // Streaming offset into STORE_YAML_DATA, or STORE_YAML_IDLE
+  size_t store_yaml_pos_{STORE_YAML_IDLE};
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES

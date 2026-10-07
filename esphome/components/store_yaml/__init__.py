@@ -12,8 +12,8 @@ from esphome.components import packages
 from esphome.components.api import CONF_ENCRYPTION
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
-from esphome.const import CONF_API, CONF_ID, CONF_KEY, CONF_RAW_DATA_ID
-from esphome.core import CORE, EsphomeError, HexInt, Lambda
+from esphome.const import CONF_API, CONF_KEY
+from esphome.core import CORE, EsphomeError, Lambda
 import esphome.final_validate as fv
 from esphome.helpers import ensure_unique_string, zstd_module
 from esphome.types import ConfigType
@@ -26,8 +26,6 @@ DEPENDENCIES = ["api"]
 CONF_INCLUDE_SECRETS = "include_secrets"
 CONF_ALLOW_UNENCRYPTED = "allow_unencrypted"
 
-store_yaml_ns = cg.esphome_ns.namespace("store_yaml")
-StoreYamlComponent = store_yaml_ns.class_("StoreYamlComponent", cg.Component)
 
 # Compression level for zstd; 22 is the max and gives ~70-90% reduction on YAML.
 ZSTD_LEVEL = 22
@@ -44,40 +42,28 @@ UNCAPTURED_NOTE_PATH = "store_yaml_uncaptured.yaml"
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(StoreYamlComponent),
-        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         cv.Optional(CONF_INCLUDE_SECRETS, default=False): cv.boolean,
         cv.Optional(CONF_ALLOW_UNENCRYPTED, default=False): cv.boolean,
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    """Require API encryption: an unauthenticated client could otherwise pull
-    the embedded YAML (which may include Wi-Fi credentials or opted-in
-    secrets). The escape hatch ``allow_unencrypted: true`` exists for
-    isolated lab setups where the user has accepted the trade-off."""
+    """Require an API encryption key unless ``allow_unencrypted`` is set."""
     full = fv.full_config.get()
     api_conf = full.get(CONF_API, {})
-    # Explicitly require a configured key: a keyless provisionable
-    # `api: encryption:` accepts the well-known all-zeros PSK until
-    # provisioned, so anyone could provision it and pull the YAML.
+    # A keyless `encryption:` accepts the all-zeros PSK until provisioned
     encryption = api_conf.get(CONF_ENCRYPTION) or {}
     if CONF_KEY in encryption:
         return config
     if config.get(CONF_ALLOW_UNENCRYPTED):
-        if config.get(CONF_INCLUDE_SECRETS):
-            _LOGGER.warning(
-                "store_yaml is enabled without API encryption and with "
-                "include_secrets; any client that can reach the device on the "
-                "network can pull the embedded YAML including the verbatim "
-                "contents of secrets.yaml."
-            )
-        else:
-            _LOGGER.warning(
-                "store_yaml is enabled without API encryption; any client that "
-                "can reach the device on the network can pull the embedded YAML."
-            )
+        _LOGGER.warning(
+            "store_yaml is enabled without API encryption; any client that can "
+            "reach the device on the network can pull the embedded YAML%s.",
+            " including the verbatim contents of secrets.yaml"
+            if config.get(CONF_INCLUDE_SECRETS)
+            else "",
+        )
         return config
     raise cv.Invalid(
         "store_yaml requires API encryption (configure `api.encryption.key`). "
@@ -198,6 +184,7 @@ def _iter_nodes(
 class _SensitiveValue:
     secret_name: str
     config_path: str  # dotted path, for warnings (never log the value itself)
+    from_secret: bool  # loaded through a real `!secret`
     # Last path segments the value is sensitive at (e.g. {"password"}), used to
     # tell the value's own occurrences apart from unrelated collisions.
     sensitive_keys: set[str]
@@ -206,24 +193,11 @@ class _SensitiveValue:
 def _check_sensitive_usage(
     sensitive: dict[str, _SensitiveValue], trees: dict[str, object]
 ) -> None:
-    """One pass over the parse trees that will be dumped, checking every place
-    a sensitive value shows up beyond its own whole-scalar occurrences.
+    """Check where sensitive values occur beyond their own whole scalars.
 
-    - As a mapping key: fail the build. The dumper's value-keyed swap would
-      rewrite the key and corrupt the recovered structure.
-    - Strictly inside a larger scalar (a lambda body, a URL like
-      http://user:pw@host): the whole-scalar swap cannot redact it, so it
-      would ship verbatim. Inline sensitive values fail the build (the
-      move-into-!secret remedy applies); values already sourced from a real
-      `!secret` only warn, since overlaps like an SSID inside an entity name
-      are common and the value stays in the user's secrets.yaml either way.
-      Scanning tree scalars (not serialized text) means key names, tags, and
-      generated `!secret` references can never false-positive.
-    - As a whole scalar at an unrelated location: warn only. The swap rewrites
-      it to the `!secret` reference, which stays semantically identical until
-      the user fills in a different value during recovery. Occurrences under
-      the value's own sensitive key and swapped `substitutions:` definitions
-      (which keep `${...}` references working) are expected and stay silent.
+    - As a mapping key: fail, the swap would rewrite the key.
+    - Inside a larger scalar: fail for inline values, warn for real `!secret` values.
+    - As a whole scalar elsewhere: warn, it is recovered as the `!secret` reference.
     """
     if not sensitive:
         return
@@ -258,7 +232,7 @@ def _check_sensitive_usage(
             for value, other in sensitive.items():
                 if value not in text:
                     continue
-                if yaml_util.is_secret(value) is not None:
+                if other.from_secret:
                     # The value lives in a real secrets.yaml, so the
                     # move-into-!secret remedy does not apply; overlaps like
                     # an SSID inside an entity name are common and benign.
@@ -310,10 +284,13 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
         entry = result.get(value)
         if entry is None:
             name = yaml_util.is_secret(value)
+            from_secret = name is not None
             if name is None:
                 name = ensure_unique_string("_".join(path) or "secret", used)
             used.add(name)
-            entry = result[value] = _SensitiveValue(name, ".".join(path), set())
+            entry = result[value] = _SensitiveValue(
+                name, ".".join(path), from_secret, set()
+            )
         if path:
             entry.sensitive_keys.add(path[-1])
     return result
@@ -344,14 +321,7 @@ def _uncaptured_note(
 
 
 def _remote_package_descriptions() -> list[str]:
-    """Describe every remote source packages were fetched from.
-
-    Remote packages are downloaded while the config is processed; the packages
-    component records each source, and this formats that record. Their files
-    cannot be embedded, but the entry file still records the package config, so
-    the config is re-fetchable; this only makes the gap visible instead of
-    silent.
-    """
+    """Describe every remote source packages were fetched from; their files cannot be embedded."""
     return [
         f"{source.url}@{source.ref}" if source.ref else source.url
         for source in packages.get_remote_package_sources()
@@ -365,7 +335,7 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
 
 
 def _generate_redacted_files(
-    entries: list[tuple[str, Path]], secret_rels: set[str]
+    entries: list[tuple[str, Path]], secret_rels: set[str], remote_packages: list[str]
 ) -> list[tuple[str, bytes]]:
     """Re-generate each captured file from its parse tree with cv.sensitive
     values emitted as `!secret <name>` references, and replace secrets files
@@ -397,17 +367,16 @@ def _generate_redacted_files(
     # redaction promise cannot be verified — fail the build.
     leaked = [
         info.config_path
-        for value, info in sensitive.items()
-        if yaml_util.is_secret(value) is None and info.secret_name not in skeleton_keys
+        for info in sensitive.values()
+        if not info.from_secret and info.secret_name not in skeleton_keys
     ]
     if leaked:
-        remote = _remote_package_descriptions()
         raise EsphomeError(
             "store_yaml: could not redact the sensitive value(s) of "
             f"{', '.join(leaked)}. The value was not found in any captured "
             "file; it may be composed via substitutions, set on the command "
             "line with -s, or defined inside a remote package"
-            + (f" ({', '.join(remote)})" if remote else "")
+            + (f" ({', '.join(remote_packages)})" if remote_packages else "")
             + ". Reference it with `!secret` in the YAML, or set "
             "`include_secrets: true` to embed secrets deliberately."
         )
@@ -496,22 +465,15 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_STORE_YAML")
 
-    # Discover the user's on-disk YAML files via a fresh re-parse — same
-    # pattern bundle.py uses. Running at codegen time (rather than keeping a
-    # listener installed across validation) avoids capturing framework YAML
-    # that components load internally (e.g. LVGL's `hello_world.yaml`), and
-    # costs nothing on validate-only runs or configs without this component.
-    # This re-parse (and the per-file loads in _generate_redacted_files) also
-    # repopulates yaml_util's secret registry, which save_compiled_config
-    # wiped earlier in write_cpp via dump(show_secrets=True); the redaction
-    # swap and is_secret() checks below rely on that registration.
+    # Re-parse at codegen time to capture only user files; this also refills the
+    # secret registry that save_compiled_config cleared, which redaction relies on.
     discovered = yaml_util.discover_user_yaml_files(CORE.config_path)
     entries, secret_rels = _gather_files(discovered)
+    remote_packages = _remote_package_descriptions()
     if config[CONF_INCLUDE_SECRETS]:
         files = _read_files_verbatim(entries)
     else:
-        files = _generate_redacted_files(entries, secret_rels)
-    remote_packages = _remote_package_descriptions()
+        files = _generate_redacted_files(entries, secret_rels, remote_packages)
     if remote_packages:
         _LOGGER.warning(
             "store_yaml: %d package(s) come from remote sources and cannot be "
@@ -533,9 +495,7 @@ async def to_code(config: ConfigType) -> None:
         100.0 * len(compressed) / len(envelope),
     )
 
-    rhs = [HexInt(b) for b in compressed]
-    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    cg.add(var.set_data(prog_arr, len(compressed), len(envelope)))
+    cg.extern_progmem_array(
+        "esphome::store_yaml::STORE_YAML_DATA", cg.uint8, list(compressed)
+    )
+    cg.add_define("STORE_YAML_DATA_SIZE", len(compressed))
