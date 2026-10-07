@@ -1,6 +1,11 @@
-substitutions:
-  pin1: GPIO1
-  pin2: GPIO2
-
-packages:
-  common: !include common.yaml
+light:
+  - platform: i2s_clockless_led_strip
+    id: i2s_clockless_led_strip1
+    pin: GPIO1
+    num_leds: 100
+    channel_colors: GRB
+  - platform: i2s_clockless_led_strip
+    id: i2s_clockless_led_strip2
+    pin: GPIO2
+    num_leds: 5
+    channel_colors: RWGB

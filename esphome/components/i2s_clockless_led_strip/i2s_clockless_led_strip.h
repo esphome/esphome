@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#endif
+
 #if defined(USE_ESP32) && SOC_I2S_SUPPORTS_TDM
 
 #include <atomic>
@@ -32,6 +36,7 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
  protected:
   static bool i2s_on_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
 
+  bool allocate_buffers_();
   light::ESPColorView get_view_internal(int32_t index) const override;
 
   const uint8_t pin_;
