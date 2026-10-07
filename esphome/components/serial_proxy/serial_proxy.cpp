@@ -426,6 +426,14 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
 void SerialProxy::on_usb_connection_changed_(bool connected) {
   ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
            connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
+#ifdef USE_SERIAL_PROXY_TAP
+  // Before telling clients, so a tap never acknowledges a frame from the old device after
+  // a client has been told it is gone. The subscriber and the mode stay: both belong to
+  // the client's session, and only the client knows whether that session is over.
+  if (!connected && this->tap_ != nullptr) {
+    this->tap_->on_device_disconnected();
+  }
+#endif
 #ifdef USE_API
   if (api::global_api_server == nullptr) {
     return;
