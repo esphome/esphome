@@ -1161,10 +1161,7 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
     @property
     def progmem(self) -> bool:
         """Whether the data is in flash, so encode and dump copy it with progmem_memcpy."""
-        progmem_opt = getattr(pb, "progmem", None)
-        return progmem_opt is not None and get_field_opt(
-            self._field, progmem_opt, False
-        )
+        return get_field_opt(self._field, pb.progmem, False)
 
     @property
     def public_content(self) -> list[str]:
@@ -3336,11 +3333,13 @@ template<typename T> static void dump_field(DumpBuffer &out, const char *field_n
   out.append("\\n");
 }
 
+// Bytes shown by a bytes field dump: 160 bytes is 480 chars with separators, to fit a typical log buffer
+static constexpr size_t DUMP_BYTES_MAX = 160;
+
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
-// Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
 // field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
-  char hex_buf[format_hex_pretty_size(160)];
+  char hex_buf[format_hex_pretty_size(DUMP_BYTES_MAX)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\\n");
@@ -3349,7 +3348,7 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 // Helper for bytes fields in flash: copies the shown bytes out with progmem_memcpy first
 static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len,
                                      int indent = 2) {
-  uint8_t data_buf[160];
+  uint8_t data_buf[DUMP_BYTES_MAX];
   len = std::min(len, sizeof(data_buf));
   progmem_memcpy(data_buf, data, len);
   dump_bytes_field(out, field_name, data_buf, len, indent);
