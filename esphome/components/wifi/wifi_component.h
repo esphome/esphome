@@ -516,6 +516,9 @@ class WiFiComponent final : public Component {
   void start();
   void dump_config() override;
   void restart_adapter();
+#ifdef USE_ZEPHYR
+  void on_powerdown() override;
+#endif
   /// WIFI setup_priority.
   float get_setup_priority() const override { return setup_priority::WIFI; }
   /// Reconnect WiFi if required.

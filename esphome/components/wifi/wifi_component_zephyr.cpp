@@ -504,6 +504,14 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 }
 #endif  // USE_WIFI_AP
 
+void WiFiComponent::on_powerdown() {
+  // Leave the AP so it doesn't hold the old association against our next connect.
+  if (!this->wifi_disconnect_())
+    return;
+  ESP_LOGD(TAG, "Disconnected before powerdown");
+  delay(100);  // NOLINT: once per reboot, lets the deauth go out
+}
+
 bool WiFiComponent::wifi_disconnect_() {
   if (sta_iface == nullptr) {
     return false;
