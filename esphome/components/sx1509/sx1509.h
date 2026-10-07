@@ -18,6 +18,20 @@ const uint8_t EXTERNAL_CLOCK = 1;
 const uint8_t SOFTWARE_RESET = 0;
 const uint8_t HARDWARE_RESET = 1;
 
+// LED driver clock (ClkX) frequency divider — bits 6:4 of REG_MISC.
+// This sets the PWM frequency used by setup_led_driver() for all output pins.
+// ClkX = fOSC / 2^(divider-1), with fOSC = internal osc. (datasheet: typ. 2MHz, spec'd 1.3-2.6MHz).
+// PWM frequency on the pin is approximately ClkX / 255.
+// All values below are nominal, computed from the datasheet formula assuming fOSC = 2MHz;
+// actual frequency may vary between individual chips due to oscillator tolerance.
+const uint8_t LED_DRIVER_FREQ_7840HZ = 0x10;  // divider 1
+const uint8_t LED_DRIVER_FREQ_3920HZ = 0x20;  // divider 2
+const uint8_t LED_DRIVER_FREQ_1960HZ = 0x30;  // divider 3
+const uint8_t LED_DRIVER_FREQ_980HZ = 0x40;   // divider 4
+const uint8_t LED_DRIVER_FREQ_490HZ = 0x50;   // divider 5
+const uint8_t LED_DRIVER_FREQ_245HZ = 0x60;   // divider 6
+const uint8_t LED_DRIVER_FREQ_122HZ = 0x70;   // divider 7, default, matches previous hardcoded behavior
+
 const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
                               REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
                               REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
@@ -61,6 +75,7 @@ class SX1509Component final : public Component,
   }
   void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
   void setup_led_driver(uint8_t pin);
+  void set_led_driver_frequency(uint8_t frequency) { this->frequency_ = frequency; };
 
  protected:
   // Virtual methods from CachedGpioExpander — names come from base class
@@ -69,7 +84,7 @@ class SX1509Component final : public Component,
   void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
   uint32_t clk_x_ = 2000000;
-  uint8_t frequency_ = 0;
+  uint8_t frequency_ = LED_DRIVER_FREQ_122HZ;
   uint16_t ddr_mask_ = 0x00;
   uint16_t input_mask_ = 0x00;  // Cache for input values (16-bit for all pins)
   uint16_t port_mask_ = 0x00;

@@ -26,6 +26,21 @@ CONF_SLEEP_TIME = "sleep_time"
 CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
 CONF_SX1509_ID = "sx1509_id"
+CONF_LED_DRIVER_FREQUENCY = "led_driver_frequency"
+
+# PWM (ClkX) frequency used by the LED driver / output pins, applies to all pins on the chip.
+# ClkX = fOSC / 2^(divider-1), fOSC = internal osc. (datasheet: typ. 2MHz, spec'd 1.3-2.6MHz).
+# All values are nominal, computed from the datasheet formula assuming fOSC = 2MHz;
+# actual frequency may vary between individual chips due to oscillator tolerance.
+LED_DRIVER_FREQUENCIES = {
+    "7840HZ": 0x10,
+    "3920HZ": 0x20,
+    "1960HZ": 0x30,
+    "980HZ": 0x40,
+    "490HZ": 0x50,
+    "245HZ": 0x60,
+    "122HZ": 0x70,
+}
 
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
@@ -81,6 +96,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SX1509Component),
             cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
+            cv.Optional(
+                CONF_LED_DRIVER_FREQUENCY, default="122HZ"
+            ): cv.enum(LED_DRIVER_FREQUENCIES, upper=True),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -92,6 +110,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    cg.add(var.set_led_driver_frequency(config[CONF_LED_DRIVER_FREQUENCY]))
     if conf := config.get(CONF_KEYPAD):
         cg.add(var.set_rows_cols(conf[CONF_KEY_ROWS], conf[CONF_KEY_COLUMNS]))
         if (

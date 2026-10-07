@@ -2,6 +2,7 @@ sx1509:
   - id: sx1509_hub
     i2c_id: i2c_bus
     address: 0x3E
+    led_driver_frequency: 980HZ
     keypad:
       key_rows: 2
       key_columns: 2
@@ -38,3 +39,9 @@ switch:
       number: 1
       mode:
         output: true
+
+output:
+  - platform: sx1509
+    id: sx1509_pwm_output
+    sx1509_id: sx1509_hub
+    pin: 2
