@@ -22,10 +22,10 @@ void Canbus::dump_config() {
 }
 
 canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
-                                const std::vector<uint8_t> &data) {
+                                const uint8_t *data, size_t len) {
   struct CanFrame can_message;
 
-  uint8_t size = static_cast<uint8_t>(data.size());
+  uint8_t size = static_cast<uint8_t>(len);
   if (use_extended_id) {
     ESP_LOGD(TAG, "send extended id=0x%08" PRIx32 " rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request),
              size);
