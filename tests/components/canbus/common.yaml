@@ -60,6 +60,7 @@ button:
           data: [0, 1, 2]
       - canbus.send: "abc"
       - canbus.send: [0, 1, 2]
+      # Identical on purpose: both sends share one constant payload
       - canbus.send: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
       - canbus.send: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
       - canbus.send: !lambda return {0, 1, 2};
