@@ -96,9 +96,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SX1509Component),
             cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
-            cv.Optional(
-                CONF_LED_DRIVER_FREQUENCY, default="122HZ"
-            ): cv.enum(LED_DRIVER_FREQUENCIES, upper=True),
+            cv.Optional(CONF_LED_DRIVER_FREQUENCY, default="122HZ"): cv.enum(
+                LED_DRIVER_FREQUENCIES, upper=True
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
