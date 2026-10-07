@@ -246,6 +246,9 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg);
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
+  void on_subscribe_serial_proxy_identity_request();
+  /// Send a port identity to this client
+  void send_serial_proxy_identity(const SerialProxyIdentity &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
   void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
@@ -760,9 +763,12 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif
-  } flags_{};  // 2 bytes total
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+    uint8_t serial_proxy_identity_subscription : 1;
+#endif
+  } flags_{};  // 2 bytes; 3 with HAS_PROTO_MESSAGE_DUMP + USE_API_OUTGOING_CONNECTION + USE_SERIAL_PROXY_USB_IDENTITY
 
-  // 2-byte type immediately after flags_ (no padding between them)
+  // 2-byte type immediately after flags_ (one padding byte when flags_ is 3 bytes)
   uint16_t batch_message_type_{0};  // Current message type during batch encoding
   // 1-byte types to fill remaining space before next 4-byte boundary
   // Client API versions are clamped to 255 on receive (see send_hello_response_)
