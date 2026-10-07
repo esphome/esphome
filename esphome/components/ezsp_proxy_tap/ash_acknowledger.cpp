@@ -1,6 +1,4 @@
-#include "ash_detector.h"
-
-#ifdef USE_EZSP_PROXY_TAP
+#include "ash_acknowledger.h"
 
 #include "esphome/core/helpers.h"
 
@@ -13,18 +11,6 @@ static constexpr size_t ASH_RSTACK_BODY_SIZE = 3;  // control, version, reset co
 static constexpr size_t ASH_CRC_SIZE = 2;
 // Smallest legal frame on the wire: a bare control byte plus its CRC
 static constexpr size_t ASH_MIN_FRAME_SIZE = 1 + ASH_CRC_SIZE;
-
-// The opening EZSP version command is a constant: control 0x00 (frmNum 0, ackNum 0)
-// followed by [seq=0][frameControl=0][frameId=0] randomized by 0x42 0x21 0xA8. Only the
-// trailing requested-version byte varies, so the first four bytes pin the frame exactly.
-static constexpr uint8_t EZSP_VERSION_CMD_PREFIX[] = {0x00, 0x42, 0x21, 0xA8};
-static constexpr size_t EZSP_VERSION_CMD_SIZE = 5;
-
-// Consecutive frames we could not accept, with neither a good frame nor a retransmission
-// in between, before concluding the peer is no longer speaking ASH. A real ASH peer must
-// retransmit an unacknowledged frame, so the absence of one is the positive evidence
-// here -- garbage on the line is not, since noise proves nothing either way.
-static constexpr uint8_t MAX_UNCONFIRMED_REJECTS = 4;
 
 static bool ash_reset_code_is_known(uint8_t code) {
   switch (code) {
@@ -133,49 +119,29 @@ ScanResult AshFrameScanner::feed(uint8_t byte) {
   return ScanResult::NONE;
 }
 
-void AshDetector::reset() {
-  this->ncp_scanner_.reset();
-  this->host_scanner_.reset();
-  this->state_ = AshDetectState::IDLE;
+void AshAcknowledger::reset() {
+  this->scanner_.reset();
   this->rx_sequence_ = 0;
   this->ack_owed_ = false;
-  this->unconfirmed_rejects_ = 0;
 }
 
-void AshDetector::from_ncp(uint8_t byte) {
-  switch (this->ncp_scanner_.feed(byte)) {
-    case ScanResult::FRAME:
-      this->handle_ncp_frame_();
-      break;
-    case ScanResult::INVALID:
-      // A delimited chunk that is not a frame. While armed this may be a corrupted ASH
-      // frame, which the peer will retransmit, or a sign the peer stopped speaking ASH.
-      // reject_() distinguishes the two by whether a retransmission ever arrives.
-      this->reject_();
-      break;
-    case ScanResult::NONE:
-      break;
+void AshAcknowledger::feed(uint8_t byte) {
+  if (this->scanner_.feed(byte) == ScanResult::FRAME) {
+    this->handle_frame_();
   }
 }
 
-void AshDetector::handle_ncp_frame_() {
-  const uint8_t *body = this->ncp_scanner_.frame();
-  const size_t length = this->ncp_scanner_.length();
+void AshAcknowledger::handle_frame_() {
+  const uint8_t *body = this->scanner_.frame();
+  const size_t length = this->scanner_.length();
   const uint8_t control = body[0];
 
-  // RSTACK is the only way into the handshake, and the only way back after a firmware
-  // swap: a Spinel or bootloader NCP never emits one, so those stay unarmed forever.
+  // An RSTACK restarts the NCP's frame numbering
   if (control == ASH_RSTACK_CONTROL) {
     if (length == ASH_RSTACK_BODY_SIZE && body[1] == ASH_PROTOCOL_VERSION && ash_reset_code_is_known(body[2])) {
-      this->state_ = AshDetectState::SAW_RSTACK;
       this->rx_sequence_ = 0;
       this->ack_owed_ = false;
-      this->unconfirmed_rejects_ = 0;
     }
-    return;
-  }
-
-  if (this->state_ != AshDetectState::ARMED) {
     return;
   }
 
@@ -184,61 +150,16 @@ void AshDetector::handle_ncp_frame_() {
   }
 
   const uint8_t frame_num = (control >> 4) & ASH_MAX_SEQUENCE;
-  const bool re_tx = (control & 0x08) != 0;
-
   if (frame_num != this->rx_sequence_) {
-    // A retransmission still proves the peer is speaking ASH even though we cannot use
-    // this copy, so it clears the suspicion without being acknowledged.
-    if (re_tx) {
-      this->unconfirmed_rejects_ = 0;
-    } else {
-      this->reject_();
-    }
     return;
   }
 
   this->rx_sequence_ = (this->rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
   this->pending_ack_ = this->rx_sequence_;
   this->ack_owed_ = true;
-  this->unconfirmed_rejects_ = 0;
 }
 
-void AshDetector::reject_() {
-  if (this->state_ != AshDetectState::ARMED) {
-    return;
-  }
-  if (++this->unconfirmed_rejects_ >= MAX_UNCONFIRMED_REJECTS) {
-    this->state_ = AshDetectState::IDLE;
-    this->unconfirmed_rejects_ = 0;
-  }
-}
-
-void AshDetector::from_host(uint8_t byte) {
-  if (this->host_scanner_.feed(byte) != ScanResult::FRAME) {
-    return;
-  }
-
-  if (this->state_ != AshDetectState::SAW_RSTACK) {
-    return;
-  }
-
-  const uint8_t *body = this->host_scanner_.frame();
-  if (this->host_scanner_.length() != EZSP_VERSION_CMD_SIZE) {
-    return;
-  }
-  for (size_t i = 0; i < sizeof(EZSP_VERSION_CMD_PREFIX); i++) {
-    if (body[i] != EZSP_VERSION_CMD_PREFIX[i]) {
-      return;
-    }
-  }
-
-  this->state_ = AshDetectState::ARMED;
-  this->rx_sequence_ = 0;
-  this->ack_owed_ = false;
-  this->unconfirmed_rejects_ = 0;
-}
-
-bool AshDetector::take_pending_ack(uint8_t &ack_num) {
+bool AshAcknowledger::take_pending_ack(uint8_t &ack_num) {
   if (!this->ack_owed_) {
     return false;
   }
@@ -248,5 +169,3 @@ bool AshDetector::take_pending_ack(uint8_t &ack_num) {
 }
 
 }  // namespace esphome::ezsp_proxy_tap
-
-#endif  // USE_EZSP_PROXY_TAP

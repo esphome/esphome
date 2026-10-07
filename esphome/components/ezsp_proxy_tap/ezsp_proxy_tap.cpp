@@ -14,12 +14,12 @@ void EzspProxyTap::dump_config() { ESP_LOGCONFIG(TAG, "EZSP Proxy Tap:\n  Port: 
 
 void EzspProxyTap::on_device_rx(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
-    // Observation only: the detector never gates forwarding, so it adds no latency and a
-    // frame it cannot parse still reaches the client, which judges it for itself.
-    this->detector_.from_ncp(data[i]);
+    // Observation only: this never gates forwarding, so it adds no latency and a frame it
+    // cannot parse still reaches the client, which judges it for itself.
+    this->acknowledger_.feed(data[i]);
 
     uint8_t ack_num;
-    if (this->detector_.take_pending_ack(ack_num)) {
+    if (this->acknowledger_.take_pending_ack(ack_num)) {
       // The client suppresses its own ACKs, so this is the only acknowledgement the NCP
       // will see. Only ever sent for a frame that passed CRC and arrived in sequence.
       uint8_t frame[ASH_ACK_FRAME_MAX_SIZE];
@@ -27,43 +27,17 @@ void EzspProxyTap::on_device_rx(const uint8_t *data, size_t len) {
       ESP_LOGV(TAG, "Sent ACK for frame %u", ack_num);
     }
   }
-
-  const bool armed = this->detector_.armed();
-  if (armed != this->was_armed_) {
-    this->was_armed_ = armed;
-    ESP_LOGD(TAG, "ASH session %s",
-             armed ? LOG_STR_LITERAL("detected, acknowledging frames")
-                   : LOG_STR_LITERAL("lost, no longer acknowledging frames"));
-  }
 }
 
-void EzspProxyTap::on_client_tx(const uint8_t *data, size_t len) {
-  // Scanning this direction only matters while waiting for the version command that
-  // completes the handshake. Outside that window it is skipped entirely -- which is what
-  // makes a firmware upload, all of which flows this way, essentially free.
-  if (!this->detector_.needs_host_scan()) {
-    return;
-  }
-  for (size_t i = 0; i < len; i++) {
-    this->detector_.from_host(data[i]);
-  }
-}
-
-void EzspProxyTap::on_protocol_disabled() {
-  // A client turning protocol handling off is usually about to reflash the radio, so the
-  // handshake we saw says nothing about what will be on the wire next. Forget it: a real
-  // ASH session announces itself again with an RSTACK.
-  this->detector_.reset();
+void EzspProxyTap::on_protocol_enabled() {
+  // The frame numbering we last followed may be from an earlier session. The client resets
+  // the NCP as it starts, and its RSTACK sets the numbering again.
+  this->acknowledger_.reset();
 }
 
 void EzspProxyTap::on_device_disconnected() {
-  // The ASH session died with the NCP's power. Staying armed would acknowledge frames from
-  // whatever boots next, before its own RSTACK has proven it speaks ASH at all.
-  if (this->was_armed_) {
-    ESP_LOGD(TAG, "Device removed, no longer acknowledging frames");
-    this->was_armed_ = false;
-  }
-  this->detector_.reset();
+  // The frame numbering ended with the NCP's power; whatever boots next starts over
+  this->acknowledger_.reset();
 }
 
 }  // namespace esphome::ezsp_proxy_tap

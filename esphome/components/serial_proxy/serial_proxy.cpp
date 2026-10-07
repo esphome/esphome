@@ -277,9 +277,15 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
            mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"));
 #ifdef USE_SERIAL_PROXY_TAP
+  const bool entering_protocol_mode =
+      this->mode_ != api::enums::SERIAL_PROXY_MODE_PROTOCOL && mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL;
   const bool leaving_protocol_mode =
       this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
   this->mode_ = mode;
+
+  if (entering_protocol_mode && this->tap_ != nullptr) {
+    this->tap_->on_protocol_enabled();
+  }
 
   // Only for an explicit client request, not for reset_mode_() at the end of a session:
   // an ordinary disconnect says nothing about the device, whereas a client deliberately

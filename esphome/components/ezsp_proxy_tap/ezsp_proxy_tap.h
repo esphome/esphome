@@ -5,7 +5,7 @@
 
 #include "esphome/components/serial_proxy/serial_proxy.h"
 #include "esphome/core/component.h"
-#include "ash_detector.h"
+#include "ash_acknowledger.h"
 
 namespace esphome::ezsp_proxy_tap {
 
@@ -15,8 +15,8 @@ namespace esphome::ezsp_proxy_tap {
 // ones the NCP sees.
 //
 // It never carries client traffic: the serial proxy owns the port and the bytes, and this
-// component only observes them. The sole exception is the acknowledgement itself, and it
-// is sent only once the handshake has proven the port really is carrying ASH.
+// component only observes them. The sole exception is the acknowledgement itself, sent
+// only while a client has put the port in PROTOCOL mode, which only an EZSP client does.
 class EzspProxyTap : public serial_proxy::SerialProxyTap, public Component {
  public:
   explicit EzspProxyTap(serial_proxy::SerialProxy *parent) : parent_(parent) {}
@@ -26,11 +26,14 @@ class EzspProxyTap : public serial_proxy::SerialProxyTap, public Component {
 
   // SerialProxyTap
   void on_device_rx(const uint8_t *data, size_t len) override;
-  void on_client_tx(const uint8_t *data, size_t len) override;
+  // ACKs depend only on what the NCP sends
+  void on_client_tx(const uint8_t *data, size_t len) override {}
   // Acknowledging is only ever useful on a client's behalf, so with nobody subscribed
   // there is nothing to do and the port need not be read.
   bool tap_needs_port() const override { return false; }
-  void on_protocol_disabled() override;
+  void on_protocol_enabled() override;
+  // Nothing is acknowledged outside PROTOCOL mode, and entering it starts afresh
+  void on_protocol_disabled() override {}
   void on_device_disconnected() override;
 
  protected:
@@ -38,12 +41,7 @@ class EzspProxyTap : public serial_proxy::SerialProxyTap, public Component {
   // goes through it.
   serial_proxy::SerialProxy *parent_;
 
-  // Decides when acknowledging on the client's behalf is safe. Armed only by the ASH
-  // session handshake, so a bootloader or Thread NCP never triggers it.
-  AshDetector detector_;
-
-  // Previous armed state, for logging the transitions
-  bool was_armed_{false};
+  AshAcknowledger acknowledger_;
 };
 
 }  // namespace esphome::ezsp_proxy_tap
