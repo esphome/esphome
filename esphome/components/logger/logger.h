@@ -481,6 +481,15 @@ class Logger final : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+#ifdef USE_ESP8266
+/// Copies a tag that may be in PROGMEM into RAM, truncated to 32 characters.
+inline const char *tag_to_ram(const char *tag, char (&buf)[33]) {
+  ESPHOME_strncpy_P(buf, tag, sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  return buf;
+}
+#endif
+
 class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
  public:
   explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
@@ -491,9 +500,7 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 #ifdef USE_ESP8266
                                  // User lambdas may strcmp the tag, which may be in PROGMEM
                                  char ram_tag[33];
-                                 ESPHOME_strncpy_P(ram_tag, tag, sizeof(ram_tag) - 1);
-                                 ram_tag[sizeof(ram_tag) - 1] = '\0';
-                                 tag = ram_tag;
+                                 tag = tag_to_ram(tag, ram_tag);
 #endif
                                  trigger->trigger(level, tag, message);
                                }
