@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@kbx81"]
+CODEOWNERS = ["@kbx81", "@puddly"]
 DEPENDENCIES = ["serial_proxy"]
 
 CONF_SERIAL_PROXY_ID = "serial_proxy_id"

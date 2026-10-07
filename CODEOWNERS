@@ -196,6 +196,7 @@ esphome/components/exponential_moving_average/* @clydebarrow
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
+esphome/components/ezsp_proxy_tap/* @kbx81 @puddly
 esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
