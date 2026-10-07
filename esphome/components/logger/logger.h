@@ -486,20 +486,6 @@ class Logger final : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static constexpr size_t TAG_RAM_SIZE = MAX_TAG_LENGTH + 1;
-
-/// Returns the tag readable from RAM; on ESP8266 a PROGMEM tag is copied into buf, truncated to 32 characters.
-inline const char *tag_to_ram(const char *tag, char (&buf)[TAG_RAM_SIZE]) {
-#ifdef USE_ESP8266
-  ESPHOME_strncpy_P(buf, tag, TAG_RAM_SIZE - 1);
-  buf[TAG_RAM_SIZE - 1] = '\0';
-  return buf;
-#else
-  (void) buf;
-  return tag;
-#endif
-}
-
 class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
  public:
   explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
@@ -507,9 +493,12 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
                              [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
                                auto *trigger = static_cast<LoggerMessageTrigger *>(self);
                                if (level <= trigger->level_) {
-                                 // User lambdas may strcmp the tag, which may be in PROGMEM
-                                 char ram_tag[TAG_RAM_SIZE];
-                                 tag = tag_to_ram(tag, ram_tag);
+#ifdef USE_ESP8266
+                                 // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
+                                 // the trigger so an automation that suspends (delay) still sees a valid tag.
+                                 ESPHOME_strncpy_P(trigger->ram_tag_, tag, MAX_TAG_LENGTH);
+                                 tag = trigger->ram_tag_;
+#endif
                                  trigger->trigger(level, tag, message);
                                }
                              });
@@ -517,6 +506,9 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 
  protected:
   uint8_t level_;
+#ifdef USE_ESP8266
+  char ram_tag_[MAX_TAG_LENGTH + 1]{};
+#endif
 };
 
 }  // namespace esphome::logger

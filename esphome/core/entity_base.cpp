@@ -1,6 +1,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
