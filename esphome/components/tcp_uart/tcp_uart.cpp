@@ -20,6 +20,11 @@ void TcpUart::setup() {
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
+#ifdef USE_SENSOR
+  if (this->disconnects_sensor_ != nullptr) {
+    this->disconnects_sensor_->publish_state(0);
+  }
+#endif
 }
 
 void TcpUart::dump_config() {
@@ -34,6 +39,9 @@ void TcpUart::dump_config() {
   this->listener_.dump_config();
 #endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
+#endif
 }
 
 void TcpUart::on_shutdown() {
@@ -53,6 +61,13 @@ void TcpUart::sync_link_() {
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
+#ifdef USE_SENSOR
+  // Only edges get here, so down is the falling edge.
+  if (!up && this->disconnects_sensor_ != nullptr) {
+    this->disconnects_++;
+    this->disconnects_sensor_->publish_state(this->disconnects_);
+  }
+#endif
 }
 
 void TcpUart::read_socket_() {
