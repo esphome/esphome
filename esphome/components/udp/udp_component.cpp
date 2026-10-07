@@ -157,6 +157,20 @@ void UDPComponent::dump_config() {
                 YESNO(this->should_broadcast_), YESNO(this->should_listen_));
 }
 
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+template<typename W> void UDPComponent::send_lwip_tcp_(W &&write) {
+  auto iface = IPAddress(0, 0, 0, 0);
+  for (const auto &saddr : this->ipaddrs_) {
+    if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) == 0)
+      continue;
+    write();
+    if (this->udp_client_.endPacket() == 0) {
+      ESP_LOGW(TAG, "udp.write() error");
+    }
+  }
+}
+#endif
+
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &saddr : this->sockaddrs_) {
@@ -167,43 +181,21 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   }
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-  auto iface = IPAddress(0, 0, 0, 0);
-  for (const auto &saddr : this->ipaddrs_) {
-    if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) != 0) {
-      this->udp_client_.write(data, size);
-      auto result = this->udp_client_.endPacket();
-      if (result == 0) {
-        ESP_LOGW(TAG, "udp.write() error");
-      }
-    }
-  }
+  this->send_lwip_tcp_([this, data, size]() { this->udp_client_.write(data, size); });
 #endif
 }
 
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 void UDPComponent::send_packet_progmem(const uint8_t *data, size_t size) {
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
   // WiFiUDP::write appends to the open packet, so copy the flash table through a small stack chunk
-  auto iface = IPAddress(0, 0, 0, 0);
-  uint8_t chunk[32];
-  for (const auto &saddr : this->ipaddrs_) {
-    if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) == 0)
-      continue;
+  this->send_lwip_tcp_([this, data, size]() {
+    uint8_t chunk[32];
     for (size_t offset = 0; offset < size; offset += sizeof(chunk)) {
       const size_t len = std::min(size - offset, sizeof(chunk));
       progmem_memcpy(chunk, data + offset, len);
       this->udp_client_.write(chunk, len);
     }
-    if (this->udp_client_.endPacket() == 0) {
-      ESP_LOGW(TAG, "udp.write() error");
-    }
-  }
-#else
-  SmallBufferWithHeapFallback<64> buf(size);
-  if (size != 0)
-    progmem_memcpy(buf.get(), data, size);
-  this->send_packet(buf.get(), size);
-#endif
+  });
 }
 #endif
 }  // namespace esphome::udp

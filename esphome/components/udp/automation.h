@@ -10,7 +10,7 @@ template<typename... Ts> class UDPWriteAction final : public Action<Ts...>, publ
   TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
     if (this->data_.is_static()) {
       this->parent_->send_packet_progmem(this->data_.data(), this->data_.size());
       return;
