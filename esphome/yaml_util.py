@@ -1203,12 +1203,13 @@ def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
     global _EMITTED_SECRET_NAMES  # noqa: PLW0603
     added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
     _SECRET_VALUES.update(added)
+    outer = _EMITTED_SECRET_NAMES
     emitted: set[str] = set()
     _EMITTED_SECRET_NAMES = emitted
     try:
         yield emitted
     finally:
-        _EMITTED_SECRET_NAMES = None
+        _EMITTED_SECRET_NAMES = outer
         # Only drop mappings this context still owns; a real !secret loaded
         # meanwhile may have registered the same value under its own name.
         for value, name in added.items():

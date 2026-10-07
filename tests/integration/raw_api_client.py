@@ -71,8 +71,10 @@ def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
             value, pos = varint(pos)
         elif wire_type == 2:
             length, pos = varint(pos)
+            assert pos + length <= len(buf), "truncated length-delimited field"
             value, pos = bytes(buf[pos : pos + length]), pos + length
         elif wire_type == 5:
+            assert pos + 4 <= len(buf), "truncated fixed32 field"
             value, pos = int.from_bytes(buf[pos : pos + 4], "little"), pos + 4
         else:
             raise AssertionError(f"unexpected wire type {wire_type}")
@@ -182,7 +184,10 @@ class RawApiClient:
         await asyncio.wait_for(_read_loop(), timeout)
 
     async def read_frame(self, msg_type: int, timeout: float = 10.0) -> bytes:
-        """Return the payload of the next frame of msg_type, dropping other frames before it."""
+        """Return the payload of the oldest unconsumed frame of msg_type, dropping other frames before it.
+
+        Frames received earlier, also through read_until_frame, count as unconsumed.
+        """
         frames = self._parser.frames
 
         async def _read_loop() -> bytes:
