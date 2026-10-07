@@ -143,6 +143,8 @@ class USBClient : public Component {
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
+  void set_manufacturer_filter(const char16_t *manufacturer) { this->manufacturer_filter_ = manufacturer; }
+  void set_product_filter(const char16_t *product) { this->product_filter_ = product; }
 
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
@@ -181,6 +183,8 @@ class USBClient : public Component {
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
   std::atomic<trq_bitmask_t> trq_in_use_;
+  const char16_t *manufacturer_filter_{nullptr};
+  const char16_t *product_filter_{nullptr};
   uint16_t vid_{};
   uint16_t pid_{};
 };
