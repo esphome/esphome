@@ -14,9 +14,9 @@ enum class ScanResult : uint8_t {
 };
 
 // Reassembles one direction of the byte stream into unstuffed, CRC-checked frames.
-// Mirrors bellows' AshProtocol.data_received: FLAG ends a frame, CANCEL discards what
-// precedes it, SUBSTITUTE poisons everything up to the next FLAG, and XON/XOFF are
-// transport flow control removed without disturbing the frame around them.
+// FLAG ends a frame, CANCEL discards what precedes it, SUBSTITUTE poisons everything up
+// to the next FLAG, and XON/XOFF are transport flow control removed without disturbing
+// the frame around them.
 class AshFrameScanner {
  public:
   ScanResult feed(uint8_t byte);
