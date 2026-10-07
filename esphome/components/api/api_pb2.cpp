@@ -3905,9 +3905,8 @@ InfraredRFReceiveEvent::calc_size_msg(const void *self) {
   return size;
 }
 uint8_t *InfraredRFTransmitCompleteResponse::encode_msg(const void *self,
-                                                        ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+                                                        uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const InfraredRFTransmitCompleteResponse *>(self);
-  uint8_t *__restrict__ pos = buffer.get_pos();
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.device_id);
 #endif

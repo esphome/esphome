@@ -3745,9 +3745,9 @@ class InfraredRFTransmitCompleteResponse final : public ProtoMessage {
 #endif
   uint32_t key{0};
   bool success{false};
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-    return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
   }
   static uint32_t calc_size_msg(const void *self);
   uint32_t calculate_size() const { return calc_size_msg(this); }
