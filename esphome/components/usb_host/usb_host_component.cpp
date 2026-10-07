@@ -9,13 +9,30 @@ namespace esphome::usb_host {
 
 void USBHost::setup() {
   usb_host_config_t config{};
+#ifdef USB_HOST_RX_FIFO_LINES
+  config.fifo_settings_custom.rx_fifo_lines = USB_HOST_RX_FIFO_LINES;
+  config.fifo_settings_custom.nptx_fifo_lines = USB_HOST_NPTX_FIFO_LINES;
+  config.fifo_settings_custom.ptx_fifo_lines = USB_HOST_PTX_FIFO_LINES;
+#endif  // USB_HOST_RX_FIFO_LINES
 
-  if (usb_host_install(&config) != ESP_OK) {
+  const esp_err_t err = usb_host_install(&config);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "usb_host_install failed: %s", esp_err_to_name(err));
     this->status_set_error(LOG_STR("usb_host_install failed"));
     this->mark_failed();
     return;
   }
 }
+
+#ifdef USB_HOST_RX_FIFO_LINES
+void USBHost::dump_config() {
+  ESP_LOGCONFIG(TAG, "USB Host:");
+  ESP_LOGCONFIG(TAG, "  FIFO lines: RX=%" PRIu32 ", NPTX=%" PRIu32 ", PTX=%" PRIu32,
+                static_cast<uint32_t>(USB_HOST_RX_FIFO_LINES), static_cast<uint32_t>(USB_HOST_NPTX_FIFO_LINES),
+                static_cast<uint32_t>(USB_HOST_PTX_FIFO_LINES));
+}
+#endif  // USB_HOST_RX_FIFO_LINES
+
 void USBHost::loop() {
   int err;
   uint32_t event_flags;
