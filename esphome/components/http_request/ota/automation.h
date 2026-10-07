@@ -3,10 +3,9 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
-template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Action<Ts...> {
+template<typename... Ts> class OtaHttpRequestComponentFlashAction final : public Action<Ts...> {
  public:
   OtaHttpRequestComponentFlashAction(OtaHttpRequestComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, md5_url)
@@ -38,5 +37,4 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
   OtaHttpRequestComponent *parent_;
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

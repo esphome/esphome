@@ -9,6 +9,9 @@ static constexpr float XTAL_FREQUENCY = 26000000;
 static constexpr float RSSI_OFFSET = 74.0f;
 static constexpr float RSSI_STEP = 0.5f;
 
+static constexpr uint8_t FSCAL1_PLL_NOT_LOCKED = 0x3F;
+static constexpr uint8_t PLL_LOCK_RETRIES = 3;
+
 static constexpr uint8_t STATUS_CRC_OK_MASK = 0x80;
 static constexpr uint8_t STATUS_LQI_MASK = 0x7F;
 
@@ -226,6 +229,56 @@ enum class HystLevel : uint8_t {
   HYST_LEVEL_LOW,
   HYST_LEVEL_MEDIUM,
   HYST_LEVEL_HIGH,
+};
+
+enum class FocLimit : uint8_t {
+  FOC_LIMIT_DISABLED,
+  FOC_LIMIT_BW_8,
+  FOC_LIMIT_BW_4,
+  FOC_LIMIT_BW_2,
+};
+
+enum class FocPreK : uint8_t {
+  FOC_PRE_K_K,
+  FOC_PRE_K_2K,
+  FOC_PRE_K_3K,
+  FOC_PRE_K_4K,
+};
+
+enum class FocPostK : uint8_t {
+  FOC_POST_K_SAME,
+  FOC_POST_K_K_2,
+};
+
+enum class BsLimit : uint8_t {
+  BS_LIMIT_DISABLED,
+  BS_LIMIT_3P125_PERCENT,
+  BS_LIMIT_6P25_PERCENT,
+  BS_LIMIT_12P5_PERCENT,
+};
+
+enum class BsPreKi : uint8_t {
+  BS_PRE_KI_KI,
+  BS_PRE_KI_2KI,
+  BS_PRE_KI_3KI,
+  BS_PRE_KI_4KI,
+};
+
+enum class BsPreKp : uint8_t {
+  BS_PRE_KP_KP,
+  BS_PRE_KP_2KP,
+  BS_PRE_KP_3KP,
+  BS_PRE_KP_4KP,
+};
+
+enum class BsPostKi : uint8_t {
+  BS_POST_KI_SAME,
+  BS_POST_KI_KI_2,
+};
+
+enum class BsPostKp : uint8_t {
+  BS_POST_KP_SAME,
+  BS_POST_KP_KP,
 };
 
 enum class PacketFormat : uint8_t {

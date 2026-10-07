@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace xgzp68xx {
+namespace esphome::xgzp68xx {
 
 static const char *const TAG = "xgzp68xx.sensor";
 
@@ -72,10 +71,8 @@ void XGZP68XXComponent::update() {
     temperature_raw = encode_uint16(data[3], data[4]);
 
     // Convert the pressure data to hPa
-    ESP_LOGV(TAG,
-             "Got raw pressure=%" PRIu32 ", raw temperature=%u\n"
-             "K value is %u",
-             pressure_raw, temperature_raw, this->k_value_);
+    ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u, K value=%u", pressure_raw, temperature_raw,
+             this->k_value_);
 
     // Sign extend the pressure
     float pressure_in_pa = (float) (((int32_t) pressure_raw << 8) >> 8);
@@ -120,5 +117,4 @@ void XGZP68XXComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace xgzp68xx
-}  // namespace esphome
+}  // namespace esphome::xgzp68xx

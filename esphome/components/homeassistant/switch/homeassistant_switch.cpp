@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 static const char *const TAG = "homeassistant.switch";
 
@@ -41,24 +40,30 @@ void HomeassistantSwitch::write_state(bool state) {
     return;
   }
 
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
+
   static constexpr auto SERVICE_ON = StringRef::from_lit("homeassistant.turn_on");
   static constexpr auto SERVICE_OFF = StringRef::from_lit("homeassistant.turn_off");
   static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
 
   api::HomeassistantActionRequest resp;
   if (state) {
-    resp.set_service(SERVICE_ON);
+    resp.service = SERVICE_ON;
   } else {
-    resp.set_service(SERVICE_OFF);
+    resp.service = SERVICE_OFF;
   }
 
   resp.data.init(1);
   auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.set_key(ENTITY_ID_KEY);
-  entity_id_kv.value = this->entity_id_;
+  entity_id_kv.key = ENTITY_ID_KEY;
+  entity_id_kv.value = StringRef(this->entity_id_);
 
   api::global_api_server->send_homeassistant_action(resp);
 }
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

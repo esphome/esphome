@@ -51,8 +51,7 @@
 #include "tm1651.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tm1651 {
+namespace esphome::tm1651 {
 
 static const char *const TAG = "tm1651.display";
 
@@ -256,5 +255,4 @@ void TM1651Display::delineate_transmission_(bool dio_state) {
   delayMicroseconds(QUARTER_CLOCK_CYCLE);
 }
 
-}  // namespace tm1651
-}  // namespace esphome
+}  // namespace esphome::tm1651

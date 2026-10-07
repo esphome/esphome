@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::light {
 
@@ -23,9 +24,9 @@ class LightEffect {
 
   /**
    * Returns the name of this effect.
-   * The returned pointer is valid for the lifetime of the program and must not be freed.
+   * The underlying data is valid for the lifetime of the program (static string from codegen).
    */
-  const char *get_name() const { return this->name_; }
+  StringRef get_name() const { return StringRef(this->name_); }
 
   /// Internal method called by the LightState when this light effect is registered in it.
   virtual void init() {}

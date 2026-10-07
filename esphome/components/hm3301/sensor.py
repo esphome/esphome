@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
@@ -15,6 +17,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["aqi"]
@@ -28,7 +33,7 @@ HM3301Component = hm3301_ns.class_(
 UNIT_INDEX = "index"
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_AQI in config and CONF_PM_2_5 not in config:
         raise cv.Invalid("AQI sensor requires PM 2.5")
     if CONF_AQI in config and CONF_PM_10_0 not in config:
@@ -82,24 +87,22 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_PM_1_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_1_0])
-        cg.add(var.set_pm_1_0_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
 
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
-
-    if CONF_PM_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_10_0])
-        cg.add(var.set_pm_10_0_sensor(sens))
-
+    # Remove before 2026.12.0
     if CONF_AQI in config:
+        _LOGGER.warning(
+            "The 'aqi' option in hm3301 is deprecated, "
+            "please use the standalone 'aqi' sensor platform instead."
+        )
         sens = await sensor.new_sensor(config[CONF_AQI])
         cg.add(var.set_aqi_sensor(sens))
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))

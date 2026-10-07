@@ -18,9 +18,9 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import EnumValue
 import esphome.final_validate as fv
+from esphome.helpers import add_class_to_obj
 from esphome.types import ConfigType
 
 from . import boards, hub75_ns
@@ -120,12 +120,32 @@ PANEL_LAYOUTS = {
 }
 
 Hub75ScanWiring = cg.global_ns.enum("Hub75ScanWiring", is_class=True)
-SCAN_PATTERNS = {
+SCAN_WIRINGS = {
     "STANDARD_TWO_SCAN": Hub75ScanWiring.STANDARD_TWO_SCAN,
-    "FOUR_SCAN_16PX_HIGH": Hub75ScanWiring.FOUR_SCAN_16PX_HIGH,
-    "FOUR_SCAN_32PX_HIGH": Hub75ScanWiring.FOUR_SCAN_32PX_HIGH,
-    "FOUR_SCAN_64PX_HIGH": Hub75ScanWiring.FOUR_SCAN_64PX_HIGH,
+    "SCAN_1_4_16PX_HIGH": Hub75ScanWiring.SCAN_1_4_16PX_HIGH,
+    "SCAN_1_8_32PX_HIGH": Hub75ScanWiring.SCAN_1_8_32PX_HIGH,
+    "SCAN_1_8_32PX_FULL": Hub75ScanWiring.SCAN_1_8_32PX_FULL,
+    "SCAN_1_8_40PX_HIGH": Hub75ScanWiring.SCAN_1_8_40PX_HIGH,
+    "SCAN_1_8_64PX_HIGH": Hub75ScanWiring.SCAN_1_8_64PX_HIGH,
 }
+
+
+def _validate_scan_wiring(value: Any) -> str:
+    """Validate scan_wiring against the allowed names."""
+    value = cv.string(value).upper().replace(" ", "_")
+
+    # Validate against allowed values
+    if value not in SCAN_WIRINGS:
+        raise cv.Invalid(
+            f"Unknown scan wiring '{value}'. "
+            f"Valid options are: {', '.join(sorted(SCAN_WIRINGS.keys()))}"
+        )
+
+    # Return as EnumValue like cv.enum does
+    result = add_class_to_obj(value, EnumValue)
+    result.enum_value = SCAN_WIRINGS[value]
+    return result
+
 
 Hub75ClockSpeed = cg.global_ns.enum("Hub75ClockSpeed", is_class=True)
 CLOCK_SPEEDS = {
@@ -146,7 +166,6 @@ ROTATIONS = {
 HUB75Display = hub75_ns.class_("HUB75Display", cg.PollingComponent, display.Display)
 Hub75Config = cg.global_ns.struct("Hub75Config")
 Hub75Pins = cg.global_ns.struct("Hub75Pins")
-SetBrightnessAction = hub75_ns.class_("SetBrightnessAction", automation.Action)
 
 
 def _merge_board_pins(config: ConfigType) -> ConfigType:
@@ -294,7 +313,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Validate requirements when using HUB75 display."""
     # Local imports to avoid circular dependencies
     from esphome.components.esp32 import get_esp32_variant
@@ -360,8 +379,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if errs:
         raise cv.MultipleInvalid(errs)
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(_final_validate)
 
@@ -382,9 +399,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAYOUT_COLS): cv.positive_int,
             cv.Optional(CONF_LAYOUT): cv.enum(PANEL_LAYOUTS, upper=True, space="_"),
             # Panel hardware configuration
-            cv.Optional(CONF_SCAN_WIRING): cv.enum(
-                SCAN_PATTERNS, upper=True, space="_"
-            ),
+            cv.Optional(CONF_SCAN_WIRING): _validate_scan_wiring,
             cv.Optional(CONF_SHIFT_DRIVER): cv.enum(SHIFT_DRIVERS, upper=True),
             # Display configuration
             cv.Optional(CONF_DOUBLE_BUFFER): cv.boolean,
@@ -460,7 +475,7 @@ def _build_pins_struct(
 ) -> cg.StructInitializer:
     """Build Hub75Pins struct from pin expressions."""
 
-    def pin_cast(pin):
+    def pin_cast(pin: Any) -> cg.RawExpression:
         return cg.RawExpression(f"static_cast<int8_t>({pin.get_pin()})")
 
     return cg.StructInitializer(
@@ -547,15 +562,15 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.2.2",
+        ref="0.3.5",
     )
 
-    # Set compile-time configuration via defines
+    # Set compile-time configuration via build flags (so external library sees them)
     if CONF_BIT_DEPTH in config:
-        cg.add_define("HUB75_BIT_DEPTH", config[CONF_BIT_DEPTH])
+        cg.add_build_flag(f"-DHUB75_BIT_DEPTH={config[CONF_BIT_DEPTH]}")
 
     if CONF_GAMMA_CORRECT in config:
-        cg.add_define("HUB75_GAMMA_MODE", config[CONF_GAMMA_CORRECT])
+        cg.add_build_flag(f"-DHUB75_GAMMA_MODE={config[CONF_GAMMA_CORRECT].enum_value}")
 
     # Await all pin expressions
     pin_expressions = {
@@ -602,9 +617,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_writer(lambda_))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hub75.set_brightness",
-    SetBrightnessAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HUB75Display),
@@ -612,15 +626,5 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_BRIGHTNESS,
     ),
+    automation.ApplyField(CONF_BRIGHTNESS, "set_brightness", cg.uint8),
 )
-async def hub75_set_brightness_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
-    cg.add(var.set_brightness(template_))
-    return var

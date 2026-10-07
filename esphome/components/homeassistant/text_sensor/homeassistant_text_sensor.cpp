@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 static const char *const TAG = "homeassistant.text_sensor";
 
@@ -15,7 +14,7 @@ void HomeassistantTextSensor::setup() {
     } else {
       ESP_LOGD(TAG, "'%s': Got state '%s'", this->entity_id_, state.c_str());
     }
-    this->publish_state(state.str());
+    this->publish_state(state.c_str(), state.size());
   });
 }
 void HomeassistantTextSensor::dump_config() {
@@ -26,5 +25,4 @@ void HomeassistantTextSensor::dump_config() {
   }
 }
 float HomeassistantTextSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

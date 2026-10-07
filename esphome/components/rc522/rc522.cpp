@@ -5,8 +5,7 @@
 // Based on:
 // - https://github.com/miguelbalboa/rfid
 
-namespace esphome {
-namespace rc522 {
+namespace esphome::rc522 {
 
 static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
@@ -169,6 +168,7 @@ void RC522::loop() {
         default:
           ESP_LOGE(TAG, "uid_idx_ invalid, uid_idx_ = %d", uid_idx_);
           state_ = STATE_DONE;
+          return;
       }
       buffer_[1] = 32;
       pcd_transceive_data_(2);
@@ -220,7 +220,7 @@ void RC522::loop() {
 
       std::vector<uint8_t> rfid_uid(std::begin(uid_buffer_), std::begin(uid_buffer_) + uid_idx_);
       uid_idx_ = 0;
-      // ESP_LOGD(TAG, "Processing '%s'", format_hex_pretty(rfid_uid, '-', false).c_str());
+      // ESP_LOGD(TAG, "Processing '%s'", format_hex_pretty(rfid_uid, '-', false).c_str());  // NOLINT
       pcd_antenna_off_();
       state_ = STATE_INIT;  // scan again on next update
       bool report = true;
@@ -492,7 +492,9 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = result;
   return result;
 }
-void RC522Trigger::process(std::vector<uint8_t> &data) { this->trigger(format_hex_pretty(data, '-', false)); }
+void RC522Trigger::process(std::vector<uint8_t> &data) {
+  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+  this->trigger(format_hex_pretty_to(uid_buf, data.data(), data.size(), '-'));
+}
 
-}  // namespace rc522
-}  // namespace esphome
+}  // namespace esphome::rc522

@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ina219 {
+namespace esphome::ina219 {
 
 static const char *const TAG = "ina219";
 
@@ -120,7 +119,7 @@ void INA219Component::setup() {
   }
 
   this->calibration_lsb_ = lsb;
-  auto calibration = uint32_t(0.04096f / (0.000001 * lsb * this->shunt_resistance_ohm_));
+  auto calibration = uint32_t(0.04096f / (0.000001f * lsb * this->shunt_resistance_ohm_));
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
   if (!this->write_byte_16(INA219_REGISTER_CALIBRATION, calibration)) {
     this->mark_failed();
@@ -150,8 +149,6 @@ void INA219Component::dump_config() {
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 }
-
-float INA219Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void INA219Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
@@ -198,5 +195,4 @@ void INA219Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace ina219
-}  // namespace esphome
+}  // namespace esphome::ina219

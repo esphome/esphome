@@ -1,8 +1,7 @@
 #include "gree_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gree {
+namespace esphome::gree {
 
 static const char *const TAG = "gree.switch";
 
@@ -20,5 +19,4 @@ void GreeModeBitSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace gree
-}  // namespace esphome
+}  // namespace esphome::gree

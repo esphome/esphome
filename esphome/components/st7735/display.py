@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
@@ -11,10 +13,13 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import st7735_ns
 
 CODEOWNERS = ["@SenexCrenshaw"]
+LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["spi"]
 
@@ -73,7 +78,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def setup_st7735(var, config):
+async def setup_st7735(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:
@@ -86,7 +91,10 @@ async def setup_st7735(var, config):
         cg.add(var.set_writer(lambda_))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    LOGGER.warning(
+        "The 'st7735' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODEL],
@@ -99,7 +107,7 @@ async def to_code(config):
         config[CONF_INVERT_COLORS],
     )
     await setup_st7735(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

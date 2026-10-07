@@ -1,0 +1,1573 @@
+"""Tests for esphome.espidf.toolchain helpers."""
+
+# pylint: disable=protected-access
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+import json
+import os
+from pathlib import Path
+import subprocess
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+
+from esphome.components.esp32.const import (
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+)
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+)
+from esphome.core import CORE, EsphomeError
+from esphome.espidf import toolchain
+
+
+def test_get_framework_source_override_no_config():
+    """When CORE.config hasn't been set, no override is returned."""
+    CORE.config = None
+    assert toolchain._get_framework_source_override() is None
+
+
+def test_get_framework_source_override_no_esp32_section():
+    """A config without an esp32 section yields no override."""
+    CORE.config = {}
+    assert toolchain._get_framework_source_override() is None
+
+
+def test_get_framework_source_override_no_framework_source():
+    """An esp32 section without framework.source yields no override."""
+    CORE.config = {"esp32": {CONF_FRAMEWORK: {}}}
+    assert toolchain._get_framework_source_override() is None
+
+
+def test_get_framework_source_override_returns_value():
+    """A user-supplied framework source is returned verbatim."""
+    url = "https://example.com/esp-idf-v{VERSION}.tar.xz"
+    CORE.config = {"esp32": {CONF_FRAMEWORK: {CONF_SOURCE: url}}}
+    assert toolchain._get_framework_source_override() == url
+
+
+def test_get_esphome_esp_idf_paths_forwards_source_override():
+    """_get_esphome_esp_idf_paths threads the override into check_esp_idf_install."""
+    url = "https://my-mirror/esp-idf-v{VERSION}.tar.xz"
+    CORE.config = {"esp32": {CONF_FRAMEWORK: {CONF_SOURCE: url}}}
+    # Hit a fresh cache key so check_esp_idf_install is actually called.
+    toolchain._cache().paths.clear()
+    with patch.object(
+        toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
+    ) as mock_install:
+        toolchain._get_esphome_esp_idf_paths("5.5.4")
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=url)
+
+
+def test_get_esphome_esp_idf_paths_no_override():
+    """When no source override is configured, source_url=None is passed."""
+    CORE.config = {}
+    toolchain._cache().paths.clear()
+    with patch.object(
+        toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
+    ) as mock_install:
+        toolchain._get_esphome_esp_idf_paths("5.5.4")
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=None)
+
+
+def test_get_configured_targets_from_variant(monkeypatch: pytest.MonkeyPatch):
+    """The configured variant restricts the toolchain install to its target."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() == ["esp32s3"]
+
+
+def test_get_configured_targets_without_variant(monkeypatch: pytest.MonkeyPatch):
+    """No stored variant (e.g. tooling outside a build) keeps the default."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data.pop(KEY_ESP32, None)
+    assert toolchain._get_configured_targets() is None
+
+
+def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch):
+    """CI installs every target so the shared cache covers all variants."""
+    monkeypatch.setenv("CI", "true")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() is None
+
+
+@pytest.fixture(autouse=True)
+def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic run_compile: no host ccache probe, no pch work."""
+    monkeypatch.setenv("IDF_CCACHE_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+
+
+def _setup_build(setup_core: Path) -> tuple[Path, Path]:
+    """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
+    CORE.name = "test"
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data.setdefault(KEY_ESP32, {})[KEY_IDF_VERSION] = cv.Version(5, 5, 5)
+    compile_commands = CORE.relative_build_path("build", "compile_commands.json")
+    cache = CORE.relative_internal_path("idedata", "test.json")
+    return compile_commands, cache
+
+
+@contextmanager
+def _up_to_date_compile(ninja_side_effect=None) -> Iterator[tuple]:
+    """Patch run_compile's staleness checks to "up to date"; yield the ninja
+    and print_summary mocks."""
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "_cache_entries_changed", return_value=False),
+        patch.object(
+            toolchain, "_run_ninja", return_value=0, side_effect=ninja_side_effect
+        ) as mock_ninja,
+        patch.object(toolchain, "print_summary") as mock_summary,
+    ):
+        yield mock_ninja, mock_summary
+
+
+def test_has_outdated_files_detects_exclusion_change(setup_core: Path) -> None:
+    """A newer exclude_components.esphomeinternal stamp forces a reconfigure
+    so components that leave the exclusion set get rediscovered."""
+    CORE.build_path = setup_core
+    build = setup_core / "build"
+    (build / "config").mkdir(parents=True)
+    (build / "config" / "sdkconfig.h").write_text("")
+    cmakecache = build / "CMakeCache.txt"
+    cmakecache.write_text("")
+    (build / "build.ninja").write_text("")
+
+    with patch.object(CORE, "name", "test"):
+        assert not toolchain.has_outdated_files()
+
+        stamp = setup_core / "exclude_components.esphomeinternal"
+        stamp.write_text("unity")
+        os.utime(stamp, (cmakecache.stat().st_mtime + 10,) * 2)
+
+        assert toolchain.has_outdated_files()
+
+        # The flag must clear once the reference file is restamped (as
+        # run_compile does after a successful discovery reconfigure);
+        # otherwise every later build would repeat the discovery pass.
+        os.utime(cmakecache, (stamp.stat().st_mtime + 10,) * 2)
+        assert not toolchain.has_outdated_files()
+
+
+def test_get_idedata_returns_none_without_compile_commands(setup_core: Path) -> None:
+    """No compile DB yet -> None (rather than an error)."""
+    _setup_build(setup_core)
+    assert toolchain.get_idedata() is None
+
+
+def test_get_idedata_generates_and_caches(setup_core: Path) -> None:
+    """Generates from the compile DB and writes the cache."""
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+
+    with patch(
+        "esphome.build_helpers.idedata.idedata_from_build",
+        return_value={"cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    prog_path = str(toolchain.get_elf_path())
+    assert result == {"cxx_path": "g++", "prog_path": prog_path}
+    assert json.loads(cache.read_text()) == {"cxx_path": "g++", "prog_path": prog_path}
+
+
+def test_get_idedata_prog_path_points_at_firmware_elf(setup_core: Path) -> None:
+    """The idedata exposes prog_path (the ELF) so consumers like build-action
+    can locate firmware.factory.bin / firmware.ota.bin as its siblings."""
+    compile_commands, _ = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+
+    with patch(
+        "esphome.build_helpers.idedata.idedata_from_build",
+        return_value={"cxx_path": "g++"},
+    ):
+        result = toolchain.get_idedata()
+
+    # Use Path semantics so the contract holds on Windows too (backslashes).
+    prog_path = Path(result["prog_path"])
+    assert prog_path.name == "firmware.elf"
+    assert prog_path.parent.name == "build"
+
+
+def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
+    """The IDF env caps git's upward search at the config directory.
+
+    This stops ESP-IDF's `git describe` from walking into an uninitialized or
+    corrupt git repo in a parent directory and failing the build.
+    """
+    toolchain._cache().env.clear()
+    # Set IDF_PATH so the framework-install branch is skipped.
+    with patch.dict(os.environ, {"IDF_PATH": str(setup_core)}):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert CORE.config_dir == setup_core
+    assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
+
+
+def test_get_idf_env_serves_the_component_mirror(setup_core: Path) -> None:
+    """The mirror env rides the managed-IDF branch, next to its sync gate."""
+    toolchain._cache().env.clear()
+    with (
+        patch.object(
+            toolchain,
+            "get_framework_env",
+            return_value={"PATH": "/penv"},
+        ),
+        patch.object(toolchain, "_get_esphome_esp_idf_paths", return_value=((), {})),
+        patch.object(
+            toolchain,
+            "component_mirror_env",
+            return_value={"IDF_COMPONENT_LOCAL_STORAGE_URL": "file:///mirror"},
+        ),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert env["IDF_COMPONENT_LOCAL_STORAGE_URL"] == "file:///mirror"
+
+
+def test_get_idf_env_user_idf_skips_the_mirror(setup_core: Path) -> None:
+    """A user-managed IDF gets neither the framework env nor the mirror."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(setup_core)}),
+        patch.object(toolchain, "component_mirror_env") as mock_env,
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    mock_env.assert_not_called()
+    assert "IDF_COMPONENT_LOCAL_STORAGE_URL" not in env
+
+
+def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
+    """A PYTHONPATH from the parent environment must not reach idf.py.
+
+    It would override the IDF venv's isolation, shadowing its pinned
+    packages and failing idf.py's dependency check.
+    """
+    toolchain._cache().env.clear()
+    with patch.dict(
+        os.environ,
+        {"IDF_PATH": str(setup_core), "PYTHONPATH": "/outside/site-packages"},
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "PYTHONPATH" not in env
+
+
+def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
+    """A build dir that was never created raises EsphomeError.
+
+    Without this, subprocess.run(cwd=build_dir) raises FileNotFoundError, which
+    the log stack-trace decoder doesn't recognise as a decode failure.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    assert not build_dir.exists()
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_without_cmake_cache(setup_core: Path) -> None:
+    """A build dir that exists but was never configured raises EsphomeError."""
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_with_configured_build(setup_core: Path) -> None:
+    """A configured build still runs cmake and caches the output.
+
+    The missing-build guard must not get in the way of a real build.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+    (build_dir / "CMakeCache.txt").write_text("")
+
+    completed = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="CMAKE_ADDR2LINE:FILEPATH=/tool/addr2line\n"
+    )
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/idf/tools/cmake"),
+        patch.object(toolchain.subprocess, "run", return_value=completed) as mock_run,
+    ):
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+        # Second call is served from the cache rather than re-running cmake.
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+
+    mock_run.assert_called_once()
+    # The resolved path, never a bare "cmake": Windows locates the child
+    # through the parent's PATH, where the IDF-managed cmake is missing.
+    assert mock_run.call_args.args[0][0] == "/idf/tools/cmake"
+    assert toolchain._get_cmake_tool_path("CMAKE_ADDR2LINE") == Path("/tool/addr2line")
+
+
+def test_get_cmake_output_missing_build_does_not_resolve_idf_env(
+    setup_core: Path,
+) -> None:
+    """The build check runs before the env is resolved.
+
+    Resolving the env calls check_esp_idf_install(), which can download and
+    extract the whole framework. A doomed call must never start that.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+
+    with (
+        patch.object(toolchain, "_get_idf_env") as mock_env,
+        patch.object(toolchain.subprocess, "run") as mock_run,
+        pytest.raises(EsphomeError),
+    ):
+        toolchain._get_cmake_output(build_dir)
+
+    mock_env.assert_not_called()
+    mock_run.assert_not_called()
+
+
+def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> None:
+    """After a successful discovery reconfigure the reference CMakeCache.txt
+    is restamped; cmake does not rewrite it when only properties or plain
+    variables change, so the staleness flag would otherwise never clear."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+    cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    build_ninja = CORE.relative_build_path("build/build.ninja")
+    cmakecache.parent.mkdir(parents=True, exist_ok=True)
+    cmakecache.write_text("")
+    build_ninja.write_text("")
+    old = cmakecache.stat().st_mtime - 100
+    os.utime(cmakecache, (old, old))
+    os.utime(build_ninja, (old, old))
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch.object(toolchain, "load_cached_builtin_components", return_value=None),
+        patch.object(toolchain, "save_cached_builtin_components"),
+        patch(
+            "esphome.build_gen.espidf.get_available_components", return_value=["lwip"]
+        ),
+        patch("esphome.build_gen.espidf.write_project"),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    assert cmakecache.stat().st_mtime > old
+    # build.ninja must not be older than the cache or ninja re-runs cmake
+    assert build_ninja.stat().st_mtime >= cmakecache.stat().st_mtime
+
+
+def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
+    """A discovery pass that produced no CMakeCache.txt (nothing to restamp)
+    still completes normally."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch.object(toolchain, "load_cached_builtin_components", return_value=None),
+        patch.object(toolchain, "save_cached_builtin_components"),
+        patch(
+            "esphome.build_gen.espidf.get_available_components", return_value=["lwip"]
+        ),
+        patch("esphome.build_gen.espidf.write_project"),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
+
+
+@pytest.mark.parametrize(
+    ("cmake_rc", "expected"),
+    [(0, ["sync", "cmake", "sync"]), (1, ["sync", "cmake"])],
+)
+def test_run_reconfigure_syncs_mirror_around_the_configure(
+    setup_core: Path, cmake_rc: int, expected: list[str]
+) -> None:
+    """Every configure path syncs: before, so the solve installs from the
+    mirror; after a success, so solver-added lock entries are mirrored."""
+    _setup_build(setup_core)
+    calls: list[str] = []
+
+    with (
+        _fake_tools() as mock_run,
+        patch.object(
+            toolchain,
+            "_sync_component_mirror",
+            side_effect=lambda: calls.append("sync"),
+        ),
+        # The real hint printer resolves an IDF install (or downloads one).
+        patch.object(toolchain, "_print_hints"),
+    ):
+        mock_run.side_effect = lambda *a, **k: calls.append("cmake") or cmake_rc
+        assert toolchain.run_reconfigure() == cmake_rc
+
+    assert calls == expected
+
+
+def test_run_compile_syncs_mirror_when_up_to_date(setup_core: Path) -> None:
+    """No reconfigure still refreshes the mirror once for ninja-driven
+    cmake re-runs."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        _up_to_date_compile(),
+        patch.object(toolchain, "_sync_component_mirror") as mock_sync,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_sync.assert_called_once()
+
+
+def test_sync_component_mirror_skips_user_idf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user-managed IDF never gets the mirror env, so a sync is unread."""
+    monkeypatch.setenv("IDF_PATH", "/opt/esp-idf")
+    with patch.object(toolchain, "sync_component_mirror") as mock_sync:
+        toolchain._sync_component_mirror()
+    mock_sync.assert_not_called()
+
+
+def test_sync_component_mirror_failure_not_retried(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One failed attempt (e.g. offline) must not stall every later call."""
+    monkeypatch.delenv("IDF_PATH", raising=False)
+    _setup_build(setup_core)
+    with patch.object(
+        toolchain, "sync_component_mirror", return_value=False
+    ) as mock_sync:
+        toolchain._sync_component_mirror()
+        toolchain._sync_component_mirror()
+    mock_sync.assert_called_once()
+
+
+def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
+    setup_core: Path,
+) -> None:
+    """The full CMakeLists write is followed by a reconfigure (#18682); a
+    failure there stops the build and leaves the cache unstamped."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+    cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    cmakecache.parent.mkdir(parents=True, exist_ok=True)
+    cmakecache.write_text("")
+    old = cmakecache.stat().st_mtime - 100
+    os.utime(cmakecache, (old, old))
+    calls: list[tuple] = []
+    reconfigures = 0
+
+    def record_write(minimal: bool = False, builtin_components=None) -> None:
+        calls.append(("write_project", minimal))
+
+    def record_reconfigure(verbose: bool = False) -> int:
+        nonlocal reconfigures
+        reconfigures += 1
+        calls.append(("run_reconfigure",))
+        return 1 if reconfigures == 2 else 0
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch.object(toolchain, "load_cached_builtin_components", return_value=None),
+        patch.object(toolchain, "save_cached_builtin_components"),
+        patch(
+            "esphome.build_gen.espidf.get_available_components", return_value=["lwip"]
+        ),
+        patch("esphome.build_gen.espidf.write_project", side_effect=record_write),
+        patch.object(toolchain, "run_reconfigure", side_effect=record_reconfigure),
+        patch.object(toolchain, "_run_ninja", return_value=0) as mock_build,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert not CORE.testing_mode
+        assert toolchain.run_compile(config, verbose=False) == 1
+
+    assert calls == [
+        ("write_project", True),
+        ("run_reconfigure",),
+        ("write_project", False),
+        ("run_reconfigure",),
+    ]
+    mock_build.assert_not_called()
+    assert cmakecache.stat().st_mtime == old
+
+
+def _record_compile_calls(
+    cached: list[str] | None,
+    saved: list[str] | None = None,
+    reconfigure_rcs: tuple[int, ...] = (),
+    cache_file: Path | None = None,
+) -> tuple[int, list[tuple]]:
+    """Run run_compile with a stubbed cache and return (rc, call log).
+
+    ``reconfigure_rcs`` overrides the exit codes of the first reconfigures;
+    later ones succeed.
+    """
+    calls: list[tuple] = []
+    rcs = iter(reconfigure_rcs)
+
+    def record_reconfigure(verbose: bool = False) -> int:
+        calls.append(("run_reconfigure",))
+        return next(rcs, 0)
+
+    def record_write(minimal: bool = False, builtin_components=None) -> None:
+        calls.append(("write_project", minimal, builtin_components))
+
+    def record_save(components: list[str]) -> None:
+        calls.append(("save", components))
+
+    def record_ninja(*targets: str, **kwargs: object) -> int:
+        if "all" in targets:
+            calls.append(("build",))
+        return 0
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch.object(toolchain, "load_cached_builtin_components", return_value=cached),
+        patch.object(
+            toolchain, "save_cached_builtin_components", side_effect=record_save
+        ),
+        patch("esphome.build_gen.espidf.get_available_components", return_value=saved),
+        patch("esphome.build_gen.espidf.write_project", side_effect=record_write),
+        patch.object(toolchain, "run_reconfigure", side_effect=record_reconfigure),
+        patch.object(
+            toolchain, "_builtin_component_cache_path", return_value=cache_file
+        ),
+        patch.object(toolchain, "_run_ninja", side_effect=record_ninja),
+        patch.object(toolchain, "print_summary"),
+    ):
+        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    return rc, calls
+
+
+def test_run_compile_poisoned_cache_is_dropped_and_rediscovered(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """A cached list that fails the configure is deleted and discovery runs
+    once more instead of every later build failing the same way."""
+    _setup_build(setup_core)
+    cache_file = tmp_path / "esp32-abc.json"
+    cache_file.write_text("[]")
+    rc, calls = _record_compile_calls(
+        ["stale"], saved=["lwip"], reconfigure_rcs=(1,), cache_file=cache_file
+    )
+    assert rc == 0
+    assert not cache_file.exists()
+    assert calls == [
+        ("write_project", False, ["stale"]),
+        ("run_reconfigure",),
+        ("write_project", True, None),
+        ("run_reconfigure",),
+        ("write_project", False, ["lwip"]),
+        ("run_reconfigure",),
+        ("save", ["lwip"]),
+        ("build",),
+    ]
+
+
+def test_run_compile_cache_miss_discovers_and_saves(setup_core: Path) -> None:
+    """Without a cached list the discovery configure runs, the discovered list
+    feeds the full write and is cached only after that configure succeeds."""
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(None, saved=["lwip"])
+    assert rc == 0
+    assert calls == [
+        ("write_project", True, None),
+        ("run_reconfigure",),
+        ("write_project", False, ["lwip"]),
+        ("run_reconfigure",),
+        ("save", ["lwip"]),
+        ("build",),
+    ]
+
+
+def test_run_compile_discovery_failure_stops_before_full_write(
+    setup_core: Path,
+) -> None:
+    """A failed discovery configure returns its exit code and never writes
+    the full CMakeLists, a cache entry or a build."""
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(None, reconfigure_rcs=(2,))
+    assert rc == 2
+    assert calls == [("write_project", True, None), ("run_reconfigure",)]
+
+
+@pytest.mark.parametrize("discovered", [None, []], ids=["no_manifest", "empty"])
+def test_run_compile_fails_when_discovery_finds_nothing(
+    setup_core: Path,
+    caplog: pytest.LogCaptureFixture,
+    discovered: list[str] | None,
+) -> None:
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(None, saved=discovered)
+    assert rc == 1
+    assert calls == [("write_project", True, None), ("run_reconfigure",)]
+    assert "found no built-in ESP-IDF components" in caplog.text
+
+
+def test_run_compile_does_not_cache_a_list_that_failed_to_configure(
+    setup_core: Path,
+) -> None:
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(None, saved=["lwip"], reconfigure_rcs=(0, 3))
+    assert rc == 3
+    assert ("save", ["lwip"]) not in calls
+    assert ("build",) not in calls
+
+
+def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:
+    """A cached list goes straight to the full write; the explicit reconfigure
+    after it (#18730) still runs."""
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(["esp_timer", "lwip"])
+    assert rc == 0
+    assert calls == [
+        ("write_project", False, ["esp_timer", "lwip"]),
+        ("run_reconfigure",),
+        ("build",),
+    ]
+
+
+@contextmanager
+def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
+    """Patch everything the cache key derives from onto a temp IDF tree and
+    yield that tree's path."""
+    idf_path = tmp_path / "idf"
+    (idf_path / "components").mkdir(parents=True, exist_ok=True)
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=idf_path),
+        patch.dict(CORE.data, {KEY_ESP32: {KEY_VARIANT: "ESP32"}}),
+        patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": excluded}),
+    ):
+        yield idf_path
+
+
+def test_component_cache_round_trip(setup_core: Path, tmp_path: Path) -> None:
+    """A saved list is read back until it is dropped."""
+    _setup_build(setup_core)
+    with _cache_env(tmp_path, "fatfs") as idf_path:
+        for name in ("lwip", "esp_timer"):
+            (idf_path / "components" / name).mkdir()
+        assert toolchain.load_cached_builtin_components() is None
+        toolchain.save_cached_builtin_components(["esp_timer", "lwip"])
+        assert toolchain.load_cached_builtin_components() == ["esp_timer", "lwip"]
+        toolchain._builtin_component_cache_path().unlink()
+        assert toolchain.load_cached_builtin_components() is None
+
+
+def test_component_cache_misses_on_key_change_or_missing_component(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """A different exclusion set uses another entry, an entry naming a
+    component that no longer exists is ignored, and a custom IDF_PATH is
+    never cached."""
+    _setup_build(setup_core)
+    with _cache_env(tmp_path, "fatfs") as idf_path:
+        (idf_path / "components" / "lwip").mkdir()
+        toolchain.save_cached_builtin_components(["lwip"])
+        path = toolchain._builtin_component_cache_path()
+        assert path.parent == idf_path / ".esphome_component_lists"
+        assert path.name.startswith("esp32-")
+        assert toolchain.load_cached_builtin_components() == ["lwip"]
+        with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
+            assert toolchain.load_cached_builtin_components() is None
+    with _cache_env(tmp_path, "fatfs;unity"):
+        assert toolchain.load_cached_builtin_components() is None
+    with _cache_env(tmp_path, "fatfs") as idf_path:
+        path.write_text(json.dumps(["lwip", "gone"]))
+        assert toolchain.load_cached_builtin_components() is None
+        # A plain file with the right name is not a component directory.
+        (idf_path / "components" / "gone").write_text("not a directory")
+        assert toolchain.load_cached_builtin_components() is None
+
+
+def test_component_cache_save_skips_empty_list_or_custom_idf_path(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    _setup_build(setup_core)
+    with _cache_env(tmp_path, "") as idf_path:
+        toolchain.save_cached_builtin_components([])
+        with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
+            toolchain.save_cached_builtin_components(["lwip"])
+        assert not (idf_path / ".esphome_component_lists").exists()
+
+
+def test_component_cache_write_failure_is_logged(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _setup_build(setup_core)
+    with (
+        _cache_env(tmp_path, ""),
+        patch.object(toolchain, "write_file", side_effect=EsphomeError("disk full")),
+    ):
+        toolchain.save_cached_builtin_components(["lwip"])
+        assert toolchain.load_cached_builtin_components() is None
+    assert "Could not write component list cache" in caplog.text
+
+
+def test_component_cache_ignores_corrupt_file(setup_core: Path, tmp_path: Path) -> None:
+    _setup_build(setup_core)
+    with _cache_env(tmp_path, ""):
+        path = toolchain._builtin_component_cache_path()
+        path.parent.mkdir(parents=True)
+        path.write_text("{not json")
+        assert toolchain.load_cached_builtin_components() is None
+        path.write_text(json.dumps({"components": ["lwip"]}))
+        assert toolchain.load_cached_builtin_components() is None
+
+
+@pytest.fixture(autouse=True)
+def _clear_ldgen_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate tests from ambient ldgen escape hatch and strict knobs."""
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+
+
+def _write_fragments_build_ninja(tmp_path: Path, fragments: list[Path]) -> None:
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    frag_list = ";".join(str(f) for f in fragments)
+    (build_dir / "build.ninja").write_text(
+        f'  COMMAND = python ldgen.py --fragments-list "{frag_list}" --input x\n'
+    )
+
+
+def test_warn_if_app_archive_mapped_warns(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A fragment naming the app archive, even with trailing text or leading
+    whitespace, triggers the loud warning."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\n archive: libsrc.a # app\nentries:\n")
+    _write_fragments_build_ninja(tmp_path, [frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" in caplog.text
+
+
+def test_warn_if_app_archive_mapped_scans_past_unreadable(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable fragment doesn't stop later fragments being checked."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\narchive: libsrc.a\n")
+    _write_fragments_build_ninja(tmp_path, [tmp_path / "missing.lf", frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" in caplog.text
+
+
+def test_warn_if_app_archive_mapped_strict_no_fragments_list(
+    setup_core: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Under strict, a build.ninja the check can't parse fails the build."""
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "build.ninja").write_text("rule CXX\n  command = gcc\n")
+    with pytest.raises(EsphomeError, match="no --fragments-list"):
+        toolchain._warn_if_app_archive_mapped()
+
+
+def test_warn_if_app_archive_mapped_strict_raises(
+    setup_core: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Under ESPHOME_LDGEN_STRICT a mapped app archive fails the build."""
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\narchive: libsrc.a\n")
+    _write_fragments_build_ninja(tmp_path, [frag])
+    with pytest.raises(EsphomeError, match="maps the app archive"):
+        toolchain._warn_if_app_archive_mapped()
+
+
+def test_warn_if_app_archive_mapped_glob(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A glob archive spec that selects the app archive is also flagged."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\narchive: lib*\n")
+    _write_fragments_build_ninja(tmp_path, [frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" in caplog.text
+
+
+def test_warn_if_app_archive_mapped_clean(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Normal fragments, including IDF's stock archive: * catch-all,
+    produce no warning."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text(
+        "[mapping:freertos]\narchive: libfreertos.a\n[mapping:default]\narchive: *\n"
+    )
+    _write_fragments_build_ninja(tmp_path, [frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" not in caplog.text
+
+
+def test_warn_if_app_archive_mapped_missing_fragment(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable fragment file is non-fatal."""
+    _setup_build(setup_core)
+    _write_fragments_build_ninja(tmp_path, [tmp_path / "missing.lf"])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" not in caplog.text
+
+
+def test_warn_if_app_archive_mapped_no_build_ninja(setup_core: Path) -> None:
+    """No build.ninja yet is a quiet no-op."""
+    _setup_build(setup_core)
+    toolchain._warn_if_app_archive_mapped()
+
+
+def test_warn_if_app_archive_mapped_no_fragments_list(setup_core: Path) -> None:
+    """A build.ninja without a fragments-list argument is a quiet no-op."""
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "build.ninja").write_text("rule CXX\n  command = gcc\n")
+    toolchain._warn_if_app_archive_mapped()
+
+
+def test_run_compile_runs_fragment_check(setup_core: Path) -> None:
+    """The fragment belt runs by default on every compile."""
+    _setup_build(setup_core)
+
+    with (
+        _up_to_date_compile(),
+        patch.object(toolchain, "_warn_if_app_archive_mapped") as mock_check,
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+
+    mock_check.assert_called_once()
+
+
+def test_run_compile_full_deps_skips_fragment_check(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ESPHOME_LDGEN_FULL_DEPS disables the fragment belt with the override."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "1")
+    _setup_build(setup_core)
+
+    with (
+        _up_to_date_compile(),
+        patch.object(toolchain, "_warn_if_app_archive_mapped") as mock_check,
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+
+    mock_check.assert_not_called()
+
+
+@pytest.mark.parametrize("limit", [1, None])
+def test_run_compile_passes_compile_process_limit(
+    setup_core: Path, limit: int | None
+) -> None:
+    """compile_process_limit is the job limit of the one ninja run."""
+    _setup_build(setup_core)
+    esphome = {} if limit is None else {CONF_COMPILE_PROCESS_LIMIT: limit}
+
+    with _up_to_date_compile() as (mock_run, _):
+        assert toolchain.run_compile({CONF_ESPHOME: esphome}, verbose=False) == 0
+
+    assert mock_run.call_args_list == [
+        call(
+            "all",
+            "size",
+            verbose=False,
+            jobs=limit,
+            progress=True,
+            extra_env=toolchain._size_env(),
+        ),
+    ]
+
+
+def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
+    """print_summary receives the size json, partitions.csv, and the built
+    ELF from get_built_elf_path, which must stay in lockstep with the
+    project() name in the generated CMakeLists."""
+    _setup_build(setup_core)
+    with _up_to_date_compile() as (_, mock_summary):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+
+    mock_summary.assert_called_once_with(
+        CORE.relative_build_path("build", "esp_idf_size.json"),
+        CORE.relative_build_path("partitions.csv"),
+        CORE.relative_build_path("build", f"{CORE.name}.elf"),
+    )
+
+
+def test_create_elf_copy(setup_core: Path) -> None:
+    """The built <name>.elf is copied to the firmware.elf dashboard name."""
+    _setup_build(setup_core)
+    src = toolchain.get_built_elf_path()
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_bytes(b"elf")
+    assert toolchain.create_elf_copy() is True
+    assert toolchain.get_elf_path().read_bytes() == b"elf"
+
+
+def test_create_elf_copy_missing_source(setup_core: Path) -> None:
+    """A missing built ELF is a warning and False, not a crash."""
+    _setup_build(setup_core)
+    assert toolchain.create_elf_copy() is False
+
+
+def test_run_compile_writes_the_pch_checksum_before_the_build(
+    setup_core: Path,
+) -> None:
+    _setup_build(setup_core)
+    order: list[str] = []
+
+    with (
+        _up_to_date_compile(lambda *a, **k: order.append("build") or 0),
+        patch(
+            "esphome.build_gen.espidf.write_pch_checksum",
+            side_effect=lambda: order.append("checksum"),
+        ),
+    ):
+        toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    assert order[:2] == ["checksum", "build"]
+
+
+def test_get_core_framework_version_from_core_data():
+    """The version is read from CORE.data when validation populated it."""
+    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+    import esphome.config_validation as cv
+
+    CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
+    assert toolchain._get_core_framework_version() == "5.5.4"
+
+
+@contextmanager
+def _fake_tools(env: dict[str, str] | None = None) -> Iterator:
+    """Stub the IDF env and tool lookup; yield the run_build_tool mock."""
+    with (
+        patch.object(
+            toolchain,
+            "_get_idf_env",
+            return_value={"PATH": "/bin", "IDF_CCACHE_ENABLE": "0", **(env or {})},
+        ),
+        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "run_build_tool", return_value=0) as mock_run,
+    ):
+        yield mock_run
+
+
+def test_run_reconfigure_cmake_argv_matches_idf_py(setup_core: Path) -> None:
+    """The configure is the command idf.py runs.
+
+    IDF 5.5.5 tools/idf_py_actions/tools.py ensure_build_directory: cmake
+    -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=<python> -DESP_PLATFORM=1,
+    then the -D entries (SDKCONFIG, CCACHE_ENABLE), then the real project
+    path, in the build dir. IDF 6.1 adds -B <build dir>, the same as the cwd.
+    """
+    _setup_build(setup_core)
+    sdkconfig = CORE.relative_build_path("sdkconfig.test")
+    sdkconfig.parent.mkdir(parents=True)
+    sdkconfig.write_text("")
+    project = os.path.realpath(CORE.build_path)
+
+    with _fake_tools() as mock_run:
+        assert toolchain.run_reconfigure() == 0
+
+    assert mock_run.call_args.args[0] == [
+        "/tools/cmake",
+        "-G",
+        "Ninja",
+        "-DPYTHON_DEPS_CHECKED=1",
+        "-DPYTHON=/tools/python",
+        "-DESP_PLATFORM=1",
+        f"-DSDKCONFIG={sdkconfig}",
+        "-DCCACHE_ENABLE=0",
+        "-DESPHOME_SKIP_BOOTLOADER=0",
+        project,
+    ]
+    kwargs = mock_run.call_args.kwargs
+    assert kwargs["cwd"] == Path(project) / "build"
+    assert kwargs["cwd"].is_dir()
+    assert kwargs["env"]["CLICOLOR_FORCE"] == "1"
+    assert kwargs["filter_lines"] is toolchain.FILTER_IDF_LINES
+
+
+@pytest.mark.parametrize(("ccache", "expected"), [("1", "True"), ("0", "False")])
+def test_run_reconfigure_cmake_argv_matches_idf6_py(
+    setup_core: Path, ccache: str, expected: str
+) -> None:
+    """IDF 6 idf.py adds -B <build dir> and formats CCACHE_ENABLE as True/False.
+
+    IDF 6.1 tools/idf_py_actions/tools.py ensure_build_directory.
+    """
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 1, 0)
+    build_dir = Path(os.path.realpath(CORE.build_path)) / "build"
+
+    with _fake_tools({"IDF_CCACHE_ENABLE": ccache}) as mock_run:
+        assert toolchain.run_reconfigure() == 0
+
+    assert mock_run.call_args.args[0] == [
+        "/tools/cmake",
+        "-G",
+        "Ninja",
+        "-B",
+        str(build_dir),
+        "-DPYTHON_DEPS_CHECKED=1",
+        "-DPYTHON=/tools/python",
+        "-DESP_PLATFORM=1",
+        f"-DCCACHE_ENABLE={expected}",
+        "-DESPHOME_SKIP_BOOTLOADER=0",
+        str(build_dir.parent),
+    ]
+
+
+def test_run_reconfigure_without_sdkconfig_or_filter(setup_core: Path) -> None:
+    """No sdkconfig file means no SDKCONFIG entry; -v shows every line."""
+    _setup_build(setup_core)
+    with _fake_tools() as mock_run:
+        assert toolchain.run_reconfigure(verbose=True) == 0
+    cmd = mock_run.call_args.args[0]
+    assert not any(arg.startswith("-DSDKCONFIG=") for arg in cmd)
+    assert cmd[-3] == "-DCCACHE_ENABLE=0"
+    assert cmd[-2] == "-DESPHOME_SKIP_BOOTLOADER=0"
+    assert mock_run.call_args.kwargs["filter_lines"] is None
+
+
+def test_run_reconfigure_failure_removes_cmakecache(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Like idf.py, a failed configure must not leave a cache that looks valid."""
+    _setup_build(setup_core)
+    cache = Path(os.path.realpath(CORE.build_path)) / "build" / "CMakeCache.txt"
+    cache.parent.mkdir(parents=True)
+    cache.write_text("")
+    with (
+        _fake_tools() as mock_run,
+        patch.object(toolchain, "_print_hints") as mock_hints,
+    ):
+        mock_run.return_value = 4
+        assert toolchain.run_reconfigure() == 4
+    assert not cache.exists()
+    assert "CMake configure failed with exit code 4" in caplog.text
+    log_path = mock_run.call_args.kwargs["log_path"]
+    assert log_path == cache.parent / "log" / "cmake_output.log"
+    mock_hints.assert_called_once_with(log_path)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("1", "1"),
+        ("on", "1"),
+        (" Yes ", "1"),
+        ("0", "0"),
+        ("", "0"),
+        ("disable", "0"),
+    ],
+)
+def test_cache_entries_ccache_follows_click_booleans(
+    setup_core: Path, value: str, expected: str
+) -> None:
+    """IDF_CCACHE_ENABLE maps to CCACHE_ENABLE the way idf.py's click flag does."""
+    _setup_build(setup_core)
+    with _fake_tools({"IDF_CCACHE_ENABLE": value}):
+        assert toolchain._cache_entries() == {"CCACHE_ENABLE": expected}
+
+
+def test_parse_cmakecache(tmp_path: Path) -> None:
+    cache = tmp_path / "CMakeCache.txt"
+    cache.write_text(
+        "# comment\n"
+        "// help text\n"
+        "SDKCONFIG:UNINITIALIZED=/a/sdkconfig.test\n"
+        "CCACHE_ENABLE:UNINITIALIZED=1\n"
+        "FLAGS:STRING=-DX=1\n"
+        "\n"
+    )
+    assert toolchain._parse_cmakecache(cache) == {
+        "SDKCONFIG": "/a/sdkconfig.test",
+        "CCACHE_ENABLE": "1",
+        "FLAGS": "-DX=1",
+    }
+
+
+# The constant -D entries every configure writes (see _configure_defines).
+_CONFIGURED = (
+    "PYTHON_DEPS_CHECKED:UNINITIALIZED=1\n"
+    "PYTHON:UNINITIALIZED=/tools/python\n"
+    "ESP_PLATFORM:UNINITIALIZED=1\n"
+    "ESPHOME_SKIP_BOOTLOADER:UNINITIALIZED=0\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("cache_text", "expected"),
+    [
+        (None, True),
+        (_CONFIGURED + "CCACHE_ENABLE:UNINITIALIZED=0\n", False),
+        (_CONFIGURED + "CCACHE_ENABLE:UNINITIALIZED=1\n", True),
+        (
+            _CONFIGURED.replace("/tools/python", "/old/python")
+            + "CCACHE_ENABLE:UNINITIALIZED=0\n",
+            True,
+        ),
+        (_CONFIGURED, True),
+    ],
+    ids=["no_cache", "same", "changed", "python_moved", "missing"],
+)
+def test_cache_entries_changed(
+    setup_core: Path, cache_text: str | None, expected: bool
+) -> None:
+    """Mirrors idf.py's _new_cmakecache_entries, plus the cached PYTHON."""
+    _setup_build(setup_core)
+    if cache_text is not None:
+        cache = Path(os.path.realpath(CORE.build_path)) / "build" / "CMakeCache.txt"
+        cache.parent.mkdir(parents=True)
+        cache.write_text(cache_text)
+    with _fake_tools():
+        assert toolchain._cache_entries_changed() is expected
+
+
+@pytest.mark.parametrize(
+    ("version", "size_ng"), [(cv.Version(5, 5, 5), True), (cv.Version(6, 1, 0), False)]
+)
+def test_size_env(setup_core: Path, version: cv.Version, size_ng: bool) -> None:
+    """IDF 5.x idf.py sets ESP_IDF_SIZE_NG; 6.x dropped it (core_ext.py size_target)."""
+    CORE.data[KEY_ESP32] = {KEY_IDF_VERSION: version}
+    env = toolchain._size_env()
+    assert env["ESP_IDF_SIZE_FORCE_TERMINAL"] == "1"
+    assert env["SIZE_OUTPUT_FORMAT"] == "default"
+    assert ("ESP_IDF_SIZE_NG" in env) is size_ng
+
+
+def test_run_ninja_matches_idf_py_run_target(setup_core: Path) -> None:
+    """The command is ninja [-j N] [-v] <target> in the build dir."""
+    _setup_build(setup_core)
+    with _fake_tools() as mock_run:
+        assert (
+            toolchain._run_ninja(
+                "size", verbose=True, jobs=2, progress=True, extra_env={"A": "b"}
+            )
+            == 0
+        )
+    assert mock_run.call_args.args[0] == ["/tools/ninja", "-j", "2", "-v", "size"]
+    kwargs = mock_run.call_args.kwargs
+    assert kwargs["cwd"] == Path(os.path.realpath(CORE.build_path)) / "build"
+    assert kwargs["env"]["CLICOLOR_FORCE"] == "1"
+    assert kwargs["env"]["A"] == "b"
+    # -v shows every line as it comes, as idf.py does
+    assert kwargs["filter_lines"] is None
+    assert kwargs["progress"] is False
+
+
+def test_run_ninja_filters_and_reports_failure(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _setup_build(setup_core)
+    with (
+        _fake_tools() as mock_run,
+        patch.object(toolchain, "_print_hints") as mock_hints,
+    ):
+        mock_run.return_value = 1
+        assert (
+            toolchain._run_ninja("all", "size", verbose=False, jobs=None, progress=True)
+            == 1
+        )
+    log_path = mock_run.call_args.kwargs["log_path"]
+    assert log_path.name == "ninja_all_size_output.log"
+    mock_hints.assert_called_once_with(log_path)
+    assert mock_run.call_args.args[0] == ["/tools/ninja", "all", "size"]
+    assert mock_run.call_args.kwargs["filter_lines"] is toolchain.FILTER_IDF_LINES
+    assert mock_run.call_args.kwargs["progress"] is True
+    assert "ninja all size failed with exit code 1" in caplog.text
+
+
+@pytest.mark.parametrize("reconfigure_rc", [0, 5])
+def test_run_compile_reconfigures_when_cache_entries_change(
+    setup_core: Path, reconfigure_rc: int
+) -> None:
+    """A changed -D entry (ccache toggled) reconfigures, as idf.py build did."""
+    _setup_build(setup_core)
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "_cache_entries_changed", return_value=True),
+        patch.object(
+            toolchain, "run_reconfigure", return_value=reconfigure_rc
+        ) as mock_reconfigure,
+        patch.object(toolchain, "_run_ninja", return_value=0) as mock_ninja,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=True) == reconfigure_rc
+    mock_reconfigure.assert_called_once_with(True)
+    assert mock_ninja.called is (reconfigure_rc == 0)
+
+
+def test_run_compile_stops_on_ninja_failure(setup_core: Path) -> None:
+    """A failed ninja run skips the summary."""
+    _setup_build(setup_core)
+    with _up_to_date_compile(lambda *targets, **kw: 7) as (mock_ninja, mock_summary):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 7
+    assert [c.args for c in mock_ninja.call_args_list] == [("all", "size")]
+    mock_summary.assert_not_called()
+
+
+@pytest.mark.parametrize("memory_ld_rc", [0, 3])
+def test_run_compile_testing_mode_builds_memory_ld_first(
+    setup_core: Path, memory_ld_rc: int
+) -> None:
+    """Testing mode builds and patches memory.ld before the main build."""
+    _setup_build(setup_core)
+    CORE.testing_mode = True
+    targets: list[tuple[str, ...]] = []
+
+    def record(*run_targets: str, **kwargs: object) -> int:
+        targets.append(run_targets)
+        return memory_ld_rc if run_targets[0].endswith("memory.ld") else 0
+
+    with (
+        _up_to_date_compile(record),
+        patch.object(toolchain, "_patch_memory_segments") as mock_patch,
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == memory_ld_rc
+    memory_ld = str(Path("esp-idf", "esp_system", "ld", "memory.ld"))
+    if memory_ld_rc:
+        assert targets == [(memory_ld,)]
+        mock_patch.assert_not_called()
+    else:
+        assert targets == [(memory_ld,), ("all", "size")]
+        mock_patch.assert_called_once()
+
+
+@pytest.mark.parametrize("version", [cv.Version(5, 5, 5), cv.Version(6, 1, 0)])
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ({}, {"CLICOLOR_FORCE": "1", "FORCE_COLOR": "1"}),
+        ({"CLICOLOR_FORCE": "0"}, {"CLICOLOR_FORCE": "0", "FORCE_COLOR": "1"}),
+        ({"NO_COLOR": "1"}, {}),
+    ],
+    ids=["default", "user-value", "no-color"],
+)
+def test_tool_env_colors(
+    setup_core: Path, version: cv.Version, env: dict[str, str], expected: dict[str, str]
+) -> None:
+    """IDF 6 RunTool.__call__ color handling, used for every IDF version."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = version
+    with _fake_tools(env):
+        result = toolchain._tool_env()
+    colors = {k: v for k, v in result.items() if k in ("CLICOLOR_FORCE", "FORCE_COLOR")}
+    assert colors == expected
+
+
+@pytest.mark.parametrize(
+    ("limit", "env_value", "expected"),
+    [
+        (2, "8", 2),
+        (None, "8", 8),
+        (None, "", None),
+        (None, None, None),
+    ],
+    ids=["limit-wins", "env", "empty-env", "unset"],
+)
+def test_build_jobs_honors_idf_py_build_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+    limit: int | None,
+    env_value: str | None,
+    expected: int | None,
+) -> None:
+    """compile_process_limit first, else IDF_PY_BUILD_JOBS as idf.py read it."""
+    if env_value is None:
+        monkeypatch.delenv("IDF_PY_BUILD_JOBS", raising=False)
+    else:
+        monkeypatch.setenv("IDF_PY_BUILD_JOBS", env_value)
+    esphome = {} if limit is None else {CONF_COMPILE_PROCESS_LIMIT: limit}
+    assert toolchain._build_jobs({CONF_ESPHOME: esphome}) == expected
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "many"])
+def test_build_jobs_rejects_invalid_idf_py_build_jobs(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """Like idf.py, a value that is not a positive integer is an error."""
+    monkeypatch.setenv("IDF_PY_BUILD_JOBS", value)
+    with pytest.raises(EsphomeError, match="positive integer"):
+        toolchain._build_jobs({CONF_ESPHOME: {}})
+
+
+@contextmanager
+def _hint_env(tmp_path: Path, **run_kwargs: object) -> Iterator:
+    with (
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(toolchain, "_get_idf_path", return_value=tmp_path / "idf"),
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain.subprocess, "run", **run_kwargs) as mock_run,
+    ):
+        yield mock_run
+
+
+def test_print_hints_shows_idf_advice(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The hint step runs IDF's own generate_hints on the failed tool's log."""
+    log = tmp_path / "ninja_all_output.log"
+    done = subprocess.CompletedProcess([], 0, "HINT: the binary is too big\n", "")
+    with _hint_env(tmp_path, return_value=done) as mock_run:
+        toolchain._print_hints(log)
+    cmd = mock_run.call_args.args[0]
+    assert cmd[0] == "/py"
+    assert "generate_hints" in cmd[2]
+    assert cmd[3:] == [str(tmp_path / "idf" / "tools"), str(log)]
+    assert "HINT: the binary is too big" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "run_kwargs",
+    [
+        {"return_value": subprocess.CompletedProcess([], 1, "", "ImportError")},
+        {"return_value": subprocess.CompletedProcess([], 0, "  \n", "")},
+        {"side_effect": subprocess.TimeoutExpired("py", 60)},
+        {"side_effect": OSError("gone")},
+    ],
+    ids=["script-fails", "no-hints", "timeout", "oserror"],
+)
+def test_print_hints_never_fails_the_build(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, run_kwargs: dict
+) -> None:
+    """No hints is fine; the hint step must not raise or add warnings."""
+    with caplog.at_level("WARNING"), _hint_env(tmp_path, **run_kwargs):
+        toolchain._print_hints(tmp_path / "log")
+    assert caplog.records == []
+
+
+def test_get_cmake_cache_value_reads_the_configured_cache(setup_core: Path) -> None:
+    _setup_build(setup_core)
+    output = "CMAKE_OBJDUMP:FILEPATH=/tools/objdump\nESPHOME_PCH:BOOL=OFF\n"
+    with patch.object(toolchain, "_get_cmake_output", return_value=output):
+        assert toolchain.get_cmake_cache_value("ESPHOME_PCH") == "OFF"
+        assert toolchain.get_cmake_cache_value("ESPHOME_MISSING") is None
+
+
+def test_skip_bootloader_requires_flag_and_matching_macro(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The switch is explicit, and an IDF macro change wins over it."""
+    from esphome.build_gen import espidf as build_gen
+
+    assert toolchain._skip_bootloader() is False
+    CORE.skip_bootloader = True
+    toolchain._cache().skip_bootloader = None  # decision is memoized per run
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(build_gen, "idf_macro_matches", return_value=True),
+    ):
+        assert toolchain._skip_bootloader() is True
+    toolchain._cache().skip_bootloader = None
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(build_gen, "idf_macro_matches", return_value=False) as mock_match,
+        caplog.at_level("WARNING"),
+    ):
+        assert toolchain._skip_bootloader() is False
+        assert toolchain._skip_bootloader() is False
+    mock_match.assert_called_once()  # the memo also dedupes the warning
+    assert "--skip-bootloader ignored" in caplog.text
+
+
+def test_configure_defines_follow_skip_bootloader(setup_core: Path) -> None:
+    with (
+        patch.object(toolchain, "_get_idf_tool", return_value="/tools/python"),
+        patch.object(toolchain, "_cache_entries", return_value={}),
+    ):
+        with patch.object(toolchain, "_skip_bootloader", return_value=True):
+            assert (
+                toolchain._configure_defines()[toolchain.SKIP_BOOTLOADER_DEFINE] == "1"
+            )
+        with patch.object(toolchain, "_skip_bootloader", return_value=False):
+            assert (
+                toolchain._configure_defines()[toolchain.SKIP_BOOTLOADER_DEFINE] == "0"
+            )
+
+
+def test_tree_skips_bootloader_reads_the_define(tmp_path: Path) -> None:
+    build = tmp_path / "build"
+    build.mkdir()
+    assert toolchain.tree_skips_bootloader(build) is False  # not configured
+    cache = build / "CMakeCache.txt"
+    cache.write_text(f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n")
+    assert toolchain.tree_skips_bootloader(build) is True
+    cache.write_text(f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n")
+    assert toolchain.tree_skips_bootloader(build) is False
+
+
+def test_tree_skips_bootloader_unreadable_cache_reads_full(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unreadable trees fall back to the safe full build, with a trace."""
+    build = tmp_path / "build"
+    (build / "CMakeCache.txt").mkdir(parents=True)  # read raises OSError
+    with caplog.at_level("DEBUG"):
+        assert toolchain.tree_skips_bootloader(build) is False
+    assert "assuming a full build" in caplog.text
+
+
+def test_create_factory_bin_merges_the_listed_flash_files(
+    setup_core: Path,
+) -> None:
+    """Every listed file lands in the esptool merge argv, address sorted."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    (build / "app.bin").write_bytes(b"app")
+    (build / "boot.bin").write_bytes(b"boot")
+    (build / "flasher_args.json").write_text(
+        '{"flash_files": {"0x10000": "app.bin", "0x0": "boot.bin"},'
+        ' "extra_esptool_args": {"chip": "esp32"}}'
+    )
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain, "_get_idf_tool", return_value="/py"),
+        patch.object(
+            toolchain.subprocess, "run", return_value=MagicMock(returncode=0)
+        ) as mock_run,
+    ):
+        assert toolchain.create_factory_bin() is True
+    argv = mock_run.call_args.args[0]
+    boot = argv.index("0x0")
+    assert argv[boot + 1].endswith("boot.bin")
+    assert argv[boot + 2] == "0x10000"
+
+
+def test_create_factory_bin_fails_on_a_missing_listed_flash_file(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A partial factory image would not boot; never write one."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = "4MB"
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    (build / "flasher_args.json").write_text('{"flash_files": {"0x0": "missing.bin"}}')
+    stale = toolchain.get_factory_firmware_path()
+    stale.write_bytes(b"old")
+    with patch.object(toolchain.subprocess, "run") as mock_run:
+        assert toolchain.create_factory_bin() is False
+    mock_run.assert_not_called()
+    assert "Flash file not found" in caplog.text
+    # The image from an earlier build must not be served as this one.
+    assert not stale.exists()
+
+
+def test_create_factory_bin_skip_mode_creates_nothing(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The flip into skip mode already cleaned up; the merge just no-ops."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    with (
+        patch.object(toolchain.subprocess, "run") as mock_run,
+        caplog.at_level("INFO"),
+    ):
+        assert toolchain.create_factory_bin() is True
+    mock_run.assert_not_called()
+    assert "no factory image" in caplog.text
+
+
+def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None:
+    """Full-mode leftovers are stale for OTA --bootloader and downloads, and
+    a partial cleanup would poison the flip back to full mode."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    (build / "bootloader").mkdir(parents=True)
+    (build / "bootloader" / "bootloader.bin").write_bytes(b"old")
+    # bootloader-prefix deliberately absent: cleanup skips what is not there.
+    stale = toolchain.get_factory_firmware_path()
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_bytes(b"old")
+    with (
+        patch.object(toolchain, "_skip_bootloader", return_value=True),
+        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_tool_env", return_value={}),
+        patch.object(toolchain, "run_build_tool", return_value=0),
+        patch.object(toolchain, "_idf_py") as mock_idf_py,
+    ):
+        mock_idf_py.return_value.binary_dir_arg = False
+        assert toolchain.run_reconfigure() == 0
+    assert not (build / "bootloader").exists()
+    assert not stale.exists()
+
+
+def test_run_reconfigure_skip_steady_state_cleans_nothing(setup_core: Path) -> None:
+    """Cleanup belongs to the flip; a reconfigure of a skip tree touches nothing."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    marker = build / "bootloader"
+    marker.mkdir()
+    with (
+        patch.object(toolchain, "_skip_bootloader", return_value=True),
+        patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_tool_env", return_value={}),
+        patch.object(toolchain, "run_build_tool", return_value=0),
+        patch.object(toolchain, "_idf_py") as mock_idf_py,
+    ):
+        mock_idf_py.return_value.binary_dir_arg = False
+        assert toolchain.run_reconfigure() == 0
+    assert marker.exists()
+
+
+def test_create_factory_bin_full_mode_needs_flasher_args(setup_core: Path) -> None:
+    """Past the skip gate, a full tree without flasher_args fails as before."""
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=0\n"
+    )
+    assert toolchain.create_factory_bin() is False
+
+
+def test_missing_image_hint_names_the_flag(setup_core: Path) -> None:
+    _setup_build(setup_core)
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    assert toolchain.missing_image_hint() is None  # stock tree
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    assert "--skip-bootloader" in toolchain.missing_image_hint()

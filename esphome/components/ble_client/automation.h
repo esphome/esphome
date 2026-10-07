@@ -22,8 +22,25 @@ class Automation {
   static const char *const TAG;
 };
 
+// Base for nodes that never read the parent's services.
+// The parent releases its services only once every node reports Established, so a node that never
+// reports it keeps that memory allocated for the life of the connection.
+class BLEClientServicelessNode : public BLEClientNode {
+ public:
+  // Final so that Established is always reported on SEARCH_CMPL, before the derived node sees the event.
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) final {
+    if (event == ESP_GATTC_SEARCH_CMPL_EVT)
+      this->node_state = espbt::ClientState::ESTABLISHED;
+    this->on_gattc_event(event, gattc_if, param);
+  }
+
+ protected:
+  // Derived nodes handle GATT events here rather than by overriding the handler above.
+  virtual void on_gattc_event(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {}
+};
+
 // implement on_connect automation.
-class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
+class BLEClientConnectTrigger final : public Trigger<>, public BLEClientNode {
  public:
   explicit BLEClientConnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -37,7 +54,7 @@ class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
 };
 
 // on_disconnect automation
-class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
+class BLEClientDisconnectTrigger final : public Trigger<>, public BLEClientNode {
  public:
   explicit BLEClientDisconnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -61,7 +78,7 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
   }
 };
 
-class BLEClientPasskeyRequestTrigger : public Trigger<>, public BLEClientNode {
+class BLEClientPasskeyRequestTrigger final : public Trigger<>, public BLEClientServicelessNode {
  public:
   explicit BLEClientPasskeyRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -71,7 +88,7 @@ class BLEClientPasskeyRequestTrigger : public Trigger<>, public BLEClientNode {
   }
 };
 
-class BLEClientPasskeyNotificationTrigger : public Trigger<uint32_t>, public BLEClientNode {
+class BLEClientPasskeyNotificationTrigger final : public Trigger<uint32_t>, public BLEClientServicelessNode {
  public:
   explicit BLEClientPasskeyNotificationTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -82,7 +99,7 @@ class BLEClientPasskeyNotificationTrigger : public Trigger<uint32_t>, public BLE
   }
 };
 
-class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, public BLEClientNode {
+class BLEClientNumericComparisonRequestTrigger final : public Trigger<uint32_t>, public BLEClientServicelessNode {
  public:
   explicit BLEClientNumericComparisonRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -94,7 +111,7 @@ class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, publi
 };
 
 // implement the ble_client.ble_write action.
-template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>, public BLEClientNode {
  public:
   BLEClientWriteAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
@@ -231,7 +248,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   esp_gatt_write_type_t write_type_{};
 };
 
-template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...> {
+template<typename... Ts> class BLEClientPasskeyReplyAction final : public Action<Ts...> {
  public:
   BLEClientPasskeyReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
@@ -268,7 +285,7 @@ template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...
   } value_{.simple = 0};
 };
 
-template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Action<Ts...> {
+template<typename... Ts> class BLEClientNumericComparisonReplyAction final : public Action<Ts...> {
  public:
   BLEClientNumericComparisonReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
@@ -301,7 +318,7 @@ template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Ac
   } value_{.simple = false};
 };
 
-template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> {
+template<typename... Ts> class BLEClientRemoveBondAction final : public Action<Ts...> {
  public:
   BLEClientRemoveBondAction(BLEClient *ble_client) { parent_ = ble_client; }
 
@@ -315,19 +332,17 @@ template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> 
   BLEClient *parent_{nullptr};
 };
 
-template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientConnectAction final : public Action<Ts...>, public BLEClientServicelessNode {
  public:
   BLEClientConnectAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
     ble_client_ = ble_client;
   }
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override {
+  void on_gattc_event(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override {
     if (this->num_running_ == 0)
       return;
     switch (event) {
       case ESP_GATTC_SEARCH_CMPL_EVT:
-        this->node_state = espbt::ClientState::ESTABLISHED;
         this->parent()->run_later([this]() { this->play_next_tuple_(this->var_); });
         break;
       // if the connection is closed, terminate the automation chain.
@@ -364,14 +379,13 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
   std::tuple<Ts...> var_{};
 };
 
-template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientDisconnectAction final : public Action<Ts...>, public BLEClientServicelessNode {
  public:
   BLEClientDisconnectAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
     ble_client_ = ble_client;
   }
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override {
+  void on_gattc_event(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override {
     if (this->num_running_ == 0)
       return;
     switch (event) {

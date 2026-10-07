@@ -2,13 +2,10 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include <array>
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace exposure_notifications {
+namespace esphome::exposure_notifications {
 
 struct ExposureNotification {
   std::array<uint8_t, 6> address;
@@ -17,13 +14,10 @@ struct ExposureNotification {
   std::array<uint8_t, 4> associated_encrypted_metadata;
 };
 
-class ExposureNotificationTrigger : public Trigger<ExposureNotification>,
-                                    public esp32_ble_tracker::ESPBTDeviceListener {
+class ExposureNotificationTrigger final : public Trigger<ExposureNotification>,
+                                          public ble_device_base::ESPBTDeviceListener {
  public:
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 };
 
-}  // namespace exposure_notifications
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::exposure_notifications

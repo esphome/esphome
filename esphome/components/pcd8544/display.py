@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 
@@ -27,7 +28,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,  # CE
-            cv.Optional(CONF_CONTRAST, default=0x7F): cv.int_,
+            cv.Optional(CONF_CONTRAST, default=0x7F): cv.int_range(min=0, max=127),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -40,11 +41,11 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

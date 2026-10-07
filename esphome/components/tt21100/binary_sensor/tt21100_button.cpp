@@ -1,8 +1,7 @@
 #include "tt21100_button.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tt21100 {
+namespace esphome::tt21100 {
 
 static const char *const TAG = "tt21100.binary_sensor";
 
@@ -23,5 +22,4 @@ void TT21100Button::update_button(uint8_t index, uint16_t state) {
   this->publish_state(state > 0);
 }
 
-}  // namespace tt21100
-}  // namespace esphome
+}  // namespace esphome::tt21100

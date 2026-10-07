@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ads1118 {
+namespace esphome::ads1118 {
 
 static const char *const TAG = "ads1118.sensor";
 
@@ -27,5 +26,4 @@ void ADS1118Sensor::update() {
   }
 }
 
-}  // namespace ads1118
-}  // namespace esphome
+}  // namespace esphome::ads1118

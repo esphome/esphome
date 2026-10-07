@@ -1,0 +1,47 @@
+esphome:
+  name: varint-5byte-test
+  # Define areas and devices - device_ids will be FNV hashes > 2^28,
+  # requiring 5-byte varint encoding that exercises the 32-bit parse boundary.
+  areas:
+    - id: test_area
+      name: Test Area
+  devices:
+    - id: sub_device_one
+      name: Sub Device One
+      area_id: test_area
+    - id: sub_device_two
+      name: Sub Device Two
+      area_id: test_area
+
+host:
+api:
+logger:
+
+# Switches on sub-devices so we can send commands with large device_id varints
+switch:
+  - platform: template
+    name: Device Switch
+    device_id: sub_device_one
+    id: device_switch_one
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Switch one on"
+    turn_off_action:
+      - logger.log: "Switch one off"
+
+  - platform: template
+    name: Device Switch
+    device_id: sub_device_two
+    id: device_switch_two
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Switch two on"
+    turn_off_action:
+      - logger.log: "Switch two off"
+
+sensor:
+  - platform: template
+    name: Device Sensor
+    device_id: sub_device_one
+    lambda: return 42.0;
+    update_interval: 0.1s

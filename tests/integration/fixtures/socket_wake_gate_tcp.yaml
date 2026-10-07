@@ -1,0 +1,27 @@
+esphome:
+  name: socket-wake-gate-tcp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // Raise loop_interval_ to 2000ms. Without wake_request_set() being
+          // called when select() returns due to socket data, the component
+          // phase would be gated for up to 2000ms after a TCP request arrives.
+          App.set_loop_interval(2000);
+      # Let boot transients and API handshake settle.
+      - delay: 500ms
+      - lambda: |-
+          ESP_LOGI("test", "BOOT_DONE");
+
+host:
+
+api:
+  actions:
+    - action: ping
+      then:
+        - logger.log:
+            format: "PONG"
+            level: INFO
+
+logger:
+  level: INFO

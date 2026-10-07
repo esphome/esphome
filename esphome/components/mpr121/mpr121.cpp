@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 static const char *const TAG = "mpr121";
 
@@ -154,8 +153,7 @@ void MPR121GPIOPin::digital_write(bool value) {
 }
 
 size_t MPR121GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "ELE%u on MPR121", this->pin_);
+  return buf_append_printf(buffer, len, 0, "ELE%u on MPR121", this->pin_);
 }
 
-}  // namespace mpr121
-}  // namespace esphome
+}  // namespace esphome::mpr121

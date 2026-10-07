@@ -9,8 +9,7 @@
 #include "esphome/core/application.h"
 #include <cstring>
 
-namespace esphome {
-namespace gcja5 {
+namespace esphome::gcja5 {
 
 static const char *const TAG = "gcja5";
 
@@ -97,15 +96,14 @@ void GCJA5Component::parse_data_() {
 
     ESP_LOGI(TAG,
              "GCJA5 Status\n"
-             "Overall Status : %i\n"
-             "PD Status      : %i\n"
-             "LD Status      : %i\n"
-             "Fan Status     : %i",
+             "  Overall Status : %i\n"
+             "  PD Status      : %i\n"
+             "  LD Status      : %i\n"
+             "  Fan Status     : %i",
              (status >> 6) & 0x03, (status >> 4) & 0x03, (status >> 2) & 0x03, (status >> 0) & 0x03);
   }
 }
 
 void GCJA5Component::dump_config() { ; }
 
-}  // namespace gcja5
-}  // namespace esphome
+}  // namespace esphome::gcja5

@@ -20,8 +20,10 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
-CODEOWNERS = ["@ncareau", "@jeromelaban", "@kpfleming"]
+CODEOWNERS = ["@ncareau", "@jeromelaban"]
 
 DEPENDENCIES = ["ble_client"]
 
@@ -78,25 +80,16 @@ BASE_SCHEMA = (
 )
 
 
-async def wave_base_to_code(var, config):
+async def wave_base_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     await ble_client.register_ble_node(var, config)
 
-    if config_humidity := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(config_humidity)
-        cg.add(var.set_humidity(sens))
-    if config_temperature := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(config_temperature)
-        cg.add(var.set_temperature(sens))
-    if config_pressure := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(config_pressure)
-        cg.add(var.set_pressure(sens))
-    if config_tvoc := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(config_tvoc)
-        cg.add(var.set_tvoc(sens))
-    if config_battery_voltage := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(config_battery_voltage)
-        cg.add(var.set_battery_voltage(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_HUMIDITY, var.set_humidity)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_PRESSURE, var.set_pressure)
+    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
     if config_battery_update_interval := config.get(CONF_BATTERY_UPDATE_INTERVAL):
         cg.add(var.set_battery_update_interval(config_battery_update_interval))

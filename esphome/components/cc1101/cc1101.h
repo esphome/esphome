@@ -9,17 +9,23 @@
 
 namespace esphome::cc1101 {
 
-enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW };
+enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW, PLL_LOCK };
 
-class CC1101Component : public Component,
-                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+class CC1101Listener {
+ public:
+  virtual void on_packet(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) = 0;
+};
+
+class CC1101Component final : public Component,
+                              public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                    spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   CC1101Component();
 
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void configure();
 
   // Actions
   void begin_tx();
@@ -65,6 +71,17 @@ class CC1101Component : public Component,
   void set_wait_time(WaitTime value);
   void set_hyst_level(HystLevel value);
 
+  // Frequency offset compensation and bit synchronization settings
+  void set_foc_bs_cs_gate(bool value);
+  void set_foc_limit(FocLimit value);
+  void set_foc_pre_k(FocPreK value);
+  void set_foc_post_k(FocPostK value);
+  void set_bs_limit(BsLimit value);
+  void set_bs_pre_ki(BsPreKi value);
+  void set_bs_pre_kp(BsPreKp value);
+  void set_bs_post_ki(BsPostKi value);
+  void set_bs_post_kp(BsPostKp value);
+
   // Packet mode settings
   void set_packet_mode(bool value);
   void set_packet_length(uint8_t value);
@@ -72,8 +89,12 @@ class CC1101Component : public Component,
   void set_whitening(bool value);
 
   // Packet mode operations
-  CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
-  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
+  CC1101Error transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
+  CC1101Error transmit_packet(const uint8_t *data, size_t len);
+  void register_listener(CC1101Listener *listener) { this->listeners_.push_back(listener); }
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
   uint16_t chip_id_{0};
@@ -87,11 +108,13 @@ class CC1101Component : public Component,
 
   // GDO pin for packet reception
   InternalGPIOPin *gdo0_pin_{nullptr};
+  static void IRAM_ATTR gpio_intr(CC1101Component *arg);
 
   // Packet handling
-  Trigger<std::vector<uint8_t>, float, float, uint8_t> *packet_trigger_{
-      new Trigger<std::vector<uint8_t>, float, float, uint8_t>()};
+  void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
+  std::vector<CC1101Listener *> listeners_;
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);
@@ -103,52 +126,19 @@ class CC1101Component : public Component,
 
   // State Management
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
+  bool enter_calibrated_(State target_state, Command cmd);
   void enter_idle_();
+  bool enter_rx_();
+  bool enter_tx_();
 };
 
 // Action Wrappers
-template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_tx(); }
-};
-
-template<typename... Ts> class BeginRxAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_rx(); }
-};
-
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_idle(); }
-};
-
-template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }
-  void set_data_static(const uint8_t *data, size_t len) {
-    this->data_static_ = data;
-    this->data_static_len_ = len;
-  }
+template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<CC1101Component> {
+  TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-    if (this->data_func_) {
-      auto data = this->data_func_(x...);
-      this->parent_->transmit_packet(data);
-    } else if (this->data_static_ != nullptr) {
-      std::vector<uint8_t> data(this->data_static_, this->data_static_ + this->data_static_len_);
-      this->parent_->transmit_packet(data);
-    }
+    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->transmit_packet(data, len); }, x...);
   }
-
- protected:
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  const uint8_t *data_static_{nullptr};
-  size_t data_static_len_{0};
 };
 
 }  // namespace esphome::cc1101

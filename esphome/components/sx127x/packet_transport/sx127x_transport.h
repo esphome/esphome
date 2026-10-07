@@ -5,10 +5,9 @@
 #include "esphome/components/packet_transport/packet_transport.h"
 #include <vector>
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
-class SX127xTransport : public packet_transport::PacketTransport, public Parented<SX127x>, public SX127xListener {
+class SX127xTransport final : public packet_transport::PacketTransport, public Parented<SX127x>, public SX127xListener {
  public:
   void setup() override;
   void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) override;
@@ -20,5 +19,4 @@ class SX127xTransport : public packet_transport::PacketTransport, public Parente
   size_t get_max_packet_size() override { return this->parent_->get_max_packet_size(); }
 };
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

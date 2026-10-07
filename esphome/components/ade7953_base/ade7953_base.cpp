@@ -3,10 +3,12 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ade7953_base {
+namespace esphome::ade7953_base {
 
 static const char *const TAG = "ade7953";
+
+constexpr uint16_t CONFIG_DEFAULT = 0x8004u;
+constexpr uint16_t CONFIG_LOCK_BIT = 0x8000u;
 
 static const float ADE_POWER_FACTOR = 154.0f;
 static const float ADE_WATTSEC_POWER_FACTOR = ADE_POWER_FACTOR * ADE_POWER_FACTOR / 3600;
@@ -18,7 +20,12 @@ void ADE7953::setup() {
 
   // The chip might take up to 100ms to initialise
   this->set_timeout(100, [this]() {
-    // this->ade_write_8(0x0010, 0x04);
+    // Lock communication interface (SPI or I2C)
+    uint16_t config_v = CONFIG_DEFAULT;
+    this->ade_read_16(CONFIG_16, &config_v);
+    config_v &= static_cast<uint16_t>(~CONFIG_LOCK_BIT);  // Clear the lock bit
+    this->ade_write_16(CONFIG_16, config_v);
+    // Configure optimum settings according to datasheet
     this->ade_write_8(0x00FE, 0xAD);
     this->ade_write_16(0x0120, 0x0030);
     // Set gains
@@ -152,5 +159,4 @@ void ADE7953::update() {
   ADE_PUBLISH(frequency, 223750.0f, 1 + val_16);
 }
 
-}  // namespace ade7953_base
-}  // namespace esphome
+}  // namespace esphome::ade7953_base

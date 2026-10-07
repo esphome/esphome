@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace tsl2591 {
+namespace esphome::tsl2591 {
 
 /** Enum listing all conversion/integration time settings for the TSL2591.
  *
@@ -64,7 +63,7 @@ enum TSL2591SensorChannel {
 /// light. They are reported as separate sensors, and the difference
 /// between the values is reported as a third sensor as a convenience
 /// for visible light only.
-class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
+class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /** Set device integration time and gain.
    *
@@ -112,13 +111,13 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * @param enable Enable or disable power save mode.
    */
-  void set_power_save_mode(bool enable);
+  void set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
 
   /** Sets the name for this instance of the device.
    *
    * @param name The user-friendly name.
    */
-  void set_name(const char *name);
+  void set_name(const char *name) { this->name_ = name; }
 
   /** Sets the device and glass attenuation factors.
    *
@@ -236,21 +235,19 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   /** Used by ESPHome framework. */
   void set_infrared_sensor(sensor::Sensor *infrared_sensor);
   /** Used by ESPHome framework. */
-  void set_visible_sensor(sensor::Sensor *visible_sensor);
+  void set_visible_sensor(sensor::Sensor *visible_sensor) { this->visible_sensor_ = visible_sensor; }
   /** Used by ESPHome framework. */
   void set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor);
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
   void set_integration_time(TSL2591IntegrationTime integration_time);
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
-  void set_gain(TSL2591ComponentGain gain);
+  void set_gain(TSL2591ComponentGain gain) { this->component_gain_ = gain; }
   /** Used by ESPHome framework. */
   void setup() override;
   /** Used by ESPHome framework. */
   void dump_config() override;
   /** Used by ESPHome framework. */
   void update() override;
-  /** Used by ESPHome framework. */
-  float get_setup_priority() const override;
 
  protected:
   const char *name_;
@@ -272,5 +269,4 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   void interval_function_for_update_();
 };
 
-}  // namespace tsl2591
-}  // namespace esphome
+}  // namespace esphome::tsl2591

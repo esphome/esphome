@@ -1,0 +1,5 @@
+substitutions:
+  wifi_password: sub_password
+wifi:
+  ssid: main_ssid
+  password: sub_password

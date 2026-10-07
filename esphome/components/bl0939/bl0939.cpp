@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bl0939 {
+namespace esphome::bl0939 {
 
 static const char *const TAG = "bl0939";
 
@@ -142,5 +141,4 @@ uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 
 
 int32_t BL0939::to_int32_t(sbe24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 
-}  // namespace bl0939
-}  // namespace esphome
+}  // namespace esphome::bl0939

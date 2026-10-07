@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <ranges>
 
-namespace esphome {
-namespace sn74hc595 {
+namespace esphome::sn74hc595 {
 
 static const char *const TAG = "sn74hc595";
 
@@ -94,8 +93,7 @@ void SN74HC595GPIOPin::digital_write(bool value) {
   this->parent_->digital_write_(this->pin_, value != this->inverted_);
 }
 size_t SN74HC595GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via SN74HC595", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via SN74HC595", this->pin_);
 }
 
-}  // namespace sn74hc595
-}  // namespace esphome
+}  // namespace esphome::sn74hc595

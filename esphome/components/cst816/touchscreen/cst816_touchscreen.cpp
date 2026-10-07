@@ -1,8 +1,7 @@
 #include "cst816_touchscreen.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace cst816 {
+namespace esphome::cst816 {
 
 void CST816Touchscreen::continue_setup_() {
   if (this->interrupt_pin_ != nullptr) {
@@ -121,5 +120,4 @@ void CST816Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "  Chip type: %s", name);
 }
 
-}  // namespace cst816
-}  // namespace esphome
+}  // namespace esphome::cst816

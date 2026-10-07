@@ -1,0 +1,16 @@
+substitutions:
+  x: 7
+test_list:
+  - content:
+      before: Content before
+      <<: !include
+        file: inc3.yaml
+        vars:
+          y: 8
+        condition: true
+      <<: !include
+        file: inc3.yaml
+        vars:
+          y: 10
+        condition: false
+      after: Content after

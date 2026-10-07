@@ -3,8 +3,8 @@
 #include "esphome/core/color.h"
 #include "nextion_base.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 class NextionComponent;
 
 class NextionComponent : public NextionComponentBase {
@@ -80,5 +80,4 @@ class NextionComponent : public NextionComponentBase {
     uint16_t reserved : 3;
   } component_flags_;
 };
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

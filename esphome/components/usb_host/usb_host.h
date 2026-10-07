@@ -1,9 +1,11 @@
 #pragma once
 
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <vector>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
@@ -11,9 +13,9 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
+#include <span>
 
-namespace esphome {
-namespace usb_host {
+namespace esphome::usb_host {
 
 // THREADING MODEL:
 // This component uses a dedicated USB task for event processing to prevent data loss.
@@ -44,16 +46,16 @@ struct TransferRequest;
 class USBClient;
 
 // constants for setup packet type
-static const uint8_t USB_RECIP_DEVICE = 0;
-static const uint8_t USB_RECIP_INTERFACE = 1;
-static const uint8_t USB_RECIP_ENDPOINT = 2;
-static const uint8_t USB_TYPE_STANDARD = 0 << 5;
-static const uint8_t USB_TYPE_CLASS = 1 << 5;
-static const uint8_t USB_TYPE_VENDOR = 2 << 5;
-static const uint8_t USB_DIR_MASK = 1 << 7;
-static const uint8_t USB_DIR_IN = 1 << 7;
-static const uint8_t USB_DIR_OUT = 0;
-static const size_t SETUP_PACKET_SIZE = 8;
+static constexpr uint8_t USB_RECIP_DEVICE = 0;
+static constexpr uint8_t USB_RECIP_INTERFACE = 1;
+static constexpr uint8_t USB_RECIP_ENDPOINT = 2;
+static constexpr uint8_t USB_TYPE_STANDARD = 0 << 5;
+static constexpr uint8_t USB_TYPE_CLASS = 1 << 5;
+static constexpr uint8_t USB_TYPE_VENDOR = 2 << 5;
+static constexpr uint8_t USB_DIR_MASK = 1 << 7;
+static constexpr uint8_t USB_DIR_IN = 1 << 7;
+static constexpr uint8_t USB_DIR_OUT = 0;
+static constexpr size_t SETUP_PACKET_SIZE = 8;
 
 static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
@@ -67,18 +69,20 @@ static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be bet
 using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
 static constexpr trq_bitmask_t ALL_REQUESTS_IN_USE = MAX_REQUESTS == 32 ? ~0 : (1 << MAX_REQUESTS) - 1;
 
+static constexpr size_t USB_MAX_PACKET_SIZE =
+    USB_HOST_MAX_PACKET_SIZE;                        // Max USB packet size (64 for FS, 512 for P4 HS)
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
 static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
 
 // used to report a transfer status
 struct TransferStatus {
-  bool success;
-  uint16_t error_code;
   uint8_t *data;
   size_t data_len;
-  uint8_t endpoint;
   void *user_data;
+  uint16_t error_code;
+  uint8_t endpoint;
+  bool success;
 };
 
 using transfer_cb_t = std::function<void(const TransferStatus &)>;
@@ -115,6 +119,25 @@ struct UsbEvent {
 
 // callback function type.
 
+// USB string descriptors hold at most 126 characters; one more for the terminator
+static constexpr size_t DESC_STRING_BUF_SIZE = 128;
+
+/// Identity of a connected USB device, copied out of the descriptors the USB host
+/// stack caches for the lifetime of the connection
+struct UsbDeviceInfo {
+  uint16_t vendor_id;
+  uint16_t product_id;
+  uint16_t bcd_device;
+  char manufacturer[DESC_STRING_BUF_SIZE];
+  char product[DESC_STRING_BUF_SIZE];
+  char serial_number[DESC_STRING_BUF_SIZE];
+};
+
+/// Copy a USB string descriptor into a NUL-terminated buffer. A missing descriptor copies as
+/// an empty string. Returns false when a descriptor contains non-ASCII characters,
+/// UTF-16 to UTF-8 conversion is not currently implemented.
+bool copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
+
 enum ClientState {
   USB_CLIENT_INIT = 0,
   USB_CLIENT_OPEN,
@@ -127,7 +150,7 @@ class USBClient : public Component {
   friend class USBHost;
 
  public:
-  USBClient(uint16_t vid, uint16_t pid) : vid_(vid), pid_(pid), trq_in_use_(0) {}
+  USBClient(uint16_t vid, uint16_t pid) : trq_in_use_(0), vid_(vid), pid_(pid) {}
   void setup() override;
   void loop() override;
   // setup must happen after the host bus has been setup
@@ -141,16 +164,50 @@ class USBClient : public Component {
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
+  void set_manufacturer_filter(const char16_t *manufacturer) { this->manufacturer_filter_ = manufacturer; }
+  void set_product_filter(const char16_t *product) { this->product_filter_ = product; }
+
+  /// Whether a device has been opened and its setup by the subclass has finished
+  bool is_connected() const { return this->connection_reported_; }
+
+  /// Copy the connected device's identity out of the cached USB descriptors.
+  /// Returns false when no device is connected or the host stack refused the query.
+  bool get_device_info(UsbDeviceInfo &info) const;
+
+  /// Register a callback for the device this client claims being connected (true) or
+  /// removed (false). Fires only for a device that was fully opened, so a device another
+  /// client claims is never reported. Called from the main loop: connected once the device
+  /// has been enumerated and the subclass has finished its setup of it (whether or not that
+  /// setup succeeded), removed after on_disconnected() has run. This tracks the device's
+  /// presence, not whether a given channel is usable.
+  template<typename F> void add_on_connection_callback(F &&callback) {
+    this->connection_callback_.add(std::forward<F>(callback));
+  }
 
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
-  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing a pool slot leak.
+  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
  protected:
+  // Process USB events from the queue. Returns true if any work was done.
+  // Subclasses should call this instead of USBClient::loop() to combine
+  // with their own work check for a single disable_loop() decision.
+  bool process_usb_events_();
+  void handle_open_state_();
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
+
+  /// Whether the subclass reports the device as connected itself, once its own setup of
+  /// the device has finished, rather than as soon as the device has been opened
+  virtual bool reports_connection_itself() const { return false; }
+  /// Report the claimed device to the connection callbacks. Idempotent; a subclass that
+  /// reports itself calls this once the device is ready to use.
+  void report_connected_();
   virtual void on_disconnected() {
     // Reset all requests to available (all bits to 0)
     this->trq_in_use_.store(0);
@@ -158,24 +215,29 @@ class USBClient : public Component {
 
   // USB task management
   static void usb_task_fn(void *arg);
-  [[noreturn]] void usb_task_loop() const;
+  [[noreturn]] void usb_task_loop_() const;
 
+  // Members ordered to minimize struct padding on 32-bit platforms
+  TransferRequest requests_[MAX_REQUESTS]{};
   TaskHandle_t usb_task_handle_{nullptr};
-
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};
   int device_addr_{-1};
   int state_{USB_CLIENT_INIT};
-  uint16_t vid_{};
-  uint16_t pid_{};
+  LazyCallbackManager<void(bool)> connection_callback_;
   // Lock-free pool management using atomic bitmask (no dynamic allocation)
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
-  // Bitmask type automatically selected: uint16_t for <= 16 slots, uint32_t for 17-32 slots
   std::atomic<trq_bitmask_t> trq_in_use_;
-  TransferRequest requests_[MAX_REQUESTS]{};
+  const char16_t *manufacturer_filter_{nullptr};
+  const char16_t *product_filter_{nullptr};
+  uint16_t vid_{};
+  uint16_t pid_{};
+  // Whether the connection callbacks were told about the current device, so a removal is
+  // only ever reported for a device that was reported connected
+  bool connection_reported_{false};
 };
-class USBHost : public Component {
+class USBHost final : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
@@ -185,7 +247,7 @@ class USBHost : public Component {
   std::vector<USBClient *> clients_{};
 };
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

@@ -1,17 +1,16 @@
 #include "dooya_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.dooya";
 
-static const uint32_t HEADER_HIGH_US = 5000;
-static const uint32_t HEADER_LOW_US = 1500;
-static const uint32_t BIT_ZERO_HIGH_US = 350;
-static const uint32_t BIT_ZERO_LOW_US = 750;
-static const uint32_t BIT_ONE_HIGH_US = 750;
-static const uint32_t BIT_ONE_LOW_US = 350;
+static constexpr uint32_t HEADER_HIGH_US = 5000;
+static constexpr uint32_t HEADER_LOW_US = 1500;
+static constexpr uint32_t BIT_ZERO_HIGH_US = 350;
+static constexpr uint32_t BIT_ZERO_LOW_US = 750;
+static constexpr uint32_t BIT_ONE_HIGH_US = 750;
+static constexpr uint32_t BIT_ONE_LOW_US = 350;
 
 void DooyaProtocol::encode(RemoteTransmitData *dst, const DooyaData &data) {
   dst->set_carrier_frequency(0);
@@ -116,5 +115,4 @@ void DooyaProtocol::dump(const DooyaData &data) {
            data.button, data.check);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -1,18 +1,17 @@
 #include "nfc_helpers.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.helpers";
 
-bool has_ha_tag_ndef(NfcTag &tag) { return !get_ha_tag_ndef(tag).empty(); }
+bool has_ha_tag_ndef(const NfcTag &tag) { return !get_ha_tag_ndef(tag).empty(); }
 
-std::string get_ha_tag_ndef(NfcTag &tag) {
+std::string get_ha_tag_ndef(const NfcTag &tag) {
   if (!tag.has_ndef_message()) {
     return std::string();
   }
-  auto message = tag.get_ndef_message();
-  auto records = message->get_records();
+  const auto &message = tag.get_ndef_message();
+  const auto &records = message->get_records();
   for (const auto &record : records) {
     std::string payload = record->get_payload();
     size_t pos = payload.find(HA_TAG_ID_PREFIX);
@@ -39,9 +38,8 @@ std::string get_random_ha_tag_ndef() {
   for (int i = 0; i < 12; i++) {
     uri += ALPHANUM[random_uint32() % (sizeof(ALPHANUM) - 1)];
   }
-  ESP_LOGD("pn7160", "Payload to be written: %s", uri.c_str());
+  ESP_LOGD(TAG, "Payload to be written: %s", uri.c_str());
   return uri;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

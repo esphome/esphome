@@ -4,10 +4,9 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-class TuyaSensor : public sensor::Sensor, public Component {
+class TuyaSensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -20,5 +19,4 @@ class TuyaSensor : public sensor::Sensor, public Component {
   uint8_t sensor_id_{0};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

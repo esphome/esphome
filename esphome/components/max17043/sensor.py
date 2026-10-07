@@ -14,6 +14,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -21,9 +22,6 @@ max17043_ns = cg.esphome_ns.namespace("max17043")
 MAX17043Component = max17043_ns.class_(
     "MAX17043Component", cg.PollingComponent, i2c.I2CDevice
 )
-
-# Actions
-SleepAction = max17043_ns.class_("SleepAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -50,18 +48,14 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_remaining_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
 
 
 MAX17043_ACTION_SCHEMA = maybe_simple_id(
@@ -71,7 +65,6 @@ MAX17043_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("max17043.sleep_mode", SleepAction, MAX17043_ACTION_SCHEMA)
-async def max17043_sleep_mode_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+automation.register_apply_action(
+    "max17043.sleep_mode", MAX17043_ACTION_SCHEMA, automation.ApplyCall("sleep_mode()")
+)

@@ -1,13 +1,13 @@
 #include "rc5_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.rc5";
 
-static const uint32_t BIT_TIME_US = 889;
-static const uint8_t NBITS = 14;
+static constexpr uint32_t BIT_TIME_US = 889;
+static constexpr uint8_t NBITS = 14;
+static constexpr uint8_t NHALFBITS = NBITS * 2;
 
 void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
   static bool toggle = false;
@@ -36,55 +36,65 @@ void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
   }
   toggle = !toggle;
 }
+
 optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
-  RC5Data out{
-      .address = 0,
-      .command = 0,
-  };
-  uint8_t field_bit;
-
-  if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
-    field_bit = 1;
-  } else if (src.expect_space(2 * BIT_TIME_US)) {
-    field_bit = 0;
-  } else {
-    return {};
-  }
-
-  if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)) ||
-         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) &&
-        (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-          (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) ||
-         ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-          (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))))) {
-    return {};
-  }
-
-  uint32_t out_data = 0;
-  for (int bit = NBITS - 4; bit >= 1; bit--) {
-    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-        (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
-      out_data |= 0 << bit;
-    } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-               (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
-      out_data |= 1 << bit;
+  // Expand the runs into half-bit levels (true = mark). Each run is exactly one
+  // half-bit (BIT_TIME_US) or two (2 * BIT_TIME_US); stop at anything else.
+  //
+  // halfbits[0] is reserved for the leading half-bit, which is always dropped --
+  // S1 is 1, so its first half sits at the idle level (at either polarity) and
+  // merges into the pre-frame idle. Captured half-bits start at index 1.
+  bool halfbits[NHALFBITS + 2];
+  uint8_t n = 1;
+  for (uint32_t i = 0; n <= NHALFBITS && src.is_valid(i); i++) {
+    if (src.peek_mark(BIT_TIME_US, i)) {
+      halfbits[n++] = true;
+    } else if (src.peek_space(BIT_TIME_US, i)) {
+      halfbits[n++] = false;
+    } else if (src.peek_mark(2 * BIT_TIME_US, i)) {
+      halfbits[n++] = true;
+      halfbits[n++] = true;
+    } else if (src.peek_space(2 * BIT_TIME_US, i)) {
+      halfbits[n++] = false;
+      halfbits[n++] = false;
     } else {
-      return {};
+      break;
     }
   }
-  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
-    out_data |= 0;
-  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
-    out_data |= 1;
+
+  // Expect a full frame once the leading half is restored: 27 captured halves
+  // (n == 28) or 26 when the final bit also ends on idle and its trailing half
+  // is dropped too (n == 27). A dropped edge half is the inverse of its partner
+  // (a Manchester bit always transitions mid-bit), so reconstruct the leading
+  // half (always) and the trailing half (only when it was dropped).
+  if (n != NHALFBITS && n != NHALFBITS - 1) {
+    return {};
+  }
+  halfbits[0] = !halfbits[1];
+  if (n == NHALFBITS - 1) {
+    halfbits[n] = !halfbits[n - 1];
   }
 
-  out.command = (uint8_t) (out_data & 0x3F) + (1 - field_bit) * 64u;
-  out.address = (out_data >> 6) & 0x1F;
-  return out;
+  const bool carrier = halfbits[1];
+  uint16_t bits = 0;
+  for (uint8_t i = 0; i < NBITS; i++) {
+    const bool first = halfbits[2 * i];
+    const bool second = halfbits[2 * i + 1];
+    if (first == second) {
+      return {};  // no midpoint transition -> not a valid Manchester bit
+    }
+    bits = (bits << 1) | (second == carrier ? 1 : 0);
+  }
+
+  const bool field_bit = bits & (1 << 12);  // S2: the inverted 7th command bit
+  return RC5Data{
+      .address = static_cast<uint8_t>((bits >> 6) & 0x1F),
+      .command = static_cast<uint8_t>((bits & 0x3F) | (field_bit ? 0 : 0x40)),
+  };
 }
+
 void RC5Protocol::dump(const RC5Data &data) {
   ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -3,8 +3,7 @@
 #include "remote_base.h"
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct HaierData {
   std::vector<uint8_t> data;
@@ -14,9 +13,9 @@ struct HaierData {
 
 class HaierProtocol : public RemoteProtocol<HaierData> {
  public:
-  void encode(RemoteTransmitData *dst, const HaierData &data) override;
-  optional<HaierData> decode(RemoteReceiveData src) override;
-  void dump(const HaierData &data) override;
+  void encode(RemoteTransmitData *dst, const HaierData &data);
+  optional<HaierData> decode(RemoteReceiveData src);
+  void dump(const HaierData &data);
 
  protected:
   void encode_byte_(RemoteTransmitData *dst, uint8_t item);
@@ -35,5 +34,4 @@ template<typename... Ts> class HaierAction : public RemoteTransmitterActionBase<
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

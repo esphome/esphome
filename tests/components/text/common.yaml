@@ -23,3 +23,19 @@ text:
     min_length: 8
     max_length: 32
     mode: password
+
+text_sensor:
+  - platform: text
+    name: "Test Text State"
+    source_id: test_text
+
+button:
+  - platform: template
+    name: Set Text
+    on_press:
+      - text.set:
+          id: test_text
+          value: Hello
+      - text.set:
+          id: test_text
+          value: !lambda return id(test_text).state + "!";

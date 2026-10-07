@@ -1,13 +1,12 @@
 #pragma once
 
-#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 
 #include <Wire.h>
 #include "esphome/core/component.h"
 #include "i2c_bus.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 enum RecoveryCode {
   RECOVERY_FAILED_SCL_LOW,
@@ -15,7 +14,7 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class ArduinoI2CBus : public InternalI2CBus, public Component {
+class ArduinoI2CBus final : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -45,7 +44,6 @@ class ArduinoI2CBus : public InternalI2CBus, public Component {
   bool initialized_ = false;
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
 #endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)

@@ -2,8 +2,7 @@
 #include "esphome/components/remote_base/coolix_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace coolix {
+namespace esphome::coolix {
 
 static const char *const TAG = "coolix.climate";
 
@@ -83,7 +82,7 @@ void CoolixClimate::transmit_state() {
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
         remote_state |= COOLIX_FAN_MODE_AUTO_DRY;
       } else {
-        switch (this->fan_mode.value()) {
+        switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
           case climate::CLIMATE_FAN_HIGH:
             remote_state |= COOLIX_FAN_MAX;
             break;
@@ -159,5 +158,4 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
   return true;
 }
 
-}  // namespace coolix
-}  // namespace esphome
+}  // namespace esphome::coolix

@@ -1,5 +1,9 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
+#include <string>
 #include <vector>
 
 #include "esphome/core/defines.h"
@@ -11,14 +15,118 @@
 
 #include <ArduinoJson.h>
 
-namespace esphome {
-namespace json {
+namespace esphome::json {
+
+/// Buffer for JSON serialization that uses stack allocation for small payloads.
+/// Template parameter STACK_SIZE specifies the stack buffer size (default 512 bytes).
+/// Supports move semantics for efficient return-by-value.
+template<size_t STACK_SIZE = 640> class SerializationBuffer {
+ public:
+  static constexpr size_t BUFFER_SIZE = STACK_SIZE;  ///< Stack buffer size for this instantiation
+
+  /// Construct with known size (typically from measureJson)
+  explicit SerializationBuffer(size_t size) : size_(size) {
+    if (size + 1 <= STACK_SIZE) {
+      buffer_ = stack_buffer_;
+    } else {
+      heap_buffer_ = new char[size + 1];
+      buffer_ = heap_buffer_;
+    }
+    buffer_[0] = '\0';
+  }
+
+  ~SerializationBuffer() { delete[] heap_buffer_; }
+
+  // Move constructor - works with same template instantiation
+  SerializationBuffer(SerializationBuffer &&other) noexcept : heap_buffer_(other.heap_buffer_), size_(other.size_) {
+    if (other.buffer_ == other.stack_buffer_) {
+      // Stack buffer - must copy content
+      std::memcpy(stack_buffer_, other.stack_buffer_, size_ + 1);
+      buffer_ = stack_buffer_;
+    } else {
+      // Heap buffer - steal ownership
+      buffer_ = heap_buffer_;
+      other.heap_buffer_ = nullptr;
+    }
+    // Leave moved-from object in valid empty state
+    other.stack_buffer_[0] = '\0';
+    other.buffer_ = other.stack_buffer_;
+    other.size_ = 0;
+  }
+
+  // Move assignment
+  SerializationBuffer &operator=(SerializationBuffer &&other) noexcept {
+    if (this != &other) {
+      delete[] heap_buffer_;
+      heap_buffer_ = other.heap_buffer_;
+      size_ = other.size_;
+      if (other.buffer_ == other.stack_buffer_) {
+        std::memcpy(stack_buffer_, other.stack_buffer_, size_ + 1);
+        buffer_ = stack_buffer_;
+      } else {
+        buffer_ = heap_buffer_;
+        other.heap_buffer_ = nullptr;
+      }
+      // Leave moved-from object in valid empty state
+      other.stack_buffer_[0] = '\0';
+      other.buffer_ = other.stack_buffer_;
+      other.size_ = 0;
+    }
+    return *this;
+  }
+
+  // Delete copy operations
+  SerializationBuffer(const SerializationBuffer &) = delete;
+  SerializationBuffer &operator=(const SerializationBuffer &) = delete;
+
+  /// Get null-terminated C string
+  const char *c_str() const { return buffer_; }
+  /// Get data pointer
+  const char *data() const { return buffer_; }
+  /// Get string length (excluding null terminator)
+  size_t size() const { return size_; }
+
+  /// Implicit conversion to std::string for backward compatibility
+  /// WARNING: This allocates a new std::string on the heap. Prefer using
+  /// c_str() or data()/size() directly when possible to avoid allocation.
+  operator std::string() const { return std::string(buffer_, size_); }  // NOLINT(google-explicit-constructor)
+
+ private:
+  friend class JsonBuilder;  ///< Allows JsonBuilder::serialize() to call private methods
+
+  /// Get writable buffer (for serialization)
+  char *data_writable_() { return buffer_; }
+  /// Set actual size after serialization (must not exceed allocated size)
+  /// Also ensures null termination for c_str() safety
+  void set_size_(size_t size) {
+    size_ = size;
+    buffer_[size] = '\0';
+  }
+
+  /// Reallocate to heap buffer with new size (for when stack buffer is too small)
+  /// This invalidates any previous buffer content. Used by JsonBuilder::serialize().
+  void reallocate_heap_(size_t size) {
+    delete[] heap_buffer_;
+    heap_buffer_ = new char[size + 1];
+    buffer_ = heap_buffer_;
+    size_ = size;
+    buffer_[0] = '\0';
+  }
+
+  char stack_buffer_[STACK_SIZE];
+  char *heap_buffer_{nullptr};
+  char *buffer_;
+  size_t size_;
+};
 
 #ifdef USE_PSRAM
 // Build an allocator for the JSON Library using the RAMAllocator class
 // This is only compiled when PSRAM is enabled
 struct SpiRamAllocator : ArduinoJson::Allocator {
-  void *allocate(size_t size) override { return allocator_.allocate(size); }
+  void *allocate(size_t size) override {
+    RAMAllocator<uint8_t> allocator;
+    return allocator.allocate(size);
+  }
 
   void deallocate(void *ptr) override {
     // ArduinoJson's Allocator interface doesn't provide the size parameter in deallocate.
@@ -31,11 +139,9 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
   }
 
   void *reallocate(void *ptr, size_t new_size) override {
-    return allocator_.reallocate(static_cast<uint8_t *>(ptr), new_size);
+    RAMAllocator<uint8_t> allocator;
+    return allocator.reallocate(static_cast<uint8_t *>(ptr), new_size);
   }
-
- protected:
-  RAMAllocator<uint8_t> allocator_{RAMAllocator<uint8_t>::NONE};
 };
 #endif
 
@@ -46,10 +152,13 @@ using json_parse_t = std::function<bool(JsonObject)>;
 using json_build_t = std::function<void(JsonObject)>;
 
 /// Build a JSON string with the provided json build function.
-std::string build_json(const json_build_t &f);
+/// Returns SerializationBuffer for stack-first allocation; implicitly converts to std::string.
+SerializationBuffer<> build_json(const json_build_t &f);
 
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);
+/// Parse JSON from raw bytes and run the provided json parse function if it's valid.
+bool parse_json(const uint8_t *data, size_t len, const json_parse_t &f);
 
 /// Parse a JSON string and return the root JsonDocument (or an unbound object on error)
 JsonDocument parse_json(const uint8_t *data, size_t len);
@@ -58,9 +167,89 @@ inline JsonDocument parse_json(const std::string &data) {
   return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
 }
 
+/// The allocator a JsonBuilder uses by default (PSRAM first when available)
+ArduinoJson::Allocator *heap_json_allocator();
+
+#ifdef USE_JSON_ARENA
+/// Size of one ArduinoJson slot pool, the first allocation every document makes (1 KB on 32 bit targets)
+constexpr size_t JSON_POOL_BYTES = ARDUINOJSON_POOL_CAPACITY * sizeof(ArduinoJson::detail::VariantData);
+/// One pool plus room for copied string nodes; a 40 option select with linked options fits
+constexpr size_t JSON_ARENA_SIZE = JSON_POOL_BYTES + 1152;
+static_assert(sizeof(void *) != 4 || JSON_ARENA_SIZE == 2176, "the arena was sized for a 1 KB pool");
+
+/// Bump allocator over a fixed buffer for a document built and serialized in one scope. What the
+/// buffer cannot hold goes to the heap allocator; nothing is freed until the arena goes away.
+template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
+ public:
+  // Takes what the buffer cannot hold
+  explicit JsonArena(ArduinoJson::Allocator *fallback = heap_json_allocator()) : fallback_(fallback) {}
+  // The document points into buf_
+  JsonArena(const JsonArena &) = delete;
+  JsonArena &operator=(const JsonArena &) = delete;
+
+  void *allocate(size_t size) override {
+    if (size > N) {
+      return this->fallback_->allocate(size);  // also keeps the rounding below from wrapping
+    }
+    size = (size + ALIGN - 1) & ~(ALIGN - 1);
+    if (size > N - this->used_) {
+      return this->fallback_->allocate(size);
+    }
+    this->last_ = this->used_;
+    this->used_ += size;
+    return this->buf_ + this->last_;
+  }
+  void deallocate(void *ptr) override {
+    if (!this->owns_(ptr)) {
+      this->fallback_->deallocate(ptr);
+    }
+  }
+  void *reallocate(void *ptr, size_t new_size) override {
+    if (!this->owns_(ptr)) {
+      return this->fallback_->reallocate(ptr, new_size);
+    }
+    const size_t off = static_cast<uint8_t *>(ptr) - this->buf_;
+    const size_t size = new_size > N ? N + ALIGN : (new_size + ALIGN - 1) & ~(ALIGN - 1);
+    const bool newest = off == this->last_;
+    if (newest && size <= N - off) {
+      this->used_ = off + size;  // the newest block grows or shrinks in place
+      return ptr;
+    }
+    // An older block's size is unknown; copying to the end of the buffer stays in bounds
+    const size_t old_size = newest ? this->used_ - off : N - off;
+    void *moved = this->fallback_->allocate(new_size);
+    if (moved == nullptr) {
+      return nullptr;  // the caller keeps ptr, so its arena space stays reserved
+    }
+    std::memcpy(moved, ptr, std::min(new_size, old_size));
+    if (newest) {
+      this->used_ = off;  // it moved to the heap, so its arena space is free again
+    }
+    return moved;
+  }
+  /// Bytes of the buffer handed out so far
+  size_t used() const { return this->used_; }
+
+ private:
+  static constexpr size_t ALIGN = alignof(std::max_align_t);
+  bool owns_(const void *ptr) const { return ptr >= this->buf_ && ptr < this->buf_ + N; }
+  ArduinoJson::Allocator *fallback_;
+  alignas(ALIGN) uint8_t buf_[N];
+  size_t used_{0};
+  size_t last_{0};
+};
+#endif  // USE_JSON_ARENA
+
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
+  // Out of line: inlining the JsonDocument constructor duplicates it at every call site
+  JsonBuilder();
+#ifdef USE_JSON_ARENA
+  // The builder must not outlive the allocator
+  explicit JsonBuilder(ArduinoJson::Allocator *allocator);
+#endif
+
   JsonObject root() {
     if (!root_created_) {
       root_ = doc_.to<JsonObject>();
@@ -69,18 +258,18 @@ class JsonBuilder {
     return root_;
   }
 
-  std::string serialize();
+  /// Serialize into a caller owned buffer. Returns the length; cap or more means it did not fit
+  /// and buf holds a truncated, unterminated copy. An overflowed document serializes as "{}".
+  size_t serialize_to(char *buf, size_t cap);
+
+  /// Serialize the JSON document to a SerializationBuffer (stack-first allocation)
+  /// Uses 512-byte stack buffer by default, falls back to heap for larger JSON
+  SerializationBuffer<> serialize();
 
  private:
-#ifdef USE_PSRAM
-  SpiRamAllocator allocator_;
-  JsonDocument doc_{&allocator_};
-#else
   JsonDocument doc_;
-#endif
   JsonObject root_;
   bool root_created_{false};
 };
 
-}  // namespace json
-}  // namespace esphome
+}  // namespace esphome::json

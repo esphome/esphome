@@ -5,6 +5,7 @@ Runtime statistics component for ESPHome.
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@bdraco"]
 
@@ -23,7 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     """Generate code for the runtime statistics component."""
     # Define USE_RUNTIME_STATS when this component is used
     cg.add_define("USE_RUNTIME_STATS")

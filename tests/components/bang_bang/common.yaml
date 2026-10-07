@@ -1,6 +1,6 @@
 switch:
   - platform: template
-    id: template_switch1
+    id: bang_bang_template_switch1
     optimistic: true
   - platform: template
     id: template_switch2
@@ -8,7 +8,7 @@ switch:
 
 sensor:
   - platform: template
-    id: template_sensor1
+    id: bang_bang_template_sensor1
     lambda: |-
       if (millis() > 10000) {
         return 42.0;
@@ -20,16 +20,16 @@ sensor:
 climate:
   - platform: bang_bang
     name: Bang Bang Climate
-    sensor: template_sensor1
-    humidity_sensor: template_sensor1
+    sensor: bang_bang_template_sensor1
+    humidity_sensor: bang_bang_template_sensor1
     default_target_temperature_low: 18°C
     default_target_temperature_high: 24°C
     idle_action:
-      - switch.turn_on: template_switch1
+      - switch.turn_on: bang_bang_template_switch1
     cool_action:
       - switch.turn_on: template_switch2
     heat_action:
-      - switch.turn_on: template_switch1
+      - switch.turn_on: bang_bang_template_switch1
     away_config:
       default_target_temperature_low: 16°C
       default_target_temperature_high: 20°C

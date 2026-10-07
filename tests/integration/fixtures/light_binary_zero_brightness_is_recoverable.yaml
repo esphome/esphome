@@ -1,0 +1,21 @@
+esphome:
+  name: light-binary-zero-bright
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: binary_output
+    type: binary
+    write_action:
+      - logger.log:
+          format: "BINARY_OUTPUT:%s"
+          args: [YESNO(state)]
+
+light:
+  - platform: binary
+    name: "Test Binary Light"
+    id: test_binary_light
+    output: binary_output

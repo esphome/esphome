@@ -2,17 +2,17 @@
 #ifdef USE_HOST
 #include <climits>
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
-std::string DebugComponent::get_reset_reason_() { return ""; }
+const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) { return ""; }
+
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) { return ""; }
 
 uint32_t DebugComponent::get_free_heap_() { return INT_MAX; }
 
-void DebugComponent::get_device_info_(std::string &device_info) {}
+size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos) { return pos; }
 
 void DebugComponent::update_platform_() {}
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

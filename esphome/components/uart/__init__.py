@@ -1,11 +1,30 @@
-from dataclasses import dataclass
 from logging import getLogger
 import math
 import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    variant_filtered_enum,
+)
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AFTER,
@@ -27,6 +46,7 @@ from esphome.const import (
     CONF_SEQUENCE,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
+    CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
@@ -42,16 +62,6 @@ CODEOWNERS = ["@esphome/core"]
 DOMAIN = "uart"
 
 
-def AUTO_LOAD() -> list[str]:
-    """Ideally, we would only auto-load socket only when wake_loop_on_rx is requested;
-    however, AUTO_LOAD is examined before wake_loop_on_rx is set, so instead, since ESP32
-    always uses socket select support in the main app, we'll just ensure it's loaded here.
-    """
-    if CORE.is_esp32:
-        return ["socket"]
-    return []
-
-
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
@@ -59,7 +69,7 @@ IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Componen
 ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
-RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Component)
+RP2UartComponent = uart_ns.class_("RP2UartComponent", UARTComponent, cg.Component)
 LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
@@ -69,7 +79,7 @@ HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Compon
 NATIVE_UART_CLASSES = (
     str(IDFUARTComponent),
     str(ESP8266UartComponent),
-    str(RP2040UartComponent),
+    str(RP2UartComponent),
     str(LibreTinyUARTComponent),
 )
 
@@ -112,38 +122,6 @@ UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
-
-
-@dataclass
-class UARTData:
-    """State data for UART component configuration generation."""
-
-    wake_loop_on_rx: bool = False
-
-
-def _get_data() -> UARTData:
-    """Get UART component data from CORE.data."""
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = UARTData()
-    return CORE.data[DOMAIN]
-
-
-def request_wake_loop_on_rx() -> None:
-    """Request that the UART wake the main loop when data is received.
-
-    Components that need low-latency notification of incoming UART data
-    should call this function during their code generation.
-    This enables the RX event task which wakes the main loop when data arrives.
-    """
-    data = _get_data()
-    if not data.wake_loop_on_rx:
-        data.wake_loop_on_rx = True
-
-        # UART RX event task uses wake_loop_threadsafe() to notify the main loop
-        # Automatically enable the socket wake infrastructure when RX wake is requested
-        from esphome.components import socket
-
-        socket.require_wake_loop_threadsafe()
 
 
 def validate_raw_data(value):
@@ -199,8 +177,8 @@ def _uart_declare_type(value):
         return cv.declare_id(ESP8266UartComponent)(value)
     if CORE.is_esp32:
         return cv.declare_id(IDFUARTComponent)(value)
-    if CORE.is_rp2040:
-        return cv.declare_id(RP2040UartComponent)(value)
+    if CORE.is_rp2:
+        return cv.declare_id(RP2UartComponent)(value)
     if CORE.is_libretiny:
         return cv.declare_id(LibreTinyUARTComponent)(value)
     if CORE.is_host:
@@ -215,11 +193,36 @@ UART_PARITY_OPTIONS = {
     "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
 }
 
-CONF_STOP_BITS = "stop_bits"
-CONF_DATA_BITS = "data_bits"
-CONF_PARITY = "parity"
+CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
+CONF_CLOCK_SOURCE = "clock_source"
+
+UARTClockSource = cg.global_ns.enum("uart_sclk_t")
+UART_CLOCK_SOURCES = {
+    "DEFAULT": UARTClockSource.UART_SCLK_DEFAULT,
+    "APB": UARTClockSource.UART_SCLK_APB,
+    "XTAL": UARTClockSource.UART_SCLK_XTAL,
+    "RTC": UARTClockSource.UART_SCLK_RTC,
+    "REF_TICK": UARTClockSource.UART_SCLK_REF_TICK,
+}
+
+# Keep in sync with SOC_UART_SUPPORT_* in ESP-IDF's per-variant soc_caps.h.
+UART_CLOCK_SOURCES_BY_VARIANT = {
+    VARIANT_ESP32: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32C2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32C5: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C6: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C61: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H21: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32P4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32S2: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32S3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32S31: ["DEFAULT", "XTAL", "RTC"],
+}
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -238,8 +241,10 @@ UART_DIRECTIONS = {
 # round numbers.
 AFTER_DEFAULTS = {CONF_BYTES: 150, CONF_TIMEOUT: "100ms"}
 
+CONF_DEBUG_PREFIX = "debug_prefix"
+
 # By default, log in hex format when no specific sequence is provided.
-DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':');"
+DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix);"
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
@@ -277,6 +282,7 @@ DEBUG_SCHEMA = cv.Schema(
         ): automation.validate_automation(),
         cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
         cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
+        cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
     }
 )
 
@@ -292,11 +298,21 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
+            cv.Optional(CONF_TX_BUFFER_SIZE): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=129)
+            ),
             cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
             ),
             cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
+            ),
+            cv.Optional(CONF_FLUSH_TIMEOUT): cv.All(
+                cv.only_on_esp32, cv.positive_time_period_milliseconds
+            ),
+            cv.Optional(CONF_CLOCK_SOURCE): cv.All(
+                cv.only_on_esp32,
+                variant_filtered_enum(UART_CLOCK_SOURCES_BY_VARIANT, upper=True),
             ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -318,7 +334,11 @@ async def debug_to_code(config, parent):
     for action in config[CONF_SEQUENCE]:
         await automation.build_automation(
             trigger,
-            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes")],
+            [
+                (UARTDirection, "direction"),
+                (cg.std_vector.template(cg.uint8), "bytes"),
+                (cg.StringRef, "debug_prefix"),
+            ],
             action,
         )
     cg.add(trigger.set_direction(config[CONF_DIRECTION]))
@@ -334,6 +354,8 @@ async def debug_to_code(config, parent):
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
+    if debug_prefix := config[CONF_DEBUG_PREFIX]:
+        cg.add(trigger.set_debug_prefix(debug_prefix))
     cg.add_define("USE_UART_DEBUGGER")
 
 
@@ -371,12 +393,43 @@ async def to_code(config):
             )
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
+        if CONF_FLUSH_TIMEOUT in config:
+            cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
+        if (tx_buffer_size := config.get(CONF_TX_BUFFER_SIZE)) is not None:
+            cg.add(var.set_tx_buffer_size(tx_buffer_size))
+        # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
+        if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
+            cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
-    cg.add(var.set_parity(config[CONF_PARITY]))
+    # Skip the setter when the config matches the C++ initializer (UART_CONFIG_PARITY_NONE).
+    if (parity := config[CONF_PARITY]) != "NONE":
+        cg.add(var.set_parity(parity))
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
+
+    # ESP8266: Enable the Arduino Serial objects that might be used based on pin config
+    # The C++ code selects hardware serial at runtime based on these pin combinations:
+    # - Serial (UART0): TX=1 or null, RX=3 or null
+    # - Serial (UART0 swap): TX=15 or null, RX=13 or null
+    # - Serial1: TX=2 or null, RX=8 or null
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        tx_num = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+        rx_num = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+
+        # Check if this config could use Serial (UART0 regular or swap)
+        if (tx_num is None or tx_num in (1, 15)) and (
+            rx_num is None or rx_num in (3, 13)
+        ):
+            enable_serial()
+            cg.add_define("USE_ESP8266_UART_SERIAL")
+        # Check if this config could use Serial1
+        if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
+            enable_serial1()
+            cg.add_define("USE_ESP8266_UART_SERIAL1")
 
     CORE.add_job(final_step)
 
@@ -436,7 +489,8 @@ def final_validate_device_schema(
         return value
 
     def validate_stop_bits(value):
-        if value != stop_bits:
+        # usb_uart channels store stop bits as strings ("1", "1.5", "2").
+        if float(value) != stop_bits:
             raise cv.Invalid(
                 f"Component {name} requires {stop_bits} stop bits for the uart referenced by {uart_bus}"
             )
@@ -498,6 +552,7 @@ async def register_uart_device(var, config):
         },
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -520,11 +575,15 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if _get_data().wake_loop_on_rx:
+    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+        # Wake-on-RX is essentially free (just an ISR function pointer
+        # registration on ESP32, an inline flag set on ESP8266 software
+        # serial) — enable by default to reduce RX buffer overflow risk by
+        # waking the main loop immediately when data arrives.
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "uart_component_esp_idf.cpp": {
             PlatformFramework.ESP32_IDF,
@@ -532,7 +591,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "uart_component_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "uart_component_host.cpp": {PlatformFramework.HOST_NATIVE},
-        "uart_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "uart_component_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "uart_component_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
@@ -540,3 +599,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
+# debug block is configured.
+_define_filter = filter_source_files_from_defines(
+    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()

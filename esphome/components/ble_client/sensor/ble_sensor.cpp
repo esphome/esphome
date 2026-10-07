@@ -61,7 +61,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         break;
       }
       this->handle = chr->handle;
-      if (this->descr_uuid_.get_uuid().len > 0) {
+      if (this->descr_uuid_.is_set()) {
         auto *descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
           this->status_set_warning();
@@ -77,8 +77,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         this->handle = descr->handle;
       }
       if (this->notify_) {
-        auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(),
-                                                        this->parent()->get_remote_bda(), chr->handle);
+        auto status = this->parent()->register_for_notify(chr->handle);
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
@@ -102,6 +101,10 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
+      if (param->notify.value_len == 0) {
+        ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", this->get_name().c_str());
+        break;
+      }
       ESP_LOGD(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);
       if (param->notify.handle != this->handle)
@@ -131,8 +134,10 @@ float BLESensor::parse_data_(uint8_t *value, uint16_t value_len) {
   if (this->has_data_to_value_) {
     std::vector<uint8_t> data(value, value + value_len);
     return this->data_to_value_func_(data);
-  } else {
+  } else if (value_len > 0) {
     return value[0];
+  } else {
+    return NAN;
   }
 }
 

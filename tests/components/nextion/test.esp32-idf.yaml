@@ -1,7 +1,5 @@
 packages:
   uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
   base: !include common.yaml
-
-display:
-  - id: !extend main_lcd
-    tft_url: http://esphome.io/default35.tft
+  tft_upload: !include common_tft_upload.yaml
+  tft_upload_watchdog: !include common_tft_upload_watchdog.yaml

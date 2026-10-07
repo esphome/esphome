@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace stepper {
+namespace esphome::stepper {
 
 static const char *const TAG = "stepper";
 
@@ -47,5 +46,4 @@ int32_t Stepper::should_step_() {
   return 0;
 }
 
-}  // namespace stepper
-}  // namespace esphome
+}  // namespace esphome::stepper

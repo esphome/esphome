@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hx711 {
+namespace esphome::hx711 {
 
 static const char *const TAG = "hx711";
 
@@ -22,7 +21,6 @@ void HX711Sensor::dump_config() {
   LOG_PIN("  SCK Pin: ", this->sck_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
-float HX711Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void HX711Sensor::update() {
   uint32_t result;
   if (this->read_sensor_(&result)) {
@@ -78,5 +76,4 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
   return true;
 }
 
-}  // namespace hx711
-}  // namespace esphome
+}  // namespace esphome::hx711

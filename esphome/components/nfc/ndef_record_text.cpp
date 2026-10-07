@@ -1,8 +1,7 @@
 #include "ndef_record_text.h"
 #include "ndef_record.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.ndef_record_text";
 
@@ -13,6 +12,11 @@ NdefRecordText::NdefRecordText(const std::vector<uint8_t> &payload) {
   }
 
   uint8_t language_code_length = payload[0] & 0b00111111;  // Todo, make use of encoding bit?
+
+  if (1 + language_code_length > payload.size()) {
+    ESP_LOGE(TAG, "Record payload too short for language code");
+    return;
+  }
 
   this->language_code_ = std::string(payload.begin() + 1, payload.begin() + 1 + language_code_length);
 
@@ -36,5 +40,4 @@ std::vector<uint8_t> NdefRecordText::get_encoded_payload() {
   return data;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

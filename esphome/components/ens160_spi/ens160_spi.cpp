@@ -4,8 +4,7 @@
 #include "ens160_spi.h"
 #include <esphome/components/ens160_base/ens160_base.h>
 
-namespace esphome {
-namespace ens160_spi {
+namespace esphome::ens160_spi {
 
 static const char *const TAG = "ens160_spi.sensor";
 
@@ -55,5 +54,4 @@ bool ENS160SPIComponent::write_bytes(uint8_t a_register, uint8_t *data, size_t l
   return true;
 }
 
-}  // namespace ens160_spi
-}  // namespace esphome
+}  // namespace esphome::ens160_spi

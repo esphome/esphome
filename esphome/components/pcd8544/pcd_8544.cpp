@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pcd8544 {
+namespace esphome::pcd8544 {
 
 static const char *const TAG = "pcd_8544";
 
@@ -128,5 +127,4 @@ void PCD8544::fill(Color color) {
     this->buffer_[i] = fill;
 }
 
-}  // namespace pcd8544
-}  // namespace esphome
+}  // namespace esphome::pcd8544

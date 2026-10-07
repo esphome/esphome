@@ -1,8 +1,7 @@
 #include "daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace daikin {
+namespace esphome::daikin {
 
 static const char *const TAG = "daikin.climate";
 
@@ -94,7 +93,7 @@ uint8_t DaikinClimate::operation_mode_() const {
 
 uint16_t DaikinClimate::fan_speed_() const {
   uint16_t fan_speed;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_QUIET:
       fan_speed = DAIKIN_FAN_SILENT << 8;
       break;
@@ -251,5 +250,4 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(state_frame);
 }
 
-}  // namespace daikin
-}  // namespace esphome
+}  // namespace esphome::daikin

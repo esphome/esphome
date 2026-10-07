@@ -1,16 +1,15 @@
 #include "dish_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.dish";
 
-static const uint32_t HEADER_HIGH_US = 400;
-static const uint32_t HEADER_LOW_US = 6100;
-static const uint32_t BIT_HIGH_US = 400;
-static const uint32_t BIT_ONE_LOW_US = 1700;
-static const uint32_t BIT_ZERO_LOW_US = 2800;
+static constexpr uint32_t HEADER_HIGH_US = 400;
+static constexpr uint32_t HEADER_LOW_US = 6100;
+static constexpr uint32_t BIT_HIGH_US = 400;
+static constexpr uint32_t BIT_ONE_LOW_US = 1700;
+static constexpr uint32_t BIT_ZERO_LOW_US = 2800;
 
 void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   dst->reserve(138);
@@ -21,7 +20,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
 
   //  Typically a DISH device needs to get a command a total of
   //  at least 4 times to accept it.
-  for (uint i = 0; i < 4; i++) {
+  for (uint32_t i = 0; i < 4; i++) {
     // COMMAND (function, in MSB)
     for (uint8_t mask = 1UL << 5; mask; mask >>= 1) {
       if (data.command & mask) {
@@ -40,7 +39,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
       }
     }
     // PADDING
-    for (uint j = 0; j < 6; j++)
+    for (uint32_t j = 0; j < 6; j++)
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
 
     // FOOTER
@@ -74,7 +73,7 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
       return {};
     }
   }
-  for (uint j = 0; j < 6; j++) {
+  for (uint32_t j = 0; j < 6; j++) {
     if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       return {};
     }
@@ -90,5 +89,4 @@ void DishProtocol::dump(const DishData &data) {
   ESP_LOGI(TAG, "Received Dish: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

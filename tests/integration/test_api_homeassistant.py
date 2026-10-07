@@ -40,6 +40,7 @@ async def test_api_homeassistant(
     humidity_update_future = loop.create_future()
     motion_update_future = loop.create_future()
     weather_update_future = loop.create_future()
+    long_attr_future = loop.create_future()
 
     # Number future
     ha_number_future = loop.create_future()
@@ -58,6 +59,7 @@ async def test_api_homeassistant(
     humidity_update_pattern = re.compile(r"HA Humidity state updated: ([\d.]+)")
     motion_update_pattern = re.compile(r"HA Motion state changed: (ON|OFF)")
     weather_update_pattern = re.compile(r"HA Weather condition updated: (\w+)")
+    long_attr_pattern = re.compile(r"HA Long attribute received, length: (\d+)")
 
     # Number pattern
     ha_number_pattern = re.compile(r"Setting HA number to: ([\d.]+)")
@@ -84,6 +86,15 @@ async def test_api_homeassistant(
         "nonexistent.action_for_error_test": loop.create_future(),  # error_test_call
     }
 
+    # Futures keyed by (service, entity_id) for the real homeassistant numbers
+    ha_real_number_futures = {
+        ("number.set_value", "number.test_real_number"): loop.create_future(),
+        (
+            "input_number.set_value",
+            "input_number.test_real_input_number",
+        ): loop.create_future(),
+    }
+
     # Future for error message test
     action_error_received_future = loop.create_future()
 
@@ -99,6 +110,10 @@ async def test_api_homeassistant(
             future = service_call_futures[service_call.service]
             if not future.done():
                 future.set_result(service_call)
+
+        key = (service_call.service, service_call.data.get("entity_id"))
+        if key in ha_real_number_futures and not ha_real_number_futures[key].done():
+            ha_real_number_futures[key].set_result(service_call)
 
         # Immediately respond to the error test call so the test can proceed
         # This needs to happen synchronously so ESPHome receives the response
@@ -143,8 +158,14 @@ async def test_api_homeassistant(
         elif not weather_update_future.done() and weather_update_pattern.search(line):
             weather_update_future.set_result(line)
 
-        # Check number pattern
-        elif not ha_number_future.done() and ha_number_pattern.search(line):
+        # Check long attribute pattern - separate if since it can come at different times
+        if not long_attr_future.done():
+            match = long_attr_pattern.search(line)
+            if match:
+                long_attr_future.set_result(int(match.group(1)))
+
+        # Check number pattern - separate if since it can come at different times
+        if not ha_number_future.done():
             match = ha_number_pattern.search(line)
             if match:
                 ha_number_future.set_result(match.group(1))
@@ -179,11 +200,29 @@ async def test_api_homeassistant(
         client.send_home_assistant_state("binary_sensor.external_motion", "", "ON")
         client.send_home_assistant_state("weather.home", "condition", "sunny")
 
+        # Send a long attribute (300 characters) to test that attributes aren't truncated
+        # HA states are limited to 255 chars, but attributes are NOT limited
+        # This tests the fix for the 256-byte buffer truncation bug
+        long_attr_value = "X" * 300  # 300 chars - enough to expose truncation bug
+        client.send_home_assistant_state(
+            "sensor.long_data", "long_value", long_attr_value
+        )
+
         # Test edge cases for zero-copy implementation safety
         # Empty entity_id should be silently ignored (no crash)
         client.send_home_assistant_state("", "", "should_be_ignored")
         # Empty state with valid entity should work (use different entity to not interfere with test)
         client.send_home_assistant_state("sensor.edge_case_empty_state", "", "")
+
+        # The real homeassistant numbers reject values outside min/max, which
+        # default to 0 until Home Assistant provides them
+        for entity in (
+            "number.test_real_number",
+            "input_number.test_real_input_number",
+        ):
+            client.send_home_assistant_state(entity, "min", "0")
+            client.send_home_assistant_state(entity, "max", "100")
+            client.send_home_assistant_state(entity, "step", "0.5")
 
         # List entities and services
         _, services = await client.list_entities_services()
@@ -224,6 +263,13 @@ async def test_api_homeassistant(
             # Number test
             number_value = await asyncio.wait_for(ha_number_future, timeout=5.0)
             assert number_value == "42.5", f"Unexpected number value: {number_value}"
+
+            # Long attribute test - verify 300 chars weren't truncated to 255
+            long_attr_len = await asyncio.wait_for(long_attr_future, timeout=5.0)
+            assert long_attr_len == 300, (
+                f"Long attribute was truncated! Expected 300 chars, got {long_attr_len}. "
+                "This indicates the 256-byte truncation bug."
+            )
 
             # Wait for completion
             await asyncio.wait_for(tests_complete_future, timeout=5.0)
@@ -310,6 +356,21 @@ async def test_api_homeassistant(
             assert number_call.data["entity_id"] == "input_number.test_number"
             # The value might be formatted with trailing zeros
             assert float(number_call.data["value"]) == 42.5
+
+            # 7b. Real homeassistant numbers pick the action from the entity domain
+            real_number_call = await asyncio.wait_for(
+                ha_real_number_futures[("number.set_value", "number.test_real_number")],
+                timeout=2.0,
+            )
+            assert float(real_number_call.data["value"]) == 12.5
+
+            real_input_number_call = await asyncio.wait_for(
+                ha_real_number_futures[
+                    ("input_number.set_value", "input_number.test_real_input_number")
+                ],
+                timeout=2.0,
+            )
+            assert float(real_input_number_call.data["value"]) == 7
 
             # 8. HA Switch service calls
             switch_on_call = await asyncio.wait_for(

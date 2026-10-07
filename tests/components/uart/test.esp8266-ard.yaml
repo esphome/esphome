@@ -1,11 +1,15 @@
 esphome:
   on_boot:
     then:
-      - uart.write: 'Hello World'
-      - uart.write: [0x00, 0x20, 0x42]
+      - uart.write:
+          id: uart_id
+          data: 'Hello World'
+      - uart.write:
+          id: uart_id
+          data: [0x00, 0x20, 0x42]
 
 uart:
-  - id: uart_uart
+  - id: uart_id
     tx_pin: 4
     rx_pin: 5
     baud_rate: 9600
@@ -13,15 +17,21 @@ uart:
     rx_buffer_size: 512
     parity: EVEN
     stop_bits: 2
+  - id: uart_debug
+    tx_pin: 14
+    rx_pin: 12
+    baud_rate: 115200
+    debug:
+      debug_prefix: "[UART1] "
 
 switch:
   - platform: uart
     name: "UART Switch Array"
-    uart_id: uart_uart
+    uart_id: uart_id
     data: [0x01, 0x02, 0x03]
   - platform: uart
     name: "UART Switch Dual"
-    uart_id: uart_uart
+    uart_id: uart_id
     data:
       turn_on: [0xA0, 0xA1]
       turn_off: [0xB0, 0xB1]
@@ -29,12 +39,12 @@ switch:
 button:
   - platform: uart
     name: "UART Button"
-    uart_id: uart_uart
+    uart_id: uart_id
     data: [0xFF, 0xEE]
 
 event:
   - platform: uart
-    uart_id: uart_uart
+    uart_id: uart_id
     name: "UART Event"
     event_types:
       - "string_event_A": "*A#"

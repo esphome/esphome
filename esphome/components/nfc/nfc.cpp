@@ -3,14 +3,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc";
 
-std::string format_uid(const std::vector<uint8_t> &uid) { return format_hex_pretty(uid, '-', false); }
+char *format_uid_to(char *buffer, std::span<const uint8_t> uid) {
+  return format_hex_pretty_to(buffer, FORMAT_UID_BUFFER_SIZE, uid.data(), uid.size(), '-');
+}
 
-std::string format_bytes(const std::vector<uint8_t> &bytes) { return format_hex_pretty(bytes, ' ', false); }
+char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes) {
+  return format_hex_pretty_to(buffer, FORMAT_BYTES_BUFFER_SIZE, bytes.data(), bytes.size(), ' ');
+}
 
 uint8_t guess_tag_type(uint8_t uid_length) {
   if (uid_length == 4) {
@@ -20,7 +23,7 @@ uint8_t guess_tag_type(uint8_t uid_length) {
   }
 }
 
-uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
+int8_t get_mifare_classic_ndef_start_index(const std::span<const uint8_t> data) {
   for (uint8_t i = 0; i < MIFARE_CLASSIC_BLOCK_SIZE; i++) {
     if (data[i] == 0x00) {
       // Do nothing, skip
@@ -33,27 +36,56 @@ uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data) {
   return -1;
 }
 
-bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index) {
+bool decode_mifare_classic_tlv(const std::span<const uint8_t> data, uint32_t &message_length,
+                               uint8_t &message_start_index) {
+  if (data.size() < MIFARE_CLASSIC_BLOCK_SIZE) {
+    ESP_LOGE(TAG, "Error, data too short for NDEF detection.");
+    return false;
+  }
   auto i = get_mifare_classic_ndef_start_index(data);
-  if (data[i] != 0x03) {
+  if (i < 0 || data[i] != 0x03) {
     ESP_LOGE(TAG, "Error, Can't decode message length.");
     return false;
   }
-  if (data[i + 1] == 0xFF) {
-    message_length = ((0xFF & data[i + 2]) << 8) | (0xFF & data[i + 3]);
-    message_start_index = i + MIFARE_CLASSIC_LONG_TLV_SIZE;
+  uint8_t idx = static_cast<uint8_t>(i);
+  if (idx + 4 <= data.size() && data[idx + 1] == 0xFF) {
+    message_length = ((0xFF & data[idx + 2]) << 8) | (0xFF & data[idx + 3]);
+    message_start_index = idx + MIFARE_CLASSIC_LONG_TLV_SIZE;
+  } else if (idx + 2 <= data.size()) {
+    message_length = data[idx + 1];
+    message_start_index = idx + MIFARE_CLASSIC_SHORT_TLV_SIZE;
   } else {
-    message_length = data[i + 1];
-    message_start_index = i + MIFARE_CLASSIC_SHORT_TLV_SIZE;
+    ESP_LOGE(TAG, "Error, TLV data too short.");
+    return false;
   }
   return true;
 }
 
 uint32_t get_mifare_ultralight_buffer_size(uint32_t message_length) {
-  uint32_t buffer_size = message_length + 2 + 1;
+  // TLV header (2 bytes, or 4 for messages of 255 bytes or more) plus the terminator TLV
+  uint32_t buffer_size = message_length + (message_length < 255 ? 2 : 4) + 1;
   if (buffer_size % MIFARE_ULTRALIGHT_READ_SIZE != 0)
     buffer_size = ((buffer_size / MIFARE_ULTRALIGHT_READ_SIZE) + 1) * MIFARE_ULTRALIGHT_READ_SIZE;
   return buffer_size;
+}
+
+void fill_ndef_tlv(const std::span<const uint8_t> message, const uint32_t buffer_length, FixedVector<uint8_t> &buffer) {
+  buffer.init(buffer_length);
+  buffer.push_back(0x03);
+  if (message.size() < 255) {
+    buffer.push_back(message.size());
+  } else {
+    buffer.push_back(0xFF);
+    buffer.push_back((message.size() >> 8) & 0xFF);
+    buffer.push_back(message.size() & 0xFF);
+  }
+  for (const uint8_t byte : message) {
+    buffer.push_back(byte);
+  }
+  buffer.push_back(0xFE);
+  while (buffer.size() < buffer_length) {
+    buffer.push_back(0x00);
+  }
 }
 
 uint32_t get_mifare_classic_buffer_size(uint32_t message_length) {
@@ -85,5 +117,4 @@ bool mifare_classic_is_trailer_block(uint8_t block_num) {
   }
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

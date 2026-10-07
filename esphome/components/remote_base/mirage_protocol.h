@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct MirageData {
   std::vector<uint8_t> data;
@@ -14,9 +13,9 @@ struct MirageData {
 
 class MirageProtocol : public RemoteProtocol<MirageData> {
  public:
-  void encode(RemoteTransmitData *dst, const MirageData &data) override;
-  optional<MirageData> decode(RemoteReceiveData src) override;
-  void dump(const MirageData &data) override;
+  void encode(RemoteTransmitData *dst, const MirageData &data);
+  optional<MirageData> decode(RemoteReceiveData src);
+  void dump(const MirageData &data);
 
  protected:
   void encode_byte_(RemoteTransmitData *dst, uint8_t item);
@@ -35,5 +34,4 @@ template<typename... Ts> class MirageAction : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

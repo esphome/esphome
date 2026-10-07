@@ -7,6 +7,7 @@ AQICalculatorType = aqi_ns.enum("AQICalculatorType")
 
 CONF_AQI = "aqi"
 CONF_CALCULATION_TYPE = "calculation_type"
+CONF_EXTENDED_RANGE = "extended_range"
 
 AQI_CALCULATION_TYPE = {
     "CAQI": AQICalculatorType.CAQI_TYPE,

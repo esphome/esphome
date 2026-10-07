@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace daly_bms {
+namespace esphome::daly_bms {
 
 static const char *const TAG = "daly_bms";
 
@@ -23,10 +22,7 @@ static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() { this->next_request_ = 1; }
 
-void DalyBmsComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Daly BMS:");
-  this->check_uart_settings(9600);
-}
+void DalyBmsComponent::dump_config() { ESP_LOGCONFIG(TAG, "Daly BMS:"); }
 
 void DalyBmsComponent::update() {
   this->trigger_next_ = true;
@@ -103,8 +99,6 @@ void DalyBmsComponent::loop() {
     }
   }
 }
-
-float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void DalyBmsComponent::request_data_(uint8_t data_id) {
   uint8_t request_message[DALY_FRAME_SIZE];
@@ -323,5 +317,4 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
   }
 }
 
-}  // namespace daly_bms
-}  // namespace esphome
+}  // namespace esphome::daly_bms

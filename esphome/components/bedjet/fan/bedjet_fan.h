@@ -10,10 +10,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
-class BedJetFan : public fan::Fan, public BedJetClient, public PollingComponent {
+class BedJetFan final : public fan::Fan, public BedJetClient, public PollingComponent {
  public:
   void update() override;
   void dump_config() override;
@@ -34,7 +33,6 @@ class BedJetFan : public fan::Fan, public BedJetClient, public PollingComponent 
   bool update_status_();
 };
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

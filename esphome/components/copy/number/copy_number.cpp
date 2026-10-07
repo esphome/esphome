@@ -1,8 +1,7 @@
 #include "copy_number.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 static const char *const TAG = "copy.number";
 
@@ -25,5 +24,4 @@ void CopyNumber::control(float value) {
   call2.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

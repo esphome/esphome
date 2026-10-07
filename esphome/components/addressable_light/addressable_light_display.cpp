@@ -1,8 +1,7 @@
 #include "addressable_light_display.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace addressable_light {
+namespace esphome::addressable_light {
 
 static const char *const TAG = "addressable_light.display";
 
@@ -58,10 +57,12 @@ void HOT AddressableLightDisplay::draw_absolute_pixel_internal(int x, int y, Col
 
   if (this->pixel_mapper_f_.has_value()) {
     // Params are passed by reference, so they may be modified in call.
-    this->addressable_light_buffer_[(*this->pixel_mapper_f_)(x, y)] = color;
+    int index = (*this->pixel_mapper_f_)(x, y);
+    if (index < 0 || static_cast<size_t>(index) >= this->addressable_light_buffer_.size())
+      return;
+    this->addressable_light_buffer_[index] = color;
   } else {
     this->addressable_light_buffer_[y * this->get_width_internal() + x] = color;
   }
 }
-}  // namespace addressable_light
-}  // namespace esphome
+}  // namespace esphome::addressable_light

@@ -1,10 +1,9 @@
-from esphome.automation import Trigger, build_automation, validate_automation
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp8266 import CONF_RESTORE_FROM_FLASH, KEY_ESP8266
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_TRIGGER_ID,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -13,19 +12,19 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@anatoly-savchenkov"]
 
 factory_reset_ns = cg.esphome_ns.namespace("factory_reset")
 FactoryResetComponent = factory_reset_ns.class_("FactoryResetComponent", cg.Component)
-FastBootTrigger = factory_reset_ns.class_("FastBootTrigger", Trigger, cg.Component)
 
 CONF_MAX_DELAY = "max_delay"
 CONF_RESETS_REQUIRED = "resets_required"
 CONF_ON_INCREMENT = "on_increment"
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_RESETS_REQUIRED in config:
         return cv.only_on(
             [
@@ -55,31 +54,35 @@ CONFIG_SCHEMA = cv.All(
                 ),
             ),
             cv.Optional(CONF_RESETS_REQUIRED): cv.positive_not_null_int,
-            cv.Optional(CONF_ON_INCREMENT): validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FastBootTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_INCREMENT): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     if CORE.is_esp8266 and CONF_RESETS_REQUIRED in config:
         fconfig = full_config.get()
         if not fconfig.get_config_for_path([KEY_ESP8266, CONF_RESTORE_FROM_FLASH]):
             raise cv.Invalid(
                 "'resets_required' needs 'restore_from_flash' to be enabled in the  'esp8266' configuration"
             )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_INCREMENT,
+        "add_increment_callback",
+        [(cg.uint8, "x"), (cg.uint8, "target")],
+    ),
+)
+
+
+async def to_code(config: ConfigType) -> None:
     if reset_count := config.get(CONF_RESETS_REQUIRED):
         var = cg.new_Pvariable(
             config[CONF_ID],
@@ -87,13 +90,4 @@ async def to_code(config):
             config[CONF_MAX_DELAY].total_seconds,
         )
         await cg.register_component(var, config)
-        for conf in config.get(CONF_ON_INCREMENT, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await build_automation(
-                trigger,
-                [
-                    (cg.uint8, "x"),
-                    (cg.uint8, "target"),
-                ],
-                conf,
-            )
+        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace waveshare_epaper {
+namespace esphome::waveshare_epaper {
 
 static const char *const TAG = "waveshare_epaper";
 
@@ -2184,8 +2183,6 @@ void GDEW029T5::write_lut_(const uint8_t *lut, const uint8_t size) {
   this->end_data_();
 }
 
-void GDEW029T5::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
-
 int GDEW029T5::get_width_internal() { return 128; }
 int GDEW029T5::get_height_internal() { return 296; }
 void GDEW029T5::dump_config() {
@@ -2524,7 +2521,6 @@ void HOT GDEY042T81::display() {
   ESP_LOGD(TAG, "Set the display back to deep sleep");
   this->deep_sleep();
 }
-void GDEY042T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 int GDEY042T81::get_width_internal() { return 400; }
 int GDEY042T81::get_height_internal() { return 300; }
 uint32_t GDEY042T81::idle_timeout_() { return 5000; }
@@ -3157,7 +3153,6 @@ void HOT GDEY0583T81::display() {
   this->deep_sleep();
 }
 
-void GDEY0583T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 int GDEY0583T81::get_width_internal() { return 648; }
 int GDEY0583T81::get_height_internal() { return 480; }
 uint32_t GDEY0583T81::idle_timeout_() { return 5000; }
@@ -4770,5 +4765,4 @@ void WaveshareEPaper13P3InK::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace waveshare_epaper
-}  // namespace esphome
+}  // namespace esphome::waveshare_epaper

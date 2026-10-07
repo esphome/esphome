@@ -1,0 +1,6 @@
+packages:
+  sendspin: !include common.yaml
+
+media_player:
+  - platform: sendspin
+    id: media_player_id

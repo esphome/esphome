@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
 static const char *const TAG = "pylontech.sensor";
 
@@ -58,5 +57,4 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
   }
 }
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech

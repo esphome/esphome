@@ -5,6 +5,7 @@ display:
     panel_height: 32
     double_buffer: true
     brightness: 128
+    gamma_correct: cie1931
     r1_pin: GPIO42
     g1_pin: GPIO41
     b1_pin: GPIO40

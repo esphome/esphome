@@ -27,9 +27,9 @@ sensor:
     name: Linearly combined temperatures
     sources:
       - source: template_temperature1
-        coeffecient: !lambda "return 0.4 + std::abs(x - 25) * 0.023;"
+        coefficient: !lambda "return 0.4 + std::abs(x - 25) * 0.023;"
       - source: template_temperature2
-        coeffecient: 1.5
+        coefficient: 1.5
   - platform: combination
     type: max
     name: Max of combined temperatures

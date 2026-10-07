@@ -1,0 +1,7 @@
+substitutions:
+  verify_ssl: "true"
+
+http_request:
+  ca_certificate_path: $component_dir/test_ca.pem
+
+<<: !include common.yaml

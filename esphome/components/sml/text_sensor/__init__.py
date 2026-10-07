@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_FORMAT
+from esphome.types import ConfigType
 
 from .. import CONF_OBIS_CODE, CONF_SERVER_ID, CONF_SML_ID, Sml, obis_code, sml_ns
 
@@ -19,17 +20,21 @@ SML_TYPES = {
 
 SmlTextSensor = sml_ns.class_("SmlTextSensor", text_sensor.TextSensor, cg.Component)
 
-CONFIG_SCHEMA = text_sensor.text_sensor_schema(SmlTextSensor).extend(
-    {
-        cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
-        cv.Required(CONF_OBIS_CODE): obis_code,
-        cv.Optional(CONF_SERVER_ID, default=""): cv.string,
-        cv.Optional(CONF_FORMAT, default=""): cv.enum(SML_TYPES, lower=True),
-    }
+CONFIG_SCHEMA = (
+    text_sensor.text_sensor_schema(SmlTextSensor)
+    .extend(
+        {
+            cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
+            cv.Required(CONF_OBIS_CODE): obis_code,
+            cv.Optional(CONF_SERVER_ID, default=""): cv.string,
+            cv.Optional(CONF_FORMAT, default=""): cv.enum(SML_TYPES, lower=True),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await text_sensor.new_text_sensor(
         config,
         config[CONF_SERVER_ID],

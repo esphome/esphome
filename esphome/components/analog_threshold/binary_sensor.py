@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR_ID, CONF_THRESHOLD
+from esphome.types import ConfigType
 
 analog_threshold_ns = cg.esphome_ns.namespace("analog_threshold")
 
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
@@ -40,10 +41,10 @@ async def to_code(config):
     cg.add(var.set_sensor(sens))
 
     if isinstance(config[CONF_THRESHOLD], dict):
-        lower = await cg.templatable(config[CONF_THRESHOLD][CONF_LOWER], [], float)
-        upper = await cg.templatable(config[CONF_THRESHOLD][CONF_UPPER], [], float)
+        lower = await cg.templatable(config[CONF_THRESHOLD][CONF_LOWER], [], cg.float_)
+        upper = await cg.templatable(config[CONF_THRESHOLD][CONF_UPPER], [], cg.float_)
     else:
-        lower = await cg.templatable(config[CONF_THRESHOLD], [], float)
+        lower = await cg.templatable(config[CONF_THRESHOLD], [], cg.float_)
         upper = lower
     cg.add(var.set_upper_threshold(upper))
     cg.add(var.set_lower_threshold(lower))

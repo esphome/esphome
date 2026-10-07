@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace ssd1331_spi {
+namespace esphome::ssd1331_spi {
 
 static const char *const TAG = "ssd1331_spi";
 
@@ -52,5 +51,4 @@ void HOT SPISSD1331::write_display_data() {
   this->disable();
 }
 
-}  // namespace ssd1331_spi
-}  // namespace esphome
+}  // namespace esphome::ssd1331_spi

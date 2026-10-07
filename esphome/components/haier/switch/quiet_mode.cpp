@@ -1,7 +1,6 @@
 #include "quiet_mode.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 void QuietModeSwitch::write_state(bool state) {
   if (this->parent_->get_quiet_mode_state() != state) {
@@ -10,5 +9,4 @@ void QuietModeSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

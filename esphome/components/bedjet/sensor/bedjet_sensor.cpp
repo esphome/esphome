@@ -1,8 +1,7 @@
 #include "bedjet_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 std::string BedjetSensor::describe() { return "BedJet Sensor"; }
 
@@ -30,5 +29,4 @@ void BedjetSensor::on_status(const BedjetStatusPacket *data) {
   }
 }
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet

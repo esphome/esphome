@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "../ens160_base/ens160_base.h"
 
-namespace esphome {
-namespace ens160_i2c {
+namespace esphome::ens160_i2c {
 
 static const char *const TAG = "ens160_i2c.sensor";
 
@@ -28,5 +27,4 @@ void ENS160I2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-}  // namespace ens160_i2c
-}  // namespace esphome
+}  // namespace esphome::ens160_i2c
