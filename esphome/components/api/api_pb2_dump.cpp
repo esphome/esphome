@@ -897,6 +897,9 @@ const char *HelloRequest::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("client_info"), this->client_info);
   dump_field(out, ESPHOME_PSTR("api_version_major"), this->api_version_major);
   dump_field(out, ESPHOME_PSTR("api_version_minor"), this->api_version_minor);
+#ifdef USE_API_OUTGOING_CONNECTION
+  dump_field(out, ESPHOME_PSTR("outgoing_connection_target"), this->outgoing_connection_target);
+#endif
   return out.c_str();
 }
 const char *HelloResponse::dump_to(DumpBuffer &out) const {
@@ -1020,6 +1023,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #endif
 #ifdef USE_API_NOISE
   dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  dump_field(out, ESPHOME_PSTR("api_outgoing_connection_supported"), this->api_outgoing_connection_supported);
 #endif
   return out.c_str();
 }
@@ -1342,6 +1348,7 @@ const char *SwitchStateResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
   return out.c_str();
 }
 const char *SwitchCommandRequest::dump_to(DumpBuffer &out) const {
@@ -1684,6 +1691,7 @@ const char *ClimateStateResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
   return out.c_str();
 }
 const char *ClimateCommandRequest::dump_to(DumpBuffer &out) const {
@@ -1751,6 +1759,7 @@ const char *WaterHeaterStateResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("state"), this->state);
   dump_field(out, ESPHOME_PSTR("target_temperature_low"), this->target_temperature_low);
   dump_field(out, ESPHOME_PSTR("target_temperature_high"), this->target_temperature_high);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
   return out.c_str();
 }
 const char *WaterHeaterCommandRequest::dump_to(DumpBuffer &out) const {

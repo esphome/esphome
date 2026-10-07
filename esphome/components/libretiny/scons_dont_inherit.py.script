@@ -1,0 +1,16 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import builtins
+import functools
+import sys
+
+# SCons 4.11 compiles SConscript files without dont_inherit=True, so its own
+# `from __future__ import annotations` leaks into every builder script and
+# turns their annotations into strings. That breaks LibreTiny's Library
+# dataclass, whose InitVar is then no longer recognised. Runs before the
+# platform's builder scripts are loaded. The module comes from sys.modules
+# because SCons.Script also exports a function named SConscript.
+sconscript = sys.modules["SCons.Script.SConscript"]
+if sconscript.__dict__.get("compile") is None:
+    sconscript.compile = functools.partial(builtins.compile, dont_inherit=True)

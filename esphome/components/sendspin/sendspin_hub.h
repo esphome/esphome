@@ -181,6 +181,9 @@ class SendspinHub final : public Component,
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
 
+  /// @brief Sends the SWITCH controller command; exposed as the sendspin.switch action.
+  void switch_client();
+
   template<typename F> void add_controller_state_callback(F &&callback) {
     this->controller_state_callbacks_.add(std::forward<F>(callback));
   }
@@ -305,6 +308,9 @@ class SendspinHub final : public Component,
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
 
   bool task_stack_in_psram_{false};
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  bool mdns_advertised_{false};  // Last state requested from mdns
+#endif
 
   // Requested client state, applied from loop(). Empty until the switch restores its state.
   std::optional<bool> enabled_;
@@ -317,7 +323,6 @@ class SendspinHub final : public Component,
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   mdns::MDNSComponent *mdns_{nullptr};
-  bool mdns_advertised_{false};  // Last state requested from mdns
 #endif
 };
 

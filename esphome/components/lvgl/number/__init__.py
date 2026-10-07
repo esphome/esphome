@@ -22,7 +22,7 @@ from ..lvcode import (
 )
 from ..schemas import TRIGGER_EVENT_MAP, VALUE_TRIGGER_SCHEMA
 from ..types import LvNumber, lvgl_ns
-from ..widgets import get_widgets, wait_for_widgets
+from ..widgets import get_widgets
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number, cg.Component)
 
@@ -47,7 +47,6 @@ async def to_code(config):
             trigger = CONF_ON_RELEASE
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
-    await wait_for_widgets()
     async with LambdaContext([], return_type=cg.float_) as value:
         value.add(ReturnStatement(widget.get_value()))
     async with LambdaContext([(cg.float_, "v")]) as control:

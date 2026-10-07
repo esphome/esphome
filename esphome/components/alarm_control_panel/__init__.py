@@ -41,18 +41,6 @@ StateAnyForwarder = alarm_control_panel_ns.class_("StateAnyForwarder")
 StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")
 AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
-ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
-ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
-ArmNightAction = alarm_control_panel_ns.class_("ArmNightAction", automation.Action)
-DisarmAction = alarm_control_panel_ns.class_("DisarmAction", automation.Action)
-PendingAction = alarm_control_panel_ns.class_("PendingAction", automation.Action)
-TriggeredAction = alarm_control_panel_ns.class_("TriggeredAction", automation.Action)
-ChimeAction = alarm_control_panel_ns.class_("ChimeAction", automation.Action)
-ReadyAction = alarm_control_panel_ns.class_("ReadyAction", automation.Action)
-
-AlarmControlPanelCondition = alarm_control_panel_ns.class_(
-    "AlarmControlPanelCondition", automation.Condition
-)
 
 _ALARM_CONTROL_PANEL_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -196,125 +184,38 @@ async def new_alarm_control_panel(config, *args):
     return var
 
 
-@automation.register_action(
-    "alarm_control_panel.arm_away",
-    ArmAwayAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_arm_away_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if code_config := config.get(CONF_CODE):
-        templatable_ = await cg.templatable(code_config, args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
-
-
-@automation.register_action(
-    "alarm_control_panel.arm_home",
-    ArmHomeAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if code_config := config.get(CONF_CODE):
-        templatable_ = await cg.templatable(code_config, args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
-
-
-@automation.register_action(
-    "alarm_control_panel.arm_night",
-    ArmNightAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_arm_night_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_CODE in config:
-        templatable_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
-
-
-@automation.register_action(
-    "alarm_control_panel.disarm",
-    DisarmAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if code_config := config.get(CONF_CODE):
-        templatable_ = await cg.templatable(code_config, args, cg.std_string)
-        cg.add(var.set_code(templatable_))
-    return var
-
-
-@automation.register_action(
-    "alarm_control_panel.pending",
-    PendingAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_pending_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "alarm_control_panel.triggered",
-    TriggeredAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "alarm_control_panel.chime",
-    ChimeAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def alarm_action_chime_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "alarm_control_panel.ready",
-    ReadyAction,
-    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_condition(
-    "alarm_control_panel.ready",
-    AlarmControlPanelCondition,
-    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
-)
-async def alarm_action_ready_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_condition(
-    "alarm_control_panel.is_armed",
-    AlarmControlPanelCondition,
-    ALARM_CONTROL_PANEL_CONDITION_SCHEMA,
-)
-async def alarm_control_panel_is_armed_to_code(
-    config, condition_id, template_arg, args
+# Mirrors AlarmControlPanel::arm_with_code_: arm first, set the code only when given.
+for _name, _arm in (
+    ("alarm_control_panel.arm_away", "arm_away()"),
+    ("alarm_control_panel.arm_home", "arm_home()"),
+    ("alarm_control_panel.arm_night", "arm_night()"),
+    ("alarm_control_panel.disarm", "disarm()"),
 ):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
+    automation.register_apply_action(
+        _name,
+        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        automation.ApplyCall(_arm),
+        automation.ApplyField(CONF_CODE, "set_code", cg.std_string),
+        call="make_call",
+    )
+
+
+for _name, _call in (
+    ("alarm_control_panel.pending", "pending()"),
+    ("alarm_control_panel.triggered", "triggered()"),
+):
+    automation.register_apply_action(
+        _name,
+        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        automation.ApplyCall(_call),
+        call="make_call",
+    )
+
+
+for _name in ("alarm_control_panel.ready", "alarm_control_panel.is_armed"):
+    automation.register_apply_condition(
+        _name, ALARM_CONTROL_PANEL_CONDITION_SCHEMA, "is_armed_pending_or_triggered()"
+    )
 
 
 @coroutine_with_priority(CoroPriority.CORE)
