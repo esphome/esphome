@@ -1,6 +1,9 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 #include "esphome/components/socket/tcp_client_link.h"
 #ifdef USE_SOCKET_TCP_LISTENER
 #include "esphome/components/socket/tcp_listener.h"
@@ -21,6 +24,9 @@ class TcpUart : public uart::UARTComponent, public Component {
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
+#ifdef USE_SENSOR
+  void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
+#endif
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
@@ -59,6 +65,10 @@ class TcpUart : public uart::UARTComponent, public Component {
   socket::TcpListener listener_;
 #endif
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
+#ifdef USE_SENSOR
+  sensor::Sensor *disconnects_sensor_{nullptr};
+  uint32_t disconnects_{0};
+#endif
   uint32_t last_drop_log_ms_{0};
   // rx_[rx_start_, rx_end_) holds unread bytes; read_socket_() compacts to the front.
   uint16_t rx_start_{0};
