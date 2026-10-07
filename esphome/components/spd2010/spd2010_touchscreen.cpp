@@ -127,8 +127,6 @@ bool SPD2010Touchscreen::read_data_() {
   const uint8_t status_high = status[1];
   const uint16_t length = encode_uint16(status[3], status[2]);
 
-  // These conditions have not been observed, but are logged here for debugging if they occur.
-  // Other driver implementations test for these.
   if (status_high & STATUS_BIOS) {
     this->status_set_warning(LOG_STR("BIOS status; start CPU"));
     (void) (this->clear_interrupt_() && this->write_command_(REG_CPU_START, 1));
