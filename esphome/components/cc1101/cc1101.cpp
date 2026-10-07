@@ -383,11 +383,17 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
     return CC1101Error::PARAMS;
   }
+  const bool variable = this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
+  // The 64 byte TX FIFO also holds the length byte in variable length mode
+  if (len > (variable ? 63u : 64u)) {
+    ESP_LOGE(TAG, "Packet of %u bytes does not fit the TX FIFO", static_cast<unsigned>(len));
+    return CC1101Error::PARAMS;
+  }
 
   // Write packet
   this->enter_idle_();
   this->strobe_(Command::FTX);
-  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
+  if (variable) {
     this->write_(Register::FIFO, static_cast<uint8_t>(len));
   }
   this->write_(Register::FIFO, data, len);
