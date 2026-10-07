@@ -118,6 +118,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     }
 #endif
 #endif
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    txt_count++;  // ota_signed
+#endif
 #ifdef ESPHOME_PROJECT_NAME
     txt_count += 2;  // project_name and project_version
 #endif
@@ -184,6 +187,13 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
       txt_records.push_back({MDNS_STR(TXT_API_PROVISIONING), MDNS_STR(VALUE_ZERO_PSK)});
     }
 #endif
+#endif
+
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    // Signals that an unsigned OTA image is rejected; serial flash is unaffected.
+    MDNS_STATIC_CONST_CHAR(TXT_OTA_SIGNED, "ota_signed");
+    MDNS_STATIC_CONST_CHAR(VALUE_TRUE, "1");
+    txt_records.push_back({MDNS_STR(TXT_OTA_SIGNED), MDNS_STR(VALUE_TRUE)});
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME

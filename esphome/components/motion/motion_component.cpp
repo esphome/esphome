@@ -56,10 +56,13 @@ bool MotionComponent::save_calibration() {
   ESP_LOGW(TAG, "Calibration save failed");
   return false;
 }
-void MotionComponent::clear_calibration() {
+void MotionComponent::clear_calibration(bool save) {
   memcpy(this->matrix_, this->base_matrix_, sizeof(this->matrix_));
   ESP_LOGI(TAG, "Calibration reset to build-time matrix");
   log_matrix(this->matrix_);
+  if (save) {
+    this->save_calibration();
+  }
 }
 void MotionComponent::update() {
   if (this->is_failed())

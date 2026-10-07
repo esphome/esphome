@@ -21,8 +21,8 @@ from esphome.const import (
     CONF_VERSION,
     CONF_WIDTH,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 # mdns for autodiscovery
@@ -106,13 +106,6 @@ sendspin_ns = cg.esphome_ns.namespace("sendspin_")
 SendspinHub = sendspin_ns.class_(
     "SendspinHub",
     cg.Component,
-)
-
-
-SendspinSwitchCommandAction = sendspin_ns.class_(
-    "SendspinSwitchCommandAction",
-    automation.Action,
-    cg.Parented.template(SendspinHub),
 )
 
 
@@ -240,21 +233,11 @@ SENDSPIN_SIMPLE_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sendspin.switch",
-    SendspinSwitchCommandAction,
     SENDSPIN_SIMPLE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("switch_client()"),
 )
-async def sendspin_switch_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def to_code(config: ConfigType) -> None:

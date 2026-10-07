@@ -628,7 +628,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
     case InfraredRFTransmitRawTimingsRequest::MESSAGE_TYPE: {
       InfraredRFTransmitRawTimingsRequest msg;
       msg.decode(msg_data, msg_size);
@@ -723,8 +723,37 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
+#ifdef USE_SERIAL_PROXY
+    case 154 /* SubscribeSerialProxyIdentityRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_subscribe_serial_proxy_identity_request"));
+#endif
+      this->on_subscribe_serial_proxy_identity_request();
+      break;
+    }
+#endif
+#ifdef USE_API_WIZARD
+    case 156 /* DeviceWizardRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_device_wizard_request"));
+#endif
+      this->on_device_wizard_request();
+      break;
+    }
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+    case WizardInputSetRequest::MESSAGE_TYPE: {
+      WizardInputSetRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_wizard_input_set_request"), msg);
+#endif
+      this->on_wizard_input_set_request(msg);
+      break;
+    }
+#endif
 #ifdef USE_STORE_YAML
-    case 154 /* GetYamlRequest is empty */: {
+    case 159 /* GetYamlRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_get_yaml_request"));
 #endif

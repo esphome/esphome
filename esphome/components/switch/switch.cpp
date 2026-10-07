@@ -57,6 +57,7 @@ void Switch::publish_state(bool state) {
   if (!this->publish_dedup_.next(state))
     return;
   this->state = state != this->inverted_;
+  this->set_has_state(true);
 
   if (restore_mode & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);

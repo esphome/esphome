@@ -8,7 +8,7 @@ client would silently drop the streamed bytes as "unknown message type".
 The raw client implements just enough of the plaintext framing
 (``0x00 | varint(size) | varint(msg_type) | payload``, see
 ``api_frame_helper_plaintext.cpp``) to send the empty `GetYamlRequest`
-(message type 154) and accumulate every `GetYamlResponse` (message type 155)
+(message type 159) and accumulate every `GetYamlResponse` (message type 160)
 until ``done=true``.
 """
 
@@ -30,8 +30,8 @@ HELLO_REQUEST = 1
 HELLO_RESPONSE = 2
 DEVICE_CAPABILITIES_REQUEST = 149
 DEVICE_CAPABILITIES_RESPONSE = 150
-GET_YAML_REQUEST = 154
-GET_YAML_RESPONSE = 155
+GET_YAML_REQUEST = 159
+GET_YAML_RESPONSE = 160
 
 
 def _encode_varint(value: int) -> bytes:
@@ -93,7 +93,7 @@ def _parse_get_yaml_response(payload: bytes) -> tuple[bytes, bool, int, str]:
 
 
 def _parse_store_yaml_supported(payload: bytes) -> bool:
-    """Read `store_yaml.supported` (field 5, field 1) from `DeviceCapabilitiesResponse`."""
+    """Read `store_yaml.supported` (field 6, field 1) from `DeviceCapabilitiesResponse`."""
     pos = 0
     while pos < len(payload):
         tag, pos = _read_varint(payload, pos)
@@ -105,7 +105,7 @@ def _parse_store_yaml_supported(payload: bytes) -> bool:
         length, pos = _read_varint(payload, pos)
         chunk = payload[pos : pos + length]
         pos += length
-        if tag >> 3 != 5:
+        if tag >> 3 != 6:
             continue
         sub_pos = 0
         while sub_pos < len(chunk):
