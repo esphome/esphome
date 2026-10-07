@@ -129,22 +129,81 @@ template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); 
 /// @name Container utilities
 ///@{
 
-/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory)
-/// Avoids copying data from flash to RAM by keeping a pointer to the flash data.
-/// Similar to std::span but with minimal overhead for embedded systems.
-
-template<typename T> class ConstVector {
+/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory).
+/// Iterators are raw pointers like FixedVector. With Owning = true it can also hold a heap copy it
+/// owns (see the specialization below); the default view never frees and has no extra cost.
+template<typename T, bool Owning = false> class ConstVector {
  public:
+  using value_type = T;
+
+  constexpr ConstVector() = default;
   constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
 
-  const constexpr T &operator[](size_t i) const { return data_[i]; }
-  constexpr size_t size() const { return size_; }
-  constexpr bool empty() const { return size_ == 0; }
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size_; }
+  const T *data() const { return this->data_; }
+  constexpr size_t size() const { return this->size_; }
+  constexpr bool empty() const { return this->size_ == 0; }
+  const constexpr T &operator[](size_t i) const { return this->data_[i]; }
+  const T &at(size_t i) const { return this->data_[i]; }
 
  protected:
-  const T *data_;
-  size_t size_;
+  const T *data_{nullptr};
+  size_t size_{0};
 };
+
+/// Owning variant: a codegen table that outlives it, or a heap copy of a runtime list it owns.
+/// Ownership is the top bit of the size; it is not copyable, so a copy can never outlive the owner.
+/// Elements must be whole words so ESP8266 can read a codegen table from flash.
+template<typename T> class ConstVector<T, true> {
+  static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
+                "ConstVector elements must be whole words so ESP8266 can read them from flash");
+
+ public:
+  using value_type = T;
+
+  constexpr ConstVector() = default;
+  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+  ConstVector(const ConstVector &) = delete;
+  ConstVector &operator=(const ConstVector &) = delete;
+  ~ConstVector() { this->release_(); }
+
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size(); }
+  const T *data() const { return this->data_; }
+  size_t size() const { return this->size_ & ~OWNED_BIT; }
+  bool empty() const { return this->size() == 0; }
+  const T &operator[](size_t index) const { return this->data_[index]; }
+  const T &at(size_t index) const { return this->data_[index]; }
+
+  /// Codegen only: call before any runtime copy; it does not free a previous owned copy
+  /// (generated setup() runs before any lambda or automation can call set_options).
+  void assign_static(const T *data, size_t size) {
+    this->data_ = data;
+    this->size_ = size;
+  }
+  /// Copies the list into a heap array this owns, freeing a previous owned copy.
+  void assign_copy(const T *data, size_t size) {
+    auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    std::copy(data, data + size, table);
+    this->release_();
+    this->data_ = table;
+    this->size_ = size | OWNED_BIT;
+  }
+
+ protected:
+  static constexpr size_t OWNED_BIT = size_t{1} << (sizeof(size_t) * 8 - 1);
+
+  void release_() {
+    if (this->size_ & OWNED_BIT)
+      delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+
+  const T *data_{nullptr};
+  size_t size_{0};  // top bit set when data_ is an owned heap copy
+};
+static_assert(sizeof(ConstVector<const char *, true>) == 2 * sizeof(void *),
+              "ConstVector must stay a pointer and a size");
 
 /// Small buffer optimization - stores data inline when small, heap-allocates for large data
 /// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
@@ -242,8 +301,9 @@ template<typename T, size_t N> class StaticVector {
   size_t count_{0};
 
  public:
-  // Default constructor
-  StaticVector() = default;
+  // User provided, not "= default": otherwise `StaticVector<...> x_{}` members
+  // value-initialize and memset data_, defeating the comment above.
+  constexpr StaticVector() noexcept {}
 
   // Iterator range constructor
   template<typename InputIt> StaticVector(InputIt first, InputIt last) {
@@ -275,6 +335,9 @@ template<typename T, size_t N> class StaticVector {
 
   // Clear all elements
   void clear() { count_ = 0; }
+  // Set the element count, capped at N. Elements are neither initialized when growing nor destroyed when
+  // shrinking; release owning elements before shrinking past them.
+  void resize(size_t n) { count_ = n < N ? n : N; }
 
   // Assign from iterator range
   template<typename InputIt> void assign(InputIt first, InputIt last) {
@@ -2062,6 +2125,32 @@ class LwIPLock {
   // to prevent clang-tidy unused-variable warnings at call sites)
   LwIPLock() {}
   ~LwIPLock() {}
+#endif
+};
+
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+// Forward decl from <user_interface.h>
+// NOLINTNEXTLINE(readability-redundant-declaration)
+extern "C" bool system_update_cpu_freq(uint8_t freq);
+#endif
+
+/** Runs the CPU at 160 MHz while alive. ESP8266 built for 80 MHz only; elsewhere it compiles to nothing.
+ *
+ * The core resets the clock before every loop() pass, so a scope must stay within one pass, must not nest and
+ * must not yield to the main loop. Peripheral clocks are unchanged, but the cycle counter runs twice as fast, so
+ * code that times itself against F_CPU, including ISRs that fire while a scope is open, must read CPU2X.
+ */
+class CpuFrequencyBoost {
+ public:
+  CpuFrequencyBoost(const CpuFrequencyBoost &) = delete;
+  CpuFrequencyBoost &operator=(const CpuFrequencyBoost &) = delete;
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+  CpuFrequencyBoost() { system_update_cpu_freq(160); }
+  ~CpuFrequencyBoost() { system_update_cpu_freq(80); }
+#else
+  // Not = default, so clang-tidy does not flag unused variables at call sites
+  CpuFrequencyBoost() {}
+  ~CpuFrequencyBoost() {}
 #endif
 };
 

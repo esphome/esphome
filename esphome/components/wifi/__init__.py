@@ -12,6 +12,8 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_mbedtls_tls,
+    require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
     add_use_address,
@@ -211,6 +213,7 @@ WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
+WiFiRoamAction = wifi_ns.class_("WiFiRoamAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
@@ -352,7 +355,7 @@ def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
     full_config = fv.full_config.get()
-    has_improv = "esp32_improv" in full_config
+    has_improv = "improv_ble" in full_config
     has_improv_serial = "improv_serial" in full_config
     has_captive_portal = "captive_portal" in full_config
     has_web_server = "web_server" in full_config
@@ -365,6 +368,13 @@ def final_validate(config):
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
             "The AP will not be usable for configuration or monitoring. "
             "Add 'captive_portal:' or 'web_server:' to your configuration."
+        )
+    if "esp32_hosted" in full_config and any(
+        CONF_EAP in net for net in config.get(CONF_NETWORKS, [])
+    ):
+        _LOGGER.warning(
+            "WPA2 Enterprise ('eap:') is not supported by the esp32_hosted coprocessor "
+            "firmware ESPHome provides"
         )
 
 
@@ -505,7 +515,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2="light",
                 bk72xx="none",
                 rtl87xx="none",
-                ln882x="light",
+                ln882x="none",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -660,6 +670,10 @@ async def to_code(config):
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
             cg.add(var.set_ap_timeout(ap_timeout))
         cg.add_define("USE_WIFI_AP")
+        # The LN882H radio cannot run the AP and STA together; the fallback AP
+        # takes turns with the networks instead.
+        if CORE.is_ln882x:
+            cg.add_define("USE_WIFI_AP_EXCLUSIVE")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
@@ -669,6 +683,12 @@ async def to_code(config):
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
+        if has_eap:
+            # The supplicant's Kconfig select cannot override the IDF 5 TLS
+            # role choice; the EAP client talks to mbedTLS directly (no
+            # esp-tls) and needs every trimmed extra.
+            require_mbedtls_tls()
+            require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if has_manual_ip:
@@ -719,6 +739,10 @@ async def to_code(config):
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
 
+    # LN882x: hand the SDK the BSSID LibreTiny 1.13 drops (see wifi_component_libretiny.cpp); remove once fixed upstream.
+    if CORE.is_ln882x:
+        cg.add_build_flag("-Wl,--wrap=wifi_sta_connect")
+
     # post_connect_roaming defaults to true in C++ - disable if user disabled it
     # or if 802.11k/v is enabled (driver handles roaming natively)
     if (
@@ -763,7 +787,7 @@ async def to_code(config):
                 "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
             )
             # PSRAM is guaranteed - use aggressive settings
-            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE is set to true in networking component
+            # Higher maximum values are allowed because CONFIG_LWIP_WND_SCALE may be set to true in networking component
             # Based on https://github.com/espressif/esp-adf/issues/297#issuecomment-783811702
 
             # Large dynamic RX buffers (requires PSRAM)
@@ -821,33 +845,49 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-@automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
-async def wifi_connected_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_condition("wifi.enabled", WiFiEnabledCondition, cv.Schema({}))
-async def wifi_enabled_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_condition("wifi.ap_active", WiFiAPActiveCondition, cv.Schema({}))
-async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_action(
-    "wifi.enable", WiFiEnableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "wifi.connected",
+    WiFiConnectedCondition,
+    cv.Schema({}),
 )
-async def wifi_enable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action(
-    "wifi.disable", WiFiDisableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "wifi.enabled",
+    WiFiEnabledCondition,
+    cv.Schema({}),
 )
-async def wifi_disable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
+
+
+automation.register_bare_condition(
+    "wifi.ap_active",
+    WiFiAPActiveCondition,
+    cv.Schema({}),
+)
+
+
+automation.register_bare_action(
+    "wifi.enable",
+    WiFiEnableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
+
+
+automation.register_bare_action(
+    "wifi.disable",
+    WiFiDisableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
+
+
+automation.register_bare_action(
+    "wifi.roam",
+    WiFiRoamAction,
+    cv.Schema({}),
+    synchronous=True,
+)
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
