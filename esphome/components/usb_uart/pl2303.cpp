@@ -301,14 +301,20 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       return true;
     }
     case 1:
-      // Assert DTR + RTS (init only)
+      // Apply the modem lines (init only)
       if (reload)
         return false;
-      this->config_transfer_(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, CONTROL_DTR | CONTROL_RTS, iface);
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
+}
+
+void USBUartTypePL2303::modem_control_transfer(USBUartChannelBase *channel) {
+  const uint16_t value = (channel->dtr_ ? CONTROL_DTR : 0) | (channel->rts_ ? CONTROL_RTS : 0);
+  ESP_LOGD(TAG, "PL2303: SET_CONTROL_REQUEST DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, value, channel->cdc_dev_.bulk_interface_number);
 }
 
 }  // namespace esphome::usb_uart
