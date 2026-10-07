@@ -27,15 +27,15 @@ def test_constant_payloads_share_progmem_tables(
     assert "set_data_template(" in main_cpp
 
 
-@pytest.mark.parametrize("data", [[0x01] * 64, "a" * 64])
-def test_send_packet_accepts_64_bytes(data: list[int] | str) -> None:
-    """The longest payload that fits the TX FIFO."""
-    config = SEND_PACKET_ACTION_SCHEMA({"id": "transceiver", "data": data})
-    assert len(config["data"]) == 64
-
-
-@pytest.mark.parametrize("data", [[0x01] * 65, "a" * 65])
-def test_send_packet_rejects_65_bytes(data: list[int] | str) -> None:
-    """Payloads longer than the TX FIFO are rejected."""
-    with pytest.raises(cv.Invalid, match="at most 64"):
-        SEND_PACKET_ACTION_SCHEMA({"id": "transceiver", "data": data})
+@pytest.mark.parametrize("size", [64, 65])
+@pytest.mark.parametrize("make", [lambda n: [0x01] * n, lambda n: "a" * n])
+def test_send_packet_tx_fifo_limit(
+    size: int, make: Callable[[int], list[int] | str]
+) -> None:
+    """Payloads up to the 64 byte TX FIFO are accepted, longer ones rejected."""
+    config = {"id": "transceiver", "data": make(size)}
+    if size <= 64:
+        assert len(SEND_PACKET_ACTION_SCHEMA(config)["data"]) == size
+    else:
+        with pytest.raises(cv.Invalid, match="at most 64"):
+            SEND_PACKET_ACTION_SCHEMA(config)

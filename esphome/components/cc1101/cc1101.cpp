@@ -7,6 +7,7 @@
 namespace esphome::cc1101 {
 
 static const char *const TAG = "cc1101";
+static constexpr size_t TX_FIFO_SIZE = 64;
 
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
@@ -384,8 +385,8 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
     return CC1101Error::PARAMS;
   }
   const bool variable = this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
-  // The 64 byte TX FIFO also holds the length byte in variable length mode
-  if (len > (variable ? 63u : 64u)) {
+  // In variable length mode the FIFO also holds the length byte
+  if (len + (variable ? 1 : 0) > TX_FIFO_SIZE) {
     ESP_LOGE(TAG, "Packet of %u bytes does not fit the TX FIFO", static_cast<unsigned>(len));
     return CC1101Error::PARAMS;
   }

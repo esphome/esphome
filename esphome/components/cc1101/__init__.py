@@ -383,7 +383,7 @@ def validate_raw_data(value):
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(CC1101Component),
-        # The TX FIFO holds 64 bytes; transmit_packet also checks the length byte in variable length mode
+        # TX FIFO size
         cv.Required(CONF_DATA): cv.templatable(
             cv.All(validate_raw_data, cv.Length(max=64))
         ),
