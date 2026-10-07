@@ -14,9 +14,12 @@ sensor:
     name: "Analog 1"
     lambda: return 10.0;
     accuracy_decimals: 0
+    device_class: temperature
+    unit_of_measurement: "°C"
   - platform: template
     name: "Analog 2"
     lambda: return 11.0;
+    unit_of_measurement: "°C"
   - platform: template
     name: "Analog 3"
     lambda: return 12.0;
@@ -41,6 +44,7 @@ number:
     min_value: 2
     max_value: 100
     step: 1
+    unit_of_measurement: "°C"
 
 time:
   - platform: zigbee

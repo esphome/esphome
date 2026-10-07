@@ -19,6 +19,12 @@ event:
             ESP_LOGD("test", "Event type: %.*s", (int) event_type.size(), event_type.c_str());
           }
 
+  - platform: template
+    name: Other Event
+    id: other_event
+    event_types:
+      - template_event_type1
+
 button:
   - platform: template
     name: Trigger Event
@@ -30,3 +36,21 @@ button:
           id: some_event
           event_type: !lambda |-
             return id(some_event).has_event() ? "template_event_type2" : "template_event_type1";
+
+  - platform: template
+    name: Event Types Lambdas
+    on_press:
+      - lambda: |-
+          // How external components and configs read and set event types
+          const auto &types = id(some_event).get_event_types();
+          for (const char *type : types)
+            ESP_LOGD("test", "%s", type);
+          if (types.empty()) {
+            ESP_LOGD("test", "no types");
+          } else if (types.size() > 1) {
+            ESP_LOGD("test", "%s %s", types[0], types.at(1));
+            const auto *it = std::find(types.begin(), types.end(), types[1]);
+            ESP_LOGD("test", "Index %d", (int) (it - types.begin()));
+          }
+          id(other_event).set_event_types(id(some_event).get_event_types());
+          id(other_event).set_event_types({"other_a", "other_b"});

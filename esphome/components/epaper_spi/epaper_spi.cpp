@@ -196,6 +196,15 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::UPDATE:
       this->do_update_();  // Calls ESPHome (current page) lambda
+      if (this->full_update_requested_) {
+        // Refresh the whole panel even if nothing was drawn
+        this->full_update_requested_ = false;
+        this->update_count_ = 0;
+        this->x_low_ = 0;
+        this->y_low_ = 0;
+        this->x_high_ = this->width_;
+        this->y_high_ = this->height_;
+      }
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
         this->set_state_(EPaperState::IDLE);
         return;
@@ -327,9 +336,9 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
     return;
   const size_t byte_position = y * this->row_width_ + x / 8;
   const uint8_t bit_position = x % 8;
-  const uint8_t pixel_bit = 0x80 >> bit_position;
+  const uint8_t pixel_bit = 0x80u >> bit_position;
   const auto original = this->buffer_[byte_position];
-  if ((color_to_bit(color) == 0)) {
+  if (color_to_mono(color) == 0) {
     this->buffer_[byte_position] = original & ~pixel_bit;
   } else {
     this->buffer_[byte_position] = original | pixel_bit;
