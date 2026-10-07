@@ -8,6 +8,11 @@ esphome:
   on_boot:
     then:
       - epaper_spi.full_update_next: epaper_partial
+      - if:
+          condition:
+            epaper_spi.is_updating: epaper_partial
+          then:
+            - component.update: epaper_partial
 
 display:
   - platform: epaper_spi

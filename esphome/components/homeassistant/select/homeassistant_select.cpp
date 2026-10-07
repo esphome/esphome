@@ -230,6 +230,13 @@ void HomeassistantSelect::control(size_t index) {
     return;
   }
 
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
+
   static constexpr auto SERVICE_SELECT = StringRef::from_lit("select.select_option");
   static constexpr auto SERVICE_INPUT_SELECT = StringRef::from_lit("input_select.select_option");
   static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");

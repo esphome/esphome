@@ -231,6 +231,8 @@ void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *
 /// Aborts unless an encode body ended exactly where calculate_size() promised. A plain check rather than
 /// assert(), so NDEBUG cannot switch it off.
 void proto_check_encode_end(const uint8_t *end, const uint8_t *expected);
+/// Aborts unless a sized sub-message (length prefix at len_pos) ended where its calculated size said.
+void proto_check_sub_message_size(uint32_t field_id, uint32_t expected, const uint8_t *len_pos, const uint8_t *end);
 #else
 #define PROTO_ENCODE_DEBUG_PARAM
 #define PROTO_ENCODE_DEBUG_ARG
@@ -263,21 +265,6 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw(proto_tag(field_id, type)); }
-  /// Single-pass encode for repeated submessage elements.
-  /// Thin template wrapper; all buffer work is in the non-template core.
-  template<typename T> void encode_sub_message(uint32_t field_id, const T &value);
-  /// Encode an optional singular submessage field — skips if empty.
-  /// Thin template wrapper; all buffer work is in the non-template core.
-  template<typename T> void encode_optional_sub_message(uint32_t field_id, const T &value);
-
-  // NOLINTBEGIN(readability-identifier-naming)
-  // Non-template core for encode_sub_message — backpatch approach.
-  void encode_sub_message(uint32_t field_id, const void *value,
-                          uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
-  // Non-template core for encode_optional_sub_message.
-  void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
-  // NOLINTEND(readability-identifier-naming)
   APIBuffer *get_buffer() const { return buffer_; }
   uint8_t *get_pos() const { return pos_; }
   void set_pos(uint8_t *pos) { pos_ = pos; }
@@ -288,7 +275,6 @@ class ProtoWriteBuffer {
 
 #ifdef ESPHOME_DEBUG_API
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
-  void debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual);
 #else
   void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
 #endif
@@ -312,6 +298,9 @@ class ProtoWriteBuffer {
 // Varint encoding thresholds — used by both proto_encode_* free functions and ProtoSize.
 constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
 constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
+
+/// Generated encode body: writes the fields at pos, returns the cursor past them.
+using ProtoEncodeFn = uint8_t *(*) (const void *, uint8_t *PROTO_ENCODE_DEBUG_PARAM);
 
 /// Static encode helpers for the generated encode bodies. Each takes the write cursor by value and
 /// returns it advanced, so outlined calls at -Os chain through the return register instead of a
@@ -575,22 +564,36 @@ class ProtoEncode {
                                                            uint32_t field_id, int64_t value) {
     return encode_uint64_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, encode_zigzag64(value));
   }
-  /// Sub-message encoding: sync pos to buffer, delegate, read the cursor back.
+  /// Repeated sub-message element; the constant tag is written inline.
   template<typename T>
   [[nodiscard]] static inline uint8_t *encode_sub_message(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
-                                                          ProtoWriteBuffer &buffer, uint32_t field_id, const T &value) {
-    buffer.set_pos(pos);
-    buffer.encode_sub_message(field_id, value);
-    return buffer.get_pos();
+                                                          uint32_t field_id, const T &value) {
+    pos = encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);
+    return encode_sub_message_body(pos PROTO_ENCODE_DEBUG_ARG, &value, &T::encode_msg);
   }
+  /// Singular sub-message field, skipped when it encodes to nothing.
   template<typename T>
   [[nodiscard]] static inline uint8_t *encode_optional_sub_message(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
-                                                                   ProtoWriteBuffer &buffer, uint32_t field_id,
-                                                                   const T &value) {
-    buffer.set_pos(pos);
-    buffer.encode_optional_sub_message(field_id, value);
-    return buffer.get_pos();
+                                                                   uint32_t field_id, const T &value) {
+    uint32_t nested_size = T::calc_size_msg(&value);
+    if (nested_size == 0)
+      return pos;
+    pos = encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);
+#ifdef ESPHOME_DEBUG_API
+    uint8_t *end = encode_sized_sub_message_body(pos PROTO_ENCODE_DEBUG_ARG, nested_size, &value, &T::encode_msg);
+    proto_check_sub_message_size(field_id, nested_size, pos, end);
+    return end;
+#else
+    return encode_sized_sub_message_body(pos, nested_size, &value, &T::encode_msg);
+#endif
   }
+  /// Length and body, length backpatched after the body is written.
+  [[nodiscard]] static uint8_t *encode_sub_message_body(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                        const void *value, ProtoEncodeFn encode_fn);
+  /// Length and body for a precomputed size.
+  [[nodiscard]] static uint8_t *encode_sized_sub_message_body(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                              uint32_t nested_size, const void *value,
+                                                              ProtoEncodeFn encode_fn);
 
  private:
   /// Unaligned little endian store of four bytes: byte stores where the outlined helper lives (ESP-IDF, ARM
@@ -704,9 +707,7 @@ class ProtoMessage {
  public:
   // Non-virtual defaults for messages with no fields; generated classes hide all four. The
   // static encode_msg/calc_size_msg take const void * so &T::encode_msg needs no thunk.
-  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
-    return buffer.get_pos();
-  }
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM) { return pos; }
   static uint32_t calc_size_msg(const void *self) { return 0; }
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const { return buffer.get_pos(); }
   uint32_t calculate_size() const { return 0; }
@@ -959,18 +960,6 @@ class ProtoSize {
     return field_id_size + varint(nested_size) + nested_size;
   }
 };
-
-// Implementation of methods that depend on ProtoSize being fully defined
-
-// Thin template wrapper; delegates to non-template core in proto.cpp.
-template<typename T> inline void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const T &value) {
-  this->encode_sub_message(field_id, &value, &T::encode_msg);
-}
-
-// Thin template wrapper; delegates to non-template core.
-template<typename T> inline void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, const T &value) {
-  this->encode_optional_sub_message(field_id, T::calc_size_msg(&value), &value, &T::encode_msg);
-}
 
 template<typename T> const char *proto_enum_to_string(T value);
 

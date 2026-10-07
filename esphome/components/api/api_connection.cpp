@@ -199,6 +199,17 @@ APIConnection::~APIConnection() {
     }
   }
 #endif
+  // entities holding a transmit reply for this client must not answer into a freed connection
+#ifdef USE_INFRARED
+  for (auto *infrared : App.get_infrareds()) {
+    infrared->on_api_connection_closed(this);
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  for (auto *radio_frequency : App.get_radio_frequencies()) {
+    radio_frequency->on_api_connection_closed(this);
+  }
+#endif
 }
 
 #if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
@@ -1517,8 +1528,10 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 }
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
+  // Clients on API 1.18+ are told when the frame has left the transmitter; the entity owns that reply
+  const bool want_reply = this->client_supports_api_version(1, 18);
   // Dispatch by key: infrared entities are checked first, then radio frequency entities.
   // The key is unique across all entity instances on a device, so at most one lookup will succeed.
 #ifdef USE_INFRARED
@@ -1528,6 +1541,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_carrier_frequency(msg.carrier_frequency);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
     call.set_repeat_count(msg.repeat_count);
+    call.set_api_connection(want_reply ? this : nullptr);
     call.perform();
     return;
   }
@@ -1540,13 +1554,38 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
     call.set_repeat_count(msg.repeat_count);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+    call.set_api_connection(want_reply ? this : nullptr);
     call.perform();
+    return;
   }
 #endif
+  ESP_LOGW(TAG, "IR/RF transmit for unknown key %" PRIu32, msg.key);
+  if (want_reply) {
+    // nothing will ever report for an unknown key, so answer as not started right away
+#ifdef USE_DEVICES
+    const uint32_t device_id = msg.device_id;
+#else
+    const uint32_t device_id = 0;
+#endif
+    if (!this->send_infrared_rf_transmit_complete(device_id, msg.key, false)) {
+      API_LOG_MSG_DROPPED(TAG, "IR/RF reply");
+    }
+  }
+}
+
+bool APIConnection::send_infrared_rf_transmit_complete([[maybe_unused]] uint32_t device_id, uint32_t key,
+                                                       bool success) {
+  InfraredRFTransmitCompleteResponse resp{};
+#ifdef USE_DEVICES
+  resp.device_id = device_id;
+#endif
+  resp.key = key;
+  resp.success = success;
+  return this->send_message(resp);
 }
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
   if (!this->send_message(msg)) {
     // V: fires per decoded frame with no subscription gate, so a warning
@@ -1554,6 +1593,7 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
     ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
   }
 }
+
 #endif
 
 #ifdef USE_SERIAL_PROXY
@@ -1642,6 +1682,22 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   }
   if (!this->send_message(resp)) {
     API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
+}
+
+void APIConnection::on_subscribe_serial_proxy_identity_request() {
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  // Only USB ports change identity after this snapshot
+  this->flags_.serial_proxy_identity_subscription = true;
+#endif
+  for (auto *proxy : App.get_serial_proxies()) {
+    proxy->send_identity(this);
+  }
+}
+
+void APIConnection::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
+  if (!this->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy identity");
   }
 }
 
@@ -1816,7 +1872,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 17;
+  resp.api_version_minor = 18;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -2029,6 +2085,9 @@ bool APIConnection::send_device_capabilities_response_() {
     info.port_type = proxy->get_port_type();
     info.configured_line_states = proxy->get_configured_modem_pins();
   }
+#endif
+#ifdef USE_API_WIZARD
+  resp.wizard.configured = true;
 #endif
   return this->send_message(resp);
 }
@@ -2243,7 +2302,13 @@ void APIConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSet
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void APIConnection::on_subscribe_home_assistant_states_request() { state_subs_at_ = 0; }
+void APIConnection::on_subscribe_home_assistant_states_request() {
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // Remember it, as a client that subscribed also gets the subscriptions again when a wizard input is set
+  this->flags_.home_assistant_states = true;
+#endif
+  state_subs_at_ = 0;
+}
 #endif
 bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   delay(0);
@@ -2287,8 +2352,7 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
 #endif
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
-  ProtoWriteBuffer buffer{&shared_buf, write_start};
-  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end = encode_fn(msg, shared_buf.data() + write_start PROTO_ENCODE_DEBUG_INIT(&shared_buf));
 #ifdef ESPHOME_DEBUG_API
   proto_check_encode_end(end, shared_buf.data() + shared_buf.size());
 #else
@@ -2686,6 +2750,13 @@ void APIConnection::process_state_subscriptions_() {
   }
 
   const auto &it = subs[this->state_subs_at_];
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  // An entity id that is not set yet (a wizard input) has nothing to subscribe to; it is sent once it is set
+  if (it.entity_id[0] == '\0') {
+    this->state_subs_at_++;
+    return;
+  }
+#endif
   SubscribeHomeAssistantStateResponse resp;
   resp.entity_id = StringRef(it.entity_id);
 

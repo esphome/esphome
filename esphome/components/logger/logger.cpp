@@ -144,7 +144,10 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-  auto it = this->log_levels_.find(tag);
+  // Skip the lookup when no per-tag levels are set
+  if (this->log_levels_.empty())
+    return this->current_level_;
+  auto it = this->log_levels_.find(FlashTag{tag});
   if (it != this->log_levels_.end())
     return it->second;
 #endif
