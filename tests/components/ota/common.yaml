@@ -1,11 +1,7 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
 ota:
   - platform: esphome
+    id: ota_esphome
     password: "superlongpasswordthatnoonewillknow"
-    port: 3286
     on_begin:
       then:
         - logger.log: "OTA start"
@@ -26,3 +22,9 @@ ota:
       then:
         lambda: >-
           ESP_LOGD("ota", "State %d", state);
+
+# set_auth_password() must stay callable from a lambda
+esphome:
+  on_boot:
+    then:
+      - lambda: id(ota_esphome).set_auth_password("runtime_password");
