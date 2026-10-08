@@ -18,6 +18,7 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 logger.log: Truth
+          - canbus.send: !lambda return x;
       - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true
@@ -59,6 +60,9 @@ button:
           data: [0, 1, 2]
       - canbus.send: "abc"
       - canbus.send: [0, 1, 2]
+      # Identical on purpose: both sends share one constant payload
+      - canbus.send: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
+      - canbus.send: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
       - canbus.send: !lambda return {0, 1, 2};
       # Test canbus.send with lambda that references a component (function pointer)
       - canbus.send: !lambda |-

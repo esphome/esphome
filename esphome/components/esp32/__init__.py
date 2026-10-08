@@ -3074,6 +3074,10 @@ async def to_code(config):
     # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
     add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
 
+    # Main loop wakes use notification index 1; index 0 stays free for ESP-IDF waits
+    # such as pthread_join(), which a stray main-loop wake would otherwise end early.
+    add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES", 2)
+
     # Place non-ISR FreeRTOS functions into flash instead of IRAM
     # This saves up to 8KB of IRAM. ISR-safe functions (FromISR variants) stay in IRAM.
     # In ESP-IDF 6.0 this becomes the default and CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH
