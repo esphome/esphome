@@ -9,7 +9,7 @@ static const uint8_t STATUS_BIT_BUSY = 5;
 static const uint8_t STATUS_BIT_ERROR = 2;
 static const uint8_t STATUS_MATH_SAT = 0;
 
-static const char *const TAG = "honeywellabp2";
+ESPHOME_LOG_TAG(TAG, "honeywellabp2");
 
 void HONEYWELLABP2Sensor::read_sensor_data() {
   if (this->read(raw_data_, 7) != i2c::ERROR_OK) {

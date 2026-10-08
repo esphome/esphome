@@ -468,6 +468,23 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
+class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
+    __slots__ = ()
+
+    def __str__(self):
+        return f"const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+
+
+def extern_progmem_array(
+    qualified_name: str, type_: "MockObjClass", rhs: SafeExpType
+) -> "MockObj":
+    """Emit an externally linked PROGMEM table that a component declares extern and reads itself."""
+    CORE.add_global(
+        ExternProgmemAssignmentExpression(type_, qualified_name, safe_exp(rhs))
+    )
+    return MockObj(qualified_name, ".")
+
+
 def shared_progmem_array(
     name: str, type_: "MockObjClass", rhs: SafeExpType, *, share: bool = True
 ) -> "MockObj":
