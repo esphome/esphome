@@ -6,7 +6,6 @@ Home Assistant shows the wizard when the device is added. See api_wizard.h for t
 from collections.abc import Callable
 import importlib
 import json
-from types import ModuleType
 from typing import Any
 
 from esphome import automation
@@ -27,7 +26,12 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
-from esphome.helpers import fnv1_hash, fnv1_hash_object_id, fnv1a_32bit_hash
+from esphome.helpers import (
+    fnv1_hash,
+    fnv1_hash_object_id,
+    fnv1a_32bit_hash,
+    zstd_module,
+)
 from esphome.types import ConfigType
 
 API_DOMAIN = "api"
@@ -349,14 +353,6 @@ WIZARD_INPUT_IS_SET_SCHEMA = cv.maybe_simple_value(
 automation.register_apply_condition(
     "api.wizard.input_is_set", WIZARD_INPUT_IS_SET_SCHEMA, "has_entity_id()"
 )
-
-
-def zstd_module() -> ModuleType:
-    """The zstd module: the standard library one from Python 3.14, otherwise the backport."""
-    try:
-        return importlib.import_module("compression.zstd")
-    except ImportError:
-        return importlib.import_module("backports.zstd")
 
 
 def _entity_document(conf: ConfigType, config: fv.FinalValidateConfig) -> ConfigType:

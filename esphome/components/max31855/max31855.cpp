@@ -5,7 +5,7 @@
 
 namespace esphome::max31855 {
 
-static const char *const TAG = "max31855";
+ESPHOME_LOG_TAG(TAG, "max31855");
 
 void MAX31855Sensor::update() {
   this->enable();

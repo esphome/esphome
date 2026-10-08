@@ -6,7 +6,7 @@
 
 namespace esphome::bmp280_base {
 
-static const char *const TAG = "bmp280.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp280.sensor");
 
 static const uint8_t BMP280_REGISTER_STATUS = 0xF3;
 static const uint8_t BMP280_REGISTER_CONTROL = 0xF4;
