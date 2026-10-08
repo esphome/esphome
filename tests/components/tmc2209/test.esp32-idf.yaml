@@ -1,0 +1,9 @@
+substitutions:
+  step_pin: GPIO12
+  dir_pin: GPIO13
+  enn_pin: GPIO14
+  index_pin: GPIO15
+
+packages:
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+  tmc2209: !include common.yaml
