@@ -1030,8 +1030,8 @@ HEAP_ALLOCATING_HELPERS = {
     r"str_sprintf|"
     r"str_snprintf|"
     r"value_accuracy_to_string"
-    # Explicit template arguments, e.g. format_hex_pretty<uint32_t>(
-    r")\s*(?:<[^<>()]*>\s*)?\(" + CPP_RE_EOL,
+    # Explicit template arguments with up to one nested level, e.g. format_hex<std::array<uint8_t, 4>>(
+    r")\s*(?:<(?:[^<>()]|<[^<>()]*>)*>\s*)?\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves

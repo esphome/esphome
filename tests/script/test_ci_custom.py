@@ -450,6 +450,7 @@ def test_log_tag_as_string_ignores_logging(line: str) -> None:
         ("auto s = format_hex_pretty(data, len);\n", True),
         # Explicit template arguments must not hide the call
         ("auto s = format_hex_pretty<uint32_t>(v, '\\0', false);\n", True),
+        ("auto s = format_hex<std::array<uint8_t, 4>>(arr);\n", True),
         ("auto s = format_hex < 3;\n", False),
         ("format_hex_pretty_to(buf, sizeof(buf), data, len);\n", False),
     ],
