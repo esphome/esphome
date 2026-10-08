@@ -1977,18 +1977,24 @@ def test_secret_values_registered_keeps_a_real_secret_loaded_meanwhile() -> None
 
 
 def test_secret_values_registered_nested_keeps_the_outer_collector() -> None:
-    """An inner context does not stop the outer one from collecting names."""
+    """The outer context also collects names emitted inside an inner one."""
     with yaml_util.secret_values_registered({"outer_value": "outer"}) as outer:
         with yaml_util.secret_values_registered({"inner_value": "inner"}) as inner:
             yaml_util.dump({"a": make_data_base("inner_value")})
         yaml_util.dump({"b": make_data_base("outer_value")})
     assert inner == {"inner"}
-    assert outer == {"outer"}
+    assert outer == {"inner", "outer"}
 
 
-def test_registered_secret_names() -> None:
-    yaml_util._SECRET_VALUES["value_a"] = "name_a"
-    assert "name_a" in yaml_util.registered_secret_names()
+def test_registered_secret_names(tmp_path: Path) -> None:
+    """Every loaded name is returned, even two sharing a value, but not names
+    registered only for a dump."""
+    (tmp_path / "secrets.yaml").write_text("wifi_password: same\nap_password: same\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("a: !secret wifi_password\nb: !secret ap_password\n")
+    yaml_util.load_yaml(main)
+    with yaml_util.secret_values_registered({"other": "temp_name"}):
+        assert yaml_util.registered_secret_names() == {"wifi_password", "ap_password"}
 
 
 @pytest.fixture(autouse=True)
