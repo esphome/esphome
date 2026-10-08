@@ -279,6 +279,12 @@ class APIConnection final : public APIServerConnectionBase {
   void on_ping_request();
   void on_device_info_request();
   void on_device_capabilities_request();
+#ifdef USE_API_WIZARD
+  void on_device_wizard_request();
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  void on_wizard_input_set_request(const WizardInputSetRequest &msg);
+#endif
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
@@ -308,6 +314,10 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request();
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  /// Tell this client about the subscriptions whose entity id is stored in the given buffer, as the buffer changed
+  void resend_state_subscriptions(const char *entity_id);
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void on_execute_service_request(const ExecuteServiceRequest &msg);
@@ -351,7 +361,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_no_setup_connection();
 
   // Function pointer type for type-erased message encoding
-  using MessageEncodeFn = uint8_t *(*) (const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM);
+  using MessageEncodeFn = ProtoEncodeFn;
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 
@@ -757,6 +767,9 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
     uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+    uint8_t home_assistant_states : 1;  // Client subscribed to Home Assistant states
+#endif
 #ifdef USE_API_OUTGOING_CONNECTION
     uint8_t outgoing_connection_target : 1;  // Client declared itself a dial-back target in its hello
 #endif

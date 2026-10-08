@@ -5,7 +5,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.water_heater";
+ESPHOME_LOG_TAG(TAG, "template.water_heater");
 
 TemplateWaterHeater::TemplateWaterHeater() = default;
 

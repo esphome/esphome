@@ -11,7 +11,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 void DebugComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Debug component:");

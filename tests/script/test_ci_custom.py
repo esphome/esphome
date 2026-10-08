@@ -386,3 +386,59 @@ def test_ternary_error_message_names_the_literal() -> None:
     )
     assert len(errs) == 1
     assert 'LOG_STR_LITERAL("enabled")' in errs[0][2]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'static const char *const TAG = "x";',
+        'static const char* const TAG = "x";',
+        'static const char *TAG = "x";',
+        'constexpr const char *TAG = "x";',
+        'static const char *const TAG{"x"};',
+        'static constexpr char TAG[] = "x";',
+        'static constexpr char TAG[] = {"x"};',
+        'static const char TAG[8] = "x";',
+        '  static const char *const TAG = "x";',
+    ],
+)
+def test_log_tag_macro_flags_plain_tags(line: str) -> None:
+    assert ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    ['ESPHOME_LOG_TAG(TAG, "x");', 'static const char *const NAME = "x";'],
+)
+def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:
+    assert not ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "this->set_timeout(TAG, 100, cb);",
+        "strcmp(TAG, name);",
+        "strcmp(name, TAG);",
+        "strncpy(buf, TAG, sizeof(buf));",
+        "strcmp(get_name(), TAG);",
+        "this->set_timeout(make_id(x), TAG, cb);",
+        "std::string(TAG);",
+        "std::string name = TAG;",
+        "std::string name{TAG};",
+    ],
+)
+def test_log_tag_as_string_flags_string_uses(line: str) -> None:
+    assert ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'ESP_LOGD(TAG, "x");',
+        'this->set_timeout(100, [this]() { ESP_LOGD(TAG, "x"); });',
+        "strcmp(name, OTHER_TAG);",
+    ],
+)
+def test_log_tag_as_string_ignores_logging(line: str) -> None:
+    assert not ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
