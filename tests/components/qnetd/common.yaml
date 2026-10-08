@@ -1,3 +1,10 @@
 qnetd:
   port: 5403
   max_clients: 6
+
+sensor:
+  - platform: qnetd
+    connected_clients:
+      name: Connected cluster nodes
+    decisions:
+      name: Quorum decisions
