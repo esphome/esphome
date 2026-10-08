@@ -708,14 +708,24 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
     return var
 
 
+def validate_descriptor_value_not_empty(config: ConfigType) -> ConfigType:
+    # An empty constant becomes a nullptr table, which the descriptor would memcpy from
+    if config[CONF_VALUE][CONF_DATA] == "":
+        raise cv.Invalid("Descriptor value must not be empty", path=[CONF_VALUE])
+    return config
+
+
 @automation.register_action(
     "ble_server.descriptor.set_value",
     BLEDescriptorSetValueAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(BLEDescriptor),
-            cv.Required(CONF_VALUE): value_schema(),
-        }
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(BLEDescriptor),
+                cv.Required(CONF_VALUE): value_schema(),
+            }
+        ),
+        validate_descriptor_value_not_empty,
     ),
     synchronous=True,
 )

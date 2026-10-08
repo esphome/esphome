@@ -14,9 +14,11 @@ from esphome.components.esp32_ble_server import (
     CUD_DESCRIPTOR_UUID,
     DEVICE_INFORMATION_SERVICE_UUID,
     uuid_is,
+    validate_descriptor_value_not_empty,
     value_bytes,
 )
-from esphome.const import CONF_DATA, CONF_TYPE
+import esphome.config_validation as cv
+from esphome.const import CONF_DATA, CONF_TYPE, CONF_VALUE
 
 
 @pytest.mark.parametrize(
@@ -135,3 +137,10 @@ def test_set_value_constants_share_a_flash_table(
     assert main_cpp.count("set_buffer_static(ble_server_value, 2);") == 2
     assert "set_buffer_template(" in main_cpp
     assert "ByteBuffer::wrap" not in main_cpp
+
+
+def test_descriptor_set_value_rejects_empty_constant() -> None:
+    with pytest.raises(cv.Invalid, match="must not be empty"):
+        validate_descriptor_value_not_empty({CONF_VALUE: {CONF_DATA: ""}})
+    config = {CONF_VALUE: {CONF_DATA: "x"}}
+    assert validate_descriptor_value_not_empty(config) is config
