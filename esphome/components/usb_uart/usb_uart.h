@@ -79,13 +79,16 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_SPACE,
 };
 
+// 1 and 2 are the stop bit count the uart component uses, so a count set through the
+// UARTComponent API (as serial_proxy does) means the same here. 1.5 has no count.
 enum UARTStopBitsOptions {
-  UART_CONFIG_STOP_BITS_1 = 0,
-  UART_CONFIG_STOP_BITS_1_5,
-  UART_CONFIG_STOP_BITS_2,
+  UART_CONFIG_STOP_BITS_1 = 1,
+  UART_CONFIG_STOP_BITS_2 = 2,
+  UART_CONFIG_STOP_BITS_1_5 = 3,
 };
 
 static const char *const PARITY_NAMES[] = {"NONE", "ODD", "EVEN", "MARK", "SPACE"};
+// Indexed by USBUartChannelBase::stop_bits_code_()
 static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
 
 class RingBuffer {
@@ -194,6 +197,8 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
   void check_logger_conflict() override {}
+  // Stop bits as CDC bCharFormat encodes them, which CP210x and PL2303 share: 0 = 1, 1 = 1.5, 2 = 2
+  uint8_t stop_bits_code_() const;
   // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
