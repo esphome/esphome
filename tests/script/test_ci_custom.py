@@ -510,7 +510,7 @@ def test_every_component_defines_its_domain() -> None:
         init.parent.name
         for init in sorted(components.glob("*/__init__.py"))
         if ci_custom.lint_component_domain(
-            init.relative_to(SCRIPT_DIR.parent), init.read_text()
+            init.relative_to(SCRIPT_DIR.parent), init.read_text(encoding="utf-8")
         )
     ]
     assert missing == []
