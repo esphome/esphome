@@ -444,12 +444,8 @@ def _load_include_candidates(
         )
 
 
-# Matches !secret references in YAML text.  An optional surrounding
-# quote pair around the key is allowed and ignored: YAML treats
-# ``!secret 'foo'`` and ``!secret foo`` as the same key.  This is
-# intentionally a simple regex scan rather than a YAML parse — it may
-# match inside comments or multi-line strings, which is the conservative
-# direction (include more secrets rather than fewer).
+# `!secret key`, quoted or not. A text scan, not a YAML parse, so it can also match
+# comments; that errs toward including more secrets.
 _SECRET_REFERENCE_RE = re.compile(r"""!secret\s+['"]?([^\s'"]+)""")
 
 
@@ -1144,19 +1140,11 @@ def registered_secret_names() -> set[str]:
 
 @contextmanager
 def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
-    """Temporarily register value→name mappings so :func:`dump` renders those
-    scalars as ``!secret <name>``.
+    """Make :func:`dump` write these values as ``!secret <name>`` while active.
 
-    Mappings already present in ``_SECRET_VALUES`` (values loaded through a
-    real ``!secret``) win over the supplied ones and are left untouched.
-
-    Yields a set that collects the name of every ``!secret`` reference the
-    dumper emits while the context is active, so callers can tell exactly
-    which registered values were actually swapped.
-
-    A wrapper (``!extend``, ``!remove``, scalar ``!include``) whose value is
-    registered dumps as a bare ``!secret``, dropping its tag rather than the
-    value leaking.
+    Real secrets already registered win. Yields the set of ``!secret`` names the
+    dumper emits. A wrapped value (``!extend``, ``!remove``, ``!include``) loses its
+    tag rather than leaking.
     """
     global _EMITTED_SECRET_NAMES  # noqa: PLW0603
     added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
