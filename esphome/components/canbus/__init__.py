@@ -1,13 +1,16 @@
+import logging
 import re
 from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_DATA, CONF_ID, CONF_PLATFORM, CONF_TRIGGER_ID
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
 IS_PLATFORM_COMPONENT = True
@@ -137,9 +140,19 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         )
 
 
-async def register_canbus(var: MockObj, config: ConfigType) -> None:
+async def register_canbus(
+    var: MockObj, config: ConfigType, reports_status: bool | None = None
+) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.new_Pvariable(config[CONF_ID], var)
+    if reports_status is None:
+        _LOGGER.warning(
+            "CAN bus platform '%s' does not report bus state, so bus-off recovery and "
+            "error-state logging are disabled. Platform authors should either override "
+            "get_status() and get_events() and call register_canbus(..., reports_status=True) "
+            "or pass reports_status=False if the hardware cannot report it",
+            config[CONF_PLATFORM],
+        )
     await setup_canbus_core_(var, config)
 
 

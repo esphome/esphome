@@ -104,7 +104,7 @@ class Canbus : public Component {
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
-  virtual CanStatus get_status() = 0;
+  virtual CanStatus get_status() { return {}; }
 
   void add_trigger(CanbusTrigger *trigger);
   /**
@@ -152,7 +152,7 @@ class Canbus : public Component {
   virtual bool setup_internal() = 0;
   virtual Error send_message(struct CanFrame *frame) = 0;
   virtual Error read_message(struct CanFrame *frame) = 0;
-  virtual CanEventFlags get_events() = 0;
+  virtual CanEventFlags get_events() { return CanEventFlags{}; }
 };
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
