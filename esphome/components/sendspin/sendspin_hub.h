@@ -146,6 +146,14 @@ class SendspinHub final : public Component,
     this->close_pairing_window_callbacks_.add(std::forward<F>(callback));
   }
 
+  template<typename F> void add_on_display_pairing_code_callback(F &&callback) {
+    this->display_pairing_code_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_clear_pairing_code_callback(F &&callback) {
+    this->clear_pairing_code_callbacks_.add(std::forward<F>(callback));
+  }
+
   template<typename F> void add_on_pairing_succeeded_callback(F &&callback) {
     this->pairing_succeeded_callbacks_.add(std::forward<F>(callback));
   }
@@ -185,6 +193,10 @@ class SendspinHub final : public Component,
 
   /// The static pairing code, used on every boot.
   void set_static_pairing_code(const char *code) { this->static_pairing_code_ = code; }
+
+  /// Set when on_display_pairing_code or a pairing_code text sensor is configured, so the device offers the dynamic
+  /// pairing code.
+  void set_pairing_code_display_supported(bool supported) { this->pairing_code_display_supported_ = supported; }
 
   // --- Sendspin role specific methods ---
 
@@ -258,6 +270,8 @@ class SendspinHub final : public Component,
   /// @brief Returns the product name reported to the server: the configured model, or the device name.
   const char *get_product_name_() const;
 
+  const char *pairing_code_method_() const;
+
   /// @brief Writes the active network interface's MAC, in lowercase, into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
   static const char *get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
@@ -277,6 +291,10 @@ class SendspinHub final : public Component,
   void on_open_pairing_window() override;
 
   void on_close_pairing_window() override;
+
+  void on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat format) override;
+
+  void on_clear_pairing_code() override;
 
   void on_pairing_succeeded(const std::string &server_id) override;
 
@@ -357,10 +375,13 @@ class SendspinHub final : public Component,
   // Lazy: each pairing callback is fed by an optional YAML surface.
   LazyCallbackManager<void()> open_pairing_window_callbacks_{};
   LazyCallbackManager<void()> close_pairing_window_callbacks_{};
+  LazyCallbackManager<void(const std::string &)> display_pairing_code_callbacks_{};
+  LazyCallbackManager<void()> clear_pairing_code_callbacks_{};
   LazyCallbackManager<void(const std::string &)> pairing_succeeded_callbacks_{};
   LazyCallbackManager<void(const std::string &, StringRef)> pairing_failed_callbacks_{};
 
   const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
+  bool pairing_code_display_supported_{false};
   bool default_unpaired_access_{true};
   bool task_stack_in_psram_{false};
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
