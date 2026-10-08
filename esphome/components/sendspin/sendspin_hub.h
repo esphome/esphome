@@ -8,6 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/version.h"
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
@@ -120,10 +121,37 @@ class SendspinHub final : public Component,
   /// No-op if the hub's client is not running. Must be called from the main loop thread.
   void leave_group();
 
+  /// @brief Confirms a pairing attempt on the device. With no attempt waiting, it opens the pairing window for the
+  /// next one.
+  ///
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
+  void confirm_pairing_window();
+
+  /// @brief Closes an open pairing window, so a waiting pairing attempt is not confirmed.
+  ///
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
+  void cancel_pairing_window();
+
   // --- Configuration setters (called from codegen) ---
 
   template<typename F> void add_group_update_callback(F &&callback) {
     this->group_update_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_open_pairing_window_callback(F &&callback) {
+    this->open_pairing_window_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_close_pairing_window_callback(F &&callback) {
+    this->close_pairing_window_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_pairing_succeeded_callback(F &&callback) {
+    this->pairing_succeeded_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_pairing_failed_callback(F &&callback) {
+    this->pairing_failed_callbacks_.add(std::forward<F>(callback));
   }
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
@@ -135,6 +163,9 @@ class SendspinHub final : public Component,
   /// fire from inside that call. With a sendspin switch configured the client stays stopped until the switch has
   /// called this once. Must be called from the main loop thread.
   void set_enabled(bool enabled);
+
+  /// Turns unpaired (Sentinel) access on or off from setup(); see SendspinClient::set_unpaired_access_enabled().
+  void set_default_unpaired_access(bool enabled) { this->default_unpaired_access_ = enabled; }
 
   /// @brief Returns whether the Sendspin client is running.
   bool is_client_running() const { return this->client_ != nullptr && this->client_->is_started(); }
@@ -151,6 +182,9 @@ class SendspinHub final : public Component,
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   void set_mdns(mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 #endif
+
+  /// The static pairing code, used on every boot.
+  void set_static_pairing_code(const char *code) { this->static_pairing_code_ = code; }
 
   // --- Sendspin role specific methods ---
 
@@ -240,6 +274,14 @@ class SendspinHub final : public Component,
 
   void on_release_high_performance() override;
 
+  void on_open_pairing_window() override;
+
+  void on_close_pairing_window() override;
+
+  void on_pairing_succeeded(const std::string &server_id) override;
+
+  void on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) override;
+
   // --- SendspinNetworkProvider override ---
   bool is_network_ready() override;
 
@@ -312,6 +354,14 @@ class SendspinHub final : public Component,
   // Callback fan-out to child components
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
 
+  // Lazy: each pairing callback is fed by an optional YAML surface.
+  LazyCallbackManager<void()> open_pairing_window_callbacks_{};
+  LazyCallbackManager<void()> close_pairing_window_callbacks_{};
+  LazyCallbackManager<void(const std::string &)> pairing_succeeded_callbacks_{};
+  LazyCallbackManager<void(const std::string &, StringRef)> pairing_failed_callbacks_{};
+
+  const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
+  bool default_unpaired_access_{true};
   bool task_stack_in_psram_{false};
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   bool mdns_advertised_{false};  // Last state requested from mdns
