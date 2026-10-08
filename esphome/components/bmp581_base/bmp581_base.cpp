@@ -17,7 +17,7 @@
 
 namespace esphome::bmp581_base {
 
-static const char *const TAG = "bmp581";
+ESPHOME_LOG_TAG(TAG, "bmp581");
 
 // Oversampling strings indexed by Oversampling enum (0-7): NONE, X2, X4, X8, X16, X32, X64, X128
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");

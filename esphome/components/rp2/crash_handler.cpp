@@ -53,7 +53,7 @@ static constexpr size_t MAX_BACKTRACE = 4;
 
 namespace esphome::rp2 {
 
-static const char *const TAG = "rp2.crash";
+ESPHOME_LOG_TAG(TAG, "rp2.crash");
 
 // Filled from the watchdog scratch registers on the first read.
 static struct CrashData {

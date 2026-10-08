@@ -9,7 +9,7 @@
 
 namespace esphome::ble_client {
 
-static const char *const TAG = "ble_text_sensor";
+ESPHOME_LOG_TAG(TAG, "ble_text_sensor");
 
 void BLETextSensor::loop() {
   // Parent BLEClientNode has a loop() method, but this component uses
