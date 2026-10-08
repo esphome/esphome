@@ -146,6 +146,14 @@ class SendspinHub final : public Component,
     this->close_pairing_window_callbacks_.add(std::forward<F>(callback));
   }
 
+  template<typename F> void add_on_display_pairing_code_callback(F &&callback) {
+    this->display_pairing_code_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_clear_pairing_code_callback(F &&callback) {
+    this->clear_pairing_code_callbacks_.add(std::forward<F>(callback));
+  }
+
   template<typename F> void add_on_pairing_succeeded_callback(F &&callback) {
     this->pairing_succeeded_callbacks_.add(std::forward<F>(callback));
   }
@@ -160,12 +168,13 @@ class SendspinHub final : public Component,
   /// stop.
   ///
   /// Applied from the hub's loop(). Stopping blocks until the client is fully stopped; the roles' clear callbacks
-  /// fire from inside that call. With a sendspin switch configured the client stays stopped until the switch has
-  /// called this once. Must be called from the main loop thread.
+  /// fire from inside that call. The client stays stopped until this has been called once, by codegen or by the
+  /// enabled switch. Must be called from the main loop thread.
   void set_enabled(bool enabled);
 
-  /// Turns unpaired (Sentinel) access on or off from setup(); see SendspinClient::set_unpaired_access_enabled().
-  void set_default_unpaired_access(bool enabled) { this->default_unpaired_access_ = enabled; }
+  /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
+  /// access switch, before its first start. May be called before setup(). Main loop only.
+  void set_unpaired_access_enabled(bool enabled);
 
   /// @brief Returns whether the Sendspin client is running.
   bool is_client_running() const { return this->client_ != nullptr && this->client_->is_started(); }
@@ -185,6 +194,10 @@ class SendspinHub final : public Component,
 
   /// The static pairing code, used on every boot.
   void set_static_pairing_code(const char *code) { this->static_pairing_code_ = code; }
+
+  /// Set when on_display_pairing_code or a pairing_code text sensor is configured, so the device offers the dynamic
+  /// pairing code.
+  void set_pairing_code_display_supported(bool supported) { this->pairing_code_display_supported_ = supported; }
 
   // --- Sendspin role specific methods ---
 
@@ -258,6 +271,8 @@ class SendspinHub final : public Component,
   /// @brief Returns the product name reported to the server: the configured model, or the device name.
   const char *get_product_name_() const;
 
+  const char *pairing_code_method_() const;
+
   /// @brief Writes the active network interface's MAC, in lowercase, into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
   static const char *get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
@@ -277,6 +292,10 @@ class SendspinHub final : public Component,
   void on_open_pairing_window() override;
 
   void on_close_pairing_window() override;
+
+  void on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat format) override;
+
+  void on_clear_pairing_code() override;
 
   void on_pairing_succeeded(const std::string &server_id) override;
 
@@ -357,18 +376,21 @@ class SendspinHub final : public Component,
   // Lazy: each pairing callback is fed by an optional YAML surface.
   LazyCallbackManager<void()> open_pairing_window_callbacks_{};
   LazyCallbackManager<void()> close_pairing_window_callbacks_{};
+  LazyCallbackManager<void(const std::string &)> display_pairing_code_callbacks_{};
+  LazyCallbackManager<void()> clear_pairing_code_callbacks_{};
   LazyCallbackManager<void(const std::string &)> pairing_succeeded_callbacks_{};
   LazyCallbackManager<void(const std::string &, StringRef)> pairing_failed_callbacks_{};
 
   const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
-  bool default_unpaired_access_{true};
+  bool pairing_code_display_supported_{false};
   bool task_stack_in_psram_{false};
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   bool mdns_advertised_{false};  // Last state requested from mdns
 #endif
 
-  // Requested client state, applied from loop(). Empty until the switch restores its state.
+  // Requested client state, applied from loop(). The client does not start until both are set.
   std::optional<bool> enabled_;
+  std::optional<bool> unpaired_access_;
 
   // Device information sent in the `client/hello` message. Defaults apply when neither the
   // sendspin configuration nor the project information supplies a value.
