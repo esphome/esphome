@@ -26,7 +26,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.

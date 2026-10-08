@@ -4,7 +4,7 @@
 
 namespace esphome::bl0939 {
 
-static const char *const TAG = "bl0939";
+ESPHOME_LOG_TAG(TAG, "bl0939");
 
 // https://www.belling.com.cn/media/file_object/bel_product/BL0939/datasheet/BL0939_V1.2_cn.pdf
 // (unfortunately chinese, but the protocol can be understood with some translation tool)

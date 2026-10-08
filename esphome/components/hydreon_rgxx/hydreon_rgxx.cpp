@@ -3,7 +3,7 @@
 
 namespace esphome::hydreon_rgxx {
 
-static const char *const TAG = "hydreon_rgxx.sensor";
+ESPHOME_LOG_TAG(TAG, "hydreon_rgxx.sensor");
 static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
 #define HYDREON_RGXX_COMMA ,

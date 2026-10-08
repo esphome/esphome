@@ -6,7 +6,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.ssd1677";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1677");
 
 void EPaperSSD1677::setup() {
   EPaperMono::setup();

@@ -4,7 +4,7 @@
 
 namespace esphome::dht {
 
-static const char *const TAG = "dht";
+ESPHOME_LOG_TAG(TAG, "dht");
 
 void DHT::setup() {
   this->t_pin_->digital_write(true);

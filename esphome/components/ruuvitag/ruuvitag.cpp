@@ -3,7 +3,7 @@
 
 namespace esphome::ruuvitag {
 
-static const char *const TAG = "ruuvitag";
+ESPHOME_LOG_TAG(TAG, "ruuvitag");
 
 void RuuviTag::dump_config() {
   ESP_LOGCONFIG(TAG, "RuuviTag");

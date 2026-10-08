@@ -5,7 +5,7 @@
 
 namespace esphome::libretiny_pwm {
 
-static const char *const TAG = "libretiny.pwm";
+ESPHOME_LOG_TAG(TAG, "libretiny.pwm");
 
 void LibreTinyPWM::write_state(float state) {
   if (!this->initialized_) {
