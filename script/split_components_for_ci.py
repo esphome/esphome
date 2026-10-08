@@ -65,7 +65,7 @@ GROUPED_COMPONENT_SECONDS = 3
 # Components whose tests pull in a large library the build compiles from
 # source (TensorFlow Lite Micro, FastLED, LVGL, the HTTP server), added to
 # every build that includes them. Fitted the same way as the platforms.
-HEAVY_COMPONENT_SECONDS = {
+HEAVY_COMPONENT_SECONDS: dict[str, int] = {
     "micro_wake_word": 200,
     "voice_assistant": 200,
     "fastled_clockless": 90,
