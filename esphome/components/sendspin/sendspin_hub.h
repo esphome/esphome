@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -31,9 +31,15 @@
 #include <sendspin/player_role.h>
 #endif
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace esphome::sendspin_ {
 
@@ -44,22 +50,16 @@ namespace esphome::sendspin_ {
 /// one step later than hub so they can assume hub's setup() has already completed.
 namespace sendspin_priority {
 // AFTER_WIFI so the hub runs after the wifi/ethernet drivers are up and we can read the active
-// interface's MAC for client_id.
+// interface's MAC address for the device info.
 inline constexpr float HUB = esphome::setup_priority::AFTER_WIFI;
 inline constexpr float CHILD = HUB - 1.0f;
 }  // namespace sendspin_priority
 
-/// @brief Persistent storage structure for last played server hash.
-struct LastPlayedServerPref {
-  uint32_t server_id_hash;
-};
+// PREFERENCE KEYS: each library persistence key has its own preference, hashed from "sendspin_" + name. Renaming
+// one erases it.
 
-#ifdef USE_SENDSPIN_PLAYER
-/// @brief Persistent storage structure for player static delay.
-struct StaticDelayPref {
-  uint16_t delay_ms;
-};
-#endif
+/// Pairing-record slots, handed to the client as max_pairing_records.
+inline constexpr size_t SENDSPIN_RECORD_SLOTS = sendspin::SendspinClientConfig::DEFAULT_MAX_PAIRING_RECORDS;
 
 /// @brief Thin adapter over sendspin::SendspinClient.
 ///
@@ -93,6 +93,7 @@ class SendspinHub final : public Component,
   float get_setup_priority() const override { return sendspin_priority::HUB; }
   void setup() override;
   void loop() override;
+  void on_shutdown() override;
   void dump_config() override;
 
   /// @brief Connects the underlying client to the given Sendspin server.
@@ -113,14 +114,11 @@ class SendspinHub final : public Component,
   ///   - `USER_REQUEST`: user explicitly requested disconnect.
   void disconnect_from_server(sendspin::SendspinGoodbyeReason reason);
 
-  /// @brief Updates the client's reported playback state on the server.
+  /// @brief Leaves the current group so another source can use the speaker.
   ///
+  /// Sends `client/leave` while the group is playing. A stopped group is left alone, so the device stays grouped.
   /// No-op if the hub's client is not running. Must be called from the main loop thread.
-  /// @param state New client state:
-  ///   - `SYNCHRONIZED`: client is synchronized and playing from the server.
-  ///   - `ERROR`: client encountered a playback error.
-  ///   - `EXTERNAL_SOURCE`: client is playing from a non-Sendspin source.
-  void update_state(sendspin::SendspinClientState state);
+  void leave_group();
 
   // --- Configuration setters (called from codegen) ---
 
@@ -219,12 +217,16 @@ class SendspinHub final : public Component,
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
 
+  /// The preference a library key is stored in and its blob size, or {nullptr, 0} for a key with
+  /// no storage here.
+  std::pair<ESPPreferenceObject *, size_t> pref_for_key_(const std::string &key);
+
   /// @brief Returns the product name reported to the server: the configured model, or the device name.
   const char *get_product_name_() const;
 
-  /// @brief Writes the active network interface's MAC into @p buf and returns its data pointer.
+  /// @brief Writes the active network interface's MAC, in lowercase, into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
-  static const char *get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
+  static const char *get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   /// @brief Keeps the `_sendspin` mDNS service advertised while the client is running.
@@ -242,8 +244,10 @@ class SendspinHub final : public Component,
   bool is_network_ready() override;
 
   // --- SendspinPersistenceProvider overrides ---
-  bool save_last_server_hash(uint32_t hash) override;
-  std::optional<uint32_t> load_last_server_hash() override;
+  // The library calls commit() after writing pairing secrets, so they reach flash right away.
+  std::optional<std::vector<uint8_t>> load_blob(const std::string &key) override;
+  bool save_blob(const std::string &key, const uint8_t *data, size_t len) override;
+  bool commit() override;
 
   // --- Sendspin role specific methods/overrides/member variables ---
 
@@ -291,16 +295,17 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_PLAYER
   sendspin::PlayerRoleListener *player_listener_{nullptr};
   sendspin::PlayerRoleConfig player_config_{};
-
-  // Part of SendspinPersistenceProvider overrides
-  ESPPreferenceObject static_delay_pref_;
-  std::optional<uint16_t> load_static_delay() override;
-  bool save_static_delay(uint16_t delay_ms) override;
 #endif
 
   // --- Core member variables ---
 
-  ESPPreferenceObject last_played_server_pref_;
+  // Built once in setup(): make_preference() allocates a backend that is never freed.
+  ESPPreferenceObject keypair_pref_;
+  ESPPreferenceObject pairing_psk_pref_;
+  ESPPreferenceObject last_played_pref_;
+  ESPPreferenceObject output_delay_pref_;
+  std::array<ESPPreferenceObject, SENDSPIN_RECORD_SLOTS> record_slot_prefs_;
+  ESPPreferenceObject record_order_pref_;
 
   std::unique_ptr<sendspin::SendspinClient> client_;
 
@@ -349,4 +354,4 @@ class SendspinPollingChild : public PollingComponent, public Parented<SendspinHu
 
 }  // namespace esphome::sendspin_
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF
