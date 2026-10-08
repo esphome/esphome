@@ -1,0 +1,52 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: test
+  password: testtest
+
+http_request:
+
+button:
+  - platform: template
+    id: shared_a
+    on_press:
+      - http_request.get:
+          url: http://example.com
+          request_headers:
+            Accept: application/json
+            X-Mode: a
+  - platform: template
+    id: shared_b
+    on_press:
+      - http_request.get:
+          url: http://example.com
+          request_headers:
+            Accept: application/json
+            X-Mode: a
+  - platform: template
+    id: other
+    on_press:
+      - http_request.get:
+          url: http://example.com
+          request_headers:
+            Accept: text/plain
+  - platform: template
+    id: lambda_a
+    on_press:
+      - http_request.get:
+          url: http://example.com
+          request_headers:
+            Accept: application/json
+            X-Mode: !lambda return "a";
+  - platform: template
+    id: lambda_b
+    on_press:
+      - http_request.get:
+          url: http://example.com
+          request_headers:
+            Accept: application/json
+            X-Mode: !lambda return "a";
