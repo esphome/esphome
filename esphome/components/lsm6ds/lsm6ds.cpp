@@ -4,7 +4,7 @@
 
 namespace esphome::lsm6ds {
 
-static const char *const TAG = "lsm6ds";
+ESPHOME_LOG_TAG(TAG, "lsm6ds");
 
 static const struct {
   uint8_t who_am_i;

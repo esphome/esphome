@@ -10,7 +10,7 @@
 
 namespace esphome::remote_receiver {
 
-static const char *const TAG = "remote_receiver";
+ESPHOME_LOG_TAG(TAG, "remote_receiver");
 static constexpr uint32_t DEFAULT_BUFFER_SLOTS = 4;
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
