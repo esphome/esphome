@@ -9,7 +9,7 @@
 
 namespace esphome::uart_tcp {
 
-static const char *const TAG = "uart_tcp";
+ESPHOME_LOG_TAG(TAG, "uart_tcp");
 
 // Keeps the pacing product in 32 bits up to about 10 Mbaud.
 static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;

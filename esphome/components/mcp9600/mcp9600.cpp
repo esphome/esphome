@@ -3,7 +3,7 @@
 
 namespace esphome::mcp9600 {
 
-static const char *const TAG = "mcp9600";
+ESPHOME_LOG_TAG(TAG, "mcp9600");
 
 static const uint8_t MCP9600_REGISTER_HOT_JUNCTION = 0x00;
 // static const uint8_t MCP9600_REGISTER_JUNCTION_DELTA = 0x01; // Unused, but kept for future reference

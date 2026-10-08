@@ -1,6 +1,6 @@
 #include "sendspin_sensor.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
 
 #include <sendspin/metadata_role.h>
 
@@ -8,7 +8,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.sensor";
+ESPHOME_LOG_TAG(TAG, "sendspin.sensor");
 
 // --- SendspinTrackProgressSensor ---
 
