@@ -9,7 +9,7 @@
 
 namespace esphome::sound_level {
 
-static const char *const TAG = "sound_level";
+ESPHOME_LOG_TAG(TAG, "sound_level");
 
 static const uint32_t MAX_FILL_DURATION_MS = 30;
 static const uint32_t RING_BUFFER_DURATION_MS = 120;

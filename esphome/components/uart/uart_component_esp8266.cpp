@@ -1,5 +1,6 @@
 #ifdef USE_ESP8266
 #include "uart_component_esp8266.h"
+#include <esp8266_peri.h>
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -14,7 +15,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 // Edge decoder up to this baud rate, start bit sampler above it. The cutoff is
 // a deliberate tradeoff: the decoder tolerates ~0.25 bit of ISR latency jitter
 // (~6.5us at 38400), too tight for higher rates where the sampler's whole byte
@@ -164,7 +165,8 @@ void ESP8266UartComponent::dump_config() {
     );
     if (this->rx_pin_ != nullptr) {
       ESP_LOGCONFIG(TAG, "  RX decoder: %s",
-                    this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? "edge" : "start bit sampler");
+                    this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? LOG_STR_LITERAL("edge")
+                                                                     : LOG_STR_LITERAL("start bit sampler"));
     }
   }
   this->check_logger_conflict();
@@ -229,6 +231,12 @@ size_t ESP8266UartComponent::available() {
     return this->sw_serial_->available();
   }
 }
+size_t ESP8266UartComponent::available_for_write() {
+  if (this->hw_serial_ != nullptr) {
+    return this->hw_serial_->availableForWrite();
+  }
+  return SIZE_MAX;  // software serial bit-bangs each byte synchronously; there is no buffer to fill
+}
 UARTFlushResult ESP8266UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   if (this->hw_serial_ != nullptr) {
@@ -276,23 +284,36 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     }
   }
 }
+// A byte can arrive while a CpuFrequencyBoost has an 80 MHz build at 160 MHz; the cycle counter then runs at
+// twice the rate bit_time_ was computed for. The sampler reads the whole byte inside the ISR, so the clock cannot
+// change partway through; the edge decoder only misreads a run that spans a clock change.
+__attribute__((always_inline)) static inline uint8_t rx_clock_shift() {
+#if F_CPU != 160000000L
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- CPU2X is MMIO at a fixed address
+  return CPU2X & 1;
+#else
+  return 0;
+#endif
+}
+
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
-  uint32_t wait = arg->bit_time_ + arg->bit_time_ / 3 - 500;
+  const uint32_t bit_time = arg->bit_time_ << rx_clock_shift();
+  uint32_t wait = bit_time + bit_time / 3 - 500;
   const uint32_t start = arch_get_cpu_cycle_count();
   uint8_t rec = 0;
   // Manually unroll the loop
   for (int i = 0; i < arg->data_bits_; i++)
-    rec |= arg->read_bit_(&wait, start) << i;
+    rec |= arg->read_bit_(&wait, start, bit_time) << i;
 
   /* If parity is enabled, just read it and ignore it. */
   /* TODO: Should we check parity? Or is it too slow for nothing added..*/
   if (arg->parity_ == UART_CONFIG_PARITY_EVEN || arg->parity_ == UART_CONFIG_PARITY_ODD)
-    arg->read_bit_(&wait, start);
+    arg->read_bit_(&wait, start, bit_time);
 
   // Stop bit
-  arg->wait_(&wait, start);
+  arg->wait_(&wait, start, bit_time);
   if (arg->stop_bits_ == 2)
-    arg->wait_(&wait, start);
+    arg->wait_(&wait, start, bit_time);
 
   arg->rx_.push_byte(rec);
   // Clear RX pin so that the interrupt doesn't re-trigger right away again.
@@ -308,14 +329,14 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr_edge(ESP8266SoftwareSerial *arg)
   const uint32_t now = arch_get_cpu_cycle_count();
   const bool level = arg->rx_pin_.digital_read();
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-  if (arg->rx_.on_edge(now, level))
+  if (arg->rx_.on_edge(now, level, rx_clock_shift()))
     wake_loop_isrsafe();
 #else
-  arg->rx_.on_edge(now, level);
+  arg->rx_.on_edge(now, level, rx_clock_shift());
 #endif
 }
 void ESP8266SoftwareSerial::rx_finalize_pending_() {
-  if (!this->rx_.finalize_due(arch_get_cpu_cycle_count())) {
+  if (!this->rx_.finalize_due(arch_get_cpu_cycle_count(), rx_clock_shift())) {
 #ifdef USE_UART_WAKE_LOOP_ON_RX
     // Byte not old enough yet: re-run the loop once the buffer is drained.
     if (this->rx_.available() == 0)
@@ -324,7 +345,7 @@ void ESP8266SoftwareSerial::rx_finalize_pending_() {
     return;
   }
   InterruptLock lock;
-  this->rx_.finalize(arch_get_cpu_cycle_count());
+  this->rx_.finalize(arch_get_cpu_cycle_count(), rx_clock_shift());
 }
 void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   if (this->gpio_tx_pin_ == nullptr) {
@@ -342,37 +363,39 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   }
 
   {
+    // Transmit runs from the main loop and never overlaps a CpuFrequencyBoost
     InterruptLock lock;
-    uint32_t wait = this->bit_time_;
+    const uint32_t bit_time = this->bit_time_;
+    uint32_t wait = bit_time;
     const uint32_t start = arch_get_cpu_cycle_count();
     // Start bit
-    this->write_bit_(false, &wait, start);
+    this->write_bit_(false, &wait, start, bit_time);
     for (int i = 0; i < this->data_bits_; i++) {
       bool bit = data & (1 << i);
-      this->write_bit_(bit, &wait, start);
+      this->write_bit_(bit, &wait, start, bit_time);
       if (need_parity_bit)
         parity_bit ^= bit;
     }
     if (need_parity_bit)
-      this->write_bit_(parity_bit, &wait, start);
+      this->write_bit_(parity_bit, &wait, start, bit_time);
     // Stop bit
-    this->write_bit_(true, &wait, start);
+    this->write_bit_(true, &wait, start, bit_time);
     if (this->stop_bits_ == 2)
-      this->wait_(&wait, start);
+      this->wait_(&wait, start, bit_time);
   }
 }
-void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
+void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
   while (arch_get_cpu_cycle_count() - start < *wait)
     ;
-  *wait += this->bit_time_;
+  *wait += bit_time;
 }
-bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
-  this->wait_(wait, start);
+bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
+  this->wait_(wait, start, bit_time);
   return this->rx_pin_.digital_read();
 }
-void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
+void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time) {
   this->tx_pin_.digital_write(bit);
-  this->wait_(wait, start);
+  this->wait_(wait, start, bit_time);
 }
 uint8_t ESP8266SoftwareSerial::read_byte() {
   this->rx_sync_();

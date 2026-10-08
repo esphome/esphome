@@ -14,7 +14,7 @@ static const uint8_t PI4IOE5V6408_REGISTER_IN_STATE = 0x0F;
 static const uint8_t PI4IOE5V6408_REGISTER_INTERRUPT_ENABLE_MASK = 0x11;
 static const uint8_t PI4IOE5V6408_REGISTER_INTERRUPT_STATUS = 0x13;
 
-static const char *const TAG = "pi4ioe5v6408";
+ESPHOME_LOG_TAG(TAG, "pi4ioe5v6408");
 
 void PI4IOE5V6408Component::setup() {
   if (this->reset_) {

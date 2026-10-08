@@ -4,7 +4,7 @@
 
 namespace esphome::spa06_i2c {
 
-static const char *const TAG = "spa06_i2c";
+ESPHOME_LOG_TAG(TAG, "spa06_i2c");
 
 void SPA06I2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);

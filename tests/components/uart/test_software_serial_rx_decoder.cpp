@@ -276,4 +276,30 @@ TEST(SoftwareSerialRxDecoder, ResetDiscardsPartialFrame) {
   EXPECT_TRUE(sim.received().empty());
 }
 
+TEST(SoftwareSerialRxDecoder, DecodesWhileCycleCounterRunsAtDoubleRate) {
+  // 80 MHz setup, counter at 160 MHz during a CpuFrequencyBoost: shift 1.
+  constexpr uint32_t bit = CPU_HZ / 9600;
+  constexpr uint32_t fast_bit = 2 * bit;
+  uint8_t buf[8];
+  SoftwareSerialRxDecoder dec;
+  dec.setup(bit, 8, false, 1, buf, sizeof(buf));
+  uint32_t t = 5000;
+  dec.reset(t, true);
+  // 0x35 LSB first is 1010 1100: start bit then runs of 1 high, 1 low, 1 high,
+  // 1 low, 2 high, 2 low, then the stop bit high.
+  bool level = false;
+  for (uint32_t run : {1U, 1U, 1U, 1U, 1U, 2U, 2U}) {
+    dec.on_edge(t, level, 1);
+    t += run * fast_bit;
+    level = !level;
+  }
+  dec.on_edge(t, true, 1);
+  EXPECT_TRUE(dec.pending());
+  EXPECT_FALSE(dec.finalize_due(t + fast_bit / 4, 1));
+  EXPECT_TRUE(dec.finalize_due(t + 2 * fast_bit, 1));
+  dec.finalize(t + 2 * fast_bit, 1);
+  ASSERT_EQ(dec.available(), 1u);
+  EXPECT_EQ(dec.read_byte(), 0x35);
+}
+
 }  // namespace esphome::uart::testing

@@ -11,6 +11,8 @@ namespace esphome::uart {
 /// time between edges so the ISR never waits for the line; a byte with an idle
 /// high tail has no closing edge and is completed by finalize() from the loop.
 /// Platform free for host tests; hot methods force inlined to stay in IRAM.
+/// `clock_shift` is 1 while the cycle counter runs at twice the rate bit_cycles
+/// was set up for (an ESP8266 CpuFrequencyBoost), else 0.
 class SoftwareSerialRxDecoder {
  public:
   static constexpr uint8_t RX_IDLE = 0xFF;
@@ -40,13 +42,13 @@ class SoftwareSerialRxDecoder {
   /// ISR: the line changed to `level` at cycle `now`. Returns true to wake the
   /// loop: a byte was pushed, or a frame is open with the line high (finalize()
   /// may be needed; a data 1 and the idle tail look the same at the edge).
-  bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level) {
+  bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level, uint8_t clock_shift = 0) {
     const bool last_level = this->last_level_;
     // Collapsed edges: skip to keep the frame aligned to the last real edge.
     if (level == last_level)
       return false;
     // Bits since the last edge, rounded; LX106 has no divider, so count.
-    uint32_t delta = now - this->last_edge_;
+    uint32_t delta = (now - this->last_edge_) >> clock_shift;
     if (delta > this->max_run_cycles_)
       delta = this->max_run_cycles_;
     delta += this->bit_cycles_ / 2;
@@ -65,22 +67,22 @@ class SoftwareSerialRxDecoder {
   bool pending() const { return this->bit_ != RX_IDLE && this->last_level_; }
 
   /// Unlocked check whether the pending byte's tail has elapsed.
-  bool finalize_due(uint32_t now) const {
+  bool finalize_due(uint32_t now, uint8_t clock_shift = 0) const {
     const uint8_t bit = this->bit_;
     if (bit == RX_IDLE)
       return false;
-    return now - this->last_edge_ >= this->tail_cycles_(bit);
+    return (now - this->last_edge_) >> clock_shift >= this->tail_cycles_(bit);
   }
 
   /// Complete the pending byte if its tail has elapsed. Call with the ISR masked.
-  void finalize(uint32_t now) {
+  void finalize(uint32_t now, uint8_t clock_shift = 0) {
     const uint8_t bit = this->bit_;
-    if (bit == RX_IDLE || !this->last_level_ || now - this->last_edge_ < this->tail_cycles_(bit))
+    if (bit == RX_IDLE || !this->last_level_ || (now - this->last_edge_) >> clock_shift < this->tail_cycles_(bit))
       return;
     this->consume_run_(this->stop_bit_ + 1 - bit, true);
   }
 
-  /// Store a byte, dropping it when full. Also used by the start bit sampler.
+  /// Store a byte, dropping it when full (holds buffer_size - 1 bytes). Also used by the start bit sampler.
   bool ESPHOME_ALWAYS_INLINE push_byte(uint8_t data) {
     size_t in = this->in_pos_;
     size_t next = in + 1;

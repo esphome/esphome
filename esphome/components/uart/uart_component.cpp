@@ -2,7 +2,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 bool UARTComponent::check_read_timeout_(size_t len) {
   if (this->available() >= len)

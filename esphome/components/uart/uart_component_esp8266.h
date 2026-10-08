@@ -32,9 +32,9 @@ class ESP8266SoftwareSerial {
   /// Edge decoder for low baud rates: counts bits from the time between edges, returns at once.
   static void gpio_intr_edge(ESP8266SoftwareSerial *arg);
 
-  void wait_(uint32_t *wait, const uint32_t &start);
-  bool read_bit_(uint32_t *wait, const uint32_t &start);
-  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
+  void wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  bool read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time);
 
   /// Complete a byte whose trailing bits are idle high and so never produce a closing edge.
   void rx_finalize_pending_();
@@ -69,6 +69,7 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
+  size_t available_for_write() override;
   UARTFlushResult flush() override;
 
   uint32_t get_config();

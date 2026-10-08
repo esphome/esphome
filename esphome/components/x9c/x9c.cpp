@@ -3,7 +3,7 @@
 
 namespace esphome::x9c {
 
-static const char *const TAG = "x9c.output";
+ESPHOME_LOG_TAG(TAG, "x9c.output");
 
 void X9cOutput::trim_value(int32_t change_amount) {
   if (change_amount == 0) {

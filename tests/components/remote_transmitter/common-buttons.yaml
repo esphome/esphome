@@ -5,6 +5,13 @@ number:
     min_value: 0
     max_value: 255
     step: 1
+    on_value:
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x01
+          data: !lambda |-
+            return {(uint8_t) x, 0x20};
 
 button:
   - platform: template
@@ -261,6 +268,22 @@ button:
         message_type: 0x01
         data: [0x10, 0x20, 0x30]
   - platform: template
+    name: ABBWelcome static same data
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x02
+        data: [0x10, 0x20, 0x30]
+  - platform: template
+    name: ABBWelcome static empty data
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x03
+        data: []
+  - platform: template
     name: ABBWelcome lambda
     on_press:
       remote_transmitter.transmit_abbwelcome:
@@ -275,3 +298,11 @@ button:
       - remote_transmitter.digital_write: true
       - remote_transmitter.digital_write:
           value: false
+      - remote_transmitter.digital_write:
+          transmitter_id: xmitr
+          value: !lambda return id(remote_transmitter_test_number).state > 127;
+  - platform: template
+    name: Hob2Hood
+    on_press:
+      - remote_transmitter.transmit_hob2hood:
+          command: light_on
