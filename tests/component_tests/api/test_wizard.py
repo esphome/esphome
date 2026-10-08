@@ -14,7 +14,7 @@ from esphome.components.api import wizard
 from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS as SWITCH_DOMAINS
 from esphome.config import load_config
 from esphome.core import CORE
-from esphome.helpers import fnv1_hash, fnv1a_32bit_hash
+from esphome.helpers import fnv1_hash, fnv1a_32bit_hash, zstd_module
 from tests.component_tests.helpers import get_define_value
 
 ESP32_HEADER = """
@@ -613,7 +613,7 @@ def test_text_select_and_button_default_to_their_domains(
     tmp_path: Path, generate_main: Callable[[str | Path], str]
 ) -> None:
     main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
-    document = json.loads(wizard.zstd_module().decompress(blob_in(main_cpp)))
+    document = json.loads(zstd_module().decompress(blob_in(main_cpp)))
     filters = {
         entry["key"]: entry.get("entity_filters")
         for page in document["pages"]
@@ -733,7 +733,7 @@ def test_the_blob_is_the_exact_json_document(
     )
     blob = blob_in(main_cpp)
 
-    text = wizard.zstd_module().decompress(blob).decode("utf-8")
+    text = zstd_module().decompress(blob).decode("utf-8")
     expected = {
         "version": 1,
         "pages": [
@@ -788,7 +788,7 @@ def test_the_blob_is_deterministic_and_the_same_on_every_platform(
     )
     # Compressing the same document again gives the same bytes
     document = wizard.wizard_document(CORE.config["api"]["wizard"], CORE.config)
-    again = wizard.zstd_module().compress(
+    again = zstd_module().compress(
         json.dumps(
             document, separators=(",", ":"), sort_keys=True, ensure_ascii=False
         ).encode("utf-8"),
@@ -857,21 +857,6 @@ def test_an_entity_without_a_name_cannot_be_in_the_wizard(tmp_path: Path) -> Non
     )
 
     assert any("has no name of its own" in error for error in errors), errors
-
-
-def test_zstd_falls_back_to_the_backport(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Before Python 3.14 the standard library has no zstd, so the backport is used."""
-    backport = object()
-
-    def import_module(name: str) -> object:
-        if name == "compression.zstd":
-            raise ImportError(name)
-        assert name == "backports.zstd"
-        return backport
-
-    monkeypatch.setattr(wizard.importlib, "import_module", import_module)
-
-    assert wizard.zstd_module() is backport
 
 
 def test_a_wizard_too_big_for_one_message_is_rejected(tmp_path: Path) -> None:
