@@ -1,0 +1,14 @@
+esp32_ble_tracker:
+  id: ble_tracker_hub
+
+binary_sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
+  - platform: xiaomi_mccgq02hl
+    ble_hub_id: ble_tracker_hub
+    name: Mi Door Sensor 2
+    mac_address: E4:AA:EC:01:02:03
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
+    light:
+      name: Mi Door Sensor 2 Light
+    battery_level:
+      name: Mi Door Sensor 2 Battery Level
