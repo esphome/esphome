@@ -7,7 +7,7 @@
 
 namespace esphome::uart_split {
 
-static const char *const TAG = "uart_split";
+ESPHOME_LOG_TAG(TAG, "uart_split");
 
 static constexpr size_t READ_CHUNK = 64;
 
