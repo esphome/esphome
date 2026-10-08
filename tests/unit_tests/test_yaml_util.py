@@ -26,16 +26,6 @@ from esphome.yaml_util import (
 
 
 @pytest.fixture(autouse=True)
-def clear_secrets_cache() -> None:
-    """Clear the secrets cache before each test."""
-    yaml_util._SECRET_VALUES.clear()
-    yaml_util._SECRET_CACHE.clear()
-    yield
-    yaml_util._SECRET_VALUES.clear()
-    yaml_util._SECRET_CACHE.clear()
-
-
-@pytest.fixture(autouse=True)
 def clear_core_frontmatter() -> None:
     """Reset CORE.frontmatter between tests."""
     core.CORE.frontmatter = {}
@@ -1941,6 +1931,66 @@ def test_dump__redaction_flag_does_not_leak_between_calls() -> None:
     assert "\\033[8m" in redacted_again
 
 
+def test_secret_values_registered_swaps_scalars_in_dump() -> None:
+    """Registered value→name mappings make dump() emit `!secret <name>` for
+    matching scalars, and are removed again on exit."""
+    with yaml_util.secret_values_registered({"hunter2": "wifi_password"}):
+        out = yaml_util.dump({"password": make_data_base("hunter2")})
+        assert "password: !secret 'wifi_password'" in out
+        assert "hunter2" not in out
+    out_after = yaml_util.dump({"password": make_data_base("hunter2")})
+    assert "hunter2" in out_after
+    assert "!secret" not in out_after
+    assert yaml_util.is_secret("hunter2") is None
+
+
+def test_secret_values_registered_collects_emitted_names() -> None:
+    """The context yields a set recording exactly the `!secret` names the
+    dumper emitted, including real secrets, and not names never swapped."""
+    yaml_util._SECRET_VALUES["real_value"] = "real_name"
+    with yaml_util.secret_values_registered({"hunter2": "wifi_password"}) as emitted:
+        yaml_util.dump(
+            {
+                "password": make_data_base("hunter2"),
+                "key": make_data_base("real_value"),
+                "plain": make_data_base("nothing"),
+            }
+        )
+    assert emitted == {"wifi_password", "real_name"}
+
+
+def test_secret_values_registered_does_not_clobber_real_secrets() -> None:
+    """A value already mapped by a real `!secret` keeps its original name."""
+    yaml_util._SECRET_VALUES["hunter2"] = "original_name"
+    with yaml_util.secret_values_registered({"hunter2": "generated_name"}):
+        out = yaml_util.dump({"password": make_data_base("hunter2")})
+        assert "!secret 'original_name'" in out
+    # The pre-existing mapping survives the context exit.
+    assert yaml_util.is_secret("hunter2") == "original_name"
+
+
+def test_secret_values_registered_keeps_a_real_secret_loaded_meanwhile() -> None:
+    """A real `!secret` registered inside the context survives its exit."""
+    with yaml_util.secret_values_registered({"hunter2": "generated_name"}):
+        yaml_util._SECRET_VALUES["hunter2"] = "real_name"
+    assert yaml_util.is_secret("hunter2") == "real_name"
+
+
+def test_secret_values_registered_nested_keeps_the_outer_collector() -> None:
+    """An inner context does not stop the outer one from collecting names."""
+    with yaml_util.secret_values_registered({"outer_value": "outer"}) as outer:
+        with yaml_util.secret_values_registered({"inner_value": "inner"}) as inner:
+            yaml_util.dump({"a": make_data_base("inner_value")})
+        yaml_util.dump({"b": make_data_base("outer_value")})
+    assert inner == {"inner"}
+    assert outer == {"outer"}
+
+
+def test_registered_secret_names() -> None:
+    yaml_util._SECRET_VALUES["value_a"] = "name_a"
+    assert "name_a" in yaml_util.registered_secret_names()
+
+
 @pytest.fixture(autouse=True)
 def clear_dropped_merge_keys() -> None:
     """Reset the dropped-merge-key queue between tests."""
@@ -1984,6 +2034,33 @@ def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
     assert result["api"] == {"reboot_timeout": "5min"}
     assert result["logger"] == {"level": "DEBUG"}
     assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_wrapper_representers_consult_is_secret() -> None:
+    """!extend / !remove payloads and scalar !include paths equal to a
+    registered secret are swapped, never written in cleartext."""
+    from esphome.config_helpers import Extend, Remove
+
+    with yaml_util.secret_values_registered({"hunter2": "the_secret"}):
+        out = yaml_util.dump(
+            {
+                "a": Extend("hunter2"),
+                "b": Remove("hunter2"),
+                "c": Extend("plain_id"),
+            }
+        )
+    assert out.count("!secret 'the_secret'") == 2
+    assert "hunter2" not in out
+    assert "!extend 'plain_id'" in out
+
+
+def test_scalar_include_path_equal_to_secret_is_swapped() -> None:
+    """A scalar !include whose path equals a registered secret is swapped,
+    matching the other wrapper representers."""
+    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), "hunter2", lambda _: {})
+    with yaml_util.secret_values_registered({"hunter2": "the_secret"}):
+        out = yaml_util.dump({"key": include})
+    assert out == "key: !secret 'the_secret'\n"
 
 
 # ---------------------------------------------------------------------------
