@@ -442,3 +442,20 @@ def test_log_tag_as_string_flags_string_uses(line: str) -> None:
 )
 def test_log_tag_as_string_ignores_logging(line: str) -> None:
     assert not ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    ("content", "flagged"),
+    [
+        ("auto s = format_hex_pretty(data, len);\n", True),
+        # Explicit template arguments must not hide the call
+        ("auto s = format_hex_pretty<uint32_t>(v, '\\0', false);\n", True),
+        ("auto s = format_hex < 3;\n", False),
+        ("format_hex_pretty_to(buf, sizeof(buf), data, len);\n", False),
+    ],
+)
+def test_heap_allocating_helpers_detection(content: str, flagged: bool) -> None:
+    errs = ci_custom.lint_no_heap_allocating_helpers(
+        Path("esphome/components/x/x.cpp"), content
+    )
+    assert bool(errs) is flagged
