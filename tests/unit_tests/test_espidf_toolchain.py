@@ -107,21 +107,17 @@ def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _no_idf_install() -> Iterator[None]:
-    """No test may install ESP-IDF for real.
+def _no_idf_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any test that would install ESP-IDF for real.
 
-    ``_get_idf_env`` resolves the framework paths through
-    ``check_esp_idf_install``, which downloads the framework and its tools
-    when they are missing, as they are on a CI runner. A test that reaches
-    it unmocked spent over three minutes on the Windows runner. Tests of the
-    install path patch ``check_esp_idf_install`` themselves.
+    An unmocked ``_get_idf_env`` reaches ``check_esp_idf_install``, which
+    downloads the framework on a bare CI runner (minutes on Windows).
     """
-    with patch.object(
-        toolchain,
-        "check_esp_idf_install",
-        side_effect=AssertionError("test would install ESP-IDF; mock _get_idf_env"),
-    ):
-        yield
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("test would install ESP-IDF; mock _get_idf_env")
+
+    monkeypatch.setattr(toolchain, "check_esp_idf_install", refuse)
 
 
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
