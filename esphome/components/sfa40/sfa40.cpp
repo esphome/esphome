@@ -4,7 +4,7 @@
 
 namespace esphome::sfa40 {
 
-static const char *const TAG = "sfa40";
+ESPHOME_LOG_TAG(TAG, "sfa40");
 
 // SFA40 Datasheet: https://sensirion.com/media/documents/5B06EDD9/69F84BD8/Sensirion_Datasheet_SFA40.pdf
 

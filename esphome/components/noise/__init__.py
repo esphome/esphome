@@ -13,8 +13,8 @@ CODEOWNERS = ["@esphome/core"]
 
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
 # LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
-NOISE_C_VERSION = "0.1.30"
-LIBSODIUM_VERSION = "1.10021.11"
+NOISE_C_VERSION = "0.1.31"
+LIBSODIUM_VERSION = "1.10021.12"
 
 noise_ns = cg.esphome_ns.namespace("noise")
 

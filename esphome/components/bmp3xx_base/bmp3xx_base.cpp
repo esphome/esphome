@@ -13,7 +13,7 @@
 
 namespace esphome::bmp3xx_base {
 
-static const char *const TAG = "bmp3xx.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp3xx.sensor");
 
 static const LogString *chip_type_to_str(uint8_t chip_type) {
   switch (chip_type) {

@@ -1,5 +1,7 @@
 """Sendspin image platform."""
 
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import runtime_image
@@ -21,7 +23,6 @@ from esphome.types import ConfigType
 from .. import (
     CONF_DISPLAY_OFFSET,
     CONF_SENDSPIN_ID,
-    IMAGE_FORMAT_BMP,
     IMAGE_FORMAT_JPEG,
     IMAGE_FORMAT_PNG,
     IMAGE_SOURCE_ALBUM,
@@ -57,8 +58,15 @@ _FORMAT_TO_SENDSPIN_ENUM = {
     "JPEG": IMAGE_FORMAT_JPEG,
     "JPG": IMAGE_FORMAT_JPEG,
     "PNG": IMAGE_FORMAT_PNG,
-    "BMP": IMAGE_FORMAT_BMP,
 }
+
+
+# Remove before 2027.4.0
+def _reject_bmp(value: Any) -> Any:
+    if isinstance(value, str) and value.upper() == "BMP":
+        raise cv.Invalid("BMP artwork is no longer supported, use JPEG or PNG instead.")
+    return value
+
 
 # The library's SendspinImageSource::NONE is its internal "unset" sentinel; a slot advertising it
 # would never receive artwork while still paying for two frame buffers, so it is not offered here.
@@ -121,7 +129,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
             # Narrow runtime_image's format list to what the library can request, so the
             # accepted set and the enum map below cannot drift apart.
-            cv.Required(CONF_FORMAT): cv.one_of(*_FORMAT_TO_SENDSPIN_ENUM, upper=True),
+            cv.Required(CONF_FORMAT): cv.All(
+                _reject_bmp, cv.one_of(*_FORMAT_TO_SENDSPIN_ENUM, upper=True)
+            ),
             cv.Required(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_CURRENT_IMAGE): _IMAGE_SCHEMA,
             cv.Optional(CONF_TRANSITION_IMAGE): _IMAGE_SCHEMA,

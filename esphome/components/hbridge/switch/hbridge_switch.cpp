@@ -5,7 +5,7 @@
 
 namespace esphome::hbridge {
 
-static const char *const TAG = "switch.hbridge";
+ESPHOME_LOG_TAG(TAG, "switch.hbridge");
 
 float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void HBridgeSwitch::setup() {

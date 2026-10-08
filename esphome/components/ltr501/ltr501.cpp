@@ -8,7 +8,7 @@ using esphome::i2c::ErrorCode;
 
 namespace esphome::ltr501 {
 
-static const char *const TAG = "ltr501";
+ESPHOME_LOG_TAG(TAG, "ltr501");
 
 static const uint8_t MAX_TRIES = 5;
 static const uint8_t MAX_SENSITIVITY_ADJUSTMENTS = 10;
