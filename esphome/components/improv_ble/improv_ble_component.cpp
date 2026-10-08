@@ -20,7 +20,7 @@ namespace esphome::improv_ble {
 
 using namespace bytebuffer;
 
-static const char *const TAG = "improv_ble.component";
+ESPHOME_LOG_TAG(TAG, "improv_ble.component");
 static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
 static constexpr char ESPHOME_MY_LINK[] = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 // command + data length + trailing byte

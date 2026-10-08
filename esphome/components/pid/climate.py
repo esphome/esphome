@@ -3,13 +3,11 @@ import esphome.codegen as cg
 from esphome.components import climate, output, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_HUMIDITY_SENSOR, CONF_ID, CONF_SENSOR
-from esphome.core import ID, Lambda
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import Lambda
 from esphome.types import ConfigType
 
 pid_ns = cg.esphome_ns.namespace("pid")
 PIDClimate = pid_ns.class_("PIDClimate", climate.Climate, cg.Component)
-PIDAutotuneAction = pid_ns.class_("PIDAutotuneAction", automation.Action)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 
@@ -158,9 +156,8 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.pid.autotune",
-    PIDAutotuneAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
@@ -173,20 +170,15 @@ automation.register_apply_action(
             ): cv.possibly_negative_percentage,
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "start_autotune({}, {}, {})",
+        (
+            (CONF_NOISEBAND, cg.float_),
+            (CONF_POSITIVE_OUTPUT, cg.float_),
+            (CONF_NEGATIVE_OUTPUT, cg.float_),
+        ),
+    ),
 )
-async def esp8266_set_frequency_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_noiseband(config[CONF_NOISEBAND]))
-    cg.add(var.set_positive_output(config[CONF_POSITIVE_OUTPUT]))
-    cg.add(var.set_negative_output(config[CONF_NEGATIVE_OUTPUT]))
-    return var
 
 
 automation.register_apply_action(

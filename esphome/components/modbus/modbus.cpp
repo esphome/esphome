@@ -9,7 +9,7 @@
 
 namespace esphome::modbus {
 
-static const char *const TAG = "modbus";
+ESPHOME_LOG_TAG(TAG, "modbus");
 
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
@@ -205,7 +205,7 @@ void ModbusPeerHub::parse_modbus_frames() {
   while (!this->rx_buffer_.empty()) {
     this->on_frame_pending();
     size_t size = this->rx_buffer_.size();
-    ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
+    ESP_LOGVV(TAG, "Parsing frames buffer size = %zu", size);
     bool retry_as_client = false;
     // A broadcast is a client request, never a peer response; clear any stale expectation (RTU is half-duplex).
     const bool is_broadcast = this->rx_buffer_[0] == BROADCAST_ADDRESS;

@@ -78,7 +78,6 @@ from .widgets import (
     get_screen_active,
     get_widgets,
     set_obj_properties,
-    wait_for_widgets,
 )
 
 # Widgets that are used in a focused/refreshed action are tracked in
@@ -127,15 +126,7 @@ async def action_to_code(
     action_id,
     template_arg,
     args,
-    config=None,
 ):
-    # Ensure all required ids have been processed, so our LambdaContext doesn't get context-switched.
-    if config:
-        for lamb in config.values():
-            if isinstance(lamb, Lambda):
-                for id_ in lamb.requires_ids:
-                    await get_variable(id_)
-    await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             await action(widget)
@@ -145,7 +136,7 @@ async def action_to_code(
 async def update_to_code(config, action_id, template_arg, args):
     async def do_update(widget: Widget):
         await set_obj_properties(widget, config)
-        await widget.type.to_code(widget, config)
+        await widget.type.update_to_code(widget, config)
         if (
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
@@ -153,9 +144,7 @@ async def update_to_code(config, action_id, template_arg, args):
             lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)
 
 
 @automation.register_condition(
@@ -507,9 +496,7 @@ async def obj_update_to_code(config, action_id, template_arg, args):
         await set_obj_properties(widget, config)
 
     widgets = await get_widgets(config[CONF_ID])
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)
 
 
 def validate_refresh_config(config):

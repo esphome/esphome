@@ -147,15 +147,6 @@ struct IPAddress {
     }
     return (ntohl(this->ip_addr_.u_addr.ip4.s_addr) & 0xF0000000UL) == 0xE0000000UL;
   }
-  // Remove before 2026.8.0
-  ESPDEPRECATED(
-      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
-      "2026.2.0")
-  std::string str() const {
-    char buf[IP_ADDRESS_BUFFER_SIZE];
-    this->str_to(buf);
-    return buf;
-  }
   char *str_to(char *buf) const {
     if (this->ip_addr_.type == IPADDR_TYPE_V6) {
       inet_ntop(AF_INET6, &this->ip_addr_.u_addr.ip6, buf, IP_ADDRESS_BUFFER_SIZE);

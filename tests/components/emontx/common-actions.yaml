@@ -1,0 +1,7 @@
+button:
+  - platform: template
+    name: Send lambda command
+    on_press:
+      - emontx.send_command:
+          id: test_emontx
+          command: !lambda return "l";

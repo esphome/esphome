@@ -1,5 +1,5 @@
 from esphome import automation
-from esphome.automation import Condition, maybe_simple_id
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
@@ -20,14 +20,16 @@ from esphome.const import (
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -54,7 +56,6 @@ RESTORE_MODES = {
 }
 
 
-SwitchCondition = switch_ns.class_("SwitchCondition", Condition)
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
@@ -174,6 +175,13 @@ async def new_switch(config, *args):
     return var
 
 
+def sub_switches(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_switch."""
+    return SubEntities(new_switch, config, parent)
+
+
 SWITCH_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(Switch),
@@ -201,17 +209,10 @@ for _name, _call in (
         _name, SWITCH_ACTION_SCHEMA, automation.ApplyCall(_call)
     )
 
-
-@automation.register_condition("switch.is_on", SwitchCondition, SWITCH_ACTION_SCHEMA)
-async def switch_is_on_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, True)
-
-
-@automation.register_condition("switch.is_off", SwitchCondition, SWITCH_ACTION_SCHEMA)
-async def switch_is_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren, False)
+automation.register_apply_condition("switch.is_on", SWITCH_ACTION_SCHEMA, "state")
+automation.register_apply_condition(
+    "switch.is_off", SWITCH_ACTION_SCHEMA, "state == false"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

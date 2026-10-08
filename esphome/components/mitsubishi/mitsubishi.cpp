@@ -4,7 +4,7 @@
 
 namespace esphome::mitsubishi {
 
-static const char *const TAG = "mitsubishi.climate";
+ESPHOME_LOG_TAG(TAG, "mitsubishi.climate");
 
 // IR frame size for Mitsubishi climate
 static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;
@@ -102,7 +102,7 @@ void MitsubishiClimate::transmit_state() {
     default:
       remote_state[6] = MITSUBISHI_MODE_COOL;
       remote_state[8] = MITSUBISHI_MODE_A_COOL;
-      if (this->supports_heat_) {
+      if (this->modes_.count(climate::CLIMATE_MODE_HEAT)) {
         remote_state[6] = MITSUBISHI_MODE_HEAT;
         remote_state[8] = MITSUBISHI_MODE_A_HEAT;
       }
