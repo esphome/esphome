@@ -391,6 +391,7 @@ def _load_include_candidates(
     include: IncludeFile,
     *,
     warn_on_unresolved: bool,
+    warn_on_load_error: bool,
     seen: set[int],
     expanded_paths: set[Path],
     keepalive: list[Any],
@@ -422,12 +423,12 @@ def _load_include_candidates(
         try:
             loaded = include.with_file(candidate.as_posix()).load()
         except (EsphomeError, Invalid) as err:
-            # Unlike an unresolved pattern (expected during the discovery
-            # re-parse), a matched on-disk candidate that fails to load is a
-            # genuine user error; warn in every mode. The file itself is
-            # still tracked (the load listener fires before parsing), only
-            # its nested includes go undiscovered.
-            _LOGGER.warning(
+            # A matched on-disk candidate that fails to load is a genuine user
+            # error; callers that report ``result.errors`` themselves pass
+            # warn_on_load_error=False so it is not logged twice. The file
+            # itself is still tracked (the load listener fires before
+            # parsing), only its nested includes go undiscovered.
+            (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
                 "Failed to load candidate %s for !include %s: %s",
                 candidate,
                 include.file,
@@ -441,6 +442,7 @@ def _load_include_candidates(
         _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
+            warn_on_load_error=warn_on_load_error,
             _seen=seen,
             _expanded_paths=expanded_paths,
             _keepalive=keepalive,
@@ -475,7 +477,7 @@ class ForceLoadResult(NamedTuple):
 
 
 def force_load_include_files(
-    obj: Any, *, warn_on_unresolved: bool = True
+    obj: Any, *, warn_on_unresolved: bool = True, warn_on_load_error: bool = True
 ) -> ForceLoadResult:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
@@ -491,11 +493,16 @@ def force_load_include_files(
     expression could select. By default a warning is logged when no candidate
     exists; pass ``warn_on_unresolved=False`` (used by discovery paths that
     run on a fresh re-parse where substitutions haven't been applied yet) to
-    demote it to a debug log.
+    demote it to a debug log. Includes that fail to load are logged as
+    warnings too; callers that report ``errors`` themselves pass
+    ``warn_on_load_error=False`` so each failure is shown once.
     """
     result = ForceLoadResult([], [])
     _force_load_include_files(
-        obj, warn_on_unresolved=warn_on_unresolved, _result=result
+        obj,
+        warn_on_unresolved=warn_on_unresolved,
+        warn_on_load_error=warn_on_load_error,
+        _result=result,
     )
     return result
 
@@ -504,6 +511,7 @@ def _force_load_include_files(
     obj: Any,
     *,
     warn_on_unresolved: bool = True,
+    warn_on_load_error: bool = True,
     _seen: set[int] | None = None,
     _expanded_paths: set[Path] | None = None,
     _keepalive: list[Any] | None = None,
@@ -532,6 +540,7 @@ def _force_load_include_files(
             _load_include_candidates(
                 obj,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 seen=_seen,
                 expanded_paths=_expanded_paths,
                 keepalive=_keepalive,
@@ -541,7 +550,7 @@ def _force_load_include_files(
         try:
             loaded = obj.load()
         except (EsphomeError, Invalid) as err:
-            _LOGGER.warning(
+            (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
                 "Failed to load !include %s (referenced from %s): %s",
                 obj.file,
                 obj.parent_file,
@@ -552,6 +561,7 @@ def _force_load_include_files(
         _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
+            warn_on_load_error=warn_on_load_error,
             _seen=_seen,
             _expanded_paths=_expanded_paths,
             _keepalive=_keepalive,
@@ -565,6 +575,7 @@ def _force_load_include_files(
             _force_load_include_files(
                 value,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
                 _keepalive=_keepalive,
@@ -578,6 +589,7 @@ def _force_load_include_files(
             _force_load_include_files(
                 item,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
                 _keepalive=_keepalive,
@@ -637,7 +649,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
                     list(loaded), secrets, load_errors=[f"{config_path}: {err}"]
                 )
             unresolved, load_errors = force_load_include_files(
-                data, warn_on_unresolved=False
+                data, warn_on_unresolved=False, warn_on_load_error=False
             )
         finally:
             _load_listeners.remove(_capture_secret)
@@ -1514,17 +1526,27 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.value)
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
+    def _represent_tagged_secret(self, tag, value):
+        # Writing the secret beats leaking the value, but the tag is lost, so
+        # the dumped config no longer means the same thing when loaded back.
+        _LOGGER.warning(
+            "%s value matches secret '%s'; written as !secret, dropping the %s tag",
+            tag,
+            _SECRET_VALUES[str(value)],
+            tag,
+        )
+        return self.represent_secret(value)
+
     def represent_extend(self, value):
         # Consult is_secret like the other scalar representers so a payload
-        # equal to a registered secret is never written out in cleartext; the
-        # tag is lost then, which beats leaking the value.
+        # equal to a registered secret is never written out in cleartext.
         if is_secret(value.value):
-            return self.represent_secret(value.value)
+            return self._represent_tagged_secret("!extend", value.value)
         return self.represent_scalar(tag="!extend", value=value.value)
 
     def represent_remove(self, value):
         if is_secret(value.value):
-            return self.represent_secret(value.value)
+            return self._represent_tagged_secret("!remove", value.value)
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
@@ -1540,7 +1562,7 @@ class ESPHomeDumper(yaml.SafeDumper):
                 tag="!include", mapping=mapping, flow_style=False
             )
         if is_secret(value.file):
-            return self.represent_secret(value.file)
+            return self._represent_tagged_secret("!include", value.file)
         return self.represent_scalar(tag="!include", value=value.file)
 
     def represent_id(self, value):
