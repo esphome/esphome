@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.update";
+ESPHOME_LOG_TAG(TAG, "mqtt.update");
 
 using namespace esphome::update;
 

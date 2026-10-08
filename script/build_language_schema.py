@@ -456,7 +456,10 @@ def fix_lvgl_widgets():
 
 
 def get_logger_tags():
-    pattern = re.compile(r'^static const char \*const TAG = "(\w.*)";', re.MULTILINE)
+    pattern = re.compile(
+        r'^(?:static const char \*const TAG = "|ESPHOME_LOG_TAG\(TAG, ")(\w[^"]*)"',
+        re.MULTILINE,
+    )
     # tags not in components dir
     tags = [
         "app",

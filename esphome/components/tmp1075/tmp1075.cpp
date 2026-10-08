@@ -3,7 +3,7 @@
 
 namespace esphome::tmp1075 {
 
-static const char *const TAG = "tmp1075";
+ESPHOME_LOG_TAG(TAG, "tmp1075");
 
 constexpr uint8_t REG_TEMP = 0x0;   // Temperature result
 constexpr uint8_t REG_CFGR = 0x1;   // Configuration

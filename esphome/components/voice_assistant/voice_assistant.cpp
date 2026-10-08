@@ -12,7 +12,7 @@
 
 namespace esphome::voice_assistant {
 
-static const char *const TAG = "voice_assistant";
+ESPHOME_LOG_TAG(TAG, "voice_assistant");
 
 #ifdef SAMPLE_RATE_HZ
 #undef SAMPLE_RATE_HZ

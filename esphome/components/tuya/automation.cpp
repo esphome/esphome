@@ -2,7 +2,7 @@
 
 #include "automation.h"
 
-static const char *const TAG = "tuya.automation";
+ESPHOME_LOG_TAG(TAG, "tuya.automation");
 
 namespace esphome::tuya {
 

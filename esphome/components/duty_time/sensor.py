@@ -63,9 +63,8 @@ async def to_code(config: ConfigType) -> None:
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(config[CONF_LAMBDA], [], return_type=cg.bool_)
         cg.add(var.set_lambda(lambda_))
-    if CONF_LAST_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_LAST_TIME])
-        cg.add(var.set_last_duty_time_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_LAST_TIME, var.set_last_duty_time_sensor)
 
 
 # AUTOMATIONS

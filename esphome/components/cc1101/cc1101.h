@@ -89,7 +89,10 @@ class CC1101Component final : public Component,
   void set_whitening(bool value);
 
   // Packet mode operations
-  CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
+  CC1101Error transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
+  CC1101Error transmit_packet(const uint8_t *data, size_t len);
   void register_listener(CC1101Listener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() { return &this->packet_trigger_; }
 
@@ -131,27 +134,11 @@ class CC1101Component final : public Component,
 
 // Action Wrappers
 template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }
-  void set_data_static(const uint8_t *data, size_t len) {
-    this->data_static_ = data;
-    this->data_static_len_ = len;
-  }
+  TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-    if (this->data_func_) {
-      auto data = this->data_func_(x...);
-      this->parent_->transmit_packet(data);
-    } else if (this->data_static_ != nullptr) {
-      std::vector<uint8_t> data(this->data_static_, this->data_static_ + this->data_static_len_);
-      this->parent_->transmit_packet(data);
-    }
+    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->transmit_packet(data, len); }, x...);
   }
-
- protected:
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  const uint8_t *data_static_{nullptr};
-  size_t data_static_len_{0};
 };
 
 }  // namespace esphome::cc1101

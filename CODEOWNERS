@@ -187,10 +187,12 @@ esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/esp_ldo/* @clydebarrow
+esphome/components/espectre/* @francescopace
 esphome/components/espnow/* @jesserockz
 esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
+esphome/components/exponential_moving_average/* @clydebarrow
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/ezo_pmp/* @carlos-sarmiento
@@ -246,8 +248,11 @@ esphome/components/hmac_md5/* @dwmw2
 esphome/components/hmac_sha256/* @dwmw2
 esphome/components/hoermann_hcp/* @zweckj
 esphome/components/homeassistant/* @esphome/core @OttoWinter
+esphome/components/homeassistant/button/* @jesserockz
 esphome/components/homeassistant/number/* @landonr
+esphome/components/homeassistant/select/* @jesserockz
 esphome/components/homeassistant/switch/* @Links2004
+esphome/components/homeassistant/text/* @jesserockz
 esphome/components/honeywell_hih_i2c/* @Benichou34
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/honeywellabp2_i2c/* @jpfaff
@@ -283,6 +288,7 @@ esphome/components/inkplate/* @jesserockz @JosipKuci
 esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
+esphome/components/ir_rf_base/* @bdraco @kbx81
 esphome/components/ir_rf_proxy/* @kbx81
 esphome/components/it8951/* @koosoli @limengdu @Passific
 esphome/components/jsn_sr04t/* @Mafus1
@@ -542,6 +548,7 @@ esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
+esphome/components/stcc4/* @j9brown
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
@@ -560,6 +567,7 @@ esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
+esphome/components/tcp_uart/* @Bascht74
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
 esphome/components/tem3200/* @bakerkj
@@ -601,11 +609,13 @@ esphome/components/uart/button/* @ssieb
 esphome/components/uart/event/* @eoasmxd
 esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/uart_mux/* @kbx81
+esphome/components/uart_tcp/* @Bascht74
 esphome/components/udp/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ufm01/* @ljungqvist
 esphome/components/ultrasonic/* @ssieb @swoboda1337
+esphome/components/unicode/* @esphome/core
 esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
 esphome/components/usb_cdc_acm/* @kbx81
@@ -649,6 +659,7 @@ esphome/components/xiaomi_body_scale/* @dckiller51
 esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd02mmc/* @juanluss31
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
+esphome/components/xiaomi_mccgq02hl/* @ahpohl @morph027
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz

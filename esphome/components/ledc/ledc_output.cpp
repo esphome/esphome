@@ -22,7 +22,7 @@ static const uint8_t SETUP_ATTEMPT_COUNT_MAX = 5;
 
 namespace esphome::ledc {
 
-static const char *const TAG = "ledc.output";
+ESPHOME_LOG_TAG(TAG, "ledc.output");
 static bool ledc_peripheral_reset_done = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const int MAX_RES_BITS = LEDC_TIMER_BIT_MAX - 1;
