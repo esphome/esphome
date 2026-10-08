@@ -9,7 +9,7 @@
 
 namespace esphome::modbus {
 
-static const char *const TAG = "modbus";
+ESPHOME_LOG_TAG(TAG, "modbus");
 
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 

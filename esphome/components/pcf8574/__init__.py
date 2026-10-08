@@ -63,7 +63,7 @@ PCF8574_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_PCF8574): cv.use_id(PCF8574Component),
+        cv.Required(CONF_PCF8574): pins.use_id_or_address(PCF8574Component),
     }
 )
 

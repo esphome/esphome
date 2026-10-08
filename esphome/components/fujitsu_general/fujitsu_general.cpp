@@ -2,7 +2,7 @@
 
 namespace esphome::fujitsu_general {
 
-static const char *const TAG = "fujitsu_general.climate";
+ESPHOME_LOG_TAG(TAG, "fujitsu_general.climate");
 
 // Common header
 constexpr uint8_t FUJITSU_GENERAL_COMMON_LENGTH = 6;

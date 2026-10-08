@@ -5,7 +5,7 @@
 
 namespace esphome::event {
 
-static const char *const TAG = "event";
+ESPHOME_LOG_TAG(TAG, "event");
 
 void Event::trigger(const char *event_type) {
   // Linear search with strcmp - faster than std::set for small datasets (1-5 items typical)

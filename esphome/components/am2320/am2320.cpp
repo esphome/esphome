@@ -10,7 +10,7 @@
 
 namespace esphome::am2320 {
 
-static const char *const TAG = "am2320";
+ESPHOME_LOG_TAG(TAG, "am2320");
 
 void AM2320Component::update() {
   uint8_t data[8];
