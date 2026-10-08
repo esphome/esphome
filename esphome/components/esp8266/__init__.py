@@ -114,9 +114,37 @@ _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 _resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.ARDUINO)
 
 
+# Known boards keyed by spelling with case and "-" / "_" folded away
+_FOLDED_BOARDS = {board.lower().replace("-", "_"): board for board in BOARDS}
+
+
+def _resolve_board(config: ConfigType) -> ConfigType:
+    """Fix a misspelled board, else build an unknown one with PlatformIO."""
+    board = config[CONF_BOARD]
+    if board in BOARDS:
+        return config
+    if canonical := _FOLDED_BOARDS.get(board.lower().replace("-", "_")):
+        _LOGGER.warning(
+            "Board '%s' is not a known ESP8266 board; using '%s'", board, canonical
+        )
+        return {**config, CONF_BOARD: canonical}
+    if CORE.toolchain is None and CONF_TOOLCHAIN not in config:
+        return {**config, CONF_TOOLCHAIN: Toolchain.PLATFORMIO}
+    return config
+
+
 def _warn_platformio_toolchain(config: ConfigType) -> ConfigType:
     # Remove before 2027.4.0
-    if CORE.using_toolchain_platformio:
+    if not CORE.using_toolchain_platformio:
+        return config
+    if config[CONF_BOARD] not in BOARDS:
+        _LOGGER.warning(
+            "Board '%s' is not supported by the native 'arduino' toolchain, so it "
+            "builds with the deprecated 'platformio' toolchain, which will be "
+            "removed in ESPHome 2027.4.0",
+            config[CONF_BOARD],
+        )
+    else:
         _LOGGER.warning(
             "The 'platformio' toolchain for ESP8266 is deprecated and will be "
             "removed in ESPHome 2027.4.0; the native 'arduino' toolchain is the "
@@ -329,6 +357,7 @@ CONFIG_SCHEMA = cv.All(
             ): _validate_toolchain,
         }
     ),
+    _resolve_board,
     _resolve_toolchain,
     _warn_platformio_toolchain,
     _validate_native_toolchain,

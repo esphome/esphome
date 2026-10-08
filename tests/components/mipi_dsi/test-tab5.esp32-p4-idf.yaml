@@ -1,0 +1,23 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+
+esp_ldo:
+  - id: ldo_id
+    channel: 3
+    voltage: 2.5V
+
+psram:
+
+pi4ioe5v6408:
+  # A second, decoy hub at a different address, so this test only passes if
+  # the model's reset_pin default actually resolves pi4ioe1 by its address
+  # (0x43) -- with only one hub declared, the single-instance auto-pick
+  # fallback would resolve it too, even if address matching regressed.
+  - id: pi4ioe1
+    address: 0x43
+  - id: pi4ioe2
+    address: 0x44
+
+display:
+  - platform: mipi_dsi
+    model: M5STACK-TAB5
