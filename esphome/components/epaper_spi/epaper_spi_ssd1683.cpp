@@ -66,6 +66,8 @@ bool HOT EPaperSSD1683::transfer_data() {
     this->current_data_index_ = this->y_low_;  // actually current line
   }
   size_t row_length = this->x_high_ - this->x_low_;
+  // After a wake with the image kept on this side, the previous-image RAM is refilled from it
+  const auto &source = this->send_red_ && this->restore_previous_ ? this->sent_ : this->buffer_;
   FixedVector<uint8_t> bytes_to_send{};
   bytes_to_send.init(row_length);
   ESP_LOGV(TAG, "Writing %u bytes at line %zu at %ums", row_length, this->current_data_index_, (unsigned) millis());
@@ -74,7 +76,7 @@ bool HOT EPaperSSD1683::transfer_data() {
     const size_t row_start = this->current_data_index_ * this->row_width_ + this->x_low_;
     size_t data_idx = row_start;
     for (size_t i = 0; i != row_length; i++) {
-      bytes_to_send[i] = this->buffer_[data_idx++];
+      bytes_to_send[i] = source[data_idx++];
     }
     ++this->current_data_index_;
     this->write_array(&bytes_to_send.front(), row_length);  // NOLINT

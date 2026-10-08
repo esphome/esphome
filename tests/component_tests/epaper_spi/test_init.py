@@ -12,6 +12,7 @@ from esphome.components.epaper_spi.display import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     MODELS,
+    _validate_image_store,
 )
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
@@ -422,6 +423,50 @@ def test_ssd1681_dimensions_over_controller_limit_rejected(
                 },
             }
         )
+
+
+def test_retain_image_in_sleep(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """retain_image_in_sleep takes a size and needs partial updates."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "ssd1681",
+            "dc_pin": 21,
+            "full_update_every": 20,
+            "retain_image_in_sleep": "6kB",
+        }
+    )
+    assert config["retain_image_in_sleep"] == 6000
+
+    with pytest.raises(cv.Invalid, match="full_update_every"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1681",
+                "dc_pin": 21,
+                "retain_image_in_sleep": "6kB",
+            }
+        )
+
+
+def test_retain_image_in_sleep_only_on_esp32(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The image store is RTC memory on the ESP32; other platforms reject the option."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+
+    with pytest.raises(cv.Invalid, match="ESP32"):
+        _validate_image_store("6kB")
 
 
 def test_busy_pin_input_mode_ssd1677(

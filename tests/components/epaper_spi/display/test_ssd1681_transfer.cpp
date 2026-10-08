@@ -33,6 +33,16 @@ class TestableSSD1681 : public EPaperSSD1681 {
   }
 
   using EPaperSSD1681::teardown;
+
+  /// What setup() restores after a wake when the image was kept on this side and the panel lost its RAM.
+  void restore_image_after_wake(std::initializer_list<uint8_t> bytes, uint8_t update_count) {
+    size_t i = 0;
+    for (const uint8_t byte : bytes)
+      this->sent_[i++] = byte;
+    this->sent_valid_ = true;
+    this->restore_previous_ = true;
+    this->update_count_ = update_count;
+  }
   EPaperState state() const { return this->state_; }
   void step() { this->process_state_(); }
   uint8_t update_count() const { return this->update_count_; }
@@ -311,6 +321,56 @@ TEST(EPaperSSD1681, FirstUpdateAfterWakeIsPartial) {
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   display.set_dirty(0, 0, 16, 2);
   EXPECT_FALSE(display.run_update()) << "comparison frame was not rebuilt by the first update";
+}
+
+/// After a wake with the image kept on this side (the panel may have lost its RAM, or its power),
+/// the first update resets the panel and rewrites both banks over the whole panel: 0x26 from the
+/// kept image, 0x24 from the new frame, then a partial refresh drives only what differs.
+TEST(EPaperSSD1681, FirstUpdateAfterWakeRewritesBothBanksFromTheKeptImage) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+  display.restore_image_after_wake({0x0F, 0xF0, 0x3C, 0xC3}, 3);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(8, 1, 16, 2);
+  EXPECT_TRUE(display.run_update());
+  EXPECT_EQ(bus.commands.front(), 0x12) << "panel was not reset after losing its RAM";
+  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0xC3})) << "previous-image bank is not the kept image";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
+  EXPECT_EQ(bus.data[0x21], (Bytes{0x00, 0x00}));
+  EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
+  bus.clear();
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_FALSE(display.run_update()) << "kept image was not updated by the first push";
+
+  display.set_frame({0x0F, 0xF0, 0x00, 0x00});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_TRUE(display.run_update());
+  EXPECT_EQ(bus.commands.front(), 0x44) << "later partial updates reset the panel";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x00})) << "later partial update did not shrink to the changed byte";
+}
+
+/// An unchanged frame is skipped even right after the wake; the panel's RAM is only rebuilt when
+/// something changes, since the panel shows the kept image unpowered anyway.
+TEST(EPaperSSD1681, UnchangedFrameAfterWakeIsSkippedAndTheRestoreWaits) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+  display.restore_image_after_wake({0x0F, 0xF0, 0x3C, 0xC3}, 3);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_FALSE(display.run_update());
+  EXPECT_TRUE(bus.commands.empty());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(8, 1, 16, 2);
+  EXPECT_TRUE(display.run_update());
+  EXPECT_EQ(bus.commands.front(), 0x12);
+  EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
 }
 
 }  // namespace esphome::epaper_spi::testing

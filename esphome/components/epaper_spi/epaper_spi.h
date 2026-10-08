@@ -179,10 +179,21 @@ class EPaperBase : public Display,
   struct SleepState {
     uint8_t update_count;
     uint8_t panel_holds_image;
+    uint8_t image_compressed;
+    uint16_t image_size;  // bytes of the image kept in RTC memory; 0 if none
+    uint32_t image_hash;
   };
   bool woke_from_deep_sleep_() const;
   void load_sleep_state_();
-  void save_sleep_state_(bool panel_holds_image);
+  void save_sleep_state_(bool panel_holds_image, bool image_compressed = false, uint16_t image_size = 0);
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+  // The image on the panel, kept in RTC memory through the controller's deep sleep so a partial update
+  // can follow the wake even if the panel lost its RAM
+  bool store_image_(bool &compressed, uint16_t &size);
+  bool restore_image_();
+  uint32_t image_store_hash_(size_t size) const;
+  SleepState stored_image_{};
+#endif
   void hold_pins_() const;
   void release_pins_() const;
   ESPPreferenceObject sleep_state_;
@@ -209,6 +220,8 @@ class EPaperBase : public Display,
   bool sent_valid_{};                 // sent_ holds a whole frame
   bool full_window_{};                // the update in progress covers the whole panel
   bool panel_holds_image_{};          // the panel's RAM holds the image it shows, as a partial update needs
+  bool restore_previous_{};           // the next transfer must also write sent_ to the panel's previous-image RAM
+  bool image_kept_in_sleep_{};        // the image is kept on this side, so the panel may lose its RAM in sleep
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};

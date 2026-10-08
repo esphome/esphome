@@ -8,21 +8,23 @@ static constexpr const char *const TAG = "epaper_spi.ssd1681";
 // A hardware reset leaves 0x26 no longer holding the image on the panel, so the panel stays awake and
 // unreset between partial refreshes
 bool EPaperSSD1681::reset() {
-  if (this->update_count_ != 0)
+  if (this->update_count_ != 0 && !this->restore_previous_)
     return true;
   return EPaperSSD1683::reset();
 }
 
+// The panel may only sleep, and lose its RAM, once the image is kept on this side
 void EPaperSSD1681::deep_sleep() {
-  if (this->is_using_partial_update_())
+  if (this->is_using_partial_update_() && !this->image_kept_in_sleep_)
     return;
   EPaperSSD1683::deep_sleep();
 }
 
 bool HOT EPaperSSD1681::transfer_data() {
   if (this->current_data_index_ == 0 && this->send_red_) {
-    if (this->update_count_ == 0) {
-      // A refresh drives the whole panel from RAM, so a full one makes both RAM banks whole again
+    if (this->update_count_ == 0 || this->restore_previous_) {
+      // A refresh drives the whole panel from RAM, so a full one, or the first after the panel lost its
+      // RAM, makes both RAM banks whole again
       this->x_low_ = 0;
       this->x_high_ = this->width_;
       this->y_low_ = 0;
