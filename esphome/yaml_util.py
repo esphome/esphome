@@ -450,9 +450,9 @@ def _load_include_candidates(
         )
 
 
-# `!secret key`, quoted or not. A text scan, not a YAML parse, so it can also match
-# comments; that errs toward including more secrets.
-_SECRET_REFERENCE_RE = re.compile(r"""!secret\s+['"]?([^\s'"]+)""")
+# `!secret key`, quoted or not, also inside flow collections. A text scan, not a
+# YAML parse, so it can also match comments; that errs toward more secrets.
+_SECRET_REFERENCE_RE = re.compile(r"""!secret\s+['"]?([^\s'",\]}]+)""")
 
 
 def find_secret_references(text: str) -> set[str]:
