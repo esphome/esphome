@@ -56,8 +56,9 @@ def _warn_on_reboot_timeouts(config: ConfigType) -> None:
     # An arbiter must keep running through the outage it exists for, when the
     # Wi-Fi access point or Home Assistant may well be guests on the very
     # cluster it arbitrates. Rebooting then drops both nodes' qdevice vote.
+    # (ethernet has no reboot timeout.)
     full_config = fv.full_config.get()
-    for component in ("api", "wifi", "ethernet"):
+    for component in ("api", "wifi"):
         if (
             (conf := full_config.get(component))
             and isinstance(conf, dict)
