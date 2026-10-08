@@ -385,7 +385,7 @@ class ProtoEncode {
   }
   /// Write a field key through the local cursor. Sub-message fields commonly have a 2-byte tag.
   [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
-  write_tag_(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, uint32_t type) {
+  write_tag(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, uint32_t type) {
     uint32_t tag = proto_tag(field_id, type);
 #ifdef ESPHOME_DEBUG_API
     return encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, tag);
@@ -584,7 +584,7 @@ class ProtoEncode {
   template<typename T>
   [[nodiscard]] static inline uint8_t *encode_sub_message(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                           uint32_t field_id, const T &value) {
-    pos = write_tag_(pos PROTO_ENCODE_DEBUG_ARG, field_id, WIRE_TYPE_LENGTH_DELIMITED);
+    pos = write_tag(pos PROTO_ENCODE_DEBUG_ARG, field_id, WIRE_TYPE_LENGTH_DELIMITED);
     return encode_sub_message_body(pos PROTO_ENCODE_DEBUG_ARG, &value, &T::encode_msg);
   }
   /// Singular sub-message field, skipped when it encodes to nothing.
@@ -594,7 +594,7 @@ class ProtoEncode {
     uint32_t nested_size = T::calc_size_msg(&value);
     if (nested_size == 0)
       return pos;
-    pos = write_tag_(pos PROTO_ENCODE_DEBUG_ARG, field_id, WIRE_TYPE_LENGTH_DELIMITED);
+    pos = write_tag(pos PROTO_ENCODE_DEBUG_ARG, field_id, WIRE_TYPE_LENGTH_DELIMITED);
 #ifdef ESPHOME_DEBUG_API
     uint8_t *end = encode_sized_sub_message_body(pos PROTO_ENCODE_DEBUG_ARG, nested_size, &value, &T::encode_msg);
     proto_check_sub_message_size(field_id, nested_size, pos, end);
