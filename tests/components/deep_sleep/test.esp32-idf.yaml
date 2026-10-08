@@ -8,13 +8,13 @@ power_supply:
   - id: power_supply_ds_esp32
     pin:
       number: GPIO5
-      hold_during_sleep: true
+      hold_state: true
 
 output:
   - platform: gpio
     pin:
       number: GPIO22
-      hold_during_sleep: true
+      hold_state: true
     id: gpio_output_ds_esp32
     power_supply: power_supply_ds_esp32
 
@@ -22,5 +22,5 @@ switch:
   - platform: gpio
     pin:
       number: GPIO23
-      hold_during_sleep: true
+      hold_state: true
     id: gpio_switch_ds_esp32

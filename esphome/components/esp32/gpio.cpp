@@ -165,7 +165,7 @@ void ESP32InternalGPIOPin::setup() {
     }
   }
 #else
-  // release any hold left over from a previous firmware that used hold_during_sleep;
+  // release any hold left over from a previous firmware that used hold_state;
   // only output-capable pads can be held, and IDF logs an error for the rest
   if (GPIO_IS_VALID_OUTPUT_GPIO(this->get_pin_num())) {
     gpio_hold_dis(this->get_pin_num());
