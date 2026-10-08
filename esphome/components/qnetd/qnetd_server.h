@@ -9,13 +9,15 @@
 #include <string>
 #include <vector>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "qnetd_msg.h"
 
 namespace esphome::qnetd {
 
-// Two nodes of the arbitrated cluster plus slack for reconnect races.
-constexpr int MAX_CLIENTS = 4;
+// One session per cluster node plus slack for reconnect races; set from the
+// max_clients option.
+constexpr int MAX_CLIENTS = QNETD_MAX_CLIENTS;
 constexpr int MAX_CLUSTERS = 2;
 constexpr uint32_t HEARTBEAT_MIN_MS = 1000;  // upstream qnetd defaults
 constexpr uint32_t HEARTBEAT_MAX_MS = 2 * 60 * 1000;

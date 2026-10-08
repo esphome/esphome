@@ -20,7 +20,9 @@ DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
 
 CONF_QNETD_ID = "qnetd_id"
+CONF_MAX_CLIENTS = "max_clients"
 DEFAULT_PORT = 5403
+DEFAULT_MAX_CLIENTS = 4
 
 qnetd_ns = cg.esphome_ns.namespace("qnetd")
 Qnetd = qnetd_ns.class_("Qnetd", cg.Component)
@@ -29,9 +31,8 @@ Qnetd = qnetd_ns.class_("Qnetd", cg.Component)
 def _consume_sockets(config: ConfigType) -> ConfigType:
     from esphome.components import socket
 
-    # one listening socket plus one connection per served client; must match
-    # MAX_CLIENTS in qnetd_server.h
-    socket.consume_sockets(4, "qnetd")(config)
+    # one listening socket plus one connection per served client
+    socket.consume_sockets(config[CONF_MAX_CLIENTS], "qnetd")(config)
     socket.consume_sockets(1, "qnetd", socket.SocketType.TCP_LISTEN)(config)
     return config
 
@@ -41,6 +42,10 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(Qnetd),
             cv.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
+            # every cluster node holds one session; allow slack for reconnects
+            cv.Optional(CONF_MAX_CLIENTS, default=DEFAULT_MAX_CLIENTS): cv.int_range(
+                min=2, max=16
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _consume_sockets,
@@ -73,3 +78,4 @@ FINAL_VALIDATE_SCHEMA = _warn_on_reboot_timeouts
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT])
     await cg.register_component(var, config)
+    cg.add_define("QNETD_MAX_CLIENTS", config[CONF_MAX_CLIENTS])

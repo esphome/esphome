@@ -1,2 +1,3 @@
 qnetd:
   port: 5403
+  max_clients: 6
