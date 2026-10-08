@@ -10,8 +10,11 @@ using modbus::helpers::PduBuffer;
 PduBuffer static_write_registers_pdu(uint16_t start, const uint16_t *values, size_t len) {
 #ifdef USE_ESP8266
   std::array<uint16_t, modbus::MAX_NUM_OF_REGISTERS_TO_WRITE> staging;
-  progmem_memcpy(staging.data(), values, len * sizeof(uint16_t));
-  values = staging.data();
+  // An over-long set is left for the builder to reject
+  if (len <= staging.size()) {
+    progmem_memcpy(staging.data(), values, len * sizeof(uint16_t));
+    values = staging.data();
+  }
 #endif
   return modbus::helpers::create_write_registers_pdu(start, std::span<const uint16_t>(values, len));
 }
@@ -20,8 +23,10 @@ PduBuffer static_write_coils_pdu(uint16_t start, const uint8_t *packed, uint16_t
   const size_t len = modbus::packed_bit_bytes(count);
 #ifdef USE_ESP8266
   std::array<uint8_t, modbus::packed_bit_bytes(modbus::MAX_NUM_OF_COILS_TO_WRITE)> staging;
-  progmem_memcpy(staging.data(), packed, len);
-  packed = staging.data();
+  if (len <= staging.size()) {
+    progmem_memcpy(staging.data(), packed, len);
+    packed = staging.data();
+  }
 #endif
   return modbus::helpers::create_write_coils_pdu(start,
                                                  modbus::PackedBits(std::span<const uint8_t>(packed, len), count));
@@ -31,8 +36,10 @@ PduBuffer static_read_write_registers_pdu(uint16_t read_start, uint16_t read_cou
                                           const uint16_t *values, size_t len) {
 #ifdef USE_ESP8266
   std::array<uint16_t, modbus::MAX_NUM_OF_REGISTERS_TO_WRITE_RW> staging;
-  progmem_memcpy(staging.data(), values, len * sizeof(uint16_t));
-  values = staging.data();
+  if (len <= staging.size()) {
+    progmem_memcpy(staging.data(), values, len * sizeof(uint16_t));
+    values = staging.data();
+  }
 #endif
   return modbus::helpers::create_read_write_multiple_registers_pdu(read_start, read_count, write_start,
                                                                    std::span<const uint16_t>(values, len));
