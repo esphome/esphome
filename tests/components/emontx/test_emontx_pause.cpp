@@ -38,9 +38,10 @@ class FakeUART final : public uart::UARTComponent {
   }
   size_t available() override { return this->rx_.size(); }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
-  // USE_ESP8266 is deliberately left out (unlike the base class): CI's ESP8266
-  // clang-tidy pass selects *.cpp files with `--grep USE_ESP8266`, which would
-  // pull this host-only gtest TU into the lx106 build.
+  // The ESP8266 define is deliberately left out (unlike the base class), and
+  // must not even appear literally in this file: CI's ESP8266 clang-tidy pass
+  // selects *.cpp files by grepping for it, which would pull this host-only
+  // gtest TU into the lx106 build.
 #if defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
 #endif
