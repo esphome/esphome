@@ -68,7 +68,7 @@ TEST(DeviceWizard, ResponseSendsTheDataUnchanged) {
   Bytes expected{0x0a, 0xc8, 0x01};
   expected.insert(expected.end(), API_WIZARD_DATA, API_WIZARD_DATA + API_WIZARD_DATA_SIZE);
 
-  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response), expected);
+  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg), expected);
 }
 
 TEST(DeviceWizard, ShortDataHasAOneByteLength) {
@@ -77,13 +77,13 @@ TEST(DeviceWizard, ShortDataHasAOneByteLength) {
   resp.data_len = 3;
 
   Bytes expected{0x0a, 0x03, API_WIZARD_DATA[0], API_WIZARD_DATA[1], API_WIZARD_DATA[2]};
-  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response), expected);
+  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg), expected);
 }
 
 TEST(DeviceWizard, NoDataEncodesNothing) {
   DeviceWizardResponse resp;
   EXPECT_EQ(resp.calculate_size(), 0u);
-  EXPECT_TRUE(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response).empty());
+  EXPECT_TRUE(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg).empty());
 }
 
 TEST(DeviceWizard, CapabilitiesAnnounceTheWizard) {

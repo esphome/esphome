@@ -468,11 +468,9 @@ message DeviceWizardResponse {
   option (id) = 157;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_API_WIZARD";
-  // Not logged: the data is in flash, which ESP8266 cannot read for a dump
-  option (log) = false;
 
   // The data is in flash, and the device sends it from there
-  bytes data = 1 [(pointer_to_buffer) = true];
+  bytes data = 1 [(pointer_to_buffer) = true, (progmem) = true];
 }
 
 // Sets the entity id of a wizard input (see WizardInputField.key). Clients send

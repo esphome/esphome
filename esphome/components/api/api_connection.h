@@ -423,9 +423,6 @@ class APIConnection final : public APIServerConnectionBase {
   bool send_ping_response_();
   bool send_device_info_response_();
   bool send_device_capabilities_response_();
-#ifdef USE_API_WIZARD
-  bool send_device_wizard_response_();
-#endif
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg);
 #endif
