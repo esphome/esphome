@@ -1,1 +1,6 @@
 <<: !include common-ip101.yaml
+
+# IPv6 on the internal EMAC: compiles the IPv6 event handler and the
+# all-nodes multicast filter added for SLAAC
+network:
+  enable_ipv6: true
