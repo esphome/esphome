@@ -102,7 +102,6 @@ void ZigbeeTime::set_epoch_time(uint32_t utc) {
     ESP_LOGV(TAG, "Setting device time to UTC: %u", static_cast<unsigned>(utc));
     this->synchronize_epoch_(utc);
   });
-  App.wake_loop_threadsafe();
 }
 
 void ZigbeeTime::dump_config() {
