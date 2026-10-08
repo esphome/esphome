@@ -82,10 +82,8 @@ def _gather_files(
 ) -> tuple[list[tuple[str, Path]], set[str]]:
     """Map each discovered YAML file to its envelope path.
 
-    Returns (relative_path, source_path) pairs plus the subset of relative
-    paths that are secrets files (matched upstream on the *un-resolved*
-    basename, so a `secrets.yaml` symlinked to a differently-named target is
-    still flagged).
+    Returns (relative_path, source_path) pairs and the relative paths of secrets
+    files (matched on the unresolved name, so a symlinked secrets.yaml counts).
     """
     if not discovered.files:
         raise EsphomeError(
@@ -156,12 +154,10 @@ def _read_files_verbatim(entries: list[tuple[str, Path]]) -> list[tuple[str, byt
 def _iter_nodes(
     node: object, path: tuple[str, ...] = ()
 ) -> Generator[tuple[tuple[str, ...], object, bool]]:
-    """Yield (config_path, value, is_key) for every mapping key and scalar in
-    a config tree. Keys are yielded at the path of their mapping.
+    """Yield (config_path, value, is_key) for every key and scalar in a tree.
 
-    Wrapper types the dumper renders as text are unwrapped so their payloads
-    are scanned too: `!lambda` bodies, `!extend`/`!remove` ids, and `!include`
-    file paths plus `vars:` values.
+    Wrappers the dumper writes as text (`!lambda`, `!extend`, `!remove`,
+    `!include` paths and vars) are unwrapped so their payloads are scanned.
     """
     if isinstance(node, dict):
         for key, value in node.items():
@@ -193,11 +189,10 @@ class _SensitiveValue:
 def _check_sensitive_usage(
     sensitive: dict[str, _SensitiveValue], trees: dict[str, object]
 ) -> None:
-    """Check where sensitive values occur beyond their own whole scalars.
+    """Check where sensitive values occur beyond their own scalars.
 
-    - As a mapping key: fail, the swap would rewrite the key.
-    - Inside a larger scalar: fail for inline values, warn for real `!secret` values.
-    - As a whole scalar elsewhere: warn, it is recovered as the `!secret` reference.
+    Mapping key: fail. Inside a larger scalar: fail if inline, warn if `!secret`.
+    Whole scalar elsewhere: warn, it is recovered as the `!secret` reference.
     """
     if not sensitive:
         return
@@ -268,12 +263,10 @@ def _check_sensitive_usage(
 
 
 def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
-    """Map each cv.sensitive value in the validated config to the `!secret`
-    name it should be recovered as.
+    """Map each cv.sensitive value to the `!secret` name it is recovered as.
 
-    Values that already come from `!secret` keep their existing name; inline
-    values get a name generated from their config path, avoiding names already
-    taken by real secrets.
+    `!secret` values keep their name; inline values get one from their config
+    path that does not clash with real secrets.
     """
     used = yaml_util.registered_secret_names()
     result: dict[str, _SensitiveValue] = {}
@@ -337,15 +330,10 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
 def _generate_redacted_files(
     entries: list[tuple[str, Path]], secret_rels: set[str], remote_packages: list[str]
 ) -> list[tuple[str, bytes]]:
-    """Re-generate each captured file from its parse tree with cv.sensitive
-    values emitted as `!secret <name>` references, and replace secrets files
-    with a fill-in skeleton — the recovered config is flashable once the user
-    restores their secrets.yaml values.
-
-    The swap happens inside the YAML dumper (`represent_stringify` consults
-    the registered secret values), not by mutating text afterwards. Nested
-    `!include` references round-trip via the dumper's IncludeFile support;
-    comments and formatting of the originals are not preserved.
+    """Re-dump each captured file with cv.sensitive values as `!secret` references
+    and secrets files as a fill-in skeleton, so the recovered config flashes once
+    secrets.yaml is filled in. The dumper does the swap; comments and formatting
+    are not preserved.
     """
     sensitive = _collect_sensitive_values()
 
@@ -387,20 +375,16 @@ def _generate_redacted_files(
         for rel, _ in entries
     ]
     if skeleton_keys and yaml_util.SECRET_YAML not in secret_rels:
-        # The generated files reference `!secret` keys but no captured secrets
-        # file lands at the config root (none exists, or it resolves outside
-        # the root, e.g. a symlink target). `!secret` resolution looks for
-        # secrets.yaml beside the config, so ship a synthetic root skeleton to
-        # keep the recovered config loadable.
+        # No captured secrets file lands at the config root, but `!secret` looks
+        # for secrets.yaml beside the config; ship a skeleton so it loads.
         result.append((yaml_util.SECRET_YAML, skeleton))
     return result
 
 
 def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
-    """Pack files into the EHY1 envelope.
+    """Pack files into the EHY1 envelope (little-endian).
 
-    Layout: magic (4) | u32 file_count | repeat { u16 path_len | path_utf8 | u32 content_len | content_bytes }
-    All integers are little-endian.
+    magic (4) | u32 count | { u16 path_len | path | u32 content_len | content }...
     """
     parts: list[bytes] = [ENVELOPE_MAGIC, struct.pack("<I", len(files))]
     seen: set[str] = set()
@@ -423,14 +407,10 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
 
 
 def unpack_envelope(blob: bytes) -> dict[str, bytes]:
-    """Inverse of `_pack_envelope`: the reference decoder for the EHY1 envelope,
-    used by tests and client-side recovery tooling.
+    """Reference decoder for the EHY1 envelope, for tests and recovery tools.
 
-    Absolute and drive-qualified paths are rejected: the packer never emits
-    them, so their presence means a malformed or hostile envelope. Relative
-    paths with ``..`` components are legitimate (the packer emits them for
-    files outside the config root), so callers that write files to disk must
-    still confine the resulting paths to their target directory."""
+    Absolute paths are rejected. ``..`` paths are valid (files outside the config
+    root), so callers writing to disk must confine paths to their target dir."""
     if blob[:4] != ENVELOPE_MAGIC:
         raise EsphomeError("envelope must start with EHY1 magic")
     pos = 4

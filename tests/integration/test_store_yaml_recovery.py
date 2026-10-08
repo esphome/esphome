@@ -1,8 +1,6 @@
-"""End-to-end test for the `store_yaml` recovery flow over the native API.
+"""End-to-end test of `store_yaml` recovery over the native API.
 
-Uses the raw plaintext client: the released aioesphomeapi does not know
-`GetYamlRequest` / `GetYamlResponse` yet, so the high-level client would drop
-the streamed bytes as an unknown message type.
+Uses the raw client: released aioesphomeapi does not know GetYamlResponse yet.
 """
 
 from __future__ import annotations
