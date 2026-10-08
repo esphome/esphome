@@ -11,7 +11,7 @@
 
 namespace esphome::sensor {
 
-static const char *const TAG = "sensor.filter";
+ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 // Filter
 void Filter::input(float value) {

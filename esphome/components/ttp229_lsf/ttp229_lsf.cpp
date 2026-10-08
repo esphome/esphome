@@ -3,7 +3,7 @@
 
 namespace esphome::ttp229_lsf {
 
-static const char *const TAG = "ttp229_lsf";
+ESPHOME_LOG_TAG(TAG, "ttp229_lsf");
 
 void TTP229LSFComponent::setup() {
   uint8_t data[2];

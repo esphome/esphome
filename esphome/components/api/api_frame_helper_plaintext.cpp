@@ -16,7 +16,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.plaintext";
+ESPHOME_LOG_TAG(TAG, "api.plaintext");
 
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t API_MAX_LOG_BYTES = 168;

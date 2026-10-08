@@ -7,7 +7,7 @@
 namespace esphome::ms8607 {
 
 /// TAG used for logging calls
-static const char *const TAG = "ms8607";
+ESPHOME_LOG_TAG(TAG, "ms8607");
 
 /// Reset the Pressure/Temperature sensor
 static const uint8_t MS8607_PT_CMD_RESET = 0x1E;

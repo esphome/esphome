@@ -8,7 +8,7 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-static const char *const TAG = "mitsubishi_cn105.driver";
+ESPHOME_LOG_TAG(TAG, "mitsubishi_cn105.driver");
 
 static constexpr uint32_t RESPONSE_TIMEOUT_MS = 2000;
 

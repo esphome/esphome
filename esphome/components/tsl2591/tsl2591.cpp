@@ -4,7 +4,7 @@
 
 namespace esphome::tsl2591 {
 
-static const char *const TAG = "tsl2591.sensor";
+ESPHOME_LOG_TAG(TAG, "tsl2591.sensor");
 
 // Various constants used in TSL2591 register manipulation
 #define TSL2591_COMMAND_BIT (0xA0)      // 1010 0000: bits 7 and 5 for 'command, normal'

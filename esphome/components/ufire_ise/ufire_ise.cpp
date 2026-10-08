@@ -5,7 +5,7 @@
 
 namespace esphome::ufire_ise {
 
-static const char *const TAG = "ufire_ise";
+ESPHOME_LOG_TAG(TAG, "ufire_ise");
 
 void UFireISEComponent::setup() {
   uint8_t version;

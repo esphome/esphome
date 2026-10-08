@@ -3,7 +3,7 @@
 
 namespace esphome::gpio {
 
-static const char *const TAG = "switch.gpio";
+ESPHOME_LOG_TAG(TAG, "switch.gpio");
 #ifdef USE_GPIO_SWITCH_INTERLOCK
 static constexpr uint32_t INTERLOCK_TIMEOUT_ID = 0;
 #endif

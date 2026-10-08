@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_rtcgq02lm {
 
-static const char *const TAG = "xiaomi_rtcgq02lm";
+ESPHOME_LOG_TAG(TAG, "xiaomi_rtcgq02lm");
 
 static constexpr size_t RTCGQ02LM_BINDKEY_SIZE = 16;
 
