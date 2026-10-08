@@ -8,6 +8,8 @@ namespace esphome::ezsp_proxy_tap {
 static constexpr uint8_t ASH_RSTACK_CONTROL = 0xC1;
 static constexpr uint8_t ASH_PROTOCOL_VERSION = 0x02;
 static constexpr size_t ASH_RSTACK_BODY_SIZE = 3;  // control, version, reset code
+// A DATA frame carries an EZSP frame of at least 3 bytes after its control byte
+static constexpr size_t ASH_MIN_DATA_BODY_SIZE = 1 + 3;
 static constexpr size_t ASH_CRC_SIZE = 2;
 // Smallest legal frame on the wire: a bare control byte plus its CRC
 static constexpr size_t ASH_MIN_FRAME_SIZE = 1 + ASH_CRC_SIZE;
@@ -104,6 +106,10 @@ bool AshAcknowledger::handle_frame_() {
 
   if ((control & 0x80) != 0) {
     return false;  // ACK/NAK/RST/ERROR: nothing is owed for these
+  }
+
+  if (this->scanner_.length() < ASH_MIN_DATA_BODY_SIZE) {
+    return false;
   }
 
   const uint8_t frame_num = (control >> 4) & ASH_MAX_SEQUENCE;
