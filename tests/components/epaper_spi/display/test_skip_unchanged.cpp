@@ -42,6 +42,17 @@ template<typename Driver> class TestableDriver : public Driver {
     return pushed;
   }
 
+  /// A whole update with auto clear and the writer, as the YAML lambda path runs; false if skipped.
+  bool run_update_through_writer() {
+    this->set_auto_clear(true);
+    this->state_ = EPaperState::UPDATE;
+    this->process_state_();
+    const bool pushed = this->state_ == EPaperState::RESET;
+    while (this->state_ != EPaperState::IDLE)
+      this->process_state_();
+    return pushed;
+  }
+
   uint8_t update_count() const { return this->update_count_; }
 
   RecordingPin dc;
@@ -78,6 +89,26 @@ TEST(EPaperSkipUnchanged, NothingSkippedWithoutPartialUpdates) {
   EXPECT_TRUE(display.run_update());
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   EXPECT_TRUE(display.run_update());
+}
+
+}  // namespace esphome::epaper_spi::testing
+
+namespace esphome::epaper_spi::testing {
+
+/// The real update path: auto clear then a writer lambda, as a YAML lambda runs. The clear makes
+/// the drawn area the whole panel every time, so only the frame contents can tell updates apart.
+TEST(EPaperSkipUnchanged, UpdatesThroughTheWriterAreSkippedWhenTheyDrawTheSameFrame) {
+  TestableDriver<EPaperSSD1683> display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+  int value = 1;
+  display.set_writer([&](Display &it) { it.draw_pixel_at(value, 0, Color::BLACK); });
+
+  EXPECT_TRUE(display.run_update_through_writer());
+  EXPECT_FALSE(display.run_update_through_writer()) << "same frame was pushed";
+  value = 2;
+  EXPECT_TRUE(display.run_update_through_writer()) << "changed frame was skipped";
+  EXPECT_FALSE(display.run_update_through_writer());
 }
 
 }  // namespace esphome::epaper_spi::testing
