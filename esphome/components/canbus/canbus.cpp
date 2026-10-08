@@ -1,7 +1,6 @@
 #include "canbus.h"
 #include <algorithm>
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::canbus {
@@ -145,7 +144,7 @@ void Canbus::log_events_(CanEventFlags events) {
       if ((this->events_to_log_ & CanEventFlags::CAN_EVENT_PASSIVE) &&
           (this->events_to_log_ & CanEventFlags::CAN_EVENT_ACTIVE)) {
         // got both active and passive events at the same time
-        // -> check counters to determine current status and log both in right order
+        // -> check counters to determine current status
         auto status = this->get_status();
         bool error_passive = status.rx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD ||
                              status.tx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD;
