@@ -7,6 +7,7 @@ import asyncio
 from aioesphomeapi import BinarySensorState, EntityState
 import pytest
 
+from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -40,20 +41,16 @@ async def test_status_momentary(
         error_key = keys["probe_error"]
 
         changes: asyncio.Queue[tuple[int, bool, float]] = asyncio.Queue()
-        initial: dict[int, bool] = {}
 
         def on_state(state: EntityState) -> None:
-            if not isinstance(state, BinarySensorState):
-                return
-            if state.key not in initial:
-                initial[state.key] = state.state
-                return
-            changes.put_nowait((state.key, state.state, loop.time()))
+            if isinstance(state, BinarySensorState):
+                changes.put_nowait((state.key, state.state, loop.time()))
 
-        client.subscribe_states(on_state)
-        await asyncio.sleep(0.5)
-        assert initial.get(warning_key) is False
-        assert initial.get(error_key) is False
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        await initial_state_helper.wait_for_initial_states()
+        assert initial_state_helper.initial_states[warning_key].state is False
+        assert initial_state_helper.initial_states[error_key].state is False
 
         async def next_change(key: int) -> tuple[bool, float]:
             while True:
@@ -62,19 +59,16 @@ async def test_status_momentary(
                     return value, when
 
         # The flag sets at once and clears after the length
-        start = loop.time()
-        await client.execute_service(svc["momentary_warning"], {"length": 300})
-        assert (await next_change(warning_key))[0] is True
-        value, cleared = await next_change(warning_key)
-        assert value is False
-        assert cleared - start >= 0.25
-
-        start = loop.time()
-        await client.execute_service(svc["momentary_error"], {"length": 300})
-        assert (await next_change(error_key))[0] is True
-        value, cleared = await next_change(error_key)
-        assert value is False
-        assert cleared - start >= 0.25
+        for service, key in (
+            ("momentary_warning", warning_key),
+            ("momentary_error", error_key),
+        ):
+            start = loop.time()
+            await client.execute_service(svc[service], {"length": 300})
+            assert (await next_change(key))[0] is True
+            value, cleared = await next_change(key)
+            assert value is False
+            assert cleared - start >= 0.25
 
         # A second call restarts the timeout instead of adding a second one
         start = loop.time()
