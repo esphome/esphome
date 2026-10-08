@@ -7,7 +7,13 @@ from esphome.components.const import (
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_BAUD_RATE,
+    CONF_DEBUG,
+    CONF_ID,
+    CONF_UART_ID,
+)
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -31,6 +37,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ROLE, default="client"): cv.one_of(
             "client", "server", lower=True
         ),
+        cv.Optional(CONF_DEBUG): uart.maybe_empty_debug,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -92,6 +99,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     parent = await cg.get_variable(config[CONF_TCP_UART_ID])
     cg.add(var.set_parent(parent))
+    if debug := config.get(CONF_DEBUG):
+        cg.add_global(uart.uart_ns.using)
+        await uart.debug_to_code(debug, var)
     if config[CONF_ROLE] == "server":
         cg.add(var.set_server(True))
         if (timeout := _reply_timeout_ms(CORE.config)) != DEFAULT_REPLY_TIMEOUT_MS:

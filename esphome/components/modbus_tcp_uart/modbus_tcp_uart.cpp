@@ -78,6 +78,7 @@ void ModbusTcpUart::loop() {
 }
 
 void ModbusTcpUart::write_array(const uint8_t *data, size_t len) {
+  this->debug_tx_(data, len);
   // The new request is still buffered, so this write answers the previous one.
   if (this->server_ && this->available() != 0) {
     this->note_drop_(LOG_STR("Reply to the previous request, dropped"));
