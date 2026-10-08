@@ -648,7 +648,10 @@ class DriverChip:
             sequence.append((INVON,))
         else:
             sequence.append((INVOFF,))
-        if brightness := config.get(CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS)):
+        brightness = config.get(
+            CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS, None)
+        )
+        if brightness is not None:
             sequence.append((BRIGHTNESS, brightness))
         # Add a SLPOUT command if required.
         if not self.skip_command("SLPOUT"):

@@ -80,6 +80,13 @@ void HomeassistantNumber::control(float value) {
     return;
   }
 
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
+
   this->publish_state(value);
 
   static constexpr auto NUMBER_SERVICE_NAME = StringRef::from_lit("number.set_value");

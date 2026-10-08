@@ -41,6 +41,10 @@ dependencies:
     version: 2.12.13
     rules:
       - if: "target in [esp32h2, esp32p4]"
+  francescopace/espectre:
+    version: "3.0.0"
+    rules:
+      - if: "target in [esp32, esp32s2, esp32s3, esp32c3, esp32c5, esp32c6]"
   zorxx/multipart-parser:
     version: 1.0.1
   espressif/lan867x:
@@ -109,11 +113,11 @@ dependencies:
   # noise (api, ota). Arduino below IDF 6.0 bundles espressif/libsodium, which
   # clashes with esphome/libsodium, so those builds use the PlatformIO libraries.
   esphome/noise-c:
-    version: 0.1.30
+    version: 0.1.31
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
   # Declared alongside noise-c so the library converter skips wireguard's copy
   esphome/libsodium:
-    version: 1.10021.11
+    version: 1.10021.12
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"

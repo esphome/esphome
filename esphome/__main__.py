@@ -7,6 +7,7 @@ import importlib
 import logging
 import os
 from pathlib import Path
+import platform
 import re
 import sys
 import time
@@ -54,7 +55,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
-from esphome.helpers import get_bool_env, indent, is_ip_address
+from esphome.helpers import IS_MACOS, get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
@@ -1311,9 +1312,9 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     # platform's final-validate hook merges duplicates anyway.
     available: dict[str, None] = {}
     for ota_item in config.get(CONF_OTA, []):
-        platform = ota_item.get(CONF_PLATFORM)
-        if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
-            available[platform] = None
+        ota_platform = ota_item.get(CONF_PLATFORM)
+        if ota_platform in (CONF_ESPHOME, CONF_WEB_SERVER):
+            available[ota_platform] = None
 
     if not available:
         raise EsphomeError(
@@ -1945,7 +1946,10 @@ def run_multiple_configs(
         safe_print()
 
         cmd = command_builder(f)
-        rc = run_external_process(*cmd)
+        # The parent already logged the Intel macOS warning; children skip it.
+        rc = run_external_process(
+            *cmd, env={**os.environ, _INTEL_MACOS_WARNED_ENV: "1"}
+        )
 
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
@@ -2614,6 +2618,27 @@ def _warn_if_source_tree_mismatch() -> None:
     )
 
 
+_INTEL_MACOS_REMOVAL = "2027.6.0"
+_INTEL_MACOS_WARNED_ENV = "ESPHOME_INTEL_MACOS_WARNED"
+
+
+def _warn_if_intel_macos() -> None:
+    """Warn that Intel (x86_64) Python on macOS loses support by _INTEL_MACOS_REMOVAL."""
+    if (
+        not IS_MACOS
+        or platform.machine() != "x86_64"
+        or _INTEL_MACOS_WARNED_ENV in os.environ
+    ):
+        return
+    _LOGGER.warning(
+        "Support for Intel Macs will end in ESPHome %s or earlier. The Python "
+        "packages ESPHome depends on have stopped publishing Intel macOS builds, "
+        "so future releases will not install on this machine. On an Apple "
+        "Silicon Mac, switch to a native arm64 Python.",
+        _INTEL_MACOS_REMOVAL,
+    )
+
+
 def run_esphome(argv):
     from esphome.address_cache import AddressCache
 
@@ -2633,6 +2658,7 @@ def run_esphome(argv):
 
     setup_log(log_level=args.log_level)
     _warn_if_source_tree_mismatch()
+    _warn_if_intel_macos()
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
