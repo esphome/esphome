@@ -1417,25 +1417,26 @@ jobs:
           fi
 
       # The build below uses --base-only, so skip unless the target branch has
-      # test.<platform>.yaml for a requested component (test-*.yaml variants
-      # alone compile nothing). Checked here, not in determine-jobs.py, because
-      # determine-jobs runs on the PR branch and cannot see the target branch.
+      # test.<platform>.yaml for every requested component (test-*.yaml
+      # variants alone compile nothing, and a partial set would compare a
+      # smaller target build against the PR build). Checked here, not in
+      # determine-jobs.py, because determine-jobs runs on the PR branch and
+      # cannot see the target branch.
       - name: Check for test files on target branch
         id: check-tests
         if: steps.check-script.outputs.skip != 'true'
         run: |
           components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
-          found=false
+          missing=""
           for component in $(echo "$components" | jq -r '.[]'); do
-            if [ -f "tests/components/${component}/test.${platform}.yaml" ]; then
-              found=true
-              break
+            if [ ! -f "tests/components/${component}/test.${platform}.yaml" ]; then
+              missing="${missing} ${component}"
             fi
           done
-          if [ "$found" = false ]; then
+          if [ -n "$missing" ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "::warning::No test files found on target branch for platform ${platform}, skipping memory impact analysis"
+            echo "::warning::No test.${platform}.yaml on target branch for${missing}, skipping memory impact analysis"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
