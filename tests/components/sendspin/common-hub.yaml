@@ -7,3 +7,27 @@ sendspin:
   manufacturer: Test Manufacturer
   model: Test Model
   firmware_version: 1.2.3
+  on_open_pairing_window:
+    then:
+      - logger.log: "Pairing window requested"
+      - sendspin.confirm_pairing_window:
+  # Calling cancel_pairing_window here only compiles the action; a real config cancels from a user input.
+  on_close_pairing_window:
+    then:
+      - logger.log: "Pairing window prompt dismissed"
+      - sendspin.cancel_pairing_window:
+  on_pairing_succeeded:
+    then:
+      - logger.log:
+          format: "Paired with server %s"
+          args: ["server_id.c_str()"]
+  on_pairing_failed:
+    then:
+      - logger.log:
+          format: "Pairing with server %s failed: %s"
+          args: ["server_id.c_str()", "reason.c_str()"]
+      - if:
+          condition:
+            lambda: 'return reason == "user_cancelled";'
+          then:
+            - logger.log: "Pairing was cancelled"
