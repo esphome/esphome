@@ -9,7 +9,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota";
+ESPHOME_LOG_TAG(TAG, "ota");
 
 std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend() { return make_unique<ArduinoLibreTinyOTABackend>(); }
 

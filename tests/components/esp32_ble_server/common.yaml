@@ -77,6 +77,46 @@ esp32_ble_server:
                   id: test_change_descriptor
                   value:
                     data: [0x01, 0x02, 0x03]
+              # Identical constants, strings and typed numbers
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: [0xfc, 0xef, 0xfe, 0x86]
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value: "Changed"
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: 4660
+                    type: uint16_t
+                    endianness: BIG
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: -2
+                    type: int32_t
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: 0.1
+                    type: double
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value:
+                    data: 123.1
+                    type: float
+                    endianness: BIG
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value: "Changed"
+              # Lambdas that read the trigger argument
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value: !lambda return x;
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value: !lambda return x;
 
 # Regression test for #17142: the set_value action used from a trigger that passes
 # its argument by reference (climate on_control supplies ClimateCall&) previously

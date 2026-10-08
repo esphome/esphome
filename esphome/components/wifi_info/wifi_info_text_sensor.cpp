@@ -9,7 +9,7 @@
 
 namespace esphome::wifi_info {
 
-static const char *const TAG = "wifi_info";
+ESPHOME_LOG_TAG(TAG, "wifi_info");
 
 #ifdef USE_WIFI_IP_STATE_LISTENERS
 

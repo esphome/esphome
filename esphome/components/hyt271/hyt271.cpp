@@ -4,7 +4,7 @@
 
 namespace esphome::hyt271 {
 
-static const char *const TAG = "hyt271";
+ESPHOME_LOG_TAG(TAG, "hyt271");
 
 static const uint8_t HYT271_ADDRESS = 0x28;
 

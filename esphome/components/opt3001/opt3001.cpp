@@ -3,7 +3,7 @@
 
 namespace esphome::opt3001 {
 
-static const char *const TAG = "opt3001.sensor";
+ESPHOME_LOG_TAG(TAG, "opt3001.sensor");
 
 static const uint8_t OPT3001_REG_RESULT = 0x00;
 static const uint8_t OPT3001_REG_CONFIGURATION = 0x01;

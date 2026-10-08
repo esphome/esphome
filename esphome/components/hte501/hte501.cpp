@@ -4,7 +4,7 @@
 
 namespace esphome::hte501 {
 
-static const char *const TAG = "hte501";
+ESPHOME_LOG_TAG(TAG, "hte501");
 
 static constexpr size_t HTE501_SERIAL_NUMBER_SIZE = 7;
 

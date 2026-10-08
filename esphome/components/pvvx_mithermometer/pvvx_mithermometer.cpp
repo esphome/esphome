@@ -3,7 +3,7 @@
 
 namespace esphome::pvvx_mithermometer {
 
-static const char *const TAG = "pvvx_mithermometer";
+ESPHOME_LOG_TAG(TAG, "pvvx_mithermometer");
 
 void PVVXMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "PVVX MiThermometer");
