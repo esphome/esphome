@@ -487,7 +487,6 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
         cg.add(var.set_values_template(templ))
     else:
-        # Shared flash table; play() sends without allocating (ESP8266 copies it to the stack first).
         arr = cg.shared_progmem_array(
             "modbus_client_registers", cg.uint16, cg.ArrayInitializer(*values)
         )
@@ -583,7 +582,6 @@ async def read_write_multiple_registers_to_code(config, action_id, template_arg,
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
         cg.add(var.set_values_template(templ))
     else:
-        # Shared flash table; play() sends without allocating (ESP8266 copies it to the stack first).
         arr = cg.shared_progmem_array(
             "modbus_client_registers", cg.uint16, cg.ArrayInitializer(*values)
         )

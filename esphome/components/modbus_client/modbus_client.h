@@ -153,16 +153,6 @@ class ModbusClientSendAction : public ClientActionBase<Ts...>,
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
 };
 
-/// Typed actions: these do NOT override the raw on_response, so the base ModbusClientDevice default runs
-/// the shared dispatch (validation gate + decode) and the typed callbacks below fire directly on the
-/// action. A reply the gate diverts (not a standard-conformant transaction) fires the on_custom_response
-/// trigger with the raw request/response PDUs, so non-standard replies stay handleable; the spans are only
-/// valid for the duration of the trigger. (For a typed-built request the gate can only divert on the
-/// response, never with an exception status - real device exceptions arrive via on_error, which
-/// ClientActionBase already routes straight to its trigger, so the typed callbacks below only ever see a
-/// success status.) Each typed callback still checks succeeded() before firing its trigger: that branch
-/// is unreachable today, and is kept so a future change to that interception cannot silently deliver an
-/// exception as a successful reply.
 /// Calls fn with a RAM-readable span of a static values table. On ESP8266 the table is in PROGMEM, which the
 /// PDU builders cannot read directly, so it is copied to the stack first; the schema caps len at MAX.
 template<size_t MAX, typename T, typename F> void with_static_values(const T *data, size_t len, F &&fn) {
@@ -175,6 +165,16 @@ template<size_t MAX, typename T, typename F> void with_static_values(const T *da
 #endif
 }
 
+/// Typed actions: these do NOT override the raw on_response, so the base ModbusClientDevice default runs
+/// the shared dispatch (validation gate + decode) and the typed callbacks below fire directly on the
+/// action. A reply the gate diverts (not a standard-conformant transaction) fires the on_custom_response
+/// trigger with the raw request/response PDUs, so non-standard replies stay handleable; the spans are only
+/// valid for the duration of the trigger. (For a typed-built request the gate can only divert on the
+/// response, never with an exception status - real device exceptions arrive via on_error, which
+/// ClientActionBase already routes straight to its trigger, so the typed callbacks below only ever see a
+/// success status.) Each typed callback still checks succeeded() before firing its trigger: that branch
+/// is unreachable today, and is kept so a future change to that interception cannot silently deliver an
+/// exception as a successful reply.
 template<typename... Ts> class TypedClientActionBase : public ClientActionBase<Ts...> {
  public:
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_custom_response_trigger() {
