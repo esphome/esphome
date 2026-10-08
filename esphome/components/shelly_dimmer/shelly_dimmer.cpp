@@ -19,7 +19,7 @@
 
 namespace {
 
-constexpr char TAG[] = "shelly_dimmer";
+ESPHOME_LOG_TAG(TAG, "shelly_dimmer");
 
 constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
 constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;

@@ -30,7 +30,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "esphome.ota";
+ESPHOME_LOG_TAG(TAG, "esphome.ota");
 
 #ifdef USE_OTA_ENCRYPTION
 const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {

@@ -8,7 +8,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light";
+ESPHOME_LOG_TAG(TAG, "light");
 
 // Cold-path logger; caller handles the clamp so the in-range hot path avoids
 // the spill/reload around the call.

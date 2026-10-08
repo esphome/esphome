@@ -6,7 +6,7 @@
 namespace esphome {
 namespace rp2 {
 
-static const char *const TAG = "rp2";
+ESPHOME_LOG_TAG(TAG, "rp2");
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   flags =

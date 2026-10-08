@@ -7,7 +7,7 @@
 
 namespace esphome::emc2101 {
 
-static const char *const TAG = "EMC2101";
+ESPHOME_LOG_TAG(TAG, "EMC2101");
 
 static const uint8_t EMC2101_CHIP_ID = 0x16;      // EMC2101 default device id from part id
 static const uint8_t EMC2101_ALT_CHIP_ID = 0x28;  // EMC2101 alternate device id from part id
