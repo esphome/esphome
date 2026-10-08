@@ -27,6 +27,7 @@ from esphome.components.zephyr.const import (
     CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_SYSBUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -77,6 +78,7 @@ from .framework import (
     get_build_paths,
     setup_platformio_python_env,
     toolchain_tool,
+    wanted_west_projects,
 )
 
 # force import gpio to register pin schema
@@ -822,19 +824,22 @@ _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
 
 def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
-    """Write the checksum ccache reads in place of the .gch. The app binary
-    dir only exists after the first configure; sysbuild nests it."""
-    app_dir = build_dir / "zephyr"
-    if not (app_dir / "CMakeCache.txt").is_file():
-        app_dir = build_dir
-    if not (app_dir / "CMakeCache.txt").is_file():
-        return
+    """Write the checksum ccache reads in place of the .gch; before the
+    first build too, or its compiles hash the path laden .gch instead.
+    The app image dir follows the SDK version, like get_elf_path;
+    2.9.2+ always wraps the build in sysbuild."""
+    app_dir = build_dir
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+        app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
         (
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             zephyr_data()[KEY_BOARD],
+            # Kconfig inputs that reach autoconf.h without a .conf line
+            ",".join(sorted(wanted_west_projects())),
+            str(zephyr_data().get(KEY_SYSBUILD)),
             # What the Zephyr configuration is generated from
             *(
                 path.read_text(encoding="utf-8")
