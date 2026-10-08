@@ -41,6 +41,14 @@ void I2SAudioSpeakerBase::setup() {
   this->set_volume(this->volume_);
   this->set_mute_state(this->mute_state_);
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  // The parent set up before us and already routed dout to the shared TX channel, which is never re-initialized.
+  // Parking would detach the pin for good. SPDIF speakers cannot use a full duplex bus.
+  if (this->parent_->is_full_duplex()) {
+    return;
+  }
+#endif
+
   // Until the I2S driver first starts, dout sits in its reset state (often pulled high, or a JTAG
   // function on the ESP32-S3), which keeps a SPDIF optical transmitter lit. Park it low now.
   this->park_dout_pin_();
