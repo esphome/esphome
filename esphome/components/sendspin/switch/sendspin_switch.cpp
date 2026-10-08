@@ -6,7 +6,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.switch";
+ESPHOME_LOG_TAG(TAG, "sendspin.switch");
 
 void SendspinSwitch::setup() {
   // The hub waits for this request, so a restore mode without a state still has to answer.

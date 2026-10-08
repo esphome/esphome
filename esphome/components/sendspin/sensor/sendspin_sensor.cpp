@@ -8,7 +8,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.sensor";
+ESPHOME_LOG_TAG(TAG, "sendspin.sensor");
 
 // --- SendspinTrackProgressSensor ---
 

@@ -5,7 +5,7 @@
 
 namespace esphome::pmsa003i {
 
-static const char *const TAG = "pmsa003i";
+ESPHOME_LOG_TAG(TAG, "pmsa003i");
 
 static const uint8_t COUNT_PAYLOAD_BYTES = 28;
 static const uint8_t COUNT_PAYLOAD_LENGTH_BYTES = 2;

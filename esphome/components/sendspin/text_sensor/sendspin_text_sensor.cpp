@@ -8,7 +8,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.text_sensor";
+ESPHOME_LOG_TAG(TAG, "sendspin.text_sensor");
 
 void SendspinTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Sendspin", this); }
 
