@@ -168,14 +168,13 @@ class _BatchItem:
     # Builds that always run on their own (isolated tests, variants on a
     # platform without a base test)
     own_seconds: int
-    # Per (signature, platform) shared build: the seconds of this component's
-    # files on that platform when no other batch member shares the build
-    grouped_builds: dict[tuple[str, str], int] = field(default_factory=dict)
-    # Seconds the component's libraries add to any build that includes it
-    heavy_seconds: int = 0
+    # Per (signature, platform) shared build: (solo, heavy) seconds, the cost
+    # of this component's files on that platform when no other batch member
+    # shares the build, and the library seconds its base test adds to one
+    grouped_builds: dict[tuple[str, str], tuple[int, int]] = field(default_factory=dict)
 
     def standalone_seconds(self) -> int:
-        return self.own_seconds + sum(self.grouped_builds.values())
+        return self.own_seconds + sum(solo for solo, _ in self.grouped_builds.values())
 
 
 def _grouped_build_seconds(platform: str, members: list[tuple[int, int]]) -> int:
@@ -208,16 +207,14 @@ def _make_item(
         if test_name == "test":
             base_heavy[platform] = heavy
     own_seconds = 0
-    grouped: dict[tuple[str, str], int] = {}
+    grouped: dict[tuple[str, str], tuple[int, int]] = {}
     for platform, file_seconds in files_by_platform.items():
         seconds = sum(file_seconds)
         if is_isolated or platform not in base_heavy:
             own_seconds += seconds
         else:
-            grouped[(signature, platform)] = seconds
-    return _BatchItem(
-        component, own_seconds, grouped, max(base_heavy.values(), default=0)
-    )
+            grouped[(signature, platform)] = (seconds, base_heavy[platform])
+    return _BatchItem(component, own_seconds, grouped)
 
 
 class _Batch:
@@ -234,17 +231,17 @@ class _Batch:
     def added_seconds(self, item: _BatchItem) -> int:
         """Return the seconds item would add; joining an existing build is cheap."""
         added = item.own_seconds
-        for (signature, platform), solo in item.grouped_builds.items():
+        for (signature, platform), member in item.grouped_builds.items():
             members = self.grouped_builds.get((signature, platform), [])
             added += _grouped_build_seconds(
-                platform, [*members, (solo, item.heavy_seconds)]
+                platform, [*members, member]
             ) - _grouped_build_seconds(platform, members)
         return added
 
     def add(self, item: _BatchItem) -> None:
         self.seconds += self.added_seconds(item)
-        for build, solo in item.grouped_builds.items():
-            self.grouped_builds[build].append((solo, item.heavy_seconds))
+        for build, member in item.grouped_builds.items():
+            self.grouped_builds[build].append(member)
         self.components.append(item.component)
 
 
