@@ -172,3 +172,13 @@ def test_overlap_within_one_component_is_rejected(
 ) -> None:
     with pytest.raises(cv.Invalid, match="a, b"):
         _run_final_validate(devices, uarts)
+
+
+def test_device_inside_broader_usb_uart_suggests_removing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    devices = [{"id": "device_0", "vid": 0x303A, "pid": 0x4001}]
+    uarts = [{"id": "uart_0", "vid": 0x303A, "pid": 0}]
+    with caplog.at_level(logging.WARNING):
+        _run_final_validate(devices, uarts)
+    assert "remove it from usb_host devices" in caplog.text

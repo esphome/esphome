@@ -103,15 +103,18 @@ def _final_validate(config: ConfigType) -> ConfigType:
     for device, uart in itertools.product(devices, uarts):
         if not _clients_overlap(device, uart):
             continue
-        # A broader filter may also be matching other devices, so only an exact duplicate can go
-        duplicate = all(device.get(key) == uart.get(key) for key in _FILTER_WILDCARDS)
+        # The device matches nothing the usb_uart entry does not already claim
+        redundant = all(
+            uart.get(key) in (wildcard, device.get(key))
+            for key, wildcard in _FILTER_WILDCARDS.items()
+        )
         _LOGGER.warning(
             "usb_host device '%s' matches the same USB device as usb_uart '%s'; %s. "
             "This will be an error in 2027.10.0",
             device[CONF_ID],
             uart[CONF_ID],
             "remove it from usb_host devices"
-            if duplicate
+            if redundant
             else "narrow its filter so it no longer matches that device",
         )
     return config
