@@ -4,7 +4,7 @@
 
 namespace esphome::gdk101 {
 
-static const char *const TAG = "gdk101";
+ESPHOME_LOG_TAG(TAG, "gdk101");
 static constexpr uint8_t NUMBER_OF_READ_RETRIES = 5;
 static constexpr uint8_t NUMBER_OF_RESET_RETRIES = 30;
 static constexpr uint32_t RESET_INTERVAL_ID = 0;

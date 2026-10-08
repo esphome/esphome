@@ -18,7 +18,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_pico_w";
+ESPHOME_LOG_TAG(TAG, "wifi_pico_w");
 
 // Check if STA is fully connected (WiFi joined + has IP address).
 // Do NOT use WiFi.status() or WiFi.connected() for this — in AP-only mode they

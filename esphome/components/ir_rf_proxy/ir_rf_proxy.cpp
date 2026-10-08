@@ -6,7 +6,7 @@
 
 namespace esphome::ir_rf_proxy {
 
-static const char *const TAG = "ir_rf_proxy";
+ESPHOME_LOG_TAG(TAG, "ir_rf_proxy");
 
 // ========== IrRfProxy (Infrared platform) ==========
 

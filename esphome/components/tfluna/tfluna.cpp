@@ -16,7 +16,7 @@ static constexpr uint8_t MODE_TRIGGER = 0x01;
 static constexpr uint8_t TRIGGER_ONESHOT_REGISTER = 0x24;
 static constexpr uint8_t MAX_READ_ATTEMPTS = 5;
 static constexpr uint8_t READ_RETRY_MS = 5;
-static const char *const TAG = "tfluna";
+ESPHOME_LOG_TAG(TAG, "tfluna");
 static const char *const READ_RETRY_TIMEOUT = "read_retry";
 
 void TFLuna::dump_config() {
