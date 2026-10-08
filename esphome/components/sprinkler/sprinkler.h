@@ -7,6 +7,7 @@
 #include "esphome/components/number/number.h"
 #include "esphome/components/switch/switch.h"
 
+#include <array>
 #include <vector>
 
 namespace esphome::sprinkler {
@@ -49,7 +50,6 @@ struct SprinklerQueueItem {
 };
 
 struct SprinklerTimer {
-  const char *name;
   bool active;
   uint32_t time;
   uint32_t start_time;
@@ -565,7 +565,7 @@ class Sprinkler final : public Component {
   std::vector<SprinklerValveOperator> valve_op_{2};
 
   /// Valve control timers - FixedVector enforces that this can never grow beyond init() size
-  FixedVector<SprinklerTimer> timer_;
+  std::array<SprinklerTimer, 2> timer_;  // indexed by SprinklerTimerIndex
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;
