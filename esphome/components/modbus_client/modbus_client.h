@@ -3,9 +3,7 @@
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/hal.h"
 
-#include <array>
 #include <span>
 #include <vector>
 
