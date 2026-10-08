@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_CLIENT_ID,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
+    CONF_DEVICES,
     CONF_DISCOVER_IP,
     CONF_DISCOVERY,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
@@ -32,10 +33,12 @@ from esphome.const import (
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_NAME,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -67,6 +70,9 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import get_base_entity_object_id
+import esphome.final_validate as fv
+from esphome.helpers import sanitize, snake_case
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -348,38 +354,84 @@ def exp_mqtt_message(config):
     )
 
 
-def _shared_sub_device_topics() -> list[list[str]]:
-    """Groups of entity names on different sub-devices that get one MQTT topic.
+def _entity_config(full_config: fv.FinalValidateConfig, entity_id: str) -> ConfigType:
+    try:
+        return full_config.get_config_for_path(
+            full_config.get_path_for_id(entity_id)[:-1]
+        )
+    except KeyError:
+        return {}
+
+
+def _publishes(entity: ConfigType, topic_prefix: str) -> bool:
+    """Whether the entity is on MQTT at all, as MQTTComponent::compute_is_internal_() decides."""
+    for key in (CONF_STATE_TOPIC, CONF_COMMAND_TOPIC):
+        if key in entity:
+            return bool(entity[key])
+    return bool(topic_prefix)
+
+
+def _shared_mqtt_ids(config: ConfigType) -> list[tuple[str, list[str]]]:
+    """Entities on different devices that get one default topic or discovery id.
 
     The duplicate check lets equally named entities sit on different sub-devices,
-    which the native API keeps apart, but default MQTT topics and discovery ids are
-    built from the name alone.
+    which the native API keeps apart. Without sub_device_topics, MQTT builds their
+    topics and discovery ids from the name alone; with it, from the sub-device name
+    and the entity name, which can still meet ("Bedroom" + "Temperature" and a
+    "Bedroom Temperature" on the main device). Returns what is shared and the
+    entities sharing it.
     """
-    groups: dict[tuple[str, int], list[tuple[str, str]]] = {}
-    for (device_id, platform, name_hash), meta in CORE.unique_ids.items():
-        groups.setdefault((platform, name_hash), []).append((device_id, meta["name"]))
-    shared = []
-    for (platform, _), entries in sorted(groups.items()):
+    full_config = fv.full_config.get()
+    devices = {
+        device[CONF_ID].id: device[CONF_NAME]
+        for device in full_config.get(CONF_ESPHOME, {}).get(CONF_DEVICES, [])
+    }
+    topic_prefix = config[CONF_TOPIC_PREFIX]
+    shared: dict[tuple[str, str, str], list[tuple[str, str]]] = {}
+    for (device_id, platform, _), meta in CORE.unique_ids.items():
+        entity = _entity_config(full_config, meta["entity_id"])
+        if not _publishes(entity, topic_prefix):
+            continue
+        device_name = devices.get(device_id, device_id) if device_id else None
+        object_id = get_base_entity_object_id(
+            meta["name"], CORE.friendly_name, device_name
+        )
+        segment = ""
+        if device_name and config[CONF_SUB_DEVICE_TOPICS]:
+            segment = sanitize(snake_case(device_name))
+        entry = (device_id, meta["name"])
+        if topic_prefix and CONF_STATE_TOPIC not in entity:
+            key = ("default topic", platform, f"{segment}/{object_id}")
+            shared.setdefault(key, []).append(entry)
+        if config[CONF_DISCOVERY] and entity.get(CONF_DISCOVERY, True):
+            discovery_id = f"{segment}_{object_id}" if segment else object_id
+            key = ("discovery id", platform, discovery_id)
+            shared.setdefault(key, []).append(entry)
+    groups: dict[tuple[str, ...], list[str]] = {}
+    for (what, platform, _), entries in sorted(shared.items()):
         if len({device_id for device_id, _ in entries}) > 1:
-            shared.append(
-                [
-                    f"{platform} '{name}' on {f'device {device_id!r}' if device_id else 'the main device'}"
-                    for device_id, name in sorted(entries)
-                ]
+            names = tuple(
+                f"{platform} '{name}' on "
+                + (f"device {device_id!r}" if device_id else "the main device")
+                for device_id, name in sorted(entries)
             )
-    return shared
+            groups.setdefault(names, []).append(what)
+    return [(" and ".join(whats), list(names)) for names, whats in groups.items()]
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    if config[CONF_SUB_DEVICE_TOPICS] or not config[CONF_TOPIC_PREFIX]:
-        return config
-    for group in _shared_sub_device_topics():
+    for what, group in _shared_mqtt_ids(config):
+        if config[CONF_SUB_DEVICE_TOPICS]:
+            raise cv.Invalid(
+                f"MQTT: {', '.join(group)} would share one {what}, so one would hide "
+                "the other. Rename one of them; names are compared after lower-casing "
+                "and replacing spaces and symbols with '_'."
+            )
         _LOGGER.warning(
-            "MQTT: %s share one default topic and discovery id, so their states "
-            "overwrite each other unless they set their own topics. Set "
-            "'sub_device_topics: true' under 'mqtt:' to give entities on a sub-device "
-            "their own topics.",
+            "MQTT: %s share one %s, so one hides the other. Set 'sub_device_topics: true' under 'mqtt:' to give entities on a "
+            "sub-device their own topics and discovery ids.",
             ", ".join(group),
+            what,
         )
     return config
 

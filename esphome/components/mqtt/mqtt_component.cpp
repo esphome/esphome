@@ -289,7 +289,8 @@ bool MQTTComponent::send_discovery_() {
           char friendly_name_hash[9];
           uint32_t name_hash = fnv1_hash(this->friendly_name_().c_str());
           if (sub_device_len > 0) {
-            name_hash = fnv1_hash_extend(name_hash, sub_device);
+            // A NUL between the two, so "power" on "battery" and "powerbattery" on the node hash apart.
+            name_hash = fnv1_hash_extend(fnv1_hash_extend(name_hash, uint8_t{0}), sub_device);
           }
           buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32, name_hash);
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
