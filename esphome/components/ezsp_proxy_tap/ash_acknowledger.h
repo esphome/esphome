@@ -22,8 +22,6 @@ class AshFrameScanner {
   size_t length() const { return this->frame_length_; }
 
  private:
-  void begin_frame_();
-
   uint8_t header_[ASH_HEADER_SIZE];
   size_t index_{0};         // body bytes read so far in the frame being read
   size_t frame_length_{0};  // body length of the last completed frame

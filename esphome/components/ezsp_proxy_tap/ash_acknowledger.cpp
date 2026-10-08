@@ -14,15 +14,11 @@ static constexpr size_t ASH_CRC_SIZE = 2;
 // Smallest legal frame on the wire: a bare control byte plus its CRC
 static constexpr size_t ASH_MIN_FRAME_SIZE = 1 + ASH_CRC_SIZE;
 
-void AshFrameScanner::begin_frame_() {
+void AshFrameScanner::reset() {
   this->index_ = 0;
   this->crc_ = ASH_CRC_INIT;
   this->escaped_ = false;
   this->poisoned_ = false;
-}
-
-void AshFrameScanner::reset() {
-  this->begin_frame_();
   this->discarding_ = false;
 }
 
@@ -34,9 +30,14 @@ bool AshFrameScanner::feed(uint8_t byte) {
     if (valid) {
       this->frame_length_ = this->index_ - ASH_CRC_SIZE;
     }
-    this->begin_frame_();
-    this->discarding_ = false;
+    this->reset();
     return valid;
+  }
+
+  // CANCEL also ends a SUBSTITUTE's discard, so the bytes after it start a new frame
+  if (byte == ASH_CANCEL_BYTE) {
+    this->reset();
+    return false;
   }
 
   if (this->discarding_ || (byte == ASH_WAKE_BYTE && this->index_ == 0)) {
@@ -44,10 +45,6 @@ bool AshFrameScanner::feed(uint8_t byte) {
   }
 
   switch (byte) {
-    case ASH_CANCEL_BYTE:
-      this->begin_frame_();
-      return false;
-
     case ASH_SUBSTITUTE_BYTE:
       this->discarding_ = true;
       return false;

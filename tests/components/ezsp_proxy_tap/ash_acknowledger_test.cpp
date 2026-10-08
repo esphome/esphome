@@ -115,6 +115,11 @@ TEST(AshFrameScanner, SubstituteDiscardsUntilFlag) {
   EXPECT_TRUE(feed(scanner, DATA_FRAME_0));
 }
 
+TEST(AshFrameScanner, CancelEndsSubstitute) {
+  AshFrameScanner scanner;
+  EXPECT_TRUE(feed(scanner, concat({0x10, ASH_SUBSTITUTE_BYTE, 0x43, ASH_CANCEL_BYTE}, DATA_FRAME_0)));
+}
+
 TEST(AshFrameScanner, IgnoresWakeBetweenFrames) {
   AshFrameScanner scanner;
   EXPECT_TRUE(feed(scanner, concat({ASH_WAKE_BYTE, ASH_FLAG_BYTE, ASH_WAKE_BYTE, ASH_WAKE_BYTE}, DATA_FRAME_0)));
