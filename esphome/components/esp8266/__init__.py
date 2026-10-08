@@ -129,18 +129,22 @@ def _resolve_board(config: ConfigType) -> ConfigType:
         )
         return {**config, CONF_BOARD: canonical}
     if CORE.toolchain is None and CONF_TOOLCHAIN not in config:
-        _LOGGER.warning(
-            "Board '%s' is not supported by the native 'arduino' toolchain; "
-            "using 'toolchain: platformio'",
-            board,
-        )
         return {**config, CONF_TOOLCHAIN: Toolchain.PLATFORMIO}
     return config
 
 
 def _warn_platformio_toolchain(config: ConfigType) -> ConfigType:
     # Remove before 2027.4.0
-    if CORE.using_toolchain_platformio:
+    if not CORE.using_toolchain_platformio:
+        return config
+    if config[CONF_BOARD] not in BOARDS:
+        _LOGGER.warning(
+            "Board '%s' is not supported by the native 'arduino' toolchain, so it "
+            "builds with the deprecated 'platformio' toolchain, which will be "
+            "removed in ESPHome 2027.4.0",
+            config[CONF_BOARD],
+        )
+    else:
         _LOGGER.warning(
             "The 'platformio' toolchain for ESP8266 is deprecated and will be "
             "removed in ESPHome 2027.4.0; the native 'arduino' toolchain is the "

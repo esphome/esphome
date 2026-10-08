@@ -17,6 +17,7 @@ from esphome.components.esp8266 import (
     _validate_native_toolchain,
     _warn_platformio_toolchain,
 )
+from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -135,14 +136,26 @@ def test_misspelled_board_normalized(
     assert f"using '{expected}'" in caplog.text
 
 
-def test_unknown_board_falls_back_to_platformio_when_toolchain_implicit(
+@pytest.mark.parametrize(
+    ("board", "expected_board", "expected_toolchain"),
+    [
+        ("esp01-1m", "esp01_1m", Toolchain.ARDUINO),
+        ("my_custom_board", "my_custom_board", Toolchain.PLATFORMIO),
+    ],
+)
+def test_config_schema_resolves_board_before_toolchain(
+    board: str,
+    expected_board: str,
+    expected_toolchain: Toolchain,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """The full chain normalizes or falls back, and warns once."""
     CORE.toolchain = None
-    config = _resolve_toolchain(_resolve_board({CONF_BOARD: "my_custom_board"}))
-    assert config[CONF_TOOLCHAIN] == Toolchain.PLATFORMIO
-    assert CORE.toolchain == Toolchain.PLATFORMIO
-    assert "using 'toolchain: platformio'" in caplog.text
+    config = esp8266.CONFIG_SCHEMA({CONF_BOARD: board})
+    assert config[CONF_BOARD] == expected_board
+    assert CORE.data[KEY_ESP8266][KEY_BOARD] == expected_board
+    assert CORE.toolchain == expected_toolchain
+    assert len(caplog.records) == 1
 
 
 @pytest.mark.parametrize(
