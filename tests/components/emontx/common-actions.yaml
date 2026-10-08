@@ -10,11 +10,16 @@ button:
     on_press:
       - if:
           condition:
-            emontx.is_paused:
-              id: test_emontx
+            emontx.is_paused: test_emontx
           then:
-            - emontx.resume:
-                id: test_emontx
+            - emontx.resume: test_emontx
           else:
-            - emontx.pause:
-                id: test_emontx
+            - emontx.pause: test_emontx
+  - platform: template
+    name: Pause emontx explicit id
+    on_press:
+      - emontx.pause:
+          id: test_emontx
+      - delay: 1s
+      - emontx.resume:
+          id: test_emontx
