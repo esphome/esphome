@@ -12,7 +12,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "scheduler";
+ESPHOME_LOG_TAG(TAG, "scheduler");
 
 // Maximum number of logically deleted (cancelled) items before forcing cleanup.
 // Empirically chosen to balance cleanup overhead against tombstone accumulation in items_.
