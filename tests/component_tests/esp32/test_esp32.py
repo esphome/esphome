@@ -159,6 +159,15 @@ def test_esp32_config(
             id="disabled-frequency-choice",
         ),
         pytest.param(
+            {"CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ_240": "n"},
+            "240MHz",
+            "240MHZ",
+            False,
+            VARIANT_ESP32,
+            "esp-idf",
+            id="ignore-unrecognized-legacy-disabled-choice",
+        ),
+        pytest.param(
             {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ": "160"},
             None,
             "160MHZ",

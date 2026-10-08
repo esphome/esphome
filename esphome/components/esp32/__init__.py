@@ -610,7 +610,6 @@ def _is_sdkconfig_cpu_frequency_disabled(
     frequency_mhz = frequency.removesuffix("MHZ")
     names = {f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{frequency_mhz}"}
     if legacy_variant := _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS.get(variant):
-        names.add(f"CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_MHZ_{frequency_mhz}")
         names.add(f"CONFIG_{legacy_variant}_DEFAULT_CPU_FREQ_{frequency_mhz}")
     return any(sdkconfig_options.get(name, "").lower() == "n" for name in names)
 
