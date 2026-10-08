@@ -38,6 +38,7 @@ class AshFrameScanner {
 // in PROTOCOL mode, so this only follows the NCP's frame numbering.
 class AshAcknowledger {
  public:
+  // Forgets the NCP's frame numbering. The next RSTACK or DATA frame sets it again.
   void reset();
 
   // Feed a byte from the NCP. Returns true when it completes a frame that is owed ack_num().
@@ -49,6 +50,7 @@ class AshAcknowledger {
 
   AshFrameScanner scanner_;
   uint8_t rx_sequence_{0};
+  bool synced_{false};
 };
 
 }  // namespace esphome::ezsp_proxy_tap

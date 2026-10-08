@@ -18,6 +18,9 @@ const std::vector<uint8_t> RSTACK = {0xC1, 0x02, 0x02, 0x9B, 0x7B, 0x7E};
 const std::vector<uint8_t> DATA_FRAME_0 = {0x00, 0x43, 0x21, 0xA8, 0x50, 0x9B, 0x98, 0x7E};
 const std::vector<uint8_t> DATA_FRAME_1 = {0x10, 0x43, 0x21, 0xA8, 0x50, 0x9F, 0xC2, 0x7E};
 const std::vector<uint8_t> DATA_FRAME_0_RETRANSMITTED = {0x08, 0x43, 0x21, 0xA8, 0x50, 0x99, 0xB5, 0x7E};
+const std::vector<uint8_t> DATA_FRAME_5 = {0x50, 0x43, 0x21, 0xA8, 0x50, 0x8E, 0xAA, 0x7E};
+const std::vector<uint8_t> DATA_FRAME_5_RETRANSMITTED = {0x58, 0x43, 0x21, 0xA8, 0x50, 0x8C, 0x87, 0x7E};
+const std::vector<uint8_t> DATA_FRAME_6 = {0x60, 0x43, 0x21, 0xA8, 0x50, 0x82, 0x44, 0x7E};
 // Body {0x00, 0x7E, 0x7D, 0x11, 0x13, 0x18, 0x1A}: every reserved byte, each escaped
 const std::vector<uint8_t> ESCAPED_FRAME = {0x00, 0x7D, 0x5E, 0x7D, 0x5D, 0x7D, 0x31, 0x7D,
                                             0x33, 0x7D, 0x38, 0x7D, 0x3A, 0x46, 0x8C, 0x7E};
@@ -143,6 +146,20 @@ TEST(AshAcknowledger, RstackRestartsNumbering) {
   EXPECT_EQ(feed(acknowledger, DATA_FRAME_0), 1);
   EXPECT_EQ(feed(acknowledger, RSTACK), -1);
   EXPECT_EQ(feed(acknowledger, DATA_FRAME_0), 1);
+}
+
+TEST(AshAcknowledger, SyncsToFirstFrameMidSession) {
+  AshAcknowledger acknowledger;
+  // The NCP is retransmitting a frame nobody acknowledged before the tap was watching
+  EXPECT_EQ(feed(acknowledger, DATA_FRAME_5_RETRANSMITTED), 6);
+  EXPECT_EQ(feed(acknowledger, DATA_FRAME_6), 7);
+}
+
+TEST(AshAcknowledger, ResetForgetsNumbering) {
+  AshAcknowledger acknowledger;
+  EXPECT_EQ(feed(acknowledger, DATA_FRAME_0), 1);
+  acknowledger.reset();
+  EXPECT_EQ(feed(acknowledger, DATA_FRAME_5), 6);
 }
 
 }  // namespace esphome::ezsp_proxy_tap::testing

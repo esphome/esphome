@@ -84,6 +84,7 @@ bool AshFrameScanner::feed(uint8_t byte) {
 void AshAcknowledger::reset() {
   this->scanner_.reset();
   this->rx_sequence_ = 0;
+  this->synced_ = false;
 }
 
 bool AshAcknowledger::feed(uint8_t byte) { return this->scanner_.feed(byte) && this->handle_frame_(); }
@@ -96,6 +97,7 @@ bool AshAcknowledger::handle_frame_() {
   if (control == ASH_RSTACK_CONTROL) {
     if (this->scanner_.length() == ASH_RSTACK_BODY_SIZE && body[1] == ASH_PROTOCOL_VERSION) {
       this->rx_sequence_ = 0;
+      this->synced_ = true;
     }
     return false;
   }
@@ -106,6 +108,11 @@ bool AshAcknowledger::handle_frame_() {
 
   const uint8_t frame_num = (control >> 4) & ASH_MAX_SEQUENCE;
   const bool re_tx = (control & 0x08) != 0;
+  // Without an RSTACK, the session began before we were watching: follow the NCP's numbering
+  if (!this->synced_) {
+    this->rx_sequence_ = frame_num;
+    this->synced_ = true;
+  }
   if (frame_num == this->rx_sequence_) {
     this->rx_sequence_ = (this->rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
     return true;
