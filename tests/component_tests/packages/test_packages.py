@@ -10,9 +10,11 @@ import pytest
 from esphome import bundle
 from esphome.components.packages import (
     CONFIG_SCHEMA,
+    RemotePackageSource,
     _substitute_package_definition,
     _walk_packages,
     do_packages_pass,
+    get_remote_package_sources,
     merge_packages,
     resolve_packages,
 )
@@ -612,6 +614,49 @@ def test_package_remove_by_missing_id() -> None:
 
     actual = packages_pass(config)
     assert actual == expected
+
+
+def test_get_remote_package_sources_empty_without_remote_packages() -> None:
+    """A config without remote packages records no sources."""
+    assert get_remote_package_sources() == ()
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_get_remote_package_sources_records_each_fetch_once(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """Every fetched remote source is recorded exactly once."""
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), MagicMock())
+    mock_is_file.return_value = True
+    mock_load_yaml.side_effect = lambda *args, **kwargs: OrderedDict()
+
+    config = {
+        CONF_PACKAGES: {
+            "first": {
+                CONF_URL: "https://github.com/esphome/repo-a",
+                CONF_REF: "main",
+                CONF_FILES: [TEST_YAML_FILENAME],
+            },
+            "again": {
+                CONF_URL: "https://github.com/esphome/repo-a",
+                CONF_REF: "main",
+                CONF_FILES: ["other.yaml"],
+            },
+            "second": {
+                CONF_URL: "https://github.com/esphome/repo-b",
+                CONF_FILES: [TEST_YAML_FILENAME],
+            },
+        }
+    }
+    packages_pass(config)
+
+    sources = get_remote_package_sources()
+    assert sorted(sources, key=lambda source: source.url) == [
+        RemotePackageSource("https://github.com/esphome/repo-a", "main"),
+        RemotePackageSource("https://github.com/esphome/repo-b", None),
+    ]
 
 
 @patch("esphome.yaml_util.load_yaml")
