@@ -11,7 +11,7 @@
 
 namespace esphome::pn532_i2c {
 
-static const char *const TAG = "pn532_i2c";
+ESPHOME_LOG_TAG(TAG, "pn532_i2c");
 
 bool PN532I2C::is_read_ready() {
   uint8_t status;

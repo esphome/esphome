@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.climate";
+ESPHOME_LOG_TAG(TAG, "template.climate");
 
 void TemplateClimate::setup() {
   if (this->restore_mode_ == TemplateClimateRestoreMode::TEMPLATE_CLIMATE_RESTORE_MODE_RESTORE) {
