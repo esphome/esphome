@@ -10,7 +10,7 @@
 
 namespace esphome::spd2010 {
 
-static const char *const TAG = "spd2010.touchscreen";
+ESPHOME_LOG_TAG(TAG, "spd2010.touchscreen");
 
 static constexpr uint16_t REG_CLEAR_INTERRUPT = 0x0002;
 static constexpr uint16_t REG_CPU_START = 0x0004;
