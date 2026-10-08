@@ -111,6 +111,8 @@ StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_
   return StringRef(buf.data(), p - buf.data());
 }
 
+// The Python config check (_shared_mqtt_ids in __init__.py) mirrors how this segment and the
+// topics and discovery ids built from it look; keep the two in sync.
 size_t MQTTComponent::write_sub_device_segment_to_(char *buf) const {
 #if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
   Device *device = this->get_entity()->get_device();
@@ -347,6 +349,19 @@ bool MQTTComponent::send_discovery_() {
           device_info[MQTT_DEVICE_IDENTIFIERS] = sub_device_ids;
           device_info[MQTT_DEVICE_NAME] = device->get_name();
           device_info[MQTT_DEVICE_VIA_DEVICE] = mac;
+          // Its own area, as the native API sends it; the node's when it has none.
+          const char *area = node_area;
+#ifdef USE_AREAS
+          for (Area *candidate : App.get_areas()) {
+            if (candidate != nullptr && candidate->get_area_id() == device->get_area_id()) {
+              area = candidate->get_name();
+              break;
+            }
+          }
+#endif
+          if (area[0] != '\0') {
+            device_info[MQTT_DEVICE_SUGGESTED_AREA] = area;
+          }
           return;
         }
 #endif

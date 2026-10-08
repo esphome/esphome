@@ -35,9 +35,11 @@ from esphome.const import (
     CONF_ENABLE_ON_BOOT,
     CONF_ESPHOME,
     CONF_ID,
+    CONF_INTERNAL,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MQTT_ID,
     CONF_NAME,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
@@ -354,21 +356,27 @@ def exp_mqtt_message(config):
     )
 
 
-def _entity_config(full_config: fv.FinalValidateConfig, entity_id: str) -> ConfigType:
+def _entity_config(
+    full_config: fv.FinalValidateConfig, entity_id: str
+) -> ConfigType | None:
     try:
         return full_config.get_config_for_path(
             full_config.get_path_for_id(entity_id)[:-1]
         )
     except KeyError:
-        return {}
+        _LOGGER.debug("MQTT: no config found for entity %s, not checked", entity_id)
+        return None
 
 
+# The helpers below mirror the C++ that builds topics and discovery ids; keep them in sync
+# with MQTTComponent::compute_is_internal_(), write_sub_device_segment_to_(),
+# get_default_topic_for_to_() and get_discovery_topic_to_().
 def _publishes(entity: ConfigType, topic_prefix: str) -> bool:
     """Whether the entity is on MQTT at all, as MQTTComponent::compute_is_internal_() decides."""
     for key in (CONF_STATE_TOPIC, CONF_COMMAND_TOPIC):
         if key in entity:
             return bool(entity[key])
-    return bool(topic_prefix)
+    return bool(topic_prefix) and not entity.get(CONF_INTERNAL, False)
 
 
 def _shared_mqtt_ids(config: ConfigType) -> list[tuple[str, list[str]]]:
@@ -390,6 +398,9 @@ def _shared_mqtt_ids(config: ConfigType) -> list[tuple[str, list[str]]]:
     shared: dict[tuple[str, str, str], list[tuple[str, str]]] = {}
     for (device_id, platform, _), meta in CORE.unique_ids.items():
         entity = _entity_config(full_config, meta["entity_id"])
+        # Only entities with an MQTT component (media_player, water_heater, ... have none).
+        if entity is None or CONF_MQTT_ID not in entity:
+            continue
         if not _publishes(entity, topic_prefix):
             continue
         device_name = devices.get(device_id, device_id) if device_id else None

@@ -1,11 +1,15 @@
 # Entities with the same name on different sub-devices: with sub_device_topics each
 # gets its own topics and discovery ids (<topic_prefix>/<sub_device>/sensor/<name>/...).
 esphome:
+  areas:
+    - id: upstairs
+      name: Upstairs
   devices:
     - id: living_room
       name: Living Room
     - id: bedroom
       name: Bedroom
+      area_id: upstairs
 
 mqtt:
   sub_device_topics: true

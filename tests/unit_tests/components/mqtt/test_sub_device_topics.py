@@ -15,6 +15,8 @@ from esphome.const import (
     CONF_DISCOVERY,
     CONF_ESPHOME,
     CONF_ID,
+    CONF_INTERNAL,
+    CONF_MQTT_ID,
     CONF_NAME,
     CONF_STATE_TOPIC,
     CONF_TOPIC_PREFIX,
@@ -45,11 +47,18 @@ def _add_device(device_id: str, name: str) -> None:
     devices.append({CONF_ID: ID(device_id), CONF_NAME: name})
 
 
-def _add(device_id: str, platform: str, name: str, **mqtt_options) -> None:
+def _add(
+    device_id: str, platform: str, name: str, mqtt: bool = True, **mqtt_options
+) -> None:
     config = fv.full_config.get()
     entities = config.setdefault(platform, [])
     entity_id = ID(f"{platform}_{len(CORE.unique_ids)}")
-    entities.append({CONF_ID: entity_id, CONF_NAME: name, **mqtt_options})
+    entity = {CONF_ID: entity_id, CONF_NAME: name, **mqtt_options}
+    if (
+        mqtt
+    ):  # set by cv.OnlyWith(CONF_MQTT_ID, "mqtt") on platforms with an MQTT component
+        entity[CONF_MQTT_ID] = ID(f"{entity_id.id}_mqtt")
+    entities.append(entity)
     config.declare_ids.append((entity_id, [platform, len(entities) - 1, CONF_ID]))
     object_id = name.lower().replace(" ", "_")
     CORE.unique_ids[(device_id, platform, fnv1_hash(object_id))] = {
@@ -181,3 +190,28 @@ def test_default_topics_are_shared_with_discovery_off(
     with caplog.at_level(logging.WARNING):
         mqtt._final_validate(_config(discovery=False))
     assert "share one default topic," in caplog.text
+
+
+def test_platforms_without_an_mqtt_component_are_left_out(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _add("living_room", "media_player", "Speaker", mqtt=False)
+    _add("bedroom", "media_player", "Speaker", mqtt=False)
+    _add("", "media_player", "Bedroom Speaker", mqtt=False)
+    with caplog.at_level(logging.WARNING):
+        mqtt._final_validate(_config())
+        mqtt._final_validate(_config(sub_device_topics=True))
+    assert caplog.text == ""
+
+
+def test_internal_entities_are_left_out() -> None:
+    _add("bedroom", "sensor", "Temperature")
+    _add("", "sensor", "Bedroom Temperature", **{CONF_INTERNAL: True})
+    mqtt._final_validate(_config(sub_device_topics=True))
+
+
+def test_an_entity_whose_config_is_not_found_is_left_out() -> None:
+    _add("bedroom", "sensor", "Temperature")
+    _add("", "sensor", "Bedroom Temperature")
+    fv.full_config.get().declare_ids.pop()  # its id no longer leads to a config
+    mqtt._final_validate(_config(sub_device_topics=True))
