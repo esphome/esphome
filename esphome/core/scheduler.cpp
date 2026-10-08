@@ -138,7 +138,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 
   // Take lock early to protect scheduler_item_pool_head_ access
-  LockGuard guard{this->lock_};
+  this->lock_.lock();
 
   // Create and populate the scheduler item
   SchedulerItem *item = this->get_item_from_pool_locked_();
@@ -212,6 +212,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 #endif
 
+  // release lock before wake
+  this->lock_.unlock();
   // A background insertion may shorten a sleep whose deadline was already computed.
   if (!is_main_loop_thread())
     App.wake_loop_threadsafe();
