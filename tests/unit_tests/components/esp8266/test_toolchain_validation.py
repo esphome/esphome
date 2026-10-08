@@ -124,12 +124,15 @@ def test_known_board_passes_unchanged() -> None:
     assert _resolve_board(config) is config
 
 
-@pytest.mark.parametrize("board", ["esp01-1m", "ESP01_1M", "Esp01-1M"])
+@pytest.mark.parametrize(
+    ("board", "expected"),
+    [("ESP01-1M", "esp01_1m"), ("SPARKFUNBLYNK", "sparkfunBlynk")],
+)
 def test_misspelled_board_normalized(
-    board: str, caplog: pytest.LogCaptureFixture
+    board: str, expected: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    assert _resolve_board({CONF_BOARD: board})[CONF_BOARD] == "esp01_1m"
-    assert "using 'esp01_1m'" in caplog.text
+    assert _resolve_board({CONF_BOARD: board})[CONF_BOARD] == expected
+    assert f"using '{expected}'" in caplog.text
 
 
 def test_unknown_board_falls_back_to_platformio_when_toolchain_implicit(
@@ -142,15 +145,16 @@ def test_unknown_board_falls_back_to_platformio_when_toolchain_implicit(
     assert "using 'toolchain: platformio'" in caplog.text
 
 
-@pytest.mark.parametrize("cli_toolchain", [Toolchain.ARDUINO, None])
+@pytest.mark.parametrize(
+    ("cli_toolchain", "yaml"),
+    [(Toolchain.ARDUINO, {}), (None, {CONF_TOOLCHAIN: Toolchain.ARDUINO})],
+)
 def test_unknown_board_keeps_explicit_toolchain(
-    cli_toolchain: Toolchain | None,
+    cli_toolchain: Toolchain | None, yaml: ConfigType
 ) -> None:
-    """A CLI or YAML toolchain choice is never overridden, so native still rejects the board."""
+    """A CLI or YAML toolchain is not overridden."""
     CORE.toolchain = cli_toolchain
-    config = {CONF_BOARD: "my_custom_board"}
-    if cli_toolchain is None:
-        config[CONF_TOOLCHAIN] = Toolchain.ARDUINO
+    config = {CONF_BOARD: "my_custom_board", **yaml}
     assert _resolve_board(config) is config
 
 

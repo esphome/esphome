@@ -114,18 +114,21 @@ _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 _resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.ARDUINO)
 
 
+# Known boards keyed by spelling with case and "-" / "_" folded away
+_FOLDED_BOARDS = {board.lower().replace("-", "_"): board for board in BOARDS}
+
+
 def _resolve_board(config: ConfigType) -> ConfigType:
-    """Map a misspelled board to its known id, else fall back to PlatformIO when the toolchain is implicit."""
+    """Fix a misspelled board, else build an unknown one with PlatformIO."""
     board = config[CONF_BOARD]
     if board in BOARDS:
         return config
-    if (normalized := board.lower().replace("-", "_")) in BOARDS:
+    if canonical := _FOLDED_BOARDS.get(board.lower().replace("-", "_")):
         _LOGGER.warning(
-            "Board '%s' is not a known ESP8266 board; using '%s'", board, normalized
+            "Board '%s' is not a known ESP8266 board; using '%s'", board, canonical
         )
-        return {**config, CONF_BOARD: normalized}
+        return {**config, CONF_BOARD: canonical}
     if CORE.toolchain is None and CONF_TOOLCHAIN not in config:
-        # Custom PlatformIO board manifests only build with PlatformIO
         _LOGGER.warning(
             "Board '%s' is not supported by the native 'arduino' toolchain; "
             "using 'toolchain: platformio'",
