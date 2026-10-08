@@ -19,7 +19,7 @@ puremagic==2.2.0
 ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.0
-backports.zstd==1.7.0; python_version < "3.14"  # api wizard; compression.zstd is in the standard library from 3.14
+backports.zstd==1.7.0; python_version < "3.14"  # esphome.helpers.zstd_module; compression.zstd is in the standard library from 3.14
 pillow==12.3.0
 resvg-py==0.5.0
 freetype-py==2.5.1

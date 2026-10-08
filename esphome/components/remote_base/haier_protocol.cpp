@@ -4,7 +4,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.haier";
+ESPHOME_LOG_TAG(TAG, "remote.haier");
 
 constexpr uint32_t HEADER_LOW_US = 3100;
 constexpr uint32_t HEADER_HIGH_US = 4400;

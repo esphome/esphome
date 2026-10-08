@@ -6,7 +6,7 @@
 
 namespace esphome::ct_clamp {
 
-static const char *const TAG = "ct_clamp";
+ESPHOME_LOG_TAG(TAG, "ct_clamp");
 
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);

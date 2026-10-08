@@ -9,7 +9,7 @@ constexpr uint8_t HEADER_2 = 0x01;
 constexpr uint8_t HEADER_3 = 0x01;
 constexpr uint8_t HEADER_4 = 0x04;
 
-static const char *const TAG = "wts01";
+ESPHOME_LOG_TAG(TAG, "wts01");
 
 void WTS01Sensor::loop() {
   // Process all available data at once

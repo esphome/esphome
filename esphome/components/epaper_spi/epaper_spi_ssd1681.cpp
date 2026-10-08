@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.ssd1681";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1681");
 
 // A hardware reset leaves 0x26 no longer holding the image on the panel, so the panel stays awake and
 // unreset between partial refreshes

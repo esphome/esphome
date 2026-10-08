@@ -4,7 +4,7 @@
 
 namespace esphome::pulse_meter {
 
-static const char *const TAG = "pulse_meter";
+ESPHOME_LOG_TAG(TAG, "pulse_meter");
 
 void PulseMeterSensor::set_total_pulses(uint32_t pulses) {
   this->total_pulses_ = pulses;
