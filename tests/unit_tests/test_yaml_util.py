@@ -1309,6 +1309,20 @@ def test_force_load_include_files_warns_on_load_failure(
     assert result.unresolved == []
 
 
+def test_force_load_include_files_load_failure_quiet_when_caller_reports(
+    patch_include_file: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With warn_on_load_error=False the failure is still returned but only
+    logged at debug, so a caller that reports it does not duplicate it."""
+    stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        result = force_load_include_files({"k": stub}, warn_on_load_error=False)
+    assert result.errors == [f"{stub.file}: boom"]
+    failures = [r for r in caplog.records if "Failed to load !include" in r.message]
+    assert [r.levelname for r in failures] == ["DEBUG"]
+
+
 def test_discovered_yaml_files_holds_files_and_secrets() -> None:
     """`DiscoveredYamlFiles` is a small data carrier."""
     files = [Path("/tmp/a.yaml")]
@@ -1617,9 +1631,9 @@ def test_discover_user_yaml_files_many_candidates_keep_nested_includes(
 def test_discover_user_yaml_files_bad_candidate_still_tracked(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A matched candidate that fails to parse warns even during discovery,
-    stays tracked (the load listener fires before parsing), and doesn't block
-    other candidates."""
+    """A matched candidate that fails to parse is reported in ``load_errors``
+    (logged only at debug, the caller reports it), stays tracked (the load
+    listener fires before parsing), and doesn't block other candidates."""
     _write(tmp_path, "keys/good.yaml", "api:\n")
     _write(tmp_path, "keys/bad.yaml", "esphome: [unterminated\n")
     with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
@@ -1632,7 +1646,8 @@ def test_discover_user_yaml_files_bad_candidate_still_tracked(
     matching = [
         r.levelname for r in caplog.records if "Failed to load candidate" in r.message
     ]
-    assert matching == ["WARNING"]
+    assert matching == ["DEBUG"]
+    assert any("keys/bad.yaml" in e for e in discovered.load_errors)
 
 
 def test_discover_user_yaml_files_tolerates_templated_top_level_include(

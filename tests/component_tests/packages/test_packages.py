@@ -652,11 +652,11 @@ def test_get_remote_package_sources_records_each_fetch_once(
     }
     packages_pass(config)
 
-    sources = get_remote_package_sources()
-    assert sorted(sources, key=lambda source: source.url) == [
-        RemotePackageSource("https://github.com/esphome/repo-a", "main"),
+    # packages are processed last to first, so repo-b is fetched before repo-a
+    assert get_remote_package_sources() == (
         RemotePackageSource("https://github.com/esphome/repo-b", None),
-    ]
+        RemotePackageSource("https://github.com/esphome/repo-a", "main"),
+    )
 
 
 @patch("esphome.yaml_util.load_yaml")
