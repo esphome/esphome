@@ -106,6 +106,24 @@ def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
 
 
+@pytest.fixture(autouse=True)
+def _no_idf_install() -> Iterator[None]:
+    """No test may install ESP-IDF for real.
+
+    ``_get_idf_env`` resolves the framework paths through
+    ``check_esp_idf_install``, which downloads the framework and its tools
+    when they are missing, as they are on a CI runner. A test that reaches
+    it unmocked spent over three minutes on the Windows runner. Tests of the
+    install path patch ``check_esp_idf_install`` themselves.
+    """
+    with patch.object(
+        toolchain,
+        "check_esp_idf_install",
+        side_effect=AssertionError("test would install ESP-IDF; mock _get_idf_env"),
+    ):
+        yield
+
+
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
     CORE.name = "test"
@@ -1519,6 +1537,7 @@ def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None
     with (
         patch.object(toolchain, "_skip_bootloader", return_value=True),
         patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_get_idf_env", return_value={}),
         patch.object(toolchain, "_tool_env", return_value={}),
         patch.object(toolchain, "run_build_tool", return_value=0),
         patch.object(toolchain, "_idf_py") as mock_idf_py,
@@ -1542,6 +1561,7 @@ def test_run_reconfigure_skip_steady_state_cleans_nothing(setup_core: Path) -> N
     with (
         patch.object(toolchain, "_skip_bootloader", return_value=True),
         patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_get_idf_env", return_value={}),
         patch.object(toolchain, "_tool_env", return_value={}),
         patch.object(toolchain, "run_build_tool", return_value=0),
         patch.object(toolchain, "_idf_py") as mock_idf_py,
