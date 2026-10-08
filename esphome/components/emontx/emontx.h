@@ -68,9 +68,10 @@ class EmonTx final : public Component, public uart::UARTDevice {
     // Plain load/store rather than fetch_add: ESP8266 has no atomic RMW. Even
     // if concurrent callers collapse two increments, the generation still
     // differs from what loop() last saw, so the resync is never lost.
-    if (paused)
+    if (paused) {
       this->pause_generation_.store(this->pause_generation_.load(std::memory_order_relaxed) + 1,
                                     std::memory_order_relaxed);
+    }
     this->paused_.store(paused, std::memory_order_relaxed);
   }
 
