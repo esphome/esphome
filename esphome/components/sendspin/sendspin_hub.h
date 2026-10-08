@@ -189,6 +189,7 @@ class SendspinHub final : public Component,
   /// @brief Returns whether the client has been turned off with set_enabled().
   bool is_disabled() const { return this->enabled_.has_value() && !this->enabled_.value(); }
 
+  /// @brief Returns the SendspinFeature flags reported to API clients.
   uint32_t get_feature_flags() const { return SENDSPIN_FEATURE_PAIRING_TOKEN; }
 
   /// @brief Returns the pairing token a Sendspin server uses to pair with this device.
