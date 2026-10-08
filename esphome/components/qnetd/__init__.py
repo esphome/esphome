@@ -29,8 +29,9 @@ Qnetd = qnetd_ns.class_("Qnetd", cg.Component)
 def _consume_sockets(config: ConfigType) -> ConfigType:
     from esphome.components import socket
 
-    # one listening socket plus one connection per cluster node
-    socket.consume_sockets(2, "qnetd")(config)
+    # one listening socket plus one connection per served client; must match
+    # MAX_CLIENTS in qnetd_server.h
+    socket.consume_sockets(4, "qnetd")(config)
     socket.consume_sockets(1, "qnetd", socket.SocketType.TCP_LISTEN)(config)
     return config
 

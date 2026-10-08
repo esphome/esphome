@@ -1,3 +1,5 @@
+// Ported from corosync-qdevice qdevices/qnetd-*.c, Copyright (c) 2015-2020
+// Red Hat, Inc., BSD 3-Clause; see LICENSE.txt in this directory.
 #include "qnetd_server.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
@@ -69,10 +71,11 @@ void QnetdServer::drain_closes_(uint64_t now_ms) {
 }
 
 void QnetdServer::reschedule_dpd_(Session &s, uint64_t now_ms) {
-  if (s.phase == Phase::PHASE_ACTIVE && s.heartbeat_ms > 0)
+  if (s.phase == Phase::PHASE_ACTIVE && s.heartbeat_ms > 0) {
     s.deadline_ms = now_ms + uint64_t(DPD_COEFFICIENT * s.heartbeat_ms);
-  else if (s.phase != Phase::PHASE_FREE && s.phase != Phase::PHASE_ACTIVE)
+  } else if (s.phase != Phase::PHASE_FREE && s.phase != Phase::PHASE_ACTIVE) {
     s.deadline_ms = now_ms + PREACTIVE_TIMEOUT_MS;
+  }
 }
 
 void QnetdServer::tick(uint64_t now_ms) {
@@ -120,7 +123,7 @@ void QnetdServer::on_data(int slot, const uint8_t *data, size_t len, uint64_t no
   this->drain_closes_(now_ms);
 }
 
-void QnetdServer::handle_frame_(int slot, MsgType type, const uint8_t *frame, size_t frame_len, const uint8_t *payload,
+void QnetdServer::handle_frame_(int slot, MsgType type, uint8_t *frame, size_t frame_len, const uint8_t *payload,
                                 size_t payload_len, uint64_t now_ms) {
   MsgDecoded m;
   if (!msg_decode(type, payload, payload_len, m)) {
@@ -156,7 +159,9 @@ void QnetdServer::handle_frame_(int slot, MsgType type, const uint8_t *frame, si
       this->handle_set_option_(slot, m, now_ms);
       break;
     case MsgType::MSG_TYPE_ECHO_REQUEST:
-      this->send_(slot, build_echo_reply(frame, frame_len));
+      // the reply is the request with its type rewritten; no copy needed
+      patch_frame_type(frame, MsgType::MSG_TYPE_ECHO_REPLY);
+      this->transport_->send_frame(slot, frame, frame_len);
       break;
     case MsgType::MSG_TYPE_NODE_LIST:
       this->handle_node_list_(slot, m);
@@ -195,50 +200,27 @@ void QnetdServer::handle_preinit_(int slot, const MsgDecoded &m) {
   }
   s.cluster_name = m.cluster_name;
   s.phase = Phase::PHASE_WAIT_INIT;
-  this->send_(slot, build_preinit_reply(m.seq_number_set, m.seq_number, TlsMode::TLS_MODE_UNSUPPORTED, 0));
+  build_preinit_reply(this->tx_, m.seq_number_set, m.seq_number, TlsMode::TLS_MODE_UNSUPPORTED, 0);
+  this->send_(slot);
 }
 
 void QnetdServer::handle_init_(int slot, const MsgDecoded &m, uint64_t now_ms) {
   Session &s = this->sessions_[slot];
+  if (s.phase == Phase::PHASE_ACTIVE) {
+    // a second INIT must not touch the admitted session's identity
+    this->send_err_(slot, m, ReplyError::REPLY_ERROR_UNEXPECTED_MESSAGE);
+    return;
+  }
+
+  // validate everything first; the session is only written on success
   ReplyError code = ReplyError::REPLY_ERROR_NO_ERROR;
-
-  if (s.phase == Phase::PHASE_ACTIVE)
-    code = ReplyError::REPLY_ERROR_UNEXPECTED_MESSAGE;
-
-  if (code == ReplyError::REPLY_ERROR_NO_ERROR && !m.node_id_set)
+  if (!m.node_id_set || !m.ring_id_set || !m.heartbeat_interval_set || !m.tie_breaker_set ||
+      !m.decision_algorithm_set) {
     code = ReplyError::REPLY_ERROR_DOESNT_CONTAIN_REQUIRED_OPTION;
-  else
-    s.node_id = m.node_id;
-
-  if (code == ReplyError::REPLY_ERROR_NO_ERROR && !m.ring_id_set)
-    code = ReplyError::REPLY_ERROR_DOESNT_CONTAIN_REQUIRED_OPTION;
-  else
-    s.last_ring_id = m.ring_id;
-
-  if (code == ReplyError::REPLY_ERROR_NO_ERROR) {
-    if (!m.heartbeat_interval_set) {
-      code = ReplyError::REPLY_ERROR_DOESNT_CONTAIN_REQUIRED_OPTION;
-    } else if (m.heartbeat_interval < HEARTBEAT_MIN_MS || m.heartbeat_interval > HEARTBEAT_MAX_MS) {
-      code = ReplyError::REPLY_ERROR_INVALID_HEARTBEAT_INTERVAL;
-    } else {
-      s.heartbeat_ms = m.heartbeat_interval;
-    }
-  }
-
-  if (code == ReplyError::REPLY_ERROR_NO_ERROR) {
-    if (!m.tie_breaker_set)
-      code = ReplyError::REPLY_ERROR_DOESNT_CONTAIN_REQUIRED_OPTION;
-    else
-      s.tie_breaker = m.tie_breaker;
-  }
-
-  if (code == ReplyError::REPLY_ERROR_NO_ERROR) {
-    if (!m.decision_algorithm_set)
-      code = ReplyError::REPLY_ERROR_DOESNT_CONTAIN_REQUIRED_OPTION;
-    else if (m.decision_algorithm != Algorithm::ALGORITHM_FFSPLIT)
-      code = ReplyError::REPLY_ERROR_UNSUPPORTED_DECISION_ALGORITHM;
-    else
-      s.algorithm = m.decision_algorithm;
+  } else if (m.heartbeat_interval < HEARTBEAT_MIN_MS || m.heartbeat_interval > HEARTBEAT_MAX_MS) {
+    code = ReplyError::REPLY_ERROR_INVALID_HEARTBEAT_INTERVAL;
+  } else if (m.decision_algorithm != Algorithm::ALGORITHM_FFSPLIT) {
+    code = ReplyError::REPLY_ERROR_UNSUPPORTED_DECISION_ALGORITHM;
   }
 
   // consistency with existing members of the same cluster (upstream
@@ -248,41 +230,49 @@ void QnetdServer::handle_init_(int slot, const MsgDecoded &m, uint64_t now_ms) {
       const Session &o = this->sessions_[i];
       if (i == slot || o.phase != Phase::PHASE_ACTIVE || o.cluster_name != s.cluster_name)
         continue;
-      if (!(s.tie_breaker == o.tie_breaker)) {
+      if (!(m.tie_breaker == o.tie_breaker)) {
         code = ReplyError::REPLY_ERROR_TIE_BREAKER_DIFFERS_FROM_OTHER_NODES;
         break;
       }
-      if (s.algorithm != o.algorithm) {
+      if (m.decision_algorithm != o.algorithm) {
         code = ReplyError::REPLY_ERROR_ALGORITHM_DIFFERS_FROM_OTHER_NODES;
         break;
       }
-      if (s.node_id == o.node_id) {
+      if (m.node_id == o.node_id) {
         code = ReplyError::REPLY_ERROR_DUPLICATE_NODE_ID;
         break;
       }
     }
   }
 
+  int c = -1;
   if (code == ReplyError::REPLY_ERROR_NO_ERROR) {
-    int c = this->find_or_create_cluster_(s.cluster_name);
-    if (c < 0) {
+    c = this->find_or_create_cluster_(s.cluster_name);
+    if (c < 0)
       code = ReplyError::REPLY_ERROR_INTERNAL_ERROR;
-    } else {
-      s.cluster = c;
-      if (this->clusters_[c].members == 0) {
-        this->clusters_[c].state = FfClusterState::FF_CLUSTER_STATE_WAITING_FOR_CHANGE;
-        this->clusters_[c].quorate_partition.clear();
-      }
-      this->clusters_[c].members++;
-      s.phase = Phase::PHASE_ACTIVE;
-      this->reschedule_dpd_(s, now_ms);
-      ESP_LOGI(TAG, "cluster \"%s\": node %" PRIu32 " joined (%s, hb %" PRIu32 " ms)", s.cluster_name.c_str(),
-               s.node_id, s.peer, s.heartbeat_ms);
-    }
   }
 
-  this->send_(slot, build_init_reply(m.seq_number_set, m.seq_number, code, m.supported_messages_present,
-                                     m.supported_options_present, MAX_RX_FRAME, MAX_RX_FRAME));
+  if (code == ReplyError::REPLY_ERROR_NO_ERROR) {
+    s.node_id = m.node_id;
+    s.last_ring_id = m.ring_id;
+    s.heartbeat_ms = m.heartbeat_interval;
+    s.tie_breaker = m.tie_breaker;
+    s.algorithm = m.decision_algorithm;
+    s.cluster = c;
+    if (this->clusters_[c].members == 0) {
+      this->clusters_[c].state = FfClusterState::FF_CLUSTER_STATE_WAITING_FOR_CHANGE;
+      this->clusters_[c].quorate_partition.clear();
+    }
+    this->clusters_[c].members++;
+    s.phase = Phase::PHASE_ACTIVE;
+    this->reschedule_dpd_(s, now_ms);
+    ESP_LOGI(TAG, "cluster \"%s\": node %" PRIu32 " joined (%s, hb %" PRIu32 " ms)", s.cluster_name.c_str(), s.node_id,
+             s.peer, s.heartbeat_ms);
+  }
+
+  build_init_reply(this->tx_, m.seq_number_set, m.seq_number, code, m.supported_messages_present,
+                   m.supported_options_present, MAX_RX_FRAME, MAX_RX_FRAME);
+  this->send_(slot);
   this->notify_();
 }
 
@@ -298,9 +288,9 @@ void QnetdServer::handle_set_option_(int slot, const MsgDecoded &m, uint64_t now
   }
   if (m.keep_active_partition_tie_breaker_set)
     s.keep_active_partition_tb = m.keep_active_partition_tie_breaker != 0;
-  this->send_(slot,
-              build_set_option_reply(m.seq_number_set, m.seq_number, m.heartbeat_interval_set, s.heartbeat_ms,
-                                     m.keep_active_partition_tie_breaker_set, s.keep_active_partition_tb ? 1 : 0));
+  build_set_option_reply(this->tx_, m.seq_number_set, m.seq_number, m.heartbeat_interval_set, s.heartbeat_ms,
+                         m.keep_active_partition_tie_breaker_set, s.keep_active_partition_tb ? 1 : 0);
+  this->send_(slot);
 }
 
 // ---------------------------------------------------------------- node lists
@@ -317,8 +307,9 @@ void QnetdServer::handle_node_list_(int slot, const MsgDecoded &m) {
   switch (m.node_list_type) {
     case NodeListType::NODE_LIST_TYPE_INITIAL_CONFIG:
     case NodeListType::NODE_LIST_TYPE_CHANGED_CONFIG: {
-      // upstream ffsplit config_node_list_received
-      if (m.nodes.empty() || m.nodes.find(s.node_id) == nullptr) {
+      // upstream ffsplit config_node_list_received; duplicates would skew the
+      // size-based majority count, so they are rejected as well
+      if (m.nodes.empty() || m.nodes.find(s.node_id) == nullptr || m.nodes.has_duplicates()) {
         this->send_err_(slot, m, ReplyError::REPLY_ERROR_INVALID_CONFIG_NODE_LIST);
         return;
       }
@@ -336,7 +327,7 @@ void QnetdServer::handle_node_list_(int slot, const MsgDecoded &m) {
         this->send_err_(slot, m, ReplyError::REPLY_ERROR_DOESNT_CONTAIN_REQUIRED_OPTION);
         return;
       }
-      if (m.nodes.empty() || m.nodes.find(s.node_id) == nullptr) {
+      if (m.nodes.empty() || m.nodes.find(s.node_id) == nullptr || m.nodes.has_duplicates()) {
         this->send_err_(slot, m, ReplyError::REPLY_ERROR_INVALID_MEMBERSHIP_NODE_LIST);
         return;
       }
@@ -367,8 +358,6 @@ void QnetdServer::handle_node_list_(int slot, const MsgDecoded &m) {
     case NodeListType::NODE_LIST_TYPE_INITIAL_CONFIG:
     case NodeListType::NODE_LIST_TYPE_CHANGED_CONFIG:
       s.config_list = m.nodes;
-      s.config_version_set = m.config_version_set;
-      s.config_version = m.config_version;
       break;
     case NodeListType::NODE_LIST_TYPE_MEMBERSHIP:
       s.membership_list = m.nodes;
@@ -379,11 +368,11 @@ void QnetdServer::handle_node_list_(int slot, const MsgDecoded &m) {
       break;  // informative only, nothing to keep
   }
 
-  s.last_sent_vote = result;
   if (result == Vote::VOTE_ACK || result == Vote::VOTE_NACK)
     s.last_ack_nack = result;
 
-  this->send_(slot, build_node_list_reply(m.seq_number, m.node_list_type, s.last_ring_id, result));
+  build_node_list_reply(this->tx_, m.seq_number, m.node_list_type, s.last_ring_id, result);
+  this->send_(slot);
   this->notify_();
 }
 
@@ -437,19 +426,20 @@ void QnetdServer::handle_heuristics_change_(int slot, const MsgDecoded &m) {
     return;
   }
   s.last_heuristics = m.heuristics;
-  s.last_sent_vote = result;
   if (result == Vote::VOTE_ACK || result == Vote::VOTE_NACK)
     s.last_ack_nack = result;
-  this->send_(slot, build_heuristics_change_reply(m.seq_number_set, m.seq_number, result));
+  build_heuristics_change_reply(this->tx_, m.seq_number_set, m.seq_number, result);
+  this->send_(slot);
   this->notify_();
 }
 
 // ---------------------------------------------------------------- clusters
 
 int QnetdServer::find_or_create_cluster_(const std::string &name) {
-  for (int i = 0; i < MAX_CLUSTERS; i++)
+  for (int i = 0; i < MAX_CLUSTERS; i++) {
     if (this->clusters_[i].used && this->clusters_[i].name == name)
       return i;
+  }
   for (int i = 0; i < MAX_CLUSTERS; i++) {
     if (!this->clusters_[i].used) {
       this->clusters_[i] = Cluster();
@@ -505,9 +495,10 @@ bool QnetdServer::ffsplit_is_stable_(const TriggerView &tv) const {
         continue;
       const NodeList *l1 = this->eff_config_(c1, tv);
       const NodeList *l2 = this->eff_config_(c2, tv);
-      for (const auto &n : l1->nodes)
+      for (const auto &n : l1->nodes) {
         if (l2->find(n.node_id) == nullptr)
           return false;
+      }
     }
   }
   // 2. clients within one partition share ring id and membership set
@@ -533,9 +524,10 @@ bool QnetdServer::ffsplit_is_stable_(const TriggerView &tv) const {
       const RingId *ring2 = this->eff_ring_(*c2, tv);
       if (*ring1 != *ring2)
         return false;
-      for (const auto &n3 : mem1->nodes)
+      for (const auto &n3 : mem1->nodes) {
         if (mem2->find(n3.node_id) == nullptr)
           return false;
+      }
     }
   }
   return true;
@@ -546,16 +538,18 @@ bool QnetdServer::ffsplit_is_preferred_partition_(const Session *c, const NodeLi
   switch (c->tie_breaker.mode) {
     case TieBreakerMode::TIE_BREAKER_MODE_LOWEST: {
       preferred = cfg->nodes[0].node_id;
-      for (const auto &n : cfg->nodes)
+      for (const auto &n : cfg->nodes) {
         if (n.node_id < preferred)
           preferred = n.node_id;
+      }
       break;
     }
     case TieBreakerMode::TIE_BREAKER_MODE_HIGHEST: {
       preferred = cfg->nodes[0].node_id;
-      for (const auto &n : cfg->nodes)
+      for (const auto &n : cfg->nodes) {
         if (n.node_id > preferred)
           preferred = n.node_id;
+      }
       break;
     }
     case TieBreakerMode::TIE_BREAKER_MODE_NODE_ID:
@@ -578,10 +572,11 @@ void QnetdServer::ffsplit_partition_stats_(const Session *c, const NodeList *mem
         continue;
       clients++;
       Heuristics eff = (&s == c) ? h : s.last_heuristics;
-      if (eff == Heuristics::HEURISTICS_PASS)
+      if (eff == Heuristics::HEURISTICS_PASS) {
         pass++;
-      else if (eff == Heuristics::HEURISTICS_FAIL)
+      } else if (eff == Heuristics::HEURISTICS_FAIL) {
         fail++;
+      }
       break;
     }
   }
@@ -666,10 +661,11 @@ void QnetdServer::ffsplit_update_states_(const TriggerView &tv, const NodeList *
       s.ff_state = FfClientState::FF_CLIENT_STATE_WAITING_FOR_CHANGE;
       continue;
     }
-    if (winner == nullptr || winner->find(s.node_id) == nullptr)
+    if (winner == nullptr || winner->find(s.node_id) == nullptr) {
       s.ff_state = FfClientState::FF_CLIENT_STATE_SENDING_NACK;
-    else
+    } else {
       s.ff_state = FfClientState::FF_CLIENT_STATE_SENDING_ACK;
+    }
   }
 }
 
@@ -690,11 +686,11 @@ size_t QnetdServer::ffsplit_send_votes_(const TriggerView &tv, bool send_acks) {
     const RingId *ring = this->eff_ring_(s, tv);
     s.vote_info_seq++;
     sent++;
-    s.last_sent_vote = v;
     s.last_ack_nack = v;
     ESP_LOGI(TAG, "cluster \"%s\": vote-info %s -> node %" PRIu32 " (ring %" PRIu32 "/%" PRIu64 ")",
              this->clusters_[cluster].name.c_str(), vote_str(v), s.node_id, ring->node_id, ring->seq);
-    this->send_(i, build_vote_info(s.vote_info_seq, *ring, v));
+    build_vote_info(this->tx_, s.vote_info_seq, *ring, v);
+    this->send_(i);
   }
   return sent;
 }
@@ -733,7 +729,7 @@ ReplyError QnetdServer::ffsplit_do_(const TriggerView &tv, Vote &result) {
   NodeList new_quorate = winner ? *winner : NodeList();
 
   this->ffsplit_update_states_(tv, winner);
-  cl.quorate_partition = std::move(new_quorate);
+  cl.quorate_partition = new_quorate;
 
   cl.state = FfClusterState::FF_CLUSTER_STATE_SENDING_NACKS;
   if (this->ffsplit_send_votes_(tv, false) == 0) {
@@ -749,16 +745,18 @@ ReplyError QnetdServer::ffsplit_do_(const TriggerView &tv, Vote &result) {
 
 int QnetdServer::connected_clients() const {
   int n = 0;
-  for (const auto &s : this->sessions_)
+  for (const auto &s : this->sessions_) {
     if (s.phase == Phase::PHASE_ACTIVE)
       n++;
+  }
   return n;
 }
 
 bool QnetdServer::any_ack() const {
-  for (const auto &s : this->sessions_)
+  for (const auto &s : this->sessions_) {
     if (s.phase == Phase::PHASE_ACTIVE && s.last_ack_nack == Vote::VOTE_ACK)
       return true;
+  }
   return false;
 }
 

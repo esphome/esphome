@@ -1,4 +1,6 @@
-// Frame decode/encode, mirroring corosync-qdevice qdevices/msg.{h,c}.
+// Frame decode/encode, mirroring corosync-qdevice qdevices/msg.{h,c},
+// Copyright (c) 2015-2020 Red Hat, Inc., BSD 3-Clause; see LICENSE.txt in
+// this directory.
 #pragma once
 #include <string>
 #include "qnetd_tlv.h"
@@ -55,20 +57,23 @@ struct MsgDecoded {
 bool msg_decode(MsgType type, const uint8_t *payload, size_t len, MsgDecoded &out);
 
 // --- frame builders (server -> client) ---
-// Each returns a complete frame incl. header.
+// Each writes a complete frame incl. header into `out`, which is cleared first.
+// Callers reuse one Frame so its capacity persists and no heap traffic occurs
+// after the first few messages.
 
 using Frame = std::vector<uint8_t>;
 
-Frame build_preinit_reply(bool seq_set, uint32_t seq, TlsMode tls, uint8_t cert_required);
-Frame build_server_error(bool seq_set, uint32_t seq, ReplyError code);
-Frame build_init_reply(bool seq_set, uint32_t seq, ReplyError code, bool include_supported_messages,
-                       bool include_supported_options, uint32_t max_request_size, uint32_t max_reply_size);
-Frame build_set_option_reply(bool seq_set, uint32_t seq, bool hb_set, uint32_t hb, bool kaptb_set, uint8_t kaptb);
-// Echo reply = byte copy of the request frame with the type rewritten.
-Frame build_echo_reply(const uint8_t *request_frame, size_t frame_len);
-Frame build_node_list_reply(uint32_t seq, NodeListType type, const RingId &ring, Vote vote);
-Frame build_vote_info(uint32_t seq, const RingId &ring, Vote vote);
-Frame build_heuristics_change_reply(bool seq_set, uint32_t seq, Vote vote);
+void build_preinit_reply(Frame &out, bool seq_set, uint32_t seq, TlsMode tls, uint8_t cert_required);
+void build_server_error(Frame &out, bool seq_set, uint32_t seq, ReplyError code);
+void build_init_reply(Frame &out, bool seq_set, uint32_t seq, ReplyError code, bool include_supported_messages,
+                      bool include_supported_options, uint32_t max_request_size, uint32_t max_reply_size);
+void build_set_option_reply(Frame &out, bool seq_set, uint32_t seq, bool hb_set, uint32_t hb, bool kaptb_set,
+                            uint8_t kaptb);
+void build_node_list_reply(Frame &out, uint32_t seq, NodeListType type, const RingId &ring, Vote vote);
+void build_vote_info(Frame &out, uint32_t seq, const RingId &ring, Vote vote);
+void build_heuristics_change_reply(Frame &out, bool seq_set, uint32_t seq, Vote vote);
+// An echo reply is the request frame with the type rewritten, in place.
+void patch_frame_type(uint8_t *frame, MsgType type);
 
 const char *vote_str(Vote v);
 const char *msg_type_str(MsgType t);

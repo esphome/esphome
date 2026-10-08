@@ -41,6 +41,7 @@ class Qnetd final : public Component, public QnetdTransport {
   struct Connection {
     std::unique_ptr<socket::Socket> sock;
     std::vector<uint8_t> tx;  // unsent remainder after a partial write
+    bool failed{false};       // a write hit a fatal error; torn down on the next loop pass
   };
 
   uint64_t now_ms_();

@@ -1,5 +1,6 @@
 // qnetd wire types and TLV encoding.
-// Ported from corosync-qdevice qdevices/tlv.{h,c} (BSD).
+// Ported from corosync-qdevice qdevices/tlv.{h,c}, Copyright (c) 2015-2020
+// Red Hat, Inc., BSD 3-Clause; see LICENSE.txt in this directory.
 #pragma once
 #include <cstddef>
 #include <cstdint>
@@ -161,6 +162,15 @@ struct NodeList {
         return &n;
     }
     return nullptr;
+  }
+  bool has_duplicates() const {
+    for (size_t i = 0; i < nodes.size(); i++) {
+      for (size_t j = i + 1; j < nodes.size(); j++) {
+        if (nodes[i].node_id == nodes[j].node_id)
+          return true;
+      }
+    }
+    return false;
   }
 };
 

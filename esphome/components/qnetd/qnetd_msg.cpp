@@ -1,3 +1,5 @@
+// Ported from corosync-qdevice qdevices/msg.c, Copyright (c) 2015-2020
+// Red Hat, Inc., BSD 3-Clause; see LICENSE.txt in this directory.
 #include "qnetd_msg.h"
 
 namespace esphome::qnetd {
@@ -161,45 +163,43 @@ bool msg_decode(MsgType type, const uint8_t *payload, size_t len, MsgDecoded &ou
 
 // --- builders ---
 
-static Frame begin_frame(MsgType type) {
-  Frame f;
+static void begin_frame(Frame &f, MsgType type) {
+  f.clear();
   be_put16(f, uint16_t(type));
   be_put32(f, 0);  // patched by end_frame
-  return f;
 }
 
-static Frame end_frame(Frame f) {
+static void end_frame(Frame &f) {
   uint32_t len = uint32_t(f.size() - MSG_HEADER_LEN);
   f[2] = uint8_t(len >> 24);
   f[3] = uint8_t(len >> 16);
   f[4] = uint8_t(len >> 8);
   f[5] = uint8_t(len);
-  return f;
 }
 
-Frame build_preinit_reply(bool seq_set, uint32_t seq, TlsMode tls, uint8_t cert_required) {
-  Frame f = begin_frame(MsgType::MSG_TYPE_PREINIT_REPLY);
-  TlvWriter w(f);
+void build_preinit_reply(Frame &out, bool seq_set, uint32_t seq, TlsMode tls, uint8_t cert_required) {
+  begin_frame(out, MsgType::MSG_TYPE_PREINIT_REPLY);
+  TlvWriter w(out);
   if (seq_set)
     w.add_u32(TlvOpt::TLV_OPT_MSG_SEQ_NUMBER, seq);
   w.add_u8(TlvOpt::TLV_OPT_TLS_SUPPORTED, uint8_t(tls));
   w.add_u8(TlvOpt::TLV_OPT_TLS_CLIENT_CERT_REQUIRED, cert_required);
-  return end_frame(std::move(f));
+  end_frame(out);
 }
 
-Frame build_server_error(bool seq_set, uint32_t seq, ReplyError code) {
-  Frame f = begin_frame(MsgType::MSG_TYPE_SERVER_ERROR);
-  TlvWriter w(f);
+void build_server_error(Frame &out, bool seq_set, uint32_t seq, ReplyError code) {
+  begin_frame(out, MsgType::MSG_TYPE_SERVER_ERROR);
+  TlvWriter w(out);
   if (seq_set)
     w.add_u32(TlvOpt::TLV_OPT_MSG_SEQ_NUMBER, seq);
   w.add_u16(TlvOpt::TLV_OPT_REPLY_ERROR_CODE, uint16_t(code));
-  return end_frame(std::move(f));
+  end_frame(out);
 }
 
-Frame build_init_reply(bool seq_set, uint32_t seq, ReplyError code, bool include_supported_messages,
-                       bool include_supported_options, uint32_t max_request_size, uint32_t max_reply_size) {
-  Frame f = begin_frame(MsgType::MSG_TYPE_INIT_REPLY);
-  TlvWriter w(f);
+void build_init_reply(Frame &out, bool seq_set, uint32_t seq, ReplyError code, bool include_supported_messages,
+                      bool include_supported_options, uint32_t max_request_size, uint32_t max_reply_size) {
+  begin_frame(out, MsgType::MSG_TYPE_INIT_REPLY);
+  TlvWriter w(out);
   if (seq_set)
     w.add_u32(TlvOpt::TLV_OPT_MSG_SEQ_NUMBER, seq);
   w.add_u16(TlvOpt::TLV_OPT_REPLY_ERROR_CODE, uint16_t(code));
@@ -210,54 +210,53 @@ Frame build_init_reply(bool seq_set, uint32_t seq, ReplyError code, bool include
   w.add_u32(TlvOpt::TLV_OPT_SERVER_MAXIMUM_REQUEST_SIZE, max_request_size);
   w.add_u32(TlvOpt::TLV_OPT_SERVER_MAXIMUM_REPLY_SIZE, max_reply_size);
   w.add_u16_array(TlvOpt::TLV_OPT_SUPPORTED_DECISION_ALGORITHMS, SUPPORTED_ALGORITHMS, 1);
-  return end_frame(std::move(f));
+  end_frame(out);
 }
 
-Frame build_set_option_reply(bool seq_set, uint32_t seq, bool hb_set, uint32_t hb, bool kaptb_set, uint8_t kaptb) {
-  Frame f = begin_frame(MsgType::MSG_TYPE_SET_OPTION_REPLY);
-  TlvWriter w(f);
+void build_set_option_reply(Frame &out, bool seq_set, uint32_t seq, bool hb_set, uint32_t hb, bool kaptb_set,
+                            uint8_t kaptb) {
+  begin_frame(out, MsgType::MSG_TYPE_SET_OPTION_REPLY);
+  TlvWriter w(out);
   if (seq_set)
     w.add_u32(TlvOpt::TLV_OPT_MSG_SEQ_NUMBER, seq);
   if (hb_set)
     w.add_u32(TlvOpt::TLV_OPT_HEARTBEAT_INTERVAL, hb);
   if (kaptb_set)
     w.add_u8(TlvOpt::TLV_OPT_KEEP_ACTIVE_PARTITION_TIE_BREAKER, kaptb);
-  return end_frame(std::move(f));
+  end_frame(out);
 }
 
-Frame build_echo_reply(const uint8_t *request_frame, size_t frame_len) {
-  Frame f(request_frame, request_frame + frame_len);
-  f[0] = uint8_t(uint16_t(MsgType::MSG_TYPE_ECHO_REPLY) >> 8);
-  f[1] = uint8_t(uint16_t(MsgType::MSG_TYPE_ECHO_REPLY));
-  return f;
-}
-
-Frame build_node_list_reply(uint32_t seq, NodeListType type, const RingId &ring, Vote vote) {
-  Frame f = begin_frame(MsgType::MSG_TYPE_NODE_LIST_REPLY);
-  TlvWriter w(f);
+void build_node_list_reply(Frame &out, uint32_t seq, NodeListType type, const RingId &ring, Vote vote) {
+  begin_frame(out, MsgType::MSG_TYPE_NODE_LIST_REPLY);
+  TlvWriter w(out);
   w.add_u32(TlvOpt::TLV_OPT_MSG_SEQ_NUMBER, seq);
   w.add_u8(TlvOpt::TLV_OPT_NODE_LIST_TYPE, uint8_t(type));
   w.add_ring_id(ring);
   w.add_u8(TlvOpt::TLV_OPT_VOTE, uint8_t(vote));
-  return end_frame(std::move(f));
+  end_frame(out);
 }
 
-Frame build_vote_info(uint32_t seq, const RingId &ring, Vote vote) {
-  Frame f = begin_frame(MsgType::MSG_TYPE_VOTE_INFO);
-  TlvWriter w(f);
+void build_vote_info(Frame &out, uint32_t seq, const RingId &ring, Vote vote) {
+  begin_frame(out, MsgType::MSG_TYPE_VOTE_INFO);
+  TlvWriter w(out);
   w.add_u32(TlvOpt::TLV_OPT_MSG_SEQ_NUMBER, seq);
   w.add_u8(TlvOpt::TLV_OPT_VOTE, uint8_t(vote));
   w.add_ring_id(ring);
-  return end_frame(std::move(f));
+  end_frame(out);
 }
 
-Frame build_heuristics_change_reply(bool seq_set, uint32_t seq, Vote vote) {
-  Frame f = begin_frame(MsgType::MSG_TYPE_HEURISTICS_CHANGE_REPLY);
-  TlvWriter w(f);
+void build_heuristics_change_reply(Frame &out, bool seq_set, uint32_t seq, Vote vote) {
+  begin_frame(out, MsgType::MSG_TYPE_HEURISTICS_CHANGE_REPLY);
+  TlvWriter w(out);
   if (seq_set)
     w.add_u32(TlvOpt::TLV_OPT_MSG_SEQ_NUMBER, seq);
   w.add_u8(TlvOpt::TLV_OPT_VOTE, uint8_t(vote));
-  return end_frame(std::move(f));
+  end_frame(out);
+}
+
+void patch_frame_type(uint8_t *frame, MsgType type) {
+  frame[0] = uint8_t(uint16_t(type) >> 8);
+  frame[1] = uint8_t(uint16_t(type));
 }
 
 const char *vote_str(Vote v) {

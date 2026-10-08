@@ -47,8 +47,11 @@ void Qnetd::send_frame(int slot, const uint8_t *data, size_t len) {
   if (c.tx.empty()) {
     ssize_t n = c.sock->write(data, len);
     if (n < 0) {
-      if (errno != EWOULDBLOCK && errno != EAGAIN)
-        return;  // the read path will notice the broken socket
+      if (errno != EWOULDBLOCK && errno != EAGAIN) {
+        // we are inside a server callback, so the session is torn down from loop()
+        c.failed = true;
+        return;
+      }
       n = 0;
     }
     if (static_cast<size_t>(n) < len)
@@ -64,6 +67,7 @@ void Qnetd::close_connection(int slot) {
     c.sock->close();
   c.sock = nullptr;
   c.tx.clear();
+  c.failed = false;
 }
 
 void Qnetd::accept_connections_(uint64_t now) {
@@ -85,15 +89,24 @@ void Qnetd::accept_connections_(uint64_t now) {
     }
     this->connections_[slot].sock = std::move(sock);
     this->connections_[slot].tx.clear();
+    this->connections_[slot].failed = false;
   }
 }
 
 void Qnetd::service_connection_(int slot, uint64_t now) {
   Connection &c = this->connections_[slot];
-  if (!c.tx.empty()) {
+  if (!c.tx.empty() && !c.failed) {
     ssize_t n = c.sock->write(c.tx.data(), c.tx.size());
-    if (n > 0)
+    if (n > 0) {
       c.tx.erase(c.tx.begin(), c.tx.begin() + n);
+    } else if (n < 0 && errno != EWOULDBLOCK && errno != EAGAIN) {
+      c.failed = true;
+    }
+  }
+  if (c.failed) {
+    this->close_connection(slot);
+    this->server_.on_disconnected(slot, now);
+    return;
   }
   uint8_t buf[512];
   while (c.sock != nullptr) {

@@ -207,7 +207,8 @@ void ack_two_nodes(Rig &r, int &a, int &b, RingId ring = {2, 100}) {
 
 TEST(QnetdMsg, GoldenBytes) {
   // PREINIT_REPLY with seq 7: type 0x0001, len, TLVs: seq(0,4,7) tls(2,1,0) cert(3,1,0)
-  Frame f = build_preinit_reply(true, 7, TlsMode::TLS_MODE_UNSUPPORTED, 0);
+  Frame f;
+  build_preinit_reply(f, true, 7, TlsMode::TLS_MODE_UNSUPPORTED, 0);
   const uint8_t expect[] = {0x00, 0x01, 0x00, 0x00, 0x00, 0x12,              // header, len 18
                             0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x07,  // seq=7
                             0x00, 0x02, 0x00, 0x01, 0x00,                    // tls=0
@@ -216,7 +217,8 @@ TEST(QnetdMsg, GoldenBytes) {
   EXPECT_EQ(memcmp(f.data(), expect, sizeof(expect)), 0);
 
   // ring id encoding: node 4, seq 0xb7c
-  Frame v = build_vote_info(1, {4, 0xb7c}, Vote::VOTE_ACK);
+  Frame v;
+  build_vote_info(v, 1, {4, 0xb7c}, Vote::VOTE_ACK);
   // header(6) + seq tlv(8) + vote tlv(5) + ring tlv(16)
   ASSERT_EQ(v.size(), 6u + 8 + 5 + 16);
   const uint8_t ring_expect[] = {0x00, 0x0d, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x04,
@@ -561,6 +563,42 @@ TEST(QnetdServer, HeuristicsBreakTheSplit) {
   uint32_t sa = r.last_vote_info(a, va, mk);
   ASSERT_NE(sa, 0u);
   EXPECT_EQ(va, Vote::VOTE_ACK);
+}
+
+TEST(QnetdServer, DuplicateMembershipIdsRejected) {
+  // [self, self] would count as a majority of a two-node config; reject it
+  Rig r;
+  RingId ring{4, 1};
+  int a = r.join("testcluster", 4, ring);
+  r.feed(a, r.clients[a].config_list(NodeListType::NODE_LIST_TYPE_INITIAL_CONFIG, {2, 4}));
+  size_t mk = r.tp.mark();
+  r.feed(a, r.clients[a].membership(ring, {4, 4}));
+  auto fr = r.tp.frames_for(a, mk);
+  ASSERT_EQ(fr.size(), 1u);
+  EXPECT_EQ(fr[0].type, MsgType::MSG_TYPE_SERVER_ERROR);
+  EXPECT_TRUE(r.tp.closed.empty());
+  EXPECT_FALSE(r.server.any_ack());
+
+  // the same for a config list
+  mk = r.tp.mark();
+  r.feed(a, r.clients[a].config_list(NodeListType::NODE_LIST_TYPE_CHANGED_CONFIG, {4, 4}));
+  fr = r.tp.frames_for(a, mk);
+  ASSERT_EQ(fr.size(), 1u);
+  EXPECT_EQ(fr[0].type, MsgType::MSG_TYPE_SERVER_ERROR);
+}
+
+TEST(QnetdServer, RepeatedInitKeepsIdentity) {
+  Rig r;
+  int a, b;
+  ack_two_nodes(r, a, b);
+  size_t mk = r.tp.mark();
+  r.feed(a, r.clients[a].init(9, {9, 7}));
+  auto fr = r.tp.frames_for(a, mk);
+  ASSERT_EQ(fr.size(), 1u);
+  EXPECT_EQ(fr[0].type, MsgType::MSG_TYPE_SERVER_ERROR);
+  EXPECT_EQ(r.server.connected_clients(), 2);
+  EXPECT_EQ(r.server.status_string(), "testcluster: 4=ACK 2=ACK");
+  EXPECT_TRUE(r.tp.closed.empty());
 }
 
 TEST(QnetdServer, StatusAndStateChange) {

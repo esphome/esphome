@@ -1,7 +1,9 @@
 // qnetd server core: client sessions, message dispatch, dead-peer detection
 // and the ffsplit decision algorithm. Portable: no sockets, no clock; the
 // embedder drives on_connect/on_data/on_disconnected/tick and provides a
-// QnetdTransport. Ported from corosync-qdevice qdevices/qnetd-*.c (BSD).
+// QnetdTransport. Ported from corosync-qdevice qdevices/qnetd-*.c,
+// Copyright (c) 2015-2020 Red Hat, Inc., BSD 3-Clause; see LICENSE.txt in
+// this directory.
 #pragma once
 #include <array>
 #include <string>
@@ -12,7 +14,8 @@
 
 namespace esphome::qnetd {
 
-constexpr int MAX_CLIENTS = 8;
+// Two nodes of the arbitrated cluster plus slack for reconnect races.
+constexpr int MAX_CLIENTS = 4;
 constexpr int MAX_CLUSTERS = 2;
 constexpr uint32_t HEARTBEAT_MIN_MS = 1000;  // upstream qnetd defaults
 constexpr uint32_t HEARTBEAT_MAX_MS = 2 * 60 * 1000;
@@ -90,11 +93,8 @@ class QnetdServer {
     Algorithm algorithm = Algorithm::ALGORITHM_FFSPLIT;
     bool keep_active_partition_tb = true;  // upstream default enabled
     NodeList config_list;
-    bool config_version_set = false;
-    uint64_t config_version = 0;
     NodeList membership_list;
     Heuristics last_heuristics = Heuristics::HEURISTICS_UNDEFINED;
-    Vote last_sent_vote = Vote::VOTE_UNDEFINED;
     Vote last_ack_nack = Vote::VOTE_UNDEFINED;
     FfClientState ff_state = FfClientState::FF_CLIENT_STATE_WAITING_FOR_CHANGE;
     uint32_t vote_info_seq = 0;
@@ -106,9 +106,11 @@ class QnetdServer {
   };
 
   // --- plumbing ---
-  void send_(int slot, const Frame &f) { this->transport_->send_frame(slot, f.data(), f.size()); }
+  // Sends the frame built into tx_.
+  void send_(int slot) { this->transport_->send_frame(slot, this->tx_.data(), this->tx_.size()); }
   void send_err_(int slot, const MsgDecoded &m, ReplyError code) {
-    this->send_(slot, build_server_error(m.seq_number_set, m.seq_number, code));
+    build_server_error(this->tx_, m.seq_number_set, m.seq_number, code);
+    this->send_(slot);
   }
   void drain_closes_(uint64_t now_ms);
   void disconnect_client_(int slot, uint64_t now_ms, const char *why);
@@ -116,7 +118,7 @@ class QnetdServer {
   void notify_();
 
   // --- message handlers ---
-  void handle_frame_(int slot, MsgType type, const uint8_t *frame, size_t frame_len, const uint8_t *payload,
+  void handle_frame_(int slot, MsgType type, uint8_t *frame, size_t frame_len, const uint8_t *payload,
                      size_t payload_len, uint64_t now_ms);
   void handle_preinit_(int slot, const MsgDecoded &m);
   void handle_init_(int slot, const MsgDecoded &m, uint64_t now_ms);
@@ -161,6 +163,7 @@ class QnetdServer {
   }
 
   QnetdTransport *transport_;
+  Frame tx_;  // reused for every outgoing frame
   std::array<Session, MAX_CLIENTS> sessions_;
   std::array<Cluster, MAX_CLUSTERS> clusters_;
   StaticVector<int, MAX_CLIENTS> pending_close_;
