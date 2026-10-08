@@ -1,7 +1,9 @@
+# Config only: the S2 compiles the same ADC code as the esp32-c2-idf build
+# (line fitting calibration without default_vref), only the pin table differs.
 sensor:
   - id: adc_my_sensor
     platform: adc
-    pin: GPIO16
+    pin: GPIO1
     name: ADC Test sensor
     update_interval: "1:01"
     attenuation: 2.5db

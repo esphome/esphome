@@ -1,3 +1,5 @@
+# Config only: every LibreTiny chip compiles the same ADC code, covered by the
+# ln882x-ard build; this checks the BK72xx analog pin names.
 sensor:
   - id: adc_my_sensor
     platform: adc
