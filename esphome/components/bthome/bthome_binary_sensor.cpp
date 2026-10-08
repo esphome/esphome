@@ -10,7 +10,7 @@
 
 namespace esphome::bthome {
 
-static const char *const TAG = "bthome.button";
+ESPHOME_LOG_TAG(TAG, "bthome.button");
 // Service-data UUID 0xFCD2, little-endian, the same pair mithermometer matches.
 static constexpr uint8_t BTHOME_UUID_LO = 0xD2;
 static constexpr uint8_t BTHOME_UUID_HI = 0xFC;
