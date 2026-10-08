@@ -536,6 +536,16 @@ def create_field_type_info(
             f"track_presence on field '{field.name}' has no effect; it requires "
             "a non-repeated message field in a message that is decoded"
         )
+    if get_field_opt(field, pb.progmem, False) and (
+        field.label == FieldDescriptorProto.LABEL_REPEATED
+        or field.type != 12
+        or not get_field_opt(field, pb.pointer_to_buffer, False)
+        or get_field_opt(field, pb.fixed_array_size) is not None
+    ):
+        raise ValueError(
+            f"progmem on field '{field.name}' requires a non-repeated bytes field "
+            "with pointer_to_buffer"
+        )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
         if get_field_opt(field, pb.packed_buffer, False):
@@ -2623,6 +2633,11 @@ def build_message_type(
         ):
             fixed_vector_fields.append((field.name, field.number))
 
+        if needs_decode and get_field_opt(field, pb.progmem, False):
+            raise ValueError(
+                f"progmem on field '{field.name}' of {desc.name} requires a message "
+                "that is only encoded; received data is never in flash"
+            )
         ti = create_field_type_info(field, needs_decode, needs_encode)
 
         # Skip field declarations for fields that are in the base class
