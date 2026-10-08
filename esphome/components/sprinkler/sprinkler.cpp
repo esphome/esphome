@@ -10,7 +10,7 @@
 
 namespace esphome::sprinkler {
 
-static const char *const TAG = "sprinkler";
+ESPHOME_LOG_TAG(TAG, "sprinkler");
 
 void SprinklerControllerNumber::setup() {
   float value;

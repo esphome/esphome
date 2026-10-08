@@ -4,7 +4,7 @@
 
 namespace esphome::bme680 {
 
-static const char *const TAG = "bme680.sensor";
+ESPHOME_LOG_TAG(TAG, "bme680.sensor");
 
 static const uint8_t BME680_REGISTER_COEFF1 = 0x89;
 static const uint8_t BME680_REGISTER_COEFF2 = 0xE1;

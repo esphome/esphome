@@ -3,7 +3,7 @@
 
 namespace esphome::output {
 
-static const char *const TAG = "output.button";
+ESPHOME_LOG_TAG(TAG, "output.button");
 
 void OutputButton::dump_config() {
   LOG_BUTTON("", "Output Button", this);

@@ -19,7 +19,7 @@ static const uint32_t READ_DURATION_MS = 16;
 static const size_t TASK_STACK_SIZE = 4096;
 static const ssize_t TASK_PRIORITY = 23;
 
-static const char *const TAG = "i2s_audio.microphone";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.microphone");
 
 enum MicrophoneEventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),  // stops the microphone task, set and cleared by ``loop``
