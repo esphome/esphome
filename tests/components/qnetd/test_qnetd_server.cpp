@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "esphome/components/qnetd/qnetd_server.h"
@@ -171,6 +172,11 @@ struct Rig {
         n++;
     }
     return n;
+  }
+  std::string status() const {
+    char buf[256];
+    server.status_to(buf);
+    return buf;
   }
   bool was_closed(int slot) const {
     for (int c : tp.closed) {
@@ -597,19 +603,45 @@ TEST(QnetdServer, RepeatedInitKeepsIdentity) {
   ASSERT_EQ(fr.size(), 1u);
   EXPECT_EQ(fr[0].type, MsgType::MSG_TYPE_SERVER_ERROR);
   EXPECT_EQ(r.server.connected_clients(), 2);
-  EXPECT_EQ(r.server.status_string(), "testcluster: 4=ACK 2=ACK");
+  EXPECT_EQ(r.status(), "testcluster: 4=ACK 2=ACK");
   EXPECT_TRUE(r.tp.closed.empty());
+}
+
+TEST(QnetdServer, HandshakeDeadlineIsNotExtendedByTraffic) {
+  // a peer that never completes INIT must lose its slot after
+  // PREACTIVE_TIMEOUT_MS no matter how often it sends something
+  Rig r;
+  int s = r.connect();
+  r.feed(s, r.clients[s].preinit("testcluster"));
+  for (int i = 0; i < 5; i++) {
+    r.now += PREACTIVE_TIMEOUT_MS / 4;
+    r.server.tick(r.now);
+    uint8_t byte = 0;
+    r.server.on_data(s, &byte, 1, r.now);  // a partial header, never a frame
+  }
+  EXPECT_TRUE(r.was_closed(s));
+}
+
+TEST(QnetdServer, OversizedClusterNameIsMalformed) {
+  Rig r;
+  int s = r.connect();
+  std::string name(MAX_CLUSTER_NAME_LEN + 1, 'x');
+  r.feed(s, r.clients[s].preinit(name.c_str()));
+  auto fr = r.tp.frames_for(s);
+  ASSERT_EQ(fr.size(), 1u);
+  EXPECT_EQ(fr[0].type, MsgType::MSG_TYPE_SERVER_ERROR);
+  EXPECT_TRUE(r.was_closed(s));
 }
 
 TEST(QnetdServer, StatusAndStateChange) {
   Rig r;
   EXPECT_FALSE(r.server.consume_state_change());
-  EXPECT_EQ(r.server.status_string(), "idle");
+  EXPECT_EQ(r.status(), "idle");
   int a, b;
   ack_two_nodes(r, a, b);
   EXPECT_TRUE(r.server.consume_state_change());
   EXPECT_FALSE(r.server.consume_state_change());
-  EXPECT_EQ(r.server.status_string(), "testcluster: 4=ACK 2=ACK");
+  EXPECT_EQ(r.status(), "testcluster: 4=ACK 2=ACK");
   EXPECT_GE(r.server.decisions(), 1u);
 }
 

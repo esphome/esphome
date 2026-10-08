@@ -2,6 +2,7 @@
 // Red Hat, Inc., BSD 3-Clause; see LICENSE.txt in this directory.
 #include "qnetd_server.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -71,11 +72,11 @@ void QnetdServer::drain_closes_(uint64_t now_ms) {
 }
 
 void QnetdServer::reschedule_dpd_(Session &s, uint64_t now_ms) {
-  if (s.phase == Phase::PHASE_ACTIVE && s.heartbeat_ms > 0) {
+  // Only an active session earns a new deadline; before INIT succeeds the
+  // deadline set by on_connect() stands, so a peer cannot hold a slot by
+  // trickling bytes.
+  if (s.phase == Phase::PHASE_ACTIVE && s.heartbeat_ms > 0)
     s.deadline_ms = now_ms + uint64_t(DPD_COEFFICIENT * s.heartbeat_ms);
-  } else if (s.phase != Phase::PHASE_FREE && s.phase != Phase::PHASE_ACTIVE) {
-    s.deadline_ms = now_ms + PREACTIVE_TIMEOUT_MS;
-  }
 }
 
 void QnetdServer::tick(uint64_t now_ms) {
@@ -190,7 +191,7 @@ void QnetdServer::handle_frame_(int slot, MsgType type, uint8_t *frame, size_t f
 
 void QnetdServer::handle_preinit_(int slot, const MsgDecoded &m) {
   Session &s = this->sessions_[slot];
-  if (m.cluster_name.empty()) {
+  if (!m.cluster_name_set) {
     this->send_err_(slot, m, ReplyError::REPLY_ERROR_DOESNT_CONTAIN_REQUIRED_OPTION);
     return;
   }
@@ -198,7 +199,7 @@ void QnetdServer::handle_preinit_(int slot, const MsgDecoded &m) {
     this->send_err_(slot, m, ReplyError::REPLY_ERROR_UNEXPECTED_MESSAGE);
     return;
   }
-  s.cluster_name = m.cluster_name;
+  snprintf(s.cluster_name, sizeof(s.cluster_name), "%s", m.cluster_name);
   s.phase = Phase::PHASE_WAIT_INIT;
   build_preinit_reply(this->tx_, m.seq_number_set, m.seq_number, TlsMode::TLS_MODE_UNSUPPORTED, 0);
   this->send_(slot);
@@ -228,7 +229,7 @@ void QnetdServer::handle_init_(int slot, const MsgDecoded &m, uint64_t now_ms) {
   if (code == ReplyError::REPLY_ERROR_NO_ERROR) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
       const Session &o = this->sessions_[i];
-      if (i == slot || o.phase != Phase::PHASE_ACTIVE || o.cluster_name != s.cluster_name)
+      if (i == slot || o.phase != Phase::PHASE_ACTIVE || strcmp(o.cluster_name, s.cluster_name) != 0)
         continue;
       if (!(m.tie_breaker == o.tie_breaker)) {
         code = ReplyError::REPLY_ERROR_TIE_BREAKER_DIFFERS_FROM_OTHER_NODES;
@@ -266,8 +267,8 @@ void QnetdServer::handle_init_(int slot, const MsgDecoded &m, uint64_t now_ms) {
     this->clusters_[c].members++;
     s.phase = Phase::PHASE_ACTIVE;
     this->reschedule_dpd_(s, now_ms);
-    ESP_LOGI(TAG, "cluster \"%s\": node %" PRIu32 " joined (%s, hb %" PRIu32 " ms)", s.cluster_name.c_str(), s.node_id,
-             s.peer, s.heartbeat_ms);
+    ESP_LOGI(TAG, "cluster \"%s\": node %" PRIu32 " joined (%s, hb %" PRIu32 " ms)", s.cluster_name, s.node_id, s.peer,
+             s.heartbeat_ms);
   }
 
   build_init_reply(this->tx_, m.seq_number_set, m.seq_number, code, m.supported_messages_present,
@@ -392,7 +393,7 @@ void QnetdServer::handle_vote_info_reply_(int slot, const MsgDecoded &m) {
   Cluster &cl = this->clusters_[s.cluster];
   if (cl.state == FfClusterState::FF_CLUSTER_STATE_SENDING_NACKS) {
     if (this->ffsplit_count_state_(s.cluster, FfClientState::FF_CLIENT_STATE_SENDING_NACK) == 0) {
-      ESP_LOGD(TAG, "cluster \"%s\": all NACKs acknowledged", cl.name.c_str());
+      ESP_LOGD(TAG, "cluster \"%s\": all NACKs acknowledged", cl.name);
       cl.state = FfClusterState::FF_CLUSTER_STATE_SENDING_ACKS;
       TriggerView tv{slot, false, &s.last_ring_id, &s.config_list, &s.membership_list, s.last_heuristics};
       if (this->ffsplit_send_votes_(tv, true) == 0)
@@ -400,7 +401,7 @@ void QnetdServer::handle_vote_info_reply_(int slot, const MsgDecoded &m) {
     }
   } else if (cl.state == FfClusterState::FF_CLUSTER_STATE_SENDING_ACKS) {
     if (this->ffsplit_count_state_(s.cluster, FfClientState::FF_CLIENT_STATE_SENDING_ACK) == 0) {
-      ESP_LOGD(TAG, "cluster \"%s\": all ACKs acknowledged", cl.name.c_str());
+      ESP_LOGD(TAG, "cluster \"%s\": all ACKs acknowledged", cl.name);
       cl.state = FfClusterState::FF_CLUSTER_STATE_WAITING_FOR_CHANGE;
     }
   }
@@ -435,16 +436,16 @@ void QnetdServer::handle_heuristics_change_(int slot, const MsgDecoded &m) {
 
 // ---------------------------------------------------------------- clusters
 
-int QnetdServer::find_or_create_cluster_(const std::string &name) {
+int QnetdServer::find_or_create_cluster_(const char *name) {
   for (int i = 0; i < MAX_CLUSTERS; i++) {
-    if (this->clusters_[i].used && this->clusters_[i].name == name)
+    if (this->clusters_[i].used && strcmp(this->clusters_[i].name, name) == 0)
       return i;
   }
   for (int i = 0; i < MAX_CLUSTERS; i++) {
     if (!this->clusters_[i].used) {
       this->clusters_[i] = Cluster();
       this->clusters_[i].used = true;
-      this->clusters_[i].name = name;
+      snprintf(this->clusters_[i].name, sizeof(this->clusters_[i].name), "%s", name);
       return i;
     }
   }
@@ -688,7 +689,7 @@ size_t QnetdServer::ffsplit_send_votes_(const TriggerView &tv, bool send_acks) {
     sent++;
     s.last_ack_nack = v;
     ESP_LOGI(TAG, "cluster \"%s\": vote-info %s -> node %" PRIu32 " (ring %" PRIu32 "/%" PRIu64 ")",
-             this->clusters_[cluster].name.c_str(), vote_str(v), s.node_id, ring->node_id, ring->seq);
+             this->clusters_[cluster].name, vote_str(v), s.node_id, ring->node_id, ring->seq);
     build_vote_info(this->tx_, s.vote_info_seq, *ring, v);
     this->send_(i);
   }
@@ -711,7 +712,7 @@ ReplyError QnetdServer::ffsplit_do_(const TriggerView &tv, Vote &result) {
 
   cl.state = FfClusterState::FF_CLUSTER_STATE_WAITING_FOR_STABLE_MEMBERSHIP;
   if (!this->ffsplit_is_stable_(tv)) {
-    ESP_LOGD(TAG, "cluster \"%s\": membership not yet stable", cl.name.c_str());
+    ESP_LOGD(TAG, "cluster \"%s\": membership not yet stable", cl.name);
     result = Vote::VOTE_WAIT_FOR_REPLY;
     return ReplyError::REPLY_ERROR_NO_ERROR;
   }
@@ -719,9 +720,9 @@ ReplyError QnetdServer::ffsplit_do_(const TriggerView &tv, Vote &result) {
   const NodeList *winner = this->ffsplit_select_partition_(tv);
   this->decisions_++;
   if (winner == nullptr) {
-    ESP_LOGW(TAG, "cluster \"%s\": no partition can be quorate", cl.name.c_str());
+    ESP_LOGW(TAG, "cluster \"%s\": no partition can be quorate", cl.name);
   } else {
-    ESP_LOGI(TAG, "cluster \"%s\": quorate partition selected (%u nodes)", cl.name.c_str(), (unsigned) winner->size());
+    ESP_LOGI(TAG, "cluster \"%s\": quorate partition selected (%u nodes)", cl.name, (unsigned) winner->size());
   }
 
   // note: winner may point at a client's stored list or the trigger's
@@ -760,25 +761,29 @@ bool QnetdServer::any_ack() const {
   return false;
 }
 
-std::string QnetdServer::status_string() const {
-  std::string out;
+size_t QnetdServer::status_to(std::span<char> buf) const {
+  if (buf.empty())
+    return 0;
+  size_t pos = 0;
+  auto put = [&](const char *fmt, auto... args) {
+    if (pos >= buf.size() - 1)
+      return;
+    int n = snprintf(buf.data() + pos, buf.size() - pos, fmt, args...);
+    if (n > 0)
+      pos = std::min(pos + size_t(n), buf.size() - 1);
+  };
   for (int c = 0; c < MAX_CLUSTERS; c++) {
     if (!this->clusters_[c].used)
       continue;
-    if (!out.empty())
-      out += " | ";
-    out += this->clusters_[c].name + ":";
+    put(pos == 0 ? "%s:" : " | %s:", this->clusters_[c].name);
     for (const auto &s : this->sessions_) {
-      if (s.phase != Phase::PHASE_ACTIVE || s.cluster != c)
-        continue;
-      char buf[48];
-      snprintf(buf, sizeof(buf), " %" PRIu32 "=%s", s.node_id, vote_str(s.last_ack_nack));
-      out += buf;
+      if (s.phase == Phase::PHASE_ACTIVE && s.cluster == c)
+        put(" %" PRIu32 "=%s", s.node_id, vote_str(s.last_ack_nack));
     }
   }
-  if (out.empty())
-    out = "idle";
-  return out;
+  if (pos == 0)
+    put("%s", "idle");
+  return pos;
 }
 
 }  // namespace esphome::qnetd

@@ -54,7 +54,11 @@ bool msg_decode(MsgType type, const uint8_t *payload, size_t len, MsgDecoded &ou
         out.seq_number_set = true;
         break;
       case TlvOpt::TLV_OPT_CLUSTER_NAME:
-        out.cluster_name.assign(reinterpret_cast<const char *>(d), l);
+        if (l == 0 || l > MAX_CLUSTER_NAME_LEN)
+          return false;
+        memcpy(out.cluster_name, d, l);
+        out.cluster_name[l] = '\0';
+        out.cluster_name_set = true;
         break;
       case TlvOpt::TLV_OPT_TLS_SUPPORTED:
         if (l != 1 || d[0] > 2)

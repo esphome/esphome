@@ -28,7 +28,11 @@ void Qnetd::setup() {
   }
   int enable = 1;
   this->listen_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-  this->listen_->setblocking(false);
+  if (this->listen_->setblocking(false) != 0) {
+    ESP_LOGE(TAG, "Could not make listening socket non-blocking: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
   struct sockaddr_storage server_addr;
   socklen_t sl =
       socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&server_addr), sizeof(server_addr), this->port_);
@@ -55,10 +59,18 @@ void Qnetd::send_frame(int slot, const uint8_t *data, size_t len) {
       n = 0;
     }
     if (static_cast<size_t>(n) < len)
-      c.tx.insert(c.tx.end(), data + n, data + len);
+      this->queue_tx_(c, data + n, len - n);
   } else {
-    c.tx.insert(c.tx.end(), data, data + len);
+    this->queue_tx_(c, data, len);
   }
+}
+
+void Qnetd::queue_tx_(Connection &c, const uint8_t *data, size_t len) {
+  if (c.tx.size() + len > MAX_TX_PENDING) {
+    c.failed = true;  // the peer stopped reading; torn down from loop()
+    return;
+  }
+  c.tx.insert(c.tx.end(), data, data + len);
 }
 
 void Qnetd::close_connection(int slot) {
@@ -77,7 +89,11 @@ void Qnetd::accept_connections_(uint64_t now) {
     auto sock = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&source_addr), &addr_len);
     if (sock == nullptr)
       break;
-    sock->setblocking(false);
+    if (sock->setblocking(false) != 0) {
+      ESP_LOGW(TAG, "Could not make client socket non-blocking: errno %d", errno);
+      sock->close();
+      continue;
+    }
     int nodelay = 1;
     sock->setsockopt(IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(int));
     char peername[socket::SOCKADDR_STR_LEN];

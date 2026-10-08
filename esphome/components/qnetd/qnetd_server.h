@@ -6,7 +6,7 @@
 // this directory.
 #pragma once
 #include <array>
-#include <string>
+#include <span>
 #include <vector>
 
 #include "esphome/core/defines.h"
@@ -52,7 +52,9 @@ class QnetdServer {
   // --- introspection (for entities / status) ---
   int connected_clients() const;
   bool any_ack() const;
-  std::string status_string() const;
+  // Writes a per-cluster "name: node=vote ..." summary (or "idle") into buf,
+  // truncating if needed; returns the length written.
+  size_t status_to(std::span<char> buf) const;
   uint32_t decisions() const { return this->decisions_; }
   // True once after anything observable changed (connections, votes).
   bool consume_state_change() {
@@ -77,7 +79,7 @@ class QnetdServer {
 
   struct Cluster {
     bool used = false;
-    std::string name;
+    char name[MAX_CLUSTER_NAME_LEN + 1] = "";
     int members = 0;
     FfClusterState state = FfClusterState::FF_CLUSTER_STATE_WAITING_FOR_CHANGE;
     NodeList quorate_partition;
@@ -86,7 +88,7 @@ class QnetdServer {
   struct Session {
     Phase phase = Phase::PHASE_FREE;
     char peer[PEER_NAME_LEN] = "";
-    std::string cluster_name;
+    char cluster_name[MAX_CLUSTER_NAME_LEN + 1] = "";
     int cluster = -1;  // index into clusters_, valid in PHASE_ACTIVE
     uint32_t node_id = 0;
     RingId last_ring_id;
@@ -130,7 +132,7 @@ class QnetdServer {
   void handle_heuristics_change_(int slot, const MsgDecoded &m);
 
   // --- cluster helpers ---
-  int find_or_create_cluster_(const std::string &name);
+  int find_or_create_cluster_(const char *name);
   void leave_cluster_(int slot);
 
   // --- ffsplit (port of qnetd-algo-ffsplit.c) ---

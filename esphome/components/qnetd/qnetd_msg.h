@@ -2,12 +2,13 @@
 // Copyright (c) 2015-2020 Red Hat, Inc., BSD 3-Clause; see LICENSE.txt in
 // this directory.
 #pragma once
-#include <string>
 #include "qnetd_tlv.h"
 
 namespace esphome::qnetd {
 
 constexpr size_t MSG_HEADER_LEN = 6;  // u16 type + u32 payload length
+// Bound for the cluster name carried in PREINIT; longer names are malformed.
+constexpr size_t MAX_CLUSTER_NAME_LEN = 64;
 
 // All 18 message types, advertised in INIT_REPLY.
 extern const uint16_t SUPPORTED_MESSAGES[18];
@@ -21,7 +22,8 @@ struct MsgDecoded {
 
   bool seq_number_set = false;
   uint32_t seq_number = 0;
-  std::string cluster_name;  // empty = not present (wire name is never empty)
+  bool cluster_name_set = false;
+  char cluster_name[MAX_CLUSTER_NAME_LEN + 1] = "";
   bool tls_supported_set = false;
   TlsMode tls_supported = TlsMode::TLS_MODE_UNSUPPORTED;
   bool tls_client_cert_required_set = false;

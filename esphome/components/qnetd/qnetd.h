@@ -4,7 +4,7 @@
 #pragma once
 #include <array>
 #include <memory>
-#include <string>
+#include <span>
 #include <vector>
 
 #include "esphome/components/socket/socket.h"
@@ -31,13 +31,17 @@ class Qnetd final : public Component, public QnetdTransport {
   int connected_clients() const { return this->server_.connected_clients(); }
   uint32_t decisions() const { return this->server_.decisions(); }
   bool vote_granted() const { return this->server_.any_ack(); }
-  std::string status_string() const { return this->server_.status_string(); }
+  size_t status_to(std::span<char> buf) const { return this->server_.status_to(buf); }
 
   // QnetdTransport
   void send_frame(int slot, const uint8_t *data, size_t len) override;
   void close_connection(int slot) override;
 
  protected:
+  // Unsent output allowed to queue while the peer stops reading; beyond this
+  // the connection is dropped instead of growing the heap.
+  static constexpr size_t MAX_TX_PENDING = 2048;
+
   struct Connection {
     std::unique_ptr<socket::Socket> sock;
     std::vector<uint8_t> tx;  // unsent remainder after a partial write
@@ -47,6 +51,7 @@ class Qnetd final : public Component, public QnetdTransport {
   uint64_t now_ms_();
   void accept_connections_(uint64_t now);
   void service_connection_(int slot, uint64_t now);
+  void queue_tx_(Connection &c, const uint8_t *data, size_t len);
 
   uint16_t port_;
   std::unique_ptr<socket::ListenSocket> listen_;
