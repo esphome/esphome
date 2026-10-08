@@ -430,8 +430,11 @@ RMII_SCHEMA = cv.All(
                 # Remove before 2027.5.0
                 cv.Optional(CONF_CLK_MODE): cv.invalid(
                     "The 'clk_mode' option has been removed in ESPHome 2026.11.0.\n"
-                    "Replace 'clk_mode: GPIO17_OUT' with 'clk:' set to 'mode: CLK_OUT' and "
-                    "'pin: GPIO17'; GPIO0_IN becomes 'mode: CLK_EXT_IN' with 'pin: GPIO0'"
+                    "Replace it with a 'clk:' block containing 'mode:' and 'pin:':\n"
+                    "  GPIO0_IN   -> mode: CLK_EXT_IN, pin: GPIO0\n"
+                    "  GPIO0_OUT  -> mode: CLK_OUT, pin: GPIO0\n"
+                    "  GPIO16_OUT -> mode: CLK_OUT, pin: GPIO16\n"
+                    "  GPIO17_OUT -> mode: CLK_OUT, pin: GPIO17"
                 ),
                 cv.Required(CONF_CLK): CLK_SCHEMA,
                 cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
