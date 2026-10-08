@@ -3,6 +3,6 @@
 
 namespace esphome::partition {
 
-static const char *const TAG = "partition.light";
+ESPHOME_LOG_TAG(TAG, "partition.light");
 
 }  // namespace esphome::partition

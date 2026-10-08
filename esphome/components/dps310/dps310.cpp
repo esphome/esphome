@@ -4,7 +4,7 @@
 
 namespace esphome::dps310 {
 
-static const char *const TAG = "dps310";
+ESPHOME_LOG_TAG(TAG, "dps310");
 
 void DPS310Component::setup() {
   uint8_t coef_data_raw[DPS310_NUM_COEF_REGS];

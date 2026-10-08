@@ -5,7 +5,7 @@
 
 namespace esphome::feedback {
 
-static const char *const TAG = "feedback.cover";
+ESPHOME_LOG_TAG(TAG, "feedback.cover");
 
 static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 1;
 
