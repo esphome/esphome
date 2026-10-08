@@ -324,7 +324,7 @@ class Component {
   void status_momentary_error(const char *name, uint32_t length = 5000);
 
   /// Set error status flag and clear it after `length` ms. A new call restarts the timeout.
-  /// `message` is logged in place of "unspecified" and stored like status_set_error()'s.
+  /// `message` is logged in place of "unspecified"; unlike status_set_error() it is not stored.
   void status_momentary_error(uint32_t length = 5000);
   void status_momentary_error(const LogString *message, uint32_t length = 5000);
 
@@ -368,6 +368,8 @@ class Component {
   /// Note: Callers often use the return value to decide whether to log a warning/error,
   /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
   bool set_status_flag_(uint8_t flag);
+  /// Set the error flag and log it; true when it was not set before.
+  bool set_error_flag_(const LogString *message);
 
   /** Set an interval function with a const char* name. Empty name means no cancelling possible.
    *
