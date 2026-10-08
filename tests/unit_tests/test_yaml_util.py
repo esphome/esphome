@@ -1279,22 +1279,38 @@ def test_force_load_include_files_unresolved_log_level(
     assert matching == [expect_level]
 
 
+def test_force_load_include_files_returns_unresolved_paths(
+    patch_include_file: None,
+) -> None:
+    """Includes with substitution-templated paths are reported back to the
+    caller; resolvable ones are not."""
+    templated = _StubInclude("${var}.yaml", unresolved=True)
+    plain = _StubInclude("ok.yaml")
+    result = force_load_include_files({"a": templated, "b": plain})
+    assert result.unresolved == [str(templated.file)]
+    assert result.errors == []
+    assert plain.load_calls == 1
+
+
 def test_force_load_include_files_warns_on_load_failure(
     patch_include_file: None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An `EsphomeError` raised by `load()` is caught and logged, not propagated."""
+    """An `EsphomeError` raised by `load()` is caught, logged, and reported to
+    the caller — not propagated."""
     stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
     with caplog.at_level("WARNING", logger="esphome.yaml_util"):
-        force_load_include_files({"k": stub})
+        result = force_load_include_files({"k": stub})
     assert any(
         "Failed to load !include" in r.message and "missing.yaml" in r.message
         for r in caplog.records
     )
+    assert result.errors == [f"{stub.file}: boom"]
+    assert result.unresolved == []
 
 
 def test_discovered_yaml_files_holds_files_and_secrets() -> None:
-    """`DiscoveredYamlFiles` is a small data carrier; both fields are mandatory."""
+    """`DiscoveredYamlFiles` is a small data carrier."""
     files = [Path("/tmp/a.yaml")]
     secrets = {Path("/tmp/a.yaml")}
     discovered = DiscoveredYamlFiles(files, secrets)
@@ -1357,11 +1373,24 @@ def test_discover_user_yaml_files_flags_secrets_symlink(tmp_path: Path) -> None:
     assert target.resolve() in discovered.secrets
 
 
-def test_discover_user_yaml_files_swallows_parse_errors(tmp_path: Path) -> None:
-    """A YAML parse failure returns whatever was tracked so far without raising."""
+def test_discover_user_yaml_files_reports_parse_errors(tmp_path: Path) -> None:
+    """A YAML parse failure is surfaced in `.load_errors` (not raised), so
+    consumers can tell the file set is incomplete."""
     entry = _write(tmp_path, "entry.yaml", "esphome: [unterminated\n")
     discovered = discover_user_yaml_files(entry)
     assert isinstance(discovered, DiscoveredYamlFiles)
+    assert len(discovered.load_errors) == 1
+    assert "entry.yaml" in discovered.load_errors[0]
+
+
+def test_discover_user_yaml_files_reports_unresolved_includes(
+    tmp_path: Path,
+) -> None:
+    """A substitution-templated `!include` path is surfaced in `.unresolved`."""
+    entry = _write_entry_including(tmp_path, "${board}.yaml")
+    discovered = discover_user_yaml_files(entry)
+    assert len(discovered.unresolved) == 1
+    assert "${board}.yaml" in discovered.unresolved[0]
 
 
 def test_discover_user_yaml_files_deduplicates(tmp_path: Path) -> None:
