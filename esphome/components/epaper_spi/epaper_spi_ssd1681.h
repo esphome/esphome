@@ -14,6 +14,8 @@ class EPaperSSD1681 : public EPaperSSD1683 {
  protected:
   bool reset() override;
   void deep_sleep() override;
+  // Each refresh already ends with the analog supply and oscillator off and the RAM kept
+  bool park() override { return true; }
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
 };

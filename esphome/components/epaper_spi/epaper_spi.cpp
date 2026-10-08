@@ -6,6 +6,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
+#include <driver/gpio.h>
+#include <esp_system.h>
+#include <soc/soc_caps.h>
+#endif
+#ifdef USE_ESP8266
+#include <Arduino.h>
+#endif
+
 namespace esphome::epaper_spi {
 
 static const char *const TAG = "epaper_spi";
@@ -29,6 +38,94 @@ void EPaperBase::setup() {
   }
   this->setup_pins_();
   this->spi_setup();
+  this->release_pins_();
+  this->load_sleep_state_();
+}
+
+bool EPaperBase::woke_from_deep_sleep_() const {
+#if defined(USE_ESP32)
+  return esp_reset_reason() == ESP_RST_DEEPSLEEP;
+#elif defined(USE_ESP8266)
+  return ESP.getResetInfoPtr()->reason == REASON_DEEP_SLEEP_AWAKE;
+#else
+  return false;
+#endif
+}
+
+// The sleep state survives the controller's deep sleep in RTC memory: the update count, and whether
+// the panel was left holding its image, so the first update after the wake can be partial.
+void EPaperBase::load_sleep_state_() {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  this->sleep_state_ = global_preferences->make_preference<SleepState>(this->sleep_state_hash_, false);
+  SleepState state{};
+  if (this->woke_from_deep_sleep_() && this->sleep_state_.load(&state) && state.panel_holds_image) {
+    this->update_count_ = state.update_count % this->full_update_every_;
+    this->panel_holds_image_ = true;
+    ESP_LOGD(TAG, "Panel kept its image through deep sleep; next update is %s",
+             this->update_count_ != 0 ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
+  }
+  // Only a wake from deep sleep may use the state, so it is cleared once read
+  this->save_sleep_state_(false);
+}
+
+void EPaperBase::save_sleep_state_(bool panel_holds_image) {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  const SleepState state{this->update_count_, panel_holds_image};
+  this->sleep_state_.save(&state);
+}
+
+// Keeps the reset and enable pins at their levels while the controller sleeps and boots, so the
+// panel is neither reset nor unpowered. Released again in setup().
+void EPaperBase::hold_pins_() const {
+#ifdef USE_ESP32
+  bool held = false;
+  for (auto *pin : this->enable_pins_) {
+    if (pin->is_internal()) {
+      gpio_hold_en(gpio_num_t(static_cast<InternalGPIOPin *>(pin)->get_pin()));
+      held = true;
+    }
+  }
+  if (this->reset_pin_ != nullptr && this->reset_pin_->is_internal()) {
+    gpio_hold_en(gpio_num_t(static_cast<InternalGPIOPin *>(this->reset_pin_)->get_pin()));
+    held = true;
+  }
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+  if (held)
+    gpio_deep_sleep_hold_en();
+#endif
+#endif
+}
+
+void EPaperBase::release_pins_() const {
+#ifdef USE_ESP32
+  for (auto *pin : this->enable_pins_) {
+    if (pin->is_internal())
+      gpio_hold_dis(gpio_num_t(static_cast<InternalGPIOPin *>(pin)->get_pin()));
+  }
+  if (this->reset_pin_ != nullptr && this->reset_pin_->is_internal())
+    gpio_hold_dis(gpio_num_t(static_cast<InternalGPIOPin *>(this->reset_pin_)->get_pin()));
+#endif
+}
+
+// Runs before the controller sleeps or reboots, after on_safe_shutdown(): finish an update in flight,
+// then leave the panel holding its image if the driver can, so the first update after a wake is partial.
+bool EPaperBase::teardown() {
+  if (this->state_ != EPaperState::IDLE) {
+    this->loop();
+    return false;
+  }
+  if (this->parked_)
+    return true;
+  this->parked_ = true;
+  if (this->sleep_state_hash_ != 0 && this->panel_holds_image_ && this->park()) {
+    this->save_sleep_state_(true);
+    this->hold_pins_();
+    return true;
+  }
+  this->panel_holds_image_ = false;
+  return true;
 }
 
 bool EPaperBase::init_buffer_(size_t buffer_length) {
@@ -310,6 +407,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->panel_holds_image_ = this->is_using_partial_update_();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
       break;
@@ -419,12 +517,13 @@ void EPaperBase::dump_config() {
                 "  Model: %s\n"
                 "  SPI Data Rate: %uMHz\n"
                 "  Full update every: %d\n"
+                "  Full refresh after deep sleep: %s\n"
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s",
                 this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
-                YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
-                YESNO(this->transform_ & MIRROR_Y));
+                YESNO(this->sleep_state_hash_ == 0), YESNO(this->transform_ & SWAP_XY),
+                YESNO(this->transform_ & MIRROR_X), YESNO(this->transform_ & MIRROR_Y));
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

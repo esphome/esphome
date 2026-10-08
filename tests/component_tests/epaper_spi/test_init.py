@@ -603,6 +603,49 @@ def test_full_update_next_action_code_generation(
     assert "epaper_display->request_full_update();" in main_cpp
 
 
+def test_sleep_state_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """full_refresh_after_deep_sleep: false gives the display a sleep state slot in RTC memory."""
+    main_cpp = generate_main(component_config_path("resume_after_deep_sleep_test.yaml"))
+
+    assert "epaper_display->set_sleep_state_hash(" in main_cpp
+
+
+def test_no_sleep_state_by_default(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """By default every wake refreshes fully and nothing is kept across the sleep."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert "set_sleep_state_hash(" not in main_cpp
+
+
+def test_resume_after_deep_sleep_needs_partial_updates(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """full_refresh_after_deep_sleep: false is pointless without partial updates."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="full_update_every"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1681",
+                "dc_pin": 21,
+                "full_refresh_after_deep_sleep": False,
+            }
+        )
+
+
 def test_is_updating_condition_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

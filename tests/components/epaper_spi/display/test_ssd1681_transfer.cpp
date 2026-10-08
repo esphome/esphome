@@ -19,9 +19,20 @@ class TestableSSD1681 : public EPaperSSD1681 {
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->set_full_update_every(full_update_every);
     this->init_sent_frame_(this->buffer_length_);
+    if (full_update_every > 1)
+      this->set_sleep_state_hash(1);  // full_refresh_after_deep_sleep: false
   }
 
   bool has_comparison_frame() const { return this->sent_.is_valid(); }
+  bool panel_holds_image() const { return this->panel_holds_image_; }
+
+  /// What setup() restores after a deep sleep wake when the panel was left holding its image.
+  void restore_after_wake(uint8_t update_count) {
+    this->update_count_ = update_count;
+    this->panel_holds_image_ = true;
+  }
+
+  using EPaperSSD1681::teardown;
   EPaperState state() const { return this->state_; }
   void step() { this->process_state_(); }
   uint8_t update_count() const { return this->update_count_; }
@@ -235,6 +246,71 @@ TEST(EPaperSSD1681, ComparisonFrameIsWhatWasSent) {
   display.set_dirty(0, 0, 16, 2);
   EXPECT_TRUE(display.run_update()) << "pixel drawn during the refresh was never sent";
   EXPECT_EQ(bus.data[0x24], (Bytes{0x07}));
+}
+
+/// Before the controller sleeps, an update in flight is finished, so nothing is left for the
+/// controller's deep sleep to interrupt. The panel is then already in its powered-down state with
+/// the RAM kept, since every refresh ends that way, so parking it sends nothing more.
+TEST(EPaperSSD1681, TeardownFinishesTheUpdateThenParksThePanel) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  ASSERT_EQ(display.state(), EPaperState::RESET);
+  bus.clear();
+
+  while (!display.teardown()) {
+  }
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3})) << "update in flight was not finished";
+  EXPECT_EQ(bus.commands.back(), 0x20) << "something was sent after the refresh";
+  EXPECT_TRUE(display.panel_holds_image());
+  const size_t n = bus.commands.size();
+  EXPECT_TRUE(display.teardown()) << "a second teardown should be a no-op";
+  EXPECT_EQ(bus.commands.size(), n);
+}
+
+/// With every update a full one the panel is put to sleep after each update and there is nothing
+/// to keep; teardown sends nothing.
+TEST(EPaperSSD1681, TeardownDoesNotParkWithoutPartialUpdates) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 1);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update();
+  EXPECT_FALSE(display.panel_holds_image());
+  bus.clear();
+
+  EXPECT_TRUE(display.teardown());
+  EXPECT_TRUE(bus.commands.empty());
+}
+
+/// After a deep sleep wake with the panel still holding its image, the first update is a partial
+/// one: no reset, the changed window only, 0x26 compared as it is. The comparison frame is not
+/// back yet, so the whole drawn area goes out and the next update can then be compared.
+TEST(EPaperSSD1681, FirstUpdateAfterWakeIsPartial) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+  display.restore_after_wake(3);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_TRUE(display.run_update());
+  EXPECT_EQ(bus.commands.front(), 0x44) << "first update after the wake reset the panel";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
+  EXPECT_EQ(bus.data.count(0x26), 0u);
+  EXPECT_EQ(bus.data[0x21], (Bytes{0x00, 0x00}));
+  EXPECT_EQ(display.update_count(), 4);
+  bus.clear();
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_FALSE(display.run_update()) << "comparison frame was not rebuilt by the first update";
 }
 
 }  // namespace esphome::epaper_spi::testing

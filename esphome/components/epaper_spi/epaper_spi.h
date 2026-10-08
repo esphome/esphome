@@ -5,6 +5,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -62,6 +63,8 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  void set_sleep_state_hash(uint32_t hash) { this->sleep_state_hash_ = hash; }
+  bool teardown() override;
   void dump_config() override;
 
   void command(uint8_t value);
@@ -166,6 +169,26 @@ class EPaperBase : public Display,
    */
   virtual void deep_sleep() = 0;
 
+  /**
+   * Power the display down for the controller's deep sleep without losing the image in its RAM,
+   * so the first update after the wake can be a partial one.
+   * @return false if the display cannot do this; it is put into deep sleep instead
+   */
+  virtual bool park() { return false; }
+
+  struct SleepState {
+    uint8_t update_count;
+    uint8_t panel_holds_image;
+  };
+  bool woke_from_deep_sleep_() const;
+  void load_sleep_state_();
+  void save_sleep_state_(bool panel_holds_image);
+  void hold_pins_() const;
+  void release_pins_() const;
+  ESPPreferenceObject sleep_state_;
+  uint32_t sleep_state_hash_{};
+  bool parked_{};
+
   void set_state_(EPaperState state, uint16_t delay = 0);
 
   void start_data_();
@@ -185,6 +208,7 @@ class EPaperBase : public Display,
   split_buffer::SplitBuffer sent_{};  // the frame last sent to the panel's new-image RAM
   bool sent_valid_{};                 // sent_ holds a whole frame
   bool full_window_{};                // the update in progress covers the whole panel
+  bool panel_holds_image_{};          // the panel's RAM holds the image it shows, as a partial update needs
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
