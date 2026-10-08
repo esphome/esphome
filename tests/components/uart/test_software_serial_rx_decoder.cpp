@@ -11,21 +11,24 @@ namespace esphome::uart::testing {
 
 namespace {
 
-// 80 MHz ESP8266 clock
-constexpr uint32_t CPU_HZ = 80000000;
+// Firmware time base: micros() << 4
+constexpr uint32_t TICKS_PER_SECOND = 16000000;
+constexpr uint32_t TICKS_PER_US = 16;
 
-// Simulated line: frames become edges at ideal cycle counts plus jitter;
-// poll() emulates the main loop (finalize pending byte, drain buffer).
+// Simulated line: frames become edges at exact baud timing plus jitter, truncated
+// to whole microseconds like micros(); poll() emulates the main loop.
+
 class LineSim {
  public:
   LineSim(uint32_t baud, uint8_t data_bits, bool parity, bool odd, uint8_t stop_bits, size_t buffer_size = 64)
       : data_bits_(data_bits), parity_(parity), odd_(odd), stop_bits_(stop_bits), buffer_(buffer_size) {
-    this->bit_ = CPU_HZ / baud;
+    this->bit_ = (TICKS_PER_SECOND + baud / 2) / baud;
+    this->exact_bit_ = static_cast<double>(TICKS_PER_SECOND) / baud;
     this->dec_.setup(this->bit_, data_bits, parity, stop_bits, this->buffer_.data(), buffer_size);
     this->dec_.reset(this->now_, true);
   }
 
-  uint32_t bit_cycles() const { return this->bit_; }
+  uint32_t bit_ticks() const { return this->bit_; }
   SoftwareSerialRxDecoder &decoder() { return this->dec_; }
   const std::vector<uint8_t> &received() const { return this->received_; }
 
@@ -44,7 +47,7 @@ class LineSim {
       this->received_.push_back(this->dec_.read_byte());
   }
 
-  // Emit one frame at `start` with per edge `jitter` in cycles; returns the end cycle.
+  // Emit one frame at `start` with per edge `jitter` in ticks; returns the end tick.
   uint32_t send(
       uint8_t value, uint32_t start, const std::function<int32_t()> &jitter = [] { return 0; }) {
     std::vector<bool> bits;
@@ -59,13 +62,15 @@ class LineSim {
       bits.push_back(this->odd_ ? !(ones & 1) : (ones & 1));
     for (int i = 0; i < this->stop_bits_; i++)
       bits.push_back(true);
-    uint32_t t = start;
+    double t = start;
     for (bool b : bits) {
-      if (b != this->line_)
-        this->edge(static_cast<uint32_t>(static_cast<int64_t>(t) + jitter()), b);
-      t += this->bit_;
+      if (b != this->line_) {
+        const auto at = static_cast<uint32_t>(static_cast<int64_t>(t) + jitter());
+        this->edge(at / TICKS_PER_US * TICKS_PER_US, b);
+      }
+      t += this->exact_bit_;
     }
-    return t;
+    return static_cast<uint32_t>(t);
   }
 
  protected:
@@ -74,6 +79,7 @@ class LineSim {
   bool odd_;
   uint8_t stop_bits_;
   uint32_t bit_{0};
+  double exact_bit_{0};
   uint32_t now_{1000};
   bool line_{true};
   std::vector<uint8_t> buffer_;
@@ -100,15 +106,15 @@ void run_stream(const FrameFormat &f, double jitter_bits, uint32_t gap_bits, int
   for (int n = 0; n < count; n++) {
     uint8_t b = rng() & mask;
     sent.push_back(b);
-    t = sim.send(b, t, [&] { return static_cast<int32_t>(jit(rng) * sim.bit_cycles()); });
+    t = sim.send(b, t, [&] { return static_cast<int32_t>(jit(rng) * sim.bit_ticks()); });
     if (gap_bits != 0 && n % 3 == 2) {
-      t += gap_bits * sim.bit_cycles();
+      t += gap_bits * sim.bit_ticks();
       sim.poll(t);
     } else if (rng() % 4 == 0) {
       sim.poll(t);
     }
   }
-  sim.poll(t + 20 * sim.bit_cycles());
+  sim.poll(t + 20 * sim.bit_ticks());
   EXPECT_EQ(sim.received(), sent) << "baud " << f.baud << " jitter " << jitter_bits;
 }
 
@@ -124,7 +130,7 @@ TEST(SoftwareSerialRxDecoder, ToleratesEdgeJitterUpToAQuarterBit) {
   // A quarter bit per edge keeps each run within the half bit rounding budget.
   run_stream({9600, 8, false, false, 1}, 0.24, 0, 2000, 1);
   run_stream({9600, 8, false, false, 1}, 0.24, 7, 2000, 2);
-  run_stream({38400, 8, false, false, 1}, 0.24, 4, 2000, 3);
+  run_stream({19200, 8, false, false, 1}, 0.24, 4, 2000, 3);  // edge decoder limit
 }
 
 TEST(SoftwareSerialRxDecoder, HandlesParityDataBitsAndStopBits) {
@@ -136,7 +142,7 @@ TEST(SoftwareSerialRxDecoder, HandlesParityDataBitsAndStopBits) {
 
 TEST(SoftwareSerialRxDecoder, AllOnesByteCompletesOnlyByFinalize) {
   LineSim sim(9600, 8, false, false, 1);
-  const uint32_t bit = sim.bit_cycles();
+  const uint32_t bit = sim.bit_ticks();
   uint32_t t = 5000;
   // 0xFF: start bit, then the line stays high with no closing edge.
   sim.edge(t, false);
@@ -153,7 +159,7 @@ TEST(SoftwareSerialRxDecoder, AllOnesByteCompletesOnlyByFinalize) {
 
 TEST(SoftwareSerialRxDecoder, LastByteOfBurstIsFinalizedThenNextFrameDecodes) {
   LineSim sim(9600, 8, false, false, 1);
-  const uint32_t bit = sim.bit_cycles();
+  const uint32_t bit = sim.bit_ticks();
   uint32_t t = sim.send(0xA5, 5000);
   t = sim.send(0xF0, t);  // ends high, needs finalize
   EXPECT_TRUE(sim.received().empty());
@@ -170,7 +176,7 @@ TEST(SoftwareSerialRxDecoder, LastByteOfBurstIsFinalizedThenNextFrameDecodes) {
 
 TEST(SoftwareSerialRxDecoder, BreakConditionIsDroppedAndResyncs) {
   LineSim sim(9600, 8, false, false, 1);
-  const uint32_t bit = sim.bit_cycles();
+  const uint32_t bit = sim.bit_ticks();
   uint32_t t = 5000;
   sim.edge(t, false);
   t += 25 * bit;  // line held low for far longer than a frame
@@ -186,7 +192,7 @@ TEST(SoftwareSerialRxDecoder, BreakConditionIsDroppedAndResyncs) {
 
 TEST(SoftwareSerialRxDecoder, CollapsedEdgeIsIgnoredAndStreamRealignsAtIdle) {
   LineSim sim(9600, 8, false, false, 1);
-  const uint32_t bit = sim.bit_cycles();
+  const uint32_t bit = sim.bit_ticks();
   // 0x31: lose the rising edge of bit 4, so the next edge repeats the last level.
   uint32_t t = 5000;
   sim.edge(t, false);                         // start
@@ -207,7 +213,7 @@ TEST(SoftwareSerialRxDecoder, DropsBytesWhenBufferIsFullAndKeepsOldest) {
   uint32_t t = 5000;
   for (int n = 0; n < 20; n++)
     t = sim.send(static_cast<uint8_t>(n), t);
-  sim.poll(t + 20 * sim.bit_cycles());
+  sim.poll(t + 20 * sim.bit_ticks());
   ASSERT_EQ(sim.received().size(), 7u);  // capacity is size - 1
   for (int n = 0; n < 7; n++)
     EXPECT_EQ(sim.received()[n], n);
@@ -219,12 +225,12 @@ TEST(SoftwareSerialRxDecoder, SetupAgainDropsStaleStateAndUsesNewBufferAndFramin
   uint32_t t = 5000;
   for (int n = 0; n < 10; n++)
     t = sim.send(static_cast<uint8_t>(0x40 + n), t);
-  sim.edge(t + 8 * sim.bit_cycles(), false);  // open a frame, never closed
+  sim.edge(t + 8 * sim.bit_ticks(), false);  // open a frame, never closed
   SoftwareSerialRxDecoder &dec = sim.decoder();
   ASSERT_GE(dec.available(), 9u);
 
   std::vector<uint8_t> small(4, 0xEE);
-  const uint32_t bit = CPU_HZ / 2400;
+  const uint32_t bit = TICKS_PER_SECOND / 2400;
   dec.setup(bit, 5, true, 2, small.data(), small.size());
   EXPECT_EQ(dec.available(), 0u);
   EXPECT_FALSE(dec.pending());
@@ -266,7 +272,7 @@ TEST(SoftwareSerialRxDecoder, SetupAgainDropsStaleStateAndUsesNewBufferAndFramin
 
 TEST(SoftwareSerialRxDecoder, ResetDiscardsPartialFrame) {
   LineSim sim(9600, 8, false, false, 1);
-  const uint32_t bit = sim.bit_cycles();
+  const uint32_t bit = sim.bit_ticks();
   sim.edge(5000, false);
   sim.edge(5000 + bit, true);
   EXPECT_TRUE(sim.decoder().pending());
