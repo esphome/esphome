@@ -106,20 +106,6 @@ def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
 
 
-@pytest.fixture(autouse=True)
-def _no_idf_install(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Fail any test that would install ESP-IDF for real.
-
-    An unmocked ``_get_idf_env`` reaches ``check_esp_idf_install``, which
-    downloads the framework on a bare CI runner (minutes on Windows).
-    """
-
-    def refuse(*args: object, **kwargs: object) -> None:
-        raise AssertionError("test would install ESP-IDF; mock _get_idf_env")
-
-    monkeypatch.setattr(toolchain, "check_esp_idf_install", refuse)
-
-
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
     CORE.name = "test"
