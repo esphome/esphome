@@ -21,7 +21,7 @@ static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
 
 static const uint32_t INFO_ERROR_QUEUE_COUNT = 5;
 
-static const char *const TAG = "speaker_media_player.pipeline";
+ESPHOME_LOG_TAG(TAG, "speaker_media_player.pipeline");
 
 enum EventGroupBits : uint32_t {
   // MESSAGE_* bits are only set by their respective tasks

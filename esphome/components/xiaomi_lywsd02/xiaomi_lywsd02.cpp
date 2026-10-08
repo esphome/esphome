@@ -3,7 +3,7 @@
 
 namespace esphome::xiaomi_lywsd02 {
 
-static const char *const TAG = "xiaomi_lywsd02";
+ESPHOME_LOG_TAG(TAG, "xiaomi_lywsd02");
 
 void XiaomiLYWSD02::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi LYWSD02");
