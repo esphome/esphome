@@ -329,6 +329,14 @@ void Component::status_momentary_error(const char *name, uint32_t length) {
   this->status_set_error();
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
 }
+void Component::status_momentary_warning(uint32_t length) {
+  this->status_set_warning();
+  this->set_timeout(InternalSchedulerID::STATUS_WARNING, length, [this]() { this->status_clear_warning(); });
+}
+void Component::status_momentary_error(uint32_t length) {
+  this->status_set_error();
+  this->set_timeout(InternalSchedulerID::STATUS_ERROR, length, [this]() { this->status_clear_error(); });
+}
 void Component::dump_config() {}
 
 // Function implementation of LOG_UPDATE_INTERVAL macro to reduce code size

@@ -1,0 +1,34 @@
+esphome:
+  name: status-momentary-test
+
+host:
+api:
+  actions:
+    - action: momentary_warning
+      variables:
+        length: int
+      then:
+        - lambda: "id(probe)->status_momentary_warning(length);"
+    - action: momentary_error
+      variables:
+        length: int
+      then:
+        - lambda: "id(probe)->status_momentary_error(length);"
+
+logger:
+
+sensor:
+  - platform: template
+    id: probe
+    update_interval: 24h
+    lambda: return 1.0;
+
+binary_sensor:
+  - platform: template
+    name: Probe Warning
+    id: probe_warning
+    lambda: return id(probe)->status_has_warning();
+  - platform: template
+    name: Probe Error
+    id: probe_error
+    lambda: return id(probe)->status_has_error();
