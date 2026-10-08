@@ -845,3 +845,11 @@ class TestSharedProgmemArray:
         CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
+
+
+def test_extern_progmem_array_is_an_externally_linked_global() -> None:
+    array = cg.extern_progmem_array("esphome::api::API_TABLE", ct.uint8, [1, 2])
+    assert str(array) == "esphome::api::API_TABLE"
+    assert [str(st) for st in CORE.global_statements if "PROGMEM" in str(st)] == [
+        "const uint8_t esphome::api::API_TABLE[] PROGMEM = {1, 2};"
+    ]

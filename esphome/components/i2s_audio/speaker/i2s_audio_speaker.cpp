@@ -40,6 +40,16 @@ void I2SAudioSpeakerBase::setup() {
   // When no audio_dac is configured, this initializes software volume control.
   this->set_volume(this->volume_);
   this->set_mute_state(this->mute_state_);
+
+  // Until the I2S driver first starts, dout sits in its reset state (often pulled high, or a JTAG
+  // function on the ESP32-S3), which keeps a SPDIF optical transmitter lit. Park it low now.
+  this->park_dout_pin_();
+}
+
+void I2SAudioSpeakerBase::park_dout_pin_() {
+  gpio_reset_pin(this->dout_pin_);
+  gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
+  gpio_set_level(this->dout_pin_, 0);
 }
 
 void I2SAudioSpeakerBase::dump_config() {
@@ -303,9 +313,7 @@ void I2SAudioSpeakerBase::stop_i2s_driver_() {
     // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
     // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
     // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
-    gpio_reset_pin(this->dout_pin_);
-    gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
-    gpio_set_level(this->dout_pin_, 0);
+    this->park_dout_pin_();
   }
   this->parent_->unlock();
 }

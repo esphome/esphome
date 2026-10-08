@@ -3,12 +3,7 @@
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components import (
-    infrared,
-    remote_base,
-    remote_receiver,
-    remote_transmitter,
-)
+from esphome.components import infrared, ir_rf_base, remote_base, remote_receiver
 from esphome.components.const import CONF_RECEIVER_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY
@@ -30,7 +25,7 @@ CONFIG_SCHEMA = cv.All(
                 remote_receiver.RemoteReceiverComponent
             ),
             cv.Optional(CONF_REMOTE_TRANSMITTER_ID): cv.use_id(
-                remote_transmitter.RemoteTransmitterComponent
+                remote_base.RemoteTransmitterBase
             ),
         }
     ),
@@ -82,8 +77,7 @@ async def to_code(config: dict[str, Any]) -> None:
 
     # Link transmitter if specified
     if CONF_REMOTE_TRANSMITTER_ID in config:
-        transmitter = await cg.get_variable(config[CONF_REMOTE_TRANSMITTER_ID])
-        cg.add(var.set_transmitter(transmitter))
+        await ir_rf_base.attach_transmitter(var, config, CONF_REMOTE_TRANSMITTER_ID)
 
     # Link receiver if specified
     if CONF_REMOTE_RECEIVER_ID in config:
