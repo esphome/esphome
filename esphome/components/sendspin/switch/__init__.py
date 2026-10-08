@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import switch
 from esphome.components.const import CONF_ENABLED
@@ -8,12 +10,16 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_SENDSPIN_ID,
+    CONF_STATIC_PAIRING_CODE,
     CONF_UNPAIRED_ACCESS,
     DOMAIN,
     SendspinHub,
+    _has_pairing_method,
     request_switch,
     sendspin_ns,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["sendspin"]
@@ -71,10 +77,18 @@ def _final_validate(config: ConfigType) -> ConfigType:
         raise cv.Invalid(f"Only one sendspin '{switch_type}' switch is allowed")
     if switch_type != CONF_UNPAIRED_ACCESS:
         return config
-    if CONF_UNPAIRED_ACCESS in full_config.get(DOMAIN, {}):
+    hub_config = full_config.get(DOMAIN, {})
+    if CONF_UNPAIRED_ACCESS in hub_config:
         raise cv.Invalid(
             f"'{DOMAIN}: {CONF_UNPAIRED_ACCESS}' cannot be set together with an "
             f"{CONF_UNPAIRED_ACCESS} switch; set the switch's restore_mode instead"
+        )
+    if not _has_pairing_method(hub_config):
+        _LOGGER.warning(
+            "The %s switch has no pairing method (%s or a dynamic pairing code), so "
+            "while it is off no new server can pair with this device",
+            CONF_UNPAIRED_ACCESS,
+            CONF_STATIC_PAIRING_CODE,
         )
     return config
 

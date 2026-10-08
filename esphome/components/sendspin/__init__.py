@@ -329,8 +329,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
         )
     if not config.get(CONF_UNPAIRED_ACCESS, True) and not _has_pairing_method(config):
         _LOGGER.warning(
-            "'%s' is off but nothing lets a server pair (%s or a dynamic pairing code), so no "
-            "server can play on this device",
+            "'%s' is off but there is no pairing method (%s or a dynamic pairing code), so no "
+            "new server can pair with this device",
             CONF_UNPAIRED_ACCESS,
             CONF_STATIC_PAIRING_CODE,
         )

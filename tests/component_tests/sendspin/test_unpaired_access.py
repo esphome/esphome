@@ -26,7 +26,7 @@ from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
 HUB_ID = "sendspin_hub_id"
-NO_PAIRING_WARNING = "nothing lets a server pair"
+NO_PAIRING_WARNING = "no new server can pair with this device"
 
 
 def _switch_config(switch_type: str) -> ConfigType:
@@ -54,7 +54,7 @@ def test_hub_key_accepted(set_core_config: SetCoreConfigCallable, value: bool) -
 def test_off_without_pairing_method_warns(
     set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """With unpaired access off and no way to pair, no server could ever play."""
+    """With unpaired access off and no way to pair, no new server could pair."""
     set_core_config(PlatformFramework.ESP32_IDF)
     config = HUB_CONFIG_SCHEMA({"id": HUB_ID, CONF_UNPAIRED_ACCESS: False})
 
@@ -115,6 +115,34 @@ def test_switch_without_hub_key_accepted(
     config = _switch_config(CONF_UNPAIRED_ACCESS)
 
     assert SWITCH_FINAL_VALIDATE_SCHEMA(config) is config
+
+
+def test_switch_without_pairing_method_warns(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Turning the switch off would leave no way for a new server to pair."""
+    set_core_config(PlatformFramework.ESP32_IDF, full_config={DOMAIN: {"id": HUB_ID}})
+    config = _switch_config(CONF_UNPAIRED_ACCESS)
+
+    with caplog.at_level(logging.WARNING):
+        SWITCH_FINAL_VALIDATE_SCHEMA(config)
+
+    assert NO_PAIRING_WARNING in caplog.text
+
+
+def test_switch_with_pairing_method_does_not_warn(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={DOMAIN: {"id": HUB_ID, "static_pairing_code": "01234567"}},
+    )
+    config = _switch_config(CONF_UNPAIRED_ACCESS)
+
+    with caplog.at_level(logging.WARNING):
+        SWITCH_FINAL_VALIDATE_SCHEMA(config)
+
+    assert NO_PAIRING_WARNING not in caplog.text
 
 
 def test_enabled_switch_ignores_hub_key(set_core_config: SetCoreConfigCallable) -> None:
