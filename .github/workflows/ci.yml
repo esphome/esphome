@@ -1416,14 +1416,10 @@ jobs:
             echo "::warning::ci_memory_impact_extract.py not found on target branch, skipping memory impact analysis"
           fi
 
-      # Check if base test files exist on the target branch for the requested
-      # components and platform. The build below runs with --base-only, so a
-      # component that only has test-*.yaml variants there would compile
-      # nothing and the extraction would fail. When a PR adds the first base
-      # test for a platform, the target branch won't have it yet, so skip
-      # instead of failing. This check must be done here (not in
-      # determine-jobs.py) because determine-jobs runs on the PR branch and
-      # cannot see what the target branch has.
+      # The build below uses --base-only, so skip unless the target branch has
+      # test.<platform>.yaml for a requested component (test-*.yaml variants
+      # alone compile nothing). Checked here, not in determine-jobs.py, because
+      # determine-jobs runs on the PR branch and cannot see the target branch.
       - name: Check for test files on target branch
         id: check-tests
         if: steps.check-script.outputs.skip != 'true'
