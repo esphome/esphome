@@ -5,6 +5,8 @@ namespace esphome::power_supply {
 
 ESPHOME_LOG_TAG(TAG, "power_supply");
 
+static constexpr uint32_t POWER_OFF_TIMEOUT_ID = 0;
+
 void PowerSupply::setup() {
   this->pin_->setup();
   this->pin_->digital_write(false);
@@ -31,7 +33,7 @@ bool PowerSupply::is_enabled() const { return this->active_requests_ != 0; }
 
 void PowerSupply::request_high_power() {
   if (this->active_requests_ == 0) {
-    this->cancel_timeout("power-supply-off");
+    this->cancel_timeout(POWER_OFF_TIMEOUT_ID);
     ESP_LOGV(TAG, "Enabling");
     this->pin_->digital_write(true);
     delay(this->enable_time_);
@@ -46,7 +48,7 @@ void PowerSupply::unrequest_high_power() {
   }
   this->active_requests_--;
   if (this->active_requests_ == 0) {
-    this->set_timeout("power-supply-off", this->keep_on_time_, [this]() {
+    this->set_timeout(POWER_OFF_TIMEOUT_ID, this->keep_on_time_, [this]() {
       ESP_LOGV(TAG, "Disabling");
       this->pin_->digital_write(false);
     });
