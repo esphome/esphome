@@ -7,6 +7,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
+DOMAIN = "wk2212_spi"
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["weikai", "weikai_spi"]
 MULTI_CONF = True

@@ -12,6 +12,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
+DOMAIN = "pn532"
 AUTO_LOAD = ["binary_sensor", "nfc"]
 MULTI_CONF = True
 

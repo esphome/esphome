@@ -56,6 +56,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
+DOMAIN = "libretiny"
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
 

@@ -15,6 +15,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+DOMAIN = "servo"
+
 servo_ns = cg.esphome_ns.namespace("servo")
 Servo = servo_ns.class_("Servo", cg.Component)
 

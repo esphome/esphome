@@ -1,6 +1,7 @@
 """Constants used by esphome components."""
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "const"
 
 BYTE_ORDER_LITTLE = "little_endian"
 BYTE_ORDER_BIG = "big_endian"

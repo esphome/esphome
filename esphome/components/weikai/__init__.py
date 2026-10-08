@@ -16,6 +16,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
+DOMAIN = "weikai"
 AUTO_LOAD = ["uart"]
 
 MULTI_CONF = True

@@ -9,6 +9,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+DOMAIN = "pca9685"
+
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

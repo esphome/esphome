@@ -12,6 +12,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@carlos-sarmiento"]
+DOMAIN = "ezo_pmp"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

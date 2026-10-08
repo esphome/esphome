@@ -25,6 +25,8 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriod
 from esphome.types import ConfigType
 
+DOMAIN = "remote_receiver"
+
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
 

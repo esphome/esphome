@@ -14,6 +14,8 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+DOMAIN = "mcp23016"
+
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True

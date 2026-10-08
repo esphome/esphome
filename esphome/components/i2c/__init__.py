@@ -60,6 +60,7 @@ from esphome.types import ConfigType
 
 LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "i2c"
 i2c_ns = cg.esphome_ns.namespace("i2c")
 I2CBus = i2c_ns.class_("I2CBus")
 InternalI2CBus = i2c_ns.class_("InternalI2CBus", I2CBus)

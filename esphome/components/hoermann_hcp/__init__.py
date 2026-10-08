@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@zweckj"]
+DOMAIN = "hoermann_hcp"
 DEPENDENCIES = ["modbus"]
 MULTI_CONF = True
 

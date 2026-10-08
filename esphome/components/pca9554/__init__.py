@@ -15,6 +15,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@hwstar", "@clydebarrow", "@bdraco"]
+DOMAIN = "pca9554"
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True

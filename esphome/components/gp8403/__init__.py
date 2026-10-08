@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_MODEL, CONF_VOLTAGE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz", "@sebydocky"]
+DOMAIN = "gp8403"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

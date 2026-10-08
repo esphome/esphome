@@ -1,5 +1,7 @@
 import esphome.config_validation as cv
 
+DOMAIN = "custom_component"
+
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.invalid(

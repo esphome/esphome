@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@solomondg1"]
+DOMAIN = "ads1118"
 DEPENDENCIES = ["spi"]
 MULTI_CONF = True
 

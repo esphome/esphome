@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_THROTTLE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jasstrong"]
+DOMAIN = "rd03d"
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 

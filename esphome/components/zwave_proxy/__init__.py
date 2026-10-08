@@ -6,6 +6,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "zwave_proxy"
 DEPENDENCIES = ["api", "uart"]
 
 zwave_proxy_ns = cg.esphome_ns.namespace("zwave_proxy")

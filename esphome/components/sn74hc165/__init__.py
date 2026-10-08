@@ -14,6 +14,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "sn74hc165"
 DEPENDENCIES = []
 MULTI_CONF = True
 

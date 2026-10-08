@@ -34,6 +34,7 @@ from esphome.types import ConfigType
 from .boards import LN882X_BOARD_PINS, LN882X_BOARDS
 
 CODEOWNERS = ["@lamauny"]
+DOMAIN = "ln882x"
 AUTO_LOAD = ["libretiny"]
 IS_TARGET_PLATFORM = True
 

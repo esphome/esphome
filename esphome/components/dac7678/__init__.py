@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["output"]
 CODEOWNERS = ["@NickB1"]
+DOMAIN = "dac7678"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

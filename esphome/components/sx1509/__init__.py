@@ -19,6 +19,8 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+DOMAIN = "sx1509"
+
 CONF_KEYPAD = "keypad"
 CONF_KEY_ROWS = "key_rows"
 CONF_KEY_COLUMNS = "key_columns"

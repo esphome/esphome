@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["spi"]
 MULTI_CONF = True
 CODEOWNERS = ["@DeerMaximum"]
+DOMAIN = "adc128s102"
 
 adc128s102_ns = cg.esphome_ns.namespace("adc128s102")
 ADC128S102 = adc128s102_ns.class_("ADC128S102", cg.Component, spi.SPIDevice)

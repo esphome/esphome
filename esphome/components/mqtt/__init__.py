@@ -67,6 +67,8 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
+DOMAIN = "mqtt"
+
 DEPENDENCIES = ["network"]
 
 

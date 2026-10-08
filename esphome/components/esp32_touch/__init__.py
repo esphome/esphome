@@ -27,6 +27,8 @@ from esphome.const import (
 from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
+DOMAIN = "esp32_touch"
+
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["binary_sensor"]

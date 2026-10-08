@@ -3,6 +3,8 @@ from esphome.components import uart
 from esphome.config_helpers import filter_source_files_from_platform
 from esphome.const import PlatformFramework
 
+DOMAIN = "nextion"
+
 nextion_ns = cg.esphome_ns.namespace("nextion")
 Nextion = nextion_ns.class_("Nextion", cg.PollingComponent, uart.UARTDevice)
 nextion_ref = Nextion.operator("ref")

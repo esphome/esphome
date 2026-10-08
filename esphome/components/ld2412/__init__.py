@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
 CODEOWNERS = ["@Rihan9"]
+DOMAIN = "ld2412"
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 

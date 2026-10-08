@@ -32,6 +32,8 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 from esphome.util import Registry
 
+DOMAIN = "text_sensor"
+
 DEVICE_CLASSES = [
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,

@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
+DOMAIN = "ble_client"
 DEPENDENCIES = ["esp32_ble_tracker"]
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"

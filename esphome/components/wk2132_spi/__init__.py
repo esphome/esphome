@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
+DOMAIN = "wk2132_spi"
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["weikai", "weikai_spi"]
 MULTI_CONF = True

@@ -44,6 +44,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
+DOMAIN = "spi"
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 QuadSPIComponent = spi_ns.class_("QuadSPIComponent", cg.Component)

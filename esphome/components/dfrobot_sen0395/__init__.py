@@ -11,6 +11,7 @@ from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@niklasweber"]
+DOMAIN = "dfrobot_sen0395"
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 

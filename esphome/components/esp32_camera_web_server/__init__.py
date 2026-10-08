@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_MODE, CONF_PORT
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ayufan"]
+DOMAIN = "esp32_camera_web_server"
 AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["network"]
 MULTI_CONF = True

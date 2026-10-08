@@ -7,6 +7,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nagyrobi"]
+DOMAIN = "bthome_mithermometer"
 AUTO_LOAD = ["ble_device_base"]
 
 

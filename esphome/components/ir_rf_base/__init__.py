@@ -8,6 +8,7 @@ from esphome.core.entity_helpers import queue_entity_register
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81", "@bdraco"]
+DOMAIN = "ir_rf_base"
 AUTO_LOAD = ["remote_base"]
 
 ir_rf_base_ns = cg.esphome_ns.namespace("ir_rf_base")

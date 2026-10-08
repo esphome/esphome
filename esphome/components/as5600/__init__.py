@@ -17,6 +17,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ammmze"]
+DOMAIN = "as5600"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

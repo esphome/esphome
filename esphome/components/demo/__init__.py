@@ -57,6 +57,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+DOMAIN = "demo"
+
 AUTO_LOAD = [
     "alarm_control_panel",
     "binary_sensor",

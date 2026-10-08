@@ -7,6 +7,8 @@ from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
 from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
+DOMAIN = "esp32_ble_beacon"
+
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
 

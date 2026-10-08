@@ -34,6 +34,7 @@ from esphome.types import ConfigType
 from .boards import BK72XX_BOARD_PINS, BK72XX_BOARDS
 
 CODEOWNERS = ["@kuba2k2"]
+DOMAIN = "bk72xx"
 AUTO_LOAD = ["libretiny"]
 IS_TARGET_PLATFORM = True
 

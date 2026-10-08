@@ -62,6 +62,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@mrene"]
+DOMAIN = "openthread"
 
 AUTO_LOAD = ["network"]
 

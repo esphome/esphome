@@ -50,6 +50,8 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
+DOMAIN = "remote_base"
+
 AUTO_LOAD = ["binary_sensor"]
 
 

@@ -78,6 +78,8 @@ from esphome.types import ConfigType
 
 from . import wpa2_eap
 
+DOMAIN = "wifi"
+
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]

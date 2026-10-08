@@ -19,6 +19,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "pi4ioe5v6408"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

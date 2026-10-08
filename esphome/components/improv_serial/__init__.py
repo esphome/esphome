@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["improv_base"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "improv_serial"
 DEPENDENCIES = ["logger", "network"]
 
 improv_serial_ns = cg.esphome_ns.namespace("improv_serial")

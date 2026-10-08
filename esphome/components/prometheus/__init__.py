@@ -6,6 +6,8 @@ from esphome.const import CONF_ID, CONF_INCLUDE_INTERNAL, CONF_NAME, CONF_RELABE
 from esphome.cpp_types import EntityBase
 from esphome.types import ConfigType
 
+DOMAIN = "prometheus"
+
 AUTO_LOAD = ["web_server_base"]
 
 prometheus_ns = cg.esphome_ns.namespace("prometheus")

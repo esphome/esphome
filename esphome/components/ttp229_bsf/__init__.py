@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SCL_PIN, CONF_SDO_PIN
 from esphome.types import ConfigType
 
+DOMAIN = "ttp229_bsf"
+
 AUTO_LOAD = ["binary_sensor"]
 
 CONF_TTP229_ID = "ttp229_id"

@@ -15,6 +15,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@lygris", "@gabest11"]
+DOMAIN = "cc1101"
 DEPENDENCIES = ["spi"]
 MULTI_CONF = True
 

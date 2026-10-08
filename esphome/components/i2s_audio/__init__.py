@@ -26,6 +26,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "i2s_audio"
 DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
 

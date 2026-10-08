@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+DOMAIN = "ttp229_lsf"
+
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["binary_sensor"]
 

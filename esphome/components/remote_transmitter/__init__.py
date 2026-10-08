@@ -23,6 +23,8 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.types import ConfigType
 
+DOMAIN = "remote_transmitter"
+
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["remote_base"]

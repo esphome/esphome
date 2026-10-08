@@ -29,6 +29,8 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+DOMAIN = "esp32_camera"
+
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["camera"]

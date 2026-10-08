@@ -28,6 +28,8 @@ import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
+DOMAIN = "http_request"
+
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
 

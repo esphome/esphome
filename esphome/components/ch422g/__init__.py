@@ -17,6 +17,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesterret", "@clydebarrow"]
+DOMAIN = "ch422g"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 ch422g_ns = cg.esphome_ns.namespace("ch422g")

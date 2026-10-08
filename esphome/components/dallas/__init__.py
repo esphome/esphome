@@ -1,5 +1,7 @@
 import esphome.config_validation as cv
 
+DOMAIN = "dallas"
+
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.invalid(

@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@p1ngb4ck"]
+DOMAIN = "mcp4461"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 CONF_DISABLE_WIPER_0 = "disable_wiper_0"

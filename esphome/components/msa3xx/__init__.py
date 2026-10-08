@@ -19,6 +19,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
+DOMAIN = "msa3xx"
 DEPENDENCIES = ["i2c"]
 
 MULTI_CONF = True

@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@FredM67"]
+DOMAIN = "mk2pvrouter"
 DEPENDENCIES = ["uart"]
 
 mk2pvrouter_ns = cg.esphome_ns.namespace("mk2pvrouter")

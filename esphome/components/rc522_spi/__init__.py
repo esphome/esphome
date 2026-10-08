@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "rc522_spi"
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["rc522"]
 MULTI_CONF = True

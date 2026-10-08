@@ -45,6 +45,8 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+DOMAIN = "web_server"
+
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json", "web_server_base"]

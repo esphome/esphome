@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+DOMAIN = "as3935_spi"
+
 AUTO_LOAD = ["as3935"]
 DEPENDENCIES = ["spi"]
 

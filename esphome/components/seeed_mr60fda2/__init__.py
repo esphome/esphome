@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@limengdu"]
+DOMAIN = "seeed_mr60fda2"
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 

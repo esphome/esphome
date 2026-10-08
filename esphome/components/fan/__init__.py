@@ -38,6 +38,8 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 
+DOMAIN = "fan"
+
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")

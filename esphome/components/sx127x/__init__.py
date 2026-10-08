@@ -12,6 +12,7 @@ from esphome.types import ConfigType
 
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
+DOMAIN = "sx127x"
 DEPENDENCIES = ["spi"]
 
 CONF_SX127X_ID = "sx127x_id"

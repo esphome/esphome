@@ -9,6 +9,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
+DOMAIN = "exposure_notifications"
 AUTO_LOAD = ["ble_device_base"]
 
 exposure_notifications_ns = cg.esphome_ns.namespace("exposure_notifications")

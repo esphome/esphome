@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "rc522_i2c"
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["rc522"]
 MULTI_CONF = True

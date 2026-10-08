@@ -16,6 +16,8 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+DOMAIN = "mpr121"
+
 CONF_TOUCH_THRESHOLD = "touch_threshold"
 CONF_RELEASE_THRESHOLD = "release_threshold"
 CONF_TOUCH_DEBOUNCE = "touch_debounce"

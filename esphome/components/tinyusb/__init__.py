@@ -15,6 +15,7 @@ from esphome.const import CONF_HARDWARE_UART, CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "tinyusb"
 CONFLICTS_WITH = ["usb_host"]
 
 CONF_ON_MOUNT = "on_mount"

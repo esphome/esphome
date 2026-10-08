@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+DOMAIN = "ruuvi_ble"
+
 AUTO_LOAD = ["ble_device_base"]
 
 ruuvi_ble_ns = cg.esphome_ns.namespace("ruuvi_ble")

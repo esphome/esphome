@@ -22,6 +22,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "espnow"
 AUTO_LOAD = ["network"]
 
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)

@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["mcp23x17_base"]
 CODEOWNERS = ["@SenexCrenshaw", "@jesserockz"]
+DOMAIN = "mcp23s17"
 DEPENDENCIES = ["spi"]
 MULTI_CONF = True
 

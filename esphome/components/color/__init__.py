@@ -4,6 +4,8 @@ from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE
 from esphome.types import ConfigType
 
+DOMAIN = "color"
+
 ColorStruct = cg.esphome_ns.struct("Color")
 
 INSTANCE_TYPE = ColorStruct

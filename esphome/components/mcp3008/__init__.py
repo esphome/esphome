@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+DOMAIN = "mcp3008"
+
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["sensor"]
 MULTI_CONF = True

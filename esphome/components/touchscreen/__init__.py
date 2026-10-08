@@ -22,6 +22,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
+DOMAIN = "touchscreen"
 DEPENDENCIES = ["display"]
 
 IS_PLATFORM_COMPONENT = True

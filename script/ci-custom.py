@@ -811,6 +811,23 @@ def lint_const_py_frozen(fname, content):
     return None
 
 
+@lint_content_check(include=["esphome/components/*/__init__.py"])
+def lint_component_domain(fname: Path, content: str) -> str | None:
+    """Require every component's __init__.py to define DOMAIN as its own name."""
+    if len(fname.parts) != 4:
+        # Platform packages such as esphome/components/<name>/sensor/__init__.py
+        return None
+    domain = fname.parts[2]
+    expected = f'DOMAIN = "{domain}"'
+    if re.search(rf"^{re.escape(expected)}$", content, re.MULTILINE):
+        return None
+    return (
+        f"Component is missing the {highlight(expected)} constant. "
+        "Add it next to CODEOWNERS (or after the imports) so other code can refer "
+        "to the component by name, e.g. CORE.data[DOMAIN]."
+    )
+
+
 def relative_cpp_search_text(fname: Path, content) -> str:
     parts = fname.parts
     integration = parts[2]

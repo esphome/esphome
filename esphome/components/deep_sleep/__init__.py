@@ -42,6 +42,8 @@ from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
+DOMAIN = "deep_sleep"
+
 WAKEUP_PINS = {
     VARIANT_ESP32: [
         0,

@@ -7,6 +7,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
+DOMAIN = "wk2168_i2c"
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["weikai", "weikai_i2c"]
 MULTI_CONF = True

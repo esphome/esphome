@@ -18,6 +18,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
+DOMAIN = "dlms_meter"
 DEPENDENCIES = ["uart"]
 
 CONF_DLMS_METER_ID = "dlms_meter_id"

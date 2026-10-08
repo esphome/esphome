@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["mcp23x17_base"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "mcp23017"
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

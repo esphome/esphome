@@ -3,6 +3,7 @@ from esphome.components import i2c
 from esphome.components.motion import MotionComponent
 
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "qmi8658"
 DEPENDENCIES = ["i2c", "motion"]
 
 CONF_QMI8658_ID = "qmi8658_id"

@@ -11,6 +11,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@OnFreund"]
+DOMAIN = "hlk_fm22x"
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "sensor", "text_sensor"]
 MULTI_CONF = True

@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 
 CODEOWNERS = ["@kahrendt"]
+DOMAIN = "ring_buffer"
 DEPENDENCIES = ["esp32"]
 
 ring_buffer_ns = cg.esphome_ns.namespace("ring_buffer")

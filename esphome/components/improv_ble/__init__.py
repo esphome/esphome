@@ -30,6 +30,7 @@ def AUTO_LOAD() -> list[str]:
 
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "improv_ble"
 DEPENDENCIES = ["wifi"]
 
 # Legacy top-level YAML key that routes here; esphome/loader.py and

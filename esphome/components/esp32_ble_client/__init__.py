@@ -3,6 +3,7 @@ from esphome.components import esp32_ble_tracker
 
 AUTO_LOAD = ["esp32_ble_tracker"]
 CODEOWNERS = ["@jesserockz", "@bdraco"]
+DOMAIN = "esp32_ble_client"
 DEPENDENCIES = ["esp32"]
 
 esp32_ble_client_ns = cg.esphome_ns.namespace("esp32_ble_client")

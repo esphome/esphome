@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 from esphome.types import ConfigType
 
+DOMAIN = "rdm6300"
+
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor"]
 MULTI_CONF = True

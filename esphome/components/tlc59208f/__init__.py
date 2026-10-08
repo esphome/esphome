@@ -4,6 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+DOMAIN = "tlc59208f"
+
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 

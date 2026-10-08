@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn532"]
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
+DOMAIN = "pn532_spi"
 DEPENDENCIES = ["spi"]
 MULTI_CONF = True
 

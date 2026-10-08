@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
 
 CODEOWNERS = ["@hepter"]
+DOMAIN = "ld6002b"
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 

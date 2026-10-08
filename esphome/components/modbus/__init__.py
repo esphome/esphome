@@ -15,6 +15,8 @@ from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
+DOMAIN = "modbus"
+
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]

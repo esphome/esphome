@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@andreashergert1984"]
+DOMAIN = "pipsolar"
 AUTO_LOAD = ["binary_sensor", "text_sensor", "sensor", "switch", "output"]
 MULTI_CONF = True
 
