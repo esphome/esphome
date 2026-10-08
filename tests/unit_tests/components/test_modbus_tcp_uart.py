@@ -74,10 +74,10 @@ def test_served_units_are_those_on_the_link_hubs() -> None:
 
 
 def test_a_block_without_address_is_ignored() -> None:
-    # e.g. a modbus_monitor: it watches the hub but serves no unit.
+    # A block that names the hub but serves no unit.
     full = {
         "modbus": [{"id": ID("hub"), "uart_id": ID("mb_link"), "role": "server"}],
-        "modbus_monitor": [{"modbus_id": ID("hub"), "on_request": []}],
+        "other_block": [{"modbus_id": ID("hub")}],
     }
     assert _served_units(full, "mb_link") == []
     full["modbus_server"] = [{"id": ID("a"), "modbus_id": ID("hub"), "address": 1}]
