@@ -46,13 +46,15 @@ class EmonTx final : public Component, public uart::UARTDevice {
    * Suspend or resume UART processing.
    *
    * When paused, loop() returns immediately without consuming any bytes from
-   * the UART buffer. This lets another component (e.g. a firmware updater)
-   * take exclusive ownership of a shared UART bus while it is active.
+   * the UART buffer, and send_command() is suppressed. This lets another
+   * component (e.g. serial_proxy, or a firmware updater) take exclusive
+   * ownership of a shared UART bus while it is active. Exposed to YAML as the
+   * emontx.pause / emontx.resume actions and the emontx.is_paused condition.
    *
    * Backed by an atomic flag (not Component::disable_loop()/enable_loop())
-   * because the real-world caller — a firmware updater flashing the emonTx
-   * over this same UART — must be able to resume parsing from a background
-   * FreeRTOS task once flashing completes, not just the main loop task.
+   * because a firmware updater flashing the emonTx over this same UART must
+   * be able to resume parsing from a background FreeRTOS task once flashing
+   * completes, not just the main loop task.
    * disable_loop()/enable_loop() mutate Application::looping_components_,
    * which is only safe to touch from the main loop task; this flag is safe
    * to flip from any task.
@@ -63,8 +65,12 @@ class EmonTx final : public Component, public uart::UARTDevice {
    * resync is performed by loop() so this setter only touches atomics.
    */
   void set_paused(bool paused) {
+    // Plain load/store rather than fetch_add: ESP8266 has no atomic RMW. Even
+    // if concurrent callers collapse two increments, the generation still
+    // differs from what loop() last saw, so the resync is never lost.
     if (paused)
-      this->resync_.store(true, std::memory_order_relaxed);
+      this->pause_generation_.store(this->pause_generation_.load(std::memory_order_relaxed) + 1,
+                                    std::memory_order_relaxed);
     this->paused_.store(paused, std::memory_order_relaxed);
   }
 
@@ -86,7 +92,8 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint16_t buffer_pos_{0};
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
   std::atomic<bool> paused_{false};
-  std::atomic<bool> resync_{false};
+  std::atomic<uint8_t> pause_generation_{0};
+  uint8_t seen_pause_generation_{0};
   bool skip_to_newline_{false};
 };
 
