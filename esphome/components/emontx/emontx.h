@@ -59,21 +59,12 @@ class EmonTx final : public Component, public uart::UARTDevice {
    * which is only safe to touch from the main loop task; this flag is safe
    * to flip from any task.
    *
-   * Resuming discards the partial line held at pause time and everything up
-   * to the next newline, since the other component may have consumed bytes
-   * mid-line; only complete lines reach on_data and the JSON parser. The
-   * resync is performed by loop() so this setter only touches atomics.
+   * Once loop() has seen the pause, resuming discards the partial line held
+   * at pause time and everything up to the next newline, since the other
+   * component may have consumed bytes mid-line; only complete lines reach
+   * on_data and the JSON parser.
    */
-  void set_paused(bool paused) {
-    // Plain load/store rather than fetch_add: ESP8266 has no atomic RMW. Even
-    // if concurrent callers collapse two increments, the generation still
-    // differs from what loop() last saw, so the resync is never lost.
-    if (paused) {
-      this->pause_generation_.store(this->pause_generation_.load(std::memory_order_relaxed) + 1,
-                                    std::memory_order_relaxed);
-    }
-    this->paused_.store(paused, std::memory_order_relaxed);
-  }
+  void set_paused(bool paused) { this->paused_.store(paused, std::memory_order_relaxed); }
 
   bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
 
@@ -93,8 +84,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint16_t buffer_pos_{0};
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
   std::atomic<bool> paused_{false};
-  std::atomic<uint8_t> pause_generation_{0};
-  uint8_t seen_pause_generation_{0};
+  bool was_paused_{false};
   bool skip_to_newline_{false};
 };
 

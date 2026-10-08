@@ -20,12 +20,12 @@ void EmonTx::loop() {
   // flashing new firmware to the emonTx over the same bus) without this
   // component racing it for incoming bytes.
   if (this->is_paused()) {
+    this->was_paused_ = true;
     return;
   }
-  uint8_t pause_generation = this->pause_generation_.load(std::memory_order_relaxed);
-  if (pause_generation != this->seen_pause_generation_) {
-    // Paused since the last run: the other component may have consumed bytes mid-line
-    this->seen_pause_generation_ = pause_generation;
+  if (this->was_paused_) {
+    // The other component may have consumed bytes mid-line
+    this->was_paused_ = false;
     this->buffer_pos_ = 0;
     this->skip_to_newline_ = true;
   }

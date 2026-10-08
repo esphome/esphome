@@ -129,6 +129,7 @@ TEST(EmonTxPause, ResumeDiscardsInterruptedLine) {
   ASSERT_EQ(lines.size(), 0u);
 
   emontx.set_paused(true);
+  emontx.loop();
   emontx.set_paused(false);
 
   uart.feed("56}\n");
