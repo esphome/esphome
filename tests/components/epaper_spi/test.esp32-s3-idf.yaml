@@ -317,3 +317,56 @@ display:
       allow_other_uses: true
       number: GPIO4
       inverted: true
+
+  # SSD1681 1.54" mono e-paper (200x200)
+  # full_update_every > 1 exercises the differential partial refresh path
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: ssd1681
+    full_update_every: 20
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.circle(it.get_width() / 2, it.get_height() / 2, 50, Color::BLACK);
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-1.54in-v2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey0154d67-1.54
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4

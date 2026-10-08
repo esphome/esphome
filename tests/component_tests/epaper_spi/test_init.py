@@ -372,6 +372,58 @@ def test_reset_duration_over_max_rejected(
         )
 
 
+def test_ssd1681_defaults_and_driver_class(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The SSD1681 models default to 200x200 and all use the SSD1681 driver class."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    for name in ("ssd1681", "goodisplay-gdey0154d67-1.54", "waveshare-1.54in-v2"):
+        model = MODELS[name.upper()]
+        assert model.class_name == "EPaperSSD1681"
+        config = run_schema_validation(
+            {
+                "id": "test_display",
+                "model": name,
+                "dc_pin": 21,
+                "full_update_every": 20,
+            }
+        )
+        assert model.get_dimensions(config) == (200, 200)
+
+
+def test_ssd1681_dimensions_over_controller_limit_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Dimensions larger than the SSD1681 can drive are rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at most 200x200"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1681",
+                "dc_pin": 21,
+                "dimensions": {
+                    "width": 400,
+                    "height": 300,
+                },
+            }
+        )
+
+
 def test_busy_pin_input_mode_ssd1677(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
