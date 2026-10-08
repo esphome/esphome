@@ -28,11 +28,6 @@ void delay_microseconds_safe(uint32_t us);
 /// Returns true when executing inside an interrupt handler.
 __attribute__((always_inline)) inline bool in_isr_context() { return xPortInIsrContext() != 0; }
 
-__attribute__((always_inline)) inline bool is_main_loop_thread() {
-  TaskHandle_t main_task = esphome_main_task_handle;
-  return main_task == nullptr || xTaskGetCurrentTaskHandle() == main_task;
-}
-
 // Forward decl from <esp_timer.h>.
 // NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" int64_t esp_timer_get_time(void);
