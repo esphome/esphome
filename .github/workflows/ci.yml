@@ -1416,12 +1416,14 @@ jobs:
             echo "::warning::ci_memory_impact_extract.py not found on target branch, skipping memory impact analysis"
           fi
 
-      # Check if test files exist on the target branch for the requested
-      # components and platform. When a PR adds new test files for a platform,
-      # the target branch won't have them yet, so skip instead of failing.
-      # This check must be done here (not in determine-jobs.py) because
-      # determine-jobs runs on the PR branch and cannot see what the target
-      # branch has.
+      # Check if base test files exist on the target branch for the requested
+      # components and platform. The build below runs with --base-only, so a
+      # component that only has test-*.yaml variants there would compile
+      # nothing and the extraction would fail. When a PR adds the first base
+      # test for a platform, the target branch won't have it yet, so skip
+      # instead of failing. This check must be done here (not in
+      # determine-jobs.py) because determine-jobs runs on the PR branch and
+      # cannot see what the target branch has.
       - name: Check for test files on target branch
         id: check-tests
         if: steps.check-script.outputs.skip != 'true'
@@ -1430,13 +1432,10 @@ jobs:
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
           found=false
           for component in $(echo "$components" | jq -r '.[]'); do
-            # Check for test files matching the platform (test.platform.yaml or test-*.platform.yaml)
-            for f in tests/components/${component}/test*.${platform}.yaml; do
-              if [ -f "$f" ]; then
-                found=true
-                break 2
-              fi
-            done
+            if [ -f "tests/components/${component}/test.${platform}.yaml" ]; then
+              found=true
+              break
+            fi
           done
           if [ "$found" = false ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
