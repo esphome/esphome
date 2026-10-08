@@ -1,6 +1,6 @@
 #include "sendspin_switch.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/core/log.h"
 
@@ -23,4 +23,4 @@ void SendspinSwitch::write_state(bool state) {
 
 }  // namespace esphome::sendspin_
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

@@ -364,12 +364,14 @@ def add_resource_as_progmem(
     content_encoded = content.encode("utf-8")
     if compress:
         content_encoded = gzip.compress(content_encoded)
-    content_encoded_size = len(content_encoded)
-    bytes_as_int = ", ".join(str(x) for x in content_encoded)
-    uint8_t = f"constexpr uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
-    size_t = f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
-    cg.add_global(cg.RawExpression(uint8_t))
-    cg.add_global(cg.RawExpression(size_t))
+    cg.extern_progmem_array(
+        f"ESPHOME_WEBSERVER_{resource_name}", cg.uint8, list(content_encoded)
+    )
+    cg.add_global(
+        cg.RawExpression(
+            f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {len(content_encoded)}"
+        )
+    )
 
 
 @coroutine_with_priority(CoroPriority.WEB)
