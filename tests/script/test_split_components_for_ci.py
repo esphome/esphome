@@ -35,13 +35,20 @@ def test_build_seconds() -> None:
     """Known platforms use the table; nrf52 boards share one estimate."""
     build_seconds = split_components_for_ci.build_seconds
     assert build_seconds("host") == 10
-    assert build_seconds("esp32-idf") == 45
+    assert build_seconds("esp32-idf") == 55
     assert (
         build_seconds("nrf52-xiao-ble") == split_components_for_ci.NRF52_BUILD_SECONDS
     )
     assert (
-        build_seconds("esp32-s3-idf") == split_components_for_ci.DEFAULT_BUILD_SECONDS
+        build_seconds("esp32-c5-idf") == split_components_for_ci.DEFAULT_BUILD_SECONDS
     )
+
+
+def test_component_build_seconds() -> None:
+    """A component with a large library costs more on every platform."""
+    component_build_seconds = split_components_for_ci.component_build_seconds
+    assert component_build_seconds("dht", "esp32-idf") == 55
+    assert component_build_seconds("micro_wake_word", "esp32-idf") == 55 + 200
 
 
 def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
@@ -61,27 +68,57 @@ def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
     isolated = split_components_for_ci._make_item(
         tests_dir, "comp", "isolated_comp", True
     )
-    assert isolated.own_seconds == 45 + 10 + 45 + 50
+    assert isolated.own_seconds == 55 + 10 + 55 + 45
     assert isolated.grouped_builds == {}
+    assert isolated.heavy_seconds == 0
 
     # The rp2040 variant has no base test to group with, so it always runs
     grouped = split_components_for_ci._make_item(tests_dir, "comp", "i2c", False)
-    assert grouped.own_seconds == 50
-    assert grouped.grouped_builds == {("i2c", "esp32-idf"): 90, ("i2c", "host"): 10}
+    assert grouped.own_seconds == 45
+    assert grouped.grouped_builds == {("i2c", "esp32-idf"): 110, ("i2c", "host"): 10}
+
+
+def test_make_item_heavy_component(tests_dir: Path) -> None:
+    """A heavy component's library cost follows it into every build."""
+    _add_component(tests_dir, "lvgl", ["test.esp32-idf.yaml", "test-a.host.yaml"])
+    extra = split_components_for_ci.HEAVY_COMPONENT_SECONDS["lvgl"]
+
+    item = split_components_for_ci._make_item(tests_dir, "lvgl", "spi", False)
+    assert item.own_seconds == 10 + extra
+    assert item.grouped_builds == {("spi", "esp32-idf"): 55 + extra}
+    assert item.heavy_seconds == extra
 
 
 def test_grouped_component_joins_existing_build() -> None:
     """A second member turns a lone build into a group that skips variants."""
     item = split_components_for_ci._BatchItem
     batch = split_components_for_ci._Batch()
-    batch.add(item("a", 0, {("i2c", "esp32-idf"): 90}))
-    assert batch.seconds == 90
+    batch.add(item("a", 0, {("i2c", "esp32-idf"): 110}))
+    assert batch.seconds == 110
 
-    other = item("b", 0, {("i2c", "esp32-idf"): 45, ("i2c", "host"): 10})
-    grouped = 45 + split_components_for_ci.GROUPED_COMPONENT_SECONDS
-    assert batch.added_seconds(other) == grouped - 90 + 10
+    other = item("b", 0, {("i2c", "esp32-idf"): 55, ("i2c", "host"): 10})
+    grouped = 55 + split_components_for_ci.GROUPED_COMPONENT_SECONDS
+    assert batch.added_seconds(other) == grouped - 110 + 10
     batch.add(other)
     assert batch.seconds == grouped + 10
+
+
+def test_heavy_component_charges_the_shared_build() -> None:
+    """A heavy member makes the whole grouped build slower, once."""
+    item = split_components_for_ci._BatchItem
+    batch = split_components_for_ci._Batch()
+    batch.add(item("a", 0, {("spi", "esp32-idf"): 55}))
+
+    heavy = item("lvgl", 0, {("spi", "esp32-idf"): 55 + 50}, heavy_seconds=50)
+    grouped = 55 + split_components_for_ci.GROUPED_COMPONENT_SECONDS + 50
+    assert batch.added_seconds(heavy) == grouped - 55
+    batch.add(heavy)
+    assert batch.seconds == grouped
+
+    light = item("b", 0, {("spi", "esp32-idf"): 55})
+    assert (
+        batch.added_seconds(light) == split_components_for_ci.GROUPED_COMPONENT_SECONDS
+    )
 
 
 def test_isolated_components_balance_across_runners(tests_dir: Path) -> None:
@@ -138,7 +175,7 @@ def test_groupable_components_split_evenly(tests_dir: Path) -> None:
         components=names, tests_dir=tests_dir, target_seconds=100
     )
 
-    assert sorted(len(batch) for batch in batches) == [2, 2, 2, 3, 3]
+    assert sorted(len(batch) for batch in batches) == [3, 3, 3, 3]
     assert sorted(c for batch in batches for c in batch) == names
 
 
@@ -149,7 +186,7 @@ def test_make_item_reads_tests_dir(tmp_path: Path) -> None:
     _add_component(other, "comp", ["test.esp32-idf.yaml"])
 
     item = split_components_for_ci._make_item(other, "comp", "isolated_comp", True)
-    assert item.own_seconds == 45
+    assert item.own_seconds == 55
 
 
 def test_balance_batches_empty() -> None:

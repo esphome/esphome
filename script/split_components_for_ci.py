@@ -36,24 +36,47 @@ from script.helpers import (
     split_conflicting_groups,
 )
 
-# Estimated CI seconds for one build per test platform, read from batch job
-# logs. Absolute accuracy does not matter, only the ratios between platforms.
-# A full run takes over an hour, so recording real timings is not practical.
+# Estimated CI seconds for one build per test platform, fitted to the batch
+# job logs of a full run (every component, PR #20389). Absolute accuracy does
+# not matter, only the ratios between platforms. A full run takes over an
+# hour, so recording real timings is not practical.
 PLATFORM_BUILD_SECONDS = {
     "host": 10,
     "esp8266-ard": 30,
-    "esp32-idf": 45,
-    "rtl87xx-ard": 35,
-    "ln882x-ard": 50,
-    "rp2040-ard": 50,
-    "rp2350-ard": 50,
-    "bk72xx-ard": 60,
+    "rtl87xx-ard": 40,
+    "esp32-c3-idf": 40,
+    "esp32-s2-idf": 40,
+    "rp2350-ard": 40,
+    "rp2040-ard": 45,
+    "esp32-idf": 55,
+    "esp32-p4-idf": 55,
+    "ln882x-ard": 55,
+    "esp32-s3-idf": 60,
+    "bk72xx-ard": 70,
+    "esp32-c6-idf": 70,
+    "esp32-ard": 90,
+    "esp32-s3-ard": 90,
 }
-NRF52_BUILD_SECONDS = 45
-# Other ESP32 chips and Arduino on ESP32 share less of the ccache
-DEFAULT_BUILD_SECONDS = 90
+NRF52_BUILD_SECONDS = 50
+# The remaining ESP32 chips on ESP-IDF
+DEFAULT_BUILD_SECONDS = 50
 # Each extra component merged into a grouped build makes it larger
-GROUPED_COMPONENT_SECONDS = 5
+GROUPED_COMPONENT_SECONDS = 3
+# Components whose tests pull in a large library the build compiles from
+# source (TensorFlow Lite Micro, FastLED, LVGL, the HTTP server), added to
+# every build that includes them. Fitted the same way as the platforms.
+HEAVY_COMPONENT_SECONDS = {
+    "micro_wake_word": 200,
+    "voice_assistant": 200,
+    "fastled_clockless": 90,
+    "fastled_spi": 90,
+    "wled": 60,
+    "lvgl": 50,
+    "web_server": 50,
+    "online_image": 45,
+    "prometheus": 35,
+    "bluetooth_proxy": 30,
+}
 # Estimated build seconds per CI runner; sets how many runners are used.
 # Approximate: the runner count charges each grouped build once, but a large
 # group spreads over several runners, which each pay for that build.
@@ -93,6 +116,11 @@ def build_seconds(platform: str) -> int:
     return DEFAULT_BUILD_SECONDS
 
 
+def component_build_seconds(component: str, platform: str) -> int:
+    """Return the estimated seconds of one build of a component's test."""
+    return build_seconds(platform) + HEAVY_COMPONENT_SECONDS.get(component, 0)
+
+
 @dataclass
 class _BatchItem:
     """A component and the builds it adds to the batch it lands in."""
@@ -104,12 +132,16 @@ class _BatchItem:
     # Per (signature, platform) shared build: the seconds of this component's
     # files on that platform when no other batch member shares the build
     grouped_builds: dict[tuple[str, str], int] = field(default_factory=dict)
+    # Seconds the component's libraries add to any build that includes it
+    heavy_seconds: int = 0
 
     def standalone_seconds(self) -> int:
         return self.own_seconds + sum(self.grouped_builds.values())
 
 
-def _grouped_build_seconds(platform: str, solo_seconds: list[int]) -> int:
+def _grouped_build_seconds(
+    platform: str, solo_seconds: list[int], heavy_seconds: int = 0
+) -> int:
     """Return the seconds of one (signature, platform) build in a batch.
 
     test_build_components only groups when two or more members share the
@@ -117,7 +149,11 @@ def _grouped_build_seconds(platform: str, solo_seconds: list[int]) -> int:
     """
     if len(solo_seconds) <= 1:
         return sum(solo_seconds)
-    return build_seconds(platform) + GROUPED_COMPONENT_SECONDS * (len(solo_seconds) - 1)
+    return (
+        build_seconds(platform)
+        + GROUPED_COMPONENT_SECONDS * (len(solo_seconds) - 1)
+        + heavy_seconds
+    )
 
 
 def _make_item(
@@ -130,12 +166,14 @@ def _make_item(
     own_seconds = 0
     grouped: dict[tuple[str, str], int] = {}
     for platform, test_names in files_by_platform.items():
-        seconds = build_seconds(platform) * len(test_names)
+        seconds = component_build_seconds(component, platform) * len(test_names)
         if is_isolated or "test" not in test_names:
             own_seconds += seconds
         else:
             grouped[(signature, platform)] = seconds
-    return _BatchItem(component, own_seconds, grouped)
+    return _BatchItem(
+        component, own_seconds, grouped, HEAVY_COMPONENT_SECONDS.get(component, 0)
+    )
 
 
 class _Batch:
@@ -145,21 +183,25 @@ class _Batch:
         self.components: list[str] = []
         self.seconds = 0
         self.grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
+        self.heavy_seconds: dict[tuple[str, str], int] = defaultdict(int)
 
     def added_seconds(self, item: _BatchItem) -> int:
         """Return the seconds item would add; joining an existing build is cheap."""
         added = item.own_seconds
         for (signature, platform), solo in item.grouped_builds.items():
-            members = self.grouped_builds.get((signature, platform), [])
+            build = (signature, platform)
+            members = self.grouped_builds.get(build, [])
+            heavy = self.heavy_seconds.get(build, 0)
             added += _grouped_build_seconds(
-                platform, [*members, solo]
-            ) - _grouped_build_seconds(platform, members)
+                platform, [*members, solo], heavy + item.heavy_seconds
+            ) - _grouped_build_seconds(platform, members, heavy)
         return added
 
     def add(self, item: _BatchItem) -> None:
         self.seconds += self.added_seconds(item)
         for build, solo in item.grouped_builds.items():
             self.grouped_builds[build].append(solo)
+            self.heavy_seconds[build] += item.heavy_seconds
         self.components.append(item.component)
 
 
@@ -173,12 +215,14 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     if not items:
         return []
     grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
+    heavy_seconds: dict[tuple[str, str], int] = defaultdict(int)
     for item in items:
         for build, solo in item.grouped_builds.items():
             grouped_builds[build].append(solo)
+            heavy_seconds[build] += item.heavy_seconds
     total = sum(item.own_seconds for item in items) + sum(
-        _grouped_build_seconds(platform, solos)
-        for (_, platform), solos in grouped_builds.items()
+        _grouped_build_seconds(platform, solos, heavy_seconds[(signature, platform)])
+        for (signature, platform), solos in grouped_builds.items()
     )
     count = min(len(items), max(1, math.ceil(total / target_seconds)))
     batches = [_Batch() for _ in range(count)]
