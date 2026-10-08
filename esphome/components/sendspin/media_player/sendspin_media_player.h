@@ -25,6 +25,9 @@ class SendspinMediaPlayer final : public SendspinChild, public media_player::Med
   // Receives commands from HA
   void control(const media_player::MediaPlayerCall &call) override;
 
+  /// @brief Publishes @p new_state if it differs from the current state.
+  void set_playback_state_(media_player::MediaPlayerState new_state);
+
   float volume_increment_{0.05f};
   bool muted_{false};
 };

@@ -1,10 +1,10 @@
 #include "zigbee_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52)
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
-#include "esphome/core/wake.h"
 
 extern "C" {
 #include <zboss_api.h>
@@ -30,6 +30,9 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   switch (sig) {
     case ZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_SKIP_STARTUP, status: %d", status);
+      if (status == RET_OK) {
+        on_start_();
+      }
       break;
     case ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY, status: %d", status);
@@ -117,7 +120,7 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
-  esphome::wake_loop_threadsafe();
+  App.wake_loop_threadsafe();
 
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
@@ -135,6 +138,15 @@ void ZigbeeComponent::on_join_(bool factory_new) {
     ESP_LOGD(TAG, "Joined the network");
     this->join_cb_.call(factory_new);
   });
+  App.wake_loop_threadsafe();
+}
+
+void ZigbeeComponent::on_start_() {
+  this->defer([this]() {
+    ESP_LOGD(TAG, "Started zigbee stack");
+    this->start_cb_.call();
+  });
+  App.wake_loop_threadsafe();
 }
 
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT

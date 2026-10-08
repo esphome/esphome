@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_VALUE
+from esphome.types import ConfigType
 
 CONF_SCALE = "scale"
 CONF_ECC = "ecc"
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
     cg.add_library("wjtje/qr-code-generator-library", "^1.7.0")
 
     for entry in config:

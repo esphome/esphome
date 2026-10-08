@@ -221,46 +221,12 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  int32_t r = 0, g = 0, b = 0;
-  switch (this->rgb_order_) {
-    case ORDER_RGB:
-      r = 0;
-      g = 1;
-      b = 2;
-      break;
-    case ORDER_RBG:
-      r = 0;
-      g = 2;
-      b = 1;
-      break;
-    case ORDER_GRB:
-      r = 1;
-      g = 0;
-      b = 2;
-      break;
-    case ORDER_GBR:
-      r = 2;
-      g = 0;
-      b = 1;
-      break;
-    case ORDER_BGR:
-      r = 2;
-      g = 1;
-      b = 0;
-      break;
-    case ORDER_BRG:
-      r = 1;
-      g = 2;
-      b = 0;
-      break;
-  }
-  uint8_t multiplier = this->is_rgbw_ || this->is_wrgb_ ? 4 : 3;
-  uint8_t white = this->is_wrgb_ ? 0 : 3;
-
-  return {this->buf_ + (index * multiplier) + r + this->is_wrgb_,
-          this->buf_ + (index * multiplier) + g + this->is_wrgb_,
-          this->buf_ + (index * multiplier) + b + this->is_wrgb_,
-          this->is_rgbw_ || this->is_wrgb_ ? this->buf_ + (index * multiplier) + white : nullptr,
+  const light::ChannelColors &colors = this->channel_colors_;
+  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
+  return {led + colors.r,
+          led + colors.g,
+          led + colors.b,
+          colors.has_white() ? led + colors.w : nullptr,
           &this->effect_data_[index],
           &this->correction_};
 }
@@ -271,35 +237,12 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 "  Pin: %u",
                 this->pin_);
   ESP_LOGCONFIG(TAG, "  RMT Symbols: %" PRIu32, this->rmt_symbols_);
-  const char *rgb_order;
-  switch (this->rgb_order_) {
-    case ORDER_RGB:
-      rgb_order = "RGB";
-      break;
-    case ORDER_RBG:
-      rgb_order = "RBG";
-      break;
-    case ORDER_GRB:
-      rgb_order = "GRB";
-      break;
-    case ORDER_GBR:
-      rgb_order = "GBR";
-      break;
-    case ORDER_BGR:
-      rgb_order = "BGR";
-      break;
-    case ORDER_BRG:
-      rgb_order = "BRG";
-      break;
-    default:
-      rgb_order = "UNKNOWN";
-      break;
-  }
+  char channel_colors[5];
   ESP_LOGCONFIG(TAG,
-                "  RGB Order: %s\n"
+                "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                rgb_order, this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_.value_or(0), this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

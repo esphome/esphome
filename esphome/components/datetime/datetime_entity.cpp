@@ -53,8 +53,6 @@ void DateTimeEntity::publish_state() {
 #endif
 }
 
-DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
-
 ESPTime DateTimeEntity::state_as_esptime() const {
   ESPTime obj;
   obj.year = this->year_;

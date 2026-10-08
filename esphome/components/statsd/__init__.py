@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
+from esphome.components.const import CONF_HOST
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSORS,
@@ -8,12 +9,12 @@ from esphome.const import (
     CONF_PORT,
     CONF_SENSORS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@Links2004"]
 DEPENDENCIES = ["network"]
 
-CONF_HOST = "host"
 CONF_PREFIX = "prefix"
 
 statsd_component_ns = cg.esphome_ns.namespace("statsd")
@@ -45,7 +46,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("10s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(

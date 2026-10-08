@@ -1,4 +1,7 @@
-#ifdef USE_ESP32
+#include "esphome/core/defines.h"
+// Also defines the core ISRInternalGPIOPin methods; those are only reachable
+// via ESP32InternalGPIOPin::to_isr(), so the same define gates both safely.
+#if defined(USE_ESP32) && defined(USE_ESP32_INTERNAL_GPIO)
 
 #include "gpio.h"
 #include "esphome/core/log.h"
@@ -27,7 +30,7 @@ static const gpio_hal_context_t GPIO_HAL = {.dev = GPIO_HAL_GET_HW(GPIO_PORT_0)}
 bool ESP32InternalGPIOPin::isr_service_installed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static gpio_mode_t flags_to_mode(gpio::Flags flags) {
-  flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
+  flags = flags & (gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
   if (flags == gpio::FLAG_INPUT)
     return GPIO_MODE_INPUT;
   if (flags == gpio::FLAG_OUTPUT)
@@ -204,4 +207,4 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
 
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && USE_ESP32_INTERNAL_GPIO

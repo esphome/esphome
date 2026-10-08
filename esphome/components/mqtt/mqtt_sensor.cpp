@@ -1,6 +1,7 @@
 #include <cinttypes>
 #include "mqtt_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -39,8 +40,6 @@ uint32_t MQTTSensorComponent::get_expire_after() const {
     return *this->expire_after_;
   return 0;
 }
-void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
-void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
 
 void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
@@ -61,11 +60,7 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
     root[MQTT_FORCE_UPDATE] = true;
 
   if (this->sensor_->get_state_class() != STATE_CLASS_NONE) {
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-    root[MQTT_STATE_CLASS] = (const __FlashStringHelper *) state_class_to_string(this->sensor_->get_state_class());
-#else
-    root[MQTT_STATE_CLASS] = LOG_STR_ARG(state_class_to_string(this->sensor_->get_state_class()));
-#endif
+    root[MQTT_STATE_CLASS] = reinterpret_cast<ProgmemStr>(state_class_to_string(this->sensor_->get_state_class()));
   }
 
   config.command_topic = false;

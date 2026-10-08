@@ -190,8 +190,6 @@ void HaierClimateBase::set_supported_presets(climate::ClimatePresetMask presets)
     this->traits_.add_supported_preset(climate::CLIMATE_PRESET_NONE);
 }
 
-void HaierClimateBase::set_send_wifi(bool send_wifi) { this->send_wifi_signal_ = send_wifi; }
-
 void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &message) {
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
 }
@@ -248,7 +246,8 @@ void HaierClimateBase::setup() {
 
 void HaierClimateBase::dump_config() {
   LOG_CLIMATE("", "Haier Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device communication status: %s", this->valid_connection() ? "established" : "none");
+  ESP_LOGCONFIG(TAG, "  Device communication status: %s",
+                this->valid_connection() ? LOG_STR_LITERAL("established") : LOG_STR_LITERAL("none"));
 }
 
 void HaierClimateBase::loop() {

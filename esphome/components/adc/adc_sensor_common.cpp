@@ -3,7 +3,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc.common";
+static const char *const TAG = "adc";
 
 const LogString *sampling_mode_to_str(SamplingMode mode) {
   switch (mode) {
@@ -75,7 +75,5 @@ void ADCSensor::set_sample_count(uint8_t sample_count) {
     this->sample_count_ = sample_count;
   }
 }
-
-void ADCSensor::set_sampling_mode(SamplingMode sampling_mode) { this->sampling_mode_ = sampling_mode; }
 
 }  // namespace esphome::adc

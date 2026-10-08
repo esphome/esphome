@@ -5,7 +5,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc.libretiny";
+static const char *const TAG = "adc";
 
 void ADCSensor::setup() {
 #ifndef USE_ADC_SENSOR_VCC

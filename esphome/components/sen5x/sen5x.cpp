@@ -101,25 +101,31 @@ void SEN5XComponent::setup() {
       ESP_LOGV(TAG, "Serial number %s", this->serial_number_);
 
       uint16_t raw_product_name[16];
-      if (!this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
-        ESP_LOGE(TAG, "Failed to read product name");
-        this->error_code_ = PRODUCT_NAME_FAILED;
-        this->mark_failed();
-        return;
+      Sen5xType detected_type = Sen5xType::UNKNOWN;
+      if (this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
+        const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
+        if (strncmp(product_name, "SEN50", 5) == 0) {
+          detected_type = Sen5xType::SEN50;
+        } else if (strncmp(product_name, "SEN54", 5) == 0) {
+          detected_type = Sen5xType::SEN54;
+        } else if (strncmp(product_name, "SEN55", 5) == 0) {
+          detected_type = Sen5xType::SEN55;
+        }
       }
-      const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
-      if (strncmp(product_name, "SEN50", 5) == 0) {
-        this->type_ = Sen5xType::SEN50;
-      } else if (strncmp(product_name, "SEN54", 5) == 0) {
-        this->type_ = Sen5xType::SEN54;
-      } else if (strncmp(product_name, "SEN55", 5) == 0) {
-        this->type_ = Sen5xType::SEN55;
-      } else {
+
+      if (this->model_override_.has_value()) {
+        if (detected_type != this->model_override_.value()) {
+          ESP_LOGW(TAG, "Detected %s, using %s", LOG_STR_ARG(type_to_string(detected_type)),
+                   LOG_STR_ARG(type_to_string(this->model_override_.value())));
+        }
+        this->type_ = this->model_override_.value();
+      } else if (detected_type == Sen5xType::UNKNOWN) {
         this->type_ = Sen5xType::UNKNOWN;
-        ESP_LOGE(TAG, "Unknown product name: %.32s", product_name);
         this->error_code_ = PRODUCT_NAME_FAILED;
         this->mark_failed();
         return;
+      } else {
+        this->type_ = detected_type;
       }
 
       ESP_LOGD(TAG, "Type: %s", LOG_STR_ARG(type_to_string(this->type_)));
@@ -255,10 +261,12 @@ void SEN5XComponent::dump_config() {
     }
   }
   ESP_LOGCONFIG(TAG,
-                "  Type: %s\n"
+                "  Type: %s%s\n"
                 "  Firmware version: %d\n"
                 "  Serial number: %s",
-                LOG_STR_ARG(type_to_string(this->type_)), this->firmware_version_, this->serial_number_);
+                LOG_STR_ARG(type_to_string(this->type_)),
+                this->model_override_.has_value() ? LOG_STR_LITERAL(" (overridden)") : LOG_STR_LITERAL(""),
+                this->firmware_version_, this->serial_number_);
   if (this->auto_cleaning_interval_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }

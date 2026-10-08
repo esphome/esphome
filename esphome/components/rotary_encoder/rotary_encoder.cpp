@@ -220,7 +220,7 @@ void RotaryEncoderSensor::loop() {
   }
 
   if (this->pin_i_ != nullptr && this->pin_i_->digital_read()) {
-    this->store_.counter = 0;
+    this->store_.counter = std::clamp<int32_t>(0, this->store_.min_value, this->store_.max_value);
   }
   int counter = this->store_.counter;
   if (this->store_.last_read != counter || this->publish_initial_value_) {

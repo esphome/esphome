@@ -7,6 +7,7 @@ from esphome.components.speaker import Speaker
 import esphome.config_validation as cv
 from esphome.const import CONF_GAIN, CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_SPEAKER
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,9 +18,6 @@ CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 rtttl_ns = cg.esphome_ns.namespace("rtttl")
 
 Rtttl = rtttl_ns.class_("Rtttl", cg.Component)
-PlayAction = rtttl_ns.class_("PlayAction", automation.Action)
-StopAction = rtttl_ns.class_("StopAction", automation.Action)
-IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
 MULTI_CONF = True
 
@@ -37,7 +35,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_parent_output_config(value):
+def validate_parent_output_config(value: ConfigType) -> None:
     platform = value.get(CONF_PLATFORM)
     PWM_GOOD = ["esp8266_pwm", "ledc"]
     PWM_BAD = [
@@ -78,7 +76,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -98,9 +96,8 @@ async def to_code(config):
         await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "rtttl.play",
-    PlayAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(CONF_ID): cv.use_id(Rtttl),
@@ -108,42 +105,26 @@ async def to_code(config):
         },
         key=CONF_RTTTL,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_RTTTL, "play", cg.std_string),
 )
-async def rtttl_play_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_RTTTL], args, cg.std_string)
-    cg.add(var.set_value(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "rtttl.stop",
-    StopAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(Rtttl),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("stop()"),
 )
-async def rtttl_stop_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "rtttl.is_playing",
-    IsPlayingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(Rtttl),
         }
     ),
+    "is_playing()",
 )
-async def rtttl_is_playing_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

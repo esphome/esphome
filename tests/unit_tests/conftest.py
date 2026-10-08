@@ -9,7 +9,8 @@ not be part of a unit test suite.
 
 """
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
+import os
 from pathlib import Path
 import sys
 from unittest.mock import Mock, patch
@@ -38,6 +39,19 @@ def fixture_path() -> Path:
     Location of all fixture files.
     """
     return here / "fixtures"
+
+
+@pytest.fixture
+def probe_env() -> dict[str, str]:
+    """Environment for running fixture probe scripts as subprocesses.
+
+    Running a script file drops the cwd from sys.path, so prepend the
+    repo root for the child.
+    """
+    python_path = str(package_root)
+    if ambient := os.environ.get("PYTHONPATH"):
+        python_path = os.pathsep.join((python_path, ambient))
+    return os.environ | {"PYTHONPATH": python_path}
 
 
 @pytest.fixture
@@ -123,3 +137,56 @@ def mock_get_component() -> Generator[Mock, None, None]:
     """Mock get_component for config module."""
     with patch("esphome.config.get_component") as mock:
         yield mock
+
+
+@pytest.fixture
+def held_lock() -> Callable[..., Callable[..., None]]:
+    """Factory for a ``FileLock.acquire`` fake held by another downloader.
+
+    Each poll writes the next chunk to ``part`` (or runs it, for a callable)
+    and raises ``Timeout``; when the chunks run out the part is removed,
+    ``land()`` runs, and the acquire succeeds (also for any later job, so
+    ``land`` must be idempotent).
+    """
+    from filelock import Timeout
+
+    def make(
+        part: Path,
+        chunks: list[bytes | Callable[[], None]],
+        land: Callable[[], None],
+    ) -> Callable[..., None]:
+        polls = iter(chunks)
+
+        def acquire(*args, **kwargs) -> None:
+            try:
+                chunk = next(polls)
+            except StopIteration:
+                part.unlink(missing_ok=True)
+                land()
+                return
+            if callable(chunk):
+                chunk()
+            else:
+                part.parent.mkdir(parents=True, exist_ok=True)
+                part.write_bytes(chunk)
+            raise Timeout("held")
+
+        return acquire
+
+    return make
+
+
+@pytest.fixture(autouse=True)
+def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The knob changes what the generators emit: no ambient value, and on,
+    so the Windows runner asks no compiler."""
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+
+
+@pytest.fixture
+def windows_gcc_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows host, knob unset: the compiler version decides."""
+    from esphome.build_helpers import pch
+
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    monkeypatch.setattr(pch.sys, "platform", "win32")
