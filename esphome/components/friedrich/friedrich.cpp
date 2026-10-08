@@ -25,7 +25,7 @@ namespace esphome::friedrich {
 * Byte13 N/A when command, else CheckSum
 */
 // clang-format on
-static const char *const TAG = "friedrich";
+ESPHOME_LOG_TAG(TAG, "friedrich");
 
 const uint8_t STATE_MESSAGE_LENGTH_UTIL = 5;
 const uint16_t CARRIER_ADDRESS = 0x28C6;
