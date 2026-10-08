@@ -48,19 +48,18 @@ def test_build_seconds() -> None:
     )
 
 
-def test_heavy_seconds(tests_dir: Path) -> None:
+def test_heavy_components(tests_dir: Path) -> None:
     """A heavy component, or a test that enables one, costs its library time."""
+    heavy_components = split_components_for_ci.heavy_components
     heavy_seconds = split_components_for_ci.heavy_seconds
     table = split_components_for_ci.HEAVY_COMPONENT_SECONDS
     _add_component(tests_dir, "dht", ["test.esp32-idf.yaml"])
     _add_component(tests_dir, "micro_wake_word", ["test.esp32-idf.yaml"])
-    assert heavy_seconds("dht", tests_dir / "dht/test.esp32-idf.yaml") == 0
-    assert (
-        heavy_seconds(
-            "micro_wake_word", tests_dir / "micro_wake_word/test.esp32-idf.yaml"
-        )
-        == table["micro_wake_word"]
-    )
+    assert heavy_components("dht", tests_dir / "dht/test.esp32-idf.yaml") == set()
+    assert heavy_components(
+        "micro_wake_word", tests_dir / "micro_wake_word/test.esp32-idf.yaml"
+    ) == {"micro_wake_word"}
+    assert heavy_seconds(frozenset({"micro_wake_word"})) == table["micro_wake_word"]
 
     display = tests_dir / "mipi_spi"
     display.mkdir()
@@ -71,9 +70,11 @@ def test_heavy_seconds(tests_dir: Path) -> None:
         "lvgl:\n  pages: []\n"
         "light:\n  - platform: fastled_spi\n    num_leds: 1\n"
     )
-    assert heavy_seconds("mipi_spi", display / "test-lvgl.esp32-s3-idf.yaml") == (
-        table["lvgl"] + table["web_server"] + table["fastled_spi"]
-    )
+    assert heavy_components("mipi_spi", display / "test-lvgl.esp32-s3-idf.yaml") == {
+        "lvgl",
+        "web_server",
+        "fastled_spi",
+    }
 
 
 def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
@@ -100,8 +101,8 @@ def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
     grouped = split_components_for_ci._make_item(tests_dir, "comp", "i2c", False)
     assert grouped.own_seconds == 45
     assert grouped.grouped_builds == {
-        ("i2c", "esp32-idf"): (110, 0),
-        ("i2c", "host"): (10, 0),
+        ("i2c", "esp32-idf"): (110, frozenset()),
+        ("i2c", "host"): (10, frozenset()),
     }
 
 
@@ -112,17 +113,23 @@ def test_make_item_heavy_component(tests_dir: Path) -> None:
 
     item = split_components_for_ci._make_item(tests_dir, "lvgl", "spi", False)
     assert item.own_seconds == 10 + extra
-    assert item.grouped_builds == {("spi", "esp32-idf"): (55 + extra, extra)}
+    assert item.grouped_builds == {
+        ("spi", "esp32-idf"): (55 + extra, frozenset({"lvgl"}))
+    }
 
 
 def test_grouped_component_joins_existing_build() -> None:
     """A second member turns a lone build into a group that skips variants."""
     item = split_components_for_ci._BatchItem
     batch = split_components_for_ci._Batch()
-    batch.add(item("a", 0, {("i2c", "esp32-idf"): (110, 0)}))
+    batch.add(item("a", 0, {("i2c", "esp32-idf"): (110, frozenset())}))
     assert batch.seconds == 110
 
-    other = item("b", 0, {("i2c", "esp32-idf"): (55, 0), ("i2c", "host"): (10, 0)})
+    other = item(
+        "b",
+        0,
+        {("i2c", "esp32-idf"): (55, frozenset()), ("i2c", "host"): (10, frozenset())},
+    )
     grouped = 55 + split_components_for_ci.GROUPED_COMPONENT_SECONDS
     assert batch.added_seconds(other) == grouped - 110 + 10
     batch.add(other)
@@ -130,21 +137,26 @@ def test_grouped_component_joins_existing_build() -> None:
 
 
 def test_heavy_component_charges_the_shared_build() -> None:
-    """A heavy member makes the whole grouped build slower, once."""
+    """A heavy member makes the whole grouped build slower, once per library."""
     item = split_components_for_ci._BatchItem
     batch = split_components_for_ci._Batch()
-    batch.add(item("a", 0, {("spi", "esp32-idf"): (55, 0)}))
+    extra = split_components_for_ci.HEAVY_COMPONENT_SECONDS["lvgl"]
+    per_member = split_components_for_ci.GROUPED_COMPONENT_SECONDS
+    lvgl = frozenset({"lvgl"})
+    batch.add(item("a", 0, {("spi", "esp32-idf"): (55, frozenset())}))
 
-    heavy = item("lvgl", 0, {("spi", "esp32-idf"): (55 + 50, 50)})
-    grouped = 55 + split_components_for_ci.GROUPED_COMPONENT_SECONDS + 50
+    heavy = item("lvgl", 0, {("spi", "esp32-idf"): (55 + extra, lvgl)})
+    grouped = 55 + per_member + extra
     assert batch.added_seconds(heavy) == grouped - 55
     batch.add(heavy)
     assert batch.seconds == grouped
 
-    light = item("b", 0, {("spi", "esp32-idf"): (55, 0)})
-    assert (
-        batch.added_seconds(light) == split_components_for_ci.GROUPED_COMPONENT_SECONDS
-    )
+    light = item("b", 0, {("spi", "esp32-idf"): (55, frozenset())})
+    assert batch.added_seconds(light) == per_member
+
+    # A second member that also draws with lvgl compiles the library once
+    also_heavy = item("c", 0, {("spi", "esp32-idf"): (55 + extra, lvgl)})
+    assert batch.added_seconds(also_heavy) == per_member
 
 
 def test_isolated_components_balance_across_runners(tests_dir: Path) -> None:
@@ -232,6 +244,6 @@ def test_heavy_cost_is_per_platform(tests_dir: Path) -> None:
         tests_dir, "web_server_idf", "none", False
     )
     assert item.grouped_builds == {
-        ("none", "esp32-idf"): (55 + extra, extra),
-        ("none", "host"): (10, 0),
+        ("none", "esp32-idf"): (55 + extra, frozenset({"web_server"})),
+        ("none", "host"): (10, frozenset()),
     }
