@@ -7,7 +7,7 @@
 
 namespace esphome::snapshot {
 
-static const char *const TAG = "snapshot.display";
+ESPHOME_LOG_TAG(TAG, "snapshot.display");
 
 namespace {
 

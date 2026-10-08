@@ -5,7 +5,7 @@
 
 namespace esphome::ethernet_info {
 
-static const char *const TAG = "ethernet_info";
+ESPHOME_LOG_TAG(TAG, "ethernet_info");
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 void IPAddressEthernetInfo::setup() { ethernet::global_eth_component->add_ip_state_listener(this); }

@@ -45,7 +45,7 @@ extern "C" {
 
 namespace {
 
-const char *const TAG = "esp_now_hosted";
+ESPHOME_LOG_TAG(TAG, "esp_now_hosted");
 
 // One outstanding request at a time. ESPHome drives esp_now_* from the main
 // loop; the matching response and the async RECV/SEND events all arrive on the

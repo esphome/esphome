@@ -8,7 +8,7 @@
 
 namespace esphome::ld6002b {
 
-static const char *const TAG = "ld6002b";
+ESPHOME_LOG_TAG(TAG, "ld6002b");
 
 static constexpr uint8_t TF_SOF = 0x01;
 static constexpr uint32_t SETUP_DELAY_MS = 100;

@@ -1,12 +1,12 @@
 #include "sendspin_switch.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/core/log.h"
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.switch";
+ESPHOME_LOG_TAG(TAG, "sendspin.switch");
 
 void SendspinSwitch::setup() {
   // The hub waits for this request, so a restore mode without a state still has to answer.
@@ -23,4 +23,4 @@ void SendspinSwitch::write_state(bool state) {
 
 }  // namespace esphome::sendspin_
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

@@ -5,7 +5,7 @@
 
 namespace esphome::libretiny {
 
-static const char *const TAG = "libretiny.gpio";
+ESPHOME_LOG_TAG(TAG, "libretiny.gpio");
 
 static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   flags =

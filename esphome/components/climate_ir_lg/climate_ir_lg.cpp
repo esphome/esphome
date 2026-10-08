@@ -3,7 +3,7 @@
 
 namespace esphome::climate_ir_lg {
 
-static const char *const TAG = "climate.climate_ir_lg";
+ESPHOME_LOG_TAG(TAG, "climate.climate_ir_lg");
 
 // All codes provided here are missing the checksum (last 4 bits)
 // this checksum needs to be calculated before sending (look at `calc_checksum_()`)

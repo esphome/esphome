@@ -352,7 +352,7 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
 #ifdef USE_API_WIZARD
 uint8_t *DeviceWizardResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
-  pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
+  pos = ProtoEncode::encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
   return pos;
 }
 uint32_t DeviceWizardResponse::calc_size_msg(const void *self) {
