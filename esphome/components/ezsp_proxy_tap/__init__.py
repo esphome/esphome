@@ -1,8 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import serial_proxy
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
-import esphome.final_validate as fv
+from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81", "@puddly"]
@@ -16,25 +15,12 @@ EzspProxyTap = ezsp_proxy_tap_ns.class_(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    full_config = fv.full_config.get()
-    if (wifi_conf := full_config.get(CONF_WIFI)) and (
-        wifi_conf.get(CONF_POWER_SAVE_MODE, "").lower() != "none"
-    ):
-        raise cv.Invalid(
-            f"{CONF_WIFI} {CONF_POWER_SAVE_MODE} must be set to 'none' when using EZSP proxy tap"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EzspProxyTap),
         cv.Required(CONF_SERIAL_PROXY_ID): cv.use_id(serial_proxy.SerialProxy),
     }
 ).extend(cv.COMPONENT_SCHEMA)
-
-FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
