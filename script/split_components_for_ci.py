@@ -70,7 +70,6 @@ GROUPED_COMPONENT_SECONDS = 3
 # build whose test config enables them. Fitted the same way as the platforms.
 HEAVY_COMPONENT_SECONDS: dict[str, int] = {
     "micro_wake_word": 200,
-    "voice_assistant": 200,
     "fastled_clockless": 90,
     "fastled_spi": 90,
     "wled": 60,
