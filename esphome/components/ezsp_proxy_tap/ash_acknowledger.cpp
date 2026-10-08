@@ -68,12 +68,15 @@ bool AshFrameScanner::feed(uint8_t byte) {
     value = byte ^ ASH_XOR_BYTE;
   }
 
-  if (this->index_ >= sizeof(this->buffer_)) {
+  if (this->index_ >= MAX_ASH_FRAME_SIZE) {
     this->poisoned_ = true;
     return false;
   }
 
-  this->buffer_[this->index_++] = value;
+  if (this->index_ < ASH_HEADER_SIZE) {
+    this->header_[this->index_] = value;
+  }
+  this->index_++;
   this->crc_ = crc16be(&value, 1, this->crc_);
   return false;
 }
@@ -86,7 +89,7 @@ void AshAcknowledger::reset() {
 bool AshAcknowledger::feed(uint8_t byte) { return this->scanner_.feed(byte) && this->handle_frame_(); }
 
 bool AshAcknowledger::handle_frame_() {
-  const uint8_t *body = this->scanner_.frame();
+  const uint8_t *body = this->scanner_.header();
   const uint8_t control = body[0];
 
   // An RSTACK restarts the NCP's frame numbering

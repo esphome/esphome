@@ -7,25 +7,25 @@
 
 namespace esphome::ezsp_proxy_tap {
 
-// Reassembles one direction of the byte stream into unstuffed, CRC-checked frames.
-// FLAG ends a frame, CANCEL discards what precedes it, SUBSTITUTE poisons everything up
-// to the next FLAG, and XON/XOFF are transport flow control removed without disturbing
-// the frame around them.
+// Reassembles one direction of the byte stream into unstuffed, CRC-checked frames. Only
+// the first ASH_HEADER_SIZE bytes of a frame are kept, as the CRC is checked as bytes
+// arrive and acknowledging needs nothing past the header.
 class AshFrameScanner {
  public:
   // Returns true when the byte completes a frame with a valid CRC
   bool feed(uint8_t byte);
   void reset();
 
-  // Valid only until the next feed() call, which begins overwriting the buffer.
-  const uint8_t *frame() const { return this->buffer_; }
+  // The first min(length(), ASH_HEADER_SIZE) bytes of the last completed frame's body.
+  // Valid only until the next feed() call, which begins overwriting them.
+  const uint8_t *header() const { return this->header_; }
   size_t length() const { return this->frame_length_; }
 
  private:
   void begin_frame_();
 
-  uint8_t buffer_[MAX_ASH_FRAME_SIZE];
-  size_t index_{0};         // accumulation position for the frame being read
+  uint8_t header_[ASH_HEADER_SIZE];
+  size_t index_{0};         // body bytes read so far in the frame being read
   size_t frame_length_{0};  // body length of the last completed frame
   uint16_t crc_{ASH_CRC_INIT};
   bool escaped_{false};

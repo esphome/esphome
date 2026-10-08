@@ -16,11 +16,14 @@ static constexpr uint8_t ASH_XOFF_BYTE = 0x13;    // Pause transmission
 static constexpr uint8_t ASH_CANCEL_BYTE = 0x1A;  // Discards the partial frame before it
 
 // ASH bounds a frame's Data Field at 128 bytes, so the largest body a scanner has to
-// hold is that field plus the control byte and the two CRC bytes ahead of the closing
+// accept is that field plus the control byte and the two CRC bytes ahead of the closing
 // delimiter. Byte stuffing happens on the wire only and is undone as bytes arrive, so it
 // does not enlarge this.
 static constexpr size_t ASH_MAX_DATA_FIELD_SIZE = 128;
 static constexpr size_t MAX_ASH_FRAME_SIZE = 1 + ASH_MAX_DATA_FIELD_SIZE + 2;
+
+// The control byte, then the first Data Field byte (an RSTACK's version)
+static constexpr size_t ASH_HEADER_SIZE = 2;
 
 // Protocol limits
 static constexpr uint8_t ASH_MAX_SEQUENCE = 7;  // 3-bit sequence number (0-7)
