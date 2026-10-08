@@ -18,7 +18,13 @@ class TestableSSD1681 : public EPaperSSD1681 {
     this->set_reset_pin(&this->reset_pin);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->set_full_update_every(full_update_every);
+    this->init_sent_frame_(this->buffer_length_);
   }
+
+  bool has_comparison_frame() const { return this->sent_.is_valid(); }
+  EPaperState state() const { return this->state_; }
+  void step() { this->process_state_(); }
+  uint8_t update_count() const { return this->update_count_; }
 
   void set_frame(std::initializer_list<uint8_t> bytes) {
     size_t i = 0;
@@ -33,11 +39,20 @@ class TestableSSD1681 : public EPaperSSD1681 {
     this->y_high_ = y_high;
   }
 
-  /// Run an update from the point where the frame has been drawn through to idle.
-  void run_update() {
-    this->state_ = EPaperState::RESET;
+  /// Run the UPDATE state with the frame already drawn, and report whether a push follows.
+  bool run_update_state() {
+    this->set_auto_clear(false);
+    this->state_ = EPaperState::UPDATE;
+    this->process_state_();
+    return this->state_ == EPaperState::RESET;
+  }
+
+  /// Run an update from the point where the frame has been drawn through to idle; false if skipped.
+  bool run_update() {
+    const bool pushed = this->run_update_state();
     while (this->state_ != EPaperState::IDLE)
       this->process_state_();
+    return pushed;
   }
 
   RecordingPin dc;
@@ -104,6 +119,7 @@ TEST(EPaperSSD1681, PanelStaysAwakeAndUnresetBetweenPartialRefreshes) {
   EXPECT_EQ(bus.commands.back(), 0x20) << "panel was put to sleep after the full refresh";
   bus.clear();
 
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
   display.set_dirty(8, 1, 16, 2);
   display.run_update();
   EXPECT_EQ(bus.commands.front(), 0x44) << "partial refresh sent a software reset";
@@ -129,6 +145,96 @@ TEST(EPaperSSD1681, EveryUpdateFullResetsAndSleepsEveryTime) {
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
   EXPECT_EQ(bus.data[0x21], (Bytes{0x40, 0x00}));
   EXPECT_EQ(bus.commands.back(), 0x10);
+}
+
+/// An update whose frame is the one already on the panel sends nothing and does not count towards
+/// the next full refresh. The first update after boot always pushes: nothing is known to be on
+/// the panel yet.
+TEST(EPaperSSD1681, UnchangedFrameSkipsTheRefresh) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+  ASSERT_TRUE(display.has_comparison_frame());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_TRUE(display.run_update()) << "first update was skipped";
+  EXPECT_EQ(display.update_count(), 1);
+  bus.clear();
+
+  display.set_dirty(0, 0, 16, 2);  // redrawn, but with the same content
+  EXPECT_FALSE(display.run_update()) << "unchanged frame was pushed";
+  EXPECT_TRUE(bus.commands.empty());
+  EXPECT_EQ(display.update_count(), 1) << "skipped update counted towards the next full refresh";
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_TRUE(display.run_update()) << "changed frame was skipped";
+  EXPECT_EQ(display.update_count(), 2);
+}
+
+/// A requested full update pushes even if the frame is unchanged.
+TEST(EPaperSSD1681, RequestedFullUpdateIsNotSkipped) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update();
+  bus.clear();
+
+  display.request_full_update();
+  EXPECT_TRUE(display.run_update());
+  EXPECT_EQ(bus.data[0x22], (Bytes{0xF7}));
+  EXPECT_EQ(display.update_count(), 1);
+}
+
+/// A partial refresh sends only the bytes that differ from the frame on the panel, whatever area
+/// was drawn: with auto clear on, the drawn area is always the whole panel.
+TEST(EPaperSSD1681, PartialRefreshSendsOnlyTheBytesThatChanged) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update();
+  bus.clear();
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(0, 0, 16, 2);  // whole panel redrawn, only the last byte differs
+  display.run_update();
+
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x00}));
+  EXPECT_EQ(bus.data[0x44], (Bytes{1, 1}));
+  EXPECT_EQ(bus.data[0x45], (Bytes{1, 0, 1, 0}));
+}
+
+/// The comparison frame holds what was sent, so a change that was drawn but not pushed yet
+/// (because it was drawn during a push) is still sent by the next update.
+TEST(EPaperSSD1681, ComparisonFrameIsWhatWasSent) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update();
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(8, 1, 16, 2);
+  display.run_update_state();
+  while (display.state() != EPaperState::POWER_ON)
+    display.step();
+  display.draw_pixel_at(4, 0, Color::BLACK);  // drawn during the refresh
+  while (display.state() != EPaperState::IDLE)
+    display.step();
+  bus.clear();
+
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_TRUE(display.run_update()) << "pixel drawn during the refresh was never sent";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x07}));
 }
 
 }  // namespace esphome::epaper_spi::testing

@@ -126,6 +126,16 @@ class EPaperBase : public Display,
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
+  // Allocates the copy of the frame last sent; drivers that record what they send call this from setup()
+  bool init_sent_frame_(size_t length);
+  void record_sent_(size_t index, const uint8_t *data, size_t length) {
+    if (this->sent_.is_valid())
+      this->sent_.write(index, data, length);
+  }
+  bool frame_unchanged_() const;
+  // Shrinks the update bounds to the bytes that differ from the frame last sent; false if none differ
+  bool bounds_from_changes_();
+  void reset_bounds_();
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
 
@@ -172,6 +182,9 @@ class EPaperBase : public Display,
   size_t buffer_length_{};
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
+  split_buffer::SplitBuffer sent_{};  // the frame last sent to the panel's new-image RAM
+  bool sent_valid_{};                 // sent_ holds a whole frame
+  bool full_window_{};                // the update in progress covers the whole panel
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};

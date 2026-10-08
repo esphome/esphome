@@ -6,21 +6,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.ssd1677";
-
-void EPaperSSD1677::setup() {
-  EPaperMono::setup();
-  if (!this->is_failed())
-    this->init_comparison_frame_();
-}
-
-void EPaperSSD1677::init_comparison_frame_() {
-  if (!this->is_using_partial_update_())
-    return;
-  if (!this->sent_.init(this->plane_row_length_() * this->height_)) {
-    ESP_LOGW(TAG, "No memory for the comparison frame; partial updates will degrade unchanged areas");
-  }
-}
 
 void EPaperSSD1677::plane_row(size_t y, uint8_t *out) {
   const size_t row_length = this->plane_row_length_();
@@ -80,7 +65,7 @@ bool HOT EPaperSSD1677::transfer_data() {
     }
     this->write_array(data, length);
     if (this->plane_ == 1)
-      this->sent_.write(this->current_data_index_, data, length);
+      this->record_sent_(this->current_data_index_, data, length);
     this->current_data_index_ += length;
     if (this->current_data_index_ != plane_length && millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop

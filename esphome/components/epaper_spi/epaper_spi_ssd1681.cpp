@@ -28,6 +28,7 @@ bool HOT EPaperSSD1681::transfer_data() {
       this->y_high_ = this->height_;
     } else {
       // 0x26 already holds the image on the panel: the controller copies 0x24 into it after each refresh
+      this->bounds_from_changes_();
       this->set_window();
       this->send_red_ = false;
     }

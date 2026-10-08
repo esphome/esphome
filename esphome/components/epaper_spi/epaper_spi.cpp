@@ -1,5 +1,7 @@
 #include "epaper_spi.h"
+#include <algorithm>
 #include <cinttypes>
+#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -35,6 +37,65 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
   }
   this->clear();
   return true;
+}
+
+bool EPaperBase::init_sent_frame_(size_t length) {
+  if (!this->is_using_partial_update_())
+    return false;
+  if (this->sent_.init(length))
+    return true;
+  ESP_LOGW(TAG, "No memory for the comparison frame; every update will be refreshed");
+  return false;
+}
+
+bool EPaperBase::frame_unchanged_() const {
+  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
+    return false;
+  size_t index = 0;
+  while (index != this->buffer_.size()) {
+    size_t length;
+    size_t sent_length;
+    const uint8_t *data = this->buffer_.get_span(index, length);
+    const uint8_t *sent = this->sent_.get_span(index, sent_length);
+    length = std::min(length, sent_length);
+    if (memcmp(data, sent, length) != 0)
+      return false;
+    index += length;
+  }
+  return true;
+}
+
+bool EPaperBase::bounds_from_changes_() {
+  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
+    return true;
+  bool changed = false;
+  uint16_t row_low = this->height_, row_high = 0, col_low = this->row_width_, col_high = 0;
+  for (uint16_t row = 0; row != this->height_; row++) {
+    const size_t base = row * this->row_width_;
+    for (uint16_t col = 0; col != this->row_width_; col++) {
+      if (this->buffer_[base + col] == this->sent_[base + col])
+        continue;
+      changed = true;
+      row_low = std::min(row_low, row);
+      row_high = std::max<uint16_t>(row_high, row + 1);
+      col_low = std::min(col_low, col);
+      col_high = std::max<uint16_t>(col_high, col + 1);
+    }
+  }
+  if (!changed)
+    return false;
+  this->x_low_ = col_low * 8;
+  this->x_high_ = std::min<uint16_t>(col_high * 8, this->width_);
+  this->y_low_ = row_low;
+  this->y_high_ = row_high;
+  return true;
+}
+
+void EPaperBase::reset_bounds_() {
+  this->x_low_ = this->width_;
+  this->x_high_ = 0;
+  this->y_low_ = this->height_;
+  this->y_high_ = 0;
 }
 
 void EPaperBase::setup_pins_() const {
@@ -209,6 +270,14 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      if (this->update_count_ != 0 && this->frame_unchanged_()) {
+        ESP_LOGD(TAG, "Frame unchanged, refresh skipped");
+        this->reset_bounds_();
+        this->set_state_(EPaperState::IDLE);
+        return;
+      }
+      this->full_window_ =
+          this->x_low_ == 0 && this->y_low_ == 0 && this->x_high_ == this->width_ && this->y_high_ == this->height_;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
@@ -221,10 +290,9 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
-      this->x_low_ = this->width_;
-      this->x_high_ = 0;
-      this->y_low_ = this->height_;
-      this->y_high_ = 0;
+      if (this->full_window_)
+        this->sent_valid_ = this->sent_.is_valid();
+      this->reset_bounds_();
       this->set_state_(EPaperState::POWER_ON);
       break;
     case EPaperState::POWER_ON:
