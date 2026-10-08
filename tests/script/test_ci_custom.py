@@ -459,9 +459,19 @@ def _lint_domain(fname: str, content: str) -> str | None:
     return ci_custom.run_check(_domain_check(), fname, Path(fname), content)
 
 
-def test_domain_matching_component_name_passes() -> None:
-    content = 'CODEOWNERS = ["@x"]\nDOMAIN = "uart"\n'
+@pytest.mark.parametrize(
+    "content",
+    [
+        'CODEOWNERS = ["@x"]\nDOMAIN = "uart"\n',
+        'DOMAIN: str = "uart"\n',
+    ],
+)
+def test_domain_matching_component_name_passes(content: str) -> None:
     assert _lint_domain("esphome/components/uart/__init__.py", content) is None
+
+
+def test_domain_leaves_syntax_errors_to_the_python_linters() -> None:
+    assert _lint_domain("esphome/components/uart/__init__.py", "def (\n") is None
 
 
 @pytest.mark.parametrize(
@@ -470,7 +480,10 @@ def test_domain_matching_component_name_passes() -> None:
         'CODEOWNERS = ["@x"]\n',
         'DOMAIN = "spi"\n',
         "DOMAIN = CONF_UART\n",
-        '    DOMAIN = "uart"\n',
+        '"""Docstring.\n\nDOMAIN = "uart"\n"""\n',
+        'def f() -> None:\n    DOMAIN = "uart"\n',
+        'OTHER = "uart"\n',
+        "DOMAIN: str\n",
     ],
 )
 def test_domain_missing_or_wrong_is_flagged(content: str) -> None:

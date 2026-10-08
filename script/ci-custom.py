@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import ast
 import codecs
 import collections
 from collections.abc import Iterator
@@ -819,8 +820,24 @@ def lint_component_domain(fname: Path, content: str) -> str | None:
         return None
     domain = fname.parts[2]
     expected = f'DOMAIN = "{domain}"'
-    if re.search(rf"^{re.escape(expected)}$", content, re.MULTILINE):
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
         return None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if (
+            any(isinstance(t, ast.Name) and t.id == "DOMAIN" for t in targets)
+            and isinstance(node.value, ast.Constant)
+            and node.value.value == domain
+        ):
+            return None
     return (
         f"Component is missing the {highlight(expected)} constant. "
         "Add it next to CODEOWNERS (or after the imports) so other code can refer "
