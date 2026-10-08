@@ -3,6 +3,8 @@
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #include <span>
 #include <vector>
@@ -161,6 +163,22 @@ class ModbusClientSendAction : public ClientActionBase<Ts...>,
 /// success status.) Each typed callback still checks succeeded() before firing its trigger: that branch
 /// is unreachable today, and is kept so a future change to that interception cannot silently deliver an
 /// exception as a successful reply.
+// Static lists up to this size are staged on the stack on ESP8266; longer ones use the heap.
+static constexpr size_t STATIC_REGISTERS_ON_STACK = 16;
+static constexpr size_t STATIC_COIL_BYTES_ON_STACK = 16;
+
+/// Calls fn with a RAM-readable span of a static values table. On ESP8266 the table is in PROGMEM, which the
+/// PDU builders cannot read directly, so it is copied to the stack first (the heap above N elements).
+template<size_t N, typename T, typename F> void with_static_values(const T *data, size_t len, F &&fn) {
+#ifdef USE_ESP8266
+  SmallBufferWithHeapFallback<N, T> buf(len);
+  progmem_memcpy(buf.get(), data, len * sizeof(T));
+  fn(std::span<const T>(buf.get(), len));
+#else
+  fn(std::span<const T>(data, len));
+#endif
+}
+
 template<typename... Ts> class TypedClientActionBase : public ClientActionBase<Ts...> {
  public:
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_custom_response_trigger() {
@@ -290,7 +308,7 @@ class WriteSingleCoilAction : public TypedClientActionBase<Ts...>, public WriteC
 };
 
 /// modbus_client.write_multiple_registers: on_response is the acknowledgement (no arguments).
-/// A `values:` list is emitted as a flash array and sent straight from there; only a lambda builds a
+/// A `values:` list is a shared flash table (staged on the stack on ESP8266); only a lambda builds a
 /// vector, and only when it runs. Same split as canbus's send action, and for the same reason: a static
 /// list must not allocate on every play().
 template<typename... Ts>
@@ -298,7 +316,7 @@ class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, public
  public:
   TEMPLATABLE_VALUE(uint16_t, start_address)
 
-  /// Static config: the registers live in flash, so play() neither allocates nor copies.
+  /// Static config: the registers are a shared flash table.
   void set_values_static(const uint16_t *values, size_t len) {
     this->values_.data = values;
     this->len_ = static_cast<ssize_t>(len);
@@ -317,9 +335,11 @@ class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, public
     // An empty or over-long set rejects into an empty PDU inside the builder, which logs the reason;
     // the empty PDU then resolves via on_not_sent like any refused send.
     if (this->len_ >= 0) {
-      this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(
-                                 start, std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))),
-                             this->write_command_options_(x...));
+      with_static_values<STATIC_REGISTERS_ON_STACK>(
+          this->values_.data, static_cast<size_t>(this->len_), [&](std::span<const uint16_t> values) {
+            this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(start, values),
+                                   this->write_command_options_(x...));
+          });
       return;
     }
     const std::vector<uint16_t> values = this->values_.func(x...);
@@ -367,11 +387,11 @@ class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...>, public Wri
     const uint16_t start = this->start_address_.value(x...);
     if (this->count_ >= 0) {
       const auto count = static_cast<uint16_t>(this->count_);
-      this->send_or_resolve_(
-          modbus::helpers::create_write_coils_pdu(
-              start, modbus::PackedBits(std::span<const uint8_t>(this->values_.packed, modbus::packed_bit_bytes(count)),
-                                        count)),
-          this->write_command_options_(x...));
+      with_static_values<STATIC_COIL_BYTES_ON_STACK>(
+          this->values_.packed, modbus::packed_bit_bytes(count), [&](std::span<const uint8_t> packed) {
+            this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(start, modbus::PackedBits(packed, count)),
+                                   this->write_command_options_(x...));
+          });
       return;
     }
     // The builder packs and bound-checks; an over-long set is rejected and logged there.
@@ -402,7 +422,7 @@ class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, pu
   TEMPLATABLE_VALUE(uint16_t, read_count)
   TEMPLATABLE_VALUE(uint16_t, write_address)
 
-  /// Static config: the write registers live in flash, so play() neither allocates nor copies.
+  /// Static config: the write registers are a shared flash table.
   void set_values_static(const uint16_t *values, size_t len) {
     this->values_.data = values;
     this->len_ = static_cast<ssize_t>(len);
@@ -421,10 +441,12 @@ class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, pu
     const uint16_t write_start = this->write_address_.value(x...);
     // An out-of-range read/write count builds an empty PDU (the builder logs why), resolving via on_not_sent.
     if (this->len_ >= 0) {
-      this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
-                                 read_start, read_count, write_start,
-                                 std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))),
-                             this->command_options_(x...));
+      with_static_values<STATIC_REGISTERS_ON_STACK>(
+          this->values_.data, static_cast<size_t>(this->len_), [&](std::span<const uint16_t> values) {
+            this->send_or_resolve_(
+                modbus::helpers::create_read_write_multiple_registers_pdu(read_start, read_count, write_start, values),
+                this->command_options_(x...));
+          });
       return;
     }
     const std::vector<uint16_t> values = this->values_.func(x...);
