@@ -64,7 +64,9 @@ STATIC_PAIRING_CODE_DIGITS = 8
 def _validate_static_pairing_code(value: Any) -> str:
     # string_strict so leading zeros survive and `!secret` works.
     value = cv.string_strict(value)
-    if len(value) != STATIC_PAIRING_CODE_DIGITS or not value.isdigit():
+    if len(value) != STATIC_PAIRING_CODE_DIGITS or not (
+        value.isascii() and value.isdigit()
+    ):
         raise cv.Invalid(
             f"{CONF_STATIC_PAIRING_CODE} must be exactly "
             f"{STATIC_PAIRING_CODE_DIGITS} decimal digits "

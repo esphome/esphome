@@ -51,6 +51,7 @@ def test_static_pairing_code_accepted(
         "012345678",  # too long
         "0123456a",  # not all decimal digits
         "0123 567",  # whitespace is not a digit
+        "０１２３４５６７",  # full-width digits are not ASCII
         "",
     ],
 )
