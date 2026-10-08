@@ -1,5 +1,4 @@
 import encodings
-import math
 import struct
 
 from esphome import automation
@@ -143,6 +142,15 @@ class ValueType:
         return value
 
 
+def float32(value):
+    value = cv.float_(value)
+    try:
+        struct.pack("<f", value)
+    except OverflowError as e:
+        raise cv.Invalid(f"{value} is out of range for a float") from e
+    return value
+
+
 VALUE_TYPES = {
     type_name: ValueType(type_name, validator, length)
     for type_name, validator, length in (
@@ -154,7 +162,7 @@ VALUE_TYPES = {
         ("int16_t", cv.int_range(-32768, 32767), 2),
         ("int32_t", cv.int_range(-2147483648, 2147483647), 4),
         ("int64_t", cv.int_range(-9223372036854775808, 9223372036854775807), 8),
-        ("float", cv.float_, 4),
+        ("float", float32, 4),
         ("double", cv.float_, 8),
         ("string", cv.string_strict, None),  # Length is variable
     )
@@ -511,13 +519,6 @@ _STRUCT_FORMATS = {
 }
 
 
-def _to_float32(value: float) -> float:
-    try:
-        return struct.unpack("<f", struct.pack("<f", value))[0]
-    except OverflowError:
-        return math.copysign(math.inf, value)
-
-
 def value_bytes(value_config: ConfigType) -> list[int]:
     """The bytes of a constant value, as ByteBuffer::wrap packed them at runtime."""
     value = value_config[CONF_DATA]
@@ -525,11 +526,8 @@ def value_bytes(value_config: ConfigType) -> list[int]:
         return list(value.encode(value_config[CONF_STRING_ENCODING]))
     if isinstance(value, list):
         return value
-    type_ = value_config[CONF_TYPE]
-    if type_ == "float":
-        value = _to_float32(value)
     order = ">" if value_config[CONF_ENDIANNESS] == "BIG" else "<"
-    return list(struct.pack(order + _STRUCT_FORMATS[type_], value))
+    return list(struct.pack(order + _STRUCT_FORMATS[value_config[CONF_TYPE]], value))
 
 
 async def parse_value(value_config, args):

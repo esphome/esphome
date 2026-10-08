@@ -13,6 +13,7 @@ from esphome.components.esp32_ble_server import (
     CONF_STRING_ENCODING,
     CUD_DESCRIPTOR_UUID,
     DEVICE_INFORMATION_SERVICE_UUID,
+    float32,
     uuid_is,
     validate_descriptor_value_not_empty,
     value_bytes,
@@ -144,3 +145,11 @@ def test_descriptor_set_value_rejects_empty_constant() -> None:
         validate_descriptor_value_not_empty({CONF_VALUE: {CONF_DATA: ""}})
     config = {CONF_VALUE: {CONF_DATA: "x"}}
     assert validate_descriptor_value_not_empty(config) is config
+
+
+def test_float32_rejects_out_of_range() -> None:
+    for value in (1e40, -1e40):
+        with pytest.raises(cv.Invalid, match="out of range for a float"):
+            float32(value)
+    assert float32(3.4028235e38) == 3.4028235e38
+    assert float32(float("inf")) == float("inf")
