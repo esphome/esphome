@@ -141,17 +141,17 @@ _request_binary_sensor_slot = cg.slot_counter("DLMS_MAX_BINARY_SENSORS")
 
 
 def register_sensor(hub: MockObj, config: ConfigType, var: MockObj) -> None:
-    _request_sensor_slot()
+    _request_sensor_slot(str(hub))
     cg.add(hub.register_sensor(config[CONF_OBIS_CODE], var))
 
 
 def register_text_sensor(hub: MockObj, config: ConfigType, var: MockObj) -> None:
-    _request_text_sensor_slot()
+    _request_text_sensor_slot(str(hub))
     cg.add(hub.register_text_sensor(config[CONF_OBIS_CODE], var))
 
 
 def register_binary_sensor(hub: MockObj, config: ConfigType, var: MockObj) -> None:
-    _request_binary_sensor_slot()
+    _request_binary_sensor_slot(str(hub))
     cg.add(hub.register_binary_sensor(config[CONF_OBIS_CODE], var))
 
 
