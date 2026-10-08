@@ -20,7 +20,7 @@ class FakeUART final : public uart::UARTComponent {
     }
   }
 
-  void write_array(const uint8_t *data, size_t len) override {}
+  void write_array(const uint8_t *data, size_t len) override { this->tx_.insert(this->tx_.end(), data, data + len); }
   bool peek_byte(uint8_t *data) override {
     if (this->rx_.empty())
       return false;
@@ -38,9 +38,14 @@ class FakeUART final : public uart::UARTComponent {
   }
   size_t available() override { return this->rx_.size(); }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+  // USE_ESP8266 is deliberately left out (unlike the base class): CI's ESP8266
+  // clang-tidy pass selects *.cpp files with `--grep USE_ESP8266`, which would
+  // pull this host-only gtest TU into the lx106 build.
 #if defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
 #endif
+
+  std::vector<uint8_t> tx_;
 
  protected:
   void check_logger_conflict() override {}
@@ -91,7 +96,22 @@ TEST(EmonTxPause, LoopResumesConsumingBytesAfterUnpause) {
   EXPECT_EQ(uart.available(), 0u);
 }
 
-TEST(EmonTxPause, PauseDropsPartialLineSoResumeDoesNotSpliceIt) {
+TEST(EmonTxPause, SendCommandIsSuppressedWhilePaused) {
+  FakeUART uart;
+  EmonTx emontx;
+  emontx.set_uart_parent(&uart);
+  emontx.setup();
+
+  emontx.set_paused(true);
+  emontx.send_command("x");
+  EXPECT_TRUE(uart.tx_.empty());
+
+  emontx.set_paused(false);
+  emontx.send_command("x");
+  EXPECT_EQ(std::string(uart.tx_.begin(), uart.tx_.end()), "x\n");
+}
+
+TEST(EmonTxPause, ResumeDiscardsInterruptedLine) {
   FakeUART uart;
   EmonTx emontx;
   emontx.set_uart_parent(&uart);
@@ -100,9 +120,9 @@ TEST(EmonTxPause, PauseDropsPartialLineSoResumeDoesNotSpliceIt) {
   std::vector<std::string> lines;
   emontx.add_on_data_callback([&lines](StringRef line) { lines.push_back(line.str()); });
 
-  // Feed a partial line, then pause/resume mid-line: without dropping the
-  // pending partial on pause, the bytes fed after resume would splice onto
-  // it and form "{\"P1\":456}" — a line that never actually arrived intact.
+  // Feed a partial line, then pause/resume mid-line. Neither the pre-pause
+  // partial nor the post-resume tail may reach on_data: spliced they would
+  // form "{\"P1\":456}", alone "56}" — neither line arrived intact.
   uart.feed("{\"P1\":4");
   emontx.loop();
   ASSERT_EQ(lines.size(), 0u);
@@ -112,9 +132,12 @@ TEST(EmonTxPause, PauseDropsPartialLineSoResumeDoesNotSpliceIt) {
 
   uart.feed("56}\n");
   emontx.loop();
+  EXPECT_EQ(lines.size(), 0u);
 
+  uart.feed("{\"P1\":789}\n");
+  emontx.loop();
   ASSERT_EQ(lines.size(), 1u);
-  EXPECT_EQ(lines[0], "56}");
+  EXPECT_EQ(lines[0], "{\"P1\":789}");
 }
 
 }  // namespace esphome::emontx::testing

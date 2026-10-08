@@ -22,10 +22,20 @@ void EmonTx::loop() {
   if (this->is_paused()) {
     return;
   }
+  if (this->resync_.exchange(false, std::memory_order_relaxed)) {
+    this->buffer_pos_ = 0;
+    this->skip_to_newline_ = true;
+  }
 
   // Read all available data to prevent UART buffer overflow
   while (this->available() > 0) {
     uint8_t received = this->read();
+
+    if (this->skip_to_newline_) {
+      // Discard the tail of a line interrupted by a pause
+      this->skip_to_newline_ = received != '\n';
+      continue;
+    }
 
     if (received == '\r') {
       continue;  // Ignore CR

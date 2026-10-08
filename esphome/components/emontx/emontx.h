@@ -57,20 +57,15 @@ class EmonTx final : public Component, public uart::UARTDevice {
    * which is only safe to touch from the main loop task; this flag is safe
    * to flip from any task.
    *
-   * Pausing drops any partially-received line, since the bytes that would
-   * complete it may be consumed by whichever component takes over the bus.
+   * Resuming discards the partial line held at pause time and everything up
+   * to the next newline, since the other component may have consumed bytes
+   * mid-line; only complete lines reach on_data and the JSON parser. The
+   * resync is performed by loop() so this setter only touches atomics.
    */
   void set_paused(bool paused) {
-    if (this->paused_.exchange(paused, std::memory_order_relaxed) == paused)
-      return;
-    // Only touch buffer_pos_ on the pause transition (always from the main loop task, since
-    // loop() itself is what would otherwise still be writing it). On resume, loop() never wrote
-    // to buffer_pos_ while paused, so it's already 0 — skipping the write here means resume
-    // (which may be called from a background task, e.g. after a firmware flash completes) never
-    // touches a field the main loop task also owns.
-    if (paused) {
-      this->buffer_pos_ = 0;
-    }
+    if (paused)
+      this->resync_.store(true, std::memory_order_relaxed);
+    this->paused_.store(paused, std::memory_order_relaxed);
   }
 
   bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
@@ -91,6 +86,8 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint16_t buffer_pos_{0};
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
   std::atomic<bool> paused_{false};
+  std::atomic<bool> resync_{false};
+  bool skip_to_newline_{false};
 };
 
 }  // namespace esphome::emontx
