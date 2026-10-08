@@ -22,7 +22,8 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(
         **{
             cv.Optional(key): cv.invalid(
                 f"The predefined '{key}' key was removed in ESPHome 2026.11.0. "
-                f"Use 'obis_code: \"{obis}\"' instead"
+                f"Add a separate '- platform: dlms_meter' text sensor with "
+                f'obis_code: "{obis}" instead'
             )
             for key, obis in REMOVED_KEYS.items()
         },
