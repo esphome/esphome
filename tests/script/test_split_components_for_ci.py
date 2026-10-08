@@ -48,11 +48,32 @@ def test_build_seconds() -> None:
     )
 
 
-def test_component_build_seconds() -> None:
-    """A component with a large library costs more on every platform."""
-    component_build_seconds = split_components_for_ci.component_build_seconds
-    assert component_build_seconds("dht", "esp32-idf") == 55
-    assert component_build_seconds("micro_wake_word", "esp32-idf") == 55 + 200
+def test_heavy_seconds(tests_dir: Path) -> None:
+    """A heavy component, or a test that enables one, costs its library time."""
+    heavy_seconds = split_components_for_ci.heavy_seconds
+    table = split_components_for_ci.HEAVY_COMPONENT_SECONDS
+    _add_component(tests_dir, "dht", ["test.esp32-idf.yaml"])
+    _add_component(tests_dir, "micro_wake_word", ["test.esp32-idf.yaml"])
+    assert heavy_seconds("dht", tests_dir / "dht/test.esp32-idf.yaml") == 0
+    assert (
+        heavy_seconds(
+            "micro_wake_word", tests_dir / "micro_wake_word/test.esp32-idf.yaml"
+        )
+        == table["micro_wake_word"]
+    )
+
+    display = tests_dir / "mipi_spi"
+    display.mkdir()
+    (display / "common.yaml").write_text("web_server:\n  port: 80\n")
+    (display / "test-lvgl.esp32-s3-idf.yaml").write_text(
+        "packages:\n"
+        "  mipi_spi: !include common.yaml\n"
+        "lvgl:\n  pages: []\n"
+        "light:\n  - platform: fastled_spi\n    num_leds: 1\n"
+    )
+    assert heavy_seconds("mipi_spi", display / "test-lvgl.esp32-s3-idf.yaml") == (
+        table["lvgl"] + table["web_server"] + table["fastled_spi"]
+    )
 
 
 def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:

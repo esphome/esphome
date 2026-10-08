@@ -13,15 +13,18 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+import contextlib
 from dataclasses import dataclass, field
 import json
 import math
 from pathlib import Path
 import sys
+from typing import Any
 
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from esphome import yaml_util
 from script.analyze_component_buses import (
     ISOLATED_COMPONENTS,
     ISOLATED_SIGNATURE_PREFIX,
@@ -62,9 +65,9 @@ ESP32_ARDUINO_BUILD_SECONDS = 90
 DEFAULT_BUILD_SECONDS = 50
 # Each extra component merged into a grouped build makes it larger
 GROUPED_COMPONENT_SECONDS = 3
-# Components whose tests pull in a large library the build compiles from
-# source (TensorFlow Lite Micro, FastLED, LVGL, the HTTP server), added to
-# every build that includes them. Fitted the same way as the platforms.
+# Components that pull in a large library the build compiles from source
+# (TensorFlow Lite Micro, FastLED, LVGL, the HTTP server), added to every
+# build whose test config enables them. Fitted the same way as the platforms.
 HEAVY_COMPONENT_SECONDS: dict[str, int] = {
     "micro_wake_word": 200,
     "voice_assistant": 200,
@@ -118,9 +121,43 @@ def build_seconds(platform: str) -> int:
     return DEFAULT_BUILD_SECONDS
 
 
-def component_build_seconds(component: str, platform: str) -> int:
-    """Return the estimated seconds of one build of a component's test."""
-    return build_seconds(platform) + HEAVY_COMPONENT_SECONDS.get(component, 0)
+def _heavy_components_in(data: Any) -> set[str]:
+    """Return the heavy components a loaded test config enables.
+
+    Looks at top level keys, at the configs pulled in through ``packages:``
+    and at ``platform:`` entries of list sections such as ``light:``.
+    """
+    found: set[str] = set()
+    if not isinstance(data, dict):
+        return found
+    for key, value in data.items():
+        if key in HEAVY_COMPONENT_SECONDS:
+            found.add(key)
+        if key == "packages" and isinstance(value, dict):
+            for package in value.values():
+                if isinstance(package, yaml_util.IncludeFile):
+                    package = package.load()
+                found |= _heavy_components_in(package)
+        elif isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict):
+                    platform = entry.get("platform")
+                    if platform in HEAVY_COMPONENT_SECONDS:
+                        found.add(platform)
+    return found
+
+
+def heavy_seconds(component: str, test_file: Path) -> int:
+    """Return the library seconds a test adds on top of its platform build.
+
+    A test counts as heavy when it belongs to a heavy component or when its
+    config enables one, such as a display test that draws with lvgl.
+    """
+    heavy = {component} & HEAVY_COMPONENT_SECONDS.keys()
+    # A config that does not load is left to the build to report
+    with contextlib.suppress(Exception):
+        heavy |= _heavy_components_in(yaml_util.load_yaml(test_file))
+    return sum(HEAVY_COMPONENT_SECONDS[name] for name in heavy)
 
 
 @dataclass
@@ -160,20 +197,26 @@ def _grouped_build_seconds(platform: str, members: list[tuple[int, int]]) -> int
 def _make_item(
     tests_dir: Path, component: str, signature: str, is_isolated: bool
 ) -> _BatchItem:
-    files_by_platform: dict[str, list[str]] = defaultdict(list)
+    # Per platform: the seconds of each test file, and the base test's heavy
+    # seconds when there is one
+    files_by_platform: dict[str, list[int]] = defaultdict(list)
+    base_heavy: dict[str, int] = {}
     for test_file in (tests_dir / component).glob("test[.-]*.yaml"):
         test_name, platform = parse_test_filename(test_file)
-        files_by_platform[platform].append(test_name)
+        heavy = heavy_seconds(component, test_file)
+        files_by_platform[platform].append(build_seconds(platform) + heavy)
+        if test_name == "test":
+            base_heavy[platform] = heavy
     own_seconds = 0
     grouped: dict[tuple[str, str], int] = {}
-    for platform, test_names in files_by_platform.items():
-        seconds = component_build_seconds(component, platform) * len(test_names)
-        if is_isolated or "test" not in test_names:
+    for platform, file_seconds in files_by_platform.items():
+        seconds = sum(file_seconds)
+        if is_isolated or platform not in base_heavy:
             own_seconds += seconds
         else:
             grouped[(signature, platform)] = seconds
     return _BatchItem(
-        component, own_seconds, grouped, HEAVY_COMPONENT_SECONDS.get(component, 0)
+        component, own_seconds, grouped, max(base_heavy.values(), default=0)
     )
 
 
