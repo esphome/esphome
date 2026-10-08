@@ -3,6 +3,7 @@ uart_split:
     uart_id: uart_bus
     outputs:
       - id: bus
+        debug:
       - id: tap
         rx_only: true
         direction: BOTH

@@ -45,6 +45,7 @@ OUTPUT_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(UartSplitOutput),
         cv.Optional(CONF_RX_ONLY, default=False): cv.boolean,
         cv.Optional(CONF_DIRECTION): cv.one_of("RX", "BOTH", upper=True),
+        cv.Optional(CONF_DEBUG): uart.maybe_empty_debug,
     }
 )
 
@@ -124,4 +125,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(output.set_rx_only(True))
         if output_config[CONF_DIRECTION] == "BOTH":
             cg.add(output.set_mirror_tx(True))
+        if debug := output_config.get(CONF_DEBUG):
+            cg.add_global(uart.uart_ns.using)
+            await uart.debug_to_code(debug, output)
         cg.add(var.add_output(output))

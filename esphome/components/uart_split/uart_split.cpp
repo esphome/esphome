@@ -121,6 +121,7 @@ void UartSplitOutput::write_array(const uint8_t *data, size_t len) {
     }
     return;
   }
+  this->debug_tx_(data, len);
   this->split_->parent()->write_array(data, len);
   this->split_->mirror_tx(this, data, len);
 }
