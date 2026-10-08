@@ -1,3 +1,8 @@
 qnetd:
   port: 5403
   max_clients: 6
+
+text_sensor:
+  - platform: qnetd
+    status:
+      name: Quorum status
