@@ -564,8 +564,8 @@ class Sprinkler final : public Component {
   /// Sprinkler valve operator objects
   std::vector<SprinklerValveOperator> valve_op_{2};
 
-  /// Valve control timers - FixedVector enforces that this can never grow beyond init() size
-  std::array<SprinklerTimer, 2> timer_;  // indexed by SprinklerTimerIndex
+  /// Valve control timers, indexed by SprinklerTimerIndex (also used as the scheduler id)
+  std::array<SprinklerTimer, 2> timer_;
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;
