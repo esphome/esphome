@@ -360,18 +360,23 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     # Assembly and C sources compile through their own rules
     assert "cont.S.o: aspp" in content
     assert "abi.c.o: c" in content
-    # throw_stubs is force-included for ESPHome sources only, via one shared
-    # srcflags variable rather than a copy of the flags line per edge
+    # throw_stubs reaches src through srcflags (after the pch include) and the
+    # core through frameworkflags: one shared variable each, not a copy per edge
     src_lines = [line for line in content.splitlines() if "obj/src/" in line]
     assert any("main.cpp.o: cxx" in line for line in src_lines)
-    assert content.count("throw_stubs.h") == 1
+    assert content.count("throw_stubs.h") == 2
     assert "srcflags = -include" in content
+    assert "frameworkflags = -include" in content
     flags_lines = [
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
     assert flags_lines
     # C++ src edges consume the precompiled header; C/assembly keep srcflags
-    assert set(flags_lines) == {"  flags = $srcflags", "  flags = $srccxxflags"}
+    assert set(flags_lines) == {
+        "  flags = $srcflags",
+        "  flags = $srccxxflags",
+        "  flags = $frameworkflags",
+    }
 
 
 def test_write_project_pch(tmp_path: Path) -> None:
@@ -715,6 +720,8 @@ def test_write_project_libraries_and_variant(
     assert "libHeadersOnly.a" not in content
     assert "Library HeadersOnly has no source files" in caplog.text
     assert "  flags = -DMYLIB=1" in content
+    # With exceptions on, library throws must not be turned into aborts
+    assert "frameworkflags" not in content
     # A library's own include dirs lead its compile lines
     assert "  own_includes = -I" in content
     assert "$own_includes $cxxflags $flags" in content
@@ -727,6 +734,36 @@ def test_write_project_libraries_and_variant(
     assert "-fexceptions" in content
     assert "-lstdc++-exc" in content
     assert f"ccache = {_shq('/cc/ccache')}" in content
+
+
+def test_write_project_throw_stubs_reach_core_and_libraries(tmp_path: Path) -> None:
+    """Without exceptions the core and libraries take the throw stubs too."""
+    paths = _make_framework(tmp_path)
+    lib_dir = tmp_path / "libsrc"
+    lib_dir.mkdir()
+    (lib_dir / "lib.cpp").write_text("")
+    library = ArduinoLibrary(
+        name="MyLib",
+        sources=[lib_dir / "lib.cpp"],
+        include_dirs=[lib_dir],
+        flags=["-DMYLIB=1"],
+    )
+    content = _write_ninja(paths, libraries=[library])
+    stubs = CORE.relative_src_path() / "esphome/components/esp8266/throw_stubs.h"
+    assert f"frameworkflags = -include {_shq(str(stubs))}" in content
+    # Before the library's own flags; core edges take the variable alone
+    assert "  flags = $frameworkflags -DMYLIB=1" in content
+    core_edge = next(
+        i
+        for i, line in enumerate(content.splitlines())
+        if "core_esp8266_main.cpp.o: cxx" in line
+    )
+    assert content.splitlines()[core_edge + 1] == "  flags = $frameworkflags"
+    # The pch still folds only the src force-include, ahead of everything else
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    assert (build_dir / "esphome_pch_src.h").read_text().splitlines()[0] == (
+        '#include "esphome/components/esp8266/throw_stubs.h"'
+    )
 
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:

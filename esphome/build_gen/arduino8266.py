@@ -54,6 +54,7 @@ from esphome.components.esp8266.const import (
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_SCANF_FLOAT,
+    THROW_STUBS_HEADER,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
@@ -1087,16 +1088,28 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if "USE_ESP8266_WAVEFORM_STUBS" in flag_defines:
         core_exclude |= _CORE_EXCLUDE_WAVEFORM
 
+    # The throw stubs for the core and libraries too; src gets them after its
+    # pch include. With exceptions on, a library throw must still throw.
+    framework_flags = ""
+    if not config.exceptions:
+        lines.append(f"frameworkflags = -include {_q(src_dir / THROW_STUBS_HEADER)}")
+        framework_flags = "$frameworkflags"
     archives = []
     # variant_dir existence was already enforced with the include dirs
     variant_sources = collect_sources(variant_dir)
     if variant_sources:
-        objs = compile_edges(lines, variant_sources, variant_dir, "variant")
+        objs = compile_edges(
+            lines, variant_sources, variant_dir, "variant", flags=framework_flags
+        )
         lines.append(f"build libFrameworkArduinoVariant.a: ar {' '.join(objs)}")
         archives.append("libFrameworkArduinoVariant.a")
 
     core_objs = compile_edges(
-        lines, collect_sources(core_dir, core_exclude), core_dir, "core"
+        lines,
+        collect_sources(core_dir, core_exclude),
+        core_dir,
+        "core",
+        flags=framework_flags,
     )
     if not core_objs:
         # An empty archive would link into a wall of undefined references
@@ -1107,7 +1120,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     lines.append(f"build libFrameworkArduino.a: ar {' '.join(core_objs)}")
     archives.append("libFrameworkArduino.a")
 
-    lib_archives, direct_objs = library_edges(lines, libraries)
+    lib_archives, direct_objs = library_edges(lines, libraries, framework_flags)
     archives += lib_archives
 
     # One source of truth with the PlatformIO path: esp8266/__init__ pins
