@@ -99,6 +99,7 @@ TIC_TAG_CONFIGS = {
     "IMAX": _CURRENT,
     "ISOUSC": _CURRENT,
     "ADPS": _CURRENT,
+    "ADIR": _CURRENT,
     "PAPP": _APPARENT_POWER_VA,
     "PMAX": _POWER,
 }
@@ -114,7 +115,8 @@ def apply_tag_config(config: ConfigType) -> ConfigType:
     if CONF_TAG_NAME not in config:
         return config
 
-    tag_name = config[CONF_TAG_NAME]
+    # Runs before cv.string, so the raw value may not be a string yet
+    tag_name = str(config[CONF_TAG_NAME])
     preset = next(
         (p for prefix, p in TIC_TAG_CONFIGS.items() if tag_name.startswith(prefix)),
         None,

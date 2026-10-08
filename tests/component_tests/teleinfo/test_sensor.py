@@ -58,6 +58,7 @@ from esphome.const import (
         ("HCHC", UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING),
         ("BBRHCJB", UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING),
         ("IINST1", UNIT_AMPERE, DEVICE_CLASS_CURRENT, STATE_CLASS_MEASUREMENT),
+        ("ADIR2", UNIT_AMPERE, DEVICE_CLASS_CURRENT, STATE_CLASS_MEASUREMENT),
         ("PAPP", UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, STATE_CLASS_MEASUREMENT),
         ("PMAX", UNIT_WATT, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT),
     ],
@@ -92,6 +93,12 @@ def test_unknown_tag_user_unit_keeps_legacy_device_class() -> None:
 
 def test_unknown_tag_starting_with_u_is_not_voltage() -> None:
     config = apply_tag_config({CONF_TAG_NAME: "UNKNOWN"})
+    assert config[CONF_DEVICE_CLASS] == DEVICE_CLASS_ENERGY
+
+
+def test_numeric_tag_name_does_not_crash() -> None:
+    config = apply_tag_config({CONF_TAG_NAME: 1234})
+    assert config[CONF_TAG_NAME] == 1234
     assert config[CONF_DEVICE_CLASS] == DEVICE_CLASS_ENERGY
 
 
