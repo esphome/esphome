@@ -1472,17 +1472,27 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.value)
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
+    def _represent_tagged_secret(self, tag, value):
+        # Writing the secret beats leaking the value, but the tag is lost, so
+        # the dumped config no longer means the same thing when loaded back.
+        _LOGGER.warning(
+            "%s value matches secret '%s'; written as !secret, dropping the %s tag",
+            tag,
+            _SECRET_VALUES[str(value)],
+            tag,
+        )
+        return self.represent_secret(value)
+
     def represent_extend(self, value):
         # Consult is_secret like the other scalar representers so a payload
-        # equal to a registered secret is never written out in cleartext; the
-        # tag is lost then, which beats leaking the value.
+        # equal to a registered secret is never written out in cleartext.
         if is_secret(value.value):
-            return self.represent_secret(value.value)
+            return self._represent_tagged_secret("!extend", value.value)
         return self.represent_scalar(tag="!extend", value=value.value)
 
     def represent_remove(self, value):
         if is_secret(value.value):
-            return self.represent_secret(value.value)
+            return self._represent_tagged_secret("!remove", value.value)
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
@@ -1498,7 +1508,7 @@ class ESPHomeDumper(yaml.SafeDumper):
                 tag="!include", mapping=mapping, flow_style=False
             )
         if is_secret(value.file):
-            return self.represent_secret(value.file)
+            return self._represent_tagged_secret("!include", value.file)
         return self.represent_scalar(tag="!include", value=value.file)
 
     def represent_id(self, value):
