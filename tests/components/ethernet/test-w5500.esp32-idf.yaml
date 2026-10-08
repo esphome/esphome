@@ -1,4 +1,4 @@
-# W5500 on a shared spi: bus, started from an automation instead of on boot.
+# W5500 on a shared SPI bus, started from an automation instead of on boot.
 # Covers the spi_id attach path and the enable/disable lifecycle in one build.
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
