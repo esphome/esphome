@@ -8,6 +8,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include "esphome/core/main_task.h"
 #include "esphome/core/time_64.h"
 
 // IRAM_ATTR places a function in executable RAM so it is callable from an
@@ -82,6 +83,11 @@ __attribute__((always_inline)) inline bool in_isr_context() {
   __asm__ volatile("mrs %0, ipsr" : "=r"(ipsr));
   return ipsr != 0;
 #endif
+}
+
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  TaskHandle_t main_task = esphome_main_task_handle;
+  return main_task == nullptr || xTaskGetCurrentTaskHandle() == main_task;
 }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }

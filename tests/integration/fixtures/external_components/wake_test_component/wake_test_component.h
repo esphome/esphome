@@ -18,6 +18,8 @@ class WakeTestComponent : public Component {
   // loop_interval_ has been raised high enough to gate it off otherwise.
   void start_async_wake();
 
+  void start_async_timeout();
+
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:

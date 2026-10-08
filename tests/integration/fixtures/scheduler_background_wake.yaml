@@ -1,0 +1,23 @@
+esphome:
+  name: scheduler-background-wake
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          App.set_loop_interval(5000);
+          id(wake_test)->start_async_timeout();
+      - delay: 5s
+
+host:
+api:
+logger:
+  level: INFO
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [wake_test_component]
+
+wake_test_component:
+  id: wake_test

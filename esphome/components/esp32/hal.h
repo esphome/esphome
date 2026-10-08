@@ -9,6 +9,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "esphome/core/main_task.h"
 #include "esphome/core/time_conversion.h"
 
 #ifndef PROGMEM
@@ -26,6 +27,11 @@ void delay_microseconds_safe(uint32_t us);
 
 /// Returns true when executing inside an interrupt handler.
 __attribute__((always_inline)) inline bool in_isr_context() { return xPortInIsrContext() != 0; }
+
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  TaskHandle_t main_task = esphome_main_task_handle;
+  return main_task == nullptr || xTaskGetCurrentTaskHandle() == main_task;
+}
 
 // Forward decl from <esp_timer.h>.
 // NOLINTNEXTLINE(readability-redundant-declaration)

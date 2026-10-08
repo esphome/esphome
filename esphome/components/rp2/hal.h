@@ -40,6 +40,9 @@ __attribute__((always_inline)) inline bool in_isr_context() {
   return ipsr != 0;
 }
 
+/// RP2040 runs the scheduler on its single main thread.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return true; }
+
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }

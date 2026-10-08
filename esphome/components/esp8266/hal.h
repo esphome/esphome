@@ -40,6 +40,9 @@ void delay_microseconds_safe(uint32_t us);
 /// which is ISR-safe) so this helper is unused on this platform.
 __attribute__((always_inline)) inline bool in_isr_context() { return false; }
 
+/// ESP8266 runs the scheduler on its single main thread.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return true; }
+
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
 void delay(uint32_t ms);

@@ -23,6 +23,7 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 // components/zephyr/hal.h.
 
 void arch_init() {
+  set_main_loop_thread();
 #ifdef CONFIG_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};

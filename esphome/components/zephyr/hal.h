@@ -17,6 +17,18 @@ namespace esphome {
 /// Zephyr/nRF52: not currently consulted — wake path is platform-specific.
 __attribute__((always_inline)) inline bool in_isr_context() { return false; }
 
+inline k_tid_t &main_loop_thread_() {
+  static k_tid_t thread = nullptr;
+  return thread;
+}
+
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  k_tid_t main_thread = main_loop_thread_();
+  return main_thread == nullptr || k_current_get() == main_thread;
+}
+
+inline void set_main_loop_thread() { main_loop_thread_() = k_current_get(); }
+
 __attribute__((always_inline)) inline void yield() { ::k_yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::k_msleep(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
