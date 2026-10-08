@@ -42,7 +42,7 @@ class SoftwareSerialRxDecoder {
   /// ISR: the line changed to `level` at cycle `now`. Returns true to wake the
   /// loop: a byte was pushed, or a frame is open with the line high (finalize()
   /// may be needed; a data 1 and the idle tail look the same at the edge).
-  bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level, uint8_t clock_shift = 0) {
+  bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level, uint8_t clock_shift) {
     const bool last_level = this->last_level_;
     // Collapsed edges: skip to keep the frame aligned to the last real edge.
     if (level == last_level)
@@ -67,7 +67,7 @@ class SoftwareSerialRxDecoder {
   bool pending() const { return this->bit_ != RX_IDLE && this->last_level_; }
 
   /// Unlocked check whether the pending byte's tail has elapsed.
-  bool finalize_due(uint32_t now, uint8_t clock_shift = 0) const {
+  bool finalize_due(uint32_t now, uint8_t clock_shift) const {
     const uint8_t bit = this->bit_;
     if (bit == RX_IDLE)
       return false;
@@ -75,11 +75,16 @@ class SoftwareSerialRxDecoder {
   }
 
   /// Complete the pending byte if its tail has elapsed. Call with the ISR masked.
-  void finalize(uint32_t now, uint8_t clock_shift = 0) {
-    const uint8_t bit = this->bit_;
-    if (bit == RX_IDLE || !this->last_level_ || (now - this->last_edge_) >> clock_shift < this->tail_cycles_(bit))
+  void finalize(uint32_t now, uint8_t clock_shift) {
+    if (!this->last_level_ || !this->finalize_due(now, clock_shift))
       return;
-    this->consume_run_(this->stop_bit_ + 1 - bit, true);
+    // The tail is all ones: set the remaining data bits, skip parity, the stop bit is high.
+    const uint8_t bit = this->bit_;
+    uint8_t cur = this->cur_byte_;
+    if (bit < this->data_bits_)
+      cur |= ((1U << this->data_bits_) - 1) & ~((1U << bit) - 1);
+    this->push_byte(cur);
+    this->bit_ = RX_IDLE;
   }
 
   /// Store a byte, dropping it when full (holds buffer_size - 1 bytes). Also used by the start bit sampler.
@@ -94,6 +99,9 @@ class SoftwareSerialRxDecoder {
     this->in_pos_ = next;
     return true;
   }
+
+  uint8_t *buffer() const { return this->buffer_; }
+  size_t buffer_size() const { return this->buffer_size_; }
 
   size_t available() const {
     // Read volatile in_pos_ once to avoid TOCTOU race with ISR.
@@ -167,7 +175,7 @@ class SoftwareSerialRxDecoder {
   uint8_t *buffer_{nullptr};
   size_t buffer_size_{0};
   volatile size_t in_pos_{0};
-  volatile size_t out_pos_{0};
+  size_t out_pos_{0};  // written only by the reader
   /// Next frame bit (data, parity, then stop at stop_bit_) or RX_IDLE.
   volatile uint8_t bit_{RX_IDLE};
   volatile uint8_t cur_byte_{0};

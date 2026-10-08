@@ -266,16 +266,12 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     gpio_rx_pin_ = rx_pin;
     gpio_rx_pin_->setup();
     rx_pin_ = gpio_rx_pin_->to_isr();
-    if (this->rx_buffer_ != nullptr && this->rx_buffer_size_ != rx_buffer_size) {
-      delete[] this->rx_buffer_;  // NOLINT
-      this->rx_buffer_ = nullptr;
+    uint8_t *buffer = this->rx_.buffer();
+    if (this->rx_.buffer_size() != rx_buffer_size) {
+      delete[] buffer;                       // NOLINT
+      buffer = new uint8_t[rx_buffer_size];  // NOLINT
     }
-    this->rx_buffer_size_ = rx_buffer_size;
-    if (this->rx_buffer_ == nullptr) {
-      this->rx_buffer_ = new uint8_t[rx_buffer_size];  // NOLINT
-    }
-    this->rx_.setup(this->bit_time_, data_bits, parity != UART_CONFIG_PARITY_NONE, stop_bits, this->rx_buffer_,
-                    rx_buffer_size);
+    this->rx_.setup(this->bit_time_, data_bits, parity != UART_CONFIG_PARITY_NONE, stop_bits, buffer, rx_buffer_size);
     this->rx_.reset(arch_get_cpu_cycle_count(), this->rx_pin_.digital_read());
     if (baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD) {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
@@ -328,11 +324,10 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr_edge(ESP8266SoftwareSerial *arg) {
   const uint32_t now = arch_get_cpu_cycle_count();
   const bool level = arg->rx_pin_.digital_read();
+  [[maybe_unused]] const bool wake = arg->rx_.on_edge(now, level, rx_clock_shift());
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-  if (arg->rx_.on_edge(now, level, rx_clock_shift()))
+  if (wake)
     wake_loop_isrsafe();
-#else
-  arg->rx_.on_edge(now, level, rx_clock_shift());
 #endif
 }
 void ESP8266SoftwareSerial::rx_finalize_pending_() {

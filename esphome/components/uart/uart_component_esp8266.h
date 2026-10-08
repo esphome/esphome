@@ -45,8 +45,6 @@ class ESP8266SoftwareSerial {
 
   // Members ordered largest to smallest to minimize padding
   uint32_t bit_time_{0};
-  uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_{0};
   InternalGPIOPin *gpio_tx_pin_{nullptr};
   ISRInternalGPIOPin tx_pin_;
   InternalGPIOPin *gpio_rx_pin_{nullptr};
