@@ -3,7 +3,7 @@
 HOST-ONLY TEST COMPONENT: this shadows the real wifi component for EVERY
 fixture that uses the shared external_components directory. Any host fixture
 with a wifi block gets this stub, not the real component: fixed scan results,
-is_connected() hardwired true, and save_wifi_sta that only logs. See
+is_connected() hardwired true, and a configurable save_wifi_sta result. See
 wifi_component.h for the full behavior.
 """
 

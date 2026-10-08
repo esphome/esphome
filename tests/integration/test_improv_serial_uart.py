@@ -10,6 +10,7 @@ Covered:
   2. Get Device Info returns the firmware/device info RPC response
   3. Get Wi-Fi Networks returns deduplicated scan results and a terminator
   4. Wi-Fi Settings provisions: saves credentials and reports PROVISIONED
+  5. Storage failures report an error and remain retryable
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 IMPROV_HEADER = b"IMPROV"
 IMPROV_VERSION = 1
 TYPE_CURRENT_STATE = 0x01
+TYPE_ERROR_STATE = 0x02
 TYPE_RPC = 0x03
 TYPE_RPC_RESPONSE = 0x04
 
@@ -44,6 +46,13 @@ def build_rpc_frame(command: int, data: bytes = b"") -> list[int]:
 def state_frame_hex(state: int) -> str:
     """Full 12 byte current-state frame as hex, checksum and newline included."""
     frame = IMPROV_HEADER + bytes([IMPROV_VERSION, TYPE_CURRENT_STATE, 1, state])
+    checksum = sum(frame) & 0xFF
+    return ":".join(f"{b:02X}" for b in frame + bytes([checksum]) + b"\n")
+
+
+def error_frame_hex(error: int) -> str:
+    """Full error-state frame as hex, checksum and newline included."""
+    frame = IMPROV_HEADER + bytes([IMPROV_VERSION, TYPE_ERROR_STATE, 1, error])
     checksum = sum(frame) & 0xFF
     return ":".join(f"{b:02X}" for b in frame + bytes([checksum]) + b"\n")
 
@@ -80,6 +89,7 @@ async def test_improv_serial_uart(
     ):
         _entities, services = await client.list_entities_services()
         inject = next(s for s in services if s.name == "uart_inject")
+        save_result = next(s for s in services if s.name == "wifi_save_result")
 
         # 1. Get Current State: expect the complete current-state frame reporting
         # AUTHORIZED (0x02), checksum and newline included
@@ -144,4 +154,56 @@ async def test_improv_serial_uart(
             "uart_mock",
             f"TX {len(payload)} bytes: " + ":".join(f"{b:02X}" for b in payload),
         )
+        await waiter.wait_for("uart_mock", f"TX 2 bytes: {rpc_footer_hex(payload)}")
+
+        # 5. A connected network is not reported as provisioned when storage
+        # reports failure. Repeated requests must remain retryable.
+        await client.execute_service(save_result, {"success": False})
+        for ssid in ("FailedNet1", "FailedNet2"):
+            waiter.lines.clear()
+            await client.execute_service(
+                inject,
+                {
+                    "payload": build_rpc_frame(
+                        CMD_WIFI_SETTINGS, wifi_settings_data(ssid, "secret123")
+                    )
+                },
+            )
+            await waiter.wait_for("uart_mock", f"TX 12 bytes: {error_frame_hex(0x00)}")
+            await waiter.wait_for("uart_mock", f"TX 12 bytes: {error_frame_hex(0xFF)}")
+            await waiter.wait_for("uart_mock", f"TX 12 bytes: {state_frame_hex(0x02)}")
+            failure_lines = waiter.lines.copy()
+
+            # Querying state in a later loop must stay AUTHORIZED, without a
+            # settings response or another automatic save attempt.
+            waiter.lines.clear()
+            await client.execute_service(
+                inject, {"payload": build_rpc_frame(CMD_GET_CURRENT_STATE)}
+            )
+            await waiter.wait_for("uart_mock", f"TX 12 bytes: {state_frame_hex(0x02)}")
+            failure_lines.extend(waiter.lines)
+            assert (
+                sum(f"save_wifi_sta ssid={ssid}" in line for line in failure_lines) == 1
+            )
+            assert not any(state_frame_hex(0x04) in line for line in failure_lines)
+            assert not any(
+                "TX 9 bytes: 49:4D:50:52:4F:56:01:04" in line for line in failure_lines
+            )
+            assert not any("clear_sta" in line for line in failure_lines)
+
+        # Recover storage, then verify a fresh request clears the error and
+        # completes normally with the settings response.
+        await client.execute_service(save_result, {"success": True})
+        waiter.lines.clear()
+        await client.execute_service(
+            inject,
+            {
+                "payload": build_rpc_frame(
+                    CMD_WIFI_SETTINGS, wifi_settings_data("RecoveredNet", "secret123")
+                )
+            },
+        )
+        await waiter.wait_for("uart_mock", f"TX 12 bytes: {error_frame_hex(0x00)}")
+        await waiter.wait_for("save_wifi_sta ssid=RecoveredNet")
+        await waiter.wait_for("uart_mock", f"TX 12 bytes: {state_frame_hex(0x04)}")
         await waiter.wait_for("uart_mock", f"TX 2 bytes: {rpc_footer_hex(payload)}")

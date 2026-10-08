@@ -5,6 +5,11 @@ esphome:
 host:
 api:
   actions:
+    - action: wifi_save_result
+      variables:
+        success: bool
+      then:
+        - lambda: wifi::global_wifi_component->set_save_result(success);
     - action: uart_inject
       variables:
         payload: int[]

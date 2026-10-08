@@ -35,8 +35,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
 void WiFiComponent::clear_sta() { ESP_LOGI(TAG, "clear_sta"); }
 
-void WiFiComponent::save_wifi_sta(StringRef ssid, StringRef password) {
+bool WiFiComponent::save_wifi_sta(StringRef ssid, StringRef password) {
   ESP_LOGI(TAG, "save_wifi_sta ssid=%s password_len=%zu", ssid.c_str(), password.size());
+  return this->save_result_;
 }
 
 }  // namespace esphome::wifi

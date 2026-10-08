@@ -5,8 +5,8 @@
 //
 // Stub of the real wifi component with just enough API surface for
 // improv_serial to build and run on the host platform. Scan results are
-// fixed, "connecting" succeeds immediately, and save_wifi_sta only logs so
-// tests can assert on the log output.
+// fixed, "connecting" succeeds immediately, and save_wifi_sta logs and returns
+// a configurable result so tests can exercise provisioning failures.
 // ============================================================================
 
 #include "esphome/components/network/ip_address.h"
@@ -73,7 +73,8 @@ class WiFiComponent : public Component {
   void set_sta(const WiFiAP &ap);
   void start_connecting(const WiFiAP &ap);
   void clear_sta();
-  void save_wifi_sta(StringRef ssid, StringRef password);
+  bool save_wifi_sta(StringRef ssid, StringRef password);
+  void set_save_result(bool success) { this->save_result_ = success; }
   // Called by network::util on any USE_WIFI build
   const char *get_use_address() const { return "localhost"; }
   network::IPAddresses get_ip_addresses() { return {}; }
@@ -81,6 +82,7 @@ class WiFiComponent : public Component {
  protected:
   std::vector<WiFiScanResult> scan_result_;
   std::string connected_ssid_;
+  bool save_result_{true};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

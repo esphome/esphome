@@ -498,9 +498,11 @@ class WiFiComponent final : public Component {
 
   void set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
-  void save_wifi_sta(const std::string &ssid, const std::string &password);
-  void save_wifi_sta(const char *ssid, const char *password);
-  void save_wifi_sta(StringRef ssid, StringRef password) { this->save_wifi_sta(ssid.c_str(), password.c_str()); }
+  // Updates the running STA even on storage failure. Returns whether save and sync both report success;
+  // a failed sync may leave pending writes or partially written preferences, depending on the platform.
+  bool save_wifi_sta(const std::string &ssid, const std::string &password);
+  bool save_wifi_sta(const char *ssid, const char *password);
+  bool save_wifi_sta(StringRef ssid, StringRef password) { return this->save_wifi_sta(ssid.c_str(), password.c_str()); }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

@@ -70,10 +70,16 @@ void ImprovSerialComponent::loop() {
     // before reporting success. Same test as the wifi.connect action.
     char ssid_buf[wifi::SSID_BUFFER_SIZE];
     if (strcmp(wifi::global_wifi_component->wifi_ssid_to(ssid_buf), this->connecting_sta_.get_ssid().c_str()) == 0) {
-      wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
-                                                 this->connecting_sta_.get_password());
+      const bool saved = wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
+                                                                    this->connecting_sta_.get_password());
       this->connecting_sta_ = {};
       this->cancel_timeout("wifi-connect-timeout");
+      if (!saved) {
+        ESP_LOGW(TAG, "Failed to save Wi-Fi credentials");
+        this->set_error_(improv::ERROR_UNKNOWN);
+        this->set_state_(improv::STATE_AUTHORIZED);
+        return;
+      }
       this->set_state_(improv::STATE_PROVISIONED);
 
       this->send_settings_response_(improv::WIFI_SETTINGS);
@@ -289,6 +295,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
         return true;
       }
+      this->set_error_(improv::ERROR_NONE);
       wifi::WiFiAP sta{};
       sta.set_ssid(command.ssid.c_str());
       sta.set_password(command.password.c_str());
