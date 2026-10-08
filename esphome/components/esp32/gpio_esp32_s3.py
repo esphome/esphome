@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from esphome.components.const import CONF_HOLD_DURING_SLEEP
+from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
@@ -74,7 +74,7 @@ def esp32_s3_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
-    if value.get(CONF_HOLD_DURING_SLEEP) and num in _ESP32S3_USB_JTAG_PINS:
+    if value.get(CONF_HOLD_STATE) and num in _ESP32S3_USB_JTAG_PINS:
         _LOGGER.warning(
             "GPIO%d cannot hold at low level during wakeup from deep sleep.",
             num,

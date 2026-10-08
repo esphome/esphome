@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from esphome.components.const import CONF_HOLD_DURING_SLEEP
+from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
@@ -71,10 +71,10 @@ def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
         raise cv.Invalid(
             f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
         )
-    if value.get(CONF_HOLD_DURING_SLEEP) and 34 <= num <= 39:
+    if value.get(CONF_HOLD_STATE) and 34 <= num <= 39:
         raise cv.Invalid(
             f"GPIO{num} (34-39) is input-only and cannot be held during sleep.",
-            [CONF_HOLD_DURING_SLEEP],
+            [CONF_HOLD_STATE],
         )
 
     check_strapping_pin(value, _ESP32_STRAPPING_PINS, _LOGGER)
