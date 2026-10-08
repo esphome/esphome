@@ -12,6 +12,7 @@ import pytest
 from esphome.components import esp8266
 from esphome.components.esp8266 import (
     ARDUINO_FRAMEWORK_SCHEMA,
+    _resolve_board,
     _resolve_toolchain,
     _validate_native_toolchain,
     _warn_platformio_toolchain,
@@ -116,6 +117,41 @@ def test_custom_source_rejected() -> None:
 def test_unsupported_board_rejected() -> None:
     with pytest.raises(cv.Invalid, match="not supported by"):
         _validate_native_toolchain(_config(board="not_a_board"))
+
+
+def test_known_board_passes_unchanged() -> None:
+    config = {CONF_BOARD: "esp01_1m"}
+    assert _resolve_board(config) is config
+
+
+@pytest.mark.parametrize("board", ["esp01-1m", "ESP01_1M", "Esp01-1M"])
+def test_misspelled_board_normalized(
+    board: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    assert _resolve_board({CONF_BOARD: board})[CONF_BOARD] == "esp01_1m"
+    assert "using 'esp01_1m'" in caplog.text
+
+
+def test_unknown_board_falls_back_to_platformio_when_toolchain_implicit(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    CORE.toolchain = None
+    config = _resolve_toolchain(_resolve_board({CONF_BOARD: "my_custom_board"}))
+    assert config[CONF_TOOLCHAIN] == Toolchain.PLATFORMIO
+    assert CORE.toolchain == Toolchain.PLATFORMIO
+    assert "using 'toolchain: platformio'" in caplog.text
+
+
+@pytest.mark.parametrize("cli_toolchain", [Toolchain.ARDUINO, None])
+def test_unknown_board_keeps_explicit_toolchain(
+    cli_toolchain: Toolchain | None,
+) -> None:
+    """A CLI or YAML toolchain choice is never overridden, so native still rejects the board."""
+    CORE.toolchain = cli_toolchain
+    config = {CONF_BOARD: "my_custom_board"}
+    if cli_toolchain is None:
+        config[CONF_TOOLCHAIN] = Toolchain.ARDUINO
+    assert _resolve_board(config) is config
 
 
 def test_yaml_toolchain_key_resolves() -> None:
