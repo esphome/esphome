@@ -57,20 +57,12 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _served_units(full: ConfigType, link_id: str) -> list[int]:
-    """Addresses of the server devices on the hubs that use this link.
-
-    Empty when a modbus_monitor watches a hub on the link: it takes every unit.
-    """
+    """Addresses of the server devices on the hubs that use this link."""
     hubs = {
         str(hub[CONF_ID])
         for hub in full.get("modbus") or []
         if str(hub.get(CONF_UART_ID, "")) == link_id
     }
-    if any(
-        str(monitor.get(modbus.CONF_MODBUS_ID, "")) in hubs
-        for monitor in full.get("modbus_monitor") or []
-    ):
-        return []
     return sorted(
         {
             item[CONF_ADDRESS]

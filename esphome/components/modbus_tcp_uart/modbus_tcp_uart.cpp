@@ -11,7 +11,7 @@
 
 namespace esphome::modbus_tcp_uart {
 
-static const char *const TAG = "modbus_tcp_uart";
+ESPHOME_LOG_TAG(TAG, "modbus_tcp_uart");
 
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 // A peer sends a whole frame and then waits. After this much quiet the next byte starts a frame.
@@ -200,7 +200,7 @@ void ModbusTcpUart::deliver_mbap_() {
         // [TCP 4.4.2.2] discards only the bad frame. A usable length says where it ends.
         size_t size = mbap_announced_size(this->tcp_buf_ + pos, left);
         if (size == 0) {
-          // No frame boundary; a byte-wise search could find a false CRC match.
+          // No frame boundary; a header found mid-frame would reach the hub with a valid CRC.
           this->note_drop_(LOG_STR("Invalid MBAP length, dropped until the stream is quiet"));
           this->tcp_len_ = 0;
           this->resync_ = true;
@@ -249,7 +249,6 @@ void ModbusTcpUart::deliver_mbap_() {
             this->function_ = frame.pdu[0];
             this->txn_pending_ = true;
           }
-          // Last: the reader may answer within this call.
           if (!this->inject_rx(rtu, rtu_len)) {
             this->txn_pending_ = false;
             this->note_drop_(LOG_STR("RX buffer full, dropped the request"));
@@ -265,7 +264,6 @@ void ModbusTcpUart::deliver_mbap_() {
         // [TCP 4.4.1.3] The client discards the response's unit. The hub expects the address it asked.
         uint8_t rtu[RTU_FRAME_SIZE];
         size_t rtu_len = write_rtu(rtu, this->unit_, frame.pdu, frame.pdu_len);
-        // Before handing it on: the reader may send the next request within the call.
         this->txn_pending_ = false;
         if (!this->inject_rx(rtu, rtu_len)) {
           this->note_drop_(LOG_STR("RX buffer full, dropped the response"));
