@@ -1,7 +1,6 @@
 #include "zigbee_time_esp32.h"
 #if defined(USE_ZIGBEE) && defined(USE_ESP32) && defined(USE_TIME)
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome::zigbee {
 

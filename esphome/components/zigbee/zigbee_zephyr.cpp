@@ -1,7 +1,6 @@
 #include "zigbee_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52)
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"

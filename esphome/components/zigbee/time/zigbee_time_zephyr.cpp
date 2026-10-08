@@ -1,7 +1,6 @@
 #include "zigbee_time_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_TIME)
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome::zigbee {
 
