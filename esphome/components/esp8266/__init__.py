@@ -53,6 +53,7 @@ from .const import (
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
+    THROW_STUBS_HEADER,
     enable_serial,
     enable_serial1,
     esp8266_ns,
@@ -477,11 +478,9 @@ async def to_code(config: ConfigType) -> None:
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
-    # See throw_stubs.h. Unconditional: the native build generator reads
-    # the same option, keeping one source of truth.
-    cg.add_platformio_option(
-        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
-    )
+    # See throw_stubs.h. The native build generator reads this option, also
+    # passes it to the core and libraries, and drops it with exceptions on.
+    cg.add_platformio_option("build_src_flags", f"-include {THROW_STUBS_HEADER}")
 
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
