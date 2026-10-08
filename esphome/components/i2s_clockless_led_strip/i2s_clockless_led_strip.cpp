@@ -12,7 +12,7 @@
 
 namespace esphome::i2s_clockless_led_strip {
 
-constexpr const char *const TAG = "i2s_clockless_led_strip";
+ESPHOME_LOG_TAG(TAG, "i2s_clockless_led_strip");
 
 constexpr const char *const ERROR_ALLOCATION = "Allocation error";
 constexpr const char *const ERROR_I2S = "I2S error";
