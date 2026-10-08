@@ -5,6 +5,7 @@
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
+#include <stdbool.h>
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -63,7 +64,7 @@ __attribute__((always_inline)) static inline void esphome_main_task_wait(TickTyp
 #endif
 }
 
-__attribute__((always_inline)) inline bool is_main_loop_thread() {
+__attribute__((always_inline)) static inline bool esphome_is_main_task() {
   TaskHandle_t main_task = esphome_main_task_handle;
   return main_task == NULL || xTaskGetCurrentTaskHandle() == main_task;
 }

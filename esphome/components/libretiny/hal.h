@@ -85,6 +85,7 @@ __attribute__((always_inline)) inline bool in_isr_context() {
 #endif
 }
 
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return esphome_is_main_task(); }
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
