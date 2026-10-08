@@ -1,5 +1,5 @@
 # Config only: a user supplied SPI interface on dedicated pins exercises the
-# interface option and the spi3 availability check in validation.
+# interface option in validation.
 ethernet:
   type: W5500
   interface: spi3
