@@ -153,17 +153,12 @@ class ModbusClientSendAction : public ClientActionBase<Ts...>,
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
 };
 
-/// Calls fn with a RAM-readable span of a static values table. On ESP8266 the table is in PROGMEM, which the
-/// PDU builders cannot read directly, so it is copied to the stack first; the schema caps len at MAX.
-template<size_t MAX, typename T, typename F> void with_static_values(const T *data, size_t len, F &&fn) {
-#ifdef USE_ESP8266
-  std::array<T, MAX> buf;
-  progmem_memcpy(buf.data(), data, len * sizeof(T));
-  fn(std::span<const T>(buf.data(), len));
-#else
-  fn(std::span<const T>(data, len));
-#endif
-}
+// PDU builders for the static values tables, shared by every action instantiation. On ESP8266 the tables
+// are in PROGMEM, which the builders cannot read directly, so these copy them to the stack first.
+modbus::helpers::PduBuffer static_write_registers_pdu(uint16_t start, const uint16_t *values, size_t len);
+modbus::helpers::PduBuffer static_write_coils_pdu(uint16_t start, const uint8_t *packed, uint16_t count);
+modbus::helpers::PduBuffer static_read_write_registers_pdu(uint16_t read_start, uint16_t read_count,
+                                                           uint16_t write_start, const uint16_t *values, size_t len);
 
 /// Typed actions: these do NOT override the raw on_response, so the base ModbusClientDevice default runs
 /// the shared dispatch (validation gate + decode) and the typed callbacks below fire directly on the
@@ -330,16 +325,9 @@ class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, public
     const uint16_t start = this->start_address_.value(x...);
     // An empty or over-long set rejects into an empty PDU inside the builder, which logs the reason;
     // the empty PDU then resolves via on_not_sent like any refused send.
-    if (this->len_ >= 0) {
-      with_static_values<modbus::MAX_NUM_OF_REGISTERS_TO_WRITE>(
-          this->values_.data, static_cast<size_t>(this->len_), [&](std::span<const uint16_t> values) {
-            this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(start, values),
-                                   this->write_command_options_(x...));
-          });
-      return;
-    }
-    const std::vector<uint16_t> values = this->values_.func(x...);
-    this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(start, std::span<const uint16_t>(values)),
+    this->send_or_resolve_(this->len_ >= 0
+                               ? static_write_registers_pdu(start, this->values_.data, static_cast<size_t>(this->len_))
+                               : modbus::helpers::create_write_registers_pdu(start, this->values_.func(x...)),
                            this->write_command_options_(x...));
   }
   void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
@@ -381,18 +369,11 @@ class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...>, public Wri
 
   void play(const Ts &...x) override {
     const uint16_t start = this->start_address_.value(x...);
-    if (this->count_ >= 0) {
-      const auto count = static_cast<uint16_t>(this->count_);
-      with_static_values<modbus::packed_bit_bytes(modbus::MAX_NUM_OF_COILS_TO_WRITE)>(
-          this->values_.packed, modbus::packed_bit_bytes(count), [&](std::span<const uint8_t> packed) {
-            this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(start, modbus::PackedBits(packed, count)),
-                                   this->write_command_options_(x...));
-          });
-      return;
-    }
-    // The builder packs and bound-checks; an over-long set is rejected and logged there.
-    this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(start, this->values_.func(x...)),
-                           this->write_command_options_(x...));
+    // For a lambda the builder packs and bound-checks; an over-long set is rejected and logged there.
+    this->send_or_resolve_(
+        this->count_ >= 0 ? static_write_coils_pdu(start, this->values_.packed, static_cast<uint16_t>(this->count_))
+                          : modbus::helpers::create_write_coils_pdu(start, this->values_.func(x...)),
+        this->write_command_options_(x...));
   }
   void on_write_multiple_coils(uint16_t start_address, modbus::PackedBits bits,
                                modbus::ResponseStatus status) override {
@@ -436,18 +417,11 @@ class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, pu
     const uint16_t read_count = this->read_count_.value(x...);
     const uint16_t write_start = this->write_address_.value(x...);
     // An out-of-range read/write count builds an empty PDU (the builder logs why), resolving via on_not_sent.
-    if (this->len_ >= 0) {
-      with_static_values<modbus::MAX_NUM_OF_REGISTERS_TO_WRITE_RW>(
-          this->values_.data, static_cast<size_t>(this->len_), [&](std::span<const uint16_t> values) {
-            this->send_or_resolve_(
-                modbus::helpers::create_read_write_multiple_registers_pdu(read_start, read_count, write_start, values),
-                this->command_options_(x...));
-          });
-      return;
-    }
-    const std::vector<uint16_t> values = this->values_.func(x...);
-    this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
-                               read_start, read_count, write_start, std::span<const uint16_t>(values)),
+    this->send_or_resolve_(this->len_ >= 0
+                               ? static_read_write_registers_pdu(read_start, read_count, write_start,
+                                                                 this->values_.data, static_cast<size_t>(this->len_))
+                               : modbus::helpers::create_read_write_multiple_registers_pdu(
+                                     read_start, read_count, write_start, this->values_.func(x...)),
                            this->command_options_(x...));
   }
   // The 0x17 response carries only the read block, so the hub dispatch delivers it as a holding-register read.
