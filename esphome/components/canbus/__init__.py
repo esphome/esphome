@@ -141,7 +141,7 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
 
 
 async def register_canbus(
-    var: MockObj, config: ConfigType, reports_status: bool | None = None
+    var: MockObj, config: ConfigType, *, reports_status: bool | None = None
 ) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.new_Pvariable(config[CONF_ID], var)
