@@ -300,13 +300,8 @@ class Component {
     this->status_clear_error_slow_path_();
   }
 
-  /** Set warning status flag and automatically clear it after a timeout.
-   *
-   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
-   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
-   *             This is NOT a message to display - use status_set_warning() with a message if logging is needed.
-   * @param length Duration in milliseconds before the warning is automatically cleared.
-   */
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use status_momentary_warning() without a name. Removed in 2027.5.0", "2026.11.0")
   void status_momentary_warning(const char *name, uint32_t length = 5000);
 
   /// Set warning status flag and clear it after `length` ms. A new call restarts the timeout.
@@ -314,13 +309,8 @@ class Component {
   void status_momentary_warning(uint32_t length = 5000);
   void status_momentary_warning(const LogString *message, uint32_t length = 5000);
 
-  /** Set error status flag and automatically clear it after a timeout.
-   *
-   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
-   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
-   *             This is NOT a message to display - use status_set_error() with a message if logging is needed.
-   * @param length Duration in milliseconds before the error is automatically cleared.
-   */
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use status_momentary_error() without a name. Removed in 2027.5.0", "2026.11.0")
   void status_momentary_error(const char *name, uint32_t length = 5000);
 
   /// Set error status flag and clear it after `length` ms. A new call restarts the timeout.
