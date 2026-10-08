@@ -424,7 +424,7 @@ async def to_code(config: ConfigType) -> None:
     # esp_websocket_client links esp_tls even for ws:// connections.
     esp32.request_tls()
 
-    cg.add_define("USE_SENDSPIN", True)  # for MDNS
+    cg.add_define("USE_SENDSPIN", True)  # for MDNS and the native API
 
     # Service starts disabled and the hub enables it; always advertised where unsupported
     if mdns.request_service_enable_disable():
