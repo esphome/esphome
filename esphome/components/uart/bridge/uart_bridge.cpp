@@ -8,7 +8,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.bridge";
+ESPHOME_LOG_TAG(TAG, "uart.bridge");
 
 static constexpr uint32_t US_PER_SEC = 1000000;
 // A frame ends after 3.5 quiet characters (in half characters here), at least 1750 us.
