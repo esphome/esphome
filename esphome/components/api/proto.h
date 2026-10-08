@@ -71,7 +71,7 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
 template<typename Word = size_t> inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
   constexpr size_t word_size = sizeof(Word);
   constexpr Word lane_ones = ~Word{0} / 0xFF;  // 0x01..01
-  constexpr size_t max_chunk_words = 255;  // a byte lane counts at most one per word
+  constexpr size_t max_chunk_words = 255;      // a byte lane counts at most one per word
   const uint8_t *end = data + len;
   size_t continuations = 0;
   // Leading bytes before the first word boundary
