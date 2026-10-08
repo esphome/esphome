@@ -4,8 +4,6 @@ namespace esphome::one_wire {
 
 ESPHOME_LOG_TAG(TAG, "one_wire");
 
-void OneWireDevice::set_address(uint64_t address) { this->address_ = address; }
-
 bool OneWireDevice::send_command_(uint8_t cmd) {
   if (!this->bus_->select(this->address_))
     return false;
