@@ -6,7 +6,7 @@
 
 namespace esphome::ezsp_proxy_tap {
 
-static const char *const TAG = "ezsp_proxy_tap";
+ESPHOME_LOG_TAG(TAG, "ezsp_proxy_tap");
 
 void EzspProxyTap::setup() { this->parent_->set_tap(this); }
 
