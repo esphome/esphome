@@ -150,6 +150,8 @@ void BLEClientBase::connect() {
   // A registration whose event never arrived must not block this connection's release.
   this->services_released_ = false;
   this->pending_notify_regs_ = 0;
+  // A CONNECT_EVT seen while idle leaves a stale id that would defeat the DISCONNECT_EVT guard.
+  this->conn_id_ = UNSET_CONN_ID;
   // Enable loop for state processing
   this->enable_loop();
   // Immediately transition to CONNECTING to prevent duplicate connection attempts
@@ -350,7 +352,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (!this->check_addr(param->open.remote_bda))
         return false;
       this->log_gattc_lifecycle_event_("OPEN");
-      // conn_id was already set in ESP_GATTC_CONNECT_EVT
       this->service_count_ = 0;
 
       // ESP-IDF's BLE stack may send ESP_GATTC_OPEN_EVT after esp_ble_gattc_open() returns an
@@ -375,6 +376,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->set_idle_();
         break;
       }
+      // An open on a link that is already up sends no CONNECT_EVT, so take the id here.
+      this->conn_id_ = param->open.conn_id;
       if (this->want_disconnect_) {
         // Disconnect was requested after connecting started,
         // but before the connection was established. Now that we have
@@ -429,6 +432,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // backwards to DISCONNECTING — the connection is already fully cleaned up.
       if (this->state() == espbt::ClientState::IDLE) {
         this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
+        break;
+      }
+      // Bluedroid reports a failed open as DISCONNECT_EVT then a failing OPEN_EVT, with no CONNECT_EVT.
+      // There is no link to tear down; OPEN_EVT returns the client to IDLE.
+      if (this->conn_id_ == UNSET_CONN_ID) {
         break;
       }
       // For passive disconnects (remote device disconnected or link lost),
