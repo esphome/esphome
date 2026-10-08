@@ -1088,9 +1088,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if "USE_ESP8266_WAVEFORM_STUBS" in flag_defines:
         core_exclude |= _CORE_EXCLUDE_WAVEFORM
 
-    # One source of truth with the PlatformIO path: esp8266/__init__ pins
-    # build_src_flags (the throw_stubs force-include); -include paths
-    # resolve against the source root
+    # esp8266/__init__ pins build_src_flags (the throw_stubs force-include), as on
+    # the PlatformIO path; -include paths resolve against the source root
     src_other: list[str] = []
     src_includes: list[str] = []
     src_it = iter(
@@ -1109,15 +1108,15 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             src_includes.append(tok[len("-include") :])
         else:
             src_other.append(_shell_token(tok))
-    # The throw stubs abort instead of throwing: with exceptions on, src drops them
-    # too; otherwise the core and libraries take them as well (only them, src keeps
-    # its other force-includes to itself) and src gets them after its pch include
+    # The throw stubs abort: none anywhere with exceptions on, else the core and
+    # libraries get them too (src keeps them after its pch include)
     if config.exceptions:
         src_includes = [h for h in src_includes if h != THROW_STUBS_HEADER]
     include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
     framework_flags = ""
     if THROW_STUBS_HEADER in src_includes:
-        lines.append(f"frameworkflags = -include {_q(src_dir / THROW_STUBS_HEADER)}")
+        stubs_flag = include_flags[src_includes.index(THROW_STUBS_HEADER)]
+        lines.append(f"frameworkflags = {stubs_flag}")
         framework_flags = "$frameworkflags"
     archives = []
     # variant_dir existence was already enforced with the include dirs

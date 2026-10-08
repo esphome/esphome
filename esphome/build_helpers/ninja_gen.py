@@ -211,7 +211,7 @@ def library_edges(
 ) -> tuple[list[str], list[str]]:
     """Emit every library's compile and archive edges.
 
-    ``extra_flags`` (raw ninja text, e.g. a ``$var`` reference) precede each library's own flags.
+    ``extra_flags`` (raw ninja text) precede each library's own flags.
 
     Returns the archive names and the objects that link directly. A
     library's own include dirs lead its compile lines, as PlatformIO searched

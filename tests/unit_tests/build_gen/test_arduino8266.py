@@ -724,8 +724,7 @@ def test_write_project_libraries_and_variant(
     assert "libHeadersOnly.a" not in content
     assert "Library HeadersOnly has no source files" in caplog.text
     assert "  flags = -DMYLIB=1" in content
-    # With exceptions on, no throw is turned into an abort: not in libraries, not in src
-    assert "frameworkflags" not in content
+    # With exceptions on, nothing gets the stubs
     assert "throw_stubs.h" not in content
     # A library's own include dirs lead its compile lines
     assert "  own_includes = -I" in content
