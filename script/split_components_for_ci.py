@@ -13,13 +13,15 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from collections.abc import Set as AbstractSet
 import contextlib
 from dataclasses import dataclass, field
+import functools
 import json
 import math
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, NamedTuple
 
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -34,6 +36,7 @@ from script.analyze_component_buses import (
     merge_compatible_bus_groups,
 )
 from script.helpers import (
+    _extract_components_from_yaml,
     get_component_test_files,
     parse_test_filename,
     split_conflicting_groups,
@@ -120,30 +123,28 @@ def build_seconds(platform: str) -> int:
     return DEFAULT_BUILD_SECONDS
 
 
-def _heavy_components_in(data: Any) -> set[str]:
-    """Return the heavy components a loaded test config enables.
-
-    Looks at top level keys, at the configs pulled in through ``packages:``
-    and at ``platform:`` entries of list sections such as ``light:``.
-    """
-    found: set[str] = set()
+def _config_components(data: Any) -> set[str]:
+    """Return the components a loaded test config and its ``packages:`` use."""
     if not isinstance(data, dict):
-        return found
-    for key, value in data.items():
-        if key in HEAVY_COMPONENT_SECONDS:
-            found.add(key)
-        if key == "packages" and isinstance(value, dict):
-            for package in value.values():
-                if isinstance(package, yaml_util.IncludeFile):
-                    package = package.load()
-                found |= _heavy_components_in(package)
-        elif isinstance(value, list):
-            for entry in value:
-                if isinstance(entry, dict):
-                    platform = entry.get("platform")
-                    if platform in HEAVY_COMPONENT_SECONDS:
-                        found.add(platform)
+        return set()
+    found = _extract_components_from_yaml(data)
+    if isinstance(packages := data.get("packages"), dict):
+        for package in packages.values():
+            if isinstance(package, yaml_util.IncludeFile):
+                found |= _file_components(
+                    (package.parent_file.parent / package.file).resolve()
+                )
+            else:
+                found |= _config_components(package)
     return found
+
+
+@functools.cache
+def _file_components(path: Path) -> frozenset[str]:
+    """Return the components a config file uses; shared packages load once."""
+    return frozenset(
+        _config_components(yaml_util.load_yaml(path, track_document_range=False))
+    )
 
 
 def heavy_components(component: str, test_file: Path) -> frozenset[str]:
@@ -155,13 +156,22 @@ def heavy_components(component: str, test_file: Path) -> frozenset[str]:
     heavy = {component} & HEAVY_COMPONENT_SECONDS.keys()
     # A config that does not load is left to the build to report
     with contextlib.suppress(Exception):
-        heavy |= _heavy_components_in(yaml_util.load_yaml(test_file))
+        heavy |= _file_components(test_file.resolve()) & HEAVY_COMPONENT_SECONDS.keys()
     return frozenset(heavy)
 
 
-def heavy_seconds(heavy: frozenset[str]) -> int:
+def heavy_seconds(heavy: AbstractSet[str]) -> int:
     """Return the library seconds a set of heavy components adds to a build."""
     return sum(HEAVY_COMPONENT_SECONDS[name] for name in heavy)
+
+
+class _GroupedShare(NamedTuple):
+    """A component's part in one (signature, platform) shared build."""
+
+    # Seconds of its files on that platform when no other member shares it
+    solo: int
+    # Heavy components its base test brings into the shared build
+    heavy: frozenset[str]
 
 
 @dataclass
@@ -172,59 +182,52 @@ class _BatchItem:
     # Builds that always run on their own (isolated tests, variants on a
     # platform without a base test)
     own_seconds: int
-    # Per (signature, platform) shared build: the seconds of this component's
-    # files on that platform when no other batch member shares the build, and
-    # the heavy components its base test brings into a shared one
-    grouped_builds: dict[tuple[str, str], tuple[int, frozenset[str]]] = field(
-        default_factory=dict
-    )
+    grouped_builds: dict[tuple[str, str], _GroupedShare] = field(default_factory=dict)
 
     def standalone_seconds(self) -> int:
-        return self.own_seconds + sum(solo for solo, _ in self.grouped_builds.values())
+        return self.own_seconds + sum(
+            share.solo for share in self.grouped_builds.values()
+        )
 
 
-def _grouped_build_seconds(
-    platform: str, members: list[tuple[int, frozenset[str]]]
-) -> int:
+def _grouped_build_seconds(platform: str, members: list[_GroupedShare]) -> int:
     """Return the seconds of one (signature, platform) build in a batch.
 
-    members holds (solo seconds, heavy components) per component. A library
-    two members both enable compiles once, so the union is charged.
+    A library two members both enable compiles once, so the union is charged.
     test_build_components only groups when two or more members share the
     build; a grouped member then skips its variants on that platform.
     """
     if len(members) <= 1:
-        return sum(solo for solo, _ in members)
+        return sum(share.solo for share in members)
     return (
         build_seconds(platform)
         + GROUPED_COMPONENT_SECONDS * (len(members) - 1)
-        + heavy_seconds(frozenset().union(*(heavy for _, heavy in members)))
+        + heavy_seconds(set().union(*(share.heavy for share in members)))
     )
 
 
 def _make_item(
     tests_dir: Path, component: str, signature: str, is_isolated: bool
 ) -> _BatchItem:
-    # Per platform: the seconds of each test file, and the base test's heavy
-    # components when there is one
-    files_by_platform: dict[str, list[int]] = defaultdict(list)
+    # Per platform: the seconds of its test files, and the base test's heavy
+    # components; a platform without a base test cannot join a shared build
+    seconds_by_platform: dict[str, int] = defaultdict(int)
     base_heavy: dict[str, frozenset[str]] = {}
     for test_file in (tests_dir / component).glob("test[.-]*.yaml"):
         test_name, platform = parse_test_filename(test_file)
         heavy = heavy_components(component, test_file)
-        files_by_platform[platform].append(
-            build_seconds(platform) + heavy_seconds(heavy)
-        )
+        seconds_by_platform[platform] += build_seconds(platform) + heavy_seconds(heavy)
         if test_name == "test":
             base_heavy[platform] = heavy
     own_seconds = 0
-    grouped: dict[tuple[str, str], tuple[int, frozenset[str]]] = {}
-    for platform, file_seconds in files_by_platform.items():
-        seconds = sum(file_seconds)
+    grouped: dict[tuple[str, str], _GroupedShare] = {}
+    for platform, seconds in seconds_by_platform.items():
         if is_isolated or platform not in base_heavy:
             own_seconds += seconds
         else:
-            grouped[(signature, platform)] = (seconds, base_heavy[platform])
+            grouped[(signature, platform)] = _GroupedShare(
+                seconds, base_heavy[platform]
+            )
     return _BatchItem(component, own_seconds, grouped)
 
 
@@ -234,25 +237,24 @@ class _Batch:
     def __init__(self) -> None:
         self.components: list[str] = []
         self.seconds = 0
-        # Per (signature, platform) build: (solo, heavy) seconds of each member
-        self.grouped_builds: dict[tuple[str, str], list[tuple[int, frozenset[str]]]] = (
-            defaultdict(list)
+        self.grouped_builds: dict[tuple[str, str], list[_GroupedShare]] = defaultdict(
+            list
         )
 
     def added_seconds(self, item: _BatchItem) -> int:
         """Return the seconds item would add; joining an existing build is cheap."""
         added = item.own_seconds
-        for (signature, platform), member in item.grouped_builds.items():
+        for (signature, platform), share in item.grouped_builds.items():
             members = self.grouped_builds.get((signature, platform), [])
             added += _grouped_build_seconds(
-                platform, [*members, member]
+                platform, [*members, share]
             ) - _grouped_build_seconds(platform, members)
         return added
 
     def add(self, item: _BatchItem) -> None:
         self.seconds += self.added_seconds(item)
-        for build, member in item.grouped_builds.items():
-            self.grouped_builds[build].append(member)
+        for build, share in item.grouped_builds.items():
+            self.grouped_builds[build].append(share)
         self.components.append(item.component)
 
 
