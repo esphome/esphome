@@ -38,6 +38,13 @@ class VirtualUARTComponent : public UARTComponent {
 
  protected:
   void check_logger_conflict() override {}
+  /// For write_array() of the derived class: hands the written bytes to a configured UART debugger.
+  void debug_tx_(const uint8_t *data, size_t len) {
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++)
+      this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
+#endif
+  }
 
   UARTSink *rx_sink_{nullptr};
   FixedRingBuffer<uint8_t> rx_;

@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace esphome::uart::testing {
@@ -15,7 +16,10 @@ class TestVirtualUART : public VirtualUARTComponent {
  public:
   using VirtualUARTComponent::VirtualUARTComponent;
 
-  void write_array(const uint8_t *data, size_t len) override { this->writes.emplace_back(data, data + len); }
+  void write_array(const uint8_t *data, size_t len) override {
+    this->writes.emplace_back(data, data + len);
+    this->debug_tx_(data, len);
+  }
   UARTFlushResult flush() override { return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 
   std::vector<std::vector<uint8_t>> writes;
@@ -136,6 +140,20 @@ TEST(VirtualUART, ReaderThatWritesBackIsNotHandedABlockAgain) {
   // Once on_block() has returned, the next block is handed over again.
   EXPECT_TRUE(x.inject_rx(FRAME, 3));
   EXPECT_EQ(x_reader.calls, 2);
+}
+
+TEST(VirtualUART, DebuggerSeesReadAndWrittenBytes) {
+  TestVirtualUART uart(16);
+  std::vector<std::pair<UARTDirection, uint8_t>> seen;
+  uart.add_debug_callback([&seen](UARTDirection dir, uint8_t b) { seen.emplace_back(dir, b); });
+  ASSERT_TRUE(uart.inject_rx(FRAME, 2));
+  uint8_t out[2];
+  ASSERT_TRUE(uart.read_array(out, 2));
+  uart.write_array(FRAME, 1);
+  ASSERT_EQ(seen.size(), 3u);
+  EXPECT_EQ(seen[0], std::make_pair(UART_DIRECTION_RX, FRAME[0]));
+  EXPECT_EQ(seen[1], std::make_pair(UART_DIRECTION_RX, FRAME[1]));
+  EXPECT_EQ(seen[2], std::make_pair(UART_DIRECTION_TX, FRAME[0]));
 }
 
 }  // namespace esphome::uart::testing

@@ -46,6 +46,9 @@ bool VirtualUARTComponent::read_array(uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
     data[i] = this->rx_.front();
     this->rx_.pop();
+#ifdef USE_UART_DEBUGGER
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
+#endif
   }
   return true;
 }
