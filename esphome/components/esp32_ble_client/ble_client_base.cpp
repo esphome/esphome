@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_ble_client {
 
-static const char *const TAG = "esp32_ble_client";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_client");
 
 // Connection parameters are shared with the other GATT client backends
 // (ble_device_base/ble_client_state.h) so the platforms cannot drift.

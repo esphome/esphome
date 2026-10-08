@@ -2,7 +2,7 @@
 
 namespace esphome::one_wire {
 
-static const char *const TAG = "one_wire";
+ESPHOME_LOG_TAG(TAG, "one_wire");
 
 const std::string &OneWireDevice::get_address_name() {
   if (this->address_name_.empty()) {

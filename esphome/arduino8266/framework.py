@@ -49,40 +49,40 @@ class FrameworkRelease(NamedTuple):
 # Arduino core version -> its build in esphome-libs/arduino-esp8266
 FRAMEWORK_RELEASES: dict[Version, FrameworkRelease] = {
     Version(3, 1, 2): FrameworkRelease(
-        "3.1.2-esphome.1",
-        "e80751e3123676b967143e39c61f2d8693946db4c7806f2a83dcaaf797ecd582",
-        37189311,
+        "3.1.2-esphome.2",
+        "9377d63f569c524823199b1897ed7fde2063e50e2676dd519a0d758ab73678f7",
+        37192128,
     ),
 }
 
 TOOLCHAIN_PACKAGE = "toolchain-xtensa-lx106-elf"
 # gcc 10.3, the toolchain Arduino core 3.x builds with; the build
 # generator's compile flags are tuned to it.
-TOOLCHAIN_VERSION = "10.3.0-esphome.2"
+TOOLCHAIN_VERSION = "10.3.0-esphome.3"
 _TOOLCHAIN_RELEASES = (
     "https://github.com/esphome-libs/xtensa-lx106-elf-toolchain/releases/"
 )
 # Registry system tag -> (sha256, size) of that host's archive
 TOOLCHAIN_BUILDS: dict[str, tuple[str, int]] = {
     "darwin_arm64": (
-        "849cede44d4d5c6ea0f14099783239f559f46327bea314281814f2652b486201",
-        60830321,
+        "ad0ea929238d9b527c43e0d20257acc2a5680bdb0d2b1cf8f2c99169786217e9",
+        60747260,
     ),
     "darwin_x86_64": (
-        "ca69904daabf0c5983b372423e5e62f49182a793e992c052e94666852470c897",
-        64149487,
+        "997090cac80c8eb59604ec52b73fb3568e5f2d9b2971f83c3f2a5c545c9c949c",
+        64065752,
     ),
     "linux_aarch64": (
-        "60a49a4f082bf246544bd409a9517dbbcab19bb30ac9decbee544b896aaccbd6",
-        67573397,
+        "403f14d0d5755682fcd6eaea1e4c457a1d8cad30690e52fb0c804d8db266b908",
+        67487067,
     ),
     "linux_x86_64": (
-        "1fba33ca1494ec79f2776e0e37eca93282d30f8bb9992f5f4f9a655d6fff1db4",
-        68431336,
+        "64f21fa3ba736b363dc8c234dbbb39e005e574e33de08a78e9a00c55a64ae706",
+        68343668,
     ),
     "windows_amd64": (
-        "af9066b0e5bf036f04f2bd9d08b89b81a7f183c57dac0abcaff71dd861cf5f3b",
-        67664137,
+        "1e62abf8df041ce5158f5770dffef955f2f981ce7f7adee88fcd5a8197705aa6",
+        67536405,
     ),
 }
 

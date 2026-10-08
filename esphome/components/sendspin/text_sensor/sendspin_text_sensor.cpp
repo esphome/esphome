@@ -1,6 +1,6 @@
 #include "sendspin_text_sensor.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_TEXT_SENSOR)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_METADATA) && defined(USE_TEXT_SENSOR)
 
 #include <sendspin/metadata_role.h>
 
@@ -8,7 +8,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.text_sensor";
+ESPHOME_LOG_TAG(TAG, "sendspin.text_sensor");
 
 void SendspinTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Sendspin", this); }
 

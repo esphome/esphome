@@ -3,7 +3,7 @@
 
 namespace esphome::sun {
 
-static const char *const TAG = "sun.sensor";
+ESPHOME_LOG_TAG(TAG, "sun.sensor");
 
 void SunSensor::dump_config() { LOG_SENSOR("", "Sun Sensor", this); }
 

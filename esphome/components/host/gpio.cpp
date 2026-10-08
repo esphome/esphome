@@ -6,7 +6,7 @@
 namespace esphome {
 namespace host {
 
-static const char *const TAG = "host";
+ESPHOME_LOG_TAG(TAG, "host");
 
 struct ISRPinArg {
   uint8_t pin;

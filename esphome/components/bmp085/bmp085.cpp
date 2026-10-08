@@ -3,7 +3,7 @@
 
 namespace esphome::bmp085 {
 
-static const char *const TAG = "bmp085.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp085.sensor");
 
 static const uint8_t BMP085_ADDRESS = 0x77;
 static const uint8_t BMP085_REGISTER_AC1_H = 0xAA;
