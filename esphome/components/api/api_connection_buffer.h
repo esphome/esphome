@@ -45,8 +45,8 @@ inline uint16_t ESPHOME_ALWAYS_INLINE APIConnection::encode_to_buffer(uint32_t c
     conn->fatal_out_of_memory_();
     return 0;
   }
-  ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
-  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end =
+      encode_fn(msg, shared_buf.data() + shared_buf.size() - calculated_size PROTO_ENCODE_DEBUG_INIT(&shared_buf));
 #ifdef ESPHOME_DEBUG_API
   // A body that writes fewer bytes than calculate_size() promised would ship stale buffer bytes
   proto_check_encode_end(end, shared_buf.data() + shared_buf.size());
