@@ -65,10 +65,9 @@ def _get_data() -> PackagesData:
 
 
 def get_remote_package_sources() -> tuple[RemotePackageSource, ...]:
-    """Remote sources fetched while processing this config, in fetch order.
+    """Remote sources fetched for this config, in fetch order.
 
-    Consumers (e.g. store_yaml) use this to tell which parts of the config
-    came from remote repositories rather than local files.
+    store_yaml uses them to tell remote parts of the config from local files.
     """
     if (data := CORE.data.get(DOMAIN)) is None:
         return ()

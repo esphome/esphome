@@ -423,11 +423,8 @@ def _load_include_candidates(
         try:
             loaded = include.with_file(candidate.as_posix()).load()
         except (EsphomeError, Invalid) as err:
-            # A matched on-disk candidate that fails to load is a genuine user
-            # error; callers that report ``result.errors`` themselves pass
-            # warn_on_load_error=False so it is not logged twice. The file
-            # itself is still tracked (the load listener fires before
-            # parsing), only its nested includes go undiscovered.
+            # A real user error. The file stays tracked (the listener fires
+            # before parsing); only its nested includes are missed.
             (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
                 "Failed to load candidate %s for !include %s: %s",
                 candidate,
@@ -461,11 +458,9 @@ def find_secret_references(text: str) -> set[str]:
 
 
 class ForceLoadResult(NamedTuple):
-    """Outcome of :func:`force_load_include_files`.
+    """Templated includes that matched no file, and includes that failed to load.
 
-    ``unresolved`` lists ``!include`` path strings with substitution variables or
-    expressions that matched no candidate file; ``errors`` lists includes that failed
-    to load. Either being non-empty means the walk was incomplete.
+    Either being non-empty means the walk was incomplete.
     """
 
     unresolved: list[str]
@@ -489,9 +484,8 @@ def force_load_include_files(
     expression could select. By default a warning is logged when no candidate
     exists; pass ``warn_on_unresolved=False`` (used by discovery paths that
     run on a fresh re-parse where substitutions haven't been applied yet) to
-    demote it to a debug log. Includes that fail to load are logged as
-    warnings too; callers that report ``errors`` themselves pass
-    ``warn_on_load_error=False`` so each failure is shown once.
+    demote it to a debug log. Callers that report ``errors`` themselves pass
+    ``warn_on_load_error=False`` so load failures are not logged twice.
     """
     result = ForceLoadResult([], [])
     _force_load_include_files(
@@ -601,10 +595,8 @@ class DiscoveredYamlFiles:
     were re-parsing the user's config; ``secrets`` is the subset whose
     *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
     a ``secrets.yaml`` symlinked to a differently-named target is still
-    flagged as secrets). ``unresolved`` lists ``!include`` path strings that
-    contain substitution variables and therefore could not be loaded, and
-    ``load_errors`` lists files that failed to parse or load — consumers
-    should treat ``files`` as incomplete when either is non-empty.
+    flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
+    include paths) or ``load_errors`` is non-empty.
     """
 
     files: list[Path] = field(default_factory=list)
