@@ -55,7 +55,7 @@ namespace esphome::web_server_idf {
 #define CRLF_STR "\r\n"
 #define CRLF_LEN (sizeof(CRLF_STR) - 1)
 
-static const char *const TAG = "web_server_idf";
+ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
 // Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
 // arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.

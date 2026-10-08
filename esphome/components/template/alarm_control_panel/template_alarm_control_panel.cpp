@@ -11,7 +11,7 @@ namespace esphome::template_ {
 
 using namespace esphome::alarm_control_panel;
 
-static const char *const TAG = "template.alarm_control_panel";
+ESPHOME_LOG_TAG(TAG, "template.alarm_control_panel");
 
 TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
 

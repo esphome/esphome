@@ -14,7 +14,7 @@
 
 namespace esphome::ethernet {
 
-static const char *const TAG = "ethernet";
+ESPHOME_LOG_TAG(TAG, "ethernet");
 
 void EthernetComponent::setup() {
   // Configure SPI pins
