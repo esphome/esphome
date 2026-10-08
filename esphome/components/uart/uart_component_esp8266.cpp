@@ -16,8 +16,12 @@
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
-// Edge decoder up to this baud rate; its ~0.25 bit jitter budget is too tight above it.
-static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 38400;
+// Edge decoder up to this baud rate; at 38400 WiFi interrupt latency corrupts bytes.
+static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 19200;
+// Edge decoder time base: 1/16 us from the 1 MHz system timer, which keeps its rate during a
+// CpuFrequencyBoost; the cycle counter does not.
+static constexpr uint32_t RX_TICKS_PER_SECOND = 16000000;
+__attribute__((always_inline)) static inline uint32_t rx_now() { return micros() << 4; }
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t ESP8266UartComponent::get_config() {
@@ -268,8 +272,9 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
       delete[] buffer;                       // NOLINT
       buffer = new uint8_t[rx_buffer_size];  // NOLINT
     }
-    this->rx_.setup(this->bit_time_, data_bits, parity != UART_CONFIG_PARITY_NONE, stop_bits, buffer, rx_buffer_size);
-    this->rx_.reset(arch_get_cpu_cycle_count(), this->rx_pin_.digital_read());
+    this->rx_.setup((RX_TICKS_PER_SECOND + baud_rate / 2) / baud_rate, data_bits, parity != UART_CONFIG_PARITY_NONE,
+                    stop_bits, buffer, rx_buffer_size);
+    this->rx_.reset(rx_now(), this->rx_pin_.digital_read());
     if (baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD) {
       gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
     } else {
@@ -277,18 +282,19 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     }
   }
 }
-// 1 while a CpuFrequencyBoost runs an 80 MHz build at 160 MHz.
-__attribute__((always_inline)) static inline uint8_t rx_clock_shift() {
+// A byte can arrive while a CpuFrequencyBoost has an 80 MHz build at 160 MHz; the clock select bit doubles
+// the bit time then. The whole byte is read inside the ISR, so the clock cannot change partway through.
+__attribute__((always_inline)) static inline uint32_t rx_bit_time(uint32_t bit_time) {
 #if F_CPU != 160000000L
   // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- CPU2X is MMIO at a fixed address
-  return CPU2X & 1;
+  return bit_time << (CPU2X & 1);
 #else
-  return 0;
+  return bit_time;
 #endif
 }
 
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
-  const uint32_t bit_time = arg->bit_time_ << rx_clock_shift();
+  const uint32_t bit_time = rx_bit_time(arg->bit_time_);
   uint32_t wait = bit_time + bit_time / 3 - 500;
   const uint32_t start = arch_get_cpu_cycle_count();
   uint8_t rec = 0;
@@ -317,25 +323,25 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
 #endif
 }
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr_edge(ESP8266SoftwareSerial *arg) {
-  const uint32_t now = arch_get_cpu_cycle_count();
+  const uint32_t now = rx_now();
   const bool level = arg->rx_pin_.digital_read();
-  [[maybe_unused]] const bool wake = arg->rx_.on_edge(now, level, rx_clock_shift());
+  [[maybe_unused]] const bool wake = arg->rx_.on_edge(now, level);
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   if (wake)
     wake_loop_isrsafe();
 #endif
 }
 void ESP8266SoftwareSerial::rx_finalize_pending_() {
-  if (!this->rx_.finalize_due(arch_get_cpu_cycle_count(), rx_clock_shift())) {
+  if (!this->rx_.finalize_due(rx_now())) {
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-    // Tail not elapsed yet; run the loop again
+    // Tail not elapsed; wake again only once drained
     if (this->rx_.available() == 0)
       wake_loop_threadsafe();
 #endif
     return;
   }
   InterruptLock lock;
-  this->rx_.finalize(arch_get_cpu_cycle_count(), rx_clock_shift());
+  this->rx_.finalize(rx_now());
 }
 void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   if (this->gpio_tx_pin_ == nullptr) {

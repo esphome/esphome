@@ -9,18 +9,18 @@ namespace esphome::uart {
 
 /// Software serial RX decoder: on_edge() counts bits from the time between edges;
 /// finalize() completes a byte whose idle high tail has no closing edge.
-/// `clock_shift` is 1 while the cycle counter runs at double rate, else 0.
+/// Times are in any steady tick unit.
 class SoftwareSerialRxDecoder {
  public:
   static constexpr uint8_t RX_IDLE = 0xFF;
 
   /// Configure framing and buffer; drops all state. Follow with reset().
-  void setup(uint32_t bit_cycles, uint8_t data_bits, bool parity, uint8_t stop_bits, uint8_t *buffer,
+  void setup(uint32_t bit_ticks, uint8_t data_bits, bool parity, uint8_t stop_bits, uint8_t *buffer,
              size_t buffer_size) {
-    this->bit_cycles_ = bit_cycles;
+    this->bit_ticks_ = bit_ticks;
     this->data_bits_ = data_bits;
     this->stop_bit_ = data_bits + (parity ? 1 : 0);
-    this->max_run_cycles_ = bit_cycles * (this->stop_bit_ + stop_bits + 2);
+    this->max_run_ticks_ = bit_ticks * (this->stop_bit_ + stop_bits + 2);
     this->buffer_ = buffer;
     this->buffer_size_ = buffer_size;
     this->in_pos_ = 0;
@@ -36,20 +36,21 @@ class SoftwareSerialRxDecoder {
     this->last_edge_ = now;
   }
 
-  /// ISR. True to wake the loop: a byte was pushed or finalize() may be needed.
-  bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level, uint8_t clock_shift) {
+  /// ISR. True to wake the loop: a byte was pushed, or the line went high in an
+  /// open frame (a data 1 and the idle tail look alike) so finalize() may be needed.
+  bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level) {
     const bool last_level = this->last_level_;
     // Collapsed edge
     if (level == last_level)
       return false;
     // LX106 has no divider, so count
-    uint32_t delta = (now - this->last_edge_) >> clock_shift;
-    if (delta > this->max_run_cycles_)
-      delta = this->max_run_cycles_;
-    delta += this->bit_cycles_ / 2;
+    uint32_t delta = now - this->last_edge_;
+    if (delta > this->max_run_ticks_)
+      delta = this->max_run_ticks_;
+    delta += this->bit_ticks_ / 2;
     uint32_t bits = 0;
-    while (delta >= this->bit_cycles_) {
-      delta -= this->bit_cycles_;
+    while (delta >= this->bit_ticks_) {
+      delta -= this->bit_ticks_;
       bits++;
     }
     const bool pushed = this->consume_run_(bits, last_level);
@@ -60,16 +61,16 @@ class SoftwareSerialRxDecoder {
 
   bool pending() const { return this->bit_ != RX_IDLE && this->last_level_; }
 
-  bool finalize_due(uint32_t now, uint8_t clock_shift) const {
+  bool finalize_due(uint32_t now) const {
     const uint8_t bit = this->bit_;
     if (bit == RX_IDLE)
       return false;
-    return (now - this->last_edge_) >> clock_shift >= this->tail_cycles_(bit);
+    return now - this->last_edge_ >= this->tail_ticks_(bit);
   }
 
   /// Call with the ISR masked.
-  void finalize(uint32_t now, uint8_t clock_shift) {
-    if (!this->last_level_ || !this->finalize_due(now, clock_shift))
+  void finalize(uint32_t now) {
+    if (!this->last_level_ || !this->finalize_due(now))
       return;
     // Remaining bits are all ones
     const uint8_t bit = this->bit_;
@@ -118,8 +119,8 @@ class SoftwareSerialRxDecoder {
   }
 
  protected:
-  uint32_t tail_cycles_(uint8_t bit) const {
-    return (this->stop_bit_ + 1 - bit) * this->bit_cycles_ + this->bit_cycles_ / 2;
+  uint32_t tail_ticks_(uint8_t bit) const {
+    return (this->stop_bit_ + 1 - bit) * this->bit_ticks_ + this->bit_ticks_ / 2;
   }
 
   bool ESPHOME_ALWAYS_INLINE consume_run_(uint32_t bits, bool level) {
@@ -160,13 +161,13 @@ class SoftwareSerialRxDecoder {
   }
 
   // Members ordered largest to smallest to minimize padding
-  uint32_t bit_cycles_{0};
-  uint32_t max_run_cycles_{0};
+  uint32_t bit_ticks_{0};
+  uint32_t max_run_ticks_{0};
   volatile uint32_t last_edge_{0};
   uint8_t *buffer_{nullptr};
   size_t buffer_size_{0};
   volatile size_t in_pos_{0};
-  size_t out_pos_{0};
+  size_t out_pos_{0};  // reader only
   /// Next frame bit (data, parity, then stop at stop_bit_) or RX_IDLE.
   volatile uint8_t bit_{RX_IDLE};
   volatile uint8_t cur_byte_{0};

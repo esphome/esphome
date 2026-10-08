@@ -32,14 +32,14 @@ class LineSim {
   void edge(uint32_t at, bool level) {
     this->now_ = at;
     this->line_ = level;
-    this->dec_.on_edge(at, level, 0);
+    this->dec_.on_edge(at, level);
   }
 
   // Main loop pass at cycle `at`.
   void poll(uint32_t at) {
     this->now_ = at;
-    if (this->dec_.pending() && this->dec_.finalize_due(at, 0))
-      this->dec_.finalize(at, 0);
+    if (this->dec_.pending() && this->dec_.finalize_due(at))
+      this->dec_.finalize(at);
     while (this->dec_.available() > 0)
       this->received_.push_back(this->dec_.read_byte());
   }
@@ -144,7 +144,7 @@ TEST(SoftwareSerialRxDecoder, AllOnesByteCompletesOnlyByFinalize) {
   EXPECT_TRUE(sim.decoder().pending());
   sim.poll(t + bit + 8 * bit);
   EXPECT_TRUE(sim.received().empty());
-  EXPECT_FALSE(sim.decoder().finalize_due(t + bit + 8 * bit, 0));
+  EXPECT_FALSE(sim.decoder().finalize_due(t + bit + 8 * bit));
   sim.poll(t + bit + 10 * bit);
   ASSERT_EQ(sim.received().size(), 1u);
   EXPECT_EQ(sim.received()[0], 0xFF);
@@ -189,11 +189,11 @@ TEST(SoftwareSerialRxDecoder, CollapsedEdgeIsIgnoredAndStreamRealignsAtIdle) {
   const uint32_t bit = sim.bit_cycles();
   // 0x31: lose the rising edge of bit 4, so the next edge repeats the last level.
   uint32_t t = 5000;
-  sim.edge(t, false);                            // start
-  sim.edge(t + 1 * bit, true);                   // bit0 = 1
-  sim.edge(t + 2 * bit, false);                  // bits1..3 = 0
-  sim.decoder().on_edge(t + 7 * bit, false, 0);  // should have been bit6 falling edge; level still low
-  sim.edge(t + 9 * bit, true);                   // stop
+  sim.edge(t, false);                         // start
+  sim.edge(t + 1 * bit, true);                // bit0 = 1
+  sim.edge(t + 2 * bit, false);               // bits1..3 = 0
+  sim.decoder().on_edge(t + 7 * bit, false);  // should have been bit6 falling edge; level still low
+  sim.edge(t + 9 * bit, true);                // stop
   t += 10 * bit;
   // Next frame decodes correctly once the line has idled.
   t = sim.send(0x5A, t + 12 * bit);
@@ -236,7 +236,7 @@ TEST(SoftwareSerialRxDecoder, SetupAgainDropsStaleStateAndUsesNewBufferAndFramin
     uint32_t at = start;
     auto put = [&](bool b) {
       if (b != line) {
-        dec.on_edge(at, b, 0);
+        dec.on_edge(at, b);
         line = b;
       }
       at += bit;
@@ -256,7 +256,7 @@ TEST(SoftwareSerialRxDecoder, SetupAgainDropsStaleStateAndUsesNewBufferAndFramin
   uint32_t t2 = 5000;
   for (int n = 1; n <= 6; n++)
     t2 = send_5e2(static_cast<uint8_t>(n), t2);
-  dec.finalize(t2 + 20 * bit, 0);
+  dec.finalize(t2 + 20 * bit);
   ASSERT_EQ(dec.available(), 3u);
   EXPECT_EQ(dec.read_byte(), 1);
   EXPECT_EQ(dec.read_byte(), 2);
@@ -274,32 +274,6 @@ TEST(SoftwareSerialRxDecoder, ResetDiscardsPartialFrame) {
   EXPECT_FALSE(sim.decoder().pending());
   sim.poll(5000 + 30 * bit);
   EXPECT_TRUE(sim.received().empty());
-}
-
-TEST(SoftwareSerialRxDecoder, DecodesWhileCycleCounterRunsAtDoubleRate) {
-  // 80 MHz setup, counter at 160 MHz during a CpuFrequencyBoost: shift 1.
-  constexpr uint32_t bit = CPU_HZ / 9600;
-  constexpr uint32_t fast_bit = 2 * bit;
-  uint8_t buf[8];
-  SoftwareSerialRxDecoder dec;
-  dec.setup(bit, 8, false, 1, buf, sizeof(buf));
-  uint32_t t = 5000;
-  dec.reset(t, true);
-  // 0x35 LSB first is 1010 1100: start bit then runs of 1 high, 1 low, 1 high,
-  // 1 low, 2 high, 2 low, then the stop bit high.
-  bool level = false;
-  for (uint32_t run : {1U, 1U, 1U, 1U, 1U, 2U, 2U}) {
-    dec.on_edge(t, level, 1);
-    t += run * fast_bit;
-    level = !level;
-  }
-  dec.on_edge(t, true, 1);
-  EXPECT_TRUE(dec.pending());
-  EXPECT_FALSE(dec.finalize_due(t + fast_bit / 4, 1));
-  EXPECT_TRUE(dec.finalize_due(t + 2 * fast_bit, 1));
-  dec.finalize(t + 2 * fast_bit, 1);
-  ASSERT_EQ(dec.available(), 1u);
-  EXPECT_EQ(dec.read_byte(), 0x35);
 }
 
 }  // namespace esphome::uart::testing
