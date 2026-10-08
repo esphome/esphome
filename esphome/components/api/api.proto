@@ -3087,6 +3087,8 @@ enum SendspinPairingTokenStatus {
   SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED = 2;
   // Sendspin is turned off and has not started since boot, so the token does not exist yet.
   SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED = 3;
+  // The Sendspin client failed to start, and will not start until the device reboots.
+  SENDSPIN_PAIRING_TOKEN_STATUS_FAILED = 4;
 }
 
 // Requests the Sendspin pairing token, which a Sendspin server uses to pair with this device

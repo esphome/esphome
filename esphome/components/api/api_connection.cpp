@@ -1419,6 +1419,8 @@ bool APIConnection::send_sendspin_pairing_token_response_() {
   if (token.has_value()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK;
     resp.token = StringRef(*token);
+  } else if (sendspin_::global_sendspin_hub->status_has_error()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED;
   } else if (sendspin_::global_sendspin_hub->is_disabled()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED;
   } else {

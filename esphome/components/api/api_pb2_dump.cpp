@@ -940,6 +940,8 @@ const char *proto_enum_to_string<enums::SendspinPairingTokenStatus>(enums::Sends
       return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED");
     case enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED:
       return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_FAILED");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }

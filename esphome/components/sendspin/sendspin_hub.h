@@ -194,8 +194,8 @@ class SendspinHub final : public Component,
 
   /// @brief Returns the pairing token a Sendspin server uses to pair with this device.
   ///
-  /// The token is a long-lived secret, so never log it. Returns std::nullopt until the client has started once; it
-  /// stays available after the client stops. Main loop only.
+  /// The token is a long-lived secret, so this component never logs it. Returns std::nullopt until the client has
+  /// started once; it stays available after the client stops. Main loop only.
   std::optional<std::string> get_pairing_token() const;
 
   /// @brief Sets the device information reported to the server in the `client/hello` message.
