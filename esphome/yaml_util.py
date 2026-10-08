@@ -47,6 +47,9 @@ _LOGGER = logging.getLogger(__name__)
 SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
+# Every !secret name the loader resolved; _SECRET_VALUES is keyed by value, so
+# names sharing a value collide there.
+_LOADED_SECRET_NAMES: set[str] = set()
 # Set while a secret_values_registered context is active; the dumper records
 # every emitted `!secret` name into it.
 _EMITTED_SECRET_NAMES: set[str] | None = None
@@ -902,6 +905,7 @@ class ESPHomeLoaderMixin:
             )
         val = secrets[node.value]
         _SECRET_VALUES[str(val)] = node.value
+        _LOADED_SECRET_NAMES.add(node.value)
         return val
 
     @_add_data_ref
@@ -1074,6 +1078,7 @@ def load_yaml(
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+        _LOADED_SECRET_NAMES.clear()
     return _load_yaml_internal(fname, track_document_range=track_document_range)
 
 
@@ -1181,7 +1186,7 @@ def _load_yaml_internal_with_type(
 
 def registered_secret_names() -> set[str]:
     """Names of all ``!secret`` keys the loader has seen since the last clear."""
-    return set(_SECRET_VALUES.values())
+    return set(_LOADED_SECRET_NAMES)
 
 
 @contextmanager
@@ -1202,6 +1207,8 @@ def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
         yield emitted
     finally:
         _EMITTED_SECRET_NAMES = outer
+        if outer is not None:
+            outer |= emitted
         # Only drop mappings this context still owns; a real !secret loaded
         # meanwhile may have registered the same value under its own name.
         for value, name in added.items():
@@ -1226,6 +1233,7 @@ def dump(
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+        _LOADED_SECRET_NAMES.clear()
 
     # Per-call subclass so the flags don't leak across calls.
     # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
@@ -1506,7 +1514,7 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.value)
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
-    def _represent_tagged_secret(self, tag, value):
+    def _represent_tagged_secret(self, tag: str, value: Any) -> yaml.ScalarNode:
         # Writing the secret beats leaking the value, but the tag is lost, so
         # the dumped config no longer means the same thing when loaded back.
         _LOGGER.warning(
