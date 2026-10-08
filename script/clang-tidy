@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import heapq
 import os
 from pathlib import Path
 import queue
@@ -357,7 +358,7 @@ def print_slowest_files(timings):
         return
     total = sum(seconds for seconds, _ in timings)
     print(f"\nclang-tidy spent {total:.0f} s on {len(timings)} files; slowest:")
-    for seconds, path in sorted(timings, reverse=True)[:SLOWEST_FILES_SHOWN]:
+    for seconds, path in heapq.nlargest(SLOWEST_FILES_SHOWN, timings):
         print(f"  {seconds:6.1f} s  {path}")
 
 
