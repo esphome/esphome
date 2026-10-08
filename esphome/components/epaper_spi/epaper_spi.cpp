@@ -16,7 +16,7 @@
 #endif
 #endif
 #ifdef USE_ESP8266
-#include <Arduino.h>
+#include <user_interface.h>
 #endif
 
 namespace esphome::epaper_spi {
@@ -50,7 +50,7 @@ bool EPaperBase::woke_from_deep_sleep_() const {
 #if defined(USE_ESP32)
   return esp_reset_reason() == ESP_RST_DEEPSLEEP;
 #elif defined(USE_ESP8266)
-  return ESP.getResetInfoPtr()->reason == REASON_DEEP_SLEEP_AWAKE;
+  return system_get_rst_info()->reason == REASON_DEEP_SLEEP_AWAKE;
 #else
   return false;
 #endif
