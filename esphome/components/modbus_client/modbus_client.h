@@ -4,8 +4,8 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 
+#include <array>
 #include <span>
 #include <vector>
 
@@ -163,17 +163,13 @@ class ModbusClientSendAction : public ClientActionBase<Ts...>,
 /// success status.) Each typed callback still checks succeeded() before firing its trigger: that branch
 /// is unreachable today, and is kept so a future change to that interception cannot silently deliver an
 /// exception as a successful reply.
-// Static lists up to this size are staged on the stack on ESP8266; longer ones use the heap.
-static constexpr size_t STATIC_REGISTERS_ON_STACK = 16;
-static constexpr size_t STATIC_COIL_BYTES_ON_STACK = 16;
-
 /// Calls fn with a RAM-readable span of a static values table. On ESP8266 the table is in PROGMEM, which the
-/// PDU builders cannot read directly, so it is copied to the stack first (the heap above N elements).
-template<size_t N, typename T, typename F> void with_static_values(const T *data, size_t len, F &&fn) {
+/// PDU builders cannot read directly, so it is copied to the stack first; the schema caps len at MAX.
+template<size_t MAX, typename T, typename F> void with_static_values(const T *data, size_t len, F &&fn) {
 #ifdef USE_ESP8266
-  SmallBufferWithHeapFallback<N, T> buf(len);
-  progmem_memcpy(buf.get(), data, len * sizeof(T));
-  fn(std::span<const T>(buf.get(), len));
+  std::array<T, MAX> buf;
+  progmem_memcpy(buf.data(), data, len * sizeof(T));
+  fn(std::span<const T>(buf.data(), len));
 #else
   fn(std::span<const T>(data, len));
 #endif
@@ -335,7 +331,7 @@ class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, public
     // An empty or over-long set rejects into an empty PDU inside the builder, which logs the reason;
     // the empty PDU then resolves via on_not_sent like any refused send.
     if (this->len_ >= 0) {
-      with_static_values<STATIC_REGISTERS_ON_STACK>(
+      with_static_values<modbus::MAX_NUM_OF_REGISTERS_TO_WRITE>(
           this->values_.data, static_cast<size_t>(this->len_), [&](std::span<const uint16_t> values) {
             this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(start, values),
                                    this->write_command_options_(x...));
@@ -387,7 +383,7 @@ class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...>, public Wri
     const uint16_t start = this->start_address_.value(x...);
     if (this->count_ >= 0) {
       const auto count = static_cast<uint16_t>(this->count_);
-      with_static_values<STATIC_COIL_BYTES_ON_STACK>(
+      with_static_values<modbus::packed_bit_bytes(modbus::MAX_NUM_OF_COILS_TO_WRITE)>(
           this->values_.packed, modbus::packed_bit_bytes(count), [&](std::span<const uint8_t> packed) {
             this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(start, modbus::PackedBits(packed, count)),
                                    this->write_command_options_(x...));
@@ -441,7 +437,7 @@ class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, pu
     const uint16_t write_start = this->write_address_.value(x...);
     // An out-of-range read/write count builds an empty PDU (the builder logs why), resolving via on_not_sent.
     if (this->len_ >= 0) {
-      with_static_values<STATIC_REGISTERS_ON_STACK>(
+      with_static_values<modbus::MAX_NUM_OF_REGISTERS_TO_WRITE_RW>(
           this->values_.data, static_cast<size_t>(this->len_), [&](std::span<const uint16_t> values) {
             this->send_or_resolve_(
                 modbus::helpers::create_read_write_multiple_registers_pdu(read_start, read_count, write_start, values),
