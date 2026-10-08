@@ -2036,12 +2036,18 @@ def test_merge_include_no_overlap_records_nothing(tmp_path: Path) -> None:
     assert yaml_util.take_dropped_merge_keys() == []
 
 
-def test_wrapper_representers_consult_is_secret() -> None:
+def test_wrapper_representers_consult_is_secret(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """!extend / !remove payloads and scalar !include paths equal to a
-    registered secret are swapped, never written in cleartext."""
+    registered secret are swapped, never written in cleartext, and the lost
+    tag is logged."""
     from esphome.config_helpers import Extend, Remove
 
-    with yaml_util.secret_values_registered({"hunter2": "the_secret"}):
+    with (
+        caplog.at_level("WARNING", logger="esphome.yaml_util"),
+        yaml_util.secret_values_registered({"hunter2": "the_secret"}),
+    ):
         out = yaml_util.dump(
             {
                 "a": Extend("hunter2"),
@@ -2052,6 +2058,9 @@ def test_wrapper_representers_consult_is_secret() -> None:
     assert out.count("!secret 'the_secret'") == 2
     assert "hunter2" not in out
     assert "!extend 'plain_id'" in out
+    lost = [r.message for r in caplog.records if "dropping the" in r.message]
+    assert len(lost) == 2
+    assert all("hunter2" not in m for m in lost)
 
 
 def test_scalar_include_path_equal_to_secret_is_swapped() -> None:
