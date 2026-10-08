@@ -53,7 +53,7 @@
 
 namespace esphome::tm1651 {
 
-static const char *const TAG = "tm1651.display";
+ESPHOME_LOG_TAG(TAG, "tm1651.display");
 
 static const bool LINE_HIGH = true;
 static const bool LINE_LOW = false;

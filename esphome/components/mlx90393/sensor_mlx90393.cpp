@@ -5,7 +5,7 @@
 
 namespace esphome::mlx90393 {
 
-static const char *const TAG = "mlx90393";
+ESPHOME_LOG_TAG(TAG, "mlx90393");
 
 const LogString *settings_to_string(MLX90393Setting setting) {
   switch (setting) {

@@ -153,3 +153,58 @@ button:
             then:
               # `values` here is the READ-BACK block, not the written block above
               - lambda: 'ESP_LOGI("modbus_client.test", "rw read0=%u n=%u", values[0], (unsigned) values.size());'
+  # Identical on purpose: each pair shares one constant value list
+  - platform: template
+    name: "Modbus Client Constant Writes"
+    on_press:
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0210
+          values: [0x1234, 0xABCD, 1]
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0220
+          values: [0x1234, 0xABCD, 1]
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0020
+          values: [true, false, true, true, false, false, true, false, true]
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0030
+          values: [true, false, true, true, false, false, true, false, true]
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0310
+          values: [0x0102, 0xFFFF]
+          read_address: 0x0410
+          read_count: 1
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0320
+          values: [0x0102, 0xFFFF]
+          read_address: 0x0420
+          read_count: 1
+
+number:
+  - platform: template
+    name: "Modbus Client Write Value"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0230
+          values: !lambda "return {static_cast<uint16_t>(x)};"
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0040
+          values: !lambda "return {x > 50};"
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0330
+          values: !lambda "return {static_cast<uint16_t>(x)};"
+          read_address: 0x0430
+          read_count: 1

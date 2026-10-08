@@ -4,7 +4,7 @@
 
 namespace esphome::coolix {
 
-static const char *const TAG = "coolix.climate";
+ESPHOME_LOG_TAG(TAG, "coolix.climate");
 
 static const uint32_t COOLIX_OFF = 0xB27BE0;
 static const uint32_t COOLIX_SWING = 0xB26BE0;

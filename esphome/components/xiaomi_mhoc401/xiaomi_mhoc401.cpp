@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_mhoc401 {
 
-static const char *const TAG = "xiaomi_mhoc401";
+ESPHOME_LOG_TAG(TAG, "xiaomi_mhoc401");
 
 static constexpr size_t MHOC401_BINDKEY_SIZE = 16;
 

@@ -1,13 +1,22 @@
+import logging
+from pathlib import Path
+
 import esphome.codegen as cg
 from esphome.components import audio, media_source, psram
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TASK_STACK_IN_PSRAM
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@kahrendt"]
 AUTO_LOAD = ["audio"]
 
 CONF_PERSISTENT_RING_BUFFER = "persistent_ring_buffer"
+CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
+CONF_HTTP_REQUEST = "http_request"
+CONF_VERIFY_SSL = "verify_ssl"
 
 audio_http_ns = cg.esphome_ns.namespace("audio_http")
 AudioHTTPMediaSource = audio_http_ns.class_(
@@ -18,6 +27,38 @@ AudioHTTPMediaSource = audio_http_ns.class_(
 def _request_micro_decoder(config: ConfigType) -> ConfigType:
     audio.request_micro_decoder_support()
     return config
+
+
+def _inherit_ca_certificate_path(config: ConfigType) -> ConfigType:
+    # Default to the CA certificate configured on the http_request component so
+    # HTTPS playback verifies against the same trust anchor without repeating
+    # the option on every source. Needed because audio_http sources are often
+    # declared by device packages and cannot be extended from the device config.
+    # The PEM replaces the built-in certificate bundle as the sole trust anchor,
+    # so make the inheritance visible in the log.
+    if CONF_CA_CERTIFICATE_PATH in config:
+        return config
+    fconf = fv.full_config.get()
+    if CONF_HTTP_REQUEST not in fconf:
+        return config
+    http_request_config = fconf[CONF_HTTP_REQUEST]
+    # Mirror http_request's own semantics: it only applies its CA when SSL
+    # verification is enabled, so neither does the inheritance.
+    if not http_request_config.get(CONF_VERIFY_SSL, True):
+        return config
+    if ca_cert_path := http_request_config.get(CONF_CA_CERTIFICATE_PATH):
+        _LOGGER.info(
+            "audio_http source '%s' is inheriting ca_certificate_path from the "
+            "http_request component; HTTPS playback will verify against that PEM "
+            "instead of the built-in certificate bundle",
+            config[CONF_ID].id,
+        )
+        # Already validated by http_request's schema; the value is a resolved Path.
+        config[CONF_CA_CERTIFICATE_PATH] = ca_cert_path
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _inherit_ca_certificate_path
 
 
 CONFIG_SCHEMA = cv.All(
@@ -31,6 +72,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_PERSISTENT_RING_BUFFER, default=False): cv.boolean,
+            cv.Optional(CONF_CA_CERTIFICATE_PATH): cv.file_,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -47,5 +89,16 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
+
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_persistent_ring_buffer(config[CONF_PERSISTENT_RING_BUFFER]))
+
+    # Embed the certificate content, like http_request does. Passed to
+    # micro_decoder's DecoderConfig::http_ca_certificate, which then uses it as
+    # the sole trust anchor for HTTPS playback URLs instead of the certificate
+    # bundle.
+    if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
+        cg.add_define("USE_AUDIO_HTTP_CA_CERTIFICATE")
+        with Path(ca_cert_path).open(encoding="utf-8") as f:
+            ca_cert_content = f.read()
+        cg.add(var.set_http_ca_certificate(ca_cert_content))

@@ -1,0 +1,20 @@
+esphome:
+  name: socket-tcp-client-link-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [tcp_client_link_test_component]
+
+tcp_client_link_test_component:
+  host: 127.0.0.1
+  port: 18123
+  reconnect_interval: 1s
