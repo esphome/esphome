@@ -646,11 +646,40 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
 }
 
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
+  size_t in = 0;
   size_t out = 0;
+  bool truncated = false;
+
+  // Fast path: a full group of 4 characters becomes 3 bytes with no bit bookkeeping
+  // and a single bounds check. Bails out to the loop below on the last partial group,
+  // on padding ('=') and on any other character outside the alphabet.
+  while (in + 4 <= encoded_len && out + 3 <= buf_len) {
+    uint8_t v0 = base64_char_value(encoded_data[in]);
+    uint8_t v1 = base64_char_value(encoded_data[in + 1]);
+    uint8_t v2 = base64_char_value(encoded_data[in + 2]);
+    uint8_t v3 = base64_char_value(encoded_data[in + 3]);
+    // Alphabet values are <= 63, so any bit above bit 5 means one of the four
+    // characters was INVALID_BASE64_CHAR.
+    if (((v0 | v1 | v2 | v3) & 0xC0) != 0)
+      break;
+    uint32_t group =
+        (static_cast<uint32_t>(v0) << 18) | (static_cast<uint32_t>(v1) << 12) | (static_cast<uint32_t>(v2) << 6) | v3;
+    buf[out] = static_cast<uint8_t>(group >> 16);
+    buf[out + 1] = static_cast<uint8_t>(group >> 8);
+    buf[out + 2] = static_cast<uint8_t>(group);
+    in += 4;
+    out += 3;
+  }
+
+  // Bit accumulator: characters contribute 6 bits each and a byte is emitted as soon
+  // as 8 bits are available. Padding ('=') and any other character outside the
+  // alphabet stop the decode, leaving the leftover bits unused - this matches
+  // zero-padding a trailing partial group, so a group of 2 chars yields 1 byte and a
+  // group of 3 chars yields 2 bytes.
   uint32_t accum = 0;
   uint32_t bits = 0;
-  // Stops at '=' or any non-alphabet char; leftover bits of a partial group are dropped.
-  for (size_t in = 0; in < encoded_len; in++) {
+
+  for (; in < encoded_len; in++) {
     uint8_t value = base64_char_value(encoded_data[in]);
     if (value == INVALID_BASE64_CHAR)
       break;
@@ -658,12 +687,16 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     bits += 6;
     if (bits >= 8) {
       bits -= 8;
-      if (out == buf_len) {
-        ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
-        return out;
+      if (out < buf_len) {
+        buf[out++] = static_cast<uint8_t>(accum >> bits);
+      } else {
+        truncated = true;
       }
-      buf[out++] = static_cast<uint8_t>(accum >> bits);
     }
+  }
+
+  if (truncated) {
+    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
   }
   return out;
 }
