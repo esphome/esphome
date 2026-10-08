@@ -115,6 +115,12 @@ TEST(AshFrameScanner, SubstituteDiscardsUntilFlag) {
   EXPECT_TRUE(feed(scanner, DATA_FRAME_0));
 }
 
+TEST(AshFrameScanner, IgnoresWakeBetweenFrames) {
+  AshFrameScanner scanner;
+  EXPECT_TRUE(feed(scanner, concat({ASH_WAKE_BYTE, ASH_FLAG_BYTE, ASH_WAKE_BYTE, ASH_WAKE_BYTE}, DATA_FRAME_0)));
+  EXPECT_EQ(scanner.length(), 5u);
+}
+
 TEST(AshFrameScanner, IgnoresFlowControlInsideFrame) {
   AshFrameScanner scanner;
   std::vector<uint8_t> interrupted = DATA_FRAME_0;

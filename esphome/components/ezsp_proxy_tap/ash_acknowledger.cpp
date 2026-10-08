@@ -39,7 +39,7 @@ bool AshFrameScanner::feed(uint8_t byte) {
     return valid;
   }
 
-  if (this->discarding_) {
+  if (this->discarding_ || (byte == ASH_WAKE_BYTE && this->index_ == 0)) {
     return false;
   }
 
