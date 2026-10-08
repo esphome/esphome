@@ -13,17 +13,6 @@ namespace esphome::api {
 
 static const char *const TAG = "api.wizard";
 
-uint8_t *wizard_encode_response(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
-  const auto &msg = *static_cast<const DeviceWizardResponse *>(self);
-  if (msg.data_len == 0)
-    return pos;
-  pos = ProtoEncode::encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, 1, 2);  // type 2: Length-delimited
-  pos = ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, msg.data_len);
-  PROTO_ENCODE_CHECK_BOUNDS(pos, msg.data_len);
-  progmem_memcpy(pos, msg.data, msg.data_len);
-  return pos + msg.data_len;
-}
-
 #ifdef USE_API_WIZARD_INPUTS
 static bool wizard_entity_id_valid(const char *entity_id, size_t length) {
   return length > 0 && length < WIZARD_ENTITY_ID_BUFFER_SIZE && memchr(entity_id, '.', length) != nullptr;
@@ -49,17 +38,11 @@ const char *wizard_set_input(const WizardInputSetRequest &msg) {
 }
 #endif  // USE_API_WIZARD_INPUTS
 
-bool APIConnection::send_device_wizard_response_() {
+void APIConnection::on_device_wizard_request() {
   DeviceWizardResponse resp;
   resp.data = API_WIZARD_DATA;
   resp.data_len = API_WIZARD_DATA_SIZE;
-  // Not send_message: the data is in flash, so wizard_encode_response copies it out
-  return this->send_message_(DeviceWizardResponse::calc_size_msg(&resp), DeviceWizardResponse::MESSAGE_TYPE,
-                             &wizard_encode_response, &resp);
-}
-
-void APIConnection::on_device_wizard_request() {
-  if (!this->send_device_wizard_response_()) {
+  if (!this->send_message(resp)) {
     this->on_fatal_error();
   }
 }
