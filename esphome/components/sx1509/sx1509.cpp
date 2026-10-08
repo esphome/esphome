@@ -193,8 +193,7 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
   temp_byte &= ~(1 << 7);      // set linear mode bank B
   temp_byte &= ~(1 << 3);      // set linear mode bank A
   temp_byte &= ~(0b111 << 4);  // clear the existing ClkX divider bits
-  temp_byte |=
-      this->frequency_;  // Frequency of the LED Driver clock ClkX of all IOs (configurable via led_driver_frequency)
+  temp_byte |= this->led_driver_frequency_;
   this->write_byte(REG_MISC, temp_byte);
 
   this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &temp_word);

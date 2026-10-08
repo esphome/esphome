@@ -28,25 +28,23 @@ CONF_DEBOUNCE_TIME = "debounce_time"
 CONF_SX1509_ID = "sx1509_id"
 CONF_LED_DRIVER_FREQUENCY = "led_driver_frequency"
 
-# PWM (ClkX) frequency used by the LED driver / output pins, applies to all pins on the chip.
-# ClkX = fOSC / 2^(divider-1), fOSC = internal osc. (datasheet: typ. 2MHz, spec'd 1.3-2.6MHz).
-# All values are nominal, computed from the datasheet formula assuming fOSC = 2MHz;
-# actual frequency may vary between individual chips due to oscillator tolerance.
-LED_DRIVER_FREQUENCIES = {
-    "7840HZ": 0x10,
-    "3920HZ": 0x20,
-    "1960HZ": 0x30,
-    "980HZ": 0x40,
-    "490HZ": 0x50,
-    "245HZ": 0x60,
-    "122HZ": 0x70,
-}
-
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")
+LedDriverFrequency = sx1509_ns.enum("LedDriverFrequency")
+
+# The PWM frequency is shared by all output pins; the values are nominal (see sx1509.h).
+LED_DRIVER_FREQUENCIES = {
+    "7840HZ": LedDriverFrequency.LED_DRIVER_FREQ_7840HZ,
+    "3920HZ": LedDriverFrequency.LED_DRIVER_FREQ_3920HZ,
+    "1960HZ": LedDriverFrequency.LED_DRIVER_FREQ_1960HZ,
+    "980HZ": LedDriverFrequency.LED_DRIVER_FREQ_980HZ,
+    "490HZ": LedDriverFrequency.LED_DRIVER_FREQ_490HZ,
+    "245HZ": LedDriverFrequency.LED_DRIVER_FREQ_245HZ,
+    "122HZ": LedDriverFrequency.LED_DRIVER_FREQ_122HZ,
+}
 
 SX1509Component = sx1509_ns.class_(
     "SX1509Component", cg.Component, i2c.I2CDevice, key_provider.KeyProvider
