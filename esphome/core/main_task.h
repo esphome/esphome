@@ -65,7 +65,7 @@ __attribute__((always_inline)) static inline void esphome_main_task_wait(TickTyp
 
 __attribute__((always_inline)) inline bool is_main_loop_thread() {
   TaskHandle_t main_task = esphome_main_task_handle;
-  return main_task == nullptr || xTaskGetCurrentTaskHandle() == main_task;
+  return main_task == NULL || xTaskGetCurrentTaskHandle() == main_task;
 }
 
 #ifdef __cplusplus
