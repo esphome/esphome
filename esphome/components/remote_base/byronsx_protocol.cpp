@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.byronsx";
+ESPHOME_LOG_TAG(TAG, "remote.byronsx");
 
 static constexpr uint32_t BIT_TIME_US = 333;
 static constexpr uint8_t NBITS_ADDRESS = 8;

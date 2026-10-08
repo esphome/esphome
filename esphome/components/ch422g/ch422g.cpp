@@ -10,7 +10,7 @@ static const uint8_t CH422G_REG_IN = 0x26;           // read reg for input bits
 static const uint8_t CH422G_REG_OUT = 0x38;          // write reg for output bits 0-7
 static const uint8_t CH422G_REG_OUT_UPPER = 0x23;    // write reg for output bits 8-11
 
-static const char *const TAG = "ch422g";
+ESPHOME_LOG_TAG(TAG, "ch422g");
 
 void CH422GComponent::setup() {
   // set outputs before mode

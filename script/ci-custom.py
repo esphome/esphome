@@ -904,6 +904,8 @@ def lint_relative_py_import(fname: Path, line, col, content):
         # neither can live in a C++ namespace.
         "esphome/components/esp32_hosted/esp_now_hosted.cpp",
         "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
+        # C header shared with the vendored decoder
+        "esphome/components/esphome/ota/ota_esphome_inflate.h",
     ],
 )
 def lint_namespace(fname: Path, content: str) -> str | None:
@@ -1231,6 +1233,45 @@ def lint_no_std_nothrow(fname, match):
         f"  After:  {highlight('auto buf = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(n);')}\n"
         f"For one object use {highlight('RAMAllocator<T>().make_unique(args...)')}; both return empty on failure.\n"
         f"Default flags prefer PSRAM; pass RAMAllocator<T>::PREFER_INTERNAL to keep it where new put it.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
+    r"\s*(?:=\s*\{?|[{(])\s*\"",
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+    # Deprecated components, converted in a follow-up PR
+    exclude=[
+        "esphome/components/st7735/*",
+        "esphome/components/st7789v/*",
+        "esphome/components/waveshare_epaper/*",
+    ],
+)
+def lint_log_tag_macro(fname, match):
+    return (
+        f"Declare log tags with {highlight('ESPHOME_LOG_TAG(TAG, "name");')}, which keeps the tag in flash on "
+        f"ESP8266.\n"
+        f"  Before: {highlight('static const char *const TAG = "name";')}\n"
+        f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
+        f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*TAG\b"
+    r"|\bstd::string\s+\w+\s*[={(]\s*TAG\b",
+    mask=True,
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+)
+def lint_log_tag_as_string(fname, match):
+    return (
+        f"{highlight('TAG')} is in flash on ESP8266 (ESPHOME_LOG_TAG), so it can only be used for logging.\n"
+        f"Use a separate name or a numeric id for scheduler calls, and do not pass it to string functions.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 

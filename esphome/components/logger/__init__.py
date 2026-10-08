@@ -235,6 +235,15 @@ def warn_ram_log_strings(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_task_log_buffer_alignment(value: int) -> int:
+    # ESP-IDF rejects a no-split ring buffer whose size is not a multiple of 4
+    if CORE.is_esp32 and value % 4:
+        raise cv.Invalid(
+            f"{CONF_TASK_LOG_BUFFER_SIZE} must be a multiple of 4 on ESP32"
+        )
+    return value
+
+
 def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
     if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
         raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
@@ -282,6 +291,7 @@ CONFIG_SCHEMA = cv.All(
                         max=32768,  # Max: Depends on message sizes, typically ~300 messages with default size
                     ),
                 ),
+                validate_task_log_buffer_alignment,
             ),
             cv.SplitDefault(
                 CONF_HARDWARE_UART,
@@ -504,6 +514,7 @@ async def _late_logger_init(config: ConfigType) -> None:
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if has_serial_logging:
+            zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:
                 zephyr_add_overlay("""&uart0 { status = "okay";};""")
             if config[CONF_HARDWARE_UART] == UART1:

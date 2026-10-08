@@ -3,7 +3,7 @@
 
 namespace esphome::zyaura {
 
-static const char *const TAG = "zyaura";
+ESPHOME_LOG_TAG(TAG, "zyaura");
 
 bool IRAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
   // check if a new message has started, based on time since previous bit

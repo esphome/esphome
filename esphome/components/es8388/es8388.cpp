@@ -6,7 +6,7 @@
 
 namespace esphome::es8388 {
 
-static const char *const TAG = "es8388";
+ESPHOME_LOG_TAG(TAG, "es8388");
 
 // Mark the component as failed; use only in setup
 #define ES8388_ERROR_FAILED(func) \
