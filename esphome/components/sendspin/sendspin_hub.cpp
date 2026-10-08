@@ -194,21 +194,20 @@ void SendspinHub::dump_config() {
     client_id = this->client_->client_id().c_str();
   }
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGCONFIG(
-      TAG,
-      "Sendspin Hub:\n"
-      "  Client ID: %s\n"
-      "  MAC address: %s\n"
-      "  Manufacturer: %s\n"
-      "  Model: %s\n"
-      "  Firmware version: %s\n"
-      "  Task stack in PSRAM: %s\n"
-      "  Static pairing code: %s\n"
-      "  Unpaired access: %s\n"
-      "  Pairing code method: %s",
-      client_id, get_mac_address_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
-      this->firmware_version_, YESNO(this->task_stack_in_psram_), YESNO(this->static_pairing_code_ != nullptr),
-      YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()), this->pairing_code_method_());
+  ESP_LOGCONFIG(TAG,
+                "Sendspin Hub:\n"
+                "  Client ID: %s\n"
+                "  MAC address: %s\n"
+                "  Manufacturer: %s\n"
+                "  Model: %s\n"
+                "  Firmware version: %s\n"
+                "  Task stack in PSRAM: %s\n"
+                "  Unpaired access: %s\n"
+                "  Pairing code method: %s",
+                client_id, get_mac_address_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
+                this->firmware_version_, YESNO(this->task_stack_in_psram_),
+                YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()),
+                this->pairing_code_method_());
 
 #ifdef USE_SENDSPIN_ARTWORK
   // Slot indices come from the order the image platform entries were declared, so the log is the
