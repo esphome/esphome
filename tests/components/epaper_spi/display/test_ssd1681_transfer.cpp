@@ -87,7 +87,7 @@ TEST(EPaperSSD1681, PartialRefreshWritesOnlyTheChangedWindowOfTheNewImageBank) {
   EXPECT_EQ(bus.data[0x44], (Bytes{1, 1}));
   EXPECT_EQ(bus.data[0x45], (Bytes{1, 0, 1, 0}));
   EXPECT_EQ(bus.data[0x21], (Bytes{0x00, 0x00})) << "0x26 is not compared as it is";
-  EXPECT_EQ(bus.data[0x22], (Bytes{0xFC}));
+  EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
 }
 
 /// Controller RAM does not survive the hardware reset, and deep sleep can only be left by one, so

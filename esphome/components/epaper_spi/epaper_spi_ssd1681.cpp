@@ -5,7 +5,8 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.ssd1681";
 
-// RAM does not survive the hardware reset, so the panel stays awake and unreset between partial refreshes
+// A hardware reset leaves 0x26 no longer holding the image on the panel, so the panel stays awake and
+// unreset between partial refreshes
 bool EPaperSSD1681::reset() {
   if (this->update_count_ != 0)
     return true;
@@ -40,7 +41,8 @@ void EPaperSSD1681::refresh_screen(bool partial) {
   this->cmd_data(0x3C, {partial ? (uint8_t) 0x80 : (uint8_t) 0x01});
   // 0x26 is compared as it is on a partial refresh and ignored on a full one
   this->cmd_data(0x21, {partial ? (uint8_t) 0x00 : (uint8_t) 0x40, (uint8_t) 0x00});
-  this->cmd_data(0x22, {partial ? (uint8_t) 0xFC : (uint8_t) 0xF7});
+  // Both end with analog and OSC off; the panel keeps its RAM and needs no reset for the next refresh
+  this->cmd_data(0x22, {partial ? (uint8_t) 0xFF : (uint8_t) 0xF7});
   this->command(0x20);
 }
 
