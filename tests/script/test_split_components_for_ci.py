@@ -42,6 +42,10 @@ def test_build_seconds() -> None:
     assert (
         build_seconds("esp32-c5-idf") == split_components_for_ci.DEFAULT_BUILD_SECONDS
     )
+    assert (
+        build_seconds("esp32-c3-ard")
+        == split_components_for_ci.ESP32_ARDUINO_BUILD_SECONDS
+    )
 
 
 def test_component_build_seconds() -> None:

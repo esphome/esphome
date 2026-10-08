@@ -54,10 +54,10 @@ PLATFORM_BUILD_SECONDS = {
     "esp32-s3-idf": 60,
     "bk72xx-ard": 70,
     "esp32-c6-idf": 70,
-    "esp32-ard": 90,
-    "esp32-s3-ard": 90,
 }
 NRF52_BUILD_SECONDS = 50
+# Arduino on any ESP32 chip builds the IDF plus the Arduino core on top
+ESP32_ARDUINO_BUILD_SECONDS = 90
 # The remaining ESP32 chips on ESP-IDF
 DEFAULT_BUILD_SECONDS = 50
 # Each extra component merged into a grouped build makes it larger
@@ -113,6 +113,8 @@ def build_seconds(platform: str) -> int:
         return seconds
     if platform.startswith("nrf52"):
         return NRF52_BUILD_SECONDS
+    if platform.startswith("esp32") and platform.endswith("-ard"):
+        return ESP32_ARDUINO_BUILD_SECONDS
     return DEFAULT_BUILD_SECONDS
 
 
