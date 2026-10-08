@@ -101,13 +101,13 @@ void EmonTx::dump_config() {
  *
  * @param command The command string to send (LF will be appended automatically).
  */
-void EmonTx::send_command(const std::string &command) {
+void EmonTx::send_command(const char *command) {
   if (this->is_paused()) {
-    ESP_LOGW(TAG, "Not sending command, UART is paused: %s", command.c_str());
+    ESP_LOGW(TAG, "Not sending command, UART is paused: %s", command);
     return;
   }
-  ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
-  this->write_str(command.c_str());
+  ESP_LOGD(TAG, "Sending command to emonTx: %s", command);
+  this->write_str(command);
   this->write_byte('\n');
 }
 

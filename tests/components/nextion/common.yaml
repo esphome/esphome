@@ -3,6 +3,7 @@ esphome:
     - lambda: 'ESP_LOGD("display","is_connected(): %s", YESNO(id(main_lcd).is_connected()));'
 
     - display.nextion.set_brightness: 80%
+    - display.nextion.set_brightness: !lambda 'return 0.5;'
 
     # Binary sensor publish action tests
     - binary_sensor.nextion.publish:

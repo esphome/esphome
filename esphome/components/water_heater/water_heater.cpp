@@ -161,6 +161,7 @@ void WaterHeaterCall::validate_() {
 }
 
 void WaterHeater::publish_state() {
+  this->set_has_state(true);
   auto traits = this->get_traits();
   ESP_LOGV(TAG,
            "'%s' >>\n"

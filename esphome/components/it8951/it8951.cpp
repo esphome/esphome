@@ -777,12 +777,12 @@ void IT8951Display::update() {
 }
 
 void IT8951Display::update_mode(UpdateMode mode) {
-  if (!this->is_ready())
-    return;
   if (mode == UPDATE_MODE_NONE) {
-    ESP_LOGW(TAG, "Unknown update mode");
+    this->update();
     return;
   }
+  if (!this->is_ready())
+    return;
   this->start_update_(mode);
 }
 
