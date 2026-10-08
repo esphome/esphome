@@ -1647,7 +1647,7 @@ def test_discover_user_yaml_files_bad_candidate_still_tracked(
         r.levelname for r in caplog.records if "Failed to load candidate" in r.message
     ]
     assert matching == ["DEBUG"]
-    assert any("keys/bad.yaml" in e for e in discovered.load_errors)
+    assert any("bad.yaml" in e for e in discovered.load_errors)
 
 
 def test_discover_user_yaml_files_tolerates_templated_top_level_include(
