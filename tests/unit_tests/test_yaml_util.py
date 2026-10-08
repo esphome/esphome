@@ -2195,3 +2195,9 @@ def test_load_yaml_fast_mode_records_dropped_merge_keys(
 
     yaml_util.load_yaml(yaml_file, track_document_range=False)
     assert yaml_util.take_dropped_merge_keys() == [("port", str(yaml_file))]
+
+
+def test_find_secret_references_in_flow_collections() -> None:
+    """Flow mapping and sequence punctuation is not part of the secret name."""
+    text = "a: {password: !secret wifi_pw}\nb: [!secret one, !secret 'two']\n"
+    assert yaml_util.find_secret_references(text) == {"wifi_pw", "one", "two"}
