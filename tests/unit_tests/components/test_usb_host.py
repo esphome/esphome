@@ -132,6 +132,18 @@ def test_device_duplicating_usb_uart_warns(caplog: pytest.LogCaptureFixture) -> 
         _run_final_validate(devices, uarts)
     assert "'device_0'" in caplog.text
     assert "'uart_0'" in caplog.text
+    assert "remove it from usb_host devices" in caplog.text
+
+
+def test_wildcard_device_covering_usb_uart_suggests_narrowing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    devices = [{"id": "device_0", "vid": 0x303A, "pid": 0}]
+    uarts = [{"id": "uart_0", "vid": 0x303A, "pid": 0x4001}]
+    with caplog.at_level(logging.WARNING):
+        _run_final_validate(devices, uarts)
+    assert "narrow its filter" in caplog.text
+    assert "remove it" not in caplog.text
 
 
 def test_disjoint_device_and_usb_uart_do_not_warn(
