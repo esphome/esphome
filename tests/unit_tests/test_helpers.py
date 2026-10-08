@@ -95,6 +95,21 @@ def test_cpp_string_escape(string, expected):
 
 
 @pytest.mark.parametrize(
+    "string, expected",
+    (
+        ("foo", 'u"foo"'),
+        ("foo\nbar", 'u"foo\\012bar"'),
+        ("foo\\bar", 'u"foo\\134bar"'),
+        ('foo "bar"', 'u"foo \\042bar\\042"'),
+        ("caf\u00e9", 'u"caf\\U000000E9"'),
+        ("foo 🐍", 'u"foo \\U0001F40D"'),
+    ),
+)
+def test_cpp_u16string_escape(string: str, expected: str) -> None:
+    assert helpers.cpp_u16string_escape(string) == expected
+
+
+@pytest.mark.parametrize(
     "value, expected",
     (
         # Basic underscore→dash conversion.
@@ -1270,3 +1285,20 @@ def test_get_usable_cpu_count_sources() -> None:
     mock_os_unknown = types.SimpleNamespace(cpu_count=lambda: None)
     with patch("esphome.helpers.os", mock_os_unknown):
         assert helpers.get_usable_cpu_count() == 1
+
+
+def test_zstd_module_falls_back_to_the_backport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Before Python 3.14 the standard library has no zstd, so the backport is used."""
+    backport = object()
+
+    def import_module(name: str) -> object:
+        if name == "compression.zstd":
+            raise ImportError(name)
+        assert name == "backports.zstd"
+        return backport
+
+    monkeypatch.setattr(helpers.importlib, "import_module", import_module)
+
+    assert helpers.zstd_module() is backport
