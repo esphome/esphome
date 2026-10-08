@@ -1,7 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
-from esphome.components.const import CONF_HOLD_DURING_SLEEP
+from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PIN, CONF_POWER_SUPPLY
 import esphome.final_validate as fv
@@ -20,15 +20,15 @@ CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
 
 
 def _final_validate(config: ConfigType) -> None:
-    if not config[CONF_PIN].get(CONF_HOLD_DURING_SLEEP):
+    if not config[CONF_PIN].get(CONF_HOLD_STATE):
         return
     if (ps_id := config.get(CONF_POWER_SUPPLY)) is None:
         return
     fconf = fv.full_config.get()
     ps_config = fconf.get_config_for_path(fconf.get_path_for_id(ps_id)[:-1])
-    if not ps_config[CONF_PIN].get(CONF_HOLD_DURING_SLEEP):
+    if not ps_config[CONF_PIN].get(CONF_HOLD_STATE):
         raise cv.Invalid(
-            f"{CONF_HOLD_DURING_SLEEP} can only be used with a power supply component if the power supply pin is also configured with {CONF_HOLD_DURING_SLEEP}.",
+            f"{CONF_HOLD_STATE} can only be used with a power supply component if the power supply pin is also configured with {CONF_HOLD_STATE}.",
             [CONF_POWER_SUPPLY],
         )
 
