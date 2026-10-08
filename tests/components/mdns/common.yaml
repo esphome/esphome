@@ -3,7 +3,6 @@ wifi:
   password: password1
 
 mdns:
-  disabled: false
   services:
     - service: _test_service
       protocol: _tcp

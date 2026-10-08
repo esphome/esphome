@@ -14,7 +14,6 @@ ethernet:
   mac_address: "02:AA:BB:CC:DD:01"
 
 mdns:
-  disabled: false
   services:
     - service: _test_service
       protocol: _tcp
