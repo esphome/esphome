@@ -8,7 +8,7 @@
 
 namespace esphome::rd03d {
 
-static const char *const TAG = "rd03d";
+ESPHOME_LOG_TAG(TAG, "rd03d");
 
 // Delay before sending configuration commands to allow radar to initialize
 static constexpr uint32_t SETUP_TIMEOUT_MS = 100;

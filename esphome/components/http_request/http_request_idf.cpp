@@ -18,7 +18,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request";
+ESPHOME_LOG_TAG(TAG, "http_request");
 static constexpr uint32_t ERROR_DURATION_MS = 1000;
 
 void HttpRequestIDF::dump_config() {

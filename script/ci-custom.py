@@ -1237,6 +1237,45 @@ def lint_no_std_nothrow(fname, match):
     )
 
 
+@lint_re_check(
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
+    r"\s*(?:=\s*\{?|[{(])\s*\"",
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+    # Deprecated components, converted in a follow-up PR
+    exclude=[
+        "esphome/components/st7735/*",
+        "esphome/components/st7789v/*",
+        "esphome/components/waveshare_epaper/*",
+    ],
+)
+def lint_log_tag_macro(fname, match):
+    return (
+        f"Declare log tags with {highlight('ESPHOME_LOG_TAG(TAG, "name");')}, which keeps the tag in flash on "
+        f"ESP8266.\n"
+        f"  Before: {highlight('static const char *const TAG = "name";')}\n"
+        f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
+        f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*TAG\b"
+    r"|\bstd::string\s+\w+\s*[={(]\s*TAG\b",
+    mask=True,
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+)
+def lint_log_tag_as_string(fname, match):
+    return (
+        f"{highlight('TAG')} is in flash on ESP8266 (ESPHOME_LOG_TAG), so it can only be used for logging.\n"
+        f"Use a separate name or a numeric id for scheduler calls, and do not pass it to string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
 LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
 # Comments, raw/plain string literals and single char literals are consumed whole so ; ( ) ? :
 # inside them are never seen. A char literal is exactly one (escaped) char so a digit separator
