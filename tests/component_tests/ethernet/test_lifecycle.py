@@ -45,7 +45,8 @@ class EthernetLifecycleTest(unittest.TestCase):
                 "bool is_connected()",
             )
         )
-        fixture = (Path(__file__).parent / "fixtures/lifecycle.cpp").read_text()
+        # Keep the incomplete template out of standalone C++ source scans.
+        fixture = (Path(__file__).parent / "fixtures/lifecycle.cpp.in").read_text()
         fixture = fixture.replace("// PRODUCTION_METHODS", methods)
         fixture = fixture.replace("// PRODUCTION_ACCESSORS", accessors)
         with tempfile.TemporaryDirectory(prefix="esphome-ethernet-test-") as directory:
