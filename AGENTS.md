@@ -178,7 +178,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
         https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
     *   **Scheduler ids:** name a timer only when it must be cancelled or replaced, and use a
-        `static constexpr uint32_t` id, never a string. Keep all of a component's ids together in one place.
+        `static constexpr uint32_t` id, never a string. Ids are per component instance and cannot clash with other
+        components, so number them from 0 and keep all of a component's ids together in one place.
         ```cpp
         static constexpr uint32_t READ_TIMEOUT_ID = 0;
         this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
