@@ -114,14 +114,25 @@ template<typename T> static void dump_field(DumpBuffer &out, const char *field_n
   out.append("\n");
 }
 
+// Bytes shown by a bytes field dump: 160 bytes is 480 chars with separators, to fit a typical log buffer
+static constexpr size_t DUMP_BYTES_MAX = 160;
+
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
-// Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
 // field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
-  char hex_buf[format_hex_pretty_size(160)];
+  char hex_buf[format_hex_pretty_size(DUMP_BYTES_MAX)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\n");
+}
+
+// Helper for bytes fields in flash: copies the shown bytes out with progmem_memcpy first
+static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len,
+                                     int indent = 2) {
+  uint8_t data_buf[DUMP_BYTES_MAX];
+  len = std::min(len, sizeof(data_buf));
+  progmem_memcpy(data_buf, data, len);
+  dump_bytes_field(out, field_name, data_buf, len, indent);
 }
 #pragma GCC diagnostic pop
 
@@ -1078,6 +1089,13 @@ const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_API_WIZARD
+const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardCapabilities"));
+  dump_field(out, ESPHOME_PSTR("configured"), this->configured);
+  return out.c_str();
+}
+#endif
 const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
 #ifdef USE_BLUETOOTH_PROXY
@@ -1102,8 +1120,28 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
     out.append("\n");
   }
 #endif
+#ifdef USE_API_WIZARD
+  out.append(2, ' ').append_p(ESPHOME_PSTR("wizard")).append(": ");
+  this->wizard.dump_to(out);
+  out.append("\n");
+#endif
   return out.c_str();
 }
+#ifdef USE_API_WIZARD
+const char *DeviceWizardResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceWizardResponse"));
+  dump_progmem_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+const char *WizardInputSetRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardInputSetRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("entity_id"), this->entity_id);
+  return out.c_str();
+}
+#endif
 const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
   out.append_p(ESPHOME_PSTR("ListEntitiesDoneResponse {}"));
   return out.c_str();
