@@ -16,10 +16,7 @@
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
-// Edge decoder up to this baud rate, start bit sampler above it. The cutoff is
-// a deliberate tradeoff: the decoder tolerates ~0.25 bit of ISR latency jitter
-// (~6.5us at 38400), too tight for higher rates where the sampler's whole byte
-// ISR block is short anyway.
+// Edge decoder up to this baud rate; its ~0.25 bit jitter budget is too tight above it.
 static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 38400;
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -249,7 +246,7 @@ UARTFlushResult ESP8266UartComponent::flush() {
 void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate,
                                   uint8_t stop_bits, uint32_t data_bits, UARTParityOptions parity,
                                   size_t rx_buffer_size) {
-  // load_settings() re-enters here: detach the ISR before touching its state.
+  // load_settings() re-enters here
   if (this->gpio_rx_pin_ != nullptr)
     this->gpio_rx_pin_->detach_interrupt();
   this->bit_time_ = F_CPU / baud_rate;
@@ -280,9 +277,7 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     }
   }
 }
-// A byte can arrive while a CpuFrequencyBoost has an 80 MHz build at 160 MHz; the cycle counter then runs at
-// twice the rate bit_time_ was computed for. The sampler reads the whole byte inside the ISR, so the clock cannot
-// change partway through; the edge decoder only misreads a run that spans a clock change.
+// 1 while a CpuFrequencyBoost runs an 80 MHz build at 160 MHz.
 __attribute__((always_inline)) static inline uint8_t rx_clock_shift() {
 #if F_CPU != 160000000L
   // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- CPU2X is MMIO at a fixed address
@@ -333,7 +328,7 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr_edge(ESP8266SoftwareSerial *arg)
 void ESP8266SoftwareSerial::rx_finalize_pending_() {
   if (!this->rx_.finalize_due(arch_get_cpu_cycle_count(), rx_clock_shift())) {
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-    // Byte not old enough yet: re-run the loop once the buffer is drained.
+    // Tail not elapsed yet; run the loop again
     if (this->rx_.available() == 0)
       wake_loop_threadsafe();
 #endif

@@ -27,16 +27,14 @@ class ESP8266SoftwareSerial {
   size_t available();
 
  protected:
-  /// Start bit sampler for high baud rates: reads the whole byte inside the ISR.
+  /// Above SW_SERIAL_EDGE_MODE_MAX_BAUD; reads the whole byte in the ISR.
   static void gpio_intr(ESP8266SoftwareSerial *arg);
-  /// Edge decoder for low baud rates: counts bits from the time between edges, returns at once.
   static void gpio_intr_edge(ESP8266SoftwareSerial *arg);
 
   void wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
   bool read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
   void write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time);
 
-  /// Complete a byte whose trailing bits are idle high and so never produce a closing edge.
   void rx_finalize_pending_();
   void ESPHOME_ALWAYS_INLINE rx_sync_() {
     if (this->rx_.pending())

@@ -7,12 +7,9 @@
 
 namespace esphome::uart {
 
-/// Bit timing decoder for a software serial RX pin: on_edge() decodes from the
-/// time between edges so the ISR never waits for the line; a byte with an idle
-/// high tail has no closing edge and is completed by finalize() from the loop.
-/// Platform free for host tests; hot methods force inlined to stay in IRAM.
-/// `clock_shift` is 1 while the cycle counter runs at twice the rate bit_cycles
-/// was set up for (an ESP8266 CpuFrequencyBoost), else 0.
+/// Software serial RX decoder: on_edge() counts bits from the time between edges;
+/// finalize() completes a byte whose idle high tail has no closing edge.
+/// `clock_shift` is 1 while the cycle counter runs at double rate, else 0.
 class SoftwareSerialRxDecoder {
  public:
   static constexpr uint8_t RX_IDLE = 0xFF;
@@ -39,15 +36,13 @@ class SoftwareSerialRxDecoder {
     this->last_edge_ = now;
   }
 
-  /// ISR: the line changed to `level` at cycle `now`. Returns true to wake the
-  /// loop: a byte was pushed, or a frame is open with the line high (finalize()
-  /// may be needed; a data 1 and the idle tail look the same at the edge).
+  /// ISR. True to wake the loop: a byte was pushed or finalize() may be needed.
   bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level, uint8_t clock_shift) {
     const bool last_level = this->last_level_;
-    // Collapsed edges: skip to keep the frame aligned to the last real edge.
+    // Collapsed edge
     if (level == last_level)
       return false;
-    // Bits since the last edge, rounded; LX106 has no divider, so count.
+    // LX106 has no divider, so count
     uint32_t delta = (now - this->last_edge_) >> clock_shift;
     if (delta > this->max_run_cycles_)
       delta = this->max_run_cycles_;
@@ -63,10 +58,8 @@ class SoftwareSerialRxDecoder {
     return pushed || (level && this->bit_ != RX_IDLE);
   }
 
-  /// A frame is open with the line idle high: a byte may be waiting on finalize().
   bool pending() const { return this->bit_ != RX_IDLE && this->last_level_; }
 
-  /// Unlocked check whether the pending byte's tail has elapsed.
   bool finalize_due(uint32_t now, uint8_t clock_shift) const {
     const uint8_t bit = this->bit_;
     if (bit == RX_IDLE)
@@ -74,11 +67,11 @@ class SoftwareSerialRxDecoder {
     return (now - this->last_edge_) >> clock_shift >= this->tail_cycles_(bit);
   }
 
-  /// Complete the pending byte if its tail has elapsed. Call with the ISR masked.
+  /// Call with the ISR masked.
   void finalize(uint32_t now, uint8_t clock_shift) {
     if (!this->last_level_ || !this->finalize_due(now, clock_shift))
       return;
-    // The tail is all ones: set the remaining data bits, skip parity, the stop bit is high.
+    // Remaining bits are all ones
     const uint8_t bit = this->bit_;
     uint8_t cur = this->cur_byte_;
     if (bit < this->data_bits_)
@@ -87,7 +80,7 @@ class SoftwareSerialRxDecoder {
     this->bit_ = RX_IDLE;
   }
 
-  /// Store a byte, dropping it when full (holds buffer_size - 1 bytes). Also used by the start bit sampler.
+  /// Drops the byte when full; holds buffer_size - 1 bytes.
   bool ESPHOME_ALWAYS_INLINE push_byte(uint8_t data) {
     size_t in = this->in_pos_;
     size_t next = in + 1;
@@ -125,12 +118,10 @@ class SoftwareSerialRxDecoder {
   }
 
  protected:
-  /// Cycles of high line needed to finish the frame through the first stop bit.
   uint32_t tail_cycles_(uint8_t bit) const {
     return (this->stop_bit_ + 1 - bit) * this->bit_cycles_ + this->bit_cycles_ / 2;
   }
 
-  /// Feed `bits` bits at `level` into the frame; true when a byte was pushed.
   bool ESPHOME_ALWAYS_INLINE consume_run_(uint32_t bits, bool level) {
     uint8_t bit = this->bit_;
     uint8_t cur = this->cur_byte_;
@@ -152,11 +143,11 @@ class SoftwareSerialRxDecoder {
         bit += n;
         bits -= n;
       } else if (bit < this->stop_bit_) {
-        // Parity bit: consumed but not checked.
+        // Parity, not checked
         bit++;
         bits--;
       } else {
-        // Stop bit; low is a framing error, drop the byte.
+        // Stop bit; low is a framing error
         if (level)
           pushed = this->push_byte(cur);
         bit = RX_IDLE;
@@ -175,7 +166,7 @@ class SoftwareSerialRxDecoder {
   uint8_t *buffer_{nullptr};
   size_t buffer_size_{0};
   volatile size_t in_pos_{0};
-  size_t out_pos_{0};  // written only by the reader
+  size_t out_pos_{0};
   /// Next frame bit (data, parity, then stop at stop_bit_) or RX_IDLE.
   volatile uint8_t bit_{RX_IDLE};
   volatile uint8_t cur_byte_{0};
