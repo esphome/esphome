@@ -8,6 +8,7 @@ from esphome.components.sendspin import (
     CONF_UNPAIRED_ACCESS,
     CONFIG_SCHEMA as HUB_CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA as HUB_FINAL_VALIDATE_SCHEMA,
+    request_pairing_code_display_support,
 )
 from esphome.const import PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
@@ -45,7 +46,7 @@ def test_off_without_pairing_method_warns(
     assert NO_PAIRING_WARNING in caplog.text
 
 
-@pytest.mark.parametrize("method", ["static_pairing_code"])
+@pytest.mark.parametrize("method", ["static_pairing_code", "pairing_code"])
 def test_off_with_pairing_method_does_not_warn(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,
@@ -55,6 +56,8 @@ def test_off_with_pairing_method_does_not_warn(
     hub_config = {"id": HUB_ID, CONF_UNPAIRED_ACCESS: False}
     if method == "static_pairing_code":
         hub_config["static_pairing_code"] = "01234567"
+    else:
+        request_pairing_code_display_support()
     config = HUB_CONFIG_SCHEMA(hub_config)
 
     with caplog.at_level(logging.WARNING):
