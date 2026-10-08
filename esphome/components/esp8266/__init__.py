@@ -478,8 +478,8 @@ async def to_code(config: ConfigType) -> None:
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
-    # See throw_stubs.h. Unconditional: the native build generator reads
-    # the same option, keeping one source of truth.
+    # See throw_stubs.h. Unconditional: the native build generator reads the
+    # same option for src, the core and libraries, keeping one source of truth.
     cg.add_platformio_option("build_src_flags", f"-include {THROW_STUBS_HEADER}")
 
     # In testing mode, fake larger memory to allow linking grouped component tests

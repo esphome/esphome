@@ -54,7 +54,6 @@ from esphome.components.esp8266.const import (
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_SCANF_FLOAT,
-    THROW_STUBS_HEADER,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
@@ -1088,11 +1087,33 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if "USE_ESP8266_WAVEFORM_STUBS" in flag_defines:
         core_exclude |= _CORE_EXCLUDE_WAVEFORM
 
-    # The throw stubs for the core and libraries too; src gets them after its
-    # pch include. With exceptions on, a library throw must still throw.
+    # One source of truth with the PlatformIO path: esp8266/__init__ pins
+    # build_src_flags (the throw_stubs force-include); -include paths
+    # resolve against the source root
+    src_other: list[str] = []
+    src_includes: list[str] = []
+    src_it = iter(
+        lex_build_flags(_pio_option("build_src_flags", ""), "build_src_flags")
+    )
+    for tok in src_it:
+        if tok == "-include":
+            header = next(src_it, "")
+            if not header:
+                raise EsphomeError(
+                    "build_src_flags has a trailing '-include' with no header"
+                )
+            src_includes.append(header)
+        elif is_joined_include(tok):
+            # Left in src_other it would precede the pch include
+            src_includes.append(tok[len("-include") :])
+        else:
+            src_other.append(_shell_token(tok))
+    include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
+    # The same force-includes (the throw stubs) for the core and libraries;
+    # src gets them after its pch include. With exceptions on, a throw must throw.
     framework_flags = ""
-    if not config.exceptions:
-        lines.append(f"frameworkflags = -include {_q(src_dir / THROW_STUBS_HEADER)}")
+    if include_flags and not config.exceptions:
+        lines.append(f"frameworkflags = {' '.join(include_flags)}")
         framework_flags = "$frameworkflags"
     archives = []
     # variant_dir existence was already enforced with the include dirs
@@ -1123,28 +1144,6 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     lib_archives, direct_objs = library_edges(lines, libraries, framework_flags)
     archives += lib_archives
 
-    # One source of truth with the PlatformIO path: esp8266/__init__ pins
-    # build_src_flags (the throw_stubs force-include); -include paths
-    # resolve against the source root
-    src_other: list[str] = []
-    src_includes: list[str] = []
-    src_it = iter(
-        lex_build_flags(_pio_option("build_src_flags", ""), "build_src_flags")
-    )
-    for tok in src_it:
-        if tok == "-include":
-            header = next(src_it, "")
-            if not header:
-                raise EsphomeError(
-                    "build_src_flags has a trailing '-include' with no header"
-                )
-            src_includes.append(header)
-        elif is_joined_include(tok):
-            # Left in src_other it would precede the pch include
-            src_includes.append(tok[len("-include") :])
-        else:
-            src_other.append(_shell_token(tok))
-    include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")

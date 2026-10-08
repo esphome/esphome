@@ -211,7 +211,7 @@ def library_edges(
 ) -> tuple[list[str], list[str]]:
     """Emit every library's compile and archive edges.
 
-    ``extra_flags`` (already shell-quoted) precede each library's own flags.
+    ``extra_flags`` (raw ninja text, e.g. a ``$var`` reference) precede each library's own flags.
 
     Returns the archive names and the objects that link directly. A
     library's own include dirs lead its compile lines, as PlatformIO searched
@@ -234,9 +234,7 @@ def library_edges(
             lib.sources,
             common_parent(lib.sources),
             f"lib/{lib.name}",
-            flags=" ".join(
-                [extra_flags, *(_shell_token(f) for f in lib.flags)]
-            ).strip(),
+            flags=" ".join(filter(None, [extra_flags, *map(_shell_token, lib.flags)])),
             own_includes=" ".join(f"-I{_q(d)}" for d in lib.include_dirs),
         )
         if not lib.lib_archive:

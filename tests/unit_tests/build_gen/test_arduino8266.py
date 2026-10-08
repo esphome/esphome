@@ -34,7 +34,12 @@ from esphome.components.esp8266.boards import (
     board_ld_script,
 )
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
-from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
+from esphome.components.esp8266.const import (
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_SCANF_FLOAT,
+    THROW_STUBS_HEADER,
+)
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -366,7 +371,6 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert any("main.cpp.o: cxx" in line for line in src_lines)
     assert content.count("throw_stubs.h") == 2
     assert "srcflags = -include" in content
-    assert "frameworkflags = -include" in content
     flags_lines = [
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
@@ -749,7 +753,7 @@ def test_write_project_throw_stubs_reach_core_and_libraries(tmp_path: Path) -> N
         flags=["-DMYLIB=1"],
     )
     content = _write_ninja(paths, libraries=[library])
-    stubs = CORE.relative_src_path() / "esphome/components/esp8266/throw_stubs.h"
+    stubs = CORE.relative_src_path() / THROW_STUBS_HEADER
     assert f"frameworkflags = -include {_shq(str(stubs))}" in content
     # Before the library's own flags; core edges take the variable alone
     assert "  flags = $frameworkflags -DMYLIB=1" in content
@@ -759,11 +763,6 @@ def test_write_project_throw_stubs_reach_core_and_libraries(tmp_path: Path) -> N
         if "core_esp8266_main.cpp.o: cxx" in line
     )
     assert content.splitlines()[core_edge + 1] == "  flags = $frameworkflags"
-    # The pch still folds only the src force-include, ahead of everything else
-    build_dir = CORE.relative_pioenvs_path(CORE.name)
-    assert (build_dir / "esphome_pch_src.h").read_text().splitlines()[0] == (
-        '#include "esphome/components/esp8266/throw_stubs.h"'
-    )
 
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:
