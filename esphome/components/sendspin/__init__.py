@@ -5,7 +5,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32, mdns, network, psram, socket, wifi
-from esphome.components.const import CONF_MANUFACTURER
+from esphome.components.const import CONF_ENABLED, CONF_MANUFACTURER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -54,6 +54,8 @@ CONF_STATIC_PAIRING_CODE = "static_pairing_code"
 CONF_UNPAIRED_ACCESS = "unpaired_access"
 CONF_ON_OPEN_PAIRING_WINDOW = "on_open_pairing_window"
 CONF_ON_CLOSE_PAIRING_WINDOW = "on_close_pairing_window"
+CONF_ON_DISPLAY_PAIRING_CODE = "on_display_pairing_code"
+CONF_ON_CLEAR_PAIRING_CODE = "on_clear_pairing_code"
 CONF_ON_PAIRING_SUCCEEDED = "on_pairing_succeeded"
 CONF_ON_PAIRING_FAILED = "on_pairing_failed"
 
@@ -145,6 +147,14 @@ _CALLBACK_AUTOMATIONS = (
         CONF_ON_CLOSE_PAIRING_WINDOW, "add_on_close_pairing_window_callback"
     ),
     automation.CallbackAutomation(
+        CONF_ON_DISPLAY_PAIRING_CODE,
+        "add_on_display_pairing_code_callback",
+        [(cg.std_string, "code")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CLEAR_PAIRING_CODE, "add_on_clear_pairing_code_callback"
+    ),
+    automation.CallbackAutomation(
         CONF_ON_PAIRING_SUCCEEDED,
         "add_on_pairing_succeeded_callback",
         [(cg.std_string, "server_id")],
@@ -164,6 +174,8 @@ class SendspinConfiguration:
     metadata_support: bool = False
     player_support: bool = False
     visualizer_support: bool = False
+    pairing_code_display_support: bool = False
+    switch_types: set[str] = field(default_factory=set)
 
     artwork_preferences: list[ConfigType] = field(default_factory=list)
     player_config: ConfigType | None = None
@@ -198,6 +210,16 @@ def request_player_support() -> None:
 def request_visualizer_support() -> None:
     """Request visualizer role support for Sendspin."""
     _get_data().visualizer_support = True
+
+
+def request_pairing_code_display_support() -> None:
+    """Mark that the device can emit a dynamic pairing code (e.g. a pairing_code text sensor)."""
+    _get_data().pairing_code_display_support = True
+
+
+def request_switch(switch_type: str) -> None:
+    """Mark that a sendspin switch of this type drives the matching hub setting."""
+    _get_data().switch_types.add(switch_type)
 
 
 def register_artwork_preference(config: ConfigType) -> int:
@@ -259,6 +281,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_STATIC_PAIRING_CODE): cv.sensitive(
                 _validate_static_pairing_code
             ),
+            # No default: the unpaired access switch rejects this key when it is set.
             cv.Optional(CONF_UNPAIRED_ACCESS): cv.boolean,
             cv.Optional(CONF_ON_OPEN_PAIRING_WINDOW): automation.validate_automation(
                 {}
@@ -266,6 +289,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CLOSE_PAIRING_WINDOW): automation.validate_automation(
                 {}
             ),
+            cv.Optional(CONF_ON_DISPLAY_PAIRING_CODE): automation.validate_automation(
+                {}
+            ),
+            cv.Optional(CONF_ON_CLEAR_PAIRING_CODE): automation.validate_automation({}),
             cv.Optional(CONF_ON_PAIRING_SUCCEEDED): automation.validate_automation({}),
             cv.Optional(CONF_ON_PAIRING_FAILED): automation.validate_automation({}),
         }
@@ -277,16 +304,33 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _offers_dynamic_pairing_code(config: ConfigType) -> bool:
+    """Whether the device can show a dynamic pairing code, so dynamic_pairing_code is advertised."""
+    return bool(
+        config.get(CONF_ON_DISPLAY_PAIRING_CODE)
+        or _get_data().pairing_code_display_support
+    )
+
+
 def _has_pairing_method(config: ConfigType) -> bool:
     """Whether the config gives a server any way to pair with the device."""
-    return CONF_STATIC_PAIRING_CODE in config
+    return CONF_STATIC_PAIRING_CODE in config or _offers_dynamic_pairing_code(config)
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
+    dynamic_code = _offers_dynamic_pairing_code(config)
+    # The protocol allows only one pairing code method.
+    if dynamic_code and CONF_STATIC_PAIRING_CODE in config:
+        raise cv.Invalid(
+            f"'{CONF_STATIC_PAIRING_CODE}' cannot be used with a dynamic pairing code "
+            f"({CONF_ON_DISPLAY_PAIRING_CODE} or a pairing_code text sensor), since only "
+            "one pairing code method can be offered",
+            path=[CONF_STATIC_PAIRING_CODE],
+        )
     if not config.get(CONF_UNPAIRED_ACCESS, True) and not _has_pairing_method(config):
         _LOGGER.warning(
-            "'%s' is off but nothing lets a server pair (%s), so no server can play on this "
-            "device",
+            "'%s' is off but there is no pairing method (%s or a dynamic pairing code), so no "
+            "new server can pair with this device",
             CONF_UNPAIRED_ACCESS,
             CONF_STATIC_PAIRING_CODE,
         )
@@ -363,8 +407,15 @@ async def to_code(config: ConfigType) -> None:
     if (code := config.get(CONF_STATIC_PAIRING_CODE)) is not None:
         cg.add(var.set_static_pairing_code(code))
 
-    if (unpaired_access := config.get(CONF_UNPAIRED_ACCESS)) is not None:
-        cg.add(var.set_default_unpaired_access(unpaired_access))
+    # The client starts once both are set: here, or by the switch that drives the setting.
+    switch_types = _get_data().switch_types
+    if CONF_ENABLED not in switch_types:
+        cg.add(var.set_enabled(True))
+    if CONF_UNPAIRED_ACCESS not in switch_types:
+        cg.add(var.set_unpaired_access_enabled(config.get(CONF_UNPAIRED_ACCESS, True)))
+
+    if _offers_dynamic_pairing_code(config):
+        cg.add(var.set_pairing_code_display_supported(True))
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
