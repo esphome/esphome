@@ -54,6 +54,7 @@ from esphome.components.esp8266.const import (
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_SCANF_FLOAT,
+    THROW_STUBS_HEADER,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
@@ -1108,12 +1109,15 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             src_includes.append(tok[len("-include") :])
         else:
             src_other.append(_shell_token(tok))
+    # The throw stubs abort instead of throwing: with exceptions on, src drops them
+    # too; otherwise the core and libraries take them as well (only them, src keeps
+    # its other force-includes to itself) and src gets them after its pch include
+    if config.exceptions:
+        src_includes = [h for h in src_includes if h != THROW_STUBS_HEADER]
     include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
-    # The same force-includes (the throw stubs) for the core and libraries;
-    # src gets them after its pch include. With exceptions on, a throw must throw.
     framework_flags = ""
-    if include_flags and not config.exceptions:
-        lines.append(f"frameworkflags = {' '.join(include_flags)}")
+    if THROW_STUBS_HEADER in src_includes:
+        lines.append(f"frameworkflags = -include {_q(src_dir / THROW_STUBS_HEADER)}")
         framework_flags = "$frameworkflags"
     archives = []
     # variant_dir existence was already enforced with the include dirs

@@ -724,8 +724,9 @@ def test_write_project_libraries_and_variant(
     assert "libHeadersOnly.a" not in content
     assert "Library HeadersOnly has no source files" in caplog.text
     assert "  flags = -DMYLIB=1" in content
-    # With exceptions on, library throws must not be turned into aborts
+    # With exceptions on, no throw is turned into an abort: not in libraries, not in src
     assert "frameworkflags" not in content
+    assert "throw_stubs.h" not in content
     # A library's own include dirs lead its compile lines
     assert "  own_includes = -I" in content
     assert "$own_includes $cxxflags $flags" in content
@@ -757,12 +758,11 @@ def test_write_project_throw_stubs_reach_core_and_libraries(tmp_path: Path) -> N
     assert f"frameworkflags = -include {_shq(str(stubs))}" in content
     # Before the library's own flags; core edges take the variable alone
     assert "  flags = $frameworkflags -DMYLIB=1" in content
+    lines = content.splitlines()
     core_edge = next(
-        i
-        for i, line in enumerate(content.splitlines())
-        if "core_esp8266_main.cpp.o: cxx" in line
+        i for i, line in enumerate(lines) if "core_esp8266_main.cpp.o: cxx" in line
     )
-    assert content.splitlines()[core_edge + 1] == "  flags = $frameworkflags"
+    assert lines[core_edge + 1] == "  flags = $frameworkflags"
 
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:
