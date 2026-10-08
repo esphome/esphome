@@ -26,6 +26,26 @@ static const char *const TAG = "sendspin.hub";
 
 namespace {
 
+// The reason passed to on_pairing_failed automations, in the protocol's own spelling.
+StringRef pair_abort_reason_to_string(sendspin::SendspinPairAbortReason reason) {
+  using sendspin::SendspinPairAbortReason;
+  switch (reason) {
+    case SendspinPairAbortReason::ATTEMPT_TIMEOUT:
+      return StringRef::from_lit("attempt_timeout");
+    case SendspinPairAbortReason::CONCURRENT_ATTEMPT:
+      return StringRef::from_lit("concurrent_attempt");
+    case SendspinPairAbortReason::METHOD_NOT_SUPPORTED:
+      return StringRef::from_lit("method_not_supported");
+    case SendspinPairAbortReason::PAIRING_CODE_MISMATCH:
+      return StringRef::from_lit("pairing_code_mismatch");
+    case SendspinPairAbortReason::USER_CANCELLED:
+      return StringRef::from_lit("user_cancelled");
+    case SendspinPairAbortReason::UNKNOWN:
+      break;
+  }
+  return StringRef::from_lit("unknown");
+}
+
 // Zeroes through a volatile pointer so dead-store elimination cannot drop it.
 void secure_wipe(void *data, size_t len) {
   volatile auto *p = static_cast<volatile uint8_t *>(data);
@@ -134,8 +154,7 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-  // Any server may play without pairing, as before rc1.
-  this->client_->set_unpaired_access_enabled(true);
+  this->client_->set_unpaired_access_enabled(this->default_unpaired_access_);
 
 #ifndef USE_SENDSPIN_SWITCH
   this->enabled_ = true;
@@ -183,9 +202,11 @@ void SendspinHub::dump_config() {
                 "  Model: %s\n"
                 "  Firmware version: %s\n"
                 "  Task stack in PSRAM: %s\n"
+                "  Static pairing code: %s\n"
                 "  Unpaired access: %s",
                 client_id, get_mac_address_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
                 this->firmware_version_, YESNO(this->task_stack_in_psram_),
+                YESNO(this->static_pairing_code_ != nullptr),
                 YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()));
 
 #ifdef USE_SENDSPIN_ARTWORK
@@ -254,6 +275,20 @@ void SendspinHub::leave_group() {
   }
 }
 
+// THREAD CONTEXT: Main loop (invoked from the sendspin.confirm_pairing_window action)
+void SendspinHub::confirm_pairing_window() {
+  if (this->is_client_running()) {
+    this->client_->confirm_pairing_window();
+  }
+}
+
+// THREAD CONTEXT: Main loop (invoked from the sendspin.cancel_pairing_window action)
+void SendspinHub::cancel_pairing_window() {
+  if (this->is_client_running()) {
+    this->client_->cancel_pairing_window();
+  }
+}
+
 const char *SendspinHub::get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
   // The server matches this MAC against the L2 source MAC of the device's multicast traffic.
   // ESP-IDF derives the ethernet MAC as base+3 by default on ESP32-S3, so we cannot use the
@@ -293,6 +328,11 @@ sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
   config.protocol_task_psram_stack = this->task_stack_in_psram_;
   config.max_pairing_records = SENDSPIN_RECORD_SLOTS;
 
+  if (this->static_pairing_code_ != nullptr) {
+    config.static_pairing_code_locations = {"operator"};
+    config.static_pairing_code = this->static_pairing_code_;
+  }
+
   return config;
 }
 
@@ -319,6 +359,18 @@ void SendspinHub::on_release_high_performance() {
     wifi::global_wifi_component->release_roaming_suppression();
   }
 #endif
+}
+
+void SendspinHub::on_open_pairing_window() { this->open_pairing_window_callbacks_.call(); }
+
+void SendspinHub::on_close_pairing_window() { this->close_pairing_window_callbacks_.call(); }
+
+void SendspinHub::on_pairing_succeeded(const std::string &server_id) {
+  this->pairing_succeeded_callbacks_.call(server_id);
+}
+
+void SendspinHub::on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) {
+  this->pairing_failed_callbacks_.call(server_id, pair_abort_reason_to_string(reason));
 }
 
 // --- SendspinNetworkProvider override ---

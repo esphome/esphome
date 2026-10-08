@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+import logging
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -25,6 +27,8 @@ from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 # mdns for autodiscovery
 AUTO_LOAD = ["mdns"]
 CODEOWNERS = ["@kahrendt"]
@@ -45,6 +49,31 @@ CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
 CONF_DECODE_MEMORY = "decode_memory"
 CONF_CODECS = "codecs"
+
+CONF_STATIC_PAIRING_CODE = "static_pairing_code"
+CONF_UNPAIRED_ACCESS = "unpaired_access"
+CONF_ON_OPEN_PAIRING_WINDOW = "on_open_pairing_window"
+CONF_ON_CLOSE_PAIRING_WINDOW = "on_close_pairing_window"
+CONF_ON_PAIRING_SUCCEEDED = "on_pairing_succeeded"
+CONF_ON_PAIRING_FAILED = "on_pairing_failed"
+
+# A static pairing code is exactly 8 decimal digits.
+STATIC_PAIRING_CODE_DIGITS = 8
+
+
+def _validate_static_pairing_code(value: Any) -> str:
+    # string_strict so leading zeros survive and `!secret` works.
+    value = cv.string_strict(value)
+    if len(value) != STATIC_PAIRING_CODE_DIGITS or not (
+        value.isascii() and value.isdigit()
+    ):
+        raise cv.Invalid(
+            f"{CONF_STATIC_PAIRING_CODE} must be exactly "
+            f"{STATIC_PAIRING_CODE_DIGITS} decimal digits "
+            '(quote the value so leading zeros are preserved, e.g. "01234567")'
+        )
+    return value
+
 
 # Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
 MAX_ARTWORK_SLOTS = 4
@@ -105,6 +134,26 @@ sendspin_ns = cg.esphome_ns.namespace("sendspin_")
 SendspinHub = sendspin_ns.class_(
     "SendspinHub",
     cg.Component,
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_OPEN_PAIRING_WINDOW, "add_on_open_pairing_window_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CLOSE_PAIRING_WINDOW, "add_on_close_pairing_window_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PAIRING_SUCCEEDED,
+        "add_on_pairing_succeeded_callback",
+        [(cg.std_string, "server_id")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PAIRING_FAILED,
+        "add_on_pairing_failed_callback",
+        [(cg.std_string, "server_id"), (cg.StringRef, "reason")],
+    ),
 )
 
 
@@ -207,6 +256,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MANUFACTURER): DEVICE_INFO_STRING,
             cv.Optional(CONF_MODEL): DEVICE_INFO_STRING,
             cv.Optional(CONF_FIRMWARE_VERSION): DEVICE_INFO_STRING,
+            cv.Optional(CONF_STATIC_PAIRING_CODE): cv.sensitive(
+                _validate_static_pairing_code
+            ),
+            cv.Optional(CONF_UNPAIRED_ACCESS): cv.boolean,
+            cv.Optional(CONF_ON_OPEN_PAIRING_WINDOW): automation.validate_automation(
+                {}
+            ),
+            cv.Optional(CONF_ON_CLOSE_PAIRING_WINDOW): automation.validate_automation(
+                {}
+            ),
+            cv.Optional(CONF_ON_PAIRING_SUCCEEDED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PAIRING_FAILED): automation.validate_automation({}),
         }
     ),
     cv.only_on_esp32,
@@ -216,21 +277,42 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _has_pairing_method(config: ConfigType) -> bool:
+    """Whether the config gives a server any way to pair with the device."""
+    return CONF_STATIC_PAIRING_CODE in config
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if not config.get(CONF_UNPAIRED_ACCESS, True) and not _has_pairing_method(config):
+        _LOGGER.warning(
+            "'%s' is off but nothing lets a server pair (%s), so no server can play on this "
+            "device",
+            CONF_UNPAIRED_ACCESS,
+            CONF_STATIC_PAIRING_CODE,
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 def _request_controller_role(config: ConfigType) -> ConfigType:
     """Request the controller role for the sendspin.switch action."""
     request_controller_support()
     return config
 
 
+# Selects the hub. sendspin.switch adds the controller role it needs; the pairing window actions need no role.
+SENDSPIN_HUB_ACTION_SCHEMA = automation.maybe_simple_id(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(SendspinHub),
+        }
+    )
+)
+
 SENDSPIN_SIMPLE_ACTION_SCHEMA = cv.All(
-    automation.maybe_simple_id(
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.use_id(SendspinHub),
-            }
-        )
-    ),
-    _request_controller_role,
+    SENDSPIN_HUB_ACTION_SCHEMA, _request_controller_role
 )
 
 
@@ -238,6 +320,19 @@ automation.register_apply_action(
     "sendspin.switch",
     SENDSPIN_SIMPLE_ACTION_SCHEMA,
     automation.ApplyCall("switch_client()"),
+)
+
+
+automation.register_apply_action(
+    "sendspin.confirm_pairing_window",
+    SENDSPIN_HUB_ACTION_SCHEMA,
+    automation.ApplyCall("confirm_pairing_window()"),
+)
+
+automation.register_apply_action(
+    "sendspin.cancel_pairing_window",
+    SENDSPIN_HUB_ACTION_SCHEMA,
+    automation.ApplyCall("cancel_pairing_window()"),
 )
 
 
@@ -264,6 +359,14 @@ async def to_code(config: ConfigType) -> None:
     ):
         if value:
             cg.add(setter(value))
+
+    if (code := config.get(CONF_STATIC_PAIRING_CODE)) is not None:
+        cg.add(var.set_static_pairing_code(code))
+
+    if (unpaired_access := config.get(CONF_UNPAIRED_ACCESS)) is not None:
+        cg.add(var.set_default_unpaired_access(unpaired_access))
+
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     # sendspin-cpp library
     esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.9.3")
