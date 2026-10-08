@@ -3,7 +3,13 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import CONF_DLMS_METER_ID, CONF_OBIS_CODE, DlmsMeterComponent, obis_code
+from .. import (
+    CONF_DLMS_METER_ID,
+    CONF_OBIS_CODE,
+    DlmsMeterComponent,
+    obis_code,
+    register_sensor,
+)
 
 DEPENDENCIES = ["dlms_meter"]
 
@@ -56,4 +62,4 @@ CONFIG_SCHEMA = sensor.sensor_schema().extend(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DLMS_METER_ID])
     var = await sensor.new_sensor(config)
-    cg.add(hub.register_sensor(config[CONF_OBIS_CODE], var))
+    register_sensor(hub, config, var)

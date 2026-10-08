@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -134,6 +135,26 @@ CUSTOM_PATTERN_SCHEMA = cv.All(
     validate_custom_pattern,
 )
 
+_request_sensor_slot = cg.slot_counter("DLMS_MAX_SENSORS")
+_request_text_sensor_slot = cg.slot_counter("DLMS_MAX_TEXT_SENSORS")
+_request_binary_sensor_slot = cg.slot_counter("DLMS_MAX_BINARY_SENSORS")
+
+
+def register_sensor(hub: MockObj, config: ConfigType, var: MockObj) -> None:
+    _request_sensor_slot()
+    cg.add(hub.register_sensor(config[CONF_OBIS_CODE], var))
+
+
+def register_text_sensor(hub: MockObj, config: ConfigType, var: MockObj) -> None:
+    _request_text_sensor_slot()
+    cg.add(hub.register_text_sensor(config[CONF_OBIS_CODE], var))
+
+
+def register_binary_sensor(hub: MockObj, config: ConfigType, var: MockObj) -> None:
+    _request_binary_sensor_slot()
+    cg.add(hub.register_binary_sensor(config[CONF_OBIS_CODE], var))
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -206,21 +227,6 @@ async def to_code(config: ConfigType) -> None:
         auth_key_expr,
         patterns_expr,
     )
-
-    hub_id = config[CONF_ID].id
-
-    for domain, define in (
-        ("sensor", "DLMS_MAX_SENSORS"),
-        ("text_sensor", "DLMS_MAX_TEXT_SENSORS"),
-        ("binary_sensor", "DLMS_MAX_BINARY_SENSORS"),
-    ):
-        count = sum(
-            1
-            for conf in CORE.config.get(domain, [])
-            if conf.get("platform") == "dlms_meter"
-            and conf[CONF_DLMS_METER_ID].id == hub_id
-        )
-        cg.add_define(define, count)
 
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
