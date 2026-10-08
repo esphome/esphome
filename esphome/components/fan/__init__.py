@@ -39,7 +39,6 @@ from esphome.core.entity_helpers import (
 )
 
 DOMAIN = "fan"
-
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")

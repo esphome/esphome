@@ -4,10 +4,9 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-DOMAIN = "as3935_i2c"
-
 AUTO_LOAD = ["as3935"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "as3935_i2c"
 
 as3935_i2c_ns = cg.esphome_ns.namespace("as3935_i2c")
 I2CAS3935 = as3935_i2c_ns.class_("I2CAS3935Component", as3935.AS3935, i2c.I2CDevice)

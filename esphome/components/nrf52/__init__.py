@@ -85,8 +85,8 @@ from .framework import (
 from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
-DOMAIN = "nrf52"
 AUTO_LOAD = ["zephyr", "preferences"]
+DOMAIN = "nrf52"
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 

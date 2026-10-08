@@ -6,8 +6,8 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jhansche"]
-DOMAIN = "bedjet"
 DEPENDENCIES = ["ble_client"]
+DOMAIN = "bedjet"
 MULTI_CONF = True
 CONF_BEDJET_ID = "bedjet_id"
 

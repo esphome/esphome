@@ -4,9 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-DOMAIN = "apds9960"
-
 DEPENDENCIES = ["i2c"]
+DOMAIN = "apds9960"
 MULTI_CONF = True
 
 CONF_APDS9960_ID = "apds9960_id"

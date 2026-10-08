@@ -6,8 +6,8 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn532"]
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
-DOMAIN = "pn532_i2c"
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pn532_i2c"
 MULTI_CONF = True
 
 pn532_i2c_ns = cg.esphome_ns.namespace("pn532_i2c")

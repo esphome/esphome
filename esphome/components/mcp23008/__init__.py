@@ -6,8 +6,8 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["mcp23x08_base"]
 CODEOWNERS = ["@jesserockz"]
-DOMAIN = "mcp23008"
 DEPENDENCIES = ["i2c"]
+DOMAIN = "mcp23008"
 MULTI_CONF = True
 
 mcp23008_ns = cg.esphome_ns.namespace("mcp23008")

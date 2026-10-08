@@ -5,9 +5,9 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
-DOMAIN = "wk2132_i2c"
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["weikai", "weikai_i2c"]
+DOMAIN = "wk2132_i2c"
 MULTI_CONF = True
 
 weikai_i2c_ns = cg.esphome_ns.namespace("weikai_i2c")

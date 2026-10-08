@@ -5,8 +5,8 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@spbrogan", "@Fabian-Schmidt"]
-DOMAIN = "mopeka_ble"
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "mopeka_ble"
 
 CONF_SHOW_SENSORS_WITHOUT_SYNC = "show_sensors_without_sync"
 

@@ -5,8 +5,8 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "async_tcp"
 DEPENDENCIES = ["network"]
+DOMAIN = "async_tcp"
 
 
 def AUTO_LOAD() -> list[str]:

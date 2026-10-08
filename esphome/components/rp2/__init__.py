@@ -56,8 +56,8 @@ from .gpio import rp2_pin_to_code  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
-DOMAIN = "rp2"
 AUTO_LOAD = ["preferences"]
+DOMAIN = "rp2"
 IS_TARGET_PLATFORM = True
 
 # Legacy top-level YAML keys that route here. The framework

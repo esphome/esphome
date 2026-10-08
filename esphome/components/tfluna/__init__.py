@@ -5,8 +5,8 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@candrews"]
-DOMAIN = "tfluna"
 DEPENDENCIES = ["i2c"]
+DOMAIN = "tfluna"
 MULTI_CONF = True
 
 tfluna_ns = cg.esphome_ns.namespace("tfluna")

@@ -17,8 +17,8 @@ from esphome.core import ID, Lambda
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
-DOMAIN = "modbus_client"
 DEPENDENCIES = ["modbus"]
+DOMAIN = "modbus_client"
 MULTI_CONF = True
 # The modbus hub auto-loads this component to make the actions available. Without this, that auto-load
 # would try to create a device with no address.

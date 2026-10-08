@@ -6,8 +6,8 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@FredM67"]
-DOMAIN = "mk2pvrouter"
 DEPENDENCIES = ["uart"]
+DOMAIN = "mk2pvrouter"
 
 mk2pvrouter_ns = cg.esphome_ns.namespace("mk2pvrouter")
 Mk2PVRouter = mk2pvrouter_ns.class_("Mk2PVRouter", cg.Component, uart.UARTDevice)

@@ -60,9 +60,8 @@ from esphome.core import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-DOMAIN = "ethernet"
-
 AUTO_LOAD = ["network"]
+DOMAIN = "ethernet"
 LOGGER = logging.getLogger(__name__)
 
 # Key for tracking IP state listener count in CORE.data

@@ -29,12 +29,11 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-DOMAIN = "esp32_camera"
-
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_camera"
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)

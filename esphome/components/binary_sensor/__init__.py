@@ -74,7 +74,6 @@ from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "binary_sensor"
 DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -107,6 +106,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "binary_sensor"
 
 IS_PLATFORM_COMPONENT = True
 

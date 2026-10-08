@@ -13,9 +13,9 @@ from esphome.const import CONF_ID, CONF_RX_BUFFER_SIZE, CONF_TX_BUFFER_SIZE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
-DOMAIN = "usb_cdc_acm"
 AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["tinyusb"]
+DOMAIN = "usb_cdc_acm"
 
 CONF_INTERFACES = "interfaces"
 

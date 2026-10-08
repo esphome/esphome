@@ -7,8 +7,8 @@ from esphome.const import CONF_FREQUENCY, CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@X-Ryl669"]
-DOMAIN = "at581x"
 DEPENDENCIES = ["i2c"]
+DOMAIN = "at581x"
 MULTI_CONF = True
 
 

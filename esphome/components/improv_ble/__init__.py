@@ -30,8 +30,8 @@ def AUTO_LOAD() -> list[str]:
 
 
 CODEOWNERS = ["@jesserockz"]
-DOMAIN = "improv_ble"
 DEPENDENCIES = ["wifi"]
+DOMAIN = "improv_ble"
 
 # Legacy top-level YAML key that routes here; esphome/loader.py and
 # esphome/config.py handle the warning and the key rename.

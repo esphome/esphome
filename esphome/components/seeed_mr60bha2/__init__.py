@@ -5,8 +5,8 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@limengdu"]
-DOMAIN = "seeed_mr60bha2"
 DEPENDENCIES = ["uart"]
+DOMAIN = "seeed_mr60bha2"
 MULTI_CONF = True
 
 mr60bha2_ns = cg.esphome_ns.namespace("seeed_mr60bha2")

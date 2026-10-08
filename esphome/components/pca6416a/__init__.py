@@ -16,9 +16,9 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mat931"]
-DOMAIN = "pca6416a"
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["gpio_expander"]
+DOMAIN = "pca6416a"
 MULTI_CONF = True
 pca6416a_ns = cg.esphome_ns.namespace("pca6416a")
 

@@ -11,8 +11,8 @@ from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@niklasweber"]
-DOMAIN = "dfrobot_sen0395"
 DEPENDENCIES = ["uart"]
+DOMAIN = "dfrobot_sen0395"
 MULTI_CONF = True
 
 dfrobot_sen0395_ns = cg.esphome_ns.namespace("dfrobot_sen0395")

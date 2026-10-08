@@ -6,8 +6,8 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn532"]
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
-DOMAIN = "pn532_spi"
 DEPENDENCIES = ["spi"]
+DOMAIN = "pn532_spi"
 MULTI_CONF = True
 
 pn532_spi_ns = cg.esphome_ns.namespace("pn532_spi")

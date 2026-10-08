@@ -15,12 +15,11 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-DOMAIN = "servo"
-
 servo_ns = cg.esphome_ns.namespace("servo")
 Servo = servo_ns.class_("Servo", cg.Component)
 
 CONF_AUTO_DETACH_TIME = "auto_detach_time"
+DOMAIN = "servo"
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
     {

@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 
 CODEOWNERS = ["@clydebarrow"]
-DOMAIN = "cst816"
 DEPENDENCIES = ["i2c"]
+DOMAIN = "cst816"
 
 cst816_ns = cg.esphome_ns.namespace("cst816")

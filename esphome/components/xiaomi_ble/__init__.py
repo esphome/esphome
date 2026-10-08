@@ -4,9 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-DOMAIN = "xiaomi_ble"
-
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "xiaomi_ble"
 
 xiaomi_ble_ns = cg.esphome_ns.namespace("xiaomi_ble")
 XiaomiListener = xiaomi_ble_ns.class_(

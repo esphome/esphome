@@ -5,9 +5,9 @@ from esphome.const import CONF_ID, CONF_REFERENCE_VOLTAGE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
+DOMAIN = "mcp3204"
 MULTI_CONF = True
 CODEOWNERS = ["@rsumner"]
-DOMAIN = "mcp3204"
 
 mcp3204_ns = cg.esphome_ns.namespace("mcp3204")
 MCP3204 = mcp3204_ns.class_("MCP3204", cg.Component, spi.SPIDevice)

@@ -19,8 +19,8 @@ from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@kbx81"]
-DOMAIN = "radio_frequency"
 AUTO_LOAD = ["ir_rf_base"]
+DOMAIN = "radio_frequency"
 
 IS_PLATFORM_COMPONENT = True
 

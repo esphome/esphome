@@ -58,9 +58,9 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+DOMAIN = "i2c"
 LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "i2c"
 i2c_ns = cg.esphome_ns.namespace("i2c")
 I2CBus = i2c_ns.class_("I2CBus")
 InternalI2CBus = i2c_ns.class_("InternalI2CBus", I2CBus)

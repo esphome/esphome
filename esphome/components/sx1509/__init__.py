@@ -19,8 +19,6 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-DOMAIN = "sx1509"
-
 CONF_KEYPAD = "keypad"
 CONF_KEY_ROWS = "key_rows"
 CONF_KEY_COLUMNS = "key_columns"
@@ -31,6 +29,7 @@ CONF_SX1509_ID = "sx1509_id"
 
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "sx1509"
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")

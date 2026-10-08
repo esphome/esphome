@@ -15,11 +15,10 @@ from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
-DOMAIN = "modbus"
-
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]
+DOMAIN = "modbus"
 # Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
 # generated unless a config uses one).
 AUTO_LOAD = ["modbus_client"]

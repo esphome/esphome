@@ -4,9 +4,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-DOMAIN = "rp2_pio"
-
 DEPENDENCIES = ["rp2"]
+DOMAIN = "rp2_pio"
 
 
 PIOASM_REPO_VERSION = "1.5.0-b"

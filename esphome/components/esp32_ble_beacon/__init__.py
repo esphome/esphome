@@ -7,10 +7,9 @@ from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
 from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
-DOMAIN = "esp32_ble_beacon"
-
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_ble_beacon"
 
 esp32_ble_beacon_ns = cg.esphome_ns.namespace("esp32_ble_beacon")
 ESP32BLEBeacon = esp32_ble_beacon_ns.class_("ESP32BLEBeacon", cg.Component)

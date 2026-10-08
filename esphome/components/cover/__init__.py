@@ -49,7 +49,6 @@ from esphome.types import ConfigType, SafeExpType
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "cover"
 DEVICE_CLASSES = [
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
@@ -63,6 +62,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "cover"
 
 _LOGGER = logging.getLogger(__name__)
 

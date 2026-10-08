@@ -9,8 +9,8 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@functionpointer"]
-DOMAIN = "pylontech"
 DEPENDENCIES = ["uart"]
+DOMAIN = "pylontech"
 MULTI_CONF = True
 
 CONF_PYLONTECH_ID = "pylontech_id"

@@ -4,9 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-DOMAIN = "ads1115"
-
 DEPENDENCIES = ["i2c"]
+DOMAIN = "ads1115"
 MULTI_CONF = True
 
 ads1115_ns = cg.esphome_ns.namespace("ads1115")

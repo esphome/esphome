@@ -27,12 +27,11 @@ from esphome.const import (
 from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
-DOMAIN = "esp32_touch"
-
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["binary_sensor"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_touch"
 
 CONF_DEBOUNCE_COUNT = "debounce_count"
 CONF_DENOISE_GRADE = "denoise_grade"

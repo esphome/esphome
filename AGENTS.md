@@ -232,7 +232,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Component Metadata:**
         - `DOMAIN`: Required in every component's `__init__.py`, set to the component's own name as a plain
           string (e.g. `DOMAIN = "my_component"`). Other code refers to the component through it, e.g.
-          `from esphome.components.my_component import DOMAIN`. CI (`lint_component_domain`) fails without it.
+          `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
+          metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
         - `AUTO_LOAD`: Components to automatically load
         - `CONFLICTS_WITH`: Incompatible components

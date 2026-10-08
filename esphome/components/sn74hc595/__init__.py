@@ -16,7 +16,6 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 DOMAIN = "sn74hc595"
-
 MULTI_CONF = True
 
 sn74hc595_ns = cg.esphome_ns.namespace("sn74hc595")

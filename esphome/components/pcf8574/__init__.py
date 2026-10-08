@@ -14,10 +14,9 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-DOMAIN = "pcf8574"
-
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pcf8574"
 MULTI_CONF = True
 
 pcf8574_ns = cg.esphome_ns.namespace("pcf8574")

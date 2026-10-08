@@ -6,8 +6,8 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn7150"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
-DOMAIN = "pn7150_i2c"
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pn7150_i2c"
 
 pn7150_i2c_ns = cg.esphome_ns.namespace("pn7150_i2c")
 PN7150I2C = pn7150_i2c_ns.class_("PN7150I2C", pn7150.PN7150, i2c.I2CDevice)

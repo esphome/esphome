@@ -21,8 +21,8 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "mdns"
 DEPENDENCIES = ["network"]
+DOMAIN = "mdns"
 
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding

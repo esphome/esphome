@@ -12,8 +12,8 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
-DOMAIN = "rc522"
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "rc522"
 
 CONF_RC522_ID = "rc522_id"
 

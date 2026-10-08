@@ -17,7 +17,6 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import SafeExpType
 
 DOMAIN = "stepper"
-
 IS_PLATFORM_COMPONENT = True
 
 stepper_ns = cg.esphome_ns.namespace("stepper")

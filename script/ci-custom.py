@@ -840,8 +840,9 @@ def lint_component_domain(fname: Path, content: str) -> str | None:
             return None
     return (
         f"Component is missing the {highlight(expected)} constant. "
-        "Add it next to CODEOWNERS (or after the imports) so other code can refer "
-        "to the component by name, e.g. CORE.data[DOMAIN]."
+        "Add it in alphabetical order with the other component metadata such as "
+        "CODEOWNERS and DEPENDENCIES, so other code can refer to the component by "
+        "name, e.g. CORE.data[DOMAIN]."
     )
 
 

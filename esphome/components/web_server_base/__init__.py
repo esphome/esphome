@@ -9,8 +9,8 @@ from esphome.helpers import copy_file_if_changed
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "web_server_base"
 DEPENDENCIES = ["network"]
+DOMAIN = "web_server_base"
 
 
 def AUTO_LOAD() -> list[str]:

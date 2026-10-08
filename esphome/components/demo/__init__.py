@@ -57,8 +57,6 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-DOMAIN = "demo"
-
 AUTO_LOAD = [
     "alarm_control_panel",
     "binary_sensor",
@@ -78,6 +76,7 @@ AUTO_LOAD = [
     "text_sensor",
     "valve",
 ]
+DOMAIN = "demo"
 
 demo_ns = cg.esphome_ns.namespace("demo")
 DemoAlarmControlPanel = demo_ns.class_(

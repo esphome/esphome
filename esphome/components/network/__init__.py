@@ -20,8 +20,8 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "network"
 AUTO_LOAD = ["mdns"]
+DOMAIN = "network"
 
 _LOGGER = logging.getLogger(__name__)
 

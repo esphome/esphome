@@ -11,9 +11,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-DOMAIN = "my9231"
-
 AUTO_LOAD = ["output"]
+DOMAIN = "my9231"
 my9231_ns = cg.esphome_ns.namespace("my9231")
 MY9231OutputComponent = my9231_ns.class_("MY9231OutputComponent", cg.Component)
 

@@ -25,12 +25,11 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriod
 from esphome.types import ConfigType
 
-DOMAIN = "remote_receiver"
-
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
 
 AUTO_LOAD = ["remote_base"]
+DOMAIN = "remote_receiver"
 remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")
 remote_base_ns = cg.esphome_ns.namespace("remote_base")
 

@@ -32,8 +32,6 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 from esphome.util import Registry
 
-DOMAIN = "text_sensor"
-
 DEVICE_CLASSES = [
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
@@ -41,6 +39,7 @@ DEVICE_CLASSES = [
 ]
 
 
+DOMAIN = "text_sensor"
 IS_PLATFORM_COMPONENT = True
 
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
