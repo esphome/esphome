@@ -362,23 +362,7 @@ bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, b
     }
     case 2: {  // set line properties (data bits / parity / stop bits)
       uint16_t value = channel->data_bits_;
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_NONE:
-          value |= (0x00 << 8);
-          break;
-        case UART_CONFIG_PARITY_ODD:
-          value |= (0x01 << 8);
-          break;
-        case UART_CONFIG_PARITY_EVEN:
-          value |= (0x02 << 8);
-          break;
-        case UART_CONFIG_PARITY_MARK:
-          value |= (0x03 << 8);
-          break;
-        case UART_CONFIG_PARITY_SPACE:
-          value |= (0x04 << 8);
-          break;
-      }
+      value |= channel->parity_code_() << 8;
       switch (channel->stop_bits_) {
         default:  // 1 bit
           value |= (0x00 << 11);

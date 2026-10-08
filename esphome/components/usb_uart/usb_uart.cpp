@@ -270,7 +270,7 @@ void USBUartComponent::dump_config() {
                   "    Flush Timeout: %" PRIu32 " ms\n"
                   "    Debug: %s\n"
                   "    Dummy receiver: %s",
-                  channel->index_, channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
+                  channel->index_, channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_code_()],
                   STOP_BITS_NAMES[channel->stop_bits_code_()], channel->flush_timeout_ms_, YESNO(channel->debug_),
                   YESNO(channel->dummy_receiver_));
   }
@@ -520,11 +520,11 @@ bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, b
           static_cast<uint8_t>((baud >> 16) & 0xFF),
           static_cast<uint8_t>((baud >> 24) & 0xFF),
           channel->stop_bits_code_(),                 // bCharFormat
-          static_cast<uint8_t>(channel->parity_),     // bParityType: 0=None, 1=Odd, 2=Even, 3=Mark, 4=Space
+          channel->parity_code_(),                    // bParityType
           static_cast<uint8_t>(channel->data_bits_),  // bDataBits
       };
-      ESP_LOGD(TAG, "SET_LINE_CODING: baud=%u stop=%s parity=%u data=%u", (unsigned) baud,
-               STOP_BITS_NAMES[channel->stop_bits_code_()], (unsigned) channel->parity_, channel->data_bits_);
+      ESP_LOGD(TAG, "SET_LINE_CODING: baud=%u stop=%s parity=%s data=%u", (unsigned) baud,
+               STOP_BITS_NAMES[channel->stop_bits_code_()], PARITY_NAMES[channel->parity_code_()], channel->data_bits_);
       this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_LINE_CODING, 0, channel->cdc_dev_.interrupt_interface_number,
                              line_coding);
       return true;
@@ -683,6 +683,21 @@ uint8_t USBUartChannelBase::stop_bits_code_() const {
       return 1;
     case UART_CONFIG_STOP_BITS_2:
       return 2;
+    default:
+      return 0;
+  }
+}
+
+uint8_t USBUartChannelBase::parity_code_() const {
+  switch (this->parity_) {
+    case uart::UART_CONFIG_PARITY_ODD:
+      return 1;
+    case uart::UART_CONFIG_PARITY_EVEN:
+      return 2;
+    case uart::UART_CONFIG_PARITY_MARK:
+      return 3;
+    case uart::UART_CONFIG_PARITY_SPACE:
+      return 4;
     default:
       return 0;
   }
