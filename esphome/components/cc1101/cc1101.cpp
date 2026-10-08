@@ -3,10 +3,16 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#include <cstring>
+
+#ifdef USE_ESP32
+#include <esp_memory_utils.h>
+#endif
 
 namespace esphome::cc1101 {
 
 static const char *const TAG = "cc1101";
+static constexpr size_t TX_FIFO_SIZE = 64;
 
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
@@ -379,18 +385,32 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
   this->disable();
 }
 
-CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
+CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+    return CC1101Error::PARAMS;
+  }
+  const bool variable = this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
+  // In variable length mode the FIFO also holds the length byte
+  if (len + (variable ? 1 : 0) > TX_FIFO_SIZE) {
+    ESP_LOGE(TAG, "Packet of %u bytes does not fit the TX FIFO", static_cast<unsigned>(len));
     return CC1101Error::PARAMS;
   }
 
   // Write packet
   this->enter_idle_();
   this->strobe_(Command::FTX);
-  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
-    this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
+  if (variable) {
+    this->write_(Register::FIFO, static_cast<uint8_t>(len));
   }
-  this->write_(Register::FIFO, packet.data(), packet.size());
+#ifdef USE_ESP32
+  // SPI DMA cannot read flash or unaligned buffers; stage them here so the driver does not allocate a copy
+  alignas(4) uint8_t staged[TX_FIFO_SIZE];
+  if (len != 0 && (!esp_ptr_dma_capable(data) || (reinterpret_cast<uintptr_t>(data) & 3) != 0)) {
+    std::memcpy(staged, data, len);
+    data = staged;
+  }
+#endif
+  this->write_(Register::FIFO, data, len);
 
   // Calibrate PLL
   if (!this->enter_calibrated_(State::FSTXON, Command::FSTXON)) {

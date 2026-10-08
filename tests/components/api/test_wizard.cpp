@@ -47,16 +47,14 @@ const WizardInputEntry API_WIZARD_INPUTS[API_WIZARD_INPUT_COUNT] = {
 
 using Bytes = std::vector<uint8_t>;
 
-static Bytes encode(const ProtoMessage &msg, uint32_t (*calc)(const void *),
-                    uint8_t *(*enc)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM)) {
+static Bytes encode(const ProtoMessage &msg, uint32_t (*calc)(const void *), ProtoEncodeFn enc) {
   APIBuffer buffer;
   uint32_t size = calc(&msg);
   EXPECT_TRUE(buffer.resize(size));
-  ProtoWriteBuffer writer(&buffer, 0);
 #ifdef ESPHOME_DEBUG_API
   uint8_t *proto_debug_end_ = buffer.data() + buffer.size();
 #endif
-  uint8_t *end = enc(&msg, writer PROTO_ENCODE_DEBUG_ARG);
+  uint8_t *end = enc(&msg, buffer.data() PROTO_ENCODE_DEBUG_ARG);
   EXPECT_EQ(static_cast<size_t>(end - buffer.data()), size);
   return Bytes(buffer.data(), buffer.data() + size);
 }
