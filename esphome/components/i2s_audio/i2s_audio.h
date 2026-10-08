@@ -75,6 +75,8 @@ class I2SAudioComponent final : public Component {
   /// @brief Disables the TX channel and stops the shared clocks if the RX side is idle. Only the speaker that
   /// acquired the channel may call this. Main loop only.
   void release_tx_channel();
+  /// @brief True while another speaker holds the full duplex TX channel
+  bool is_tx_in_use() const { return this->tx_in_use_; }
 #endif
   i2s_std_gpio_config_t get_pin_config() const {
     return {.mclk = (gpio_num_t) this->mclk_pin_,

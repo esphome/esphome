@@ -146,9 +146,11 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 
-      if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
-        ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-        this->status_momentary_error("driver-failure", 1000);
+      if (const esp_err_t err = this->start_i2s_driver(this->audio_stream_info_); err != ESP_OK) {
+        if (err != ESP_ERR_NOT_FINISHED) {
+          ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
+          this->status_momentary_error("driver-failure", 1000);
+        }
         break;
       }
 
@@ -319,9 +321,14 @@ esp_err_t I2SAudioSpeakerBase::prepare_event_queues_(size_t event_queue_size) {
 
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
 esp_err_t I2SAudioSpeakerBase::acquire_full_duplex_channel_(size_t event_queue_size) {
+  if (this->parent_->is_tx_in_use()) {
+    // Another speaker on the bus is playing; loop() retries until it releases the channel
+    ESP_LOGV(TAG, "Full duplex channel busy");
+    return ESP_ERR_NOT_FINISHED;
+  }
   this->tx_handle_ = this->parent_->acquire_tx_channel();
   if (this->tx_handle_ == nullptr) {
-    ESP_LOGE(TAG, "Full duplex channel busy or unavailable");
+    ESP_LOGE(TAG, "Full duplex channel unavailable");
     return ESP_ERR_INVALID_STATE;
   }
 
