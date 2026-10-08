@@ -330,11 +330,17 @@ void Component::status_momentary_error(const char *name, uint32_t length) {
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
 }
 void Component::status_momentary_warning(uint32_t length) {
-  this->status_set_warning();
+  this->status_momentary_warning(static_cast<const LogString *>(nullptr), length);
+}
+void Component::status_momentary_warning(const LogString *message, uint32_t length) {
+  this->status_set_warning(message);
   this->set_timeout(InternalSchedulerID::STATUS_WARNING, length, [this]() { this->status_clear_warning(); });
 }
 void Component::status_momentary_error(uint32_t length) {
-  this->status_set_error();
+  this->status_momentary_error(static_cast<const LogString *>(nullptr), length);
+}
+void Component::status_momentary_error(const LogString *message, uint32_t length) {
+  this->status_set_error(message);
   this->set_timeout(InternalSchedulerID::STATUS_ERROR, length, [this]() { this->status_clear_error(); });
 }
 void Component::dump_config() {}

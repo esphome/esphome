@@ -14,6 +14,12 @@ api:
         length: int
       then:
         - lambda: "id(probe)->status_momentary_error(length);"
+    - action: momentary_warning_message
+      then:
+        - lambda: 'id(probe)->status_momentary_warning(LOG_STR("probe warning reason"), 300);'
+    - action: momentary_error_message
+      then:
+        - lambda: 'id(probe)->status_momentary_error(LOG_STR("probe error reason"), 300);'
 
 logger:
 

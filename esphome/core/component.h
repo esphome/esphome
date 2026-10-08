@@ -310,7 +310,9 @@ class Component {
   void status_momentary_warning(const char *name, uint32_t length = 5000);
 
   /// Set warning status flag and clear it after `length` ms. A new call restarts the timeout.
+  /// `message` is logged in place of "unspecified" when the flag gets set.
   void status_momentary_warning(uint32_t length = 5000);
+  void status_momentary_warning(const LogString *message, uint32_t length = 5000);
 
   /** Set error status flag and automatically clear it after a timeout.
    *
@@ -322,7 +324,9 @@ class Component {
   void status_momentary_error(const char *name, uint32_t length = 5000);
 
   /// Set error status flag and clear it after `length` ms. A new call restarts the timeout.
+  /// `message` is logged in place of "unspecified" and stored like status_set_error()'s.
   void status_momentary_error(uint32_t length = 5000);
+  void status_momentary_error(const LogString *message, uint32_t length = 5000);
 
   bool has_overridden_loop() const { return (this->component_state_ & COMPONENT_HAS_LOOP) != 0; }
 

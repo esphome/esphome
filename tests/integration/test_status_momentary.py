@@ -16,14 +16,29 @@ async def test_status_momentary(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    async with run_compiled(yaml_config), api_client_connected() as client:
+    loop = asyncio.get_running_loop()
+    warning_logged = loop.create_future()
+    error_logged = loop.create_future()
+
+    def on_log_line(line: str) -> None:
+        if (
+            "set Warning flag: probe warning reason" in line
+            and not warning_logged.done()
+        ):
+            warning_logged.set_result(True)
+        if "set Error flag: probe error reason" in line and not error_logged.done():
+            error_logged.set_result(True)
+
+    async with (
+        run_compiled(yaml_config, line_callback=on_log_line),
+        api_client_connected() as client,
+    ):
         entities, services = await client.list_entities_services()
         svc = {s.name: s for s in services}
         keys = {e.object_id: e.key for e in entities}
         warning_key = keys["probe_warning"]
         error_key = keys["probe_error"]
 
-        loop = asyncio.get_running_loop()
         changes: asyncio.Queue[tuple[int, bool, float]] = asyncio.Queue()
         initial: dict[int, bool] = {}
 
@@ -70,3 +85,9 @@ async def test_status_momentary(
         value, cleared = await next_change(warning_key)
         assert value is False
         assert cleared - start >= 1.4
+
+        # A message replaces "unspecified" in the log line
+        await client.execute_service(svc["momentary_warning_message"], {})
+        await asyncio.wait_for(warning_logged, timeout=5)
+        await client.execute_service(svc["momentary_error_message"], {})
+        await asyncio.wait_for(error_logged, timeout=5)
