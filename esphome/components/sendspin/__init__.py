@@ -5,7 +5,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32, mdns, network, psram, socket, wifi
-from esphome.components.const import CONF_MANUFACTURER
+from esphome.components.const import CONF_ENABLED, CONF_MANUFACTURER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -175,6 +175,7 @@ class SendspinConfiguration:
     player_support: bool = False
     visualizer_support: bool = False
     pairing_code_display_support: bool = False
+    switch_types: set[str] = field(default_factory=set)
 
     artwork_preferences: list[ConfigType] = field(default_factory=list)
     player_config: ConfigType | None = None
@@ -214,6 +215,11 @@ def request_visualizer_support() -> None:
 def request_pairing_code_display_support() -> None:
     """Mark that the device can emit a dynamic pairing code (e.g. a pairing_code text sensor)."""
     _get_data().pairing_code_display_support = True
+
+
+def request_switch(switch_type: str) -> None:
+    """Mark that a sendspin switch of this type drives the matching hub setting."""
+    _get_data().switch_types.add(switch_type)
 
 
 def register_artwork_preference(config: ConfigType) -> int:
@@ -275,6 +281,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_STATIC_PAIRING_CODE): cv.sensitive(
                 _validate_static_pairing_code
             ),
+            # No default: the unpaired access switch rejects this key when it is set.
             cv.Optional(CONF_UNPAIRED_ACCESS): cv.boolean,
             cv.Optional(CONF_ON_OPEN_PAIRING_WINDOW): automation.validate_automation(
                 {}
@@ -322,8 +329,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
         )
     if not config.get(CONF_UNPAIRED_ACCESS, True) and not _has_pairing_method(config):
         _LOGGER.warning(
-            "'%s' is off but nothing lets a server pair (%s or a dynamic pairing code), so no "
-            "server can play on this device",
+            "'%s' is off but there is no pairing method (%s or a dynamic pairing code), so no "
+            "new server can pair with this device",
             CONF_UNPAIRED_ACCESS,
             CONF_STATIC_PAIRING_CODE,
         )
@@ -400,8 +407,12 @@ async def to_code(config: ConfigType) -> None:
     if (code := config.get(CONF_STATIC_PAIRING_CODE)) is not None:
         cg.add(var.set_static_pairing_code(code))
 
-    if (unpaired_access := config.get(CONF_UNPAIRED_ACCESS)) is not None:
-        cg.add(var.set_default_unpaired_access(unpaired_access))
+    # The client starts once both are set: here, or by the switch that drives the setting.
+    switch_types = _get_data().switch_types
+    if CONF_ENABLED not in switch_types:
+        cg.add(var.set_enabled(True))
+    if CONF_UNPAIRED_ACCESS not in switch_types:
+        cg.add(var.set_unpaired_access_enabled(config.get(CONF_UNPAIRED_ACCESS, True)))
 
     if _offers_dynamic_pairing_code(config):
         cg.add(var.set_pairing_code_display_supported(True))

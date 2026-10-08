@@ -168,12 +168,13 @@ class SendspinHub final : public Component,
   /// stop.
   ///
   /// Applied from the hub's loop(). Stopping blocks until the client is fully stopped; the roles' clear callbacks
-  /// fire from inside that call. With a sendspin switch configured the client stays stopped until the switch has
-  /// called this once. Must be called from the main loop thread.
+  /// fire from inside that call. The client stays stopped until this has been called once, by codegen or by the
+  /// enabled switch. Must be called from the main loop thread.
   void set_enabled(bool enabled);
 
-  /// Turns unpaired (Sentinel) access on or off from setup(); see SendspinClient::set_unpaired_access_enabled().
-  void set_default_unpaired_access(bool enabled) { this->default_unpaired_access_ = enabled; }
+  /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
+  /// access switch, before its first start. May be called before setup(). Main loop only.
+  void set_unpaired_access_enabled(bool enabled);
 
   /// @brief Returns whether the Sendspin client is running.
   bool is_client_running() const { return this->client_ != nullptr && this->client_->is_started(); }
@@ -382,14 +383,14 @@ class SendspinHub final : public Component,
 
   const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
   bool pairing_code_display_supported_{false};
-  bool default_unpaired_access_{true};
   bool task_stack_in_psram_{false};
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   bool mdns_advertised_{false};  // Last state requested from mdns
 #endif
 
-  // Requested client state, applied from loop(). Empty until the switch restores its state.
+  // Requested client state, applied from loop(). The client does not start until both are set.
   std::optional<bool> enabled_;
+  std::optional<bool> unpaired_access_;
 
   // Device information sent in the `client/hello` message. Defaults apply when neither the
   // sendspin configuration nor the project information supplies a value.
