@@ -287,6 +287,7 @@ esphome/components/inkplate/* @jesserockz @JosipKuci
 esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
+esphome/components/ir_rf_base/* @bdraco @kbx81
 esphome/components/ir_rf_proxy/* @kbx81
 esphome/components/it8951/* @koosoli @limengdu @Passific
 esphome/components/jsn_sr04t/* @Mafus1
@@ -657,6 +658,7 @@ esphome/components/xiaomi_body_scale/* @dckiller51
 esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd02mmc/* @juanluss31
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
+esphome/components/xiaomi_mccgq02hl/* @ahpohl @morph027
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
