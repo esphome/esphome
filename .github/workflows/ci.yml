@@ -893,14 +893,20 @@ jobs:
       matrix:
         include:
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 IDF 1/3
-            options: --environment esp32-idf-tidy --split-num 3 --split-at 1
+            name: Run script/clang-tidy for ESP32 IDF 1/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 1
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 IDF 2/3
-            options: --environment esp32-idf-tidy --split-num 3 --split-at 2
+            name: Run script/clang-tidy for ESP32 IDF 2/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 2
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 IDF 3/3
-            options: --environment esp32-idf-tidy --split-num 3 --split-at 3
+            name: Run script/clang-tidy for ESP32 IDF 3/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 3
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 IDF 4/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 4
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 IDF 5/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 5
 
     steps:
       - name: Check out code from GitHub
