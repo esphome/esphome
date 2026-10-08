@@ -42,6 +42,7 @@ from .const_zephyr import (
 from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
+    validate_number_esp32,
     validate_sensor_esp32,
     validate_switch_esp32,
     zigbee_require_vfs_select,
@@ -120,7 +121,9 @@ SENSOR_SCHEMA = (
 SWITCH_SCHEMA = (
     cv.Schema({}).extend(_get_base_schema(["generic", "on_off"])).extend(zephyr_switch)
 )
-NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
+NUMBER_SCHEMA = (
+    cv.Schema({}).extend(_get_base_schema(["generic"])).extend(zephyr_number)
+)
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:
@@ -269,12 +272,18 @@ async def setup_number(
     max_value: float,
     step: float,
 ) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
+        if not config.get(CONF_ZIGBEE_ID):
+            return
         from .zigbee_zephyr import zephyr_setup_number
 
         await zephyr_setup_number(entity, config, min_value, max_value, step)
+    else:
+        from .zigbee_esp32 import add_component as add_number
+
+        CORE.add_job(add_number, entity, config)
 
 
 def consume_endpoint(config: ConfigType) -> ConfigType:
@@ -320,7 +329,7 @@ def validate_number(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
-        return config
+        return validate_number_esp32(config)
     return consume_endpoint(config)
 
 

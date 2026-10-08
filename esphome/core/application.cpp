@@ -36,7 +36,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "app";
+ESPHOME_LOG_TAG(TAG, "app");
 
 // Delay after setup() finishes before trimming the scheduler freelist of its post-boot peak.
 // 10 s is well past the bulk of post-setup async work (Wi-Fi/MQTT connects, first-read latency).
