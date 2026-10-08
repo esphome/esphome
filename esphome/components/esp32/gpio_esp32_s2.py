@@ -73,7 +73,7 @@ def esp32_s2_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
         )
     if value.get(CONF_HOLD_STATE) and num == 46:
         raise cv.Invalid(
-            f"GPIO{num} is input-only and cannot be held during sleep.",
+            f"GPIO{num} is input-only and cannot be held.",
             [CONF_HOLD_STATE],
         )
 
