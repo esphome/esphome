@@ -51,7 +51,7 @@ inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
     yield();
     return;
   }
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms));
+  esphome_main_task_wait(pdMS_TO_TICKS(ms));
 }
 }  // namespace internal
 
