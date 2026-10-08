@@ -139,20 +139,19 @@ class _BatchItem:
         return self.own_seconds + sum(self.grouped_builds.values())
 
 
-def _grouped_build_seconds(
-    platform: str, solo_seconds: list[int], heavy_seconds: int = 0
-) -> int:
+def _grouped_build_seconds(platform: str, members: list[tuple[int, int]]) -> int:
     """Return the seconds of one (signature, platform) build in a batch.
 
+    members holds (solo seconds, heavy seconds) per component.
     test_build_components only groups when two or more members share the
     build; a grouped member then skips its variants on that platform.
     """
-    if len(solo_seconds) <= 1:
-        return sum(solo_seconds)
+    if len(members) <= 1:
+        return sum(solo for solo, _ in members)
     return (
         build_seconds(platform)
-        + GROUPED_COMPONENT_SECONDS * (len(solo_seconds) - 1)
-        + heavy_seconds
+        + GROUPED_COMPONENT_SECONDS * (len(members) - 1)
+        + sum(heavy for _, heavy in members)
     )
 
 
@@ -182,26 +181,25 @@ class _Batch:
     def __init__(self) -> None:
         self.components: list[str] = []
         self.seconds = 0
-        self.grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
-        self.heavy_seconds: dict[tuple[str, str], int] = defaultdict(int)
+        # Per (signature, platform) build: (solo, heavy) seconds of each member
+        self.grouped_builds: dict[tuple[str, str], list[tuple[int, int]]] = defaultdict(
+            list
+        )
 
     def added_seconds(self, item: _BatchItem) -> int:
         """Return the seconds item would add; joining an existing build is cheap."""
         added = item.own_seconds
         for (signature, platform), solo in item.grouped_builds.items():
-            build = (signature, platform)
-            members = self.grouped_builds.get(build, [])
-            heavy = self.heavy_seconds.get(build, 0)
+            members = self.grouped_builds.get((signature, platform), [])
             added += _grouped_build_seconds(
-                platform, [*members, solo], heavy + item.heavy_seconds
-            ) - _grouped_build_seconds(platform, members, heavy)
+                platform, [*members, (solo, item.heavy_seconds)]
+            ) - _grouped_build_seconds(platform, members)
         return added
 
     def add(self, item: _BatchItem) -> None:
         self.seconds += self.added_seconds(item)
         for build, solo in item.grouped_builds.items():
-            self.grouped_builds[build].append(solo)
-            self.heavy_seconds[build] += item.heavy_seconds
+            self.grouped_builds[build].append((solo, item.heavy_seconds))
         self.components.append(item.component)
 
 
@@ -214,16 +212,11 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     """
     if not items:
         return []
-    grouped_builds: dict[tuple[str, str], list[int]] = defaultdict(list)
-    heavy_seconds: dict[tuple[str, str], int] = defaultdict(int)
+    # One batch holding every item counts each grouped build once
+    whole = _Batch()
     for item in items:
-        for build, solo in item.grouped_builds.items():
-            grouped_builds[build].append(solo)
-            heavy_seconds[build] += item.heavy_seconds
-    total = sum(item.own_seconds for item in items) + sum(
-        _grouped_build_seconds(platform, solos, heavy_seconds[(signature, platform)])
-        for (signature, platform), solos in grouped_builds.items()
-    )
+        whole.add(item)
+    total = whole.seconds
     count = min(len(items), max(1, math.ceil(total / target_seconds)))
     batches = [_Batch() for _ in range(count)]
     for item in sorted(items, key=lambda i: (-i.standalone_seconds(), i.component)):
