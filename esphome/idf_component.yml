@@ -113,11 +113,11 @@ dependencies:
   # noise (api, ota). Arduino below IDF 6.0 bundles espressif/libsodium, which
   # clashes with esphome/libsodium, so those builds use the PlatformIO libraries.
   esphome/noise-c:
-    version: 0.1.30
+    version: 0.1.31
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
   # Declared alongside noise-c so the library converter skips wireguard's copy
   esphome/libsodium:
-    version: 1.10021.11
+    version: 1.10021.12
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
