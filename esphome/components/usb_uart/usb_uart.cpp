@@ -270,9 +270,10 @@ void USBUartComponent::dump_config() {
                   "    Flush Timeout: %" PRIu32 " ms\n"
                   "    Debug: %s\n"
                   "    Dummy receiver: %s",
-                  channel->index_, channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_code_()],
-                  STOP_BITS_NAMES[channel->stop_bits_code_()], channel->flush_timeout_ms_, YESNO(channel->debug_),
-                  YESNO(channel->dummy_receiver_));
+                  channel->index_, channel->baud_rate_, channel->data_bits_,
+                  PARITY_NAMES[static_cast<uint8_t>(channel->line_parity_())],
+                  STOP_BITS_NAMES[static_cast<uint8_t>(channel->line_stop_bits_())], channel->flush_timeout_ms_,
+                  YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
   }
 }
 void USBUartComponent::start_input(USBUartChannelBase *channel) {
@@ -519,12 +520,13 @@ bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, b
           static_cast<uint8_t>((baud >> 8) & 0xFF),
           static_cast<uint8_t>((baud >> 16) & 0xFF),
           static_cast<uint8_t>((baud >> 24) & 0xFF),
-          channel->stop_bits_code_(),                 // bCharFormat
-          channel->parity_code_(),                    // bParityType
-          static_cast<uint8_t>(channel->data_bits_),  // bDataBits
+          static_cast<uint8_t>(channel->line_stop_bits_()),  // bCharFormat
+          static_cast<uint8_t>(channel->line_parity_()),     // bParityType
+          static_cast<uint8_t>(channel->data_bits_),         // bDataBits
       };
       ESP_LOGD(TAG, "SET_LINE_CODING: baud=%u stop=%s parity=%s data=%u", (unsigned) baud,
-               STOP_BITS_NAMES[channel->stop_bits_code_()], PARITY_NAMES[channel->parity_code_()], channel->data_bits_);
+               STOP_BITS_NAMES[static_cast<uint8_t>(channel->line_stop_bits_())],
+               PARITY_NAMES[static_cast<uint8_t>(channel->line_parity_())], channel->data_bits_);
       this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_LINE_CODING, 0, channel->cdc_dev_.interrupt_interface_number,
                              line_coding);
       return true;
@@ -677,29 +679,29 @@ bool USBUartComponent::run_config_machine_() {
   return true;
 }
 
-uint8_t USBUartChannelBase::stop_bits_code_() const {
+LineStopBits USBUartChannelBase::line_stop_bits_() const {
   switch (this->stop_bits_) {
     case UART_CONFIG_STOP_BITS_1_5:
-      return 1;
+      return LineStopBits::LINE_STOP_BITS_1_5;
     case UART_CONFIG_STOP_BITS_2:
-      return 2;
+      return LineStopBits::LINE_STOP_BITS_2;
     default:
-      return 0;
+      return LineStopBits::LINE_STOP_BITS_1;
   }
 }
 
-uint8_t USBUartChannelBase::parity_code_() const {
+LineParity USBUartChannelBase::line_parity_() const {
   switch (this->parity_) {
     case uart::UART_CONFIG_PARITY_ODD:
-      return 1;
+      return LineParity::LINE_PARITY_ODD;
     case uart::UART_CONFIG_PARITY_EVEN:
-      return 2;
+      return LineParity::LINE_PARITY_EVEN;
     case uart::UART_CONFIG_PARITY_MARK:
-      return 3;
+      return LineParity::LINE_PARITY_MARK;
     case uart::UART_CONFIG_PARITY_SPACE:
-      return 4;
+      return LineParity::LINE_PARITY_SPACE;
     default:
-      return 0;
+      return LineParity::LINE_PARITY_NONE;
   }
 }
 

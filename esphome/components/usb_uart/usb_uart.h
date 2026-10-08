@@ -79,9 +79,25 @@ enum UARTStopBitsOptions {
   UART_CONFIG_STOP_BITS_1_5 = 3,
 };
 
-// Indexed by USBUartChannelBase::parity_code_()
+// Stop bits and parity as adapters take them on the wire: CDC SET_LINE_CODING, and the
+// CP210x, FTDI and PL2303 requests, all use these values
+enum class LineStopBits : uint8_t {
+  LINE_STOP_BITS_1 = 0,
+  LINE_STOP_BITS_1_5 = 1,
+  LINE_STOP_BITS_2 = 2,
+};
+
+enum class LineParity : uint8_t {
+  LINE_PARITY_NONE = 0,
+  LINE_PARITY_ODD = 1,
+  LINE_PARITY_EVEN = 2,
+  LINE_PARITY_MARK = 3,
+  LINE_PARITY_SPACE = 4,
+};
+
+// Indexed by LineParity
 static const char *const PARITY_NAMES[] = {"NONE", "ODD", "EVEN", "MARK", "SPACE"};
-// Indexed by USBUartChannelBase::stop_bits_code_()
+// Indexed by LineStopBits
 static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
 
 class RingBuffer {
@@ -174,11 +190,8 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
   void check_logger_conflict() override {}
-  // Stop bits as CDC bCharFormat encodes them, which CP210x and PL2303 share: 0 = 1, 1 = 1.5, 2 = 2
-  uint8_t stop_bits_code_() const;
-  // Parity as CDC bParityType encodes them, which every driver shares: 0 = none, 1 = odd, 2 = even,
-  // 3 = mark, 4 = space
-  uint8_t parity_code_() const;
+  LineStopBits line_stop_bits_() const;
+  LineParity line_parity_() const;
   // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;

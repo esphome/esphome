@@ -261,9 +261,9 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
         encode_baud_divisor(line_coding, baud);
       }
 
-      line_coding[4] = channel->stop_bits_code_();
+      line_coding[4] = static_cast<uint8_t>(channel->line_stop_bits_());
 
-      line_coding[5] = channel->parity_code_();
+      line_coding[5] = static_cast<uint8_t>(channel->line_parity_());
 
       // Data bits
       line_coding[6] = channel->get_data_bits();
