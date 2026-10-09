@@ -1,0 +1,25 @@
+# on_message with a payload filter, a subscription callback larger than a pointer with its unsubscribe,
+# and mutable callbacks, which keep their state instead of being copied per call.
+mqtt:
+  id: mqtt_client
+  on_message:
+    - topic: livingroom/ota_mode
+      payload: "ON"
+      qos: 1
+      then:
+        - logger.log: Got livingroom/ota_mode ON
+
+esphome:
+  on_boot:
+    - lambda: |-
+        std::string tag = "boxed";
+        id(mqtt_client).subscribe("some/topic/boxed", [tag](const std::string &topic, const std::string &payload) {
+          ESP_LOGD("test", "%s %s", tag.c_str(), payload.c_str());
+        });
+        id(mqtt_client).unsubscribe("some/topic/boxed");
+        id(mqtt_client).subscribe("some/topic/counted", [n = 0](const std::string &topic, const std::string &payload) mutable {
+          ESP_LOGD("test", "message %d: %s", ++n, payload.c_str());
+        });
+        id(mqtt_client).subscribe_json("some/topic/counted_json", [n = 0](const std::string &topic, JsonObject root) mutable {
+          ESP_LOGD("test", "json %d", ++n);
+        });
