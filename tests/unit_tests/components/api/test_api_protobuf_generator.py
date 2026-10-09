@@ -408,8 +408,39 @@ def test_progmem_rejected_in_a_decoded_message() -> None:
 
 
 def test_progmem_rejected_on_non_bytes_field() -> None:
-    """(progmem) only applies to bytes fields."""
-    field = _field(9)
+    """(progmem) only applies to string and bytes fields."""
+    field = _field(13)
+    field.options.Extensions[pb.progmem] = True
+    with pytest.raises(ValueError, match="progmem on field 'value'"):
+        create_field_type_info(field, needs_decode=False)
+
+
+@pytest.mark.parametrize(
+    ("force", "max_len", "encode_fn"),
+    [
+        (True, 120, "encode_short_progmem_string_force("),
+        (False, None, "encode_progmem_bytes("),
+        (True, None, "encode_progmem_bytes_force("),
+    ],
+)
+def test_progmem_string_field_copies_from_flash(
+    force: bool, max_len: int | None, encode_fn: str
+) -> None:
+    """A (progmem) string field is a ProgmemStringRef that encodes and dumps through the progmem helpers."""
+    field = _field(9, force=force)
+    field.options.Extensions[pb.progmem] = True
+    if max_len is not None:
+        field.options.Extensions[pb.max_data_length] = max_len
+    ti = create_field_type_info(field, needs_decode=False)
+    assert "ProgmemStringRef value{};" in ti.public_content
+    assert encode_fn in ti.encode_content
+    assert "encode_string" not in ti.encode_content
+    assert "dump_progmem_string_field(" in ti.dump_content
+
+
+def test_progmem_rejected_on_repeated_string() -> None:
+    """(progmem) on a repeated string field fails instead of silently using memcpy."""
+    field = _field(9, repeated=True)
     field.options.Extensions[pb.progmem] = True
     with pytest.raises(ValueError, match="progmem on field 'value'"):
         create_field_type_info(field, needs_decode=False)

@@ -409,6 +409,10 @@ class ProtoEncode {
   /// Tag must be a single-byte varint (< 128). Always encodes (no zero check).
   [[nodiscard]] static inline uint8_t *encode_short_string_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                                  uint8_t tag, const StringRef &ref) {
+#ifdef USE_ESP8266
+    // memcpy_P reads RAM too, so RAM strings share the outlined copy
+    return encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, tag, ProgmemStringRef(ref));
+#else
 #ifdef ESPHOME_DEBUG_API
     assert(ref.size() < 128 && "encode_short_string_force: string exceeds max_data_length < 128");
 #endif
@@ -416,6 +420,19 @@ class ProtoEncode {
     pos[0] = tag;
     pos[1] = static_cast<uint8_t>(ref.size());
     std::memcpy(pos + 2, ref.c_str(), ref.size());
+    return pos + 2 + ref.size();
+#endif
+  }
+  /// encode_short_string_force for a string that may be in flash (PROGMEM).
+  [[nodiscard]] static PROTO_OUTLINE_FOR_SIZE uint8_t *encode_short_progmem_string_force(
+      uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag, const ProgmemStringRef &ref) {
+#ifdef ESPHOME_DEBUG_API
+    assert(ref.size() < 128 && "encode_short_progmem_string_force: string exceeds max_data_length < 128");
+#endif
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
+    pos[0] = tag;
+    pos[1] = static_cast<uint8_t>(ref.size());
+    progmem_memcpy(pos + 2, ref.progmem_ptr(), ref.size());
     return pos + 2 + ref.size();
   }
   /// Write a precomputed tag byte + 32-bit value. Outlined on embedded: one copy beats inline stores per field.
