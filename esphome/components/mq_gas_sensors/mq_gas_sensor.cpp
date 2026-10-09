@@ -10,7 +10,7 @@
 
 namespace esphome::mq_gas_sensors {
 
-static const char *const TAG = "mq_gas_sensors";
+ESPHOME_LOG_TAG(TAG, "mq_gas_sensors");
 
 /// Version tag mixed into the preference key of the persisted R0 value.
 static constexpr uint32_t R0_PREFERENCE_VERSION = 0x00000001;
