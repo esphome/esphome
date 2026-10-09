@@ -88,3 +88,13 @@ def test_opus_at_wrong_sample_rate_rejected(
 
     with pytest.raises(cv.Invalid, match="requires a sample_rate of 48000"):
         CONFIG_SCHEMA(_media_source_config(codecs=["opus"], sample_rate=44100))
+
+
+def test_opus_only_codec_list_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Every server supports FLAC or PCM, so sendspin-cpp requires one of them."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    with pytest.raises(cv.Invalid, match="must include 'flac' or 'pcm'"):
+        CONFIG_SCHEMA(_media_source_config(codecs=["opus"]))

@@ -252,6 +252,10 @@ class APIServerConnectionBase {
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
 #endif
+
+#ifdef USE_SENDSPIN
+  void on_sendspin_pairing_token_request(){};
+#endif
 };
 
 }  // namespace esphome::api

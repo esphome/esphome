@@ -34,6 +34,7 @@ GraphicalDisplayMenuOnRedrawTrigger = graphical_display_menu_ns.class_(
 )
 
 CODEOWNERS = ["@MrMDavidson"]
+DOMAIN = "graphical_display_menu"
 
 AUTO_LOAD = ["display_menu_base"]
 
