@@ -41,9 +41,7 @@ void delay_microseconds_safe(uint32_t us);
 /// which is ISR-safe) so this helper is unused on this platform.
 __attribute__((always_inline)) inline bool in_isr_context() { return false; }
 
-/// ESP8266's cooperative loop runs on the suspendable CONT stack. SDK SYS
-/// callbacks and interrupt handlers cannot yield and must wake the loop to
-/// re-check newly scheduled work.
+/// SDK SYS callbacks and interrupt handlers cannot yield, so they are not the loop context.
 __attribute__((always_inline)) inline bool is_main_loop_thread() { return can_yield(); }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }

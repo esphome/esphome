@@ -38,7 +38,7 @@ inline void wake_scheduler_threadsafe() { esphome_main_task_notify(); }
 
 inline void wake_loop_threadsafe() {
   wake_request_set();
-  esphome_main_task_notify();
+  wake_scheduler_threadsafe();
 }
 
 namespace internal {

@@ -27,8 +27,6 @@ __attribute__((always_inline)) inline bool is_main_loop_thread() {
   return main_thread == nullptr || k_current_get() == main_thread;
 }
 
-inline void set_main_loop_thread() { main_loop_thread() = k_current_get(); }
-
 __attribute__((always_inline)) inline void yield() { ::k_yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::k_msleep(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }

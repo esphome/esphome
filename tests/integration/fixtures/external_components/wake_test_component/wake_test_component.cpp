@@ -21,7 +21,7 @@ void WakeTestComponent::start_async_timeout() {
   std::thread([this, start_time] {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     const int start_loop_count = this->get_loop_count();
-    this->set_timeout("background-wake-test", 100, [this, start_time, start_loop_count] {
+    this->set_timeout(100, [this, start_time, start_loop_count] {
       ESP_LOGI(TAG, "SCHEDULER_WAKE_RESULT elapsed=%u loop_delta=%d", static_cast<unsigned int>(millis() - start_time),
                this->get_loop_count() - start_loop_count);
     });
