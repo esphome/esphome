@@ -59,7 +59,8 @@ void *plain_alloc(std::size_t size) {
   return alloc_or_null(size, [](std::size_t n) { return std::malloc(n); });  // NOLINT(cppcoreguidelines-no-malloc)
 }
 
-// libstdc++'s aligned delete frees with free() (checked above), which matches IDF's aligned_alloc()
+// IDF's aligned_alloc accepts any size (no C11 multiple of alignment rule) and pairs with free(),
+// which libstdc++'s aligned delete uses (checked above)
 void *aligned_alloc_or_null(std::size_t size, std::align_val_t align) {
   return alloc_or_null(size, [align](std::size_t n) { return ::aligned_alloc(static_cast<std::size_t>(align), n); });
 }
