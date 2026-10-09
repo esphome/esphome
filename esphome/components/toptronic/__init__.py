@@ -20,6 +20,7 @@ from esphome.cpp_types import Component
 
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
+DOMAIN = "toptronic"
 AUTO_LOAD = ["sensor", "number", "select", "text_sensor", "button", "switch"]
 MULTI_CONF = True
 
