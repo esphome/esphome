@@ -5,7 +5,7 @@
 
 namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
-static const char *const TAG = "bme680_bsec.sensor";
+ESPHOME_LOG_TAG(TAG, "bme680_bsec.sensor");
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
@@ -162,8 +162,9 @@ void BME680BSECComponent::dump_config() {
                 "  Supply Voltage: %sV\n"
                 "  Sample Rate: %s\n"
                 "  State Save Interval: %" PRIu32 "ms",
-                this->temperature_offset_, this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile",
-                this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8",
+                this->temperature_offset_,
+                this->iaq_mode_ == IAQ_MODE_STATIC ? LOG_STR_LITERAL("Static") : LOG_STR_LITERAL("Mobile"),
+                this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? LOG_STR_LITERAL("3.3") : LOG_STR_LITERAL("1.8"),
                 BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_), this->state_save_interval_ms_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

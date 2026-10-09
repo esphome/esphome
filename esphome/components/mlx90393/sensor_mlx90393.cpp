@@ -1,9 +1,11 @@
+#ifndef USE_BK72XX
+
 #include "sensor_mlx90393.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mlx90393 {
 
-static const char *const TAG = "mlx90393";
+ESPHOME_LOG_TAG(TAG, "mlx90393");
 
 const LogString *settings_to_string(MLX90393Setting setting) {
   switch (setting) {
@@ -270,3 +272,5 @@ void MLX90393Cls::verify_settings_timeout_(MLX90393Setting stage) {
 }
 
 }  // namespace esphome::mlx90393
+
+#endif  // USE_BK72XX

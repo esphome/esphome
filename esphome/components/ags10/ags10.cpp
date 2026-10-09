@@ -4,7 +4,7 @@
 #include <cinttypes>
 
 namespace esphome::ags10 {
-static const char *const TAG = "ags10";
+ESPHOME_LOG_TAG(TAG, "ags10");
 
 // Data acquisition.
 static const uint8_t REG_TVOC = 0x00;
@@ -105,6 +105,20 @@ bool AGS10Component::new_i2c_address(uint8_t newaddress) {
 bool AGS10Component::set_zero_point_with_factory_defaults() { return this->set_zero_point_with(ZP_DEFAULT); }
 
 bool AGS10Component::set_zero_point_with_current_resistance() { return this->set_zero_point_with(ZP_CURRENT); }
+
+void AGS10Component::set_zero_point(AGS10SetZeroPointActionMode mode, uint16_t value) {
+  switch (mode) {
+    case FACTORY_DEFAULT:
+      this->set_zero_point_with_factory_defaults();
+      break;
+    case CURRENT_VALUE:
+      this->set_zero_point_with_current_resistance();
+      break;
+    case CUSTOM_VALUE:
+      this->set_zero_point_with(value);
+      break;
+  }
+}
 
 bool AGS10Component::set_zero_point_with(uint16_t value) {
   std::array<uint8_t, 5> data{0x00, 0x0C, (uint8_t) ((value >> 8) & 0xFF), (uint8_t) (value & 0xFF), 0};

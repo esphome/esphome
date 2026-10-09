@@ -26,11 +26,13 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
+    COMPONENT_LN882X,
     CONF_GPIO_RECOVER,
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
@@ -55,6 +57,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "libretiny"
 IS_TARGET_PLATFORM = True
 
 # BLE 5.x BK SDK options to disable unused features.
@@ -76,12 +79,27 @@ _BLE5_BK_SYS_CONFIG_OPTIONS = [
     "CFG_SUPPORT_BLE=0",
 ]
 
+# Board ids upstream LibreTiny renamed; configs written against the old id
+# keep validating and building against the new one (with a warning).
+# generic-ln882hki -> generic-ln882h: LibreTiny v1.13.0.
+_RENAMED_BOARDS = {
+    "generic-ln882hki": "generic-ln882h",
+}
+
 
 def _detect_variant(value):
     if KEY_LIBRETINY not in CORE.data:
         raise cv.Invalid("Family component didn't populate core data properly!")
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board = value[CONF_BOARD]
+    if board not in component.boards and (renamed := _RENAMED_BOARDS.get(board)):
+        _LOGGER.warning(
+            "Board '%s' was renamed to '%s'; please update your configuration",
+            board,
+            renamed,
+        )
+        value = value.copy()
+        value[CONF_BOARD] = board = renamed
     # read board-default family if not specified
     if board not in component.boards:
         if CONF_FAMILY not in value:
@@ -166,6 +184,9 @@ def get_download_types(storage_json: StorageJSON = None):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = [
         {
             "title": "UF2 package (recommended)",
@@ -257,7 +278,10 @@ FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
+            # Raw PlatformIO package source — build internal, not a UI field.
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
             cv.Optional(CONF_LOGLEVEL, default="warn"): (
                 cv.one_of(*LT_LOGLEVELS, upper=True)
             ),
@@ -278,7 +302,7 @@ FRAMEWORK_SCHEMA = cv.All(
     _check_debug_order,
 )
 
-CONFIG_SCHEMA = cv.All(_notify_old_style)
+CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
 BASE_SCHEMA = cv.Schema(
     {
@@ -292,6 +316,7 @@ BASE_SCHEMA = cv.Schema(
 )
 
 BASE_SCHEMA.add_extra(_detect_variant)
+BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
 
 
@@ -442,6 +467,8 @@ async def component_to_code(config):
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETINY")
+    # FlashDB finds stored preferences by key, so preference key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -464,6 +491,10 @@ async def component_to_code(config):
         # The -D wins over the #ifndef default in FreeRTOS.h.
         # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
         cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
+
+    # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
+    if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:
+        cg.add_build_flag("-Wl,--wrap=pvPortMalloc")
 
     # RTL8710B needs FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake
     # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)
@@ -488,11 +519,18 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    # Must run before the platform's builder scripts are loaded; see the script.
+    cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
+        cg.add_build_unflag("-fno-short-enums")
+        cg.add_build_flag("-fshort-enums")
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
@@ -562,8 +600,13 @@ async def component_to_code(config):
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
 
-    # Apply chip-specific SDK options to save RAM/Flash
-    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
+    # Apply chip-specific SDK options to save RAM/Flash.
+    # Skipped when bk72xx_ble is configured: add_platformio_option APPENDS list
+    # values (it never replaces), so emitting the disable here as well would put
+    # both CFG_SUPPORT_BLE=0 and =1 into the generated sys_config.h and rely on
+    # last-wins emission order. Skipping keeps it a single unambiguous define.
+    ble_requested = "bk72xx_ble" in CORE.config
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238) and not ble_requested:
         cg.add_platformio_option(
             "custom_options.sys_config#h", _BLE5_BK_SYS_CONFIG_OPTIONS
         )
@@ -587,3 +630,8 @@ def copy_files() -> None:
         patch_linker_file,
         CORE.relative_build_path("patch_linker.py"),
     )
+    copy_file_if_changed(
+        script_dir / "scons_dont_inherit.py.script",
+        CORE.relative_build_path("scons_dont_inherit.py"),
+    )
+    copy_ccache_script()

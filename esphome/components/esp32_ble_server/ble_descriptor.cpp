@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server.descriptor";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server.descriptor");
 
 static RAMAllocator<uint8_t> descriptor_allocator{};  // NOLINT
 
@@ -77,6 +77,10 @@ void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
     case ESP_GATTS_WRITE_EVT: {
       if (this->handle_ != param->write.handle)
         break;
+      if (param->write.len > this->value_.attr_max_len) {
+        ESP_LOGE(TAG, "Size %d too large, must be no bigger than %d", param->write.len, this->value_.attr_max_len);
+        break;
+      }
       this->value_.attr_len = param->write.len;
       memcpy(this->value_.attr_value, param->write.value, param->write.len);
       if (this->on_write_callback_) {

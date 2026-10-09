@@ -5,7 +5,7 @@
 
 namespace esphome::ltr390 {
 
-static const char *const TAG = "ltr390";
+ESPHOME_LOG_TAG(TAG, "ltr390");
 
 static const uint8_t LTR390_WAKEUP_TIME = 10;
 static const uint8_t LTR390_SETTLE_TIME = 5;

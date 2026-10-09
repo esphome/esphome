@@ -1,8 +1,12 @@
 import logging
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, uart
+from esphome.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
+from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
+from esphome.components.text_sensor import DOMAIN as TEXT_SENSOR_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -12,11 +16,13 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "dlms_meter"
 
 CONF_DLMS_METER_ID = "dlms_meter_id"
 CONF_DECRYPTION_KEY = "decryption_key"
@@ -33,13 +39,13 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
 )
 
 
-def obis_code(value):
+def obis_code(value: Any) -> str:
     # Normalize the OBIS code to the strict A.B.C.D.E.F format
     bytes_list = parse_obis_code_bytes(value)
     return ".".join(str(b) for b in bytes_list)
 
 
-def parse_obis_code_bytes(value):
+def parse_obis_code_bytes(value: Any) -> list[int]:
     value = cv.string(value)
     normalized = re.sub(r"[\-\:\*]", ".", value)
     parts = normalized.split(".")
@@ -57,19 +63,19 @@ def parse_obis_code_bytes(value):
     return bytes_list
 
 
-def custom_pattern_dict(value):
+def custom_pattern_dict(value: Any) -> ConfigType:
     if isinstance(value, str):
         return {CONF_PATTERN: value}
     return value
 
 
-def validate_custom_pattern(value):
+def validate_custom_pattern(value: ConfigType) -> ConfigType:
     if CONF_DEFAULT_OBIS in value and CONF_NAME not in value:
         raise cv.Invalid(f"'{CONF_DEFAULT_OBIS}' requires '{CONF_NAME}' to be set")
     return value
 
 
-def validate_provider_deprecation(config):
+def validate_provider_deprecation(config: ConfigType) -> ConfigType:
     if CONF_PROVIDER in config:
         provider = str(config[CONF_PROVIDER]).lower()
         if provider == "netznoe":
@@ -154,7 +160,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_rx=True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     dec_key_expr = cg.RawExpression("std::nullopt")
     if dec_key := config.get(CONF_DECRYPTION_KEY):
         key_bytes = [str(int(dec_key[i : i + 2], 16)) for i in range(0, 32, 2)]
@@ -208,9 +214,9 @@ async def to_code(config):
     hub_id = config[CONF_ID].id
 
     sensor_count = 0
-    for sens_conf in CORE.config.get("sensor", []):
+    for sens_conf in CORE.config.get(SENSOR_DOMAIN, []):
         if (
-            sens_conf.get("platform") == "dlms_meter"
+            sens_conf.get("platform") == DOMAIN
             and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
         ):
             if CONF_OBIS_CODE in sens_conf:
@@ -221,9 +227,9 @@ async def to_code(config):
                 sensor_count += sum(1 for key in NUMERIC_KEYS if key in sens_conf)
 
     text_sensor_count = 0
-    for sens_conf in CORE.config.get("text_sensor", []):
+    for sens_conf in CORE.config.get(TEXT_SENSOR_DOMAIN, []):
         if (
-            sens_conf.get("platform") == "dlms_meter"
+            sens_conf.get("platform") == DOMAIN
             and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
         ):
             if CONF_OBIS_CODE in sens_conf:
@@ -234,9 +240,9 @@ async def to_code(config):
                 text_sensor_count += sum(1 for key in TEXT_KEYS if key in sens_conf)
 
     binary_sensor_count = 0
-    for sens_conf in CORE.config.get("binary_sensor", []):
+    for sens_conf in CORE.config.get(BINARY_SENSOR_DOMAIN, []):
         if (
-            sens_conf.get("platform") == "dlms_meter"
+            sens_conf.get("platform") == DOMAIN
             and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
         ):
             binary_sensor_count += 1

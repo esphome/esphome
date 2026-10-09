@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <cstdint>
 #include <cstring>
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
@@ -80,6 +81,10 @@ class UARTComponent {
   // Pure virtual method to return the number of bytes available for reading.
   // @return Number of available bytes.
   virtual size_t available() = 0;
+
+  // Returns how many bytes write_array() accepts right now without blocking.
+  // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
+  virtual size_t available_for_write() { return SIZE_MAX; }
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
@@ -178,7 +183,7 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings(bool dump_config){};
+  virtual void load_settings(bool dump_config) = 0;
 
   /**
    * Load the UART settings.
@@ -190,7 +195,7 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings(){};
+  void load_settings() { this->load_settings(true); }
 #endif  // USE_ESP8266 || USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
@@ -212,7 +217,7 @@ class UARTComponent {
   uint32_t baud_rate_{0};
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
-  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif

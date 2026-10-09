@@ -1,0 +1,15 @@
+# W5500 next to wifi with PSRAM: compiles the input path that moves received frames to PSRAM
+packages:
+  ethernet: !include common-w5500.yaml
+
+psram:
+  mode: quad
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+network:
+  priority:
+    - ethernet
+    - wifi

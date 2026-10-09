@@ -7,7 +7,7 @@
 namespace esphome {
 namespace zephyr {
 
-static const char *const TAG = "zephyr";
+ESPHOME_LOG_TAG(TAG, "zephyr");
 
 static gpio_flags_t flags_to_mode(gpio::Flags flags, bool inverted, bool value) {
   gpio_flags_t ret = 0;
@@ -171,6 +171,14 @@ bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
     return false;
   }
   return bool(gpio_pin_get(arg->gpio, arg->pin % arg->gpio_size) != arg->inverted);
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
+  auto *arg = (zephyr::ISRPinArg *) this->arg_;
+  if (arg == nullptr || arg->gpio == nullptr) {
+    return;
+  }
+  gpio_pin_set(arg->gpio, arg->pin % arg->gpio_size, value != arg->inverted ? 1 : 0);
 }
 
 }  // namespace esphome

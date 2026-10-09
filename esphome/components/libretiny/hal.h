@@ -44,6 +44,7 @@
 // it is callable from Thumb code via interworking. The MRS CPSR instruction
 // is ARM-only and user code here may be built in Thumb, so in_isr_context()
 // defers to this port helper on BK72xx instead of reading CPSR inline.
+// NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" uint32_t platform_is_in_interrupt_context(void);
 #endif
 
@@ -59,9 +60,11 @@ extern "C" void delayMicroseconds(unsigned int us);
 // Forward decls from libretiny's <lt_api.h> family for the inline arch_*
 // wrappers below. Pulling the full header would drag in the rest of the
 // LibreTiny C API.
+// NOLINTBEGIN(readability-redundant-declaration)
 extern "C" void lt_wdt_feed(void);
 extern "C" uint32_t lt_cpu_get_cycle_count(void);
 extern "C" uint32_t lt_cpu_get_freq(void);
+// NOLINTEND(readability-redundant-declaration)
 
 namespace esphome::libretiny {}
 

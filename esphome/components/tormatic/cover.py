@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import cover, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_CLOSE_DURATION, CONF_OPEN_DURATION
+from esphome.types import ConfigType
 
 tormatic_ns = cg.esphome_ns.namespace("tormatic")
 Tormatic = tormatic_ns.class_("Tormatic", cover.Cover, cg.PollingComponent)
@@ -33,7 +34,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

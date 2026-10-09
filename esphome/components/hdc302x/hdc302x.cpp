@@ -6,7 +6,7 @@
 
 namespace esphome::hdc302x {
 
-static const char *const TAG = "hdc302x.sensor";
+ESPHOME_LOG_TAG(TAG, "hdc302x.sensor");
 
 // Commands (per datasheet Table 7-4)
 static const uint8_t HDC302X_CMD_SOFT_RESET[2] = {0x30, 0xa2};
@@ -38,7 +38,7 @@ void HDC302XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HDC302x:\n"
                 "  Heater: %s",
-                this->heater_active_ ? "active" : "inactive");
+                this->heater_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("inactive"));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temp_sensor_);

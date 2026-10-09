@@ -71,7 +71,7 @@ struct ESPTime {
    * @warning This method can return "ERROR" when the underlying strftime() call fails or when the
    * output exceeds STRFTIME_BUFFER_SIZE bytes.
    */
-  std::string strftime(const std::string &format);
+  std::string strftime(const std::string &format) { return this->strftime(format.c_str()); }
 
   /// @copydoc strftime(const std::string &format)
   std::string strftime(const char *format);
