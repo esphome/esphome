@@ -7,7 +7,6 @@ from esphome.types import ConfigType
 
 from . import CONF_SUN_GTIL2_ID, SunGTIL2Component
 
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
