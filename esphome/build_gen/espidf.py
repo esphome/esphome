@@ -237,6 +237,29 @@ def idf_macro_matches(idf_path: Path) -> bool:
     return live == _EXPECTED_MACRO
 
 
+def _cmake_args_for_write(minimal: bool) -> dict[str, str]:
+    """The cg.add_cmake_arg() values for one project write.
+
+    The discovery (minimal) write lets every built-in component register so
+    the list it finds, cached per target, serves any exclusion set; the full
+    write drops the excluded names from that list and passes all of them to
+    IDF. Managed components stay excluded on the discovery write too, since
+    the list only holds built-in ones.
+    """
+    args = dict(CORE.cmake_args)
+    if not minimal or not (excluded := args.get("EXCLUDE_COMPONENTS")):
+        return args
+    from esphome.espidf.toolchain import _get_idf_path
+
+    root = _get_idf_path() / "components"
+    managed = [name for name in excluded.split(";") if not (root / name).is_dir()]
+    if managed:
+        args["EXCLUDE_COMPONENTS"] = ";".join(managed)
+    else:
+        del args["EXCLUDE_COMPONENTS"]
+    return args
+
+
 def get_project_cmakelists(
     minimal: bool = False, builtin_components: list[str] | None = None
 ) -> str:
@@ -300,11 +323,10 @@ def get_project_cmakelists(
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
-    # set when project.cmake seeds the component list, and on minimal
-    # (discovery) writes too so excluded components never register.
+    # set when project.cmake seeds the component list.
     cmake_args = "\n".join(
         f"set({name} {_cmake_quote(value)})"
-        for name, value in sorted(CORE.cmake_args.items())
+        for name, value in sorted(_cmake_args_for_write(minimal).items())
     )
 
     # Per-project list exposed as a CMake variable so converted PIO libs

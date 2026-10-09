@@ -676,7 +676,7 @@ def test_component_cache_round_trip(setup_core: Path, tmp_path: Path) -> None:
 def test_component_cache_misses_on_key_change_or_missing_component(
     setup_core: Path, tmp_path: Path
 ) -> None:
-    """A different exclusion set uses another entry, an entry naming a
+    """One entry per target serves every exclusion set, an entry naming a
     component that no longer exists is ignored, and a custom IDF_PATH is
     never cached."""
     _setup_build(setup_core)
@@ -685,12 +685,12 @@ def test_component_cache_misses_on_key_change_or_missing_component(
         toolchain.save_cached_builtin_components(["lwip"])
         path = toolchain._builtin_component_cache_path()
         assert path.parent == idf_path / ".esphome_component_lists"
-        assert path.name.startswith("esp32-")
+        assert path.name == "esp32.json"
         assert toolchain.load_cached_builtin_components() == ["lwip"]
         with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
             assert toolchain.load_cached_builtin_components() is None
     with _cache_env(tmp_path, "fatfs;unity"):
-        assert toolchain.load_cached_builtin_components() is None
+        assert toolchain.load_cached_builtin_components() == ["lwip"]
     with _cache_env(tmp_path, "fatfs") as idf_path:
         path.write_text(json.dumps(["lwip", "gone"]))
         assert toolchain.load_cached_builtin_components() is None
