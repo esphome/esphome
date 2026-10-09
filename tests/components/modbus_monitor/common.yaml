@@ -2,7 +2,11 @@ modbus_monitor:
   - modbus_id: modbus_server_bus
     on_request:
       - lambda: |-
-          ESP_LOGD("modbus_monitor", "Request to %u, function 0x%02X, %u bytes", address, request_pdu[0],
-                   (unsigned) request_pdu.size());
+          ESP_LOGD("modbus_monitor", "Request to %u, function 0x%02X, %u bytes", address, request[0],
+                   (unsigned) request.size());
   - on_request:
       - logger.log: "Second monitor on the same hub"
+    on_response:
+      - lambda: |-
+          ESP_LOGD("modbus_monitor", "Response from %u to function 0x%02X, %u bytes", address, request[0],
+                   (unsigned) response.size());

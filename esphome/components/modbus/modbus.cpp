@@ -380,6 +380,10 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   // Deliver at parse time so the response span can point into the rx buffer (zero copy). error()/
   // response() set the state and consume the request BEFORE the callback, so a clear from inside it
   // ("stop polling now") wins. A device-less shell runs no callback and the sweep erases it.
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  // Before the device callback, which may consume the request.
+  this->response_callback_.call(address, cmd->frame.pdu(), pdu);
+#endif
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
   if (helpers::is_function_code_exception(function_code)) {
@@ -393,13 +397,19 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   }
 }
 
-void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t>) {
+void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
   if (this->find_device_(address) != nullptr) {
     ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
   }
 
   if (this->expecting_peer_response_ == address) {
     ESP_LOGV(TAG, "Expected response from peer %" PRIu8 " received", address);
+#ifdef MODBUS_ON_RESPONSE_COUNT
+    if (this->peer_request_len_ != 0 && (pdu[0] & FUNCTION_CODE_MASK) == this->peer_request_[0]) {
+      this->response_callback_.call(address, std::span<const uint8_t>(this->peer_request_, this->peer_request_len_),
+                                    pdu);
+    }
+#endif
   } else {
     ESP_LOGV(TAG, "Unexpected response from peer %" PRIu8 " received", address);
   }
@@ -619,6 +629,11 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
+#ifdef MODBUS_ON_RESPONSE_COUNT
+    this->peer_request_[0] = function_code;
+    std::memcpy(this->peer_request_ + 1, data.data(), data.size());
+    this->peer_request_len_ = static_cast<uint8_t>(data.size() + 1);
+#endif
     ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
     return;
   }

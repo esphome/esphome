@@ -23,6 +23,9 @@ class MonitorClientHub : public ModbusClientHub {
     this->sweep_();
   }
   bool waiting() const { return this->waiting_for_response_; }
+  void receive_for_test(uint8_t address, std::span<const uint8_t> pdu) {
+    this->process_modbus_server_frame(address, pdu);
+  }
   size_t entries() const { return this->tx_buffer_.size(); }
 };
 
@@ -120,6 +123,25 @@ TEST(MonitorClientBlocked, NotSentIsNotSeen) {
   ASSERT_TRUE(hub.queue_pdu(0x02, READ));
   hub.send_next_for_test();
   EXPECT_EQ(seen, 0);
+}
+
+TEST_F(MonitorClient, ResponseIsSeenWithItsRequest) {
+  std::vector<uint8_t> request, response;
+  uint8_t from = 0;
+  this->hub_.add_on_response_callback(
+      [&](uint8_t address, std::span<const uint8_t> req, std::span<const uint8_t> resp) {
+        from = address;
+        request.assign(req.begin(), req.end());
+        response.assign(resp.begin(), resp.end());
+      });
+  ModbusClientDevice device(&this->hub_, 0x02);
+  ASSERT_TRUE(device.queue_pdu(READ));
+  this->hub_.send_next_for_test();
+  const uint8_t reply[] = {0x03, 0x04, 0x00, 0x2A, 0x00, 0x2B};
+  this->hub_.receive_for_test(0x02, reply);
+  EXPECT_EQ(from, 0x02);
+  EXPECT_EQ(request, std::vector<uint8_t>(std::begin(READ), std::end(READ)));
+  EXPECT_EQ(response, std::vector<uint8_t>(std::begin(reply), std::end(reply)));
 }
 
 }  // namespace esphome::modbus::testing

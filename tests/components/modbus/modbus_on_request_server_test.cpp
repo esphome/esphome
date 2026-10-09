@@ -160,4 +160,20 @@ TEST_F(MonitorServer, UnknownFunctionIsSeen) {
   EXPECT_EQ(this->seen_[0].pdu, vec(pdu));
 }
 
+// The reply of another device is reported with the request it answers; a reply that does not match is not.
+TEST_F(MonitorServer, PeerResponseIsSeenWithItsRequest) {
+  std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>> responses;
+  this->hub_.add_on_response_callback([&](uint8_t, std::span<const uint8_t> req, std::span<const uint8_t> resp) {
+    responses.emplace_back(vec(req), vec(resp));
+  });
+  this->receive_(0x05, READ);
+  this->receive_(0x05, READ_REPLY);
+  ASSERT_EQ(responses.size(), 1u);
+  EXPECT_EQ(responses[0].first, vec(READ));
+  EXPECT_EQ(responses[0].second, vec(READ_REPLY));
+  this->receive_(0x05, WRITE_1);
+  this->receive_(0x07, WRITE_1);  // another address: not the reply
+  EXPECT_EQ(responses.size(), 1u);
+}
+
 }  // namespace esphome::modbus::testing
