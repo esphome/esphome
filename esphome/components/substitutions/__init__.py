@@ -25,6 +25,7 @@ from esphome.yaml_util import (
 from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "substitutions"
 _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]

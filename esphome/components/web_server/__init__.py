@@ -48,6 +48,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json", "web_server_base"]
+DOMAIN = "web_server"
 
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"

@@ -57,6 +57,7 @@ from .zigbee_zephyr import (
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@luar123", "@tomaszduda23"]
+DOMAIN = "zigbee"
 
 CONFLICTS_WITH = ["openthread"]
 
