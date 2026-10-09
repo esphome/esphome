@@ -632,10 +632,9 @@ def has_outdated_files():
       already deletes ``dependencies.lock`` on a change but that signal
       gets lost as soon as the lock is missing.
     - ``exclude_components.esphomeinternal`` -- the resolved
-      EXCLUDE_COMPONENTS set. Excluded components never register in
-      ``project_description.json``, so re-including one needs a fresh
-      discovery pass before it can appear in the builtin-components
-      property that ``src`` REQUIRES.
+      EXCLUDE_COMPONENTS set. The builtin-components property that
+      ``src`` REQUIRES drops excluded names, so re-including one needs a
+      reconfigure to rebuild that property from the discovery list.
 
     We deliberately don't watch:
     - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
@@ -800,8 +799,7 @@ def run_compile(config, verbose: bool) -> int:
 
     Uses two-phase configure to auto-discover available components:
     1. If no previous build, configure with minimal REQUIRES to discover
-       components (skipped when a cached list for this IDF/target/exclusion
-       set exists)
+       components (skipped when a cached list for this IDF/target exists)
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
