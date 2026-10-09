@@ -18,7 +18,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.speaker";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.speaker");
 
 // Software volume control maps the user-facing (0.0, 1.0) range linearly to a dB reduction in
 // [-49.0, 0.0] dB; 0.0 is silence.

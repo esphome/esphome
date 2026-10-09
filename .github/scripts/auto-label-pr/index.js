@@ -53,7 +53,7 @@ module.exports = async ({ github, context }) => {
   });
   const currentLabels = currentLabelsData.map(label => label.name);
   const managedLabels = currentLabels.filter(label =>
-    label.startsWith('component: ') || MANAGED_LABELS.includes(label)
+    label.startsWith('component: ') || label.startsWith('platform: ') || MANAGED_LABELS.includes(label)
   );
 
   // Check for mega-PR early - if present, skip most automatic labeling

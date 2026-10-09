@@ -7,7 +7,7 @@
 
 namespace esphome::honeywell_hih_i2c {
 
-static const char *const TAG = "honeywell_hih.i2c";
+ESPHOME_LOG_TAG(TAG, "honeywell_hih.i2c");
 
 static const uint8_t REQUEST_CMD[1] = {0x00};  // Measurement Request Format
 static const uint16_t MAX_COUNT = 0x3FFE;      // 2^14 - 2

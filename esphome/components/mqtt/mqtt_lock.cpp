@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.lock";
+ESPHOME_LOG_TAG(TAG, "mqtt.lock");
 
 using namespace esphome::lock;
 

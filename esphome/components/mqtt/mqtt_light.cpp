@@ -10,7 +10,7 @@
 #include "esphome/components/light/light_json_schema.h"
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.light";
+ESPHOME_LOG_TAG(TAG, "mqtt.light");
 
 using namespace esphome::light;
 

@@ -109,6 +109,8 @@ class EPaperBase : public Display,
   void draw_pixel_at(int x, int y, Color color) override;
   // Make the next update a full one. Applied when that update starts, so one in progress is not affected.
   void request_full_update() { this->full_update_requested_ = true; }
+  // True from the start of an update until the display has refreshed and gone back to sleep.
+  bool is_updating() const { return this->state_ != EPaperState::IDLE; }
 
  protected:
   int get_height_internal() override { return this->height_; };

@@ -50,7 +50,7 @@ static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
 static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 
-static const char *const TAG = "speaker_media_player";
+ESPHOME_LOG_TAG(TAG, "speaker_media_player");
 
 void SpeakerMediaPlayer::setup() {
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF

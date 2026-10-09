@@ -5,7 +5,7 @@
 
 namespace esphome::mcp4461 {
 
-static const char *const TAG = "mcp4461";
+ESPHOME_LOG_TAG(TAG, "mcp4461");
 constexpr uint8_t EEPROM_WRITE_TIMEOUT_MS = 10;
 
 void Mcp4461Component::setup() {

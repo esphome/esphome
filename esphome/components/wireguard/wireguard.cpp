@@ -14,7 +14,7 @@
 
 namespace esphome::wireguard {
 
-static const char *const TAG = "wireguard";
+ESPHOME_LOG_TAG(TAG, "wireguard");
 
 /*
  * Cannot use `static const char*` for LOGMSG_PEER_STATUS on esp8266 platform

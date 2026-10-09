@@ -18,13 +18,13 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.microphone import DOMAIN as MICROPHONE_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
     CONF_CHANNEL,
     CONF_ID,
-    CONF_MICROPHONE,
     CONF_PLATFORM,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
@@ -36,6 +36,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "i2s_audio"
 MULTI_CONF = True
 
 CONF_PDM = "pdm"
@@ -48,7 +49,6 @@ CONF_I2S_MCLK_PIN = "i2s_mclk_pin"
 CONF_I2S_BCLK_PIN = "i2s_bclk_pin"
 CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
-CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 CONF_FULL_DUPLEX = "full_duplex"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
@@ -239,9 +239,9 @@ class I2SAudioData:
 
 
 def _get_data() -> I2SAudioData:
-    if CONF_I2S_AUDIO not in CORE.data:
-        CORE.data[CONF_I2S_AUDIO] = I2SAudioData()
-    return CORE.data[CONF_I2S_AUDIO]
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = I2SAudioData()
+    return CORE.data[DOMAIN]
 
 
 def _assign_ports() -> None:
@@ -255,12 +255,12 @@ def _assign_ports() -> None:
         return
 
     full_config = fv.full_config.get()
-    i2s_configs = full_config[CONF_I2S_AUDIO]
+    i2s_configs = full_config[DOMAIN]
 
     # Find i2s_audio instances with microphones that require port 0
     # (PDM and internal ADC only work on I2S port 0)
     port0_parent_id = None
-    for mic_config in full_config.get("microphone", []):
+    for mic_config in full_config.get(MICROPHONE_DOMAIN, []):
         if CONF_I2S_AUDIO_ID not in mic_config:
             continue
         if mic_config.get(CONF_PDM) or mic_config.get(CONF_ADC_TYPE) == "internal":
@@ -286,14 +286,14 @@ def _bus_devices(full_config: ConfigType, domain: str, bus_id: str) -> list[Conf
     return [
         device
         for device in full_config.get(domain, [])
-        if device.get(CONF_PLATFORM) == CONF_I2S_AUDIO
+        if device.get(CONF_PLATFORM) == DOMAIN
         and str(device[CONF_I2S_AUDIO_ID]) == bus_id
     ]
 
 
 def _validate_full_duplex(full_config: ConfigType, bus_id: str) -> None:
     """Check that a full duplex bus has one microphone and speakers that can share its clocks and TX channel."""
-    microphones = _bus_devices(full_config, CONF_MICROPHONE, bus_id)
+    microphones = _bus_devices(full_config, MICROPHONE_DOMAIN, bus_id)
     speakers = _bus_devices(full_config, CONF_SPEAKER, bus_id)
     if len(microphones) != 1 or not speakers:
         raise cv.Invalid(
@@ -331,7 +331,7 @@ def _validate_full_duplex(full_config: ConfigType, bus_id: str) -> None:
 
 def _final_validate(_: ConfigType) -> None:
     full_config = fv.full_config.get()
-    i2s_audio_configs = full_config[CONF_I2S_AUDIO]
+    i2s_audio_configs = full_config[DOMAIN]
     variant = get_esp32_variant()
     if variant not in I2S_PORTS:
         raise cv.Invalid(f"Unsupported variant {variant}")

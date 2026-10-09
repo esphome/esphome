@@ -6,7 +6,7 @@
 
 namespace esphome::spa06_base {
 
-static const char *const TAG = "spa06";
+ESPHOME_LOG_TAG(TAG, "spa06");
 
 // Sign extension function for <=16 bit types
 inline int16_t decode16(uint8_t msb, uint8_t lsb, size_t bits, size_t head = 0) {

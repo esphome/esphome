@@ -6,7 +6,7 @@
 
 namespace esphome::mmc5983 {
 
-static const char *const TAG = "mmc5983";
+ESPHOME_LOG_TAG(TAG, "mmc5983");
 
 namespace {
 constexpr uint8_t IC0_ADDR = 0x09;
