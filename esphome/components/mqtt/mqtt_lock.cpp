@@ -29,7 +29,7 @@ void MQTTLockComponent::setup() {
     }
   });
   this->lock_->add_on_state_callback(
-      [this](LockState /*state*/) { this->defer("send", [this]() { this->publish_state(); }); });
+      [this](LockState /*state*/) { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 void MQTTLockComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", this->lock_->get_name().c_str());
