@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <vector>
 
@@ -105,30 +106,30 @@ TEST(EPaperSSD1681, PartialRefreshWritesOnlyTheChangedWindowOfTheNewImageBank) {
   EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
 }
 
-/// Controller RAM does not survive the hardware reset, and deep sleep can only be left by one, so
-/// while partial refreshes are in use the panel is never put to sleep and only a full refresh
-/// resets it.
-TEST(EPaperSSD1681, PanelStaysAwakeAndUnresetBetweenPartialRefreshes) {
+/// The software reset 0x12 turns off the RAM ping-pong the panel's OTP enables, after which the
+/// controller no longer keeps 0x26 in step and the next partial refresh compares against a stale
+/// image. So every update starts with the hardware reset only, and ends in deep sleep mode 1, which
+/// keeps the RAM and is left by that reset.
+TEST(EPaperSSD1681, UpdatesResetInHardwareOnlyAndSleepInBetween) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 5);
 
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   display.run_update();
-  EXPECT_EQ(bus.commands.front(), 0x12) << "full refresh did not send a software reset";
-  EXPECT_EQ(bus.commands.back(), 0x20) << "panel was put to sleep after the full refresh";
+  EXPECT_EQ(bus.commands.front(), 0x44) << "full refresh sent a software reset";
+  EXPECT_EQ(bus.data[0x10], (Bytes{0x01})) << "panel was not put into deep sleep mode 1";
   bus.clear();
 
   display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
   display.set_dirty(8, 1, 16, 2);
   display.run_update();
-  EXPECT_EQ(bus.commands.front(), 0x44) << "partial refresh sent a software reset";
-  EXPECT_EQ(bus.commands.back(), 0x20) << "panel was put to sleep after the partial refresh";
-  EXPECT_TRUE(display.reset_pin.level) << "partial refresh pulsed the reset pin";
+  EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), 0x12), 0) << "partial refresh sent a software reset";
+  EXPECT_EQ(bus.data[0x10], (Bytes{0x01})) << "panel was not put into deep sleep mode 1";
 }
 
-/// With every update a full one the controller is reset and put to sleep every time, as before.
-TEST(EPaperSSD1681, EveryUpdateFullResetsAndSleepsEveryTime) {
+/// With every update a full one the controller loses its RAM in deep sleep mode 2, as before.
+TEST(EPaperSSD1681, EveryUpdateFullSleepsWithoutKeepingRAM) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 1);
@@ -140,11 +141,10 @@ TEST(EPaperSSD1681, EveryUpdateFullResetsAndSleepsEveryTime) {
   display.set_dirty(8, 1, 16, 2);
   display.run_update();
 
-  EXPECT_EQ(bus.commands.front(), 0x12);
   EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
   EXPECT_EQ(bus.data[0x21], (Bytes{0x40, 0x00}));
-  EXPECT_EQ(bus.commands.back(), 0x10);
+  EXPECT_EQ(bus.data[0x10], (Bytes{0x03}));
 }
 
 /// An update whose frame is the one already on the panel sends nothing and does not count towards

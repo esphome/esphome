@@ -27,6 +27,7 @@ class EPaperMono : public EPaperBase {
   virtual size_t sent_frame_length() const { return this->buffer_length_; }
   bool transfer_data() override;
   bool send_red_{true};
+  bool software_reset_{true};  // send 0x12 after the hardware reset
 };
 
 }  // namespace esphome::epaper_spi
