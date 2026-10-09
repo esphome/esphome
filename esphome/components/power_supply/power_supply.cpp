@@ -9,11 +9,11 @@ static constexpr uint32_t POWER_OFF_TIMEOUT_ID = 0;
 
 void PowerSupply::setup() {
   this->pin_->setup();
-  if (!this->pin_->is_held()) {
+  if (this->pin_->is_held()) {
+    // Rail stayed on across the reset; drop it unless something asks for it
+    this->schedule_off_if_idle_();
+  } else {
     this->pin_->digital_write(false);
-#ifdef USE_GPIO_HOLD
-    this->disable_loop();  // nothing to reconcile: pin is already off
-#endif
   }
   if (this->enable_on_boot_)
     this->request_high_power();
@@ -63,15 +63,6 @@ void PowerSupply::schedule_off_if_idle_() {
     });
   }
 }
-
-#ifdef USE_GPIO_HOLD
-void PowerSupply::loop() {
-  // Run once after setup(). Depends on components with setup_priority POWER/IO or HARDWARE not blocking in setup().
-  // Need to turn off the pin if no component requested it during setup() otherwise it will stay on forever.
-  this->schedule_off_if_idle_();
-  this->disable_loop();
-}
-#endif
 
 void PowerSupply::on_powerdown() {
   if (this->pin_->get_hold())

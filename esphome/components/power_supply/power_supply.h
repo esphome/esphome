@@ -9,9 +9,6 @@ namespace esphome::power_supply {
 
 class PowerSupply final : public Component {
  public:
-#ifdef USE_GPIO_HOLD
-  void loop() override;
-#endif
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_enable_time(uint32_t enable_time) { enable_time_ = enable_time; }
   void set_keep_on_time(uint32_t keep_on_time) { keep_on_time_ = keep_on_time; }
