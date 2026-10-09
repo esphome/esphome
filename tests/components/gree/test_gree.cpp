@@ -692,4 +692,48 @@ TEST(GreeYX1FF, ClimateChangePreservesReceivedLightState) {
   EXPECT_EQ(transmitted_state[2] & GREE_LIGHT_BIT, 0);
 }
 
+
+TEST(GreeYAC, CapturedYAC1FBSwingAndAuxiliaryFrames) {
+  struct SwingCase {
+    GreeState state;
+    climate::ClimateSwingMode expected;
+  };
+  const std::array<SwingCase, 4> cases{{
+      {{0x5C, 0x03, 0x60, 0x50, 0x11, 0x40, 0x00, 0xE0}, climate::CLIMATE_SWING_BOTH},
+      {{0x1C, 0x03, 0x60, 0x50, 0x01, 0x40, 0x00, 0xD0}, climate::CLIMATE_SWING_VERTICAL},
+      {{0x1C, 0x03, 0x60, 0x50, 0x10, 0x40, 0x00, 0xE0}, climate::CLIMATE_SWING_HORIZONTAL},
+      {{0x79, 0x03, 0x60, 0x50, 0x16, 0x40, 0x00, 0x00}, climate::CLIMATE_SWING_HORIZONTAL},
+  }};
+  for (const auto &test : cases) {
+    GreeState state = test.state;
+    state[7] = GreeProtocol::calculate_checksum(state);
+    EXPECT_EQ(decode_climate_state(GREE_YAC, state).swing_mode, test.expected);
+  }
+  const std::array<GreeState, 2> auxiliary{{
+      {0x5C, 0x03, 0x60, 0x70, 0x00, 0x00, 0x10, 0xA0},
+      {0x1C, 0x03, 0x60, 0x70, 0x00, 0x00, 0x10, 0xA0},
+  }};
+  for (const auto &state : auxiliary) {
+    ASSERT_TRUE(GreeProtocol::valid_checksum(state));
+    EXPECT_FALSE(GreeClimateCodec::decode(GREE_YAC, state).has_value());
+  }
+}
+
+TEST(GreeYAC, AuxiliaryFrameDoesNotOverwriteSwing) {
+  const GreeState first{0x5C, 0x03, 0x60, 0x50, 0x11, 0x40, 0x00, 0xE0};
+  const GreeState second{0x5C, 0x03, 0x60, 0x70, 0x00, 0x00, 0x10, 0xA0};
+  CountingRemoteTransmitter transmitter;
+  GreeClimate device;
+  device.set_model(GREE_YAC);
+  device.set_transmitter(&transmitter);
+  remote_base::RemoteReceiverListener *listener = &device;
+  ASSERT_TRUE(listener->on_receive(RemoteReceiveData(
+      encode_signal(GREE_YAC, first), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_BOTH);
+  EXPECT_FALSE(listener->on_receive(RemoteReceiveData(
+      encode_signal(GREE_YAC, second), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_BOTH);
+  EXPECT_EQ(transmitter.send_count, 0U);
+}
+
 }  // namespace esphome::gree
