@@ -9,7 +9,7 @@
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
 // Maximum RMT symbol duration (15-bit field)
 static constexpr uint32_t RMT_SYMBOL_DURATION_MAX = 0x7FFF;

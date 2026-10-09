@@ -108,7 +108,7 @@ constexpr uint8_t STM_OBL_LAUNCH_CODE[] = {
 
 constexpr uint32_t STM_OBL_LAUNCH_CODE_SIZE = sizeof(STM_OBL_LAUNCH_CODE);
 
-constexpr char TAG[] = "stm32flash";
+ESPHOME_LOG_TAG(TAG, "stm32flash");
 
 }  // Anonymous namespace
 

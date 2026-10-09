@@ -5,7 +5,7 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc";
+ESPHOME_LOG_TAG(TAG, "nfc");
 
 char *format_uid_to(char *buffer, std::span<const uint8_t> uid) {
   return format_hex_pretty_to(buffer, FORMAT_UID_BUFFER_SIZE, uid.data(), uid.size(), '-');
