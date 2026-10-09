@@ -44,7 +44,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_esp32";
+ESPHOME_LOG_TAG(TAG, "wifi_esp32");
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

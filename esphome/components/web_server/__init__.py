@@ -67,6 +67,8 @@ def AUTO_LOAD() -> list[str]:
     return auto_load
 
 
+DOMAIN = "web_server"
+
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"
 
@@ -254,11 +256,11 @@ WEBSERVER_SORTING_SCHEMA = cv.Schema(
             {
                 cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
                 cv.Optional(CONF_SORTING_WEIGHT): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.float_,
                 ),
                 cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.use_id(cg.int_),
                 ),
             }
@@ -474,12 +476,14 @@ def add_resource_as_progmem(
     content_encoded = content.encode("utf-8")
     if compress:
         content_encoded = gzip.compress(content_encoded)
-    content_encoded_size = len(content_encoded)
-    bytes_as_int = ", ".join(str(x) for x in content_encoded)
-    uint8_t = f"constexpr uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
-    size_t = f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
-    cg.add_global(cg.RawExpression(uint8_t))
-    cg.add_global(cg.RawExpression(size_t))
+    cg.extern_progmem_array(
+        f"ESPHOME_WEBSERVER_{resource_name}", cg.uint8, list(content_encoded)
+    )
+    cg.add_global(
+        cg.RawExpression(
+            f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {len(content_encoded)}"
+        )
+    )
 
 
 @coroutine_with_priority(CoroPriority.WEB)
@@ -585,7 +589,7 @@ def FILTER_SOURCE_FILES() -> list[str]:
     files_to_filter: list[str] = []
 
     # web_server_v1.cpp is only needed when version is 1
-    config = CORE.config.get("web_server", {})
+    config = CORE.config.get(DOMAIN, {})
     if config.get(CONF_VERSION, 2) != 1:
         files_to_filter.append("web_server_v1.cpp")
 

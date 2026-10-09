@@ -269,6 +269,13 @@ class FlashStringLiteral(Literal):
         return f"ESPHOME_F({cpp_string_escape(self.string)})"
 
 
+def progmem_string(value: str) -> Expression:
+    """A ``std::string`` argument from a literal that stays in flash on ESP8266."""
+    if CORE.is_esp8266:
+        return RawExpression(f"progmem_string({FlashStringLiteral(value)})")
+    return safe_exp(value)
+
+
 class IntLiteral(Literal):
     __slots__ = ("i",)
 
@@ -466,6 +473,23 @@ def progmem_array(id_, rhs) -> "MockObj":
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
+
+
+class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
+    __slots__ = ()
+
+    def __str__(self):
+        return f"const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+
+
+def extern_progmem_array(
+    qualified_name: str, type_: "MockObjClass", rhs: SafeExpType
+) -> "MockObj":
+    """Emit an externally linked PROGMEM table that a component declares extern and reads itself."""
+    CORE.add_global(
+        ExternProgmemAssignmentExpression(type_, qualified_name, safe_exp(rhs))
+    )
+    return MockObj(qualified_name, ".")
 
 
 def shared_progmem_array(

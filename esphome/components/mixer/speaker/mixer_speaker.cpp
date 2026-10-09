@@ -24,7 +24,7 @@ static const uint32_t MIXER_AUTO_STOP_DEBOUNCE_MS = 200;
 
 static const size_t TASK_STACK_SIZE = 4096;
 
-static const char *const TAG = "speaker_mixer";
+ESPHOME_LOG_TAG(TAG, "speaker_mixer");
 
 // Event bits for SourceSpeaker command processing
 enum SourceSpeakerEventBits : uint32_t {

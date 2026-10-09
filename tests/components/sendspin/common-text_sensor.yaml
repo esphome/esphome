@@ -14,3 +14,7 @@ text_sensor:
   - platform: sendspin
     name: "Album Artist"
     type: album_artist
+  - platform: sendspin
+    name: "Pairing Code"
+    type: pairing_code
+    entity_category: diagnostic

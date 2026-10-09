@@ -9,7 +9,7 @@
 
 namespace esphome::web_server_base {
 
-static const char *const TAG = "web_server_base.dns";
+ESPHOME_LOG_TAG(TAG, "web_server_base.dns");
 
 // DNS constants
 static constexpr uint16_t DNS_PORT = 53;

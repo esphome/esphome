@@ -59,7 +59,7 @@
 
 namespace esphome::web_server {
 
-static const char *const TAG = "web_server";
+ESPHOME_LOG_TAG(TAG, "web_server");
 
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
@@ -2135,10 +2135,8 @@ void WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config,
 
   set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
 
-  auto traits = obj->get_traits();
-
-  root[ESPHOME_F("supports_transmitter")] = traits.get_supports_transmitter();
-  root[ESPHOME_F("supports_receiver")] = traits.get_supports_receiver();
+  root[ESPHOME_F("supports_transmitter")] = obj->get_supports_transmitter();
+  root[ESPHOME_F("supports_receiver")] = obj->get_supports_receiver();
 
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
