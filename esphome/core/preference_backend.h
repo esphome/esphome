@@ -24,9 +24,10 @@
 #endif
 
 // Key-lookup preference backends find stored data by key; their platforms add the
-// USE_PREFERENCE_KEY_LOOKUP define from Python codegen, which enables preference key
-// migration. Slot-based backends (ESP8266, RP2040) instead allocate a storage slot for
-// every make_preference() call and use the key only as a validity tag on that slot;
+// USE_PREFERENCE_KEY_LOOKUP define from Python codegen, which enables one-shot reads
+// of stored data by key (the primitive preference key migrations need). Slot-based
+// backends (ESP8266, RP2040) instead allocate a storage slot for every
+// make_preference() call and use the key only as a validity tag on that slot;
 // migration is not possible there, and key collisions cannot corrupt data.
 
 namespace esphome {
@@ -104,10 +105,9 @@ concept PreferencesContract = requires(T prefs, size_t len, uint32_t type, bool 
 };
 
 // Key-lookup platforms additionally provide load_from_key(), a one-shot read
-// of a stored preference by key that migrate_preference() relies on; see the
-// key-lookup note at the top of this file. Not part of PreferencesContract,
-// so it is asserted in preferences.h only where USE_PREFERENCE_KEY_LOOKUP
-// is set.
+// of a stored preference by key; see the key-lookup note at the top of this
+// file. Not part of PreferencesContract, so it is asserted in preferences.h
+// only where USE_PREFERENCE_KEY_LOOKUP is set.
 template<typename T>
 concept PreferencesKeyLookupContract = requires(T prefs, uint32_t type, uint8_t *data, size_t len) {
   { prefs.load_from_key(type, data, len) } -> std::same_as<bool>;

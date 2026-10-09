@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.fan";
+ESPHOME_LOG_TAG(TAG, "mqtt.fan");
 
 using namespace esphome::fan;
 
@@ -121,7 +121,7 @@ void MQTTFanComponent::setup() {
                     });
   }
 
-  this->state_->add_on_state_callback([this]() { this->defer("send", [this]() { this->publish_state(); }); });
+  this->state_->add_on_state_callback([this]() { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 
 void MQTTFanComponent::dump_config() {

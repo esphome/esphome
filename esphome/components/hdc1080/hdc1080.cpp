@@ -4,7 +4,7 @@
 
 namespace esphome::hdc1080 {
 
-static const char *const TAG = "hdc1080";
+ESPHOME_LOG_TAG(TAG, "hdc1080");
 
 static const uint8_t HDC1080_CMD_CONFIGURATION = 0x02;
 static const uint8_t HDC1080_CMD_TEMPERATURE = 0x00;

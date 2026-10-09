@@ -1,20 +1,48 @@
 """Tests for esphome.automation module."""
 
-from collections.abc import Generator
-from unittest.mock import AsyncMock, call, patch
+from collections.abc import Callable, Generator
+from functools import partial
+from typing import NamedTuple
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
 from esphome.automation import (
+    ApplyAction,
+    ApplyCall,
+    ApplyCondition,
+    ApplyField,
     CallbackAutomation,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
+    build_callback_automation,
     build_callback_automations,
+    build_parent_callback_automation,
+    build_trigger_automations,
+    build_trigger_callback,
     has_non_synchronous_actions,
+    literal_with_length,
+    maybe_simple_id,
+    parent_ref,
+    progmem_bytes,
+    register_apply_action,
+    register_apply_condition,
+    register_bare_action,
+    register_bare_condition,
+    register_parented_action,
+    register_parented_condition,
+    register_simple_action,
+    register_simple_condition,
+    string_ref_literal,
+    templatable_bytes,
 )
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_AUTOMATION_ID, CONF_ID, CONF_THEN
+from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
-from esphome.util import RegistryEntry
+from esphome.util import Registry, RegistryEntry
 
 
 def _make_registry(non_synchronous_actions: set[str]) -> dict[str, RegistryEntry]:
@@ -305,7 +333,14 @@ async def test_build_callback_automations_single_entry(
         (CallbackAutomation("on_state", "add_on_state_callback", [(bool, "x")]),),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_state_callback", [(bool, "x")], conf, forwarder=None
+        parent,
+        "add_on_state_callback",
+        [(bool, "x")],
+        conf,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -325,10 +360,24 @@ async def test_build_callback_automations_multiple_configs(
     )
     assert mock_build_callback.call_count == 2
     mock_build_callback.assert_any_call(
-        parent, "add_on_state_callback", [(bool, "x")], conf1, forwarder=None
+        parent,
+        "add_on_state_callback",
+        [(bool, "x")],
+        conf1,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
     )
     mock_build_callback.assert_any_call(
-        parent, "add_on_state_callback", [(bool, "x")], conf2, forwarder=None
+        parent,
+        "add_on_state_callback",
+        [(bool, "x")],
+        conf2,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -356,9 +405,25 @@ async def test_build_callback_automations_multiple_entries(
     )
     assert mock_build_callback.call_count == 2
     assert mock_build_callback.call_args_list == [
-        call(parent, "add_on_value_callback", [(float, "x")], conf_a, forwarder=None),
         call(
-            parent, "add_on_raw_value_callback", [(float, "x")], conf_b, forwarder=None
+            parent,
+            "add_on_value_callback",
+            [(float, "x")],
+            conf_a,
+            forwarder=None,
+            params=None,
+            forward=None,
+            when=None,
+        ),
+        call(
+            parent,
+            "add_on_raw_value_callback",
+            [(float, "x")],
+            conf_b,
+            forwarder=None,
+            params=None,
+            forward=None,
+            when=None,
         ),
     ]
 
@@ -381,7 +446,14 @@ async def test_build_callback_automations_with_forwarder(
         ),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_state_callback", [], conf, forwarder=TriggerOnTrueForwarder
+        parent,
+        "add_on_state_callback",
+        [],
+        conf,
+        forwarder=TriggerOnTrueForwarder,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -415,7 +487,14 @@ async def test_build_callback_automations_mixed_entries(
     assert mock_build_callback.call_count == 3
     assert mock_build_callback.call_args_list == [
         call(
-            parent, "add_on_state_callback", [(bool, "x")], conf_state, forwarder=None
+            parent,
+            "add_on_state_callback",
+            [(bool, "x")],
+            conf_state,
+            forwarder=None,
+            params=None,
+            forward=None,
+            when=None,
         ),
         call(
             parent,
@@ -423,6 +502,9 @@ async def test_build_callback_automations_mixed_entries(
             [],
             conf_press,
             forwarder=TriggerOnTrueForwarder,
+            params=None,
+            forward=None,
+            when=None,
         ),
         call(
             parent,
@@ -430,6 +512,9 @@ async def test_build_callback_automations_mixed_entries(
             [],
             conf_release,
             forwarder=TriggerOnFalseForwarder,
+            params=None,
+            forward=None,
+            when=None,
         ),
     ]
 
@@ -455,7 +540,14 @@ async def test_build_callback_automations_skips_missing_keys(
         ),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_state_callback", [], conf, forwarder=TriggerOnTrueForwarder
+        parent,
+        "add_on_state_callback",
+        [],
+        conf,
+        forwarder=TriggerOnTrueForwarder,
+        params=None,
+        forward=None,
+        when=None,
     )
 
 
@@ -473,5 +565,739 @@ async def test_build_callback_automations_defaults(
         (CallbackAutomation("on_press", "add_on_press_callback"),),
     )
     mock_build_callback.assert_called_once_with(
-        parent, "add_on_press_callback", [], conf, forwarder=None
+        parent,
+        "add_on_press_callback",
+        [],
+        conf,
+        forwarder=None,
+        params=None,
+        forward=None,
+        when=None,
+    )
+
+
+PARENT_ID = ID("my_component")
+PARENT_OBJ = MockObj("parent", "->")
+NEW_OBJ = MockObj("var", "->")
+ACTION_TYPE = cg.esphome_ns.class_("MyAction")
+CONDITION_TYPE = cg.esphome_ns.class_("MyCondition")
+TEMPLATE_ARG = cg.TemplateArguments()
+
+
+class MockCodegen(NamedTuple):
+    get_variable: AsyncMock
+    new_pvariable: MagicMock
+    register_parented: AsyncMock
+    add_global: MagicMock
+    add: MagicMock
+    calls: MagicMock  # new_pvariable and add_global attached, to check their order
+
+
+@pytest.fixture
+def mock_build_automation() -> Generator[AsyncMock]:
+    with patch("esphome.automation.build_automation", new_callable=AsyncMock) as mock:
+        yield mock
+
+
+@pytest.mark.asyncio
+async def test_build_trigger_automations_with_parent(
+    mock_build_automation: AsyncMock,
+) -> None:
+    """Each entry's Trigger class is instantiated with the parent and built with its args."""
+    parent = MockObj("var", "->")
+    on_conf = {"trigger_id": ID("trig_1"), "then": []}
+    set_conf = {"trigger_id": ID("trig_2"), "then": []}
+    config = {"on_turn_on": [on_conf], "on_speed_set": [set_conf]}
+    with patch("esphome.codegen.new_Pvariable") as new_pvariable:
+        new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
+        await build_trigger_automations(
+            parent,
+            config,
+            (
+                ("on_turn_on", []),
+                ("on_turn_off", []),
+                ("on_speed_set", [(cg.int_, "x")]),
+            ),
+        )
+    assert [c.args for c in new_pvariable.call_args_list] == [
+        (ID("trig_1"), parent),
+        (ID("trig_2"), parent),
+    ]
+    calls = mock_build_automation.call_args_list
+    assert [(str(c.args[0]), c.args[1], c.args[2]) for c in calls] == [
+        ("trig_1", [], on_conf),
+        ("trig_2", [(cg.int_, "x")], set_conf),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_trigger_automations_without_parent(
+    mock_build_automation: AsyncMock,
+) -> None:
+    """A None parent instantiates the Trigger class with no constructor arguments."""
+    conf = {"trigger_id": ID("trig_1"), "then": []}
+    with patch("esphome.codegen.new_Pvariable") as new_pvariable:
+        await build_trigger_automations(None, {"on_boot": [conf]}, (("on_boot", []),))
+    new_pvariable.assert_called_once_with(ID("trig_1"))
+    mock_build_automation.assert_awaited_once()
+
+
+@pytest.fixture
+def mock_cg() -> Generator[MockCodegen]:
+    """Patch the codegen calls the shared builders make."""
+    with (
+        patch("esphome.codegen.get_variable", new_callable=AsyncMock) as get_variable,
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch(
+            "esphome.codegen.register_parented", new_callable=AsyncMock
+        ) as register_parented,
+        patch("esphome.cpp_generator.add_global") as add_global,
+        patch("esphome.codegen.add") as add,
+    ):
+        get_variable.return_value = PARENT_OBJ
+        new_pvariable.return_value = NEW_OBJ
+        calls = MagicMock()
+        calls.attach_mock(new_pvariable, "new_pvariable")
+        calls.attach_mock(add_global, "add_global")
+        yield MockCodegen(
+            get_variable, new_pvariable, register_parented, add_global, add, calls
+        )
+
+
+@pytest.fixture
+def registries() -> Generator[tuple[Registry, Registry]]:
+    """Patch both registries so registrations made by a test do not leak."""
+    actions = Registry()
+    conditions = Registry()
+    with (
+        patch("esphome.automation.ACTION_REGISTRY", actions),
+        patch("esphome.automation.CONDITION_REGISTRY", conditions),
+    ):
+        yield actions, conditions
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("register", "is_action", "ctor_parent", "parented"),
+    [
+        (partial(register_simple_action, synchronous=True), True, True, False),
+        (partial(register_bare_action, synchronous=True), True, False, False),
+        (partial(register_parented_action, synchronous=True), True, False, True),
+        (register_simple_condition, False, True, False),
+        (register_bare_condition, False, False, False),
+        (register_parented_condition, False, False, True),
+    ],
+    ids=[
+        "simple_action",
+        "bare_action",
+        "parented_action",
+        "simple_condition",
+        "bare_condition",
+        "parented_condition",
+    ],
+)
+async def test_shared_builders(
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    register: Callable[..., None],
+    is_action: bool,
+    ctor_parent: bool,
+    parented: bool,
+) -> None:
+    """Each helper constructs the object and wires the parent the way its C++ shape needs."""
+    actions, conditions = registries
+    type_id = ACTION_TYPE if is_action else CONDITION_TYPE
+    register("my.entry", type_id, {})
+    entry = (actions if is_action else conditions)["my.entry"]
+    assert entry.type_id is type_id
+    config = {CONF_ID: PARENT_ID} if ctor_parent or parented else {}
+
+    result = await entry.fun(config, ID("obj_1"), TEMPLATE_ARG, [])
+
+    assert result is NEW_OBJ
+    if ctor_parent:
+        mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
+        mock_cg.new_pvariable.assert_called_once_with(
+            ID("obj_1"), TEMPLATE_ARG, PARENT_OBJ
+        )
+    else:
+        mock_cg.get_variable.assert_not_called()
+        mock_cg.new_pvariable.assert_called_once_with(ID("obj_1"), TEMPLATE_ARG)
+    if parented:
+        mock_cg.register_parented.assert_awaited_once_with(NEW_OBJ, PARENT_ID)
+    else:
+        mock_cg.register_parented.assert_not_called()
+
+
+@pytest.mark.parametrize("synchronous", [True, False])
+def test_shared_builders_keep_synchronous_flag(
+    registries: tuple[Registry, Registry], synchronous: bool
+) -> None:
+    """The synchronous flag reaches the registry entry unchanged."""
+    actions, _ = registries
+    register_simple_action("my.simple", ACTION_TYPE, {}, synchronous=synchronous)
+    register_bare_action("my.bare", ACTION_TYPE, {}, synchronous=synchronous)
+    register_parented_action("my.parented", ACTION_TYPE, {}, synchronous=synchronous)
+    assert actions["my.simple"].synchronous is synchronous
+    assert actions["my.bare"].synchronous is synchronous
+    assert actions["my.parented"].synchronous is synchronous
+
+
+async def _run_entry(
+    entry: RegistryEntry,
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None,
+    platform: str,
+    id_key: str = CONF_ID,
+) -> RegistryEntry:
+    """Run a registered builder with the given config, trigger args and platform."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    args = args or []
+    template_arg = cg.TemplateArguments(*(t for t, _ in args))
+    await entry.fun({id_key: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
+    return entry
+
+
+async def _run_apply_action(
+    registries: tuple[Registry, Registry],
+    fields: tuple[ApplyField | ApplyCall, ...],
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None = None,
+    call: str | None = None,
+    platform: str = "esp32",
+    id_key: str = CONF_ID,
+) -> RegistryEntry:
+    """Register an apply action and run its builder with the given config."""
+    actions, _ = registries
+    register_apply_action("my.apply", None, *fields, call=call, id_key=id_key)
+    return await _run_entry(actions["my.apply"], config, args, platform, id_key)
+
+
+async def _run_apply_condition(
+    registries: tuple[Registry, Registry],
+    check: str | ApplyCall,
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None = None,
+    platform: str = "esp32",
+    id_key: str = CONF_ID,
+) -> RegistryEntry:
+    """Register an apply condition and run its builder with the given config."""
+    _, conditions = registries
+    register_apply_condition("my.check", None, check, id_key=id_key)
+    return await _run_entry(conditions["my.check"], config, args, platform, id_key)
+
+
+def _apply_definition(mock_cg: MockCodegen) -> str:
+    return str(mock_cg.add_global.call_args.args[0])
+
+
+@pytest.mark.asyncio
+async def test_register_apply_action_entry(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    entry = await _run_apply_action(registries, (), {}, args=[(cg.int32, "x")])
+    assert entry.type_id is ApplyAction
+    assert entry.synchronous is True
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
+    action_id, template_arg = mock_cg.new_pvariable.call_args.args
+    assert action_id == ID("obj_1")
+    assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
+    # The definition must precede the storage line that names the function.
+    assert [c[0] for c in mock_cg.calls.mock_calls] == ["add_global", "new_pvariable"]
+    assert _apply_definition(mock_cg).startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_custom_id_key(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    await _run_apply_action(registries, (), {}, id_key="transmitter_id")
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
+    mock_cg.get_variable.reset_mock()
+    await _run_apply_condition(registries, "is_on()", {}, id_key="transmitter_id")
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
+
+
+@pytest.mark.asyncio
+async def test_apply_constants(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """Constants are immediates, strings stay in flash, absent keys emit nothing, order is kept."""
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_),
+        ApplyField("ki", "set_ki", cg.float_),
+        ApplyField("on", "set_on", cg.bool_),
+        ApplyField("song", "play", cg.std_string),
+        ApplyField("position", "position = {}", cg.float_),
+        ApplyCall("publish_state()"),
+    )
+    config = {"kp": 0.0, "on": False, "song": "a:b", "position": 0.5}
+    await _run_apply_action(registries, fields, config)
+    text = _apply_definition(mock_cg)
+    lines = [
+        f"::{PARENT_OBJ}->set_kp(0.0f);",
+        f"::{PARENT_OBJ}->set_on(false);",
+        f'::{PARENT_OBJ}->play("a:b");',
+        f"::{PARENT_OBJ}->position = 0.5f;",
+        f"::{PARENT_OBJ}->publish_state();",
+    ]
+    positions = [text.index(line) for line in lines]
+    assert positions == sorted(positions)
+    assert "set_ki" not in text
+
+
+@pytest.mark.asyncio
+async def test_apply_id_constant_is_the_named_object(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A templatable use_id given as a plain id renders the object it names."""
+    target = MockObj("speaker_b", "->")
+    mock_cg.get_variable.side_effect = [PARENT_OBJ, target]
+    fields = (ApplyField("target", "switch_to_output", cg.RawExpression("Speaker *")),)
+    await _run_apply_action(registries, fields, {"target": ID("speaker_b")})
+    mock_cg.get_variable.assert_any_await(ID("speaker_b"))
+    assert f"::{PARENT_OBJ}->switch_to_output(::speaker_b);" in str(
+        _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_id_constant_is_the_named_object(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """The condition path resolves and qualifies an id constant the same way."""
+    target = MockObj("speaker_b", "->")
+    mock_cg.get_variable.side_effect = [PARENT_OBJ, target]
+    check = ApplyCall("is_output({})", (("target", cg.RawExpression("Speaker *")),))
+    await _run_apply_condition(registries, check, {"target": ID("speaker_b")})
+    mock_cg.get_variable.assert_any_await(ID("speaker_b"))
+    assert f"return ::{PARENT_OBJ}->is_output(::speaker_b);" in str(
+        _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_lambdas(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A single return reduces to a cast, anything longer is called inline with the trigger args."""
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_),
+        ApplyField("ki", "set_ki", cg.float_),
+    )
+    config = {
+        "kp": Lambda("return x * 2;"),
+        "ki": Lambda("if (x) return 1.0f;\nreturn 2.0f;"),
+    }
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
+    text = _apply_definition(mock_cg)
+    assert text.startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
+    # The parent is global-scope qualified, so an arg named like the id cannot shadow it.
+    assert f"::{PARENT_OBJ}->set_kp(" in text
+    assert f"::{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
+    # Outer apply lambda and inner field lambda spell the trigger arg identically.
+    assert text.count("const std::remove_cvref_t<int32_t> & x") == 2
+    assert (
+        f"::{PARENT_OBJ}->set_ki([](const std::remove_cvref_t<int32_t> & x) -> float {{"
+        in text
+    )
+    assert "}(x));" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_call_keys(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A multi-key call needs all keys, is skipped with none, and errors on a partial set."""
+    fields = (
+        ApplyCall("set_range({}, {})", (("low", cg.float_), ("high", cg.float_))),
+    )
+    await _run_apply_action(registries, fields, {"low": 1.0, "high": 2.0})
+    assert f"::{PARENT_OBJ}->set_range(1.0f, 2.0f);" in _apply_definition(mock_cg)
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields, {})
+    assert "set_range" not in _apply_definition(mock_cg)
+
+    with pytest.raises(EsphomeError, match="needs all of"):
+        await _run_apply_action(registries, fields, {"low": 1.0})
+
+
+@pytest.mark.asyncio
+async def test_apply_action_call_shape(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("brightness", "set_brightness", cg.float_),)
+    await _run_apply_action(registries, fields, {"brightness": 0.5}, call="make_call")
+    text = _apply_definition(mock_cg)
+    lines = [
+        f"auto apply_call = ::{PARENT_OBJ}->make_call();",
+        "apply_call.set_brightness(0.5f);",
+        "apply_call.perform();",
+    ]
+    positions = [text.index(line) for line in lines]
+    assert positions == sorted(positions)
+
+
+@pytest.mark.asyncio
+async def test_apply_field_nested_key_const_fn_and_type_string(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (
+        ApplyField(("vertical", "direction"), "set_direction", cg.int_),
+        ApplyField(
+            "name",
+            "set_name",
+            cg.std_string,
+            const_fn=lambda config, value: f"{cg.safe_exp(value)}, {len(value)}",
+        ),
+        ApplyField("value", "value() = {}", "decltype({parent}->value())"),
+    )
+    config = {
+        "vertical": {"direction": 3},
+        "name": "abc",
+        "value": Lambda("return 42;"),
+    }
+    await _run_apply_action(registries, fields, config)
+    text = _apply_definition(mock_cg)
+    assert f"::{PARENT_OBJ}->set_direction(3);" in text
+    assert f'::{PARENT_OBJ}->set_name("abc", 3);' in text
+    assert (
+        f"::{PARENT_OBJ}->value() = static_cast<decltype(::{PARENT_OBJ}->value())>(42);"
+        in text
+    )
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields[:1], {})
+    assert "set_direction" not in _apply_definition(mock_cg)
+
+
+def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
+    with pytest.raises(ValueError, match="2 placeholder"):
+        ApplyCall("set_range({}, {})", (("low", cg.float_),))
+    with pytest.raises(ValueError, match="only bare"):
+        ApplyCall("if ({}) {parent}->reset()", (("reset", cg.bool_),))
+    ApplyCall("set_flags({{{}}})", (("flags", cg.int_),))
+    with pytest.raises(ValueError, match="each arg is"):
+        ApplyCall("set_kp({})", (("kp", cg.float_, None, "extra"),))
+    schema = cv.Schema({cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_})
+    register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
+    with pytest.raises(ValueError, match="'kd' is not in the schema"):
+        register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
+    register_apply_condition(
+        "my.is", schema, ApplyCall("kp == {}", (("kp", cg.float_),))
+    )
+    with pytest.raises(ValueError, match="'kd' is not in the schema"):
+        register_apply_condition(
+            "my.bad_is", schema, ApplyCall("kd == {}", (("kd", cg.float_),))
+        )
+    with pytest.raises(ValueError, match="'parent_id' is not in the schema"):
+        register_apply_action("my.bad_id", schema, id_key="parent_id")
+    with pytest.raises(ValueError, match="'parent_id' is not in the schema"):
+        register_apply_condition("my.bad_is_id", schema, "is_on()", id_key="parent_id")
+    either = cv.Any(schema, cv.Schema({cv.Optional("kd"): cv.float_}))
+    register_apply_action("my.any", either, ApplyField("kd", "set_kd", cg.float_))
+    for wrapped in (
+        maybe_simple_id(schema),
+        maybe_simple_id(schema.schema),
+        cv.All(schema),
+        cv.maybe_simple_value(schema, key="kp"),
+    ):
+        with pytest.raises(ValueError, match="'kd' is not in the schema"):
+            register_apply_action(
+                "my.bad", wrapped, ApplyField("kd", "set_kd", cg.float_)
+            )
+    nested = cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.string,
+            cv.Optional("v"): cv.Schema({cv.Optional("dir"): cv.int_}),
+        }
+    )
+    register_apply_action(
+        "my.nested", nested, ApplyField(("v", "dir"), "set_dir", cg.int_)
+    )
+    with pytest.raises(ValueError, match="'dri' is not in the schema"):
+        register_apply_action(
+            "my.bad2", nested, ApplyField(("v", "dri"), "set_dir", cg.int_)
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_string_constant_stays_in_flash_on_esp8266(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("song", "play", cg.std_string),)
+    await _run_apply_action(registries, fields, {"song": "a:b"}, platform="esp8266")
+    assert (
+        f'::{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));'
+        in _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+async def test_apply_literal_with_length_is_plain_on_every_platform(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+) -> None:
+    """A (const char *, size_t) target gets the RAM literal and its byte length, never a flash copy."""
+    fields = (
+        ApplyField("option", "set_option", cg.std_string, const_fn=literal_with_length),
+    )
+    await _run_apply_action(
+        registries, fields, {"option": "h\u00e9llo"}, platform=platform
+    )
+    text = _apply_definition(mock_cg)
+    assert f'::{PARENT_OBJ}->set_option("h\\303\\251llo", 6);' in text
+    assert "progmem_string" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("platform", "rendered"),
+    [("esp32", 'StringRef("ON", 2)'), ("esp8266", 'ESPHOME_F("ON")')],
+)
+async def test_apply_string_ref_literal_stays_in_flash_on_esp8266(
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    platform: str,
+    rendered: str,
+) -> None:
+    fields = (
+        ApplyField(
+            "payload", "set_payload", cg.std_string, const_fn=string_ref_literal
+        ),
+    )
+    await _run_apply_action(registries, fields, {"payload": "ON"}, platform=platform)
+    assert f"::{PARENT_OBJ}->set_payload({rendered});" in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_register_apply_condition_predicate(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    entry = await _run_apply_condition(
+        registries, "is_playing()", {}, args=[(cg.int32, "x")]
+    )
+    assert entry.type_id is ApplyCondition
+    condition_id, template_arg = mock_cg.new_pvariable.call_args.args
+    assert condition_id == ID("obj_1")
+    assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
+    text = _apply_definition(mock_cg)
+    assert text.startswith(
+        "static bool esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
+    assert f"return ::{PARENT_OBJ}->is_playing();" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_compares_config_value(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    check = ApplyCall("state == {}", (("state", cg.bool_),))
+    await _run_apply_condition(registries, check, {"state": True})
+    assert f"return ::{PARENT_OBJ}->state == true;" in _apply_definition(mock_cg)
+
+    with pytest.raises(EsphomeError, match="needs all of"):
+        await _run_apply_condition(registries, check, {})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+async def test_apply_condition_string_constant_is_a_plain_literal(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+) -> None:
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    await _run_apply_condition(registries, check, {"state": "two"}, platform=platform)
+    assert f'return ::{PARENT_OBJ}->state == "two";' in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "expected", "called"),
+    [
+        ("return x;", "->state == (x);", False),
+        ('return x.empty() ? "e" : x;', '->state == (x.empty() ? "e" : x);', False),
+        ('if (x.empty()) return "e";\nreturn x;', "}(x);", True),
+    ],
+)
+async def test_apply_condition_string_lambda_paths(
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    body: str,
+    expected: str,
+    called: bool,
+) -> None:
+    """A single return is inlined with no copy; a longer body is a called std::string lambda."""
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    await _run_apply_condition(
+        registries, check, {"state": Lambda(body)}, args=[(cg.std_string, "x")]
+    )
+    text = _apply_definition(mock_cg)
+    assert expected in text
+    assert ("-> std::string {" in text) is called
+
+
+def test_progmem_bytes_shares_equal_payloads() -> None:
+    CORE.config = {}
+    a = progmem_bytes("payload", [1, 2])
+    b = progmem_bytes("payload", b"\x01\x02")
+    assert a is b
+    assert str(progmem_bytes("payload", [])) == "nullptr"
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_static_payload() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    await templatable_bytes(
+        [0xA1, 0x02], [], var.set_code_template, var.set_code_static, "payload"
+    )
+    assert "act->set_code_static(payload, 2);" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_lambda_payload() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    await templatable_bytes(
+        Lambda("return {0x01, 0x02};"),
+        [],
+        var.set_code_template,
+        var.set_code_static,
+        "payload",
+    )
+    text = CORE.cpp_main_section
+    assert "act->set_code_template(" in text
+    assert "-> std::vector<uint8_t>" in text
+    assert "set_code_static" not in text
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_rejects_oversized_payload() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    with pytest.raises(EsphomeError, match="maximum is 65535"):
+        await templatable_bytes(
+            [0] * 0x10000, [], var.set_code_template, var.set_code_static, "payload"
+        )
+
+
+TRIGGER_CONF = {CONF_AUTOMATION_ID: ID("automation_1"), CONF_THEN: []}
+
+
+def _squash(expr: object) -> str:
+    """Generated text with its whitespace folded, for one-line assertions."""
+    return " ".join(str(expr).split())
+
+
+def test_parent_ref_is_global_scoped() -> None:
+    """A parent named through parent_ref cannot be shadowed by a trigger argument."""
+    assert (
+        str(parent_ref(MockObj("sel", "->")).option_at(RawExpression("i")))
+        == "::sel->option_at(i)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_forwards_params(mock_cg: MockCodegen) -> None:
+    """Without forward or when the callback passes its parameters straight to trigger()."""
+    text = str(
+        await build_trigger_callback(
+            [(cg.bool_, "state")], TRIGGER_CONF, [(cg.bool_, "state")]
+        )
+    )
+    assert text.startswith("[](const std::remove_cvref_t<bool> & state) -> void {")
+    assert f"::{NEW_OBJ}->trigger(state);" in text
+    assert "if (" not in text
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_reshapes_and_filters(mock_cg: MockCodegen) -> None:
+    """A filter returns early, forward picks the trigger args, a string constant is a plain literal."""
+    when = ApplyCall("payload == {}", (("payload", cg.std_string),))
+    params = [(cg.std_string, "topic"), (cg.std_string, "payload")]
+    text = _squash(
+        await build_trigger_callback(
+            [(cg.std_string, "x")],
+            {**TRIGGER_CONF, "payload": "hi"},
+            params,
+            forward=["payload"],
+            when=when,
+        )
+    )
+    assert "& topic, const std::remove_cvref_t<std::string> & payload) -> void" in text
+    assert f'if (!(payload == "hi")) return; ::{NEW_OBJ}->trigger(payload);' in text
+    # An absent optional key skips the filter, as for any ApplyCall.
+    text = str(
+        await build_trigger_callback(
+            [(cg.std_string, "x")], TRIGGER_CONF, params, forward=["payload"], when=when
+        )
+    )
+    assert "if (" not in text
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_filter_has_no_parent(mock_cg: MockCodegen) -> None:
+    """A filter type that names {parent} is rejected up front, a trigger callback has none."""
+    when = ApplyCall("mode == {}", (("mode", "{parent}::Mode"),))
+    with pytest.raises(ValueError, match="names {parent}"):
+        await build_trigger_callback(
+            [], {**TRIGGER_CONF, "mode": 1}, [(cg.int_, "mode")], forward=[], when=when
+        )
+
+
+@pytest.mark.asyncio
+async def test_build_parent_callback_automation(mock_cg: MockCodegen) -> None:
+    """A no-argument callback registers a lambda that hands the parent to the automation."""
+    parent = MockObj("fan", "->")
+    await build_parent_callback_automation(
+        parent,
+        "add_on_state_callback",
+        (cg.RawExpression("Fan *"), "x"),
+        TRIGGER_CONF,
+    )
+    assert _squash(mock_cg.add.call_args.args[0]) == (
+        f"fan->add_on_state_callback([]() -> void {{ ::{NEW_OBJ}->trigger(::fan); }})"
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automation_lambda(mock_cg: MockCodegen) -> None:
+    """Reshaping keywords switch the registration to the lambda; forwarder cannot join them."""
+    parent = MockObj("sel", "->")
+    await build_callback_automation(
+        parent,
+        "add_cb",
+        [(cg.std_string, "x"), (cg.size_t, "i")],
+        TRIGGER_CONF,
+        params=[(cg.size_t, "index")],
+        forward=[parent_ref(parent).option_at(RawExpression("index")), "index"],
+    )
+    assert _squash(mock_cg.add.call_args.args[0]) == (
+        "sel->add_cb([](const std::remove_cvref_t<size_t> & index) -> void { "
+        f"::{NEW_OBJ}->trigger(::sel->option_at(index), index); }})"
+    )
+    with pytest.raises(ValueError, match="forwarder"):
+        await build_callback_automation(
+            parent,
+            "add_cb",
+            [],
+            TRIGGER_CONF,
+            forwarder=TriggerOnTrueForwarder,
+            when="x",
+        )
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automation_forwarder(mock_cg: MockCodegen) -> None:
+    """The forwarder path registers a pointer-sized TriggerForwarder, not a lambda."""
+    await build_callback_automation(
+        MockObj("parent", "->"), "add_cb", [(cg.bool_, "x")], TRIGGER_CONF
+    )
+    assert str(mock_cg.add.call_args.args[0]) == (
+        f"parent->add_cb(TriggerForwarder<bool>{{{NEW_OBJ}}})"
     )

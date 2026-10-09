@@ -21,9 +21,9 @@ struct ByronSXData {
 
 class ByronSXProtocol : public RemoteProtocol<ByronSXData> {
  public:
-  void encode(RemoteTransmitData *dst, const ByronSXData &data) override;
-  optional<ByronSXData> decode(RemoteReceiveData src) override;
-  void dump(const ByronSXData &data) override;
+  void encode(RemoteTransmitData *dst, const ByronSXData &data);
+  optional<ByronSXData> decode(RemoteReceiveData src);
+  void dump(const ByronSXData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(ByronSX)

@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 CONF_HOT_JUNCTION = "hot_junction"
 CONF_COLD_JUNCTION = "cold_junction"
@@ -62,7 +63,7 @@ FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)
@@ -70,12 +71,6 @@ async def to_code(config):
 
     cg.add(var.set_thermocouple_type(config[CONF_THERMOCOUPLE_TYPE]))
 
-    if CONF_HOT_JUNCTION in config:
-        conf = config[CONF_HOT_JUNCTION]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_hot_junction(sens))
-
-    if CONF_COLD_JUNCTION in config:
-        conf = config[CONF_COLD_JUNCTION]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_cold_junction(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_HOT_JUNCTION, var.set_hot_junction)
+    await sensors(CONF_COLD_JUNCTION, var.set_cold_junction)
