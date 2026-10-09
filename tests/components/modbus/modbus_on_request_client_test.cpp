@@ -144,4 +144,33 @@ TEST_F(MonitorClient, ResponseIsSeenWithItsRequest) {
   EXPECT_EQ(response, std::vector<uint8_t>(std::begin(reply), std::end(reply)));
 }
 
+TEST_F(MonitorClient, ExceptionIsSeenWithItsRequest) {
+  std::vector<uint8_t> request, response;
+  this->hub_.add_on_response_callback([&](uint8_t, std::span<const uint8_t> req, std::span<const uint8_t> resp) {
+    request.assign(req.begin(), req.end());
+    response.assign(resp.begin(), resp.end());
+  });
+  ModbusClientDevice device(&this->hub_, 0x02);
+  ASSERT_TRUE(device.queue_pdu(READ));
+  this->hub_.send_next_for_test();
+  const uint8_t reply[] = {0x83, 0x02};
+  this->hub_.receive_for_test(0x02, reply);
+  EXPECT_EQ(request, std::vector<uint8_t>(std::begin(READ), std::end(READ)));
+  EXPECT_EQ(response, std::vector<uint8_t>(std::begin(reply), std::end(reply)));
+}
+
+// A reply from another address interrupts the wait: the expected reply after it is ignored and the wire stays blocked.
+TEST_F(MonitorClient, ReplyAfterAnInterruptionIsNotSeen) {
+  int seen = 0;
+  this->hub_.add_on_response_callback([&seen](uint8_t, std::span<const uint8_t>, std::span<const uint8_t>) { seen++; });
+  ModbusClientDevice device(&this->hub_, 0x02);
+  ASSERT_TRUE(device.queue_pdu(READ));
+  this->hub_.send_next_for_test();
+  const uint8_t reply[] = {0x03, 0x04, 0x00, 0x2A, 0x00, 0x2B};
+  this->hub_.receive_for_test(0x05, reply);
+  this->hub_.receive_for_test(0x02, reply);
+  EXPECT_EQ(seen, 0);
+  EXPECT_TRUE(this->hub_.waiting());
+}
+
 }  // namespace esphome::modbus::testing

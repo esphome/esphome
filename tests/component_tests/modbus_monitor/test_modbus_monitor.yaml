@@ -41,3 +41,6 @@ modbus_monitor:
   - modbus_id: client_hub
     on_request:
       - logger.log: "sent"
+  - modbus_id: client_hub
+    on_response:
+      - logger.log: "received"

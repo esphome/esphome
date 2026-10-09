@@ -420,7 +420,8 @@ class ModbusServerHub : public Modbus {
 /// - Callbacks are delivered only from within loop().
 /// - At most one callback is ever issued between calls to sweep_():
 ///     sweep_ -> parse (response OR error) OR timeout (no_response) -> sweep_ -> send (sent) -> sweep_ (next loop)
-///   The hub's own on_request callbacks run in the send step right after on_sent; they are not device callbacks.
+///   The hub's own on_request callbacks run in the send step right after on_sent, and its on_response callbacks in
+///   the parse step just before the device's on_response/on_error; they are not device callbacks.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;

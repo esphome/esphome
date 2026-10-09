@@ -207,12 +207,12 @@ async def register_on_request_automation(hub: MockObj, config: ConfigType) -> No
     )
 
 
-_response_slot = cg.slot_counter("MODBUS_ON_RESPONSE_COUNT")
+_request_on_response_slot = cg.slot_counter("MODBUS_ON_RESPONSE_COUNT")
 
 
 async def register_on_response_automation(hub: MockObj, config: ConfigType) -> None:
     """Run an automation for every response the hub gets (client) or sees from another device (server)."""
-    _response_slot(str(hub))
+    _request_on_response_slot(str(hub))
     await automation.build_callback_automation(
         hub,
         "add_on_response_callback",
