@@ -3,12 +3,23 @@ wifi:
   password: password1
 
 tcp_uart:
-  - id: inbound
-    role: server
+  - id: remote_link
+    host: 192.0.2.10
     port: 2217
 
 rfc2217_uart:
-  - id: port_server
-    role: server
-    tcp_uart_id: inbound
-    uart_id: uart_bus
+  - id: remote_port
+    tcp_uart_id: remote_link
+    baud_rate: 19200
+    parity: EVEN
+    debug:
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          id(remote_port).set_baud_rate(38400);
+          #if defined(USE_ESP8266) || defined(USE_ESP32)
+          id(remote_port).load_settings(false);
+          #endif
+          id(remote_port).write_byte(0x55);

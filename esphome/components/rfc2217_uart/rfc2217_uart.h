@@ -6,6 +6,9 @@
 #ifdef USE_ESP32
 #include "esphome/components/uart/uart_component_esp_idf.h"
 #endif
+#ifdef USE_RFC2217_UART_CLIENT
+#include "esphome/components/uart/uart_virtual.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
@@ -58,6 +61,7 @@ class Rfc2217Base : public Component {
     return this->com_port_() && (this->suspended_peer_ ? level <= capacity / 4 : level >= capacity * 3 / 4);
   }
   void update_flow_();
+  void note_drop_(const LogString *message);
   void on_option_(uint8_t verb, uint8_t option);
   void send_option_(uint8_t verb, uint8_t option);
   void read_plain_();
@@ -68,6 +72,8 @@ class Rfc2217Base : public Component {
   virtual void on_link(bool up) = 0;
 
   tcp_uart::TcpUart *tcp_{nullptr};
+  // One rate limit for all drop warnings.
+  uint32_t drop_log_ms_{0};
   TelnetDecoder decoder_;
   // us_ is this side's option, him_ the peer's.
   OptionState us_[2]{};
@@ -171,5 +177,72 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
   uint8_t answers_due_{0};
   uint8_t to_serial_[TO_SERIAL_SIZE]{};
 };
+
+#ifdef USE_RFC2217_UART_CLIENT
+/// RFC 2217 client: a UART whose line settings go to the access server.
+class Rfc2217Client : public uart::VirtualUARTComponent, public Rfc2217Base {
+ public:
+  Rfc2217Client() : VirtualUARTComponent(RX_SIZE) {}
+
+  void loop() override {
+    if (this->tcp_->is_connected() != this->link_was_up_) {
+      this->link_edge_();
+    }
+    if (!this->link_was_up_) {
+      return;
+    }
+    if (this->tcp_->available() != 0) {
+      this->read_tcp_();
+    }
+    if (this->settings_pending_) {
+      this->send_settings_();
+    }
+    if (this->tx_len_ != 0) {
+      this->send_tx_();
+    }
+    if (this->wrote_) {
+      this->flush_tcp_();
+    }
+  }
+  void dump_config() override;
+
+  void write_array(const uint8_t *data, size_t len) override;
+  size_t available_for_write() override;
+  uart::UARTFlushResult flush() override;
+  // From this component's up edge on, so nothing is written ahead of the option offers.
+  bool is_connected() override { return this->link_was_up_ && this->tcp_->is_connected(); }
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  using UARTComponent::load_settings;
+  // Sends the line settings to the server.
+  void load_settings(bool dump_config) override {
+    this->settings_pending_ = true;
+    this->send_settings_();
+  }
+#endif
+
+ protected:
+  void send_settings_();
+  void send_tx_();
+  /// After a connect, payload waits for the line settings, which go out once the server accepts COM-PORT.
+  bool tx_held_() const;
+  void check_answer_(const LogString *command, uint32_t asked, uint32_t got);
+  size_t payload_room() override;
+  void deliver(const uint8_t *data, size_t len) override;
+  void on_command(uint8_t code, const uint8_t *value, size_t len) override;
+  void on_link(bool up) override;
+
+  static constexpr uint16_t RX_SIZE = 256;
+  static constexpr size_t TX_SIZE = 256;
+  // Four commands: the baud rate with every byte doubled, three single bytes.
+  static constexpr size_t SETTINGS_SIZE = COM_PORT_COMMAND_MAX + 3 * 7;
+
+  // Loop start time of the up edge.
+  uint32_t link_up_ms_{0};
+  // tx_[0, tx_len_): written, not sent; held while the line settings are due or the server has suspended.
+  uint16_t tx_len_{0};
+  bool settings_pending_{false};
+  uint8_t tx_[TX_SIZE]{};
+};
+#endif  // USE_RFC2217_UART_CLIENT
 
 }  // namespace esphome::rfc2217_uart

@@ -1,4 +1,4 @@
-"""Tests for rfc2217_uart: exclusive use of both UARTs and the ESP32 line change."""
+"""Tests for rfc2217_uart: exclusive use of the UARTs, the ESP32 line change and the client codegen."""
 
 import pytest
 
@@ -114,11 +114,63 @@ def test_rejects_dummy_receiver(set_core_config: SetCoreConfigCallable) -> None:
         _final_validate(_entry())
 
 
-def test_role_and_uart_id_are_required() -> None:
-    with pytest.raises(cv.Invalid, match="role"):
-        rfc2217_uart.CONFIG_SCHEMA({"tcp_uart_id": "link", "uart_id": "uart_0"})
+def test_rejects_a_client_as_the_hardware_uart(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(
+        set_core_config,
+        _full_config(
+            rfc2217_uart=[
+                {CONF_ID: ID("remote"), "role": "client"},
+            ]
+        ),
+    )
+    with pytest.raises(cv.Invalid, match="not a tcp_uart or an rfc2217_uart client"):
+        _final_validate(_entry("remote", "link2"))
+
+
+def test_rejects_a_client_on_a_tcp_uart_in_use(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(set_core_config, _full_config())
+    _final_validate(_entry("uart_0", "link"))
+    with pytest.raises(cv.Invalid, match="already used by another 'rfc2217_uart'"):
+        _final_validate({"role": "client", rfc2217_uart.CONF_TCP_UART_ID: ID("link")})
+
+
+def test_server_needs_the_hardware_uart() -> None:
     with pytest.raises(cv.Invalid, match="uart_id"):
         rfc2217_uart.CONFIG_SCHEMA({"role": "server", "tcp_uart_id": "link"})
+
+
+def test_client_needs_a_baud_rate() -> None:
+    with pytest.raises(cv.Invalid, match="baud_rate"):
+        rfc2217_uart.CONFIG_SCHEMA({"tcp_uart_id": "link"})
+
+
+def test_client_rejects_one_and_a_half_stop_bits() -> None:
+    with pytest.raises(cv.Invalid, match="stop_bits"):
+        rfc2217_uart.CONFIG_SCHEMA(
+            {"tcp_uart_id": "link", "baud_rate": 9600, "stop_bits": 1.5}
+        )
+
+
+def test_client_sends_its_line_settings(generate_main) -> None:
+    main_cpp = generate_main(f"{DIR}/test_client.yaml")
+    assert "remote_port->set_tcp_uart(remote_link);" in main_cpp
+    assert "remote_port->set_baud_rate(19200);" in main_cpp
+    assert "remote_port->set_data_bits(7);" in main_cpp
+    assert "remote_port->set_stop_bits(2);" in main_cpp
+    assert "remote_port->set_parity(uart::UART_CONFIG_PARITY_EVEN);" in main_cpp
+    assert {"USE_RFC2217_UART_CLIENT", "USE_UART_VIRTUAL"} <= {
+        define.name for define in CORE.defines
+    }
+
+
+def test_server_alone_needs_no_client(generate_main) -> None:
+    generate_main(f"{DIR}/test_rfc2217_uart.yaml")
+    defines = {define.name for define in CORE.defines}
+    assert not {"USE_RFC2217_UART_CLIENT", "USE_UART_VIRTUAL"} & defines
 
 
 def test_esp32_hardware_uart_changes_its_line_in_place(generate_main) -> None:

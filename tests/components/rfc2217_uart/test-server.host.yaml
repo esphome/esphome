@@ -1,8 +1,6 @@
+# Server alone: builds without the client and the virtual UART base.
 packages:
-  rfc2217_uart: !include common.yaml
   rfc2217_uart_server: !include common-server.yaml
-
-wifi: !remove
 
 uart:
   - id: uart_bus

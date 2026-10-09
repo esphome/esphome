@@ -1,5 +1,6 @@
 #include "rfc2217_uart.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -8,6 +9,18 @@
 namespace esphome::rfc2217_uart {
 
 ESPHOME_LOG_TAG(TAG, "rfc2217_uart");
+
+static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
+
+void Rfc2217Base::note_drop_(const LogString *message) {
+  uint32_t now = App.get_loop_component_start_time();
+  if (this->drop_log_ms_ != 0 && now - this->drop_log_ms_ < DROP_LOG_INTERVAL_MS) {
+    return;
+  }
+  // A zero stamp would look like "never logged" on the next pass.
+  this->drop_log_ms_ = now == 0 ? 1 : now;
+  ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
+}
 
 void Rfc2217Base::link_edge_() {
   const bool up = this->tcp_->is_connected();
