@@ -53,7 +53,6 @@ void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_
   if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 100,
                                [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
-    App.wake_loop_threadsafe();
     return;
   }
   if (ezb_bdb_start_top_level_commissioning(mode) != EZB_ERR_NONE) {
@@ -92,7 +91,6 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 1000, []() {
           ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_INITIALIZATION);
         });
-        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_BDB_SIGNAL_STEERING: {
@@ -118,7 +116,6 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
             ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
           });
         }
-        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_ZDO_SIGNAL_LEAVE: {

@@ -26,12 +26,6 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/time_conversion.h"
 
-// Backward compatibility re-export of heap-allocating helpers.
-// These functions have moved to alloc_helpers.h. External components should
-// update their includes to use #include "esphome/core/alloc_helpers.h" directly.
-// This re-export will be removed in 2026.11.0.
-#include "esphome/core/alloc_helpers.h"
-
 #ifdef USE_ESP8266
 #include <Esp.h>
 #include <pgmspace.h>
@@ -1105,13 +1099,8 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
 }
 #endif  // USE_ESP8266
 
-// str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
-
-// str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
-
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
-// str_snake_case moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
 constexpr char to_sanitized_char(char c) {
@@ -1134,8 +1123,6 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
   return str_sanitize_to(buffer, N, str);
 }
 
-// str_sanitize moved to alloc_helpers.h - remove this comment before 2026.11.0
-
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
@@ -1149,8 +1136,6 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
   }
   return hash;
 }
-
-// str_snprintf, str_sprintf moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 #ifdef USE_ESP8266
 // ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
@@ -1605,32 +1590,6 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
 }
 
-// format_mac_address_pretty, format_hex (all overloads) moved to alloc_helpers.h
-// Remove this comment and the template overloads below before 2026.11.0
-
-/// Format an unsigned integer in lowercased hex, starting with the most significant byte.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
-  val = convert_big_endian(val);
-  return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
-}
-/// Format the std::array \p data in lowercased hex.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
-  return format_hex(data.data(), data.size());
-}
-
-// format_hex_pretty (all overloads) moved to alloc_helpers.h
-// Remove this comment and the template overload below before 2026.11.0
-
-/// Format an unsigned integer in pretty-printed, human-readable hex format.
-/// @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
-  val = convert_big_endian(val);
-  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
-}
-
 /// Calculate buffer size needed for format_bin_to: "01234567...\0" = bytes * 8 + 1
 constexpr size_t format_bin_size(size_t byte_count) { return byte_count * 8 + 1; }
 
@@ -1684,15 +1643,6 @@ inline char *format_bin_to(char (&buffer)[N], T val) {
   return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
-// format_bin moved to alloc_helpers.h - remove this comment and template overload before 2026.11.0
-
-/// Format an unsigned integer in binary, starting with the most significant byte.
-/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
-  val = convert_big_endian(val);
-  return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
-}
-
 /// Return values for parse_on_off().
 enum ParseOnOffState : uint8_t {
   PARSE_NONE = 0,
@@ -1702,8 +1652,6 @@ enum ParseOnOffState : uint8_t {
 };
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
-
-// value_accuracy_to_string moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
 static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
@@ -1717,8 +1665,6 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
-// base64_encode (both overloads), base64_decode (vector overload) moved to alloc_helpers.h
-// Remove this comment before 2026.11.0
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
@@ -2176,8 +2122,6 @@ class HighFrequencyLoopRequester {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
-
-// get_mac_address, get_mac_address_pretty moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
 /// Assumes buffer length is MAC_ADDRESS_BUFFER_SIZE (12 digits for hexadecimal representation followed by null
