@@ -1797,6 +1797,15 @@ _INPUT_ONLY_SETTINGS = (
         )
         for number in numbers
         for setting, error in _INPUT_ONLY_SETTINGS
+    ]
+    + [
+        pytest.param(
+            VARIANT_ESP32,
+            20,
+            CONF_HOLD_STATE,
+            "GPIO20 has no hold function",
+            id="esp32-gpio20-hold_state",
+        )
     ],
 )
 def test_input_only_gpio_rejects_unsupported_modes(

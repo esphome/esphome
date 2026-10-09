@@ -76,6 +76,9 @@ def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
             f"GPIO{num} (34-39) is input-only and cannot be held.",
             [CONF_HOLD_STATE],
         )
+    if value.get(CONF_HOLD_STATE) and num == 20:
+        # Not in the digital hold mask and not an RTC pad, so the driver cannot hold it
+        raise cv.Invalid("GPIO20 has no hold function.", [CONF_HOLD_STATE])
 
     check_strapping_pin(value, _ESP32_STRAPPING_PINS, _LOGGER)
     return value

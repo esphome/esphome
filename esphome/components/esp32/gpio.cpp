@@ -76,6 +76,13 @@ static inline void IRAM_ATTR isr_refresh_hold(const ISRPinArg *arg) {
     rtcio_hal_hold_enable(arg->rtc_pin);
     return;
   }
+#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+  // GPIO0-21 are held from the RTC domain; the digital hold mask is zero for them
+  if (arg->pin < SOC_RTCIO_PIN_COUNT) {
+    rtcio_hal_hold_disable(arg->pin);
+    rtcio_hal_hold_enable(arg->pin);
+    return;
+  }
 #endif
   gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
   gpio_hal_hold_en(&GPIO_HAL, arg->pin);
