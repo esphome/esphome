@@ -31,5 +31,8 @@ def test_output_hold_state_requires_power_supply_hold_state(
     if power_supply_holds:
         FINAL_VALIDATE_SCHEMA(config)
     else:
-        with pytest.raises(cv.Invalid, match="hold_state can only be used"):
+        with pytest.raises(
+            cv.Invalid,
+            match="The power supply pin must also set hold_state when an output it powers sets it",
+        ):
             FINAL_VALIDATE_SCHEMA(config)
