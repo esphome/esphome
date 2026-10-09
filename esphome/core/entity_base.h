@@ -31,8 +31,11 @@ static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 // esphome/core/config.py
 static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 
-// Buffer size for EntityBase::get_name_to(); entity names are capped by NAME_MAX_LENGTH in config_validation.py
-static constexpr size_t ENTITY_NAME_BUF_SIZE = ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+// Maximum entity name length - keep in sync with NAME_MAX_LENGTH in esphome/config_validation.py
+static constexpr size_t ESPHOME_ENTITY_NAME_MAX_LEN = 120;
+
+// Buffer size for EntityBase::get_name_to()
+static constexpr size_t ENTITY_NAME_BUF_SIZE = ESPHOME_ENTITY_NAME_MAX_LEN + 1;
 
 // Maximum domain length (longest: "alarm_control_panel" = 19)
 static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
@@ -75,20 +78,22 @@ class EntityBase {
   template<typename T = int> StringRef get_name() const {
     static_assert(sizeof(T) == 0, "get_name() unavailable on ESP8266 (name is in flash). "
                                   "Use get_name_to() with a stack buffer, or get_log_name() for logging.");
-    return StringRef(this->name_.progmem_ptr(), this->name_.size());
+    return {};
   }
   /// Get the name of this Entity, copied out of flash into buffer.
-  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const;
-  bool name_equals(const StringRef &other) const;
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
+    return StringRef(buffer.data(), this->name_.write_to(buffer.data(), buffer.size()));
+  }
 #else
   ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
-  StringRef get_name() const { return this->name_ref_(); }
-  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_ref_(); }
-  bool name_equals(const StringRef &other) const { return this->name_ref_() == other; }
+  StringRef get_name() const { return this->name_.ram_ref(); }
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
 #endif
 
+  bool name_equals(const StringRef &other) const { return this->name_.equals(other); }
+
   /// Copy the name into buf (null terminated), returns its length.
-  size_t write_name_to(char *buf, size_t buf_size) const;
+  size_t write_name_to(char *buf, size_t buf_size) const { return this->name_.write_to(buf, buf_size); }
 
   /// Get the name for a "%s" log argument (LOG_STR_ARG).
   const LogString *get_log_name() const { return reinterpret_cast<const LogString *>(this->name_.progmem_ptr()); }
@@ -234,9 +239,6 @@ class EntityBase {
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
 
   void calc_object_id_();
-#ifndef USE_ESP8266
-  StringRef name_ref_() const { return StringRef(this->name_.progmem_ptr(), this->name_.size()); }
-#endif
 
   ProgmemStringRef name_;
   uint32_t object_id_hash_{};

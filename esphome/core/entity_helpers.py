@@ -312,7 +312,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
     standalone ``var->configure_entity_(name, hash, packed)``.
     """
-    entity_name = config[_KEY_ENTITY_NAME]
+    entity_name = RawExpression(
+        f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
+    )
     object_id_hash = config[_KEY_OBJECT_ID_HASH]
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
@@ -330,7 +332,6 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
-    entity_name = RawExpression(f"ESPHOME_PSTR({cpp_string_escape(entity_name)})")
     register_method = config.get(_KEY_REGISTER_METHOD)
     if register_method is not None:
         expr = getattr(App, f"register_{register_method}")(

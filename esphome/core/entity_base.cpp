@@ -1,6 +1,5 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -11,11 +10,11 @@ namespace esphome {
 ESPHOME_LOG_TAG(TAG, "entity_base");
 
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
-  this->name_ = StringRef(name, ESPHOME_strlen_P(name));
+  this->name_ = ProgmemStringRef(name, ESPHOME_strlen_P(name));
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
     if (this->device_ != nullptr) {
-      this->name_ = StringRef(this->device_->get_name());
+      this->name_ = ProgmemStringRef(StringRef(this->device_->get_name()));
     } else
 #endif
     {
@@ -25,10 +24,10 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
       const auto &friendly = App.get_friendly_name();
       if (App.is_name_add_mac_suffix_enabled()) {
         // MAC suffix enabled - use friendly_name directly (even if empty) for compatibility
-        this->name_ = friendly;
+        this->name_ = ProgmemStringRef(friendly);
       } else {
         // No MAC suffix - fallback to device name if friendly_name is empty
-        this->name_ = !friendly.empty() ? friendly : App.get_name();
+        this->name_ = ProgmemStringRef(!friendly.empty() ? friendly : App.get_name());
       }
     }
     this->flags_.has_own_name = false;
@@ -124,23 +123,6 @@ void EntityBase::calc_object_id_() {
   StringRef name = this->get_name_to(buf);
   this->object_id_hash_ = fnv1_hash_object_id(name.c_str(), name.size());
 }
-
-size_t EntityBase::write_name_to(char *buf, size_t buf_size) const {
-  size_t len = std::min(this->name_.size(), buf_size - 1);
-  progmem_memcpy(buf, this->name_.progmem_ptr(), len);
-  buf[len] = '\0';
-  return len;
-}
-
-#ifdef USE_ESP8266
-StringRef EntityBase::get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
-  return StringRef(buffer.data(), this->write_name_to(buffer.data(), buffer.size()));
-}
-
-bool EntityBase::name_equals(const StringRef &other) const {
-  return other.size() == this->name_.size() && memcmp_P(other.c_str(), this->name_.progmem_ptr(), other.size()) == 0;
-}
-#endif
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
   size_t len = this->write_name_to(buf, buf_size);

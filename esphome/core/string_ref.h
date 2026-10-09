@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -222,19 +223,42 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
   str.append(rhs.c_str(), rhs.size());
   return str;
 }
-// String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
-// Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
 /// A string that may live in flash (on ESP8266): pointer and length, with no byte-reading operations.
-/// Read the contents with the progmem helpers; progmem_ptr() is also safe as a "%s" log argument.
+/// progmem_ptr() is safe as a "%s" log argument; read the contents with write_to() or equals().
 class ProgmemStringRef {
  public:
   constexpr ProgmemStringRef() = default;
   constexpr ProgmemStringRef(const char *s, size_t len) : base_(s), len_(len) {}
-  constexpr ProgmemStringRef(const StringRef &s) : base_(s.c_str()), len_(s.size()) {}  // NOLINT
+  constexpr explicit ProgmemStringRef(const StringRef &s) : base_(s.c_str()), len_(s.size()) {}
 
   constexpr const char *progmem_ptr() const { return this->base_; }
   constexpr size_t size() const { return this->len_; }
   constexpr bool empty() const { return this->len_ == 0; }
+
+  /// Copy into buf (null terminated, truncated to fit), returns the length copied.
+  size_t write_to(char *buf, size_t buf_size) const {
+    size_t len = std::min(this->len_, buf_size - 1);
+#ifdef USE_ESP8266
+    memcpy_P(buf, this->base_, len);
+#else
+    std::memcpy(buf, this->base_, len);
+#endif
+    buf[len] = '\0';
+    return len;
+  }
+
+  bool equals(const StringRef &other) const {
+#ifdef USE_ESP8266
+    return other.size() == this->len_ && memcmp_P(other.c_str(), this->base_, this->len_) == 0;
+#else
+    return other == StringRef(this->base_, this->len_);
+#endif
+  }
+
+#ifndef USE_ESP8266
+  /// The string is in RAM here, so it can be viewed directly.
+  constexpr StringRef ram_ref() const { return StringRef(this->base_, this->len_); }
+#endif
 
   // Remove before 2027.5.0 (helpers.h's ESPDEPRECATED is not reachable from here)
   [[deprecated(
@@ -243,11 +267,13 @@ class ProgmemStringRef {
     return this->base_;
   }
 
- protected:
+ private:
   const char *base_{""};
   size_t len_{0};
 };
 
+// String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
+// Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
 namespace internal {
 // NOLINTBEGIN(google-runtime-int)
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {

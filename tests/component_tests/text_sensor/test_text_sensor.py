@@ -28,18 +28,9 @@ def test_text_sensor_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/text_sensor/test_text_sensor.yaml")
 
     # Then
-    assert (
-        'App.register_text_sensor(ts_1, ESPHOME_PSTR("Template Text Sensor 1"),'
-        in main_cpp
-    )
-    assert (
-        'App.register_text_sensor(ts_2, ESPHOME_PSTR("Template Text Sensor 2"),'
-        in main_cpp
-    )
-    assert (
-        'App.register_text_sensor(ts_3, ESPHOME_PSTR("Template Text Sensor 3"),'
-        in main_cpp
-    )
+    for i in (1, 2, 3):
+        name = f'ESPHOME_PSTR("Template Text Sensor {i}")'
+        assert f"App.register_text_sensor(ts_{i}, {name}," in main_cpp
 
 
 def test_text_sensor_config_value_internal_set(generate_main):
