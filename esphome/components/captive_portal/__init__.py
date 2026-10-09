@@ -76,7 +76,7 @@ def _final_validate(config: ConfigType) -> None:
             "Add 'ap:' to your WiFi configuration to enable the captive portal."
         )
 
-    web_server_base.consume_captive_dns_sockets(config, "captive_portal")
+    web_server_base.consume_captive_dns_sockets(config, DOMAIN)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

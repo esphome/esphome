@@ -8,6 +8,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.captive_portal import DOMAIN as CAPTIVE_PORTAL_DOMAIN
 from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
@@ -379,7 +380,7 @@ def serve_captive(config: ConfigType, full_config: ConfigType) -> bool:
     owns that role. Port 80 only: the OS probes and the DHCP portal URI never use another port."""
     wifi_config = full_config.get(CONF_WIFI)
     return (
-        "captive_portal" not in full_config
+        CAPTIVE_PORTAL_DOMAIN not in full_config
         and config[CONF_PORT] == 80
         and wifi_config is not None
         and CONF_AP in wifi_config
@@ -394,7 +395,7 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
     local = serve_local(config, wifi_config)
     ap_only = wifi_is_ap_only(wifi_config)
     if captive:
-        web_server_base.consume_captive_dns_sockets(config, "web_server")
+        web_server_base.consume_captive_dns_sockets(config, DOMAIN)
     # Surface behavior that the config does not spell out.
     if local and CONF_LOCAL not in config:
         _LOGGER.info(
@@ -417,7 +418,7 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
         and config[CONF_PORT] != 80
         and wifi_config is not None
         and CONF_AP in wifi_config
-        and "captive_portal" not in full_config
+        and CAPTIVE_PORTAL_DOMAIN not in full_config
     ):
         ap_ip = "192.168.4.1"
         if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
