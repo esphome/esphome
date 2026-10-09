@@ -1,3 +1,5 @@
+# Config only: the P4 compiles the same ADC code as the esp32-s3-idf build
+# (curve fitting calibration), only the pin table differs.
 sensor:
   - id: adc_my_sensor
     platform: adc
