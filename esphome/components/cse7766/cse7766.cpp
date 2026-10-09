@@ -6,7 +6,7 @@
 
 namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();

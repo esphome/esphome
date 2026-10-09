@@ -4,7 +4,7 @@ dependencies:
   esphome/dlms_parser:
     version: 1.1.0
   esphome/esp-audio-libs:
-    version: 3.2.1
+    version: 4.0.1
   esphome/esp-micro-speech-features:
     version: 1.2.3
   esphome/micro-decoder:
@@ -24,9 +24,9 @@ dependencies:
   espressif/esp32-camera:
     version: 2.1.7
   espressif/mdns:
-    version: 1.12.0
+    version: 1.14.0
   espressif/esp_wifi_remote:
-    version: 1.6.3
+    version: 1.6.5
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/wifi_remote_over_eppp:
@@ -38,9 +38,13 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.12.12
+    version: 2.12.13
     rules:
       - if: "target in [esp32h2, esp32p4]"
+  francescopace/espectre:
+    version: "3.0.0"
+    rules:
+      - if: "target in [esp32, esp32s2, esp32s3, esp32c3, esp32c5, esp32c6]"
   zorxx/multipart-parser:
     version: 1.0.1
   espressif/lan867x:
@@ -97,8 +101,11 @@ dependencies:
       - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32s31, esp32p4, esp32h4]"
   esp32async/asynctcp:
     version: 3.4.91
+  # sendspin is ESP-IDF only (it needs noise-c as an ESP-IDF component, see below)
   sendspin/sendspin-cpp:
-    version: 0.7.2
+    version: 0.9.3
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
   lvgl/lvgl:
     version: 9.5.0
   fastled/FastLED:
@@ -106,3 +113,14 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
+  # noise (api, ota). Arduino below IDF 6.0 bundles espressif/libsodium, which
+  # clashes with esphome/libsodium, so those builds use the PlatformIO libraries.
+  esphome/noise-c:
+    version: 0.1.31
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
+  # Declared alongside noise-c so the library converter skips wireguard's copy
+  esphome/libsodium:
+    version: 1.10021.12
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"

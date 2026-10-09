@@ -6,7 +6,7 @@
 
 namespace esphome::bmp280_base {
 
-static const char *const TAG = "bmp280.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp280.sensor");
 
 static const uint8_t BMP280_REGISTER_STATUS = 0xF3;
 static const uint8_t BMP280_REGISTER_CONTROL = 0xF4;
@@ -254,7 +254,6 @@ void BMP280Component::set_temperature_oversampling(BMP280Oversampling temperatur
 void BMP280Component::set_pressure_oversampling(BMP280Oversampling pressure_over_sampling) {
   this->pressure_oversampling_ = pressure_over_sampling;
 }
-void BMP280Component::set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BMP280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->bmp_read_byte(a_register, &data);

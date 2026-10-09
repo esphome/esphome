@@ -88,13 +88,26 @@ class EntityBase {
   // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
 
-  // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
-  // are NOT notified of the change, the flag may have already been read during setup, and there
-  // is NO guarantee any consumer will observe the new value. Use the 'internal:' YAML key instead.
-  ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
-                "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
-                "2026.3.0")
-  void set_internal(bool internal) { this->flags_.internal = internal; }
+  // Set whether this Entity should be hidden outside ESPHome. Prefer the 'internal:' YAML key
+  // whenever possible: it is guaranteed and has none of the limitations below. Use this only when
+  // the decision can only be made at boot. Must be called before MQTT and the API read the flag:
+  // from on_boot at the default priority, or a setup() that runs above setup_priority::AFTER_WIFI.
+  // If the answer comes from a device handshake, hold setup with can_proceed() until it arrives.
+  // Calls after setup finishes are undefined behavior: the flag is still written and an error is
+  // logged, and from 2027.3.0 the call will be ignored.
+  //
+  // Known limitations. Not bugs, so no issue reports please; a PR that removes one with no RAM
+  // or performance cost would be considered.
+  // - No consumer is notified of a change, so the flag can only be decided once per boot.
+  // - The guard is coarse: a call from a priority below AFTER_WIFI (an on_boot with a low priority,
+  //   or a setup() at LATE) still passes, but the API camera listener is already registered, MQTT
+  //   (AFTER_CONNECTION) has cached the flag, and an API client that connected while setup was
+  //   stalled on a slow component has already listed the entities, so they keep the old value.
+  // - Un-hiding an entity declared 'internal: true' in YAML skips the duplicate name check that
+  //   codegen runs for exposed entities, so a name collision can surface at runtime. Entities with
+  //   only an 'id:' are forced internal and use the id as their name.
+  // - Zigbee codegen skips YAML internal entities entirely, so un-hiding cannot add them to Zigbee.
+  void set_internal(bool internal);
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should

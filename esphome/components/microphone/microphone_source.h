@@ -34,7 +34,7 @@ class MicrophoneSource final {
    */
  public:
   MicrophoneSource(Microphone *mic, uint8_t bits_per_sample, int32_t gain_factor, bool passive)
-      : mic_(mic), bits_per_sample_(bits_per_sample), gain_factor_(gain_factor), passive_(passive) {}
+      : mic_(mic), gain_factor_(gain_factor), passive_(passive), bits_per_sample_(bits_per_sample) {}
 
   /// @brief Enables a channel to be processed through the callback.
   ///
@@ -48,7 +48,7 @@ class MicrophoneSource final {
   template<typename F> void add_data_callback(F &&data_callback) {
     this->mic_->add_data_callback([this, data_callback](const std::vector<uint8_t> &data) {
       if (this->enabled_ || this->passive_) {
-        if (this->processed_samples_.use_count() == 0) {
+        if (this->processed_samples_ == nullptr) {
           // Create vector if its unused
           this->processed_samples_ = std::make_shared<std::vector<uint8_t>>();
         }
@@ -81,11 +81,11 @@ class MicrophoneSource final {
   std::shared_ptr<std::vector<uint8_t>> processed_samples_;
 
   Microphone *mic_;
-  uint8_t bits_per_sample_;
   std::bitset<8> channels_;
   int32_t gain_factor_;
   bool enabled_{false};
   bool passive_;  // Only pass audio if ``mic_`` is already running
+  uint8_t bits_per_sample_;
 };
 
 }  // namespace esphome::microphone

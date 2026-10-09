@@ -11,7 +11,7 @@
 
 namespace esphome::bme280_base {
 
-static const char *const TAG = "bme280.sensor";
+ESPHOME_LOG_TAG(TAG, "bme280.sensor");
 
 static const uint8_t BME280_REGISTER_DIG_T1 = 0x88;
 static const uint8_t BME280_REGISTER_DIG_T2 = 0x8A;
@@ -341,7 +341,6 @@ void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over
 void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
   this->humidity_oversampling_ = humidity_over_sampling;
 }
-void BME280Component::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);

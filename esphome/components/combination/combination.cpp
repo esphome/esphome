@@ -7,7 +7,7 @@
 
 namespace esphome::combination {
 
-static const char *const TAG = "combination";
+ESPHOME_LOG_TAG(TAG, "combination");
 
 void CombinationComponent::log_config_(const LogString *combo_type) {
   LOG_SENSOR("", "Combination Sensor:", this);

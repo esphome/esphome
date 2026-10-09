@@ -32,6 +32,7 @@ from esphome.storage_json import StorageJSON
 from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
+    COMPONENT_LN882X,
     CONF_GPIO_RECOVER,
     CONF_LOGLEVEL,
     CONF_SDK_SILENT,
@@ -56,6 +57,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "libretiny"
 IS_TARGET_PLATFORM = True
 
 # BLE 5.x BK SDK options to disable unused features.
@@ -490,6 +492,10 @@ async def component_to_code(config):
         # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
         cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
 
+    # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
+    if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:
+        cg.add_build_flag("-Wl,--wrap=pvPortMalloc")
+
     # RTL8710B needs FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake
     # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)
     # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
@@ -513,12 +519,18 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    # Must run before the platform's builder scripts are loaded; see the script.
+    cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
+        cg.add_build_unflag("-fno-short-enums")
+        cg.add_build_flag("-fshort-enums")
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
@@ -617,5 +629,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         patch_linker_file,
         CORE.relative_build_path("patch_linker.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "scons_dont_inherit.py.script",
+        CORE.relative_build_path("scons_dont_inherit.py"),
     )
     copy_ccache_script()

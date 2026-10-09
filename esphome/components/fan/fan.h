@@ -183,7 +183,7 @@ class Fan : public EntityBase {
 
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
-  FanRestoreMode restore_mode_;
+  FanRestoreMode restore_mode_{FanRestoreMode::NO_RESTORE};
 
  private:
   /// Lazy-allocate preset modes vector (never freed — entity lives forever).

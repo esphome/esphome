@@ -1,0 +1,7 @@
+button:
+  - platform: template
+    name: HC8 Calibrate
+    on_press:
+      - hc8.calibrate:
+          id: hc8_sensor
+          baseline: !lambda return 400;

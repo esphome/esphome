@@ -12,7 +12,7 @@ class SDS011Component final : public Component, public uart::UARTDevice {
   SDS011Component() = default;
 
   /// Manually set the rx-only mode. Defaults to false.
-  void set_rx_mode_only(bool rx_mode_only);
+  void set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }

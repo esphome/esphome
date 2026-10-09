@@ -11,7 +11,7 @@
 
 namespace esphome::sensor {
 
-static const char *const TAG = "sensor.filter";
+ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 // Filter
 void Filter::input(float value) {
@@ -450,7 +450,7 @@ optional<float> ToNTCResistanceFilter::new_value(float value) {
   }
   double k = 273.15;
   // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
-  double t = value + k;
+  double t = static_cast<double>(value) + k;
   double y = (this->a_ - 1 / (t)) / (2 * this->c_);
   double x = sqrt(pow(this->b_ / (3 * this->c_), 3) + y * y);
   double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));

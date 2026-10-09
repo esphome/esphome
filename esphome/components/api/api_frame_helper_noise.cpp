@@ -5,15 +5,12 @@
 #include "esphome/components/noise/noise.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "proto.h"
 #include <cstring>
 #include <cinttypes>
-
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#endif
 
 namespace esphome::api {
 
@@ -25,12 +22,8 @@ using noise::noise_err_to_logstr;
 static_assert(MAX_HANDSHAKE_SIZE == noise::MAX_HANDSHAKE_SIZE,
               "api and noise component handshake size limits must match");
 
-static const char *const TAG = "api.noise";
-#ifdef USE_ESP8266
+ESPHOME_LOG_TAG(TAG, "api.noise");
 static constexpr char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
-#else
-static const char *const PROLOGUE_INIT = "NoiseAPIInit";
-#endif
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
@@ -67,20 +60,23 @@ APIError APINoiseFrameHelper::init() {
   }
 
   // init prologue
-  size_t old_size = prologue_.size();
-  if (!prologue_.resize(old_size + PROLOGUE_INIT_LEN)) [[unlikely]] {
+  uint8_t *dst = prologue_.append(PROLOGUE_INIT_LEN);
+  if (dst == nullptr) [[unlikely]] {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
-#ifdef USE_ESP8266
-  memcpy_P(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
-#else
-  std::memcpy(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
-#endif
+  progmem_memcpy(dst, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
 
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
 }
+#ifdef USE_API_OUTGOING_CONNECTION
+APIError APINoiseFrameHelper::send_server_hello_first() {
+  // The peer needs our name and MAC to pick the key before its first message
+  this->state_ = State::CLIENT_HELLO_OUTGOING;
+  return this->send_server_hello_frame_();
+}
+#endif
 #ifdef USE_API_PLAINTEXT
 APIError APINoiseFrameHelper::init_from_handoff(const uint8_t *header, uint8_t header_len) {
   APIError err = this->init();
@@ -253,6 +249,9 @@ APIError APINoiseFrameHelper::state_action_() {
       HELPER_LOG("Bad state for method: %d", (int) this->state_);
       return APIError::BAD_STATE;
     case State::CLIENT_HELLO:
+#ifdef USE_API_OUTGOING_CONNECTION
+    case State::CLIENT_HELLO_OUTGOING:
+#endif
       return this->state_action_client_hello_();
     case State::SERVER_HELLO:
       return this->state_action_server_hello_();
@@ -272,24 +271,29 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
     return handle_handshake_frame_error_(aerr);
   }
   // ignore contents, may be used in future for flags
-  // Resize for: existing prologue + 2 size bytes + frame data
-  size_t old_size = this->prologue_.size();
+  // Append 2 size bytes + frame data to the prologue
   size_t rx_size = this->rx_buf_.size();
-  if (!this->prologue_.resize(old_size + 2 + rx_size)) [[unlikely]] {
+  uint8_t *dst = this->prologue_.append(2 + rx_size);
+  if (dst == nullptr) [[unlikely]] {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
-  this->prologue_[old_size] = (uint8_t) (rx_size >> 8);
-  this->prologue_[old_size + 1] = (uint8_t) rx_size;
+  dst[0] = (uint8_t) (rx_size >> 8);
+  dst[1] = (uint8_t) rx_size;
   if (rx_size > 0) {
-    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
+    std::memcpy(dst + 2, this->rx_buf_.data(), rx_size);
   }
 
+#ifdef USE_API_OUTGOING_CONNECTION
+  if (this->state_ == State::CLIENT_HELLO_OUTGOING) {
+    // Server hello already went out at handoff
+    return this->start_handshake_();
+  }
+#endif
   state_ = State::SERVER_HELLO;
   return APIError::OK;
 }
-APIError APINoiseFrameHelper::state_action_server_hello_() {
-  // send server hello
+APIError APINoiseFrameHelper::send_server_hello_frame_() {
   const auto &name = App.get_name();
   char mac[MAC_ADDRESS_BUFFER_SIZE];
   get_mac_address_into_buffer(mac);
@@ -313,15 +317,18 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   // node mac, terminated by null byte
   std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
-  APIError aerr = write_frame_(msg, total_size);
+  return write_frame_(msg, total_size);
+}
+APIError APINoiseFrameHelper::state_action_server_hello_() {
+  APIError aerr = this->send_server_hello_frame_();
   if (aerr != APIError::OK)
     return aerr;
-
-  // start handshake
-  aerr = init_handshake_();
+  return this->start_handshake_();
+}
+APIError APINoiseFrameHelper::start_handshake_() {
+  APIError aerr = init_handshake_();
   if (aerr != APIError::OK)
     return aerr;
-
   state_ = State::HANDSHAKE;
   return APIError::OK;
 }

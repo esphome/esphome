@@ -7,7 +7,7 @@
 
 namespace esphome::graphical_display_menu {
 
-static const char *const TAG = "graphical_display_menu";
+ESPHOME_LOG_TAG(TAG, "graphical_display_menu");
 
 void GraphicalDisplayMenu::setup() {
   if (this->display_ != nullptr) {
@@ -56,10 +56,6 @@ void GraphicalDisplayMenu::dump_config() {
                   YESNO(item->get_immediate_edit()));
   }
 }
-
-void GraphicalDisplayMenu::set_display(display::Display *display) { this->display_ = display; }
-
-void GraphicalDisplayMenu::set_font(display::BaseFont *font) { this->font_ = font; }
 
 void GraphicalDisplayMenu::set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
 void GraphicalDisplayMenu::set_background_color(Color background_color) { this->background_color_ = background_color; }

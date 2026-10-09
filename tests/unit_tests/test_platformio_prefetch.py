@@ -661,7 +661,8 @@ def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
-    """HEAD sizes direct-URL specs; git and unreachable URLs are skipped."""
+    """HEAD sizes direct-URL specs; VCS specs skip the download but are
+    still installable (the pre-install clones them in parallel)."""
     m = _fake_manager(tmp_path)
     resp = MagicMock()
     resp.headers = {"content-length": "2222"}
@@ -670,20 +671,76 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
             m,
             [
                 _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
-                _FakeSpec(uri="git+https://x/repo.git", name="repo"),
-                _FakeSpec(uri="https://x/repo.git#v1", name="barevcs"),
+                _FakeSpec(uri="git+https://x/repo.git", name="repo", custom_name=True),
                 _FakeSpec(name="registry"),
             ],
             set(),
         )
     assert failed == 0
     assert [(n, s) for n, s, _ in jobs] == [("big", 2222)]
-    assert [n for n, _ in installable] == ["big"]
+    assert [n for n, _ in installable] == ["repo", "big"]
+    # A derived-name platform archive sized in the same run is trusted too
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        jobs, _, installable = pf._uri_jobs(
+            m,
+            [_FakeSpec(uri="https://x/fresh.zip", name="fresh")],
+            set(),
+            trusted_names=True,
+        )
+    assert [n for n, _, _ in jobs] == ["fresh"]
+    assert [n for n, _ in installable] == ["fresh"]
     # a successful HEAD with no Content-Length is a clean skip
     resp.headers = {}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(
             m, [_FakeSpec(uri="https://x/nolen.zip", name="nolen")], set()
+        ) == ([], 0, [])
+
+
+def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
+    """VCS specs never probe the network here (there is no archive); an
+    uninstalled custom-named one is handed to the pre-install, while
+    derived names, installed specs, and file/symlink specs are skipped."""
+    m = _fake_manager(tmp_path)
+    with patch("esphome.net_retry.http_request") as mock_head:
+        jobs, failed, installable = pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                ),
+                _FakeSpec(uri="hg+https://x/old", name="mercurial", custom_name=True),
+                # A derived name is not the destination dir; pio run clones it
+                _FakeSpec(uri="git+https://x/derived#v2", name="derived"),
+                _FakeSpec(uri="file:///local/dir", name="local"),
+                _FakeSpec(uri="symlink:///local/dir", name="link"),
+            ],
+            set(),
+        )
+    mock_head.assert_not_called()
+    assert (jobs, failed) == ([], 0)
+    assert [n for n, _ in installable] == ["tool", "mercurial"]
+
+    # trusted_names admits platform packages, which have no custom name
+    with patch("esphome.net_retry.http_request"):
+        _, _, installable = pf._uri_jobs(
+            m,
+            [_FakeSpec(uri="git+https://x/derived#v2", name="derived")],
+            set(),
+            trusted_names=True,
+        )
+    assert [n for n, _ in installable] == ["derived"]
+
+    m.get_package.return_value = object()  # already installed: warm and silent
+    with patch("esphome.net_retry.http_request"):
+        assert pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                )
+            ],
+            set(),
         ) == ([], 0, [])
 
 
@@ -749,6 +806,11 @@ def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
     # cached: no download job, but still installable
     jobs, failed, installable = pf._uri_jobs(m, spec, set())
     assert (jobs, failed) == ([], 0)
+    assert [n for n, _ in installable] == ["a"]
+    # a cached platform archive with a derived name is trusted the same way
+    derived = [_FakeSpec(uri="https://x/a.zip", name="a")]
+    assert pf._uri_jobs(m, derived, set())[2] == []
+    _, _, installable = pf._uri_jobs(m, derived, set(), trusted_names=True)
     assert [n for n, _ in installable] == ["a"]
     dl.unlink()
     # a registry job already claimed this download path
@@ -873,6 +935,44 @@ def test_dependency_entries_filter_seen_names(tmp_path: Path) -> None:
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
     assert pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], {"dep"}) == []
+
+
+def test_preinstall_widens_the_pool_for_clones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Network-bound clones all run at once even when the CPU-sized
+    extraction pool would serialize them; the barrier deadlocks otherwise."""
+    m = _fake_manager(tmp_path)
+    monkeypatch.setattr(pf, "extract_workers", lambda jobs=None: 1)
+    barrier = threading.Barrier(3)
+    m._install.side_effect = lambda spec, **kw: barrier.wait(timeout=5)
+    pf._preinstall(
+        m,
+        [
+            (f"g{i}", _FakeSpec(uri=f"git+https://x/g{i}.git", name=f"g{i}"))
+            for i in range(3)
+        ],
+    )
+    assert barrier.broken is False
+
+
+def test_preinstall_orders_clones_before_extractions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clone must not queue behind CPU-bound archive extractions."""
+    m = _fake_manager(tmp_path)
+    monkeypatch.setattr(pf, "extract_workers", lambda jobs=None: 1)
+    calls: list[str] = []
+    m._install.side_effect = lambda spec, **kw: calls.append(spec.name)
+    pf._preinstall(
+        m,
+        [
+            ("a@1", _FakeSpec(name="a")),
+            ("b@1", _FakeSpec(name="b")),
+            ("g@1", _FakeSpec(uri="git+https://x/g.git", name="g")),
+        ],
+    )
+    assert calls[0] == "g"
 
 
 def test_preinstall_cleanup_cannot_displace_the_inflight_error(
@@ -1663,7 +1763,7 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
         {"name": "SPI"},
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
-    pf._preinstall(m, [("noise-c@0.1.24", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@1.0", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
     # The dep wave carries its compatibility so _install searches qualified
     dep_call = m._install.call_args_list[-1]
@@ -1683,7 +1783,7 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
         installed.append(getattr(spec, "name", str(spec)))
     )
-    pf._preinstall(m, [("noise-c@0.1.24", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@1.0", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c"]
 
 
@@ -1727,7 +1827,7 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
             barrier.wait()
 
     seed = _WaveManager(str(tmp_path))
-    with patch.object(pf, "get_usable_cpu_count", return_value=2):
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=2):
         pf._preinstall(
             seed,
             [
@@ -1890,3 +1990,9 @@ def test_platformio_private_api_contract() -> None:
     derived = PackageSpec("https://x/y/archive/master.zip")
     assert derived.name and not derived.has_custom_name()
     assert PackageSpec("Foo=https://x/y/archive/master.zip").has_custom_name()
+    # _is_vcs_spec_uri relies on bare .git URLs normalizing to git+, on
+    # both parse paths (raw string, and requirements= for platform tools)
+    assert PackageSpec("https://github.com/x/y.git#v1").uri.startswith("git+")
+    assert PackageSpec(
+        owner="o", name="tool-x", requirements="https://github.com/x/y.git"
+    ).uri.startswith("git+")

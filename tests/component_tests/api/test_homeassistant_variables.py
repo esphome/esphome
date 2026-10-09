@@ -17,7 +17,7 @@ def test_plain_string_with_return_is_compiled_as_lambda_with_warning(
     with caplog.at_level(logging.WARNING):
         main_cpp = generate_main(CONFIG)
 
-    assert main_cpp.count('add_variable(ESPHOME_F("lambda_var"), []() {') == 2
+    assert main_cpp.count('from_lambda("lambda_var", []() {') == 2
     assert "return millis();" in main_cpp
     # The source text must not be sent as a static string value.
     assert '"return millis();"' not in main_cpp
@@ -28,16 +28,11 @@ def test_static_string_is_kept_as_static_value(
     generate_main: Callable[[str | Path], str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A static string stays static, PROGMEM wrapped, with no warning."""
+    """A static string stays a constant table entry, with no warning."""
     with caplog.at_level(logging.WARNING):
         main_cpp = generate_main(CONFIG)
 
-    assert (
-        main_cpp.count(
-            'add_variable(ESPHOME_F("static_var"), ESPHOME_F("static value"));'
-        )
-        == 2
-    )
+    assert main_cpp.count('{"static_var", "static value", nullptr}') == 2
     assert "static value" not in caplog.text
 
 
@@ -49,7 +44,7 @@ def test_static_id_value_stays_literal_with_hint(
     with caplog.at_level(logging.WARNING):
         main_cpp = generate_main(CONFIG)
 
-    assert 'ESPHOME_F("id(test_sensor).state")' in main_cpp
+    assert '{"hint_var", "id(test_sensor).state", nullptr}' in main_cpp
     assert "sent as literal text" in caplog.text
 
 
@@ -59,5 +54,5 @@ def test_explicit_lambda_tag_is_compiled_as_lambda(
     """A !lambda value keeps working unchanged."""
     main_cpp = generate_main(CONFIG)
 
-    assert 'add_variable(ESPHOME_F("tagged_var"), []() {' in main_cpp
+    assert 'from_lambda("tagged_var", []() {' in main_cpp
     assert "return App.get_name();" in main_cpp
