@@ -3,7 +3,7 @@
 
 namespace esphome::as3935 {
 
-static const char *const TAG = "as3935";
+ESPHOME_LOG_TAG(TAG, "as3935");
 
 void AS3935Component::setup() {
   this->irq_pin_->setup();

@@ -44,6 +44,7 @@ CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
 DEPENDENCIES = ["bk72xx"]
 AUTO_LOAD = ["ble_device_base", "bk72xx_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "bk72xx_ble_tracker"
 
 ble_device_base.register_hub_provider("bk72xx_ble_tracker")
 

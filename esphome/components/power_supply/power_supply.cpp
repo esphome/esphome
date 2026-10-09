@@ -3,7 +3,7 @@
 
 namespace esphome::power_supply {
 
-static const char *const TAG = "power_supply";
+ESPHOME_LOG_TAG(TAG, "power_supply");
 
 void PowerSupply::setup() {
   this->pin_->setup();

@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.switch";
+ESPHOME_LOG_TAG(TAG, "mqtt.switch");
 
 using namespace esphome::switch_;
 

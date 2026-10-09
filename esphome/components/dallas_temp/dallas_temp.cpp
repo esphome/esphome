@@ -3,7 +3,7 @@
 
 namespace esphome::dallas_temp {
 
-static const char *const TAG = "dallas.temp.sensor";
+ESPHOME_LOG_TAG(TAG, "dallas.temp.sensor");
 
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
 static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;

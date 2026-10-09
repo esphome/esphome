@@ -18,7 +18,7 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya";
+ESPHOME_LOG_TAG(TAG, "tuya");
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;

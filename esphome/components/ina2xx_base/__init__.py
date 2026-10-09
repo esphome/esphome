@@ -34,6 +34,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
+DOMAIN = "ina2xx_base"
 
 CONF_ADC_AVERAGING = "adc_averaging"
 CONF_ADC_RANGE = "adc_range"

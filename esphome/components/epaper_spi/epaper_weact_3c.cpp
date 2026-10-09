@@ -3,7 +3,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_weact_3c";
+ESPHOME_LOG_TAG(TAG, "epaper_weact_3c");
 
 enum class BwrState : uint8_t {
   BWR_BLACK,
