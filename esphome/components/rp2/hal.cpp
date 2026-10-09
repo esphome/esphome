@@ -26,7 +26,6 @@ void arch_restart() {
 }
 
 void arch_init() {
-  main_loop_core_number() = static_cast<uint8_t>(get_core_num());
 #ifdef USE_RP2_CRASH_HANDLER
   rp2::crash_handler_read_and_clear();
 #endif

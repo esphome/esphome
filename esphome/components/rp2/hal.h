@@ -42,15 +42,8 @@ __attribute__((always_inline)) inline bool in_isr_context() {
   return ipsr != 0;
 }
 
-inline uint8_t &main_loop_core_number() {
-  static uint8_t core_number = 0;
-  return core_number;
-}
-
-/// Compare against the core that entered arch_init() during application setup.
-__attribute__((always_inline)) inline bool is_main_loop_thread() {
-  return !in_isr_context() && get_core_num() == main_loop_core_number();
-}
+/// arduino-pico runs setup() and loop() on core 0; ESPHome never uses core 1.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return !in_isr_context() && get_core_num() == 0; }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
