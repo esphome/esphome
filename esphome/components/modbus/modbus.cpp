@@ -101,6 +101,7 @@ void ModbusClientHub::expire_waiting_() {
   // wire first so a resend from inside the callback sees it available.
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
+  this->request_address_ = cmd->frame.address();
   cmd->timed_out();
 }
 
@@ -386,6 +387,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
 #endif
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
+  this->request_address_ = address;
   if (helpers::is_function_code_exception(function_code)) {
     uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
     ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "us after last send",
@@ -856,6 +858,7 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
+  this->request_address_ = cmd->frame.address();
   cmd->sent();
   if (cmd->fire_and_forget()) {
     // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
@@ -1045,6 +1048,7 @@ void ModbusClientHub::sweep_() {
     callback_ran = false;
     for (size_t i = 0; i != work_set && !callback_ran; i++) {
       ModbusDeviceCommand &cmd = this->tx_buffer_[i];
+      this->request_address_ = cmd.frame.address();  // for the on_not_sent() below
       switch (cmd.state) {
         case FrameState::RECEIVED_RESPONSE:
         case FrameState::RECEIVED_EXCEPTION:

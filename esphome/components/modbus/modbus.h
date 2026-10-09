@@ -98,6 +98,8 @@ class Modbus : public uart::UARTDevice, public Component {
   uint8_t bits_per_char_{11};
   // Latched when a read reaches rx_full_threshold, cleared when the buffer drains.
   bool exceeded_rx_full_threshold_{false};
+  // Client hub: the address of the request whose device callback runs now. Fits in existing padding.
+  uint8_t request_address_{0};
 
   GPIOPin *flow_control_pin_{nullptr};
 
@@ -295,6 +297,8 @@ class ModbusClientHub : public Modbus {
   void clear_tx_queue_for_address(uint8_t address);
   // Clear all commands for a given device; no callbacks are delivered.
   void clear_tx_queue_for_device(ModbusClientDevice *device);
+  /// Inside a device callback: the address of the request it is about, taken from the frame.
+  uint8_t get_request_address() const { return this->request_address_; }
 
  protected:
   int32_t tx_delay_remaining() override;
@@ -604,6 +608,8 @@ class ModbusClientDevice {
   /// Parses the request/response PDU pair and dispatches to the matching high-level typed callback
   void dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                           ResponseStatus status);
+  /// Inside a callback: the address of its request, which may differ from address_ after set_address().
+  uint8_t get_request_address_() const { return this->parent_->get_request_address(); }
 
   ModbusClientHub *parent_{nullptr};
   uint8_t address_{0};

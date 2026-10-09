@@ -13,45 +13,52 @@ namespace esphome::modbus_client {
 /// the hub routes every reply (or its lack) straight back to the action that sent it, so there is no
 /// central client object and no request matching. The device address is templatable; it is stamped on the
 /// device at play() time; the hub routes each reply by device pointer, so a changed address never
-/// mis-routes an earlier reply. (The address is not passed to the reply triggers - under overlapping
-/// sends it could misreport, and the handler can recompute the expression it configured.)
+/// mis-routes an earlier reply. The handlers wired here and send's on_response get `address` first: the
+/// address of their own request, which the hub records from the frame (get_request_address_()), so
+/// overlapping sends each report their own.
 template<typename... Ts> class ClientActionBase : public Action<Ts...>, public modbus::ModbusClientDevice {
  public:
   TEMPLATABLE_VALUE(uint8_t, target_address)  // the modbus device address
 
-  Trigger<std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
-  Trigger<std::span<const uint8_t>, modbus::ExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
-  Trigger<std::span<const uint8_t>> *get_no_response_trigger() { return &this->no_response_trigger_; }
-  Trigger<std::span<const uint8_t>> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
+  Trigger<uint8_t, std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
+  Trigger<uint8_t, std::span<const uint8_t>, modbus::ExceptionCode> *get_error_trigger() {
+    return &this->error_trigger_;
+  }
+  Trigger<uint8_t, std::span<const uint8_t>> *get_no_response_trigger() { return &this->no_response_trigger_; }
+  Trigger<uint8_t, std::span<const uint8_t>> *get_not_sent_trigger() { return &this->not_sent_trigger_; }
 
-  /// The retry decision for on_no_response: given the request PDU, return true to have the hub re-queue
+  /// The retry decision for on_no_response: given the request (address, PDU), return true to have the hub re-queue
   /// the frame. Set from the lambda form or a then: automation's nested retry lambda; may coexist with
   /// the no_response trigger (actions run, then this decides the retry).
-  using retry_func_t = bool (*)(std::span<const uint8_t>);
+  using retry_func_t = bool (*)(uint8_t, std::span<const uint8_t>);
   void set_retry(retry_func_t f) { this->retry_func_ = f; }
 
   /// The frame was written to the wire: fires once per transmission, before any reply, and never for a
   /// send that ended in on_not_sent. request_pdu is the PDU sent (function code + data).
-  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_trigger_.trigger(request_pdu); }
+  void on_sent(std::span<const uint8_t> request_pdu) override {
+    this->sent_trigger_.trigger(this->get_request_address_(), request_pdu);
+  }
   /// Never reached the wire, from either of two sources. The hub calls this for a request it accepted
   /// and then dropped, which happens only when clear_tx_queue_for_address() retires it - a modbus
   /// device going offline, say. Everything the hub refuses at the door instead returns false from
-  /// queue_pdu() with no callback at all, so send_or_resolve_() below turns those into this same
-  /// callback: a full queue, a duplicate write, or an empty PDU from a rejecting builder.
-  void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_trigger_.trigger(request_pdu); }
+  /// queue_pdu() with no callback at all, so send_or_resolve_() below fires the same trigger for
+  /// those: a full queue, a duplicate write, or an empty PDU from a rejecting builder.
+  void on_not_sent(std::span<const uint8_t> request_pdu) override {
+    this->not_sent_trigger_.trigger(this->get_request_address_(), request_pdu);
+  }
   /// A Modbus exception reply. Lives here beside its trigger so every action subclass gets the pairing:
   /// register_client_action() wires on_error for all of them, so a derived class must not have to
   /// remember the override.
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override {
-    this->error_trigger_.trigger(request_pdu, exception_code);
+    this->error_trigger_.trigger(this->get_request_address_(), request_pdu, exception_code);
   }
   /// No reply within send_wait_time. Run the on_no_response actions (empty in the pure-lambda form),
   /// then let the retry lambda, if set, decide whether the hub re-queues the frame (true = retry). The
   /// two coexist: a then: automation can also carry a retry lambda. No lambda = no retry.
   bool on_no_response(std::span<const uint8_t> request_pdu) override {
-    this->no_response_trigger_.trigger(request_pdu);
+    this->no_response_trigger_.trigger(this->get_request_address_(), request_pdu);
     if (this->retry_func_ != nullptr)
-      return this->retry_func_(request_pdu);
+      return this->retry_func_(this->get_request_address_(), request_pdu);
     return false;
   }
   /// Stamp the templated device address before every play(): subclasses cannot forget it, and the hub
@@ -65,18 +72,21 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   /// The hub refuses some sends at the door with no callback (a duplicate write already pending, a full
   /// queue, or an empty PDU - which is how the create_*_pdu() builders reject out-of-spec input). Every
   /// send still gets exactly one outcome (a broadcast (address 0) is the exception - never answered, it
-  /// resolves through on_sent() alone), so resolve refusals here via on_not_sent.
+  /// resolves through on_sent() alone), so resolve refusals here via on_not_sent. This runs inside play(),
+  /// so the stamped address is the refused request's.
   /// Takes a span, not a PduBuffer: the builders return right-sized buffers (a read PDU is 5 bytes), and
   /// a PduBuffer parameter would widen each one to the 253-byte maximum just to cross the call.
   void send_or_resolve_(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
-    if (!this->queue_pdu(pdu, options))
-      this->on_not_sent(pdu);
+    if (!this->queue_pdu(pdu, options)) {
+      const uint8_t address = this->address_;  // a copy: a re-play from the handler restamps address_
+      this->not_sent_trigger_.trigger(address, pdu);
+    }
   }
 
-  Trigger<std::span<const uint8_t>> sent_trigger_;
-  Trigger<std::span<const uint8_t>, modbus::ExceptionCode> error_trigger_;
-  Trigger<std::span<const uint8_t>> no_response_trigger_;
-  Trigger<std::span<const uint8_t>> not_sent_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>> sent_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>, modbus::ExceptionCode> error_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>> no_response_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>> not_sent_trigger_;
   retry_func_t retry_func_{nullptr};
 };
 
@@ -119,7 +129,7 @@ template<typename... Ts> class WriteCommandOptions {
 };
 
 /// modbus_client.send: fire a raw PDU (function code + data; the hub adds address and CRC). The reply is
-/// delivered raw - on_response(request, response) - deliberately bypassing the typed dispatch, so
+/// delivered raw - on_response(address, request, response) - deliberately bypassing the typed dispatch, so
 /// non-standard/custom transactions pass through untouched.
 /// The PDU is a stack-allocated modbus::helpers::PduBuffer, so a pdu lambda can build one with the
 /// modbus::helpers::create_*_pdu() builders and return it directly (smaller builder results convert).
@@ -133,7 +143,7 @@ class ModbusClientSendAction : public ClientActionBase<Ts...>,
  public:
   TEMPLATABLE_VALUE(modbus::helpers::PduBuffer, pdu)
 
-  Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_response_trigger() {
+  Trigger<uint8_t, std::span<const uint8_t>, std::span<const uint8_t>> *get_response_trigger() {
     return &this->response_trigger_;
   }
 
@@ -144,11 +154,11 @@ class ModbusClientSendAction : public ClientActionBase<Ts...>,
   }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
-    this->response_trigger_.trigger(request_pdu, response_pdu);
+    this->response_trigger_.trigger(this->get_request_address_(), request_pdu, response_pdu);
   }
 
  protected:
-  Trigger<std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
 };
 
 /// Typed actions: these do NOT override the raw on_response, so the base ModbusClientDevice default runs
