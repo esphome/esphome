@@ -11,14 +11,12 @@ class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 
   void setup() override {
-    if (this->pin_->is_held()) {
-      // keep state and don't turn off
-      this->pin_->setup();
-    } else {
+    const bool held = this->pin_->is_held();
+    if (!held)
       this->turn_off();
-      this->pin_->setup();
+    this->pin_->setup();
+    if (!held)
       this->turn_off();
-    }
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

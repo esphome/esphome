@@ -111,9 +111,8 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
 
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP && defined(USE_GPIO_HOLD)
-  // Some ESP32 variants support holding a single GPIO during deep sleep without this function
-  // For those variants, gpio_hold_en() is sufficient to hold the pin state during deep sleep
+#if defined(USE_GPIO_HOLD) && !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+  // Variants without per-pin deep sleep hold need the global enable
   gpio_deep_sleep_hold_en();
 #endif
 
