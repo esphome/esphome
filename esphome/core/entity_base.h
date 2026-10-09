@@ -31,7 +31,7 @@ static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 // esphome/core/config.py
 static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 
-// Buffer size for EntityBase::get_name_to()
+// Buffer size for EntityBase::get_name_to(); entity names are capped by NAME_MAX_LENGTH in config_validation.py
 static constexpr size_t ENTITY_NAME_BUF_SIZE = ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 
 // Maximum domain length (longest: "alarm_control_panel" = 19)
@@ -235,7 +235,7 @@ class EntityBase {
 
   void calc_object_id_();
 
-  StringRef name_;  // Points to flash on ESP8266; read it with progmem helpers or as a "%s" log argument
+  StringRef name_;  // May point to flash on ESP8266
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};

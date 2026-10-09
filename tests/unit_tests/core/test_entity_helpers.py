@@ -41,7 +41,7 @@ from .common import load_config_from_fixture
 # Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
 # Matches: .configure_entity_(ESPHOME_PSTR("name"), ...) or .set_name("name", ...)
 ENTITY_NAME_PATTERN = re.compile(
-    r'\.(?:configure_entity_|set_name)\((?:ESPHOME_PSTR\()?["\']([^"\']*)["\']'
+    r'\.(?:configure_entity_|set_name)\(ESPHOME_PSTR\(["\']([^"\']*)["\']'
 )
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
