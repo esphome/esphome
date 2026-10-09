@@ -1,0 +1,30 @@
+# Two buses on one ESP: each hub needs its OWN uart, since ESPHome does not arbitrate between
+# UARTDevices sharing a port. A codegen test, not a recommendation -- on ESP8266 the second bus
+# builds but may not be practical for sniffing via software serial.
+uart:
+  - id: uart_bus2
+    rx_pin: ${rx_pin2}
+    baud_rate: 9600
+
+modbus:
+  - id: sniff_hub1
+    uart_id: uart_bus
+    role: sniffer
+  - id: sniff_hub2
+    uart_id: uart_bus2
+    role: sniffer
+
+modbus_sniffer:
+  - modbus_id: sniff_hub1
+    on_request:
+      - lambda: |-
+          ESP_LOGD("sniff", "request addr=%u fc=%u", address, request_pdu[0]);
+    on_response:
+      # Both PDUs arrive raw, so the helpers do the decoding.
+      - lambda: |-
+          const uint16_t start = modbus::helpers::get_data<uint16_t>(request_pdu.data(), 1);
+          const auto payload = modbus::helpers::server_pdu_payload(response_pdu);
+          ESP_LOGD("sniff", "addr=%u fc=%u start=%u bytes=%u", address, request_pdu[0], start,
+                   (unsigned) payload.size());
+  # No automations: exercises the codegen path where both are absent.
+  - modbus_id: sniff_hub2
