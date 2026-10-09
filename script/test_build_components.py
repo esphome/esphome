@@ -32,7 +32,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from script.analyze_component_buses import (
     BASE_BUS_COMPONENTS,
     ISOLATED_COMPONENTS,
-    ISOLATED_TESTS,
     NO_BUSES_SIGNATURE,
     analyze_all_components,
     create_grouping_signature,
@@ -710,8 +709,6 @@ def run_grouped_component_tests(
             # Skip if platform doesn't match filter
             if platform_filter and not platform.startswith(platform_filter):
                 continue
-            if (component, platform) in ISOLATED_TESTS:
-                continue
 
             # Create signature for this component's bus configuration
             # Components with no buses get NO_BUSES_SIGNATURE so they can be grouped together
@@ -741,16 +738,6 @@ def run_grouped_component_tests(
     print("-" * 80)
 
     # Show isolated components (must test individually due to known issues or direct changes)
-    isolated_tests_in_run = sorted(
-        (comp, platform)
-        for (comp, platform) in ISOLATED_TESTS
-        if comp in all_tests
-        and (not platform_filter or platform.startswith(platform_filter))
-    )
-    if isolated_tests_in_run:
-        print(f"\n⚠ {len(isolated_tests_in_run)} tests run alone on one platform:")
-        for comp, platform in isolated_tests_in_run:
-            print(f"  - {comp} on {platform}: {ISOLATED_TESTS[(comp, platform)]}")
     isolated_in_tests = [c for c in all_isolated if c in all_tests]
     if isolated_in_tests:
         predefined_isolated = [c for c in isolated_in_tests if c in ISOLATED_COMPONENTS]

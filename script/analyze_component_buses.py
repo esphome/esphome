@@ -101,15 +101,6 @@ ISOLATED_COMPONENTS = {
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
 }
 
-# (component, platform) pairs whose base test runs alone on that platform
-# only; the component still groups everywhere else
-ISOLATED_TESTS = {
-    ("ota", "nrf52-adafruit"): (
-        "mcumgr OTA halves the app slot to 387 KB; the openthread configs of "
-        "api and network alone need 360 KB"
-    ),
-}
-
 
 @lru_cache(maxsize=1)
 def get_common_bus_packages() -> frozenset[str]:
