@@ -126,12 +126,9 @@ void wakeable_delay(uint32_t ms) {
       // Application sockets need the component phase to drain queued work.
       // The internal wake socket may only be signaling new scheduler work.
       if (ret > 0) {
-        for (int fd : s_socket_fds) {
-          if (fd != g_wake_socket_fd && FD_ISSET(fd, &g_read_fds)) {
-            wake_request_set();
-            break;
-          }
-        }
+        const bool only_wake_socket = ret == 1 && g_wake_socket_fd >= 0 && FD_ISSET(g_wake_socket_fd, &g_read_fds);
+        if (!only_wake_socket)
+          wake_request_set();
       }
       return;
     }
