@@ -309,4 +309,47 @@ TEST_F(MonitorServer, ListenerNeverTransmits) {
   EXPECT_TRUE(this->uart_.written.empty());
 }
 
+// The hub answers a request it handed on, and then no longer takes the next frame for another device's reply.
+TEST_F(MonitorServer, PeerResponseIsSentAndEndsTheWait) {
+  this->receive_(0x05, WRITE_1);
+  this->hub_.send_peer_response(0x05, WRITE_1, WRITE_1);
+  ASSERT_EQ(this->uart_.written.size(), sizeof(WRITE_1) + 3);
+  EXPECT_EQ(this->uart_.written[0], 0x05);
+  EXPECT_EQ(crc16(this->uart_.written.data(), this->uart_.written.size()), 0);
+  this->receive_(0x05, WRITE_2);  // same shape as the reply: still a request
+  ASSERT_EQ(this->seen_.size(), 2u);
+  EXPECT_EQ(this->seen_[1].pdu, vec(WRITE_2));
+  EXPECT_TRUE(this->paired_.empty());
+}
+
+TEST_F(MonitorServer, PeerExceptionResponseIsSent) {
+  const uint8_t read_failed[] = {0x83, 0x0B};
+  this->receive_(0x05, READ);
+  this->hub_.send_peer_response(0x05, READ, read_failed);
+  ASSERT_EQ(this->uart_.written.size(), sizeof(read_failed) + 3);
+  EXPECT_EQ(this->uart_.written[1], 0x83);
+}
+
+// The client gave up on the first request; its late reply must not answer the next one.
+TEST_F(MonitorServer, LatePeerResponseIsDropped) {
+  this->receive_(0x05, READ);
+  this->receive_(0x05, READ_TWO);
+  ASSERT_EQ(this->seen_.size(), 2u);
+  this->hub_.send_peer_response(0x05, READ, READ_REPLY);
+  EXPECT_TRUE(this->uart_.written.empty());
+  this->hub_.send_peer_response(0x05, READ_TWO, READ_TWO_REPLY);
+  EXPECT_EQ(this->uart_.written.size(), sizeof(READ_TWO_REPLY) + 3);
+}
+
+TEST_F(MonitorServer, PeerResponseWithoutAnOpenRequestIsDropped) {
+  this->hub_.send_peer_response(0x05, READ, READ_REPLY);  // nothing asked
+  this->receive_(0x05, READ);
+  this->hub_.send_peer_response(0x07, READ, READ_REPLY);  // another address
+  this->hub_.send_peer_response(0x05, READ, WRITE_1);     // another function code
+  this->hub_.send_peer_response(BROADCAST_ADDRESS, READ, READ_REPLY);
+  this->hub_.send_peer_response(0x05, READ, {});  // empty
+  this->hub_.send_peer_response(0x05, {}, READ_REPLY);
+  EXPECT_TRUE(this->uart_.written.empty());
+}
+
 }  // namespace esphome::modbus::testing

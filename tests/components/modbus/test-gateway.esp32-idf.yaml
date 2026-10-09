@@ -1,0 +1,41 @@
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
+
+modbus:
+  - id: gateway_server
+    uart_id: uart_bus
+    role: server
+
+# A gateway: a request to 0x0A on the server hub goes to device 0x01 on the client hub.
+modbus_monitor:
+  - modbus_id: gateway_server
+    on_request:
+      - if:
+          condition:
+            lambda: return address == 0x0A;
+          then:
+            - modbus_client.send:
+                modbus_id: modbus_bus
+                address: 0x01
+                pdu: !lambda return {request.begin(), request.end()};
+                on_response:
+                  - modbus.send_response:
+                      modbus_id: gateway_server
+                      address: 0x0A
+                      request: !lambda return request;
+                      pdu: !lambda return {response.begin(), response.end()};
+                on_error:
+                  - modbus.send_response:
+                      modbus_id: gateway_server
+                      address: 0x0A
+                      request: !lambda return request;
+                      pdu: !lambda |-
+                        return {static_cast<uint8_t>(request[0] | 0x80), static_cast<uint8_t>(exception_code)};
+                on_no_response:
+                  then:
+                    # Gateway target device failed to respond
+                    - modbus.send_response:
+                        modbus_id: gateway_server
+                        address: 0x0A
+                        request: !lambda return request;
+                        pdu: !lambda return {static_cast<uint8_t>(request[0] | 0x80), 0x0B};

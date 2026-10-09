@@ -8,6 +8,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # Code generation sizes the callback storage; the gtests add up to two on_request and one on_response per hub.
         cg.add_define("MODBUS_ON_REQUEST_COUNT", 2)
         cg.add_define("MODBUS_ON_RESPONSE_COUNT", 1)
+        cg.add_define("USE_MODBUS_SEND_RESPONSE")
 
     # A MULTI_CONF component gets no entry in the host build, so its to_code would never run.
     manifest.multi_conf = False

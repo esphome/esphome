@@ -629,6 +629,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
+#ifdef USE_MODBUS_SEND_RESPONSE
+    this->peer_request_crc_ = crc16(data.data(), data.size(), crc16(&function_code, 1, crc16(&address, 1)));
+#endif
 #ifdef MODBUS_ON_RESPONSE_COUNT
     this->peer_request_[0] = function_code;
     std::memcpy(this->peer_request_ + 1, data.data(), data.size());
@@ -932,6 +935,20 @@ bool ModbusServerHub::rejected_(uint8_t address, uint8_t function_code, Response
   this->send_exception_(address, function_code, status.value());
   return true;
 }
+
+#ifdef USE_MODBUS_SEND_RESPONSE
+void ModbusServerHub::send_peer_response(uint8_t address, std::span<const uint8_t> request,
+                                         std::span<const uint8_t> pdu) {
+  if (pdu.empty() || request.empty() || address == BROADCAST_ADDRESS || this->expecting_peer_response_ != address ||
+      (pdu[0] & FUNCTION_CODE_MASK) != request[0] ||
+      crc16(request.data(), request.size(), crc16(&address, 1)) != this->peer_request_crc_) {
+    ESP_LOGD(TAG, "Dropped response to %" PRIu8 ": no open request matches", address);
+    return;
+  }
+  this->expecting_peer_response_ = 0;
+  this->send_response_(address, pdu[0], pdu.data() + 1, pdu.size() - 1);
+}
+#endif
 
 void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code) {
   uint8_t raw_frame[3];

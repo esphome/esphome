@@ -342,6 +342,12 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
+#ifdef USE_MODBUS_SEND_RESPONSE
+  /// Answers a request to an address no device here serves, for example one passed on to another bus: sends the
+  /// response PDU (function code first) and stops waiting for another device's reply. Dropped unless the hub still
+  /// waits for the reply to exactly this request (address and request PDU).
+  void send_peer_response(uint8_t address, std::span<const uint8_t> request, std::span<const uint8_t> pdu);
+#endif
 
  protected:
   void parse_modbus_frames() override;
@@ -388,6 +394,10 @@ class ModbusServerHub : public Modbus {
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
+#ifdef USE_MODBUS_SEND_RESPONSE
+  // CRC of the address and PDU of the request to another device.
+  uint16_t peer_request_crc_{0};
+#endif
 #ifdef MODBUS_ON_RESPONSE_COUNT
   // The request to another device, for on_response with its reply.
   uint8_t peer_request_len_{0};
