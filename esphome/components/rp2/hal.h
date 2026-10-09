@@ -4,6 +4,8 @@
 
 #include <cstdint>
 
+#include <pico/platform.h>
+
 #include "esphome/core/time_conversion.h"
 
 #define IRAM_ATTR __attribute__((noinline, long_call, section(".time_critical")))
@@ -40,8 +42,15 @@ __attribute__((always_inline)) inline bool in_isr_context() {
   return ipsr != 0;
 }
 
-/// RP2040 runs the scheduler on its single main thread.
-__attribute__((always_inline)) inline bool is_main_loop_thread() { return true; }
+inline uint8_t &main_loop_core_number() {
+  static uint8_t core_number = 0;
+  return core_number;
+}
+
+/// Compare against the core that entered arch_init() during application setup.
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  return !in_isr_context() && get_core_num() == main_loop_core_number();
+}
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }

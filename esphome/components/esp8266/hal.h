@@ -4,6 +4,7 @@
 
 #include <c_types.h>
 #include <core_esp8266_features.h>
+#include <coredecls.h>
 #include <cstdint>
 #include <pgmspace.h>
 
@@ -40,8 +41,10 @@ void delay_microseconds_safe(uint32_t us);
 /// which is ISR-safe) so this helper is unused on this platform.
 __attribute__((always_inline)) inline bool in_isr_context() { return false; }
 
-/// ESP8266 runs the scheduler on its single main thread.
-__attribute__((always_inline)) inline bool is_main_loop_thread() { return true; }
+/// ESP8266's cooperative loop runs on the suspendable CONT stack. SDK SYS
+/// callbacks and interrupt handlers cannot yield and must wake the loop to
+/// re-check newly scheduled work.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return can_yield(); }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
