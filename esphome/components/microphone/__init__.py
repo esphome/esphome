@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "microphone"
 
 IS_PLATFORM_COMPONENT = True
 

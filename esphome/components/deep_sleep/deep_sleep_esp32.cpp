@@ -28,7 +28,7 @@ namespace esphome::deep_sleep {
 // - Touch: Touch pad wakeup (esp_sleep_enable_touchpad_wakeup)
 // - GPIO wakeup: GPIO wakeup for RTC pins
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {

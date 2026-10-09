@@ -8,7 +8,7 @@
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
 // The Zephyr watchdog has a short window (2s, or 10s with Zigbee) and
 // WDT_OPT_PAUSE_IN_SLEEP only pauses it during true hardware sleep — not while a

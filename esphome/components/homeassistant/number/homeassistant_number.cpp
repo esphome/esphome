@@ -9,7 +9,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.number";
+ESPHOME_LOG_TAG(TAG, "homeassistant.number");
 
 void HomeassistantNumber::state_changed_(StringRef state) {
   auto number_value = parse_number<float>(state.c_str());

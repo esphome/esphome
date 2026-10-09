@@ -7,7 +7,7 @@
 
 namespace esphome::e131 {
 
-static const char *const TAG = "e131";
+ESPHOME_LOG_TAG(TAG, "e131");
 static const int PORT = 5568;
 
 E131Component::E131Component() {}
