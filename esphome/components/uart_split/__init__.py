@@ -15,6 +15,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "uart_split"
 MULTI_CONF = True
 
 uart_split_ns = cg.esphome_ns.namespace("uart_split")
