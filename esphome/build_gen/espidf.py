@@ -160,7 +160,7 @@ def _cmake_quote(value: str) -> str:
 
 # CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
 # cleared at the CMake level (the same state IDF's RAM-app build type uses).
-# The macro is IDF's __build_process_project_includes plus two added lines;
+# The macro is IDF's __build_process_project_includes plus a few added lines;
 # the flag is ignored and the bootloader builds as usual if IDF changes it.
 IDF_BOOTLOADER_OVERRIDE = """\
 # ESPHome bootloader skip switch; see esphome/espidf/toolchain.py.
@@ -173,6 +173,9 @@ if(ESPHOME_SKIP_BOOTLOADER)
         # skipped) bootloader project_include leaks; keep it defined, or
         # its empty TARGET_SRC_NAME sends file(GLOB_RECURSE) across /.
         idf_build_get_property(idf_target IDF_TARGET)
+        # partition_table's V1 ECDSA signing reads this key, which the
+        # skipped bootloader project_include also sets.
+        get_filename_component(SECURE_BOOT_SIGNING_KEY "${CONFIG_SECURE_BOOT_SIGNING_KEY}" ABSOLUTE BASE_DIR "${project_dir}")
         idf_build_get_property(build_properties __BUILD_PROPERTIES)
         foreach(build_property ${build_properties})
             idf_build_get_property(val ${build_property})
@@ -198,6 +201,10 @@ endif()
 BOOTLOADER_OVERRIDE_ADDED_LINES = (
     'set(CONFIG_APP_BUILD_BOOTLOADER "")',
     "idf_build_get_property(idf_target IDF_TARGET)",
+    (
+        "get_filename_component(SECURE_BOOT_SIGNING_KEY"
+        ' "${CONFIG_SECURE_BOOT_SIGNING_KEY}" ABSOLUTE BASE_DIR "${project_dir}")'
+    ),
 )
 
 _MACRO = re.compile(

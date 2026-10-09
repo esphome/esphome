@@ -3,7 +3,7 @@
 
 namespace esphome::aqi {
 
-static const char *const TAG = "aqi";
+ESPHOME_LOG_TAG(TAG, "aqi");
 
 void AQISensor::setup() {
   if (this->pm_2_5_sensor_ != nullptr) {

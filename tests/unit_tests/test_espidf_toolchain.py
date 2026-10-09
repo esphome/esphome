@@ -1519,6 +1519,7 @@ def test_run_reconfigure_flip_into_skip_mode_cleans_up(setup_core: Path) -> None
     with (
         patch.object(toolchain, "_skip_bootloader", return_value=True),
         patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_get_idf_env", return_value={}),
         patch.object(toolchain, "_tool_env", return_value={}),
         patch.object(toolchain, "run_build_tool", return_value=0),
         patch.object(toolchain, "_idf_py") as mock_idf_py,
@@ -1542,6 +1543,7 @@ def test_run_reconfigure_skip_steady_state_cleans_nothing(setup_core: Path) -> N
     with (
         patch.object(toolchain, "_skip_bootloader", return_value=True),
         patch.object(toolchain, "_get_idf_tool", side_effect=lambda n: f"/tools/{n}"),
+        patch.object(toolchain, "_get_idf_env", return_value={}),
         patch.object(toolchain, "_tool_env", return_value={}),
         patch.object(toolchain, "run_build_tool", return_value=0),
         patch.object(toolchain, "_idf_py") as mock_idf_py,

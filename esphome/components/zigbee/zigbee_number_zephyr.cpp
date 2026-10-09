@@ -10,7 +10,7 @@ extern "C" {
 }
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.number";
+ESPHOME_LOG_TAG(TAG, "zigbee.number");
 
 void ZigbeeNumber::setup() {
   this->parent_->add_callback(this->endpoint_, [this](zb_bufid_t bufid) { this->zcl_device_cb_(bufid); });

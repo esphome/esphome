@@ -5,7 +5,7 @@
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.time";
+ESPHOME_LOG_TAG(TAG, "zigbee.time");
 
 // This time standard is the number of
 // seconds since 0 hrs 0 mins 0 sec on 1st January 2000 UTC (Universal Coordinated Time).

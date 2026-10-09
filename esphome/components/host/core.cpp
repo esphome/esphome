@@ -90,6 +90,8 @@ int main(int argc, char **argv) {
   // Install signal handlers for graceful shutdown (flushes preferences to disk)
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
+  // A write to a closed peer must fail with EPIPE, as on the embedded stacks, not kill the process
+  std::signal(SIGPIPE, SIG_IGN);
 
   esphome::host::setup_preferences();
   setup();

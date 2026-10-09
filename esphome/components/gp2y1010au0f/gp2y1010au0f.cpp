@@ -6,7 +6,7 @@
 
 namespace esphome::gp2y1010au0f {
 
-static const char *const TAG = "gp2y1010au0f";
+ESPHOME_LOG_TAG(TAG, "gp2y1010au0f");
 static const float MIN_VOLTAGE = 0.0f;
 static const float MAX_VOLTAGE = 4.0f;
 

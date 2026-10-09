@@ -4,6 +4,7 @@ from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from esphome.components.mapping import mapping_class
 from esphome.components.time import RealTimeClock
 from esphome.config_validation import prepend_path
@@ -148,7 +149,8 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(LVEncoderListener), cv.requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener),
+            cv.requires_component(BINARY_SENSOR_DOMAIN),
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(

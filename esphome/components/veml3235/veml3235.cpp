@@ -4,7 +4,7 @@
 
 namespace esphome::veml3235 {
 
-static const char *const TAG = "veml3235.sensor";
+ESPHOME_LOG_TAG(TAG, "veml3235.sensor");
 
 // ADC counts at or above this value (98% of full scale) are treated as clipped: the true light level cannot
 // be estimated from such a reading, so auto-gain restarts from minimum sensitivity instead
