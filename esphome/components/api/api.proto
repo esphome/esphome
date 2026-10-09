@@ -81,6 +81,8 @@ service APIConnection {
   rpc subscribe_serial_proxy_identity(SubscribeSerialProxyIdentityRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
+
+  rpc sendspin_pairing_token(SendspinPairingTokenRequest) returns (SendspinPairingTokenResponse) {}
 }
 
 
@@ -398,6 +400,11 @@ message WizardCapabilities {
   bool configured = 1;
 }
 
+message SendspinCapabilities {
+  // Bitmask of the Sendspin features this device supports
+  uint32 feature_flags = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -408,6 +415,7 @@ message DeviceCapabilitiesResponse {
   repeated SerialProxyInfo serial_proxies = 4
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
+  SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
 }
 
 // ==================== DEVICE WIZARD ====================
@@ -3068,4 +3076,35 @@ message BluetoothSetConnectionParamsResponse {
 
   uint64 address = 1;
   int32 error = 2;
+}
+
+// ==================== SENDSPIN ====================
+enum SendspinPairingTokenStatus {
+  // The Sendspin client has not started yet, so the token does not exist yet. Ask again later.
+  SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY = 0;
+  SENDSPIN_PAIRING_TOKEN_STATUS_OK = 1;
+  // The device has no API encryption key, so it will not send the token. Ask again once a key is set.
+  SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED = 2;
+  // Sendspin is turned off and has not started since boot, so the token does not exist yet.
+  SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED = 3;
+  // The Sendspin client failed to start, and will not start until the device reboots.
+  SENDSPIN_PAIRING_TOKEN_STATUS_FAILED = 4;
+}
+
+// Requests the Sendspin pairing token, which a Sendspin server uses to pair with this device
+message SendspinPairingTokenRequest {
+  option (id) = 159;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SENDSPIN";
+  // Empty
+}
+
+message SendspinPairingTokenResponse {
+  option (id) = 160;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SENDSPIN";
+
+  SendspinPairingTokenStatus status = 1;
+  // The pairing token (Sendspin pairing.md "Pairing Token"). Set only when status is OK.
+  string token = 2 [(max_data_length) = 127];
 }

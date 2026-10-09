@@ -113,6 +113,10 @@ static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
 static const char *const IMAGE_FORMAT_NAMES[] = {"JPEG", "PNG"};
 #endif
 
+SendspinHub *global_sendspin_hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+SendspinHub::SendspinHub() { global_sendspin_hub = this; }
+
 void SendspinHub::setup() {
   auto config = this->build_client_config_();
   this->client_ = std::make_unique<sendspin::SendspinClient>(std::move(config));
@@ -154,16 +158,15 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-  this->client_->set_unpaired_access_enabled(this->default_unpaired_access_);
-
-#ifndef USE_SENDSPIN_SWITCH
-  this->enabled_ = true;
-#endif
+  // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
+  if (this->unpaired_access_.has_value()) {
+    this->client_->set_unpaired_access_enabled(*this->unpaired_access_);
+  }
 }
 
 void SendspinHub::loop() {
-  if (this->enabled_.has_value() && this->enabled_.value() != this->client_->is_started() &&
-      !this->status_has_error()) {
+  if (this->enabled_.has_value() && this->unpaired_access_.has_value() &&
+      this->enabled_.value() != this->client_->is_started() && !this->status_has_error()) {
     if (!this->enabled_.value()) {
       this->client_->stop();
     } else if (!this->client_->start()) {
@@ -202,12 +205,12 @@ void SendspinHub::dump_config() {
                 "  Model: %s\n"
                 "  Firmware version: %s\n"
                 "  Task stack in PSRAM: %s\n"
-                "  Static pairing code: %s\n"
-                "  Unpaired access: %s",
+                "  Unpaired access: %s\n"
+                "  Pairing code method: %s",
                 client_id, get_mac_address_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
                 this->firmware_version_, YESNO(this->task_stack_in_psram_),
-                YESNO(this->static_pairing_code_ != nullptr),
-                YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()));
+                YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()),
+                this->pairing_code_method_());
 
 #ifdef USE_SENDSPIN_ARTWORK
   // Slot indices come from the order the image platform entries were declared, so the log is the
@@ -222,7 +225,7 @@ void SendspinHub::dump_config() {
 #endif
 }
 
-// THREAD CONTEXT: Main loop (invoked from Sendspin components)
+// THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)
 void SendspinHub::set_enabled(bool enabled) {
   if (this->status_has_error()) {
     ESP_LOGE(TAG, "Cannot %s: Sendspin failed to start, reboot to retry",
@@ -230,6 +233,23 @@ void SendspinHub::set_enabled(bool enabled) {
     return;
   }
   this->enabled_ = enabled;
+}
+
+// THREAD CONTEXT: Main loop
+std::optional<std::string> SendspinHub::get_pairing_token() const {
+  if (this->client_ == nullptr) {
+    return std::nullopt;
+  }
+  return this->client_->pairing_token();
+}
+
+// THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)
+void SendspinHub::set_unpaired_access_enabled(bool enabled) {
+  this->unpaired_access_ = enabled;
+  // Before setup() there is no client yet; setup() applies the stored value.
+  if (this->client_ != nullptr) {
+    this->client_->set_unpaired_access_enabled(enabled);
+  }
 }
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
@@ -311,6 +331,17 @@ const char *SendspinHub::get_mac_address_into_buffer(std::span<char, MAC_ADDRESS
   return buf.data();
 }
 
+// Validation rejects a static code together with the dynamic code, so at most one is set.
+const char *SendspinHub::pairing_code_method_() const {
+  if (this->pairing_code_display_supported_) {
+    return LOG_STR_LITERAL("dynamic");
+  }
+  if (this->static_pairing_code_ != nullptr) {
+    return LOG_STR_LITERAL("static");
+  }
+  return LOG_STR_LITERAL("none");
+}
+
 const char *SendspinHub::get_product_name_() const {
   return this->model_ != nullptr ? this->model_ : App.get_name().c_str();
 }
@@ -327,6 +358,13 @@ sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
   config.httpd_psram_stack = this->task_stack_in_psram_;
   config.protocol_task_psram_stack = this->task_stack_in_psram_;
   config.max_pairing_records = SENDSPIN_RECORD_SLOTS;
+
+  // The dynamic code needs a channel and a format. Only digits, since automations get the bare string and could not
+  // tell a QR code token apart.
+  if (this->pairing_code_display_supported_) {
+    config.pairing_code_out_channels = {sendspin::SendspinPairingCodeChannel::DISPLAY};
+    config.pairing_code_formats = {sendspin::SendspinPairingCodeFormat::DIGITS};
+  }
 
   if (this->static_pairing_code_ != nullptr) {
     config.static_pairing_code_locations = {"operator"};
@@ -364,6 +402,13 @@ void SendspinHub::on_release_high_performance() {
 void SendspinHub::on_open_pairing_window() { this->open_pairing_window_callbacks_.call(); }
 
 void SendspinHub::on_close_pairing_window() { this->close_pairing_window_callbacks_.call(); }
+
+// Only digits are offered, and the library refuses an activation in any other format.
+void SendspinHub::on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat /*format*/) {
+  this->display_pairing_code_callbacks_.call(code);
+}
+
+void SendspinHub::on_clear_pairing_code() { this->clear_pairing_code_callbacks_.call(); }
 
 void SendspinHub::on_pairing_succeeded(const std::string &server_id) {
   this->pairing_succeeded_callbacks_.call(server_id);

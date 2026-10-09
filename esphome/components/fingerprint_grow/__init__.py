@@ -26,6 +26,7 @@ from esphome.const import (
 CODEOWNERS = ["@OnFreund", "@loongyh", "@alexborro"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "sensor"]
+DOMAIN = "fingerprint_grow"
 MULTI_CONF = True
 
 CONF_FINGERPRINT_GROW_ID = "fingerprint_grow_id"

@@ -7,6 +7,7 @@ from esphome.components.const import (
     CONF_RECONNECT_INTERVAL,
     CONF_ROLE,
 )
+from esphome.components.tcp_uart import DOMAIN as TCP_UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -125,7 +126,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         ports = data.setdefault(CONF_PORT, set())
         if port in ports or any(
             conf[CONF_ROLE] == "server" and conf[CONF_PORT] == port
-            for conf in full_config.get("tcp_uart", [])
+            for conf in full_config.get(TCP_UART_DOMAIN, [])
         ):
             raise cv.Invalid(
                 f"Port {port} is already the listen port of another uart_tcp "

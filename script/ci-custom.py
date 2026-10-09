@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import ast
 import codecs
 import collections
 from collections.abc import Iterator
@@ -809,6 +810,40 @@ def lint_const_py_frozen(fname, content):
     if count < CONST_PY_MAX_CONF:
         return f"CONST_PY_MAX_CONF in ci-custom.py should be updated to {count}."
     return None
+
+
+@lint_content_check(include=["esphome/components/*/__init__.py"])
+def lint_component_domain(fname: Path, content: str) -> str | None:
+    """Require every component's __init__.py to define DOMAIN as its own name."""
+    if len(fname.parts) != 4:
+        # Platform packages such as esphome/components/<name>/sensor/__init__.py
+        return None
+    domain = fname.parts[2]
+    expected = f'DOMAIN = "{domain}"'
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if (
+            any(isinstance(t, ast.Name) and t.id == "DOMAIN" for t in targets)
+            and isinstance(node.value, ast.Constant)
+            and node.value.value == domain
+        ):
+            return None
+    return (
+        f"Component is missing the {highlight(expected)} constant. "
+        "Add it in alphabetical order with the other component metadata such as "
+        "CODEOWNERS and DEPENDENCIES, so other code can refer to the component by "
+        "name, e.g. CORE.data[DOMAIN]."
+    )
 
 
 def relative_cpp_search_text(fname: Path, content) -> str:
