@@ -1061,14 +1061,20 @@ async def build_trigger_callback(
     params: TemplateArgsType,
     forward: Sequence[str | Expression] | None = None,
     when: str | ApplyCall | None = None,
+    parent: MockObj | None = None,
+    parent_check: str | None = None,
 ) -> LambdaExpression:
     """Build the Automation for ``config`` and return a stateless callback that triggers it.
 
     ``params`` are the parent callback's parameters, ``forward`` the expressions passed to
     ``trigger()`` (default: the parameter names; write the parent as ``parent_ref(var)``),
     ``when`` a filter the callback returns early on, skipped like any ``ApplyCall`` when none
-    of its keys is set.
+    of its keys is set. ``parent_check`` is a check applied to ``parent``, as in
+    ``register_apply_condition``: ``"is_fully_open()"`` becomes ``parent->is_fully_open()``,
+    so an entry naming it can live in a module-level table. Both must hold to trigger.
     """
+    if parent_check is not None and parent is None:
+        raise ValueError(f"parent_check {parent_check!r} needs the parent")
     members: list[tuple[Any, Any, Any]] = []
     if when is not None:
         call = when if isinstance(when, ApplyCall) else ApplyCall(when)
@@ -1078,20 +1084,27 @@ async def build_trigger_callback(
             raise ValueError(f"trigger filter {call.target!r}: a type names {{parent}}")
     obj = await _new_automation(args, config)
     lambda_args = _apply_lambda_args(params)
-    statements: list[str] = []
+    checks: list[str] = []
     if when is not None:
         values = _apply_values(config, members)
         if _apply_call_active(members, values):
-            check = await _render_check(
-                "trigger filter",
-                call.target,
-                members,
-                values,
-                config,
-                None,
-                lambda_args,
+            checks.append(
+                await _render_check(
+                    "trigger filter",
+                    call.target,
+                    members,
+                    values,
+                    config,
+                    None,
+                    lambda_args,
+                )
             )
-            statements.append(f"if (!({check}))\n  return;")
+    if parent_check is not None:
+        checks.append(f"{parent_ref(parent)}->{parent_check}")
+    statements: list[str] = []
+    if checks:
+        cond = checks[0] if len(checks) == 1 else " && ".join(f"({c})" for c in checks)
+        statements.append(f"if (!({cond}))\n  return;")
     if forward is None:
         forward = [name for _, name in params]
     statements.append(f"{parent_ref(obj)}->trigger({', '.join(map(str, forward))});")
@@ -1109,6 +1122,7 @@ async def build_callback_automation(
     params: TemplateArgsType | None = None,
     forward: Sequence[str | Expression] | None = None,
     when: str | ApplyCall | None = None,
+    parent_check: str | None = None,
 ) -> None:
     """Build an Automation and register it as a callback on the parent.
 
@@ -1120,8 +1134,8 @@ async def build_callback_automation(
     pointer-sized (single Automation* field) to fit inline in Callback::ctx_
     and avoid heap allocation.
 
-    With ``params``, ``forward`` or ``when`` the callback is instead the stateless
-    lambda of ``build_trigger_callback``; ``forwarder`` cannot be combined with them.
+    With ``params``, ``forward``, ``when`` or ``parent_check`` the callback is instead the
+    stateless lambda of ``build_trigger_callback``; ``forwarder`` cannot be combined with them.
 
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
@@ -1131,13 +1145,24 @@ async def build_callback_automation(
         TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
         a single Automation pointer (e.g., TriggerOnTrueForwarder).
     """
-    if params is not None or forward is not None or when is not None:
+    if (
+        params is not None
+        or forward is not None
+        or when is not None
+        or parent_check is not None
+    ):
         if forwarder is not None:
             raise ValueError(
-                "forwarder cannot be combined with params, forward or when"
+                "forwarder cannot be combined with params, forward, when or parent_check"
             )
         callback = await build_trigger_callback(
-            args, config, args if params is None else params, forward, when
+            args,
+            config,
+            args if params is None else params,
+            forward,
+            when,
+            parent=parent,
+            parent_check=parent_check,
         )
         cg.add(getattr(parent, callback_method)(callback))
         return
@@ -1192,6 +1217,7 @@ class CallbackAutomation:
     params: TemplateArgsType | None = None
     forward: Sequence[str | Expression] | None = None
     when: str | ApplyCall | None = None
+    parent_check: str | None = None
 
 
 async def build_callback_automations(
@@ -1216,4 +1242,5 @@ async def build_callback_automations(
                 params=entry.params,
                 forward=entry.forward,
                 when=entry.when,
+                parent_check=entry.parent_check,
             )

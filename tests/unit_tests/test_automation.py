@@ -341,6 +341,7 @@ async def test_build_callback_automations_single_entry(
         params=None,
         forward=None,
         when=None,
+        parent_check=None,
     )
 
 
@@ -368,6 +369,7 @@ async def test_build_callback_automations_multiple_configs(
         params=None,
         forward=None,
         when=None,
+        parent_check=None,
     )
     mock_build_callback.assert_any_call(
         parent,
@@ -378,6 +380,7 @@ async def test_build_callback_automations_multiple_configs(
         params=None,
         forward=None,
         when=None,
+        parent_check=None,
     )
 
 
@@ -414,6 +417,7 @@ async def test_build_callback_automations_multiple_entries(
             params=None,
             forward=None,
             when=None,
+            parent_check=None,
         ),
         call(
             parent,
@@ -424,6 +428,7 @@ async def test_build_callback_automations_multiple_entries(
             params=None,
             forward=None,
             when=None,
+            parent_check=None,
         ),
     ]
 
@@ -454,6 +459,7 @@ async def test_build_callback_automations_with_forwarder(
         params=None,
         forward=None,
         when=None,
+        parent_check=None,
     )
 
 
@@ -495,6 +501,7 @@ async def test_build_callback_automations_mixed_entries(
             params=None,
             forward=None,
             when=None,
+            parent_check=None,
         ),
         call(
             parent,
@@ -505,6 +512,7 @@ async def test_build_callback_automations_mixed_entries(
             params=None,
             forward=None,
             when=None,
+            parent_check=None,
         ),
         call(
             parent,
@@ -515,6 +523,7 @@ async def test_build_callback_automations_mixed_entries(
             params=None,
             forward=None,
             when=None,
+            parent_check=None,
         ),
     ]
 
@@ -548,6 +557,7 @@ async def test_build_callback_automations_skips_missing_keys(
         params=None,
         forward=None,
         when=None,
+        parent_check=None,
     )
 
 
@@ -573,6 +583,7 @@ async def test_build_callback_automations_defaults(
         params=None,
         forward=None,
         when=None,
+        parent_check=None,
     )
 
 
@@ -1247,6 +1258,48 @@ async def test_trigger_callback_filter_has_no_parent(mock_cg: MockCodegen) -> No
     with pytest.raises(ValueError, match="names {parent}"):
         await build_trigger_callback(
             [], {**TRIGGER_CONF, "mode": 1}, [(cg.int_, "mode")], forward=[], when=when
+        )
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automations_parent_check(mock_cg: MockCodegen) -> None:
+    """parent_check is applied to the parent, so a module-level table can filter on its state."""
+    await build_callback_automations(
+        MockObj("valve", "->"),
+        {"on_open": [TRIGGER_CONF]},
+        (
+            CallbackAutomation(
+                "on_open", "add_on_state_callback", parent_check="is_fully_open()"
+            ),
+        ),
+    )
+    assert _squash(mock_cg.add.call_args.args[0]) == (
+        "valve->add_on_state_callback([]() -> void { "
+        f"if (!(::valve->is_fully_open())) return; ::{NEW_OBJ}->trigger(); }})"
+    )
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_when_and_parent_check(mock_cg: MockCodegen) -> None:
+    """A filter and a parent check combine into one early return; a check needs the parent."""
+    text = _squash(
+        await build_trigger_callback(
+            [],
+            TRIGGER_CONF,
+            [(cg.int_, "state")],
+            forward=[],
+            when="state == 1 || state == 2",
+            parent=MockObj("improv", "->"),
+            parent_check="is_failed() == false",
+        )
+    )
+    assert (
+        "if (!((state == 1 || state == 2) && (::improv->is_failed() == false))) return;"
+        in text
+    )
+    with pytest.raises(ValueError, match="needs the parent"):
+        await build_trigger_callback(
+            [], TRIGGER_CONF, [], forward=[], parent_check="is_failed() == false"
         )
 
 
