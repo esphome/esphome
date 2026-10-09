@@ -15,6 +15,8 @@ namespace esphome::bmp3xx_base {
 
 ESPHOME_LOG_TAG(TAG, "bmp3xx.sensor");
 
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
+
 static const LogString *chip_type_to_str(uint8_t chip_type) {
   switch (chip_type) {
     case BMP388_ID:
@@ -170,7 +172,7 @@ void BMP3XXComponent::update() {
 
   const uint32_t meas_timeout = uint32_t(ceilf(meas_time));
   ESP_LOGVV(TAG, "measurement time %" PRIu32, meas_timeout);
-  this->set_timeout("data", meas_timeout, [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, meas_timeout, [this]() {
     float temperature = 0.0f;
     float pressure = 0.0f;
     if (this->pressure_sensor_ != nullptr) {

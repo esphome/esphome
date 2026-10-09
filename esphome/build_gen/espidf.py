@@ -237,6 +237,35 @@ def idf_macro_matches(idf_path: Path) -> bool:
     return live == _EXPECTED_MACRO
 
 
+def _cmake_args_for_write(minimal: bool) -> dict[str, str]:
+    """The cg.add_cmake_arg() values for one project write.
+
+    The discovery (minimal) write lets every built-in component register so
+    the list it finds, cached per target, serves any exclusion set; the full
+    write drops the excluded names from that list and passes all of them to
+    IDF. Names outside the framework's components directory (managed
+    components) stay excluded on the discovery write too, since the list
+    only holds built-in ones. A checkout supplied through IDF_PATH caches
+    nothing, so its discovery keeps every exclusion.
+    """
+    from esphome.espidf.toolchain import _esphome_manages_idf, _get_idf_path
+
+    args = dict(CORE.cmake_args)
+    if (
+        not minimal
+        or not _esphome_manages_idf()
+        or not (excluded := args.get("EXCLUDE_COMPONENTS"))
+    ):
+        return args
+    root = _get_idf_path() / "components"
+    outside = [name for name in excluded.split(";") if not (root / name).is_dir()]
+    if outside:
+        args["EXCLUDE_COMPONENTS"] = ";".join(outside)
+    else:
+        del args["EXCLUDE_COMPONENTS"]
+    return args
+
+
 def get_project_cmakelists(
     minimal: bool = False, builtin_components: list[str] | None = None
 ) -> str:
@@ -300,11 +329,10 @@ def get_project_cmakelists(
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
-    # set when project.cmake seeds the component list, and on minimal
-    # (discovery) writes too so excluded components never register.
+    # set when project.cmake seeds the component list.
     cmake_args = "\n".join(
         f"set({name} {_cmake_quote(value)})"
-        for name, value in sorted(CORE.cmake_args.items())
+        for name, value in sorted(_cmake_args_for_write(minimal).items())
     )
 
     # Per-project list exposed as a CMake variable so converted PIO libs
@@ -327,10 +355,10 @@ def get_project_cmakelists(
     # component's REQUIRES including real IDF components). Referenced by
     # src/CMakeLists and by each converted PIO lib's CMakeLists. Skipped
     # on minimal writes because project_description.json may be stale.
-    # Excluded components are dropped here as well: a stale
-    # project_description.json from a build without exclusions may still
-    # list them, and requiring an excluded component pulls it back into
-    # the build (IDF requirement expansion overrides EXCLUDE_COMPONENTS).
+    # Excluded components are dropped here as well: the discovery list
+    # (cached per target) still holds them, and requiring an excluded
+    # component pulls it back into the build (IDF requirement expansion
+    # overrides EXCLUDE_COMPONENTS).
     # Derived from the EXCLUDE_COMPONENTS cmake arg emitted above so the
     # two can never disagree within one generated file.
     builtin_components_property = (
@@ -554,10 +582,9 @@ def write_project(
     )
 
     # Snapshot the exclusion set so has_outdated_files() can trigger a
-    # discovery reconfigure when it changes. Excluded components never
-    # register in project_description.json, so re-including one (e.g. a
-    # config gains mqtt) requires a fresh discovery pass before the
-    # ESPHOME_PROJECT_BUILTIN_COMPONENTS property can list it.
+    # reconfigure when it changes. The ESPHOME_PROJECT_BUILTIN_COMPONENTS
+    # property drops excluded names, so re-including one (e.g. a config
+    # gains mqtt) needs a reconfigure to rebuild it from the discovery list.
     write_file_if_changed(
         CORE.relative_build_path("exclude_components.esphomeinternal"),
         ";".join(get_excluded_builtin_components()),
