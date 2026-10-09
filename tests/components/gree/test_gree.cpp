@@ -305,7 +305,7 @@ TEST(GreeClimateCodec, OtherModelsTransmitStateRegression) {
   source.feature_bits = 0xA0;
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAN, source), (GreeState{0x29, 0x06, 0xA0, 0x50, 0x01, 0x20, 0x00, 0xB0}));
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAA, source), (GreeState{0x69, 0x06, 0xA0, 0x50, 0x00, 0x20, 0x20, 0xD0}));
-  EXPECT_EQ(GreeClimateCodec::encode(GREE_YAC, source), (GreeState{0x69, 0x06, 0xA0, 0x50, 0x00, 0x20, 0x20, 0xD0}));
+  EXPECT_EQ(GreeClimateCodec::encode(GREE_YAC, source), (GreeState{0x69, 0x06, 0xA0, 0x50, 0x01, 0x20, 0x20, 0xD0}));
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAC1FB9, source),
             (GreeState{0x69, 0x06, 0xA0, 0x50, 0x00, 0x20, 0x20, 0xD0}));
   source.feature_bits = 0;
@@ -690,6 +690,27 @@ TEST(GreeYX1FF, ClimateChangePreservesReceivedLightState) {
   const GreeState transmitted_state = transmitted.value_or(GreeState{});
   EXPECT_EQ(transmitted_state[1], 3);
   EXPECT_EQ(transmitted_state[2] & GREE_LIGHT_BIT, 0);
+}
+
+TEST(GreeYAC, EncodeSwingAxesInVaneFields) {
+  struct SwingCase {
+    climate::ClimateSwingMode mode;
+    uint8_t expected_vanes;
+  };
+  const std::array<SwingCase, 4> cases{{
+      {climate::CLIMATE_SWING_OFF, 0x00},
+      {climate::CLIMATE_SWING_VERTICAL, 0x01},
+      {climate::CLIMATE_SWING_HORIZONTAL, 0x10},
+      {climate::CLIMATE_SWING_BOTH, 0x11},
+  }};
+  GreeClimateData data{climate::CLIMATE_MODE_COOL, 23, climate::CLIMATE_FAN_AUTO,
+                       climate::CLIMATE_SWING_OFF, climate::CLIMATE_PRESET_NONE};
+  for (const auto &test : cases) {
+    data.swing_mode = test.mode;
+    const GreeState encoded = GreeClimateCodec::encode(GREE_YAC, data);
+    EXPECT_EQ(encoded[4], test.expected_vanes);
+    EXPECT_EQ(decode_climate_state(GREE_YAC, encoded).swing_mode, test.mode);
+  }
 }
 
 TEST(GreeYAC, CapturedYAC1FBSwingAndAuxiliaryFrames) {
