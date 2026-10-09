@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["modbus"]
+DOMAIN = "modbus_monitor"
 MULTI_CONF = True
 
 CONF_ON_REQUEST = "on_request"
