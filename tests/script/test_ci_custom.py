@@ -442,3 +442,75 @@ def test_log_tag_as_string_flags_string_uses(line: str) -> None:
 )
 def test_log_tag_as_string_ignores_logging(line: str) -> None:
     assert not ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+# --- rule: every component __init__.py defines DOMAIN as its own name ---
+
+
+def _domain_check() -> dict:
+    return next(
+        c
+        for c in ci_custom.LINT_CONTENT_CHECKS
+        if c["func"] is ci_custom.lint_component_domain
+    )
+
+
+def _lint_domain(fname: str, content: str) -> str | None:
+    return ci_custom.run_check(_domain_check(), fname, Path(fname), content)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'CODEOWNERS = ["@x"]\nDOMAIN = "uart"\n',
+        'DOMAIN: str = "uart"\n',
+    ],
+)
+def test_domain_matching_component_name_passes(content: str) -> None:
+    assert _lint_domain("esphome/components/uart/__init__.py", content) is None
+
+
+def test_domain_leaves_syntax_errors_to_the_python_linters() -> None:
+    assert _lint_domain("esphome/components/uart/__init__.py", "def (\n") is None
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'CODEOWNERS = ["@x"]\n',
+        'DOMAIN = "spi"\n',
+        "DOMAIN = CONF_UART\n",
+        '"""Docstring.\n\nDOMAIN = "uart"\n"""\n',
+        'def f() -> None:\n    DOMAIN = "uart"\n',
+        'OTHER = "uart"\n',
+        "DOMAIN: str\n",
+    ],
+)
+def test_domain_missing_or_wrong_is_flagged(content: str) -> None:
+    err = _lint_domain("esphome/components/uart/__init__.py", content)
+    assert err is not None
+    assert 'DOMAIN = "uart"' in err
+
+
+@pytest.mark.parametrize(
+    "fname",
+    [
+        "esphome/components/uart/sensor/__init__.py",
+        "esphome/components/uart/sensor.py",
+        "esphome/core/__init__.py",
+    ],
+)
+def test_domain_ignores_files_other_than_component_init(fname: str) -> None:
+    assert _lint_domain(fname, "") is None
+
+
+def test_every_component_defines_its_domain() -> None:
+    components = SCRIPT_DIR.parent / "esphome" / "components"
+    missing = [
+        init.parent.name
+        for init in sorted(components.glob("*/__init__.py"))
+        if ci_custom.lint_component_domain(
+            init.relative_to(SCRIPT_DIR.parent), init.read_text(encoding="utf-8")
+        )
+    ]
+    assert missing == []
