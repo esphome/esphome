@@ -7,6 +7,7 @@ from typing import Any
 
 from esphome import git, yaml_util
 from esphome.components.substitutions import (
+    DOMAIN as SUBSTITUTIONS_DOMAIN,
     ContextVars,
     ErrList,
     push_context,
@@ -353,7 +354,7 @@ def _walk_packages(
     packages = config[CONF_PACKAGES]
     packages_path = (path or []) + [CONF_PACKAGES]
 
-    with cv.prepend_path(CONF_PACKAGES):
+    with cv.prepend_path(DOMAIN):
         if isinstance(packages, yaml_util.IncludeFile):
             # If the packages key is an IncludeFile, resolve it first before processing.
             packages = resolve_include(
@@ -599,7 +600,7 @@ def do_packages_pass(
     if CONF_PACKAGES not in config:
         return config
 
-    with cv.prepend_path(CONF_SUBSTITUTIONS):
+    with cv.prepend_path(SUBSTITUTIONS_DOMAIN):
         substitutions = UserDict(
             resolve_substitutions_block(
                 config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions

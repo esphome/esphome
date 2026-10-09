@@ -4,6 +4,9 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, uart
+from esphome.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
+from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
+from esphome.components.text_sensor import DOMAIN as TEXT_SENSOR_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -211,9 +214,9 @@ async def to_code(config: ConfigType) -> None:
     hub_id = config[CONF_ID].id
 
     sensor_count = 0
-    for sens_conf in CORE.config.get("sensor", []):
+    for sens_conf in CORE.config.get(SENSOR_DOMAIN, []):
         if (
-            sens_conf.get("platform") == "dlms_meter"
+            sens_conf.get("platform") == DOMAIN
             and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
         ):
             if CONF_OBIS_CODE in sens_conf:
@@ -224,9 +227,9 @@ async def to_code(config: ConfigType) -> None:
                 sensor_count += sum(1 for key in NUMERIC_KEYS if key in sens_conf)
 
     text_sensor_count = 0
-    for sens_conf in CORE.config.get("text_sensor", []):
+    for sens_conf in CORE.config.get(TEXT_SENSOR_DOMAIN, []):
         if (
-            sens_conf.get("platform") == "dlms_meter"
+            sens_conf.get("platform") == DOMAIN
             and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
         ):
             if CONF_OBIS_CODE in sens_conf:
@@ -237,9 +240,9 @@ async def to_code(config: ConfigType) -> None:
                 text_sensor_count += sum(1 for key in TEXT_KEYS if key in sens_conf)
 
     binary_sensor_count = 0
-    for sens_conf in CORE.config.get("binary_sensor", []):
+    for sens_conf in CORE.config.get(BINARY_SENSOR_DOMAIN, []):
         if (
-            sens_conf.get("platform") == "dlms_meter"
+            sens_conf.get("platform") == DOMAIN
             and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
         ):
             binary_sensor_count += 1

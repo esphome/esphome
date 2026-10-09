@@ -34,7 +34,7 @@ USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     return any(
         channel[CONF_ID] == uart_id
-        for device in full_config.get("usb_uart") or []
+        for device in full_config.get(DOMAIN) or []
         for channel in device[CONF_CHANNELS]
     )
 

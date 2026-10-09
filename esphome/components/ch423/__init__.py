@@ -60,7 +60,7 @@ def pin_mode_check(pin_config: ConfigType, _: ConfigType) -> None:
     is_open_drain = pin_config[CONF_MODE][CONF_OPEN_DRAIN]
 
     # Track pin modes per CH423 instance in CORE.data
-    ch423_modes = CORE.data.setdefault(CONF_CH423, {})
+    ch423_modes = CORE.data.setdefault(DOMAIN, {})
     if ch423_id not in ch423_modes:
         ch423_modes[ch423_id] = {"gpio_output": None, "gpo_open_drain": None}
 

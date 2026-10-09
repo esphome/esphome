@@ -18,6 +18,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.microphone import DOMAIN as MICROPHONE_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
 from esphome.core import CORE
@@ -40,7 +41,6 @@ CONF_I2S_MCLK_PIN = "i2s_mclk_pin"
 CONF_I2S_BCLK_PIN = "i2s_bclk_pin"
 CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
-CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 
 CONF_I2S_MODE = "i2s_mode"
@@ -219,9 +219,9 @@ class I2SAudioData:
 
 
 def _get_data() -> I2SAudioData:
-    if CONF_I2S_AUDIO not in CORE.data:
-        CORE.data[CONF_I2S_AUDIO] = I2SAudioData()
-    return CORE.data[CONF_I2S_AUDIO]
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = I2SAudioData()
+    return CORE.data[DOMAIN]
 
 
 def _assign_ports() -> None:
@@ -235,12 +235,12 @@ def _assign_ports() -> None:
         return
 
     full_config = fv.full_config.get()
-    i2s_configs = full_config[CONF_I2S_AUDIO]
+    i2s_configs = full_config[DOMAIN]
 
     # Find i2s_audio instances with microphones that require port 0
     # (PDM and internal ADC only work on I2S port 0)
     port0_parent_id = None
-    for mic_config in full_config.get("microphone", []):
+    for mic_config in full_config.get(MICROPHONE_DOMAIN, []):
         if CONF_I2S_AUDIO_ID not in mic_config:
             continue
         if mic_config.get(CONF_PDM) or mic_config.get(CONF_ADC_TYPE) == "internal":
@@ -263,7 +263,7 @@ def _assign_ports() -> None:
 
 
 def _final_validate(_: ConfigType) -> None:
-    i2s_audio_configs = fv.full_config.get()[CONF_I2S_AUDIO]
+    i2s_audio_configs = fv.full_config.get()[DOMAIN]
     variant = get_esp32_variant()
     if variant not in I2S_PORTS:
         raise cv.Invalid(f"Unsupported variant {variant}")

@@ -18,6 +18,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     only_on_variant,
 )
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -158,7 +159,7 @@ def _validate_psram_dma(value: Any) -> bool:
             msg_prefix="PSRAM DMA",
         ),
         cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
-        cv.requires_component("psram"),
+        cv.requires_component(PSRAM_DOMAIN),
     )(value)
 
 

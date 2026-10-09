@@ -3,7 +3,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.esp32 import only_on_variant
+from esphome.components.esp32 import DOMAIN as ESP32_DOMAIN, only_on_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -74,19 +74,19 @@ def _get_base_schema(cluster_options: list[str] | None = None) -> cv.Schema:
     schema = cv.Schema(
         {
             cv.Optional(CONF_REPORT): cv.All(
-                cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
+                cv.requires_component(DOMAIN),
+                cv.requires_component(ESP32_DOMAIN),
                 _check_report_deprecation,
                 cv.enum(REPORT, lower=True),
             ),
             cv.Optional(CONF_ENDPOINT): cv.All(
-                cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
+                cv.requires_component(DOMAIN),
+                cv.requires_component(ESP32_DOMAIN),
                 cv.int_range(1, CONF_MAX_EP_NUMBER),
             ),
             cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
-                cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
+                cv.requires_component(DOMAIN),
+                cv.requires_component(ESP32_DOMAIN),
                 cv.boolean,
             ),
         }
@@ -97,8 +97,8 @@ def _get_base_schema(cluster_options: list[str] | None = None) -> cv.Schema:
                 cv.OnlyWith(
                     CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
                 ): cv.All(
-                    cv.requires_component("zigbee"),
-                    cv.requires_component("esp32"),
+                    cv.requires_component(DOMAIN),
+                    cv.requires_component(ESP32_DOMAIN),
                     cv.one_of(*cluster_options, lower=True),
                 ),
             }
@@ -231,7 +231,7 @@ async def to_code(config: ConfigType) -> None:
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
@@ -243,7 +243,7 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
@@ -255,7 +255,7 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
@@ -273,7 +273,7 @@ async def setup_number(
     max_value: float,
     step: float,
 ) -> None:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
@@ -303,7 +303,7 @@ def consume_endpoint(config: ConfigType) -> ConfigType:
 
 
 def validate_binary_sensor(config: ConfigType) -> ConfigType:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
         return validate_binary_sensor_esp32(config)
@@ -311,7 +311,7 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
 
 
 def validate_sensor(config: ConfigType) -> ConfigType:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
         return validate_sensor_esp32(config)
@@ -319,7 +319,7 @@ def validate_sensor(config: ConfigType) -> ConfigType:
 
 
 def validate_switch(config: ConfigType) -> ConfigType:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
         return validate_switch_esp32(config)
@@ -327,7 +327,7 @@ def validate_switch(config: ConfigType) -> ConfigType:
 
 
 def validate_number(config: ConfigType) -> ConfigType:
-    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+    if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
         return validate_number_esp32(config)

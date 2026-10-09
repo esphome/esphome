@@ -19,7 +19,7 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.network import add_use_address
+from esphome.components.network import DOMAIN as NETWORK_DOMAIN, add_use_address
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
@@ -261,7 +261,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(_: ConfigType) -> None:
     full_config = fv.full_config.get()
-    network_config = full_config.get("network", {})
+    network_config = full_config.get(NETWORK_DOMAIN, {})
     if not network_config.get(CONF_ENABLE_IPV6, False):
         raise cv.Invalid(
             "OpenThread requires IPv6 to be enabled in the network component. "

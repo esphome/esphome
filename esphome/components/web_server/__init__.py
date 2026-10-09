@@ -240,11 +240,11 @@ WEBSERVER_SORTING_SCHEMA = cv.Schema(
             {
                 cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
                 cv.Optional(CONF_SORTING_WEIGHT): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.float_,
                 ),
                 cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.use_id(cg.int_),
                 ),
             }
@@ -474,7 +474,7 @@ def FILTER_SOURCE_FILES() -> list[str]:
     files_to_filter: list[str] = []
 
     # web_server_v1.cpp is only needed when version is 1
-    config = CORE.config.get("web_server", {})
+    config = CORE.config.get(DOMAIN, {})
     if config.get(CONF_VERSION, 2) != 1:
         files_to_filter.append("web_server_v1.cpp")
 
