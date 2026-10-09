@@ -92,6 +92,9 @@ class EntityBase {
 
   bool name_equals(const StringRef &other) const { return this->name_.equals(other); }
 
+  /// The name as stored, for consumers that read flash themselves (e.g. API progmem fields).
+  const ProgmemStringRef &get_name_progmem() const { return this->name_; }
+
   /// Copy the name into buf (null terminated), returns its length.
   size_t write_name_to(char *buf, size_t buf_size) const { return this->name_.write_to(buf, buf_size); }
 

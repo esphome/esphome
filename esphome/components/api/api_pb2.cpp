@@ -401,7 +401,7 @@ uint8_t *ListEntitiesBinarySensorResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesBinarySensorResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.device_class);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.is_status_binary_sensor);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.disabled_by_default);
@@ -459,7 +459,7 @@ uint8_t *ListEntitiesCoverResponse::encode_msg(const void *self, uint8_t *__rest
   const auto &msg = *static_cast<const ListEntitiesCoverResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.assumed_state);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.supports_position);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.supports_tilt);
@@ -558,7 +558,7 @@ uint8_t *ListEntitiesFanResponse::encode_msg(const void *self, uint8_t *__restri
   const auto &msg = *static_cast<const ListEntitiesFanResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.supports_oscillation);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.supports_speed);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.supports_direction);
@@ -678,7 +678,7 @@ uint8_t *ListEntitiesLightResponse::encode_msg(const void *self, uint8_t *__rest
   const auto &msg = *static_cast<const ListEntitiesLightResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
   for (const auto &it : *msg.supported_color_modes) {
     pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(it));
   }
@@ -884,7 +884,7 @@ uint8_t *ListEntitiesSensorResponse::encode_msg(const void *self, uint8_t *__res
   const auto &msg = *static_cast<const ListEntitiesSensorResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -954,7 +954,7 @@ uint8_t *ListEntitiesSwitchResponse::encode_msg(const void *self, uint8_t *__res
   const auto &msg = *static_cast<const ListEntitiesSwitchResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -1030,7 +1030,7 @@ uint8_t *ListEntitiesTextSensorResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesTextSensorResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -1478,7 +1478,7 @@ uint8_t *ListEntitiesCameraResponse::encode_msg(const void *self, uint8_t *__res
   const auto &msg = *static_cast<const ListEntitiesCameraResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.icon);
@@ -1544,7 +1544,7 @@ uint8_t *ListEntitiesClimateResponse::encode_msg(const void *self, uint8_t *__re
   const auto &msg = *static_cast<const ListEntitiesClimateResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.supports_current_temperature);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.supports_two_point_target_temperature);
   for (const auto &it : *msg.supported_modes) {
@@ -1781,7 +1781,7 @@ uint8_t *ListEntitiesWaterHeaterResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesWaterHeaterResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.icon);
 #endif
@@ -1908,7 +1908,7 @@ uint8_t *ListEntitiesNumberResponse::encode_msg(const void *self, uint8_t *__res
   const auto &msg = *static_cast<const ListEntitiesNumberResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -1999,7 +1999,7 @@ uint8_t *ListEntitiesSelectResponse::encode_msg(const void *self, uint8_t *__res
   const auto &msg = *static_cast<const ListEntitiesSelectResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -2078,7 +2078,7 @@ uint8_t *ListEntitiesSirenResponse::encode_msg(const void *self, uint8_t *__rest
   const auto &msg = *static_cast<const ListEntitiesSirenResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -2180,7 +2180,7 @@ uint8_t *ListEntitiesLockResponse::encode_msg(const void *self, uint8_t *__restr
   const auto &msg = *static_cast<const ListEntitiesLockResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -2263,7 +2263,7 @@ uint8_t *ListEntitiesButtonResponse::encode_msg(const void *self, uint8_t *__res
   const auto &msg = *static_cast<const ListEntitiesButtonResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -2332,7 +2332,7 @@ uint8_t *ListEntitiesMediaPlayerResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesMediaPlayerResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3178,7 +3178,7 @@ uint8_t *ListEntitiesAlarmControlPanelResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesAlarmControlPanelResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3258,7 +3258,7 @@ uint8_t *ListEntitiesTextResponse::encode_msg(const void *self, uint8_t *__restr
   const auto &msg = *static_cast<const ListEntitiesTextResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3337,7 +3337,7 @@ uint8_t *ListEntitiesDateResponse::encode_msg(const void *self, uint8_t *__restr
   const auto &msg = *static_cast<const ListEntitiesDateResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3418,7 +3418,7 @@ uint8_t *ListEntitiesTimeResponse::encode_msg(const void *self, uint8_t *__restr
   const auto &msg = *static_cast<const ListEntitiesTimeResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3499,7 +3499,7 @@ uint8_t *ListEntitiesEventResponse::encode_msg(const void *self, uint8_t *__rest
   const auto &msg = *static_cast<const ListEntitiesEventResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3561,7 +3561,7 @@ uint8_t *ListEntitiesValveResponse::encode_msg(const void *self, uint8_t *__rest
   const auto &msg = *static_cast<const ListEntitiesValveResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3649,7 +3649,7 @@ uint8_t *ListEntitiesDateTimeResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesDateTimeResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3722,7 +3722,7 @@ uint8_t *ListEntitiesUpdateResponse::encode_msg(const void *self, uint8_t *__res
   const auto &msg = *static_cast<const ListEntitiesUpdateResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.icon);
 #endif
@@ -3878,7 +3878,7 @@ uint8_t *ListEntitiesInfraredResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesInfraredResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.icon);
 #endif
@@ -3996,7 +3996,7 @@ uint8_t *ListEntitiesRadioFrequencyResponse::encode_msg(const void *self,
   const auto &msg = *static_cast<const ListEntitiesRadioFrequencyResponse *>(self);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.object_id);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
-  pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
+  pos = ProtoEncode::encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, msg.name);
 #ifdef USE_ENTITY_ICON
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.icon);
 #endif
