@@ -14,6 +14,7 @@ from esphome.core import ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
+DOMAIN = "virtual_uart"
 AUTO_LOAD = ["uart"]
 MULTI_CONF = True
 
