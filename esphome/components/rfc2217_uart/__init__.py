@@ -68,7 +68,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
         if CORE.testing_mode:
             continue
         for domain, domain_conf in full_config.items():
-            if domain != DOMAIN and uart.subtree_references_uart(domain_conf, owned_id):
+            # A tcp_uart is also attached through tcp_uart_id.
+            if domain != DOMAIN and any(
+                uart.subtree_references_uart(domain_conf, owned_id, conf_key)
+                for conf_key in {CONF_UART_ID, key}
+            ):
                 raise cv.Invalid(
                     f"The UART '{owned_id}' is also used by '{domain}'. "
                     "rfc2217_uart requires exclusive use of that UART.",
@@ -88,8 +92,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_tcp_uart(await cg.get_variable(config[CONF_TCP_UART_ID])))
     await uart.register_uart_device(var, config)
     # A hardware UART on ESP32 changes its line without a driver reinstall.
-    full_id, serial = await cg.get_variable_with_full_id(config[CONF_UART_ID])
+    full_id, _ = await cg.get_variable_with_full_id(config[CONF_UART_ID])
     if isinstance(full_id.type, MockObjClass) and full_id.type.inherits_from(
         uart.IDFUARTComponent
     ):
-        cg.add(var.set_idf_uart(serial))
+        cg.add(var.set_idf_uart(True))

@@ -3,7 +3,7 @@
 namespace esphome::rfc2217_uart {
 
 void TelnetDecoder::reset() {
-  this->state_ = State::DATA;
+  this->state_ = State::STATE_DATA;
   this->sub_len_ = 0;
   this->sub_overflow_ = false;
 }
@@ -11,59 +11,59 @@ void TelnetDecoder::reset() {
 TelnetDecoder::Event TelnetDecoder::after_iac_(uint8_t byte) {
   switch (byte) {
     case TELNET_IAC:
-      this->state_ = State::DATA;
+      this->state_ = State::STATE_DATA;
       this->data_ = TELNET_IAC;
-      return Event::DATA;
+      return Event::EVENT_DATA;
     case TELNET_WILL:
     case TELNET_WONT:
     case TELNET_DO:
     case TELNET_DONT:
-      this->state_ = State::OPTION;
+      this->state_ = State::STATE_OPTION;
       this->verb_ = byte;
-      return Event::NONE;
+      return Event::EVENT_NONE;
     case TELNET_SB:
-      this->state_ = State::SB;
+      this->state_ = State::STATE_SB;
       this->sub_len_ = 0;
       this->sub_overflow_ = false;
-      return Event::NONE;
+      return Event::EVENT_NONE;
     default:
       // NOP, GA and the other two-byte commands carry nothing for a serial port.
-      this->state_ = State::DATA;
-      return Event::NONE;
+      this->state_ = State::STATE_DATA;
+      return Event::EVENT_NONE;
   }
 }
 
 TelnetDecoder::Event TelnetDecoder::feed(uint8_t byte) {
   switch (this->state_) {
-    case State::DATA:
+    case State::STATE_DATA:
       if (byte == TELNET_IAC) {
-        this->state_ = State::IAC;
-        return Event::NONE;
+        this->state_ = State::STATE_IAC;
+        return Event::EVENT_NONE;
       }
       this->data_ = byte;
-      return Event::DATA;
-    case State::IAC:
+      return Event::EVENT_DATA;
+    case State::STATE_IAC:
       return this->after_iac_(byte);
-    case State::OPTION:
-      this->state_ = State::DATA;
+    case State::STATE_OPTION:
+      this->state_ = State::STATE_DATA;
       this->data_ = byte;
-      return Event::OPTION;
-    case State::SB:
+      return Event::EVENT_OPTION;
+    case State::STATE_SB:
       if (byte == TELNET_IAC) {
-        this->state_ = State::SB_IAC;
-        return Event::NONE;
+        this->state_ = State::STATE_SB_IAC;
+        return Event::EVENT_NONE;
       }
       break;
-    case State::SB_IAC:
+    case State::STATE_SB_IAC:
       if (byte == TELNET_SE) {
-        this->state_ = State::DATA;
-        return this->sub_overflow_ ? Event::NONE : Event::SUBNEGOTIATION;
+        this->state_ = State::STATE_DATA;
+        return this->sub_overflow_ ? Event::EVENT_NONE : Event::EVENT_SUBNEGOTIATION;
       }
       if (byte != TELNET_IAC) {
         // [RFC 854] Only IAC SE ends a subnegotiation; drop it and take the byte as the command after IAC.
         return this->after_iac_(byte);
       }
-      this->state_ = State::SB;
+      this->state_ = State::STATE_SB;
       break;
   }
   if (this->sub_len_ < SUB_SIZE) {
@@ -71,7 +71,7 @@ TelnetDecoder::Event TelnetDecoder::feed(uint8_t byte) {
   } else {
     this->sub_overflow_ = true;
   }
-  return Event::NONE;
+  return Event::EVENT_NONE;
 }
 
 size_t telnet_escape(const uint8_t *src, size_t len, uint8_t *dst, size_t room, size_t *used) {

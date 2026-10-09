@@ -91,6 +91,17 @@ def test_rejects_a_uart_shared_with_another_component(
         _final_validate(_entry())
 
 
+def test_rejects_a_tcp_uart_shared_through_tcp_uart_id(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(
+        set_core_config,
+        _full_config(modbus_tcp_uart=[{rfc2217_uart.CONF_TCP_UART_ID: ID("link")}]),
+    )
+    with pytest.raises(cv.Invalid, match="also used by 'modbus_tcp_uart'"):
+        _final_validate(_entry("uart_0", "link"))
+
+
 def test_testing_mode_allows_a_shared_bus(
     set_core_config: SetCoreConfigCallable, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -125,4 +136,4 @@ def test_esp32_hardware_uart_changes_its_line_in_place(generate_main) -> None:
     main_cpp = generate_main(f"{DIR}/test_rfc2217_uart.yaml")
     assert "port_server->set_tcp_uart(inbound);" in main_cpp
     assert "port_server->set_uart_parent(serial_bus);" in main_cpp
-    assert "port_server->set_idf_uart(serial_bus);" in main_cpp
+    assert "port_server->set_idf_uart(true);" in main_cpp

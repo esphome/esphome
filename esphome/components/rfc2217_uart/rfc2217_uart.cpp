@@ -1,5 +1,6 @@
 #include "rfc2217_uart.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -9,35 +10,44 @@ namespace esphome::rfc2217_uart {
 
 ESPHOME_LOG_TAG(TAG, "rfc2217_uart");
 
+static const uint8_t SIGNATURE[] PROGMEM = {'E', 'S', 'P', 'H', 'o', 'm', 'e'};
+
 void Rfc2217Base::link_edge_() {
   const bool up = this->tcp_->is_connected();
   this->link_was_up_ = up;
-  this->decoder_.reset();
-  for (size_t i = 0; i < 2; i++) {
-    this->us_[i] = OptionState::NO;
-    this->him_[i] = OptionState::NO;
-  }
   this->peer_suspended_ = false;
   this->suspended_peer_ = false;
+  // The decoder and the options stay for the bytes the peer sent before it closed.
+  if (up) {
+    this->decoder_.reset();
+    for (size_t i = 0; i < 2; i++) {
+      this->us_[i] = OptionState::OPTION_STATE_NO;
+      this->him_[i] = OptionState::OPTION_STATE_NO;
+    }
+  }
   this->on_link(up);
   if (!up) {
     return;
   }
-  this->us_[BINARY] = OptionState::WANT_YES;
-  this->him_[BINARY] = OptionState::WANT_YES;
+  this->us_[BINARY] = OptionState::OPTION_STATE_WANT_YES;
+  this->him_[BINARY] = OptionState::OPTION_STATE_WANT_YES;
   this->send_option_(TELNET_WILL, OPTION_BINARY);
   this->send_option_(TELNET_DO, OPTION_BINARY);
   // [RFC 2217] The client offers COM-PORT and the server accepts it; either may start.
   if (this->server_) {
-    this->him_[COM_PORT] = OptionState::WANT_YES;
+    this->him_[COM_PORT] = OptionState::OPTION_STATE_WANT_YES;
     this->send_option_(TELNET_DO, OPTION_COM_PORT);
   } else {
-    this->us_[COM_PORT] = OptionState::WANT_YES;
+    this->us_[COM_PORT] = OptionState::OPTION_STATE_WANT_YES;
     this->send_option_(TELNET_WILL, OPTION_COM_PORT);
   }
 }
 
 void Rfc2217Base::write_tcp_(const uint8_t *data, size_t len) {
+  // Answers to the bytes read after the peer closed have nowhere to go.
+  if (!this->link_was_up_) {
+    return;
+  }
   this->tcp_->write_array(data, len);
   this->wrote_ = true;
 }
@@ -63,6 +73,12 @@ bool Rfc2217Base::send_command_(uint8_t code, const uint8_t *value, size_t len) 
   return true;
 }
 
+void Rfc2217Base::send_signature_() {
+  uint8_t text[sizeof(SIGNATURE)];
+  progmem_memcpy(text, SIGNATURE, sizeof(text));
+  this->send_command_(COM_SIGNATURE, text, sizeof(text));
+}
+
 void Rfc2217Base::on_option_(uint8_t verb, uint8_t option) {
   const bool positive = verb == TELNET_WILL || verb == TELNET_DO;
   // WILL and WONT are about the peer's side of the option, DO and DONT about this side.
@@ -82,19 +98,20 @@ void Rfc2217Base::on_option_(uint8_t verb, uint8_t option) {
     return;
   }
   OptionState &state = his ? this->him_[index] : this->us_[index];
-  const bool asked = state == OptionState::WANT_YES;
+  const bool asked = state == OptionState::OPTION_STATE_WANT_YES;
+  const bool was_yes = state == OptionState::OPTION_STATE_YES;
   if (positive) {
-    if (state == OptionState::NO) {
+    if (state == OptionState::OPTION_STATE_NO) {
       this->send_option_(yes, option);
     }
-    state = OptionState::YES;
+    state = OptionState::OPTION_STATE_YES;
     return;
   }
-  if (state == OptionState::YES) {
+  if (was_yes) {
     this->send_option_(no, option);
   }
-  state = OptionState::NO;
-  if (!asked) {
+  state = OptionState::OPTION_STATE_NO;
+  if (!asked && !was_yes) {
     return;
   }
   if (index == BINARY) {
@@ -112,11 +129,17 @@ void Rfc2217Base::read_plain_() {
   // No room for an answer: take payload up to the next command, which waits in the link.
   uint8_t payload[READ_CHUNK];
   size_t n = 0;
-  size_t room = std::min(this->payload_room(), sizeof(payload));
+  const size_t room = std::min(this->payload_room(), sizeof(payload));
   uint8_t byte;
-  while (n < room && this->decoder_.idle() && this->tcp_->peek_byte(&byte) && byte != TELNET_IAC) {
+  while (n < room && this->tcp_->peek_byte(&byte)) {
+    // After an IAC only a second one, an escaped 0xFF, is payload.
+    if (!this->decoder_.idle() && !(this->decoder_.at_iac() && byte == TELNET_IAC)) {
+      break;
+    }
     this->tcp_->read_array(&byte, 1);
-    payload[n++] = byte;
+    if (this->decoder_.feed(byte) == TelnetDecoder::Event::EVENT_DATA) {
+      payload[n++] = this->decoder_.data();
+    }
   }
   if (n != 0) {
     this->deliver(payload, n);
@@ -125,7 +148,8 @@ void Rfc2217Base::read_plain_() {
 
 void Rfc2217Base::read_tcp_() {
   // Answers take at most 13 bytes per 6 bytes read (SIGNATURE), plus one command begun in an earlier read.
-  const size_t tx_room = this->tcp_->available_for_write();
+  // After the peer closed, nothing is answered.
+  const size_t tx_room = this->link_was_up_ ? this->tcp_->available_for_write() : SIZE_MAX;
   if (tx_room < COM_PORT_COMMAND_MAX + 3) {
     this->read_plain_();
     return;
@@ -152,13 +176,13 @@ void Rfc2217Base::read_tcp_() {
       }
     }
     switch (this->decoder_.feed(raw[i++])) {
-      case TelnetDecoder::Event::DATA:
+      case TelnetDecoder::Event::EVENT_DATA:
         payload[len++] = this->decoder_.data();
         break;
-      case TelnetDecoder::Event::OPTION:
+      case TelnetDecoder::Event::EVENT_OPTION:
         this->on_option_(this->decoder_.verb(), this->decoder_.option());
         break;
-      case TelnetDecoder::Event::SUBNEGOTIATION: {
+      case TelnetDecoder::Event::EVENT_SUBNEGOTIATION: {
         // A command such as PURGE-DATA applies to the payload before it, so that goes first.
         if (len != 0) {
           this->deliver(payload, len);
@@ -166,12 +190,13 @@ void Rfc2217Base::read_tcp_() {
         }
         const uint8_t *sub = this->decoder_.sub();
         const size_t sub_len = this->decoder_.sub_len();
+        // Not gated on the option: pySerial sends no WILL COM-PORT when the server's DO arrives first.
         if (sub_len >= 2 && sub[0] == OPTION_COM_PORT) {
           this->on_command(sub[1], sub + 2, sub_len - 2);
         }
         break;
       }
-      case TelnetDecoder::Event::NONE:
+      case TelnetDecoder::Event::EVENT_NONE:
         break;
     }
   }
