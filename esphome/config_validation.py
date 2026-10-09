@@ -43,7 +43,6 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_MINUTE,
     CONF_MONTH,
-    CONF_MQTT_SUBSCRIPTION_COUNT,
     CONF_NAME,
     CONF_PASSWORD,
     CONF_PATH,
@@ -2410,7 +2409,6 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
         Optional(CONF_COMMAND_RETAIN, visibility=Visibility.ADVANCED): All(
             requires_component("mqtt"), boolean
         ),
-        Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=1): positive_int,
     }
 )
 

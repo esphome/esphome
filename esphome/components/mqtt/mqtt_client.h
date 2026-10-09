@@ -290,7 +290,7 @@ class MQTTClientComponent final : public Component {
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   void persist_subscription_(uint32_t hash);
   void remove_persisted_subscription_(uint32_t hash);
-  void clear_persisted_subscriptions_();
+  void prune_persisted_subscriptions_();
 #ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
   void save_persisted_subscriptions_();
 #endif
@@ -347,9 +347,11 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool session_present_{false};
   bool on_connect_received_{false};
-#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_MQTT_SESSION_PERSISTENCE_RTC)
+#ifdef USE_MQTT_SESSION_PERSISTENCE
   bool persisted_subscriptions_dirty_{false};
+#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
   ESPPreferenceObject persisted_subscriptions_pref_;
+#endif
 #endif
 };
 

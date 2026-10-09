@@ -3,6 +3,7 @@
 #ifdef USE_MQTT
 
 #include <array>
+#include <bitset>
 #include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -404,9 +405,8 @@ void MQTTClientComponent::check_connected() {
   ESP_LOGI(TAG, "Connected");
 
 #ifdef USE_MQTT_SESSION_PERSISTENCE
-  // A new session on the broker holds none of the stored subscriptions
-  if (!this->session_present_)
-    this->clear_persisted_subscriptions_();
+  // Done before resubscribing so the slots freed here can take new topics
+  this->prune_persisted_subscriptions_();
 #endif
   this->resubscribe_subscriptions_();
 #if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_MQTT_SESSION_PERSISTENCE_RTC)
@@ -502,30 +502,38 @@ void MQTTClientComponent::persist_subscription_(uint32_t hash) {
     return;
   }
   *empty = hash;
-#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
   this->persisted_subscriptions_dirty_ = true;
-#endif
 }
 
 void MQTTClientComponent::remove_persisted_subscription_(uint32_t hash) {
   for (uint32_t &stored : persisted_subscriptions) {
     if (stored == hash) {
       stored = 0;
-#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
       this->persisted_subscriptions_dirty_ = true;
-#endif
       return;
     }
   }
 }
 
-void MQTTClientComponent::clear_persisted_subscriptions_() {
-  for (uint32_t &stored : persisted_subscriptions) {
-    if (stored != 0) {
-      stored = 0;
-#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
+void MQTTClientComponent::prune_persisted_subscriptions_() {
+  // A new session on the broker holds none of the stored subscriptions. In a kept session,
+  // drop the ones this firmware no longer makes, such as topics renamed by an update.
+  std::bitset<MQTT_MAX_PERSISTED_SUBSCRIPTIONS> in_use;
+  if (this->session_present_) {
+    for (const auto &sub : this->subscriptions_) {
+      const uint32_t hash = hash_subscription(sub);
+      for (size_t i = 0; i < persisted_subscriptions.size(); i++) {
+        if (persisted_subscriptions[i] == hash) {
+          in_use.set(i);
+          break;
+        }
+      }
+    }
+  }
+  for (size_t i = 0; i < persisted_subscriptions.size(); i++) {
+    if (persisted_subscriptions[i] != 0 && !in_use[i]) {
+      persisted_subscriptions[i] = 0;
       this->persisted_subscriptions_dirty_ = true;
-#endif
     }
   }
 }
@@ -535,7 +543,10 @@ void MQTTClientComponent::save_persisted_subscriptions_() {
   if (!this->persisted_subscriptions_dirty_)
     return;
   this->persisted_subscriptions_dirty_ = false;
-  this->persisted_subscriptions_pref_.save(&persisted_subscriptions);
+  // Fails when the table does not fit in the preference storage, e.g. on ESP8266
+  if (!this->persisted_subscriptions_pref_.save(&persisted_subscriptions)) {
+    ESP_LOGW(TAG, "Could not save persisted subscriptions, reduce max_persisted_subscriptions");
+  }
 }
 #endif
 #endif

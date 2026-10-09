@@ -37,7 +37,7 @@ from esphome.const import (
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
-    CONF_MQTT_SUBSCRIPTION_COUNT,
+    CONF_MQTT_ID,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -46,6 +46,7 @@ from esphome.const import (
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_PLATFORM,
     CONF_PORT,
     CONF_PUBLISH_NAN_AS_NONE,
     CONF_QOS,
@@ -181,23 +182,64 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 }
 
 
+# Worst-case number of topics each MQTT entity component subscribes to in its setup()
+_ENTITY_SUBSCRIPTION_COUNTS = {
+    str(cls): count
+    for cls, count in (
+        (MQTTAlarmControlPanelComponent, 1),
+        (MQTTButtonComponent, 1),
+        # Mode, target temperature (x2), target humidity, preset, fan mode and swing mode
+        (MQTTClimateComponent, 7),
+        # Command, position and tilt
+        (MQTTCoverComponent, 3),
+        (MQTTDateComponent, 1),
+        (MQTTDateTimeComponent, 1),
+        # Command, speed, oscillation and direction
+        (MQTTFanComponent, 4),
+        (MQTTJSONLightComponent, 1),
+        (MQTTLockComponent, 1),
+        (MQTTNumberComponent, 1),
+        (MQTTSelectComponent, 1),
+        (MQTTSwitchComponent, 1),
+        (MQTTTextComponent, 1),
+        (MQTTTimeComponent, 1),
+        (MQTTUpdateComponent, 1),
+        # Command and position
+        (MQTTValveComponent, 2),
+    )
+}
+
+
+def _count_subscriptions(conf: object) -> int:
+    """Count the subscriptions made by the entities found anywhere in a config tree."""
+    if isinstance(conf, list):
+        return sum(_count_subscriptions(item) for item in conf)
+    if not isinstance(conf, dict):
+        return 0
+    count = sum(_count_subscriptions(value) for value in conf.values())
+    if conf.get(CONF_PLATFORM) == "mqtt_subscribe":
+        # Subscribes even when internal
+        return count + 1
+    if (mqtt_id := conf.get(CONF_MQTT_ID)) is None:
+        return count
+    # The MQTT component of an internal entity does nothing, unless a custom topic is set
+    if (
+        conf.get(CONF_INTERNAL, False)
+        and CONF_STATE_TOPIC not in conf
+        and CONF_COMMAND_TOPIC not in conf
+    ):
+        return count
+    return count + _ENTITY_SUBSCRIPTION_COUNTS.get(str(mqtt_id.type), 0)
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     if config[CONF_CLEAN_SESSION] not in PERSISTENT_SESSION_STORAGES:
         return config
-    # Count the subscriptions made by the client itself and by every entity.
-    # Subscriptions made from lambdas cannot be counted here.
+    # Subscriptions made by the client itself. Subscriptions made from lambdas cannot be counted.
     subscription_count = 2 if config[CONF_DISCOVER_IP] else 0
     subscription_count += len(config.get(CONF_ON_MESSAGE, []))
     subscription_count += len(config.get(CONF_ON_JSON_MESSAGE, []))
-    for main_conf in full_config.get().values():
-        # Skip configs that are not iterable
-        if not hasattr(main_conf, "__iter__"):
-            continue
-        for conf in main_conf:
-            # Skip configs that cannot 'get'
-            if not hasattr(conf, "get") or conf.get(CONF_INTERNAL, False):
-                continue
-            subscription_count += conf.get(CONF_MQTT_SUBSCRIPTION_COUNT, 0)
+    subscription_count += _count_subscriptions(full_config.get())
 
     if CONF_MAX_PERSISTED_SUBSCRIPTIONS not in config:
         config[CONF_MAX_PERSISTED_SUBSCRIPTIONS] = max(subscription_count, 1)
