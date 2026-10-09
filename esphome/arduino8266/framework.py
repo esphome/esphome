@@ -49,9 +49,9 @@ class FrameworkRelease(NamedTuple):
 # Arduino core version -> its build in esphome-libs/arduino-esp8266
 FRAMEWORK_RELEASES: dict[Version, FrameworkRelease] = {
     Version(3, 1, 2): FrameworkRelease(
-        "3.1.2-esphome.2",
-        "9377d63f569c524823199b1897ed7fde2063e50e2676dd519a0d758ab73678f7",
-        37192128,
+        "3.1.2-esphome.3",
+        "3af533a85163804e164500a5b254dc23b922080e25ecb7dc37b3dd8ac84651db",
+        37185650,
     ),
 }
 
