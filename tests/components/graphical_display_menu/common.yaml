@@ -47,9 +47,6 @@ graphical_display_menu:
   on_leave:
     then:
       lambda: 'ESP_LOGI("graphical_display_menu", "root leave");'
-  on_redraw:
-    then:
-      lambda: 'ESP_LOGI("graphical_display_menu", "redraw, active: %d", it->is_active());'
   items:
     - type: back
       text: "Back"
