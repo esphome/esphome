@@ -6,7 +6,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio";
+ESPHOME_LOG_TAG(TAG, "i2s_audio");
 
 void I2SAudioComponent::setup() {
   if (!this->is_full_duplex())
