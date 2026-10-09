@@ -18,6 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@fhedberg"]
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
+DOMAIN = "qnetd"
 
 CONF_QNETD_ID = "qnetd_id"
 CONF_MAX_CLIENTS = "max_clients"

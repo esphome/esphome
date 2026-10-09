@@ -7,7 +7,7 @@
 
 namespace esphome::qnetd {
 
-static const char *const TAG = "qnetd";
+ESPHOME_LOG_TAG(TAG, "qnetd");
 
 uint64_t Qnetd::now_ms_() {
   // Extend the 32-bit loop clock to 64 bits so dead-peer deadlines survive

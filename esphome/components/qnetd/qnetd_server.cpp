@@ -9,7 +9,7 @@
 
 namespace esphome::qnetd {
 
-static const char *const TAG = "qnetd";
+ESPHOME_LOG_TAG(TAG, "qnetd");
 
 void QnetdServer::notify_() { this->state_changed_ = true; }
 
