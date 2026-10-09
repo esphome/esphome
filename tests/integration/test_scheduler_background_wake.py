@@ -25,12 +25,14 @@ async def test_scheduler_background_wake(
     )
 
     loop = asyncio.get_running_loop()
-    result: asyncio.Future[int] = loop.create_future()
+    result: asyncio.Future[tuple[int, int]] = loop.create_future()
 
     def on_log_line(line: str) -> None:
-        match = re.search(r"SCHEDULER_WAKE_RESULT elapsed=(\d+)", line)
+        match = re.search(
+            r"SCHEDULER_WAKE_RESULT elapsed=(\d+) loop_delta=(-?\d+)", line
+        )
         if match and not result.done():
-            result.set_result(int(match.group(1)))
+            result.set_result((int(match.group(1)), int(match.group(2))))
 
     async with (
         run_compiled(yaml_config, line_callback=on_log_line),
@@ -41,11 +43,15 @@ async def test_scheduler_background_wake(
         assert device_info.name == "scheduler-background-wake"
 
         try:
-            elapsed = await asyncio.wait_for(result, timeout=10.0)
+            elapsed, loop_delta = await asyncio.wait_for(result, timeout=10.0)
         except TimeoutError:
             pytest.fail("background scheduler timeout did not fire")
 
         assert elapsed < 1000, (
             f"background timeout should interrupt the five-second sleep; "
             f"it fired after {elapsed}ms"
+        )
+        assert loop_delta == 0, (
+            f"scheduler-only wake must not run component loops; observed "
+            f"loop_delta={loop_delta} before the timeout callback"
         )

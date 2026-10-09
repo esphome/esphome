@@ -26,6 +26,8 @@ void wake_loop_threadsafe() {
   k_sem_give(&esphome_wake_sem);
 }
 
+void wake_scheduler_threadsafe() { k_sem_give(&esphome_wake_sem); }
+
 namespace internal {
 void wakeable_delay(uint32_t ms) {
   if (ms == 0) [[unlikely]] {

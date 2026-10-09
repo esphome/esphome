@@ -123,13 +123,15 @@ void wakeable_delay(uint32_t ms) {
       if (ms == 0) [[unlikely]] {
         yield();
       }
-      // A socket woke select() early — open the component-phase gate so the
-      // owning component's loop() drains the data on this tick rather than
-      // waiting up to loop_interval_ ms. Idempotent if wake_loop_threadsafe()
-      // already set the flag (wake socket fired); required when an application
-      // socket fired and nothing else set the flag.
+      // Application sockets need the component phase to drain queued work.
+      // The internal wake socket may only be signaling new scheduler work.
       if (ret > 0) {
-        wake_request_set();
+        for (int fd : s_socket_fds) {
+          if (fd != g_wake_socket_fd && FD_ISSET(fd, &g_read_fds)) {
+            wake_request_set();
+            break;
+          }
+        }
       }
       return;
     }
@@ -146,14 +148,18 @@ void wakeable_delay(uint32_t ms) {
 }
 }  // namespace internal
 
-void wake_loop_threadsafe() {
-  // Set flag before sending so the consumer's gate check on the next loop()
-  // entry observes the wake regardless of select() scheduling.
-  wake_request_set();
+void wake_scheduler_threadsafe() {
   if (internal::g_wake_socket_fd >= 0) {
     const char dummy = 1;
     ::send(internal::g_wake_socket_fd, &dummy, 1, 0);
   }
+}
+
+void wake_loop_threadsafe() {
+  // Set flag before sending so the consumer's gate check on the next loop()
+  // entry observes the wake regardless of select() scheduling.
+  wake_request_set();
+  wake_scheduler_threadsafe();
 }
 
 void wake_setup() {
