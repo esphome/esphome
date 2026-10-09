@@ -391,9 +391,9 @@ TEST(Rfc2217Server, CommandWaitsForRoomForItsAnswer) {
   const uint8_t stream[] = {0x41, 0xFF, 0xFA, 0x2C, 0x0C, 0x02, 0xFF, 0xF0};
   pipe.feed(stream);
   server.loop();
-  // The payload goes on, the command stays in the link.
+  // The payload goes on, the command after its IAC stays in the link.
   EXPECT_EQ(serial.n_, 1u);
-  EXPECT_EQ(pipe.rx_n_, 7u);
+  EXPECT_EQ(pipe.rx_n_, 6u);
   pipe.room_ = 1024;
   server.loop();
   const uint8_t want[] = {0xFF, 0xFA, 0x2C, 112, 0x02, 0xFF, 0xF0};
@@ -473,6 +473,19 @@ TEST(Rfc2217Server, ClientSuspendHoldsTheUartBytes) {
   expect_only(pipe, data);
 }
 
+TEST(Rfc2217Server, ClientSuspendHoldsNoAnswers) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  command(pipe, 0x08, 0x00);
+  server.loop();
+  set_baud(pipe, 19200);
+  server.loop();
+  const uint8_t want[] = {0xFF, 0xFA, 0x2C, 101, 0x00, 0x00, 0x4B, 0x00, 0xFF, 0xF0};
+  expect_only(pipe, want);
+}
+
 TEST(Rfc2217Server, OtherOptionsAreRefusedAndRefusalsLogged) {
   Pipe pipe;
   FakeSerial serial;
@@ -529,24 +542,130 @@ TEST(Rfc2217Server, SessionEndRestoresTheConfiguredLine) {
   EXPECT_EQ(server.reloads_, 2);
 }
 
-TEST(Rfc2217Server, LinkEdgesClearThePendingPayload) {
+TEST(Rfc2217Server, PayloadSentBeforeTheCloseReachesTheUart) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  set_baud(pipe, 19200);
+  server.loop();
+  pipe.clear();
+  serial.room_ = 0;
+  uint8_t data[300];
+  for (size_t i = 0; i < sizeof(data); i++) {
+    data[i] = static_cast<uint8_t>(i % 250);
+  }
+  pipe.feed(data);
+  server.loop();
+  pipe.up_ = false;
+  server.loop();
+  // The line stays until the payload has left.
+  EXPECT_EQ(serial.get_baud_rate(), 19200u);
+  serial.room_ = 100;
+  for (int i = 0; i < 5; i++) {
+    server.loop();
+  }
+  ASSERT_EQ(serial.n_, sizeof(data));
+  EXPECT_EQ(std::memcmp(serial.buf_, data, sizeof(data)), 0);
+  EXPECT_EQ(serial.get_baud_rate(), 9600u);
+  EXPECT_EQ(server.written_at_reload_, sizeof(data));
+  EXPECT_EQ(pipe.n_, 0u);
+}
+
+TEST(Rfc2217Server, NewSessionDropsWhatTheLastOneLeft) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  set_baud(pipe, 19200);
+  server.loop();
+  serial.room_ = 0;
+  const uint8_t data[] = {0x41};
+  pipe.feed(data);
+  server.loop();
+  pipe.up_ = false;
+  server.loop();
+  EXPECT_EQ(server.pending(), 1u);
+  pipe.up_ = true;
+  server.loop();
+  EXPECT_EQ(server.pending(), 0u);
+  EXPECT_EQ(serial.get_baud_rate(), 9600u);
+  serial.room_ = 1024;
+  server.loop();
+  EXPECT_EQ(serial.n_, 0u);
+}
+
+TEST(Rfc2217Server, EachCommandOfACodeIsAnswered) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  // A query and a change in one read.
+  set_baud(pipe, 0);
+  set_baud(pipe, 19200);
+  server.loop();
+  EXPECT_EQ(server.reloads_, 1);
+  const uint8_t answer[] = {0xFF, 0xFA, 0x2C, 101, 0x00, 0x00, 0x4B, 0x00, 0xFF, 0xF0};
+  ASSERT_EQ(pipe.n_, 2 * sizeof(answer));
+  EXPECT_EQ(std::memcmp(pipe.buf_, answer, sizeof(answer)), 0);
+  EXPECT_EQ(std::memcmp(pipe.buf_ + sizeof(answer), answer, sizeof(answer)), 0);
+}
+
+TEST(Rfc2217Server, CommandsAfterTheNextPayloadWaitForTheBatch) {
   Pipe pipe;
   FakeSerial serial;
   Server server(&pipe, &serial);
   accept(pipe, server);
   serial.room_ = 0;
-  const uint8_t data[] = {0x41};
-  pipe.feed(data);
+  const uint8_t first[] = {1};
+  const uint8_t second[] = {2};
+  pipe.feed(first);
+  set_baud(pipe, 19200);
+  pipe.feed(second);
   server.loop();
-  EXPECT_EQ(server.pending(), 1u);
-  pipe.up_ = false;
+  // The next change arrives while the first still waits for the UART.
+  set_baud(pipe, 38400);
   server.loop();
-  EXPECT_EQ(server.pending(), 0u);
-  pipe.up_ = true;
-  server.loop();
+  EXPECT_EQ(server.reloads_, 0);
   serial.room_ = 1024;
+  for (int i = 0; i < 3; i++) {
+    server.loop();
+  }
+  // Byte 2 left on 19200, between the two changes.
+  EXPECT_EQ(server.reloads_, 2);
+  EXPECT_EQ(server.written_at_reload_, 2u);
+  EXPECT_EQ(serial.get_baud_rate(), 38400u);
+  const uint8_t answer_19200[] = {0xFF, 0xFA, 0x2C, 101, 0x00, 0x00, 0x4B, 0x00, 0xFF, 0xF0};
+  const uint8_t answer_38400[] = {0xFF, 0xFA, 0x2C, 101, 0x00, 0x00, 0x96, 0x00, 0xFF, 0xF0};
+  EXPECT_TRUE(pipe.sent(answer_19200));
+  EXPECT_TRUE(pipe.sent(answer_38400));
+}
+
+TEST(Rfc2217Server, EscapedIacPassesWithoutRoomForAnswers) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  pipe.room_ = 0;
+  const uint8_t stream[] = {0x41, 0xFF, 0xFF, 0x42};
+  pipe.feed(stream);
   server.loop();
-  EXPECT_EQ(serial.n_, 0u);
+  const uint8_t want[] = {0x41, 0xFF, 0x42};
+  ASSERT_EQ(serial.n_, sizeof(want));
+  EXPECT_EQ(std::memcmp(serial.buf_, want, sizeof(want)), 0);
+}
+
+TEST(Rfc2217Server, CommandsWithoutTheClientsWillAreAnswered) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  server.loop();
+  pipe.clear();
+  // pySerial takes the server's DO as its own WILL and never sends one.
+  command(pipe, 0x05, 0x09);
+  server.loop();
+  const uint8_t want[] = {0xFF, 0xFA, 0x2C, 105, 0x09, 0xFF, 0xF0};
+  expect_only(pipe, want);
 }
 
 TEST(Rfc2217Server, LoopFlushesOnlyAfterWriting) {

@@ -50,16 +50,18 @@ static constexpr uint8_t CONTROL_NO_FLOW_IN = 14;
 class TelnetDecoder {
  public:
   enum class Event : uint8_t {
-    NONE,
-    DATA,
-    OPTION,
-    SUBNEGOTIATION,
+    EVENT_NONE,
+    EVENT_DATA,
+    EVENT_OPTION,
+    EVENT_SUBNEGOTIATION,
   };
 
   Event feed(uint8_t byte);
   void reset();
   /// No sequence is open: the next byte is payload unless it is IAC.
-  bool idle() const { return this->state_ == State::DATA; }
+  bool idle() const { return this->state_ == State::STATE_DATA; }
+  /// The last byte was an IAC outside a subnegotiation.
+  bool at_iac() const { return this->state_ == State::STATE_IAC; }
 
   /// DATA: the payload byte.
   uint8_t data() const { return this->data_; }
@@ -75,16 +77,16 @@ class TelnetDecoder {
 
  protected:
   enum class State : uint8_t {
-    DATA,
-    IAC,
-    OPTION,
-    SB,
-    SB_IAC,
+    STATE_DATA,
+    STATE_IAC,
+    STATE_OPTION,
+    STATE_SB,
+    STATE_SB_IAC,
   };
 
   Event after_iac_(uint8_t byte);
 
-  State state_{State::DATA};
+  State state_{State::STATE_DATA};
   uint8_t data_{0};
   uint8_t verb_{0};
   uint8_t sub_len_{0};

@@ -8,6 +8,7 @@ lambda echoes what it reads.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import os
 import pathlib
 
@@ -46,7 +47,7 @@ async def test_rfc2217_uart(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
-    unused_tcp_port_factory,
+    unused_tcp_port_factory: Callable[[], int],
 ) -> None:
     server_port = unused_tcp_port_factory()
     client_port = unused_tcp_port_factory()
@@ -88,6 +89,13 @@ async def test_rfc2217_uart(
 
     lines = LineWaiter()
     access_server: asyncio.Server | None = None
+
+    async def wait_for_drops(count: int) -> None:
+        # wait_for() also matches an earlier drop.
+        async with asyncio.timeout(10):
+            while sum("Connection lost" in line for line in lines.lines) < count:
+                await asyncio.sleep(0.05)
+
     try:
         access_server = await asyncio.start_server(on_peer, "127.0.0.1", client_port)
         pty_link.symlink_to(os.ttyname(device_fd))
@@ -139,7 +147,15 @@ async def test_rfc2217_uart(
                     await asyncio.to_thread(setattr, port, "baudrate", 9600)
             finally:
                 await asyncio.to_thread(port.close)
-            await lines.wait_for("Connection lost")
+            await wait_for_drops(2)
+
+            # Bytes written right before the close still reach the UART.
+            port = await asyncio.to_thread(_open, server_port, dtr=False, rts=False)
+            data = bytes(i % 250 for i in range(1000))
+            await asyncio.to_thread(port.write, data)
+            await asyncio.to_thread(port.close)
+            assert await read_uart(len(data)) == data
+            await wait_for_drops(3)
 
             # ?ign_set_control skips the answers to SET-CONTROL.
             port = await asyncio.to_thread(_open, server_port, "ign_set_control")

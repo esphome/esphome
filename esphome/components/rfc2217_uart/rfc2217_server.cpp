@@ -30,16 +30,48 @@ void Rfc2217Server::dump_config() {
 }
 
 void Rfc2217Server::on_link(bool up) {
+  if (!up) {
+    // The payload the client sent before it closed still goes out; end_session_() then restores the line.
+    this->ending_ = this->configured_.baud_rate != 0;
+    return;
+  }
+  // A new session drops what the last one left.
   this->to_serial_len_ = 0;
-  this->answers_due_ = 0;
   this->fence_ = 0;
-  if (up) {
-    // The driver kept whatever arrived while the link was down.
-    this->discard_serial_();
-  } else if (this->configured_.baud_rate != 0) {
-    // [RFC 2217] A new session starts on the configured line, not on the last client's.
+  std::memset(this->answers_due_, 0, sizeof(this->answers_due_));
+  if (this->ending_) {
+    this->ending_ = false;
     this->set_line_(this->configured_);
   }
+  // The driver kept whatever arrived while the link was down.
+  this->discard_serial_();
+}
+
+void Rfc2217Server::read_link_() {
+  // Commands after the payload that follows a batch wait in the link until the batch is answered.
+  if (this->answering_() && this->to_serial_len_ != this->fence_) {
+    this->read_plain_();
+  } else {
+    this->read_tcp_();
+  }
+}
+
+void Rfc2217Server::end_session_() {
+  if (this->tcp_->available() != 0) {
+    this->read_link_();
+  }
+  if (this->to_serial_len_ != 0) {
+    this->write_serial_();
+  }
+  if (this->answering_()) {
+    this->apply_line_();
+  }
+  if (this->tcp_->available() != 0 || this->to_serial_len_ != 0 || this->answering_() || !this->tx_idle_()) {
+    return;
+  }
+  // [RFC 2217] A new session starts on the configured line, not on the last client's.
+  this->ending_ = false;
+  this->set_line_(this->configured_);
 }
 
 void Rfc2217Server::deliver(const uint8_t *data, size_t len) {
@@ -49,7 +81,7 @@ void Rfc2217Server::deliver(const uint8_t *data, size_t len) {
 }
 
 void Rfc2217Server::write_serial_() {
-  const size_t limit = this->answers_due_ != 0 ? this->fence_ : this->to_serial_len_;
+  const size_t limit = this->answering_() ? this->fence_ : this->to_serial_len_;
   const size_t n = std::min(this->parent_->paced_write_room(this->last_write_ms_), limit);
   if (n == 0) {
     return;
@@ -58,7 +90,7 @@ void Rfc2217Server::write_serial_() {
   this->last_write_ms_ = App.get_loop_component_start_time();
   this->to_serial_len_ = static_cast<uint16_t>(this->to_serial_len_ - n);
   std::memmove(this->to_serial_, this->to_serial_ + n, this->to_serial_len_);
-  if (this->answers_due_ != 0) {
+  if (this->answering_()) {
     this->fence_ = static_cast<uint16_t>(this->fence_ - n);
   }
 }
@@ -79,7 +111,7 @@ void Rfc2217Server::read_serial_() {
 
 void Rfc2217Server::discard_serial_() {
   // Drain exactly what is buffered; later bytes are live.
-  uint8_t dump[32];
+  uint8_t dump[DISCARD_CHUNK];
   size_t left = this->available();
   while (left != 0) {
     const size_t n = std::min(left, sizeof(dump));
@@ -92,28 +124,28 @@ void Rfc2217Server::discard_serial_() {
 
 Rfc2217Server::Line Rfc2217Server::line_() const {
   const uart::UARTComponent *serial = this->parent_;
-  return {serial->get_baud_rate(), serial->get_data_bits(), serial->get_parity(), serial->get_stop_bits()};
+  return {serial->get_baud_rate(), serial->get_parity(), serial->get_data_bits(), serial->get_stop_bits()};
 }
 
 bool Rfc2217Server::reload_serial() {
 #ifdef USE_ESP32
-  if (this->idf_uart_ != nullptr) {
+  if (this->idf_uart_) {
     // Keeps the driver; a rate it cannot reach leaves the previous line in place.
-    return this->idf_uart_->apply_settings_live() == ESP_OK;
+    return static_cast<uart::IDFUARTComponent *>(this->parent_)->apply_settings_live() == ESP_OK;
   }
   this->parent_->load_settings(false);
   return true;
 #else
-  // ESP8266's load_settings() leaks the software serial RX buffer and drops a swapped UART0 on each reload. The other
-  // platforms cannot reload a UART at runtime.
+  // Off ESP32 the line stays as configured; ESP8266's reload does not wait for the bytes in flight.
   return false;
 #endif
 }
 
 bool Rfc2217Server::tx_idle_() {
 #ifdef USE_ESP32
-  if (this->idf_uart_ != nullptr) {
-    return uart_wait_tx_done(static_cast<uart_port_t>(this->idf_uart_->get_hw_serial_number()), 0) == ESP_OK;
+  if (this->idf_uart_) {
+    auto *serial = static_cast<uart::IDFUARTComponent *>(this->parent_);
+    return uart_wait_tx_done(static_cast<uart_port_t>(serial->get_hw_serial_number()), 0) == ESP_OK;
   }
 #endif
   return true;
@@ -142,7 +174,7 @@ void Rfc2217Server::set_line_(const Line &line) {
 }
 
 Rfc2217Server::Line &Rfc2217Server::pending_() {
-  if (this->answers_due_ == 0) {
+  if (!this->answering_()) {
     this->pending_line_ = this->line_();
     this->fence_ = this->to_serial_len_;
   }
@@ -151,30 +183,29 @@ Rfc2217Server::Line &Rfc2217Server::pending_() {
 
 void Rfc2217Server::apply_line_() {
   // The payload before the commands leaves on the old line first; a reload empties the TX FIFO.
-  if (this->fence_ != 0 || !this->tx_idle_() || this->tcp_->available_for_write() < ANSWERS_SIZE) {
+  if (this->fence_ != 0 || !this->tx_idle_()) {
     return;
   }
   this->set_line_(this->pending_line_);
+  if (!this->link_was_up_) {
+    std::memset(this->answers_due_, 0, sizeof(this->answers_due_));
+    return;
+  }
+  // Answers that find no room stay due for the next pass.
   const Line now = this->line_();
-  const uint8_t due = this->answers_due_;
-  this->answers_due_ = 0;
-  if (due & (1 << (COM_SET_BAUDRATE - 1))) {
-    const uint8_t baud[4] = {static_cast<uint8_t>(now.baud_rate >> 24), static_cast<uint8_t>(now.baud_rate >> 16),
-                             static_cast<uint8_t>(now.baud_rate >> 8), static_cast<uint8_t>(now.baud_rate)};
-    this->send_command_(COM_SET_BAUDRATE, baud, sizeof(baud));
-  }
-  if (due & (1 << (COM_SET_DATASIZE - 1))) {
-    this->answer_(COM_SET_DATASIZE, now.data_bits);
-  }
-  if (due & (1 << (COM_SET_PARITY - 1))) {
-    this->answer_(COM_SET_PARITY, to_rfc_parity(now.parity));
-  }
-  if (due & (1 << (COM_SET_STOPSIZE - 1))) {
-    this->answer_(COM_SET_STOPSIZE, now.stop_bits);
+  const uint8_t baud[4] = {static_cast<uint8_t>(now.baud_rate >> 24), static_cast<uint8_t>(now.baud_rate >> 16),
+                           static_cast<uint8_t>(now.baud_rate >> 8), static_cast<uint8_t>(now.baud_rate)};
+  const uint8_t values[4] = {0, now.data_bits, to_rfc_parity(now.parity), now.stop_bits};
+  for (uint8_t i = 0; i < 4; i++) {
+    const uint8_t code = COM_SET_BAUDRATE + i;
+    while (this->answers_due_[i] != 0 &&
+           (i == 0 ? this->send_command_(code, baud, sizeof(baud)) : this->answer_(code, values[i]))) {
+      this->answers_due_[i]--;
+    }
   }
 }
 
-void Rfc2217Server::answer_(uint8_t code, uint8_t value) { this->send_command_(code, &value, 1); }
+bool Rfc2217Server::answer_(uint8_t code, uint8_t value) { return this->send_command_(code, &value, 1); }
 
 void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
   // [RFC 2217] Every command is answered with the value in use, which may differ from the one asked for.
@@ -188,8 +219,7 @@ void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
     case COM_SIGNATURE:
       // Without text it asks for ours.
       if (len == 0) {
-        static constexpr uint8_t SIGNATURE[] = {'E', 'S', 'P', 'H', 'o', 'm', 'e'};
-        this->send_command_(COM_SIGNATURE, SIGNATURE, sizeof(SIGNATURE));
+        this->send_signature_();
       }
       return;
     default:
@@ -275,8 +305,11 @@ void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
     default:
       return;
   }
-  // A SET-* command: answered once the commands of this pass are applied.
-  this->answers_due_ = static_cast<uint8_t>(this->answers_due_ | (1 << (code - 1)));
+  // A SET-* command: answered once the commands that arrived with it are applied.
+  uint8_t &due = this->answers_due_[code - COM_SET_BAUDRATE];
+  if (due != UINT8_MAX) {
+    due++;
+  }
 }
 
 }  // namespace esphome::rfc2217_uart

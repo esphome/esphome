@@ -13,28 +13,28 @@ using Event = TelnetDecoder::Event;
 
 TEST(Rfc2217Telnet, DoubledIacIsOnePayloadByte) {
   TelnetDecoder decoder;
-  EXPECT_EQ(decoder.feed(0x41), Event::DATA);
+  EXPECT_EQ(decoder.feed(0x41), Event::EVENT_DATA);
   EXPECT_EQ(decoder.data(), 0x41);
-  EXPECT_EQ(decoder.feed(TELNET_IAC), Event::NONE);
+  EXPECT_EQ(decoder.feed(TELNET_IAC), Event::EVENT_NONE);
   EXPECT_FALSE(decoder.idle());
-  EXPECT_EQ(decoder.feed(TELNET_IAC), Event::DATA);
+  EXPECT_EQ(decoder.feed(TELNET_IAC), Event::EVENT_DATA);
   EXPECT_EQ(decoder.data(), TELNET_IAC);
   EXPECT_TRUE(decoder.idle());
 }
 
 TEST(Rfc2217Telnet, XonAndXoffArePayload) {
   TelnetDecoder decoder;
-  EXPECT_EQ(decoder.feed(0x11), Event::DATA);
+  EXPECT_EQ(decoder.feed(0x11), Event::EVENT_DATA);
   EXPECT_EQ(decoder.data(), 0x11);
-  EXPECT_EQ(decoder.feed(0x13), Event::DATA);
+  EXPECT_EQ(decoder.feed(0x13), Event::EVENT_DATA);
   EXPECT_EQ(decoder.data(), 0x13);
 }
 
-TEST(Rfc2217Telnet, OptionCommand) {
+TEST(Rfc2217Telnet, WillComPortIsAnOption) {
   TelnetDecoder decoder;
-  EXPECT_EQ(decoder.feed(TELNET_IAC), Event::NONE);
-  EXPECT_EQ(decoder.feed(TELNET_WILL), Event::NONE);
-  EXPECT_EQ(decoder.feed(OPTION_COM_PORT), Event::OPTION);
+  EXPECT_EQ(decoder.feed(TELNET_IAC), Event::EVENT_NONE);
+  EXPECT_EQ(decoder.feed(TELNET_WILL), Event::EVENT_NONE);
+  EXPECT_EQ(decoder.feed(OPTION_COM_PORT), Event::EVENT_OPTION);
   EXPECT_EQ(decoder.verb(), TELNET_WILL);
   EXPECT_EQ(decoder.option(), OPTION_COM_PORT);
   EXPECT_TRUE(decoder.idle());
@@ -45,9 +45,9 @@ TEST(Rfc2217Telnet, SubnegotiationUndoesDoubledIac) {
   const uint8_t stream[] = {TELNET_IAC, TELNET_SB, OPTION_COM_PORT, COM_SET_BAUDRATE, 0x00, 0x00, 0xFF,
                             0xFF,       0x00,      TELNET_IAC};
   for (uint8_t byte : stream) {
-    EXPECT_EQ(decoder.feed(byte), Event::NONE);
+    EXPECT_EQ(decoder.feed(byte), Event::EVENT_NONE);
   }
-  ASSERT_EQ(decoder.feed(TELNET_SE), Event::SUBNEGOTIATION);
+  ASSERT_EQ(decoder.feed(TELNET_SE), Event::EVENT_SUBNEGOTIATION);
   const uint8_t want[] = {OPTION_COM_PORT, COM_SET_BAUDRATE, 0x00, 0x00, 0xFF, 0x00};
   ASSERT_EQ(decoder.sub_len(), sizeof(want));
   for (size_t i = 0; i < sizeof(want); i++) {
@@ -59,11 +59,11 @@ TEST(Rfc2217Telnet, OtherCommandEndsASubnegotiation) {
   TelnetDecoder decoder;
   const uint8_t stream[] = {TELNET_IAC, TELNET_SB, OPTION_COM_PORT, TELNET_IAC, TELNET_WILL};
   for (uint8_t byte : stream) {
-    EXPECT_EQ(decoder.feed(byte), Event::NONE);
+    EXPECT_EQ(decoder.feed(byte), Event::EVENT_NONE);
   }
-  EXPECT_EQ(decoder.feed(OPTION_BINARY), Event::OPTION);
+  EXPECT_EQ(decoder.feed(OPTION_BINARY), Event::EVENT_OPTION);
   EXPECT_EQ(decoder.verb(), TELNET_WILL);
-  EXPECT_EQ(decoder.feed(0x41), Event::DATA);
+  EXPECT_EQ(decoder.feed(0x41), Event::EVENT_DATA);
 }
 
 TEST(Rfc2217Telnet, OverlongSubnegotiationIsSkipped) {
@@ -71,18 +71,18 @@ TEST(Rfc2217Telnet, OverlongSubnegotiationIsSkipped) {
   decoder.feed(TELNET_IAC);
   decoder.feed(TELNET_SB);
   for (size_t i = 0; i < TelnetDecoder::SUB_SIZE + 4; i++) {
-    EXPECT_EQ(decoder.feed('a'), Event::NONE);
+    EXPECT_EQ(decoder.feed('a'), Event::EVENT_NONE);
   }
   decoder.feed(TELNET_IAC);
-  EXPECT_EQ(decoder.feed(TELNET_SE), Event::NONE);
-  EXPECT_EQ(decoder.feed(0x42), Event::DATA);
+  EXPECT_EQ(decoder.feed(TELNET_SE), Event::EVENT_NONE);
+  EXPECT_EQ(decoder.feed(0x42), Event::EVENT_DATA);
 }
 
 TEST(Rfc2217Telnet, TwoByteCommandCarriesNothing) {
   TelnetDecoder decoder;
   decoder.feed(TELNET_IAC);
   // NOP
-  EXPECT_EQ(decoder.feed(241), Event::NONE);
+  EXPECT_EQ(decoder.feed(241), Event::EVENT_NONE);
   EXPECT_TRUE(decoder.idle());
   decoder.feed(TELNET_IAC);
   decoder.reset();

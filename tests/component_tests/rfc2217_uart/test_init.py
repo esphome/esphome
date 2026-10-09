@@ -3,7 +3,7 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components import rfc2217_uart
+from esphome.components import rfc2217_uart, tcp_uart
 from esphome.config import Config
 from esphome.const import (
     CONF_DEBUG,
@@ -28,8 +28,14 @@ def _full_config(uarts: list[ConfigType] | None = None, **domains) -> Config:
     full["uart"] = uarts
     for index, uart_conf in enumerate(uarts):
         full.declare_ids.append((uart_conf[CONF_ID], ["uart", index, CONF_ID]))
-    full["tcp_uart"] = [{CONF_ID: ID("link")}, {CONF_ID: ID("link2")}]
+    full["tcp_uart"] = [
+        {CONF_ID: ID(name, is_declaration=True, type=tcp_uart.TcpUart)}
+        for name in ("link", "link2")
+    ]
     full.update(domains)
+    for domain in ("tcp_uart", "rfc2217_uart"):
+        for index, conf in enumerate(full.get(domain, [])):
+            full.declare_ids.append((conf[CONF_ID], [domain, index, CONF_ID]))
     return full
 
 
@@ -91,6 +97,17 @@ def test_rejects_a_uart_shared_with_another_component(
         _final_validate(_entry())
 
 
+def test_rejects_a_tcp_uart_shared_through_tcp_uart_id(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(
+        set_core_config,
+        _full_config(modbus_tcp_uart=[{rfc2217_uart.CONF_TCP_UART_ID: ID("link")}]),
+    )
+    with pytest.raises(cv.Invalid, match="also used by 'modbus_tcp_uart'"):
+        _final_validate(_entry("uart_0", "link"))
+
+
 def test_testing_mode_allows_a_shared_bus(
     set_core_config: SetCoreConfigCallable, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -121,11 +138,16 @@ def test_rejects_a_client_as_the_hardware_uart(
         set_core_config,
         _full_config(
             rfc2217_uart=[
-                {CONF_ID: ID("remote"), "role": "client"},
+                {
+                    CONF_ID: ID(
+                        "remote", is_declaration=True, type=rfc2217_uart.Rfc2217Client
+                    ),
+                    "role": "client",
+                },
             ]
         ),
     )
-    with pytest.raises(cv.Invalid, match="not a tcp_uart or an rfc2217_uart client"):
+    with pytest.raises(cv.Invalid, match="another virtual UART"):
         _final_validate(_entry("remote", "link2"))
 
 
@@ -155,6 +177,18 @@ def test_client_rejects_one_and_a_half_stop_bits() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "conf",
+    [
+        {"tcp_uart_id": "link", "baud_rate": 9600, "uart_id": "bus"},
+        {"role": "server", "tcp_uart_id": "link", "uart_id": "bus", "baud_rate": 9600},
+    ],
+)
+def test_each_role_rejects_the_other_roles_keys(conf: ConfigType) -> None:
+    with pytest.raises(cv.Invalid, match="extra keys"):
+        rfc2217_uart.CONFIG_SCHEMA(conf)
+
+
 def test_client_sends_its_line_settings(generate_main) -> None:
     main_cpp = generate_main(f"{DIR}/test_client.yaml")
     assert "remote_port->set_tcp_uart(remote_link);" in main_cpp
@@ -177,4 +211,4 @@ def test_esp32_hardware_uart_changes_its_line_in_place(generate_main) -> None:
     main_cpp = generate_main(f"{DIR}/test_rfc2217_uart.yaml")
     assert "port_server->set_tcp_uart(inbound);" in main_cpp
     assert "port_server->set_uart_parent(serial_bus);" in main_cpp
-    assert "port_server->set_idf_uart(serial_bus);" in main_cpp
+    assert "port_server->set_idf_uart(true);" in main_cpp
