@@ -494,7 +494,6 @@ async def component_to_code(config):
 
     # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
     cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
-    cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
 
     # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
     if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:

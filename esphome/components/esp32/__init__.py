@@ -2927,8 +2927,7 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
 
     # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
-    # --undefined pulls the stub from libsrc.a, which is scanned before the IDF
-    # and framework libraries that also reference __cxa_atexit.
+    # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
     cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
     cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
 
