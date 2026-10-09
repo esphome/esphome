@@ -7,6 +7,9 @@ esphome:
       - uart.write:
           id: uart_id
           data: [0x00, 0x20, 0x42]
+      - lambda: |-
+          id(uart_id).set_baud_rate(19200);
+          id(uart_id).load_settings(false);
 
 uart:
   - id: uart_id
