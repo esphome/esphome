@@ -12,7 +12,6 @@ DOMAIN = "rp2040_ble"
 
 CONF_RP2040_BLE_ID = "rp2040_ble_id"
 
-KEY_RP2040_BLE = "rp2040_ble"
 KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
 
 # Hard platform cap on concurrent GATT connections: the BTstack pool overrides
@@ -50,7 +49,7 @@ def consume_connection_slots(
     the total is checked against MAX_CONNECTIONS in final validation."""
 
     def _consume_connection_slots(config: MutableMapping) -> MutableMapping:
-        data: dict = CORE.data.setdefault(KEY_RP2040_BLE, {})
+        data: dict = CORE.data.setdefault(DOMAIN, {})
         slots: list[str] = data.setdefault(KEY_USED_CONNECTION_SLOTS, [])
         slots.extend([consumer] * value)
         return config
@@ -63,7 +62,7 @@ def validate_connection_slots() -> None:
     # Skip in testing mode to allow component grouping (esp32_ble parity).
     if CORE.testing_mode:
         return
-    used = CORE.data.get(KEY_RP2040_BLE, {}).get(KEY_USED_CONNECTION_SLOTS, [])
+    used = CORE.data.get(DOMAIN, {}).get(KEY_USED_CONNECTION_SLOTS, [])
     if len(used) > MAX_CONNECTIONS:
         raise cv.Invalid(
             f"BLE components require {len(used)} connection slots but the "

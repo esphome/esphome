@@ -68,7 +68,6 @@ LOGGER = logging.getLogger(__name__)
 ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
 # Key for tracking configured ethernet type
 ETHERNET_TYPE_KEY = "ethernet_type"
-KEY_ETHERNET = "ethernet"
 
 
 def request_ethernet_ip_state_listener() -> None:
@@ -673,7 +672,7 @@ async def to_code(config: ConfigType) -> None:
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
-    CORE.data.setdefault(KEY_ETHERNET, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
+    CORE.data.setdefault(DOMAIN, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
 
     if CONF_MANUAL_IP in config:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
@@ -914,7 +913,7 @@ _define_filter = filter_source_files_from_defines(
 
 def _filter_source_files() -> list[str]:
     excluded = _platform_filter() + _define_filter()
-    eth_data = CORE.data.get(KEY_ETHERNET, {})
+    eth_data = CORE.data.get(DOMAIN, {})
     eth_type = eth_data.get(ETHERNET_TYPE_KEY)
     # Only compile the custom JL1101 driver when JL1101 is configured
     # and pioarduino doesn't have it builtin (IDF 5.4.2 to 5.x)

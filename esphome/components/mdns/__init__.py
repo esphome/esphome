@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
     CONF_ID,
-    CONF_MDNS,
     CONF_OPENTHREAD,
     CONF_PORT,
     CONF_PROTOCOL,
@@ -195,7 +194,7 @@ def request_service_enable_disable() -> bool:
 
     Public API for external components. Do not remove.
     """
-    mdns_config = CORE.config.get(CONF_MDNS)
+    mdns_config = CORE.config.get(DOMAIN)
     if (
         mdns_config is None
         or mdns_config[CONF_DISABLED]

@@ -16,7 +16,6 @@ RestartScript = script_ns.class_("RestartScript", Script)
 QueueingScript = script_ns.class_("QueueingScript", Script, cg.Component)
 ParallelScript = script_ns.class_("ParallelScript", Script)
 
-CONF_SCRIPT = "script"
 CONF_SINGLE = "single"
 CONF_QUEUED = "queued"
 CONF_PARALLEL = "parallel"
@@ -36,7 +35,7 @@ PARAMETER_TYPE_TRANSLATIONS = {
 
 
 def get_script(script_id):
-    scripts = CORE.config.get(CONF_SCRIPT, {})
+    scripts = CORE.config.get(DOMAIN, {})
     for script in scripts:
         if script.get(CONF_ID, None) == script_id:
             return script
