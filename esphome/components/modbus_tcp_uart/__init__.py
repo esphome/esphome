@@ -20,6 +20,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["modbus", "tcp_uart"]
+DOMAIN = "modbus_tcp_uart"
 MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
