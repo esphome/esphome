@@ -23,6 +23,7 @@ class EPaperMono : public EPaperBase {
   virtual void set_window();
   bool transfer_data() override;
   bool send_red_{true};
+  bool software_reset_{true};  // send 0x12 after the hardware reset
 };
 
 }  // namespace esphome::epaper_spi
