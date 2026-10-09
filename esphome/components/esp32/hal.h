@@ -32,9 +32,9 @@ __attribute__((always_inline)) inline bool in_isr_context() { return xPortInIsrC
 // NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" int64_t esp_timer_get_time(void);
 
+/// Before setup() stores the handle every task counts as background; the wake is a no-op until then.
 __attribute__((always_inline)) inline bool is_main_loop_thread() {
-  TaskHandle_t main_task = esphome_main_task_handle;
-  return main_task == nullptr || xTaskGetCurrentTaskHandle() == main_task;
+  return xTaskGetCurrentTaskHandle() == esphome_main_task_handle;
 }
 __attribute__((always_inline)) inline void yield() { vPortYield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }

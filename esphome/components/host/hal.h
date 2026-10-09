@@ -22,9 +22,9 @@ inline std::thread::id &main_loop_thread_id() {
   return thread_id;
 }
 
+/// arch_init() stores the id before any component runs, so no unset case exists.
 __attribute__((always_inline)) inline bool is_main_loop_thread() {
-  const auto &main_thread = main_loop_thread_id();
-  return main_thread == std::thread::id{} || std::this_thread::get_id() == main_thread;
+  return std::this_thread::get_id() == main_loop_thread_id();
 }
 
 __attribute__((always_inline)) inline void yield() { ::sched_yield(); }

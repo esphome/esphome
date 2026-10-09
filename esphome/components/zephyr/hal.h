@@ -22,10 +22,8 @@ inline k_tid_t &main_loop_thread() {
   return thread;
 }
 
-__attribute__((always_inline)) inline bool is_main_loop_thread() {
-  k_tid_t main_thread = main_loop_thread();
-  return main_thread == nullptr || k_current_get() == main_thread;
-}
+/// arch_init() stores the thread before any component runs, so no unset case exists.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return k_current_get() == main_loop_thread(); }
 
 __attribute__((always_inline)) inline void yield() { ::k_yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::k_msleep(ms); }
