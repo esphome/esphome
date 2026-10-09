@@ -264,6 +264,10 @@ def string_ref_literal(config: ConfigType, value: str) -> str:
     return f"StringRef({literal_with_length(config, value)})"
 
 
+def _names_parent(text: str) -> bool:
+    return any(f == "parent" for _, f, _, _ in string.Formatter().parse(text))
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
@@ -298,8 +302,8 @@ class ApplyCall:
 
     @property
     def names_parent(self) -> bool:
-        return "{parent}" in self.target or any(
-            isinstance(arg[1], str) and "{parent}" in arg[1] for arg in self.args
+        return _names_parent(self.target) or any(
+            isinstance(arg[1], str) and _names_parent(arg[1]) for arg in self.args
         )
 
     @property

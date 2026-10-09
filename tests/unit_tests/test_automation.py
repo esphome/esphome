@@ -944,6 +944,30 @@ async def test_apply_action_call_shape(
 
 
 @pytest.mark.asyncio
+async def test_apply_target_names_parent(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """{parent} in a target is the global-scoped parent, also beside a call object."""
+    fields = (ApplyCall("set_peer({parent}->id(), {})", (("level", cg.float_),)),)
+    await _run_apply_action(registries, fields, {"level": 0.5})
+    assert (
+        f"::{PARENT_OBJ}->set_peer(::{PARENT_OBJ}->id(), 0.5f);"
+        in _apply_definition(mock_cg)
+    )
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields, {"level": 0.5}, call="make_call")
+    assert f"apply_call.set_peer(::{PARENT_OBJ}->id(), 0.5f);" in _apply_definition(
+        mock_cg
+    )
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_condition(registries, "is_peer({parent}->id())", {})
+    assert (
+        f"return ::{PARENT_OBJ}->is_peer(::{PARENT_OBJ}->id());"
+        in _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
 async def test_apply_field_nested_key_const_fn_and_type_string(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -982,6 +1006,7 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
     with pytest.raises(ValueError, match="only {} and {parent}"):
         ApplyCall("if ({}) {other}->reset()", (("reset", cg.bool_),))
     assert ApplyCall("if ({}) {parent}->reset()", (("reset", cg.bool_),)).names_parent
+    assert not ApplyCall("set_flags({{parent}})").names_parent
     ApplyCall("set_flags({{{}}})", (("flags", cg.int_),))
     with pytest.raises(ValueError, match="each arg is"):
         ApplyCall("set_kp({})", (("kp", cg.float_, None, "extra"),))
