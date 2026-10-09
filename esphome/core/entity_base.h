@@ -241,7 +241,6 @@ class EntityBase {
   /// When the preference hash algorithm changes, migration logic goes here.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
 
-  void calc_object_id_();
 
   ProgmemStringRef name_;
   uint32_t object_id_hash_{};

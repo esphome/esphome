@@ -1140,25 +1140,14 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
 /// If you modify this function, update the Python version and tests in both places.
-template<typename ReadByte> inline uint32_t fnv1_hash_object_id_with(const char *str, size_t len, ReadByte read) {
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(read(str + i))));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
   }
   return hash;
-}
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
-  return fnv1_hash_object_id_with(str, len, [](const char *p) { return *p; });
-}
-/// fnv1_hash_object_id() for a string that may be in flash (PROGMEM).
-inline uint32_t fnv1_hash_object_id_P(const char *str, size_t len) {
-#ifdef USE_ESP8266
-  return fnv1_hash_object_id_with(str, len, [](const char *p) { return static_cast<char>(pgm_read_byte(p)); });
-#else
-  return fnv1_hash_object_id(str, len);
-#endif
 }
 
 // str_snprintf, str_sprintf moved to alloc_helpers.h - remove this comment before 2026.11.0

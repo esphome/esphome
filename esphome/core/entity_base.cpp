@@ -12,9 +12,10 @@ ESPHOME_LOG_TAG(TAG, "entity_base");
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = ProgmemStringRef(name, ESPHOME_strlen_P(name));
   if (this->name_.empty()) {
+    StringRef fallback;
 #ifdef USE_DEVICES
     if (this->device_ != nullptr) {
-      this->name_ = ProgmemStringRef(StringRef(this->device_->get_name()));
+      fallback = StringRef(this->device_->get_name());
     } else
 #endif
     {
@@ -24,23 +25,20 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
       const auto &friendly = App.get_friendly_name();
       if (App.is_name_add_mac_suffix_enabled()) {
         // MAC suffix enabled - use friendly_name directly (even if empty) for compatibility
-        this->name_ = ProgmemStringRef(friendly);
+        fallback = friendly;
       } else {
         // No MAC suffix - fallback to device name if friendly_name is empty
-        this->name_ = ProgmemStringRef(!friendly.empty() ? friendly : App.get_name());
+        fallback = !friendly.empty() ? friendly : App.get_name();
       }
     }
+    this->name_ = ProgmemStringRef(fallback);
     this->flags_.has_own_name = false;
-    // Dynamic name - must calculate hash at runtime
-    this->calc_object_id_();
+    // Dynamic name in RAM - hash it at runtime
+    this->object_id_hash_ = fnv1_hash_object_id(fallback.c_str(), fallback.size());
   } else {
     this->flags_.has_own_name = true;
-    // Static name - use pre-computed hash if provided
-    if (object_id_hash != 0) {
-      this->object_id_hash_ = object_id_hash;
-    } else {
-      this->calc_object_id_();
-    }
+    // Static name - codegen precomputes the hash
+    this->object_id_hash_ = object_id_hash;
   }
   // Unpack entity string table indices and flags from entity_fields.
 #ifdef USE_ENTITY_DEVICE_CLASS
@@ -115,11 +113,6 @@ const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LE
 #else
   return entity_icon_lookup(idx);
 #endif
-}
-
-// Calculate Object ID Hash directly from name using snake_case + sanitize
-void EntityBase::calc_object_id_() {
-  this->object_id_hash_ = fnv1_hash_object_id_P(this->name_.progmem_ptr(), this->name_.size());
 }
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
