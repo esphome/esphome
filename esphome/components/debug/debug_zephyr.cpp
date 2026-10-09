@@ -1,6 +1,7 @@
 #include "debug_component.h"
 #ifdef USE_ZEPHYR
 #include <climits>
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
