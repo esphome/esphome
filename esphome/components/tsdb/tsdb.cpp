@@ -7,6 +7,7 @@
 #include <ctime>
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include "esp_err.h"
 #include "esp_heap_caps.h"
@@ -16,7 +17,7 @@
 
 namespace esphome::tsdb {
 
-static const char *const TAG = "tsdb";
+ESPHOME_LOG_TAG(TAG, "tsdb");
 
 /// ESP_PARTITION_SUBTYPE_DATA_LITTLEFS (0x83), spelled out because the enum
 /// member is not present in every ESP-IDF 5.x header.
