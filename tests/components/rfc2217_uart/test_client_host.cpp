@@ -20,11 +20,8 @@ class Client : public Rfc2217Client {
     this->set_parity(uart::UART_CONFIG_PARITY_NONE);
     this->set_stop_bits(1);
   }
-  // load_settings() on ESP8266 and ESP32.
-  void reload() {
-    this->settings_pending_ = true;
-    this->send_settings_();
-  }
+  // What load_settings() does on ESP8266 and ESP32.
+  void reload() { this->request_settings_(); }
   bool com_port() const { return this->com_port_(); }
 };
 
@@ -332,6 +329,48 @@ TEST_F(Rfc2217ClientTest, NotConnectedUntilItsOwnUpEdge) {
   client.loop();
   EXPECT_TRUE(client.is_connected());
   expect_only(pipe, OFFERS);
+}
+
+TEST_F(Rfc2217ClientTest, PayloadBeforeALineChangeLeavesFirst) {
+  Pipe pipe;
+  Client client(&pipe);
+  accept(pipe, client);
+  pipe.feed(SERVER_SUSPEND);
+  client.loop();
+  const uint8_t before[] = {0x41, 0x42};
+  const uint8_t after[] = {0x43};
+  client.write_array(before, sizeof(before));
+  client.set_baud_rate(115200);
+  client.reload();
+  client.write_array(after, sizeof(after));
+  // The suspend holds the commands too.
+  EXPECT_EQ(pipe.n_, 0u);
+  pipe.feed(SERVER_RESUME);
+  client.loop();
+  client.loop();
+  const uint8_t baud[] = {0xFF, 0xFA, 0x2C, 0x01, 0x00, 0x01, 0xC2, 0x00, 0xFF, 0xF0};
+  ASSERT_EQ(pipe.n_, sizeof(before) + sizeof(SETTINGS) + sizeof(after));
+  EXPECT_EQ(std::memcmp(pipe.buf_, before, sizeof(before)), 0);
+  EXPECT_EQ(std::memcmp(pipe.buf_ + sizeof(before), baud, sizeof(baud)), 0);
+  EXPECT_EQ(pipe.buf_[pipe.n_ - 1], 0x43);
+}
+
+TEST_F(Rfc2217ClientTest, BytesSentBeforeTheCloseStayReadable) {
+  Pipe pipe;
+  Client client(&pipe);
+  accept(pipe, client);
+  uint8_t data[200];
+  for (size_t i = 0; i < sizeof(data); i++) {
+    data[i] = static_cast<uint8_t>(i % 250);
+  }
+  pipe.feed(data);
+  pipe.up_ = false;
+  client.loop();
+  client.loop();
+  ASSERT_EQ(client.available(), sizeof(data));
+  uint8_t got[sizeof(data)];
+  ASSERT_TRUE(client.read_array(got, sizeof(got)));
+  EXPECT_EQ(std::memcmp(got, data, sizeof(data)), 0);
 }
 
 TEST_F(Rfc2217ClientTest, LinkDownDropsTheUnsentAndUpClearsTheRest) {

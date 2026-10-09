@@ -11,7 +11,9 @@ rfc2217_uart:
   - id: remote_port
     tcp_uart_id: remote_link
     baud_rate: 19200
+    data_bits: 7
     parity: EVEN
+    stop_bits: 2
     debug:
 
 interval:

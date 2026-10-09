@@ -17,6 +17,17 @@ ESPHOME_LOG_TAG(TAG, "rfc2217_uart");
 
 // How long payload waits for the line settings after a connect; pySerial waits as long for their answers.
 static constexpr uint32_t SETTINGS_WAIT_MS = 3000;
+static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
+
+void Rfc2217Client::note_drop_(const LogString *message) {
+  uint32_t now = App.get_loop_component_start_time();
+  if (this->drop_log_ms_ != 0 && now - this->drop_log_ms_ < DROP_LOG_INTERVAL_MS) {
+    return;
+  }
+  // A zero stamp would look like "never logged" on the next pass.
+  this->drop_log_ms_ = now == 0 ? 1 : now;
+  ESP_LOGW(TAG, "%s", LOG_STR_ARG(message));
+}
 
 void Rfc2217Client::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -34,6 +45,7 @@ void Rfc2217Client::on_link(bool up) {
     this->note_drop_(LOG_STR("Link down, dropped the unsent bytes"));
     this->tx_len_ = 0;
   }
+  this->settings_fence_ = 0;
   // Unread bytes of the last session stay readable while down, never into the next one.
   if (up) {
     this->rx_.clear();
@@ -44,14 +56,21 @@ void Rfc2217Client::on_link(bool up) {
 
 bool Rfc2217Client::tx_held_() const {
   // Payload ahead of the settings would leave on the server's previous line. A server that refuses COM-PORT or does
-  // not answer gets the payload anyway.
-  const bool settings_due =
-      this->us_[COM_PORT] == OptionState::WANT_YES || (this->com_port_() && this->settings_pending_);
-  return settings_due && App.get_loop_component_start_time() - this->link_up_ms_ < SETTINGS_WAIT_MS;
+  // not answer within SETTINGS_WAIT_MS gets the payload anyway.
+  return this->us_[COM_PORT] == OptionState::OPTION_STATE_WANT_YES &&
+         App.get_loop_component_start_time() - this->link_up_ms_ < SETTINGS_WAIT_MS;
+}
+
+void Rfc2217Client::request_settings_() {
+  this->settings_pending_ = true;
+  this->settings_fence_ = this->tx_len_;
+  this->send_settings_();
 }
 
 void Rfc2217Client::send_settings_() {
-  if (!this->is_connected() || !this->com_port_() || this->tcp_->available_for_write() < SETTINGS_SIZE) {
+  // [RFC 2217] A suspend holds commands too.
+  if (!this->is_connected() || !this->com_port_() || this->peer_suspended_ || this->settings_fence_ != 0 ||
+      this->tcp_->available_for_write() < SETTINGS_SIZE) {
     return;
   }
   this->settings_pending_ = false;
@@ -79,8 +98,7 @@ void Rfc2217Client::on_command(uint8_t code, const uint8_t *value, size_t len) {
     case SERVER_OFFSET + COM_SIGNATURE:
       // Without text it asks for ours.
       if (len == 0) {
-        static constexpr uint8_t SIGNATURE[] = {'E', 'S', 'P', 'H', 'o', 'm', 'e'};
-        this->send_command_(COM_SIGNATURE, SIGNATURE, sizeof(SIGNATURE));
+        this->send_signature_();
       }
       return;
     case SERVER_OFFSET + COM_FLOWCONTROL_SUSPEND:
@@ -157,18 +175,24 @@ void Rfc2217Client::write_array(const uint8_t *data, size_t len) {
 }
 
 void Rfc2217Client::send_tx_() {
-  if (this->tx_len_ == 0 || this->peer_suspended_ || !this->is_connected() || this->tx_held_()) {
+  // Settings that wait for COM-PORT hold all payload, settings that wait for room only the bytes written after them.
+  const bool settings_due = this->settings_pending_ && this->com_port_();
+  const size_t limit = settings_due ? this->settings_fence_ : this->tx_len_;
+  if (limit == 0 || this->peer_suspended_ || !this->is_connected() || this->tx_held_()) {
     return;
   }
   uint8_t out[TX_SIZE];
   size_t used = 0;
   const size_t n =
-      telnet_escape(this->tx_, this->tx_len_, out, std::min(this->tcp_->available_for_write(), sizeof(out)), &used);
+      telnet_escape(this->tx_, limit, out, std::min(this->tcp_->available_for_write(), sizeof(out)), &used);
   if (n == 0) {
     return;
   }
   this->write_tcp_(out, n);
   this->tx_len_ = static_cast<uint16_t>(this->tx_len_ - used);
+  if (settings_due) {
+    this->settings_fence_ = static_cast<uint16_t>(this->settings_fence_ - used);
+  }
   std::memmove(this->tx_, this->tx_ + used, this->tx_len_);
 }
 
