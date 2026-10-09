@@ -1285,10 +1285,9 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
                 return _encode_call(encode_fn, str(tag), f"this->{self.field_name}")
         if self.progmem:
             return _encode_call(
-                "encode_progmem_bytes",
+                "encode_progmem_string",
                 str(self.number),
-                f"reinterpret_cast<const uint8_t *>(this->{self.field_name}.progmem_ptr())",
-                f"this->{self.field_name}.size()",
+                f"this->{self.field_name}",
                 force=self.force,
             )
         if result := self._encode_bytes_with_precomputed_tag(

@@ -419,8 +419,8 @@ def test_progmem_rejected_on_non_bytes_field() -> None:
     ("force", "max_len", "encode_fn"),
     [
         (True, 120, "encode_short_progmem_string_force("),
-        (False, None, "encode_progmem_bytes("),
-        (True, None, "encode_progmem_bytes_force("),
+        (False, None, "encode_progmem_string("),
+        (True, None, "encode_progmem_string_force("),
     ],
 )
 def test_progmem_string_field_copies_from_flash(
