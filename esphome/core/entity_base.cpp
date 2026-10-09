@@ -119,9 +119,7 @@ const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LE
 
 // Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
-  char buf[ENTITY_NAME_BUF_SIZE];
-  StringRef name = this->get_name_to(buf);
-  this->object_id_hash_ = fnv1_hash_object_id(name.c_str(), name.size());
+  this->object_id_hash_ = fnv1_hash_object_id_P(this->name_.progmem_ptr(), this->name_.size());
 }
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
