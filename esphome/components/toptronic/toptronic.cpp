@@ -6,7 +6,7 @@
 
 namespace esphome::toptronic {
 
-static const char *const TAG = "toptronic";
+ESPHOME_LOG_TAG(TAG, "toptronic");
 
 static const uint8_t RESPONSE = 0x42;
 // 0x56 = extended-format RESPONSE (larger value payload, e.g. cleaning /
