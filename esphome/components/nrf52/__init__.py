@@ -152,7 +152,7 @@ def _testing_mode_sections(sections: list[Section]) -> list[Section]:
             section.size,
             section.region,
         )
-        if section.address + section.size == NRF52840_FLASH_SIZE
+        if section.end_address == NRF52840_FLASH_SIZE
         else section
         for section in sections
     ]
