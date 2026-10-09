@@ -12,7 +12,7 @@ void VirtualUART::write_array(const uint8_t *data, size_t len) {
 
 void VirtualUART::inject(const uint8_t *data, size_t len) {
   if (!this->inject_rx(data, len)) {
-    ESP_LOGW(TAG, "RX buffer full, dropped %zu bytes", len);
+    ESP_LOGW(TAG, "No room for %zu bytes in the RX buffer, dropped", len);
   }
 }
 
@@ -20,8 +20,12 @@ void VirtualUART::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Virtual UART:\n"
                 "  Baud Rate: %" PRIu32 " baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u\n"
                 "  RX Buffer Size: %zu",
-                this->baud_rate_, this->rx_buffer_size_);
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(uart::parity_to_str(this->parity_)), this->stop_bits_,
+                this->rx_buffer_size_);
 }
 
 }  // namespace esphome::virtual_uart

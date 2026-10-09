@@ -7,7 +7,6 @@
 
 #include <span>
 #include <utility>
-#include <vector>
 
 namespace esphome::virtual_uart {
 
@@ -30,31 +29,11 @@ class VirtualUART final : public uart::VirtualUARTComponent, public Component {
 };
 
 template<typename... Ts> class InjectRXAction final : public Action<Ts...>, public Parented<VirtualUART> {
- public:
-  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
-    this->code_.func = func;
-    this->len_ = -1;
-  }
-  void set_data_static(const uint8_t *data, size_t len) {
-    this->code_.data = data;
-    this->len_ = len;
-  }
+  TEMPLATABLE_BYTES(data)
 
   void play(const Ts &...x) override {
-    if (this->len_ >= 0) {
-      this->parent_->inject(this->code_.data, static_cast<size_t>(this->len_));
-    } else {
-      auto val = this->code_.func(x...);
-      this->parent_->inject(val.data(), val.size());
-    }
+    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->inject(data, len); }, x...);
   }
-
- protected:
-  ssize_t len_{-1};  // -1: template, else the length of static data in flash
-  union Code {
-    std::vector<uint8_t> (*func)(Ts...);
-    const uint8_t *data;
-  } code_;
 };
 
 }  // namespace esphome::virtual_uart

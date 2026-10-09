@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
 )
 from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -64,7 +65,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
-    cg.add(var.set_parity(config[CONF_PARITY]))
+    if (parity := config[CONF_PARITY]) != "NONE":
+        cg.add(var.set_parity(parity))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     if on_tx := config.get(CONF_ON_TX):
         await automation.build_callback_automation(
@@ -87,18 +89,19 @@ async def to_code(config: ConfigType) -> None:
     ),
     synchronous=True,
 )
-async def inject_rx_to_code(config, action_id, template_arg, args):
+async def inject_rx_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # In flash, no RAM copy.
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "virtual_uart_data",
+    )
     return var
