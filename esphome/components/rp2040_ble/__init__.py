@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["rp2"]
 CODEOWNERS = ["@bdraco"]
+DOMAIN = "rp2040_ble"
 
 CONF_RP2040_BLE_ID = "rp2040_ble_id"
 

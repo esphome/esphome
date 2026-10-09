@@ -15,6 +15,7 @@ from esphome.cpp_generator import RawExpression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
+DOMAIN = "safe_mode"
 
 CONF_BOOT_IS_GOOD_AFTER = "boot_is_good_after"
 CONF_BOOT_IS_GOOD_ON_SHUTDOWN = "boot_is_good_on_shutdown"

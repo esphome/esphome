@@ -33,6 +33,7 @@ CONF_WIREGUARD_ID = "wireguard_id"
 
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
+DOMAIN = "wireguard"
 
 # The key validation regex has been described by Jason Donenfeld himself
 # url: https://lists.zx2c4.com/pipermail/wireguard/2020-December/006222.html
