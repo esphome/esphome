@@ -44,7 +44,7 @@ from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 from esphome.helpers import fnv1a_32bit_hash
 
-from . import models
+from . import DOMAIN, models
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -53,7 +53,6 @@ CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
 CONF_FULL_REFRESH_AFTER_DEEP_SLEEP = "full_refresh_after_deep_sleep"
 CONF_RETAIN_IMAGE_IN_SLEEP = "retain_image_in_sleep"
-DOMAIN = "epaper_spi"
 
 # One display per build can keep its image in RTC memory: the store is a single static array
 MAX_IMAGE_STORE_SIZE = 8 * 1024
