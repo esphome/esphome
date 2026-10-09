@@ -3,7 +3,7 @@
 
 namespace esphome::tflite_micro_helper {
 
-static const char *const TAG = "MemoryManager";
+ESPHOME_LOG_TAG(TAG, "MemoryManager");
 
 bool MemoryManager::has_psram() {
   size_t total_psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);

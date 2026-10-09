@@ -1,4 +1,5 @@
 #include "model_handler.h"
+#include "esphome/core/log.h"
 #include "esp_log.h"
 #include <cmath>
 #include <esp_heap_caps.h>
@@ -8,7 +9,7 @@
 
 namespace esphome::tflite_micro_helper {
 
-static const char *const TAG = "ModelHandler";
+ESPHOME_LOG_TAG(TAG, "ModelHandler");
 
 void ModelHandler::unload() {
   this->interpreter_.reset();

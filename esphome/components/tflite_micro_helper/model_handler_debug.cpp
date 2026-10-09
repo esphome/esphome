@@ -1,5 +1,6 @@
 #include "model_handler.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #ifdef DEBUG_TFLITE_MICRO_HELPER
 
@@ -20,7 +21,7 @@ namespace esphome::tflite_micro_helper {
 
 using debug_utils::tflite_type_to_string;
 
-static const char *const TAG = "ModelHandler";
+ESPHOME_LOG_TAG(TAG, "ModelHandler");
 
 void ModelHandler::debug_input_quantization_analysis(const uint8_t *input_data, size_t input_size,
                                                      const std::string &stage) {

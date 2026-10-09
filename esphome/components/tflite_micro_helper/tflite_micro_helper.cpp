@@ -1,12 +1,13 @@
 #include "tflite_micro_helper.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include <cstdlib>
 #include <algorithm>
 #include <esp_heap_caps.h>
 
 namespace esphome::tflite_micro_helper {
 
-static const char *const TAG = "tflite_micro_helper";
+ESPHOME_LOG_TAG(TAG, "tflite_micro_helper");
 
 void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
 
