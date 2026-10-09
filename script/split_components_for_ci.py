@@ -258,20 +258,6 @@ class _Batch:
         self.components.append(item.component)
 
 
-def _placement_key(added: int, result: int, ceiling: int) -> tuple[bool, int, int]:
-    """Rank a runner that item adds added seconds to, ending at result.
-
-    Runners ending at or below ceiling compete on how few seconds item adds
-    to them, so a component lands with the bus group partners it shares
-    builds with; a component placed away from them builds alone on every
-    platform they only share there. Runners beyond that compete on load
-    alone, which keeps the spread bounded.
-    """
-    if result > ceiling:
-        return (True, result, 0)
-    return (False, added, result)
-
-
 def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[str]]:
     """Spread items over enough runners to stay near target_seconds each.
 
@@ -289,15 +275,21 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     total = whole.seconds
     count = min(len(items), max(1, math.ceil(total / target_seconds)))
     batches = [_Batch() for _ in range(count)]
+    # Among the runners ending within slack of the lightest, the one the item
+    # adds the fewest seconds to wins, so a component lands with the bus
+    # group partners it shares builds with; placed away from them it builds
+    # alone on every platform they only share there.
     slack = target_seconds // 4
     for item in sorted(items, key=lambda i: (-i.standalone_seconds(), i.component)):
         costs = [(batch, batch.added_seconds(item)) for batch in batches]
         ceiling = min(batch.seconds + added for batch, added in costs) + slack
         batch, _ = min(
-            costs,
-            key=lambda cost: _placement_key(
-                cost[1], cost[0].seconds + cost[1], ceiling
+            (
+                (batch, added)
+                for batch, added in costs
+                if batch.seconds + added <= ceiling
             ),
+            key=lambda cost: (cost[1], cost[0].seconds + cost[1]),
         )
         batch.add(item)
     return [batch.components for batch in batches if batch.components]
