@@ -14,7 +14,7 @@
 
 namespace esphome::vl53l0x {
 
-static const char *const TAG = "vl53l0x";
+ESPHOME_LOG_TAG(TAG, "vl53l0x");
 
 std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 bool VL53L0XSensor::enable_pin_setup_complete = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -31,7 +31,8 @@ void VL53L0XSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Timeout: %" PRIu32 "%s\n"
                 "  Timing Budget %" PRIu32 "us ",
-                this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)", this->measurement_timing_budget_us_);
+                this->timeout_us_, this->timeout_us_ > 0 ? LOG_STR_LITERAL("us") : LOG_STR_LITERAL(" (no timeout)"),
+                this->measurement_timing_budget_us_);
 }
 
 void VL53L0XSensor::setup() {

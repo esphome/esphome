@@ -33,6 +33,7 @@ CONF_WIREGUARD_ID = "wireguard_id"
 
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
+DOMAIN = "wireguard"
 
 # The key validation regex has been described by Jason Donenfeld himself
 # url: https://lists.zx2c4.com/pipermail/wireguard/2020-December/006222.html
@@ -41,16 +42,6 @@ _WG_KEY_REGEX = re.compile(r"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
 AllowedIP = wireguard_ns.struct("AllowedIP")
-WireguardPeerOnlineCondition = wireguard_ns.class_(
-    "WireguardPeerOnlineCondition", automation.Condition
-)
-WireguardEnabledCondition = wireguard_ns.class_(
-    "WireguardEnabledCondition", automation.Condition
-)
-WireguardEnableAction = wireguard_ns.class_("WireguardEnableAction", automation.Action)
-WireguardDisableAction = wireguard_ns.class_(
-    "WireguardDisableAction", automation.Action
-)
 
 
 def _wireguard_key(value):
@@ -153,57 +144,27 @@ async def to_code(config):
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
 
-    # This flag is added here because the esp_wireguard library statically
+    # This flag is added here because the wireguard library statically
     # set the size of its allowed_ips list at compile time using this value;
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("droscy/esp_wireguard", "0.4.5")
+    cg.add_library("esphome/wireguard", "0.4.8")
 
     await cg.register_component(var, config)
 
 
-@automation.register_condition(
-    "wireguard.peer_online",
-    WireguardPeerOnlineCondition,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+WIREGUARD_AUTOMATION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)})
+
+automation.register_apply_condition(
+    "wireguard.peer_online", WIREGUARD_AUTOMATION_SCHEMA, "is_peer_up()"
 )
-async def wireguard_peer_up_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_condition(
-    "wireguard.enabled",
-    WireguardEnabledCondition,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+automation.register_apply_condition(
+    "wireguard.enabled", WIREGUARD_AUTOMATION_SCHEMA, "is_enabled()"
 )
-async def wireguard_enabled_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "wireguard.enable",
-    WireguardEnableAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
-    synchronous=True,
+automation.register_apply_action(
+    "wireguard.enable", WIREGUARD_AUTOMATION_SCHEMA, automation.ApplyCall("enable()")
 )
-async def wireguard_enable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "wireguard.disable",
-    WireguardDisableAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
-    synchronous=True,
+automation.register_apply_action(
+    "wireguard.disable", WIREGUARD_AUTOMATION_SCHEMA, automation.ApplyCall("disable()")
 )
-async def wireguard_disable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

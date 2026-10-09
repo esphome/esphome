@@ -12,7 +12,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "component";
+ESPHOME_LOG_TAG(TAG, "component");
 
 // Global vectors for component data that doesn't belong in every instance.
 // Using vector instead of unordered_map for both because:
@@ -336,10 +336,8 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   uint32_t update_interval = component->get_update_interval();
   if (update_interval == SCHEDULER_DONT_RUN) {
     ESP_LOGCONFIG(tag, "  Update Interval: never");
-  } else if (update_interval < 100) {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.3fs", update_interval / 1000.0f);
   } else {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.1fs", update_interval / 1000.0f);
+    ESP_LOGCONFIG(tag, "  Update Interval: %" PRIu32 ".%03" PRIu32 "s", update_interval / 1000, update_interval % 1000);
   }
 }
 float Component::get_actual_setup_priority() const {

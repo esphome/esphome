@@ -7,6 +7,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 #ifdef USE_OTA_STATE_LISTENER
 #include <vector>
@@ -49,6 +50,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91,
   OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92,
   OTA_RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93,
+  OTA_RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94,
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
 
@@ -65,6 +67,19 @@ enum OTAResponseTypes {
  * dotted-numeric at config time. Non-digit characters terminate a component.
  */
 bool version_is_older(const char *candidate, const char *reference);
+
+// 64 KiB flash block; the erase granularity the ESP-IDF backend erases ahead with.
+static constexpr size_t OTA_BLOCK_ERASE_SIZE = 64 * 1024;
+
+/** Target erased watermark for lazy block erase-ahead.
+ *
+ * Rounds the write end offset up to a block boundary, clamped to the partition
+ * size. Platform-independent so the arithmetic is host-testable.
+ */
+constexpr size_t next_erase_end(size_t write_end, size_t partition_size) {
+  const size_t rounded = (write_end + OTA_BLOCK_ERASE_SIZE - 1) & ~(OTA_BLOCK_ERASE_SIZE - 1);
+  return rounded < partition_size ? rounded : partition_size;
+}
 
 enum OTAState {
   OTA_COMPLETED = 0,
@@ -88,6 +103,8 @@ enum OTAType : uint8_t {
 // - set_update_md5: expected digest of the incoming image, hex string.
 // - write: consume the next chunk; end: finalize and mark bootable.
 // - abort: safe to call in any state, including after end().
+// - supports_compression: constexpr, whether a gzip image is stored as is and
+//   inflated at reboot.
 template<typename T>
 concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *data, size_t len, const char *md5) {
   { backend.begin(image_size, OTA_TYPE_UPDATE_APP) } -> std::same_as<OTAResponseTypes>;
@@ -96,7 +113,9 @@ concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *dat
   { backend.write(data, len) } -> std::same_as<OTAResponseTypes>;
   { backend.end() } -> std::same_as<OTAResponseTypes>;
   backend.abort();
-  { backend.supports_compression() } -> std::same_as<bool>;
+  { T::supports_compression() } -> std::same_as<bool>;
+  // The value must be a constant expression
+  typename std::bool_constant<T::supports_compression()>;
 };
 
 /** Listener interface for OTA state changes.

@@ -26,6 +26,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@tomaszduda23"]
+DOMAIN = "zephyr"
 
 
 class HexValue:
@@ -50,14 +51,14 @@ PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
-    def __init__(self, name, address, size, region):
+    def __init__(self, name: str, address: int, size: int, region: str) -> None:
         self.name = name
         self.address = address
         self.size = size
         self.region = region
         self.end_address = self.address + self.size
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.name}:\n"
             f"  address: 0x{self.address:X}\n"
@@ -177,14 +178,16 @@ def zephyr_to_code(config: ConfigType) -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
     prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
-    use_old_stack = "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in prj_conf
+    use_old_stack = prj_conf.get("CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,))[
+        0
+    ]
     use_new_stack = prj_conf.get("CONFIG_USB_DEVICE_STACK_NEXT", (False,))[0] is True
     if use_old_stack or use_new_stack:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
 
 
-def zephyr_setup_preferences():
+def zephyr_setup_preferences() -> None:
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)
@@ -209,6 +212,7 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
     use_next_stack = CORE.is_nrf52 and framework_ver >= cv.Version(3, 4, 0)
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", use_next_stack)
+    zephyr_add_prj_conf("SERIAL", True)
     if use_next_stack:
         zephyr_add_prj_conf("USBD_CDC_ACM_CLASS", True)
         zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)

@@ -4,9 +4,11 @@ import base64
 import gzip
 import logging
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
@@ -39,12 +41,14 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json", "web_server_base"]
+DOMAIN = "web_server"
 
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"
@@ -54,9 +58,13 @@ CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_ALLOWED_ORIGINS = "allowed_origins"
 
+# Schema default that also matches the C++ initializer in web_server_base.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_PORT = 80
+
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
-WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
+WebServer = web_server_ns.class_("WebServer", cg.Component)
 
 sorting_groups = {}
 
@@ -128,7 +136,7 @@ def validate_ota(config: ConfigType) -> ConfigType:
 _ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
 
 
-def validate_origin(value: str) -> str:
+def validate_origin(value: Any) -> str:
     # "*" is the wildcard that allows any origin.
     if value == "*":
         return value
@@ -193,7 +201,7 @@ def _validate_no_sorting_component(
                     )
 
 
-def _final_validate_sorting(config: ConfigType) -> ConfigType:
+def _final_validate_sorting(config: ConfigType) -> None:
     if (webserver_version := config.get(CONF_VERSION)) != 3:
         _validate_no_sorting_component(
             CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
@@ -201,7 +209,6 @@ def _final_validate_sorting(config: ConfigType) -> ConfigType:
         _validate_no_sorting_component(
             CONF_SORTING_GROUP_ID, webserver_version, fv.full_config.get()
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate_sorting
@@ -233,11 +240,11 @@ WEBSERVER_SORTING_SCHEMA = cv.Schema(
             {
                 cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
                 cv.Optional(CONF_SORTING_WEIGHT): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.float_,
                 ),
                 cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.use_id(cg.int_),
                 ),
             }
@@ -250,7 +257,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
-            cv.Optional(CONF_PORT, default=80): cv.port,
+            cv.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
@@ -307,7 +314,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def add_sorting_groups(web_server_var, config):
+def add_sorting_groups(web_server_var: MockObj, config: list[ConfigType]) -> None:
     for group in config:
         sorting_groups[group[CONF_ID]] = group[CONF_NAME]
         group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
@@ -318,7 +325,7 @@ def add_sorting_groups(web_server_var, config):
         )
 
 
-async def add_entity_config(entity, config):
+async def add_entity_config(entity: MockObj, config: ConfigType) -> None:
     web_server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
     sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
     sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
@@ -333,7 +340,7 @@ async def add_entity_config(entity, config):
     )
 
 
-def build_index_html(config) -> str:
+def build_index_html(config: ConfigType) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
@@ -358,29 +365,35 @@ def add_resource_as_progmem(
     content_encoded = content.encode("utf-8")
     if compress:
         content_encoded = gzip.compress(content_encoded)
-    content_encoded_size = len(content_encoded)
-    bytes_as_int = ", ".join(str(x) for x in content_encoded)
-    uint8_t = f"constexpr uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
-    size_t = f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
-    cg.add_global(cg.RawExpression(uint8_t))
-    cg.add_global(cg.RawExpression(size_t))
+    cg.extern_progmem_array(
+        f"ESPHOME_WEBSERVER_{resource_name}", cg.uint8, list(content_encoded)
+    )
+    cg.add_global(
+        cg.RawExpression(
+            f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {len(content_encoded)}"
+        )
+    )
 
 
 @coroutine_with_priority(CoroPriority.WEB)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
-    # Track controller registration for StaticVector sizing
-    CORE.register_controller()
+    CORE.register_controller(var)
 
     version = config[CONF_VERSION]
 
-    cg.add(paren.set_port(config[CONF_PORT]))
+    # Skip the setter when the config matches the C++ initializer (DEFAULT_PORT).
+    if (port := config[CONF_PORT]) != DEFAULT_PORT:
+        cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
-    cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
+    cg.add_define("USE_WEBSERVER_PORT", port)
+    if CORE.is_esp32:
+        # The ESP-IDF event source builds state documents in a stack arena
+        enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
@@ -394,14 +407,25 @@ async def to_code(config):
     # Captive portal will still be able to perform OTA updates even when this is set
     if config.get(CONF_OTA) is False:
         cg.add_define("USE_WEBSERVER_OTA_DISABLED")
-    cg.add(var.set_expose_log(config[CONF_LOG]))
+    # expose_log_ is true in C++; only emit the setter to turn it off.
     if config[CONF_LOG]:
         request_log_listener()  # Request a log listener slot for web server log streaming
+    else:
+        cg.add(var.set_expose_log(False))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
-        cg.add(var.set_allowed_origins(allowed_origins))
+        # Shared flash table ended by nullptr, so the server stores only a pointer.
+        cg.add(
+            var.set_allowed_origins(
+                cg.shared_progmem_array(
+                    "web_server_allowed_origins",
+                    cg.const_char_ptr,
+                    [*allowed_origins, cg.nullptr],
+                )
+            )
+        )
     if (auth := config.get(CONF_AUTH)) is not None:
         cg.add_define("USE_WEBSERVER_AUTH")
         # The scheme is fixed at build time so the unused Basic/Digest code path is compiled
@@ -432,7 +456,9 @@ async def to_code(config):
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
-    cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
+    # include_internal_ is false in C++; only emit the setter to turn it on.
+    if config[CONF_INCLUDE_INTERNAL]:
+        cg.add(var.set_include_internal(True))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
     if config[CONF_COMPRESSION] == "gzip":
@@ -448,7 +474,7 @@ def FILTER_SOURCE_FILES() -> list[str]:
     files_to_filter: list[str] = []
 
     # web_server_v1.cpp is only needed when version is 1
-    config = CORE.config.get("web_server", {})
+    config = CORE.config.get(DOMAIN, {})
     if config.get(CONF_VERSION, 2) != 1:
         files_to_filter.append("web_server_v1.cpp")
 

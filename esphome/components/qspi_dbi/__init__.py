@@ -1,4 +1,5 @@
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "qspi_dbi"
 
 CONF_DRAW_FROM_ORIGIN = "draw_from_origin"
 

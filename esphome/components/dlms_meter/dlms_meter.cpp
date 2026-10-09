@@ -5,7 +5,7 @@
 
 namespace esphome::dlms_meter {
 
-static const char *const TAG = "dlms_meter";
+ESPHOME_LOG_TAG(TAG, "dlms_meter");
 static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list args) {
   std::array<char, 256> buf;
   vsnprintf(buf.data(), buf.size(), fmt, args);
@@ -86,7 +86,7 @@ void DlmsMeterComponent::setup() { this->flush_rx_buffer_(); }
 
 void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DLMS Meter:");
-  ESP_LOGCONFIG(TAG, "  Receive Timeout: %u ms", this->receive_timeout_ms_);
+  ESP_LOGCONFIG(TAG, "  Receive Timeout: %" PRIu32 " ms", this->receive_timeout_ms_);
   ESP_LOGCONFIG(TAG, "  Skip CRC Check: %s", YESNO(this->skip_crc_check_));
 
   for (const auto &pattern : this->custom_patterns_) {

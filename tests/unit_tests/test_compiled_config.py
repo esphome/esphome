@@ -68,6 +68,7 @@ def _write_storage(
     esp_platform: str | None = "ESP32",
     core_platform: str | None = "esp32",
     build_path: str | None = "/build/lite_test",
+    toolchain: str | None = None,
 ) -> None:
     """Write a vanilla StorageJSON sidecar for the cache tests."""
     storage_path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,6 +89,7 @@ def _write_storage(
         "no_mdns": False,
         "framework": "arduino",
         "core_platform": core_platform,
+        "toolchain": toolchain,
     }
     storage_path.write_text(json.dumps(data), encoding="utf-8")
 
@@ -627,6 +629,35 @@ def test_save_compiled_config_and_sidecar_builds_real_sidecar(tmp_path: Path) ->
     assert storage.esphome_version is None
     assert storage.firmware_bin_path is None
     assert load_compiled_config(yaml_path) is not None
+
+
+@pytest.mark.parametrize(
+    ("sidecar_toolchain", "saved"),
+    [
+        ("esp-idf", False),
+        ("platformio", True),
+        (None, True),  # legacy sidecar without the field: guard is inert
+    ],
+)
+def test_save_compiled_config_and_sidecar_toolchain_mismatch(
+    tmp_path: Path, sidecar_toolchain: str | None, saved: bool
+) -> None:
+    """A config validated under a different toolchain than the compile's
+    must not overwrite the cache."""
+    yaml_path = _bare_yaml(tmp_path)
+    _prime_core(tmp_path)
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "lite_test"}}
+    CORE.toolchain = Toolchain.PLATFORMIO
+    _write_storage(
+        tmp_path / ".esphome" / "storage" / "lite_test.yaml.json",
+        toolchain=sidecar_toolchain,
+    )
+
+    save_compiled_config_and_sidecar(CORE.config)
+
+    cache = tmp_path / ".esphome" / "storage" / "lite_test.yaml.validated.json"
+    assert cache.exists() is saved
+    assert (load_compiled_config(yaml_path) is not None) is saved
 
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
