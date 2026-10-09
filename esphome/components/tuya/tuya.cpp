@@ -814,7 +814,8 @@ const TuyaDatapoint &check_expected_datapoint(const TuyaDatapoint &dp, TuyaDatap
     ESP_LOGW(TAG, "Tuya sensor %u expected datapoint type %#02hhX but got %#02hhX", dp.id,
              static_cast<uint8_t>(expected), static_cast<uint8_t>(dp.type));
   }
-  return dp;
+  // Only called on the datapoint a listener receives, never on a temporary.
+  return dp;  // NOLINT(bugprone-return-const-ref-from-parameter)
 }
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }
