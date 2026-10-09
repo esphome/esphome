@@ -1,3 +1,6 @@
+# Config only: the S2 shares the C2's line fitting path (no default_vref) and
+# the original ESP32's ADC init (no clk_src); both are compiled by those
+# builds, only the S2 pin table differs.
 sensor:
   - id: adc_my_sensor
     platform: adc
