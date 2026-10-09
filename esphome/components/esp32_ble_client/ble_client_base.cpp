@@ -366,8 +366,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // Bluedroid reports a failed open as DISCONNECT_EVT then a failing OPEN_EVT, with no CONNECT_EVT,
       // so DISCONNECTING with no id is the expected state here. Anything else means a bad assumption
       // about how the ESP BT stack works, so log it.
-      if (this->state() != espbt::ClientState::CONNECTING &&
-          !(this->state() == espbt::ClientState::DISCONNECTING && this->conn_id_ == UNSET_CONN_ID)) {
+      const bool failed_open = this->state() == espbt::ClientState::DISCONNECTING && this->conn_id_ == UNSET_CONN_ID;
+      if (this->state() != espbt::ClientState::CONNECTING && !failed_open) {
         ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
                  this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
       }
