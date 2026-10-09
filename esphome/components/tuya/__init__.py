@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TIME_ID
+from esphome.cpp_generator import MockObj
 
 DEPENDENCIES = ["uart"]
 DOMAIN = "tuya"
@@ -83,8 +84,7 @@ async def to_code(config):
         type_, expected, field = DATAPOINT_TYPES[conf[CONF_DATAPOINT_TYPE]]
         forward = None
         if expected is not None:
-            checked = tuya_ns.check_expected_datapoint(cg.RawExpression("x"), expected)
-            forward = [getattr(checked, field)]
+            forward = [getattr(MockObj("x", ".").expect_type(expected), field)]
         callback = await automation.build_trigger_callback(
             [(type_, "x")], conf, params=[(TuyaDatapoint, "x")], forward=forward
         )

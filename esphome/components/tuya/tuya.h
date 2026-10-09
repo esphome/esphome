@@ -37,15 +37,15 @@ struct TuyaDatapoint {
   };
   std::string value_string;
   std::vector<uint8_t> value_raw;
+
+  /// Log a warning when this datapoint is not of type `expected`, and return it.
+  const TuyaDatapoint &expect_type(TuyaDatapointType expected) const;
 };
 
 struct TuyaDatapointListener {
   uint8_t datapoint_id;
   Callback<void(const TuyaDatapoint &)> on_datapoint;
 };
-
-/// Log a warning when `dp` is not of type `expected`, and return `dp`.
-const TuyaDatapoint &check_expected_datapoint(const TuyaDatapoint &dp, TuyaDatapointType expected);
 
 enum class TuyaCommandType : uint8_t {
   HEARTBEAT = 0x00,
