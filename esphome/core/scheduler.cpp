@@ -214,7 +214,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif
   }
   // A background insertion may shorten a sleep whose deadline was already computed.
-  if (!is_main_loop_thread())
+  if (!is_main_loop_thread()) [[unlikely]]
     wake_scheduler_threadsafe();
 }
 
