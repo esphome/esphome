@@ -172,43 +172,17 @@ async def to_code(config: ConfigType) -> None:
 
     hub_id = config[CONF_ID].id
 
-    sensor_count = 0
-    for sens_conf in CORE.config.get(SENSOR_DOMAIN, []):
-        if (
-            sens_conf.get("platform") == DOMAIN
-            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
-        ):
-            if CONF_OBIS_CODE in sens_conf:
-                sensor_count += 1
-            else:
-                from .sensor import NUMERIC_KEYS
-
-                sensor_count += sum(1 for key in NUMERIC_KEYS if key in sens_conf)
-
-    text_sensor_count = 0
-    for sens_conf in CORE.config.get(TEXT_SENSOR_DOMAIN, []):
-        if (
-            sens_conf.get("platform") == DOMAIN
-            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
-        ):
-            if CONF_OBIS_CODE in sens_conf:
-                text_sensor_count += 1
-            else:
-                from .text_sensor import TEXT_KEYS
-
-                text_sensor_count += sum(1 for key in TEXT_KEYS if key in sens_conf)
-
-    binary_sensor_count = 0
-    for sens_conf in CORE.config.get(BINARY_SENSOR_DOMAIN, []):
-        if (
-            sens_conf.get("platform") == DOMAIN
-            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
-        ):
-            binary_sensor_count += 1
-
-    cg.add_define("DLMS_MAX_SENSORS", sensor_count)
-    cg.add_define("DLMS_MAX_TEXT_SENSORS", text_sensor_count)
-    cg.add_define("DLMS_MAX_BINARY_SENSORS", binary_sensor_count)
+    for domain, define in (
+        (SENSOR_DOMAIN, "DLMS_MAX_SENSORS"),
+        (TEXT_SENSOR_DOMAIN, "DLMS_MAX_TEXT_SENSORS"),
+        (BINARY_SENSOR_DOMAIN, "DLMS_MAX_BINARY_SENSORS"),
+    ):
+        count = sum(
+            1
+            for conf in CORE.config.get(domain, [])
+            if conf.get("platform") == DOMAIN and conf[CONF_DLMS_METER_ID].id == hub_id
+        )
+        cg.add_define(define, count)
 
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
