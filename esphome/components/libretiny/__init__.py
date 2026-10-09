@@ -57,6 +57,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "libretiny"
 IS_TARGET_PLATFORM = True
 
 # BLE 5.x BK SDK options to disable unused features.
