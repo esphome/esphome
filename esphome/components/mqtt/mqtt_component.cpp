@@ -207,9 +207,12 @@ bool MQTTComponent::send_discovery_() {
         }
 
         // Fields from EntityBase
-        char name_buf[ENTITY_NAME_BUF_SIZE];
-        StringRef name = this->get_entity()->get_name_to(name_buf);
-        root[MQTT_NAME] = this->get_entity()->has_own_name() ? name : StringRef();
+        if (this->get_entity()->has_own_name()) {
+          // ArduinoJson copies flash strings into the document itself
+          root[MQTT_NAME] = reinterpret_cast<ProgmemStr>(this->get_entity()->get_name_progmem().progmem_ptr());
+        } else {
+          root[MQTT_NAME] = StringRef();
+        }
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
@@ -255,8 +258,10 @@ bool MQTTComponent::send_discovery_() {
         char object_id_buf[OBJECT_ID_MAX_LEN];
         StringRef object_id = this->get_default_object_id_to_(object_id_buf);
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
+          char name_buf[ENTITY_NAME_BUF_SIZE];
           char friendly_name_hash[9];
-          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32, fnv1_hash(name.c_str()));
+          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
+                            fnv1_hash(this->get_entity()->get_name_to(name_buf).c_str()));
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];

@@ -29,7 +29,8 @@ class PIDAutotuner {
 
   void dump_config();
 
-  void set_autotuner_id(std::string id) { this->id_ = std::move(id); }
+  /// Name shown in log lines; must outlive the autotuner (the climate entity's name).
+  void set_autotuner_id(const LogString *id) { this->id_ = id; }
 
   void set_noiseband(float noiseband) {
     relay_function_.noiseband = noiseband;
@@ -106,7 +107,7 @@ class PIDAutotuner {
   } state_ = AUTOTUNE_RUNNING;
   float ku_;
   float pu_;
-  std::string id_;
+  const LogString *id_{nullptr};
 };
 
 }  // namespace esphome::pid
