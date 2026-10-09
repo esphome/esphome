@@ -1,0 +1,33 @@
+esphome:
+  name: tcp-uart-bridge-test
+
+host:
+
+api:
+  services:
+    - service: send_byte
+      then:
+        - lambda: |-
+            id(tcp_uart_1).write_byte('X');
+            auto r = id(tcp_uart_1).flush();
+            ESP_LOGI("bridge_test", "Flush result %d", (int) r);
+
+logger:
+  level: INFO
+
+tcp_uart:
+  - id: tcp_uart_1
+    host: 127.0.0.1
+    port: 18125
+    reconnect_interval: 3s
+    connected:
+      name: Bridge Connected
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: |-
+          uint8_t b;
+          while (id(tcp_uart_1).read_byte(&b)) {
+            id(tcp_uart_1).write_byte(b);
+          }

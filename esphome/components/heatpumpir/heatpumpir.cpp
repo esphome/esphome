@@ -41,7 +41,7 @@ class IRSenderESPHome : public IRSender {
   remote_base::RemoteTransmitterBase::TransmitCall transmit_;
 };
 
-static const char *const TAG = "heatpumpir.climate";
+ESPHOME_LOG_TAG(TAG, "heatpumpir.climate");
 
 const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP = {
     {PROTOCOL_AUX, []() { return new AUXHeatpumpIR(); }},                                    // NOLINT

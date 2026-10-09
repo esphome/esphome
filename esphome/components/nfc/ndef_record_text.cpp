@@ -3,7 +3,7 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc.ndef_record_text";
+ESPHOME_LOG_TAG(TAG, "nfc.ndef_record_text");
 
 NdefRecordText::NdefRecordText(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {

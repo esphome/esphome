@@ -11,6 +11,7 @@ from esphome.core import CORE
 from . import const, generate, schema, validate
 
 CODEOWNERS = ["@olegtarasov"]
+DOMAIN = "opentherm"
 MULTI_CONF = True
 
 CONF_IN_PIN = "in_pin"

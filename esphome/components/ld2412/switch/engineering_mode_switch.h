@@ -7,7 +7,8 @@ namespace esphome::ld2412 {
 
 class EngineeringModeSwitch final : public switch_::Switch, public Parented<LD2412Component> {
  public:
-  EngineeringModeSwitch() = default;
+  // User provided, not "= default": `new(p) EngineeringModeSwitch()` would zero-fill .bss that is already zero.
+  EngineeringModeSwitch() {}
 
  protected:
   void write_state(bool state) override;
