@@ -1027,7 +1027,7 @@ ONKYORI_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_int_range(0, 0xFFF)})
 
 
 @register_binary_sensor("onkyori", OnkyoRIBinarySensor, ONKYORI_SCHEMA)
-def onkyori_binary_sensor(var, config):
+def onkyori_binary_sensor(var: MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_data(
             cg.StructInitializer(
@@ -1039,17 +1039,19 @@ def onkyori_binary_sensor(var, config):
 
 
 @register_trigger("onkyori", OnkyoRITrigger, OnkyoRIData)
-def onkyori_trigger(var, config):
-    pass
+def onkyori_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("onkyori", OnkyoRIDumper)
-def onkyori_dumper(var, config):
-    pass
+def onkyori_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
 
 
 @register_action("onkyori", OnkyoRIAction, ONKYORI_SCHEMA)
-async def onkyori_action(var, config, args):
+async def onkyori_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
     cg.add(var.set_data(template_))
 
