@@ -3,15 +3,17 @@
 
 namespace esphome::power_supply {
 
-static const char *const TAG = "power_supply";
+ESPHOME_LOG_TAG(TAG, "power_supply");
+
+static constexpr uint32_t POWER_OFF_TIMEOUT_ID = 0;
 
 void PowerSupply::setup() {
   this->pin_->setup();
-  if (!this->pin_->is_held()) {
+  if (this->pin_->is_held()) {
+    // Rail stayed on across the reset; drop it unless something asks for it
+    this->schedule_off_if_idle_();
+  } else {
     this->pin_->digital_write(false);
-#if defined(USE_GPIO_HOLD)
-    this->disable_loop();  // nothing to reconcile: pin is already off
-#endif
   }
   if (this->enable_on_boot_)
     this->request_high_power();
@@ -36,7 +38,7 @@ bool PowerSupply::is_enabled() const { return this->active_requests_ != 0; }
 
 void PowerSupply::request_high_power() {
   if (this->active_requests_ == 0) {
-    this->cancel_timeout("power-supply-off");
+    this->cancel_timeout(POWER_OFF_TIMEOUT_ID);
     ESP_LOGV(TAG, "Enabling");
     this->pin_->digital_write(true);
     delay(this->enable_time_);
@@ -55,29 +57,16 @@ void PowerSupply::unrequest_high_power() {
 
 void PowerSupply::schedule_off_if_idle_() {
   if (this->active_requests_ == 0) {
-    this->set_timeout("power-supply-off", this->keep_on_time_, [this]() {
+    this->set_timeout(POWER_OFF_TIMEOUT_ID, this->keep_on_time_, [this]() {
       ESP_LOGV(TAG, "Disabling");
       this->pin_->digital_write(false);
     });
   }
 }
 
-#if defined(USE_GPIO_HOLD)
-void PowerSupply::loop() {
-  // Run once after setup(). Depends on components with setup_priority POWER/IO or HARDWARE not blocking in setup().
-  // Need to turn off the pin if no component requested it during setup() otherwise it will stay on forever.
-  this->schedule_off_if_idle_();
-  this->disable_loop();
-}
-#endif
-
 void PowerSupply::on_powerdown() {
-#if defined(USE_GPIO_HOLD)
-  // only turn off if pin is not held.
-  if (this->pin_->get_hold()) {
+  if (this->pin_->get_hold())
     return;
-  }
-#endif
   this->active_requests_ = 0;
   this->pin_->digital_write(false);
 }

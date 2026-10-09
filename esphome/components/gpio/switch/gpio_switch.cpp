@@ -3,7 +3,7 @@
 
 namespace esphome::gpio {
 
-static const char *const TAG = "switch.gpio";
+ESPHOME_LOG_TAG(TAG, "switch.gpio");
 #ifdef USE_GPIO_SWITCH_INTERLOCK
 static constexpr uint32_t INTERLOCK_TIMEOUT_ID = 0;
 #endif
@@ -12,12 +12,11 @@ float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; 
 void GPIOSwitch::setup() {
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
-  if (!this->pin_->is_held()) {
-    // write state before setup. If state is held we need to setup first
+  // write state before setup unless the pin kept it across the reset
+  if (!this->pin_->is_held())
     this->control(initial_state);
-  }
   this->pin_->setup();
-  // write after setup again for other IOs and for held IOs
+  // write after setup again for other IOs
   this->control(initial_state);
 }
 void GPIOSwitch::dump_config() {

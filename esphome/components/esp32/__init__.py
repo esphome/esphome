@@ -106,6 +106,7 @@ from .gpio import esp32_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp32"
 IS_TARGET_PLATFORM = True
 
 CONF_ASSERTION_LEVEL = "assertion_level"
@@ -2924,6 +2925,11 @@ async def to_code(config):
     # volatile build path/time data out of the binary so equivalent projects can
     # produce reproducible outputs and downstream tooling can reuse artifacts.
     add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
+
+    # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
+    cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
+    cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")

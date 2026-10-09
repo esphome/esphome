@@ -3,20 +3,22 @@
 
 namespace esphome::aqi {
 
-static const char *const TAG = "aqi";
+ESPHOME_LOG_TAG(TAG, "aqi");
+
+static constexpr uint32_t CALCULATE_DEFER_ID = 0;
 
 void AQISensor::setup() {
   if (this->pm_2_5_sensor_ != nullptr) {
     this->pm_2_5_sensor_->add_on_state_callback([this](float value) {
       this->pm_2_5_value_ = value;
       // Defer calculation to avoid double-publishing if both sensors update in the same loop
-      this->defer("update", [this]() { this->calculate_aqi_(); });
+      this->defer(CALCULATE_DEFER_ID, [this]() { this->calculate_aqi_(); });
     });
   }
   if (this->pm_10_0_sensor_ != nullptr) {
     this->pm_10_0_sensor_->add_on_state_callback([this](float value) {
       this->pm_10_0_value_ = value;
-      this->defer("update", [this]() { this->calculate_aqi_(); });
+      this->defer(CALCULATE_DEFER_ID, [this]() { this->calculate_aqi_(); });
     });
   }
 }

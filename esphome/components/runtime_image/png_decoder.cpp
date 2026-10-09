@@ -6,7 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char *const TAG = "image_decoder.png";
+ESPHOME_LOG_TAG(TAG, "image_decoder.png");
 
 namespace esphome::runtime_image {
 

@@ -25,6 +25,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@numo68"]
+DOMAIN = "display_menu_base"
 
 display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
 

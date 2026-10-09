@@ -3,7 +3,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.button";
+ESPHOME_LOG_TAG(TAG, "uart.button");
 
 void UARTButton::press_action() {
   ESP_LOGD(TAG, "'%s': Sending data", this->get_name().c_str());

@@ -6,7 +6,7 @@ namespace esphome::max17043 {
 // MAX174043 is a 1-Cell Fuel Gauge with ModelGauge and Low-Battery Alert
 // Consult the datasheet at https://www.analog.com/en/products/max17043.html
 
-static const char *const TAG = "max17043";
+ESPHOME_LOG_TAG(TAG, "max17043");
 
 static const uint8_t MAX17043_VCELL = 0x02;
 static const uint8_t MAX17043_SOC = 0x04;
