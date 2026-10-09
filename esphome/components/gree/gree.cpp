@@ -292,6 +292,9 @@ uint8_t GreeClimateCodec::encode_vertical_swing(climate::ClimateSwingMode swing_
 optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const GreeState &state) {
   if (!GreeProtocol::valid_checksum(state))
     return {};
+  // YAC1FB sends an auxiliary follow-up frame with no vane state. Do not publish it as climate state.
+  if (model == GREE_YAC && (state[3] & 0xF0) == 0x70)
+    return {};
 
   const uint8_t mode = state[0] & GREE_MODE_MASK;
   const bool power = state[0] & GREE_POWER_MASK;
@@ -311,12 +314,9 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
 
   switch (model) {
     case GREE_YAG:
-      // YAG uses byte 0 bit 6 as a general swing-active flag, so use the actual vane fields to distinguish axes.
-      swing_vertical = is_valid_vertical_swing(true, vertical);
-      swing_horizontal = horizontal == GREE_HDIR_SWING;
-      break;
     case GREE_YAC:
-      swing_vertical = (state[0] & GREE_SWING_AUTO_MASK) || is_valid_vertical_swing(true, vertical);
+      // On YAC1FB bit 6 does not reliably identify vertical swing; use vane fields for both axes.
+      swing_vertical = is_valid_vertical_swing(true, vertical);
       swing_horizontal = horizontal == GREE_HDIR_SWING;
       break;
     case GREE_GENERIC:
