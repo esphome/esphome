@@ -135,11 +135,13 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
   dump_bytes_field(out, field_name, data_buf, len, indent);
 }
 
-// Helper for string fields in flash: copies the shown characters out with progmem_memcpy first
+// Helper for string fields in flash: copies straight into the dump buffer, which bounds the length
 static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
                                       int indent = 2) {
-  char buf[DUMP_BYTES_MAX];
-  dump_field(out, field_name, StringRef(buf, value.write_to(buf, sizeof(buf))), indent);
+  append_field_prefix(out, field_name, indent);
+  out.append("'");
+  out.set_pos(out.pos() + value.write_to(out.data() + out.pos(), DumpBuffer::CAPACITY - out.pos()));
+  out.append("'\n");
 }
 #pragma GCC diagnostic pop
 
