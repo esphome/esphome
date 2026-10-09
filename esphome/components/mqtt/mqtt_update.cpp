@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.update";
+ESPHOME_LOG_TAG(TAG, "mqtt.update");
 
 using namespace esphome::update;
 
@@ -24,7 +24,7 @@ void MQTTUpdateComponent::setup() {
     }
   });
 
-  this->update_->add_on_state_callback([this]() { this->defer("send", [this]() { this->publish_state(); }); });
+  this->update_->add_on_state_callback([this]() { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 
 bool MQTTUpdateComponent::publish_state() {

@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "xiaomi_rtcgq02lm"
 MULTI_CONF = True
 
 xiaomi_rtcgq02lm_ns = cg.esphome_ns.namespace("xiaomi_rtcgq02lm")

@@ -4,7 +4,10 @@
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.time";
+ESPHOME_LOG_TAG(TAG, "zigbee.time");
+
+static constexpr uint32_t REGISTER_RETRY_TIMEOUT_ID = 0;
+static constexpr uint32_t SYNC_RETRY_TIMEOUT_ID = 1;
 
 // This time standard is the number of
 // seconds since 0 hrs 0 mins 0 sec on 1st January 2000 UTC (Universal Coordinated Time).
@@ -28,7 +31,7 @@ void ZigbeeTime::register_zb_time_() {
   };
   ezb_err_t ret;
   if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
-    this->set_timeout("zb_time_register", 100, [this]() { this->register_zb_time_(); });
+    this->set_timeout(REGISTER_RETRY_TIMEOUT_ID, 100, [this]() { this->register_zb_time_(); });
     return;
   }
   ret = ezb_zcl_time_server_interface_register(this->endpoint_, time_interface);
@@ -68,7 +71,7 @@ void ZigbeeTime::update() {
         ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time, will retry maximum 3 times");
       }
       if (this->retry_count_ < 3) {
-        this->set_timeout("zb_time_sync", 100, [this]() { this->update(); });
+        this->set_timeout(SYNC_RETRY_TIMEOUT_ID, 100, [this]() { this->update(); });
         this->retry_count_++;
       } else {
         ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time");
