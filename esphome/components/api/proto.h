@@ -708,9 +708,20 @@ class DumpBuffer {
     return *this;
   }
 
+  /// Append len bytes of a PROGMEM string
+  DumpBuffer &append_p(const char *str, size_t len) {
+#ifdef USE_ESP8266
+    append_p_esp8266(str, len);
+#else
+    append_impl_(str, len);
+#endif
+    return *this;
+  }
+
 #ifdef USE_ESP8266
   /// Out-of-line ESP8266 PROGMEM append to avoid inlining strlen_P/memcpy_P at every call site
   void append_p_esp8266(const char *str);
+  void append_p_esp8266(const char *str, size_t len);
 #endif
 
   const char *c_str() const { return buf_; }

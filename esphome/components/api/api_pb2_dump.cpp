@@ -12,8 +12,9 @@ namespace esphome::api {
 
 #ifdef USE_ESP8266
 // Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
-void DumpBuffer::append_p_esp8266(const char *str) {
-  size_t len = strlen_P(str);
+void DumpBuffer::append_p_esp8266(const char *str) { this->append_p_esp8266(str, strlen_P(str)); }
+
+void DumpBuffer::append_p_esp8266(const char *str, size_t len) {
   size_t space = CAPACITY - 1 - pos_;
   if (len > space)
     len = space;
@@ -135,13 +136,11 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
   dump_bytes_field(out, field_name, data_buf, len, indent);
 }
 
-// Helper for string fields in flash: copies straight into the dump buffer, which bounds the length
+// Helper for string fields in flash
 static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
                                       int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append("'");
-  out.set_pos(out.pos() + value.write_to(out.data() + out.pos(), DumpBuffer::CAPACITY - out.pos()));
-  out.append("'\n");
+  out.append("'").append_p(value.progmem_ptr(), value.size()).append("'\n");
 }
 #pragma GCC diagnostic pop
 
