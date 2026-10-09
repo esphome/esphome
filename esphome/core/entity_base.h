@@ -72,26 +72,26 @@ class EntityBase {
  public:
 #ifdef USE_ESP8266
   // On ESP8266 the name is in flash and cannot be read as a plain string.
-  template<typename T = int> const StringRef &get_name() const {
+  template<typename T = int> StringRef get_name() const {
     static_assert(sizeof(T) == 0, "get_name() unavailable on ESP8266 (name is in flash). "
                                   "Use get_name_to() with a stack buffer, or get_log_name() for logging.");
-    return this->name_;
+    return StringRef(this->name_.progmem_ptr(), this->name_.size());
   }
   /// Get the name of this Entity, copied out of flash into buffer.
   StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const;
   bool name_equals(const StringRef &other) const;
 #else
   ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
-  const StringRef &get_name() const { return this->name_; }
-  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_; }
-  bool name_equals(const StringRef &other) const { return this->name_ == other; }
+  StringRef get_name() const { return this->name_ref_(); }
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_ref_(); }
+  bool name_equals(const StringRef &other) const { return this->name_ref_() == other; }
 #endif
 
   /// Copy the name into buf (null terminated), returns its length.
   size_t write_name_to(char *buf, size_t buf_size) const;
 
   /// Get the name for a "%s" log argument (LOG_STR_ARG).
-  const LogString *get_log_name() const { return reinterpret_cast<const LogString *>(this->name_.c_str()); }
+  const LogString *get_log_name() const { return reinterpret_cast<const LogString *>(this->name_.progmem_ptr()); }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -234,8 +234,11 @@ class EntityBase {
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
 
   void calc_object_id_();
+#ifndef USE_ESP8266
+  StringRef name_ref_() const { return StringRef(this->name_.progmem_ptr(), this->name_.size()); }
+#endif
 
-  StringRef name_;  // May point to flash on ESP8266
+  ProgmemStringRef name_;
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};

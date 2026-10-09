@@ -224,6 +224,30 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
 }
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
 // Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
+/// A string that may live in flash (on ESP8266): pointer and length, with no byte-reading operations.
+/// Read the contents with the progmem helpers; progmem_ptr() is also safe as a "%s" log argument.
+class ProgmemStringRef {
+ public:
+  constexpr ProgmemStringRef() = default;
+  constexpr ProgmemStringRef(const char *s, size_t len) : base_(s), len_(len) {}
+  constexpr ProgmemStringRef(const StringRef &s) : base_(s.c_str()), len_(s.size()) {}  // NOLINT
+
+  constexpr const char *progmem_ptr() const { return this->base_; }
+  constexpr size_t size() const { return this->len_; }
+  constexpr bool empty() const { return this->len_ == 0; }
+
+  // Remove before 2027.5.0 (helpers.h's ESPDEPRECATED is not reachable from here)
+  [[deprecated(
+      "May point to flash; use progmem_ptr() or the owner's accessors. Removed in 2027.5.0")]] constexpr const char *
+  c_str() const {
+    return this->base_;
+  }
+
+ protected:
+  const char *base_{""};
+  size_t len_{0};
+};
+
 namespace internal {
 // NOLINTBEGIN(google-runtime-int)
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {

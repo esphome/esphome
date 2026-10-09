@@ -68,20 +68,20 @@ void CurrentBasedCover::loop() {
       this->direction_idle_();
       this->malfunction_trigger_.trigger();
       ESP_LOGI(TAG, "'%s' - Malfunction detected during opening. Current flow detected in close circuit",
-               this->name_.c_str());
+               LOG_STR_ARG(this->get_log_name()));
     } else if (this->is_opening_blocked_()) {  // Blocked
-      ESP_LOGD(TAG, "'%s' - Obstacle detected during opening.", this->name_.c_str());
+      ESP_LOGD(TAG, "'%s' - Obstacle detected during opening.", LOG_STR_ARG(this->get_log_name()));
       this->direction_idle_();
       if (this->obstacle_rollback_ != 0) {
         this->set_timeout("rollback", 300, [this]() {
-          ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
+          ESP_LOGD(TAG, "'%s' - Rollback.", LOG_STR_ARG(this->get_log_name()));
           this->target_position_ = clamp(this->position - this->obstacle_rollback_, 0.0F, 1.0F);
           this->start_direction_(COVER_OPERATION_CLOSING);
         });
       }
     } else if (this->is_initial_delay_finished_() && !this->is_opening_()) {  // End reached
       auto dur = (now - this->start_dir_time_) / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Open position reached. Took %.1fs.", this->name_.c_str(), dur);
+      ESP_LOGD(TAG, "'%s' - Open position reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()), dur);
       this->direction_idle_(COVER_OPEN);
     }
   } else if (this->current_operation == COVER_OPERATION_CLOSING) {
@@ -89,25 +89,25 @@ void CurrentBasedCover::loop() {
       this->direction_idle_();
       this->malfunction_trigger_.trigger();
       ESP_LOGI(TAG, "'%s' - Malfunction detected during closing. Current flow detected in open circuit",
-               this->name_.c_str());
+               LOG_STR_ARG(this->get_log_name()));
     } else if (this->is_closing_blocked_()) {  // Blocked
-      ESP_LOGD(TAG, "'%s' - Obstacle detected during closing.", this->name_.c_str());
+      ESP_LOGD(TAG, "'%s' - Obstacle detected during closing.", LOG_STR_ARG(this->get_log_name()));
       this->direction_idle_();
       if (this->obstacle_rollback_ != 0) {
         this->set_timeout("rollback", 300, [this]() {
-          ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
+          ESP_LOGD(TAG, "'%s' - Rollback.", LOG_STR_ARG(this->get_log_name()));
           this->target_position_ = clamp(this->position + this->obstacle_rollback_, 0.0F, 1.0F);
           this->start_direction_(COVER_OPERATION_OPENING);
         });
       }
     } else if (this->is_initial_delay_finished_() && !this->is_closing_()) {  // End reached
       auto dur = (now - this->start_dir_time_) / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Close position reached. Took %.1fs.", this->name_.c_str(), dur);
+      ESP_LOGD(TAG, "'%s' - Close position reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()), dur);
       this->direction_idle_(COVER_CLOSED);
     }
   }
   if (now - this->start_dir_time_ > this->max_duration_) {
-    ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
+    ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", LOG_STR_ARG(this->get_log_name()));
     this->direction_idle_();
   }
 

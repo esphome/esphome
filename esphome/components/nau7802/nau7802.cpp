@@ -307,7 +307,7 @@ void NAU7802Sensor::update() {
   // Get the most recent sample to publish
   int32_t result = this->read_value_(ADCO_B2_REG, 3);
 
-  ESP_LOGD(TAG, "'%s': Got value %" PRId32, this->name_.c_str(), result);
+  ESP_LOGD(TAG, "'%s': Got value %" PRId32, LOG_STR_ARG(this->get_log_name()), result);
   this->publish_state(result);
 }
 

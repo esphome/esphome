@@ -125,7 +125,7 @@ ValveCall &ValveCall::set_stop(bool stop) {
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 
-  ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
+  ESP_LOGV(TAG, "'%s' >>", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.get_supports_position()) {
     ESP_LOGV(TAG, "  Position: %.0f%%", this->position * 100.0f);

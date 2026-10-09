@@ -127,7 +127,7 @@ void EntityBase::calc_object_id_() {
 
 size_t EntityBase::write_name_to(char *buf, size_t buf_size) const {
   size_t len = std::min(this->name_.size(), buf_size - 1);
-  progmem_memcpy(buf, this->name_.c_str(), len);
+  progmem_memcpy(buf, this->name_.progmem_ptr(), len);
   buf[len] = '\0';
   return len;
 }
@@ -138,7 +138,7 @@ StringRef EntityBase::get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) 
 }
 
 bool EntityBase::name_equals(const StringRef &other) const {
-  return other.size() == this->name_.size() && memcmp_P(other.c_str(), this->name_.c_str(), other.size()) == 0;
+  return other.size() == this->name_.size() && memcmp_P(other.c_str(), this->name_.progmem_ptr(), other.size()) == 0;
 }
 #endif
 
