@@ -4,7 +4,7 @@
 
 namespace esphome::emc2101 {
 
-static const char *const TAG = "EMC2101.sensor";
+ESPHOME_LOG_TAG(TAG, "EMC2101.sensor");
 
 void EMC2101Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Emc2101 sensor:");

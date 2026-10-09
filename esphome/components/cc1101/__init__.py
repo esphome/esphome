@@ -13,10 +13,10 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WAIT_TIME,
 )
-from esphome.core import ID
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
+DOMAIN = "cc1101"
 MULTI_CONF = True
 
 ns = cg.esphome_ns.namespace("cc1101")
@@ -351,10 +351,6 @@ async def to_code(config):
 
 
 # Actions
-BeginTxAction = ns.class_("BeginTxAction", automation.Action)
-BeginRxAction = ns.class_("BeginRxAction", automation.Action)
-ResetAction = ns.class_("ResetAction", automation.Action)
-SetIdleAction = ns.class_("SetIdleAction", automation.Action)
 SendPacketAction = ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
 )
@@ -364,22 +360,15 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA, synchronous=True
-)
-async def cc1101_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("cc1101.begin_tx", "begin_tx()"),
+    ("cc1101.begin_rx", "begin_rx()"),
+    ("cc1101.reset", "reset()"),
+    ("cc1101.set_idle", "set_idle()"),
+):
+    automation.register_apply_action(
+        _name, CC1101_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 def validate_raw_data(value):
@@ -395,7 +384,10 @@ def validate_raw_data(value):
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(CC1101Component),
-        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+        # TX FIFO size
+        cv.Required(CONF_DATA): cv.templatable(
+            cv.All(validate_raw_data, cv.Length(max=64))
+        ),
     },
     key=CONF_DATA,
 )
@@ -410,17 +402,13 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 async def send_packet_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "cc1101_data",
+    )
     return var
 
 

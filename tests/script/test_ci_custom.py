@@ -1,4 +1,6 @@
-"""Unit tests for the ESP_LOG-needs-braces lint rule in script/ci-custom.py.
+"""Unit tests for the ESP_LOG-needs-braces and std::nothrow lint rules in script/ci-custom.py.
+
+The nothrow rule is a masked lint_re_check, so its tests also pin the decorator's mask option.
 
 The rule flags an if/else/for/while whose only body is an unbraced ESP_LOG*() call (which becomes an
 empty statement -- and a -Wempty-body warning -- once the log level compiles the macro out). These
@@ -151,6 +153,119 @@ def test_nolint_on_control_line_suppresses() -> None:
     assert not _lint("if (x)  // NOLINT\n  ESP_LOGD(t);\n")
 
 
+# --- std::nothrow ---
+
+
+def _lint_nothrow(content: str) -> list:
+    return ci_custom.lint_no_std_nothrow("test.cpp", content)
+
+
+def test_nothrow_is_reported_at_its_line_and_column_and_points_at_ramallocator() -> (
+    None
+):
+    errors = _lint_nothrow(
+        "int a;\nint b;\n  auto *p = new (std::nothrow) uint8_t[n];\n"
+    )
+    assert [(line, col) for line, col, _msg in errors] == [(3, 18)]
+    assert "RAMAllocator" in errors[0][2]
+
+
+def test_nothrow_spacing_and_the_nothrow_t_type() -> None:
+    assert len(_lint_nothrow("auto *p = new (std :: nothrow) Foo;\n")) == 1
+    assert not _lint_nothrow(
+        "void *operator new(size_t n, const std::nothrow_t &) noexcept;\n"
+    )
+
+
+def test_nothrow_in_comments_and_strings_is_masked() -> None:
+    assert not _lint_nothrow("// new (std::nothrow) aborts on ESP-IDF\n")
+    assert not _lint_nothrow('ESP_LOGD(TAG, "std::nothrow");\n')
+
+
+def test_nothrow_nolint_suppresses() -> None:
+    assert not _lint_nothrow("auto *p = new (std::nothrow) Foo;  // NOLINT\n")
+
+
+def test_nothrow_nolint_inside_a_string_does_not_suppress() -> None:
+    assert len(_lint_nothrow('auto *p = new (std::nothrow) Foo; log("NOLINT");\n')) == 1
+
+
+# --- rule: UNIT_ constants must not be redefined (mirror of the CONF_ check) ---
+
+# Real UNIT_ constants that live in each canonical home.
+UNIT_IN_CONST_PY = ci_custom.UNIT_CONSTANTS[0]
+UNIT_IN_COMPONENT_CONST = ci_custom.COMPONENT_UNIT_CONSTANTS[0]
+
+
+def _unit_def(fname: str, content: str) -> list:
+    return ci_custom.lint_unit_from_const_py(fname, content)
+
+
+def test_unit_already_in_const_py_is_flagged() -> None:
+    errs = _unit_def("esphome/components/x/sensor.py", f'{UNIT_IN_CONST_PY} = "x"\n')
+    assert errs
+    assert "const.py" in errs[0][2]
+
+
+def test_unit_already_in_component_const_is_flagged() -> None:
+    errs = _unit_def(
+        "esphome/components/x/sensor.py", f'{UNIT_IN_COMPONENT_CONST} = "x"\n'
+    )
+    assert errs
+    assert "esphome.components.const" in errs[0][2]
+
+
+def test_unit_not_in_const_py_is_tracked_not_flagged() -> None:
+    ci_custom.UNIT_CONSTANTS_USES.clear()
+    assert _unit_def("a.py", 'UNIT_FOO_BAR = "fb"\n') == []
+    assert ci_custom.UNIT_CONSTANTS_USES["UNIT_FOO_BAR"] == ["a.py"]
+
+
+def test_unit_defined_in_three_files_is_flagged() -> None:
+    ci_custom.UNIT_CONSTANTS_USES.clear()
+    for fname in ("a.py", "b.py", "c.py"):
+        _unit_def(fname, 'UNIT_FOO_BAR = "fb"\n')
+    errs = ci_custom.lint_unit_constants_usage()
+    assert any("UNIT_FOO_BAR" in e and "3 files" in e for e in errs)
+
+
+def test_unit_defined_in_two_files_is_not_flagged() -> None:
+    ci_custom.UNIT_CONSTANTS_USES.clear()
+    for fname in ("a.py", "b.py"):
+        _unit_def(fname, 'UNIT_FOO_BAR = "fb"\n')
+    assert ci_custom.lint_unit_constants_usage() == []
+
+
+# --- same rule for CONF_, now also recognising the components/const home ---
+
+CONF_IN_CONST_PY = ci_custom.CONSTANTS[0]
+CONF_IN_COMPONENT_CONST = ci_custom.COMPONENT_CONSTANTS[0]
+
+
+def _conf_def(fname: str, content: str) -> list:
+    return ci_custom.lint_conf_from_const_py(fname, content)
+
+
+def test_conf_already_in_const_py_is_flagged() -> None:
+    errs = _conf_def("esphome/components/x/sensor.py", f'{CONF_IN_CONST_PY} = "x"\n')
+    assert errs
+    assert "const.py" in errs[0][2]
+
+
+def test_conf_already_in_component_const_is_flagged() -> None:
+    errs = _conf_def(
+        "esphome/components/x/sensor.py", f'{CONF_IN_COMPONENT_CONST} = "x"\n'
+    )
+    assert errs
+    assert "esphome.components.const" in errs[0][2]
+
+
+def test_conf_not_in_a_const_home_is_tracked_not_flagged() -> None:
+    ci_custom.CONSTANTS_USES.pop("CONF_FOO_BAR", None)
+    assert _conf_def("a.py", 'CONF_FOO_BAR = "foo_bar"\n') == []
+    assert ci_custom.CONSTANTS_USES["CONF_FOO_BAR"] == ["a.py"]
+
+
 # --- ESP_LOG call scanner and bare-literal-ternary lint ---
 
 
@@ -271,3 +386,131 @@ def test_ternary_error_message_names_the_literal() -> None:
     )
     assert len(errs) == 1
     assert 'LOG_STR_LITERAL("enabled")' in errs[0][2]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'static const char *const TAG = "x";',
+        'static const char* const TAG = "x";',
+        'static const char *TAG = "x";',
+        'constexpr const char *TAG = "x";',
+        'static const char *const TAG{"x"};',
+        'static constexpr char TAG[] = "x";',
+        'static constexpr char TAG[] = {"x"};',
+        'static const char TAG[8] = "x";',
+        '  static const char *const TAG = "x";',
+    ],
+)
+def test_log_tag_macro_flags_plain_tags(line: str) -> None:
+    assert ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    ['ESPHOME_LOG_TAG(TAG, "x");', 'static const char *const NAME = "x";'],
+)
+def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:
+    assert not ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "this->set_timeout(TAG, 100, cb);",
+        "strcmp(TAG, name);",
+        "strcmp(name, TAG);",
+        "strncpy(buf, TAG, sizeof(buf));",
+        "strcmp(get_name(), TAG);",
+        "this->set_timeout(make_id(x), TAG, cb);",
+        "std::string(TAG);",
+        "std::string name = TAG;",
+        "std::string name{TAG};",
+    ],
+)
+def test_log_tag_as_string_flags_string_uses(line: str) -> None:
+    assert ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'ESP_LOGD(TAG, "x");',
+        'this->set_timeout(100, [this]() { ESP_LOGD(TAG, "x"); });',
+        "strcmp(name, OTHER_TAG);",
+    ],
+)
+def test_log_tag_as_string_ignores_logging(line: str) -> None:
+    assert not ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+# --- rule: every component __init__.py defines DOMAIN as its own name ---
+
+
+def _domain_check() -> dict:
+    return next(
+        c
+        for c in ci_custom.LINT_CONTENT_CHECKS
+        if c["func"] is ci_custom.lint_component_domain
+    )
+
+
+def _lint_domain(fname: str, content: str) -> str | None:
+    return ci_custom.run_check(_domain_check(), fname, Path(fname), content)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'CODEOWNERS = ["@x"]\nDOMAIN = "uart"\n',
+        'DOMAIN: str = "uart"\n',
+    ],
+)
+def test_domain_matching_component_name_passes(content: str) -> None:
+    assert _lint_domain("esphome/components/uart/__init__.py", content) is None
+
+
+def test_domain_leaves_syntax_errors_to_the_python_linters() -> None:
+    assert _lint_domain("esphome/components/uart/__init__.py", "def (\n") is None
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'CODEOWNERS = ["@x"]\n',
+        'DOMAIN = "spi"\n',
+        "DOMAIN = CONF_UART\n",
+        '"""Docstring.\n\nDOMAIN = "uart"\n"""\n',
+        'def f() -> None:\n    DOMAIN = "uart"\n',
+        'OTHER = "uart"\n',
+        "DOMAIN: str\n",
+    ],
+)
+def test_domain_missing_or_wrong_is_flagged(content: str) -> None:
+    err = _lint_domain("esphome/components/uart/__init__.py", content)
+    assert err is not None
+    assert 'DOMAIN = "uart"' in err
+
+
+@pytest.mark.parametrize(
+    "fname",
+    [
+        "esphome/components/uart/sensor/__init__.py",
+        "esphome/components/uart/sensor.py",
+        "esphome/core/__init__.py",
+    ],
+)
+def test_domain_ignores_files_other_than_component_init(fname: str) -> None:
+    assert _lint_domain(fname, "") is None
+
+
+def test_every_component_defines_its_domain() -> None:
+    components = SCRIPT_DIR.parent / "esphome" / "components"
+    missing = [
+        init.parent.name
+        for init in sorted(components.glob("*/__init__.py"))
+        if ci_custom.lint_component_domain(
+            init.relative_to(SCRIPT_DIR.parent), init.read_text(encoding="utf-8")
+        )
+    ]
+    assert missing == []

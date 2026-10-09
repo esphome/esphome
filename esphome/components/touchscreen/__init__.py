@@ -23,6 +23,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
 DEPENDENCIES = ["display"]
+DOMAIN = "touchscreen"
 
 IS_PLATFORM_COMPONENT = True
 

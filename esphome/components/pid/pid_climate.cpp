@@ -3,7 +3,7 @@
 
 namespace esphome::pid {
 
-static const char *const TAG = "pid.climate";
+ESPHOME_LOG_TAG(TAG, "pid.climate");
 
 bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
   if (threshold_low > threshold_high) {
@@ -169,6 +169,14 @@ void PIDClimate::update_pid_() {
   if (this->do_publish_)
     this->publish_state();
 }
+void PIDClimate::start_autotune(float noiseband, float positive_output, float negative_output) {
+  auto tuner = make_unique<PIDAutotuner>();
+  tuner->set_noiseband(noiseband);
+  tuner->set_output_positive(positive_output);
+  tuner->set_output_negative(negative_output);
+  this->start_autotune(std::move(tuner));
+}
+
 void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   this->autotuner_ = std::move(autotune);
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;

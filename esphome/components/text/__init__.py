@@ -23,6 +23,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mauritskorse"]
+DOMAIN = "text"
 IS_PLATFORM_COMPONENT = True
 
 text_ns = cg.esphome_ns.namespace("text")

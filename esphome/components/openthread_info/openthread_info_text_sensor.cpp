@@ -5,7 +5,7 @@
 
 namespace esphome::openthread_info {
 
-static const char *const TAG = "openthread_info";
+ESPHOME_LOG_TAG(TAG, "openthread_info");
 
 void IPAddressOpenThreadInfo::dump_config() { LOG_TEXT_SENSOR("", "IPAddress", this); }
 void RoleOpenThreadInfo::dump_config() { LOG_TEXT_SENSOR("", "Role", this); }

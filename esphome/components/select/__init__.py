@@ -20,14 +20,17 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass, TemplateArguments
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArguments
 from esphome.cpp_types import global_ns
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "select"
 IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")
@@ -93,7 +96,9 @@ def select_schema(
 
 @setup_entity("select")
 async def setup_select_core_(var, config, *, options: list[str]):
-    cg.add(var.traits.set_options(options))
+    if options:
+        table = cg.shared_progmem_array("select_options", cg.const_char_ptr, options)
+        cg.add(var.traits.set_options_static(table, len(options)))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -123,6 +128,13 @@ async def new_select(config, *args, options: list[str]):
     return var
 
 
+def sub_selects(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_select."""
+    return SubEntities(new_select, config, parent)
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(select_ns.using)
@@ -142,7 +154,12 @@ automation.register_apply_action(
             cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
-    automation.ApplyField(CONF_OPTION, "set_option", cg.std_string),
+    automation.ApplyField(
+        CONF_OPTION,
+        "set_option",
+        cg.std_string,
+        const_fn=automation.literal_with_length,
+    ),
     call="make_call",
 )
 
@@ -173,14 +190,8 @@ automation.register_apply_action(
 async def select_is_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     if options := config.get(CONF_OPTIONS):
-        # List of constant options
-        # Create a constexpr and pass that with a template length
-        arr_id = ID(
-            f"{condition_id}_data",
-            is_declaration=True,
-            type=global_ns.namespace("constexpr char * const"),
-        )
-        arg = cg.static_const_array(arr_id, cg.ArrayInitializer(*options))
+        # Shared flash table of option pointers, length passed as a template argument
+        arg = cg.shared_progmem_array("select_is_options", cg.const_char_ptr, options)
         template_arg = TemplateArguments(len(options), *template_arg)
     else:
         # Lambda

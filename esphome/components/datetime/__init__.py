@@ -33,6 +33,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
+DOMAIN = "datetime"
 
 IS_PLATFORM_COMPONENT = True
 

@@ -4,7 +4,9 @@ from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import wifi
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
+from esphome.components.esp32_hosted import DOMAIN as ESP32_HOSTED_DOMAIN
 from esphome.components.udp import CONF_ON_RECEIVE
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -23,8 +25,8 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["network"]
+DOMAIN = "espnow"
 
-byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
 
 espnow_ns = cg.esphome_ns.namespace("espnow")
@@ -141,7 +143,7 @@ def _validate_variant(config: ConfigType) -> ConfigType:
         return config
     if variant != VARIANT_ESP32P4:
         raise cv.Invalid(f"ESP-NOW is not supported on {variant} (no Wi-Fi radio)")
-    if "esp32_hosted" not in fv.full_config.get():
+    if ESP32_HOSTED_DOMAIN not in fv.full_config.get():
         raise cv.Invalid(f"ESP-NOW on {variant} requires the esp32_hosted component")
     return config
 
@@ -177,7 +179,7 @@ async def to_code(config: ConfigType) -> None:
 
         include_builtin_idf_component("esp_wifi")
 
-    if CONF_WIFI in CORE.config:
+    if WIFI_DOMAIN in CORE.config:
         # Track the Wi-Fi channel via connect events instead of polling every loop
         wifi.request_wifi_connect_state_listener()
     if wifi_channel := config.get(CONF_CHANNEL):
@@ -304,11 +306,12 @@ async def send_action(
 
     await register_peer(var, config, args)
 
-    data = config.get(CONF_DATA, [])
+    data = config[CONF_DATA]
     if isinstance(data, str):
         data = list(data.encode())
-    templ = await cg.templatable(data, args, byte_vector, byte_vector)
-    cg.add(var.set_data(templ))
+    await automation.templatable_bytes(
+        data, args, var.set_data_template, var.set_data_static, "espnow_data"
+    )
 
     cg.add(var.set_wait_for_sent(config[CONF_WAIT_FOR_SENT]))
     cg.add(var.set_continue_on_error(config[CONF_CONTINUE_ON_ERROR]))
