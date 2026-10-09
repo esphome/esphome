@@ -5,7 +5,7 @@
 
 namespace esphome::mk2pvrouter {
 
-static const char *const TAG = "mk2pvrouter";
+ESPHOME_LOG_TAG(TAG, "mk2pvrouter");
 
 constexpr uint8_t START_FRAME = 0x2;
 constexpr uint8_t END_FRAME = 0x3;

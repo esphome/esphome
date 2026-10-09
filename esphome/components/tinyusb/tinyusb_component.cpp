@@ -7,7 +7,7 @@
 
 namespace esphome::tinyusb {
 
-static const char *const TAG = "tinyusb";
+ESPHOME_LOG_TAG(TAG, "tinyusb");
 
 // Runs on the TinyUSB task: only wake the main loop, which reads the state and runs
 // the automations.

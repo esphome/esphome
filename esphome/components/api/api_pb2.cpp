@@ -306,6 +306,19 @@ uint32_t WizardCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_SENDSPIN
+uint8_t *SendspinCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SendspinCapabilities *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.feature_flags);
+  return pos;
+}
+uint32_t SendspinCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SendspinCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.feature_flags);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
 #ifdef USE_BLUETOOTH_PROXY
@@ -324,6 +337,9 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__res
 #endif
 #ifdef USE_API_WIZARD
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.wizard);
+#endif
+#ifdef USE_SENDSPIN
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.sendspin);
 #endif
   return pos;
 }
@@ -346,6 +362,9 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_API_WIZARD
   size += ProtoSize::calc_message(1, msg.wizard.calculate_size());
+#endif
+#ifdef USE_SENDSPIN
+  size += ProtoSize::calc_message(1, msg.sendspin.calculate_size());
 #endif
   return size;
 }
@@ -4226,6 +4245,22 @@ uint32_t BluetoothSetConnectionParamsResponse::calc_size_msg(const void *self) {
   uint32_t size = 0;
   size += ProtoSize::calc_uint64(1, msg.address);
   size += ProtoSize::calc_int32(1, msg.error);
+  return size;
+}
+#endif
+#ifdef USE_SENDSPIN
+uint8_t *SendspinPairingTokenResponse::encode_msg(const void *self,
+                                                  uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SendspinPairingTokenResponse *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.status));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.token);
+  return pos;
+}
+uint32_t SendspinPairingTokenResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SendspinPairingTokenResponse *>(self);
+  uint32_t size = 0;
+  size += msg.status ? 2 : 0;
+  size += !msg.token.empty() ? 2 + msg.token.size() : 0;
   return size;
 }
 #endif

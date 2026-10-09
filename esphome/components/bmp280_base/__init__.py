@@ -17,6 +17,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ademuri"]
+DOMAIN = "bmp280_base"
 
 bmp280_ns = cg.esphome_ns.namespace("bmp280_base")
 BMP280Oversampling = bmp280_ns.enum("BMP280Oversampling")

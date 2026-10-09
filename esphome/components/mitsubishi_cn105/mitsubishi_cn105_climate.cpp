@@ -4,7 +4,7 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-static const char *const TAG = "mitsubishi_cn105.climate";
+ESPHOME_LOG_TAG(TAG, "mitsubishi_cn105.climate");
 
 static constexpr std::array MODE_MAP{
     std::pair{MitsubishiCN105::Mode::AUTO, climate::CLIMATE_MODE_HEAT_COOL},

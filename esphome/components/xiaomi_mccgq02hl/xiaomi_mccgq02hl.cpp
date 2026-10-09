@@ -7,7 +7,7 @@
 
 namespace esphome::xiaomi_mccgq02hl {
 
-static const char *const TAG = "xiaomi_mccgq02hl";
+ESPHOME_LOG_TAG(TAG, "xiaomi_mccgq02hl");
 
 static constexpr uint16_t PRODUCT_ID = 0x098b;
 
