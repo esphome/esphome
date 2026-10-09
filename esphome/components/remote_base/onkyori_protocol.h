@@ -12,9 +12,9 @@ struct OnkyoRIData {
 
 class OnkyoRIProtocol : public RemoteProtocol<OnkyoRIData> {
  public:
-  void encode(RemoteTransmitData *dst, const OnkyoRIData &data) override;
-  optional<OnkyoRIData> decode(RemoteReceiveData src) override;
-  void dump(const OnkyoRIData &data) override;
+  void encode(RemoteTransmitData *dst, const OnkyoRIData &data);
+  optional<OnkyoRIData> decode(RemoteReceiveData src);
+  void dump(const OnkyoRIData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(OnkyoRI)

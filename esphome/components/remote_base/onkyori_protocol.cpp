@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.onkyori";
+ESPHOME_LOG_TAG(TAG, "remote.onkyori");
 
 static constexpr uint8_t NBITS = 12;
 static constexpr uint16_t MAX_DATA = (1U << NBITS) - 1;
