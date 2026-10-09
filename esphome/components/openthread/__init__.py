@@ -166,7 +166,7 @@ _CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PAN_ID): cv.hex_int,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=11, max=26),
-        cv.Optional(CONF_NETWORK_KEY): cv.hex_int,
+        cv.Optional(CONF_NETWORK_KEY): cv.sensitive(cv.hex_int),
         cv.Optional(CONF_EXT_PAN_ID): cv.hex_int,
         cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
         cv.Optional(CONF_PSKC): cv.hex_int,
