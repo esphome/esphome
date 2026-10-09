@@ -243,18 +243,24 @@ def _cmake_args_for_write(minimal: bool) -> dict[str, str]:
     The discovery (minimal) write lets every built-in component register so
     the list it finds, cached per target, serves any exclusion set; the full
     write drops the excluded names from that list and passes all of them to
-    IDF. Managed components stay excluded on the discovery write too, since
-    the list only holds built-in ones.
+    IDF. Names outside the framework's components directory (managed
+    components) stay excluded on the discovery write too, since the list
+    only holds built-in ones. A checkout supplied through IDF_PATH caches
+    nothing, so its discovery keeps every exclusion.
     """
-    args = dict(CORE.cmake_args)
-    if not minimal or not (excluded := args.get("EXCLUDE_COMPONENTS")):
-        return args
-    from esphome.espidf.toolchain import _get_idf_path
+    from esphome.espidf.toolchain import _esphome_manages_idf, _get_idf_path
 
+    args = dict(CORE.cmake_args)
+    if (
+        not minimal
+        or not _esphome_manages_idf()
+        or not (excluded := args.get("EXCLUDE_COMPONENTS"))
+    ):
+        return args
     root = _get_idf_path() / "components"
-    managed = [name for name in excluded.split(";") if not (root / name).is_dir()]
-    if managed:
-        args["EXCLUDE_COMPONENTS"] = ";".join(managed)
+    outside = [name for name in excluded.split(";") if not (root / name).is_dir()]
+    if outside:
+        args["EXCLUDE_COMPONENTS"] = ";".join(outside)
     else:
         del args["EXCLUDE_COMPONENTS"]
     return args
