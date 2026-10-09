@@ -59,10 +59,12 @@ struct ISRPinArg {
 };
 
 #ifdef USE_GPIO_HOLD
-// Re-latch the pad onto the values just written to its registers.
-static inline void refresh_hold(gpio_num_t pin) {
-  gpio_hold_dis(pin);
-  gpio_hold_en(pin);
+// Re-latch a held pad onto the values just written to its registers.
+static inline void refresh_hold(const ESP32InternalGPIOPin &pin) {
+  if (!pin.get_hold())
+    return;
+  gpio_hold_dis(pin.get_pin_num());
+  gpio_hold_en(pin.get_pin_num());
 }
 
 static inline void IRAM_ATTR isr_refresh_hold(const ISRPinArg *arg) {
@@ -134,7 +136,7 @@ size_t ESP32InternalGPIOPin::dump_summary(char *buffer, size_t len) const {
 
 void ESP32InternalGPIOPin::setup() {
 #ifdef USE_GPIO_HOLD
-  // hold the pin if requested, so that it will retain its state. Outputs will apply the config only on first write
+  // Hold before gpio_config so the pad keeps its state while the registers change
   if (this->get_hold()) {
     gpio_hold_en(this->get_pin_num());
   }
@@ -154,14 +156,14 @@ void ESP32InternalGPIOPin::setup() {
     gpio_set_drive_capability(this->get_pin_num(), this->get_drive_strength());
   }
 #ifdef USE_GPIO_HOLD
-  if (this->flags_ & gpio::FLAG_INPUT || !this->get_hold()) {
-    // for inputs apply config now so reading works immediately
-    // for outputs defer until the first write
-    if (GPIO_IS_VALID_OUTPUT_GPIO(this->get_pin_num())) {
+  // gpio_hold_dis logs an error on input-only pads
+  if (GPIO_IS_VALID_OUTPUT_GPIO(this->get_pin_num())) {
+    if (!this->get_hold()) {
+      // Release a hold left behind by an earlier boot
       gpio_hold_dis(this->get_pin_num());
-      if (this->get_hold()) {
-        gpio_hold_en(this->get_pin_num());
-      }
+    } else if (this->flags_ & gpio::FLAG_INPUT) {
+      // Inputs apply the config now so reads work; outputs wait for the first write
+      refresh_hold(*this);
     }
   }
 #endif
@@ -180,9 +182,7 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   }
   gpio_set_pull_mode(this->get_pin_num(), pull_mode);
 #ifdef USE_GPIO_HOLD
-  if (this->get_hold()) {
-    refresh_hold(this->get_pin_num());
-  }
+  refresh_hold(*this);
 #endif
 }
 
@@ -192,9 +192,7 @@ bool ESP32InternalGPIOPin::digital_read() {
 void ESP32InternalGPIOPin::digital_write(bool value) {
   gpio_set_level(this->get_pin_num(), value != this->pin_flags_.inverted ? 1 : 0);
 #ifdef USE_GPIO_HOLD
-  if (this->get_hold()) {
-    refresh_hold(this->get_pin_num());
-  }
+  refresh_hold(*this);
 #endif
 }
 void ESP32InternalGPIOPin::detach_interrupt() const { gpio_intr_disable(this->get_pin_num()); }

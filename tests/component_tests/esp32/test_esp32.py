@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from esphome.components.const import CONF_HOLD_STATE
 from esphome.components.esp32 import (
     _ESP_TLS_LINKING_COMPONENTS,
     DEFAULT_EXCLUDED_IDF_COMPONENTS,
@@ -45,12 +46,18 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
-from esphome.components.esp32.gpio import validate_gpio_pin
+from esphome.components.esp32.gpio import validate_gpio_pin, validate_supports
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
+    CONF_INPUT,
+    CONF_MODE,
     CONF_NUMBER,
+    CONF_OPEN_DRAIN,
+    CONF_OUTPUT,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
     PlatformFramework,
     Toolchain,
 )
@@ -1770,49 +1777,26 @@ def test_esp32_s31_gpio_validation(
     assert "GPIO36 is a strapping pin" in caplog.text
 
 
+_INPUT_ONLY_SETTINGS = (
+    (CONF_OUTPUT, "does not support output pin mode"),
+    (CONF_PULLUP, "does not support pullups"),
+    (CONF_PULLDOWN, "does not support pulldowns"),
+    (CONF_HOLD_STATE, "is input-only and cannot be held"),
+)
+
+
 @pytest.mark.parametrize(
     ("variant", "number", "setting", "error"),
     [
-        *[
-            pytest.param(
-                VARIANT_ESP32,
-                number,
-                setting,
-                error,
-                id=f"esp32-gpio{number}-{setting}",
-            )
-            for number in range(34, 40)
-            for setting, error in (
-                ("output", "does not support output pin mode"),
-                ("pullup", "does not support pullups"),
-                ("pulldown", "does not support pulldowns"),
-                ("hold_state", "is input-only and cannot be held"),
-            )
-        ],
         pytest.param(
-            VARIANT_ESP32S2,
-            46,
-            "output",
-            "does not support output pin mode",
-            id="s2-output",
-        ),
-        pytest.param(
-            VARIANT_ESP32S2, 46, "pullup", "does not support pullups", id="s2-pullup"
-        ),
-        pytest.param(
-            VARIANT_ESP32S2,
-            46,
-            "pulldown",
-            "does not support pulldowns",
-            id="s2-pulldown",
-        ),
-        pytest.param(
-            VARIANT_ESP32S2,
-            46,
-            "hold_state",
-            "is input-only and cannot be held",
-            id="s2-hold",
-        ),
+            variant, number, setting, error, id=f"{name}-gpio{number}-{setting}"
+        )
+        for variant, name, numbers in (
+            (VARIANT_ESP32, "esp32", range(34, 40)),
+            (VARIANT_ESP32S2, "s2", (46,)),
+        )
+        for number in numbers
+        for setting, error in _INPUT_ONLY_SETTINGS
     ],
 )
 def test_input_only_gpio_rejects_unsupported_modes(
@@ -1822,17 +1806,6 @@ def test_input_only_gpio_rejects_unsupported_modes(
     setting: str,
     error: str,
 ) -> None:
-    from esphome.components.const import CONF_HOLD_STATE
-    from esphome.components.esp32.gpio import validate_supports
-    from esphome.const import (
-        CONF_INPUT,
-        CONF_MODE,
-        CONF_OPEN_DRAIN,
-        CONF_OUTPUT,
-        CONF_PULLDOWN,
-        CONF_PULLUP,
-    )
-
     set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
     mode = {
         CONF_INPUT: True,
@@ -1842,16 +1815,10 @@ def test_input_only_gpio_rejects_unsupported_modes(
         CONF_PULLDOWN: False,
     }
     pin = {CONF_NUMBER: number, CONF_MODE: mode}
-    if setting == "hold_state":
-        pin[CONF_HOLD_STATE] = True
+    if setting == CONF_HOLD_STATE:
+        pin[setting] = True
     else:
-        mode[
-            {
-                "output": CONF_OUTPUT,
-                "pullup": CONF_PULLUP,
-                "pulldown": CONF_PULLDOWN,
-            }[setting]
-        ] = True
+        mode[setting] = True
 
     with pytest.raises(cv.Invalid, match=error):
         validate_supports(pin)
@@ -1878,10 +1845,6 @@ def test_usb_jtag_gpio_hold_state_warns(
     variant: str,
     number: int,
 ) -> None:
-    from esphome.components.const import CONF_HOLD_STATE
-    from esphome.components.esp32.gpio import validate_supports
-    from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
-
     set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
     pin = {
         CONF_NUMBER: number,
@@ -1896,11 +1859,9 @@ def test_usb_jtag_gpio_hold_state_warns(
     with caplog.at_level(logging.WARNING):
         validate_supports(pin)
 
-    assert any(
-        record.levelno == logging.WARNING
-        and f"GPIO{number} cannot hold at low level during wakeup from deep sleep."
-        in record.message
-        for record in caplog.records
+    assert (
+        f"GPIO{number} cannot hold at low level during wakeup from deep sleep."
+        in caplog.text
     )
 
 

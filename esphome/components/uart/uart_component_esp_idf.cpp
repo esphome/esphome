@@ -25,6 +25,20 @@ namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
 
+#ifdef USE_GPIO_HOLD
+// Release or re-apply the hold on a pin configured with hold_state
+static void set_pin_hold(InternalGPIOPin *pin, bool hold) {
+  if (pin == nullptr || !pin->get_hold())
+    return;
+  auto num = static_cast<gpio_num_t>(pin->get_pin());
+  if (hold) {
+    gpio_hold_en(num);
+  } else {
+    gpio_hold_dis(num);
+  }
+}
+#endif
+
 /// Check if a pin number matches one of the default UART0 GPIO pins.
 /// These pins may have residual IOMUX state from the ROM bootloader that
 /// must be cleared before UART reconfiguration.
@@ -239,15 +253,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 #ifdef USE_GPIO_HOLD
-  // If any of the UART pins are held, disable hold to allow uart control.
-  if (this->tx_pin_ != nullptr && this->tx_pin_->get_hold()) {
-    gpio_hold_dis(static_cast<gpio_num_t>(this->tx_pin_->get_pin()));
-  }
-  if (this->rx_pin_ != nullptr && this->rx_pin_->get_hold()) {
-    gpio_hold_dis(static_cast<gpio_num_t>(this->rx_pin_->get_pin()));
-  }
-  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->get_hold()) {
-    gpio_hold_dis(static_cast<gpio_num_t>(this->flow_control_pin_->get_pin()));
+  // Release held pins so the UART peripheral can drive them
+  for (auto *pin : {this->tx_pin_, this->rx_pin_, this->flow_control_pin_}) {
+    set_pin_hold(pin, false);
   }
 #endif
 
@@ -527,15 +535,9 @@ void IDFUARTComponent::on_shutdown() {
     ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
   }
 #ifdef USE_GPIO_HOLD
-  // If any of the UART pins are held, hold them so they retain their state.
-  if (this->tx_pin_ != nullptr && this->tx_pin_->get_hold()) {
-    gpio_hold_en(static_cast<gpio_num_t>(this->tx_pin_->get_pin()));
-  }
-  if (this->rx_pin_ != nullptr && this->rx_pin_->get_hold()) {
-    gpio_hold_en(static_cast<gpio_num_t>(this->rx_pin_->get_pin()));
-  }
-  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->get_hold()) {
-    gpio_hold_en(static_cast<gpio_num_t>(this->flow_control_pin_->get_pin()));
+  // Hold the pins again so they keep their state through the reset
+  for (auto *pin : {this->tx_pin_, this->rx_pin_, this->flow_control_pin_}) {
+    set_pin_hold(pin, true);
   }
 #endif
 }
