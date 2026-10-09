@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, modbus, sensor, text_sensor
-from esphome.components.const import CONF_BYTE_ORDER
+from esphome.components.const import CONF_BYTE_ORDER, CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE_POWER,
@@ -44,7 +44,6 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@sourabhjaiswal"]
 
-CONF_SERIAL_NUMBER = "serial_number"
 CONF_DG_SENSING = "dg_sensing"
 
 
