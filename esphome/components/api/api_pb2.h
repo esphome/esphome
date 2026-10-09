@@ -383,6 +383,15 @@ enum SerialProxyIdentityFlag : uint32_t {
   SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1,
   SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2,
 };
+#ifdef USE_SENDSPIN
+enum SendspinPairingTokenStatus : uint32_t {
+  SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY = 0,
+  SENDSPIN_PAIRING_TOKEN_STATUS_OK = 1,
+  SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED = 2,
+  SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED = 3,
+  SENDSPIN_PAIRING_TOKEN_STATUS_FAILED = 4,
+};
+#endif
 
 }  // namespace enums
 
@@ -737,10 +746,27 @@ class WizardCapabilities final : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_SENDSPIN
+class SendspinCapabilities final : public ProtoMessage {
+ public:
+  uint32_t feature_flags{0};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 class DeviceCapabilitiesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 150;
-  static constexpr uint8_t ESTIMATED_SIZE = 119;
+  static constexpr uint8_t ESTIMATED_SIZE = 136;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_capabilities_response"); }
 #endif
@@ -758,6 +784,9 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 #endif
 #ifdef USE_API_WIZARD
   WizardCapabilities wizard{};
+#endif
+#ifdef USE_SENDSPIN
+  SendspinCapabilities sendspin{};
 #endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -4125,6 +4154,29 @@ class BluetoothSetConnectionParamsResponse final : public ProtoMessage {
 #endif
   uint64_t address{0};
   int32_t error{0};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_SENDSPIN
+class SendspinPairingTokenResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 160;
+  static constexpr uint8_t ESTIMATED_SIZE = 11;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("sendspin_pairing_token_response"); }
+#endif
+  enums::SendspinPairingTokenStatus status{};
+  StringRef token{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

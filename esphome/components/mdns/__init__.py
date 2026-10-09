@@ -235,7 +235,7 @@ async def to_code(config: ConfigType) -> None:
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.12.0")
+        add_idf_component(name="espressif/mdns", ref="1.14.0")
         # ESPHome only advertises; the browse APIs are unused
         add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
         # The mdns console CLI is never used by ESPHome
