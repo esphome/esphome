@@ -12,7 +12,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
 

@@ -11,7 +11,7 @@
 
 namespace esphome::bme280_base {
 
-static const char *const TAG = "bme280.sensor";
+ESPHOME_LOG_TAG(TAG, "bme280.sensor");
 
 static const uint8_t BME280_REGISTER_DIG_T1 = 0x88;
 static const uint8_t BME280_REGISTER_DIG_T2 = 0x8A;

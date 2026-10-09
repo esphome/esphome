@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@descipher"]
+DOMAIN = "ld2420"
 
 DEPENDENCIES = ["uart"]
 

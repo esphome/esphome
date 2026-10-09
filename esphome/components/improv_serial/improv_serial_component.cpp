@@ -16,7 +16,7 @@
 
 namespace esphome::improv_serial {
 
-static const char *const TAG = "improv_serial";
+ESPHOME_LOG_TAG(TAG, "improv_serial");
 
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;

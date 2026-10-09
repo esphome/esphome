@@ -11,7 +11,7 @@ namespace esphome::selec_meter {
 
 namespace helpers = modbus::helpers;
 
-static const char *const TAG = "selec_meter";
+ESPHOME_LOG_TAG(TAG, "selec_meter");
 
 static const uint8_t EM2M_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 
