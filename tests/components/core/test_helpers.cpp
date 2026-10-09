@@ -440,12 +440,13 @@ TEST(RAMAllocatorMakeUnique, ArrayFormAllocatesElements) {
   EXPECT_EQ(buf[255], 0xA5);
 }
 
-TEST(Fnv1HashObjectId, ProgmemVariantMatches) {
-  // Values match Python fnv1_hash_object_id(); the _P variant must hash identically
+TEST(Fnv1HashObjectId, MatchesPythonThroughAnyReader) {
+  // 0x9d099819 is Python fnv1_hash_object_id("Living Room Temp")
   static const char NAME[] = "Living Room Temp";
   const size_t len = sizeof(NAME) - 1;
-  EXPECT_EQ(fnv1_hash_object_id_P(NAME, len), fnv1_hash_object_id(NAME, len));
-  EXPECT_EQ(fnv1_hash_object_id_P("", 0), fnv1_hash_object_id("", 0));
+  EXPECT_EQ(fnv1_hash_object_id(NAME, len), 0x9d099819u);
+  EXPECT_EQ(fnv1_hash_object_id_with(NAME, len, [](const char *p) { return *p; }), 0x9d099819u);
+  EXPECT_EQ(fnv1_hash_object_id_P(NAME, len), 0x9d099819u);
 }
 
 }  // namespace esphome::core::testing

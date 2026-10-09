@@ -262,7 +262,7 @@ class ProgmemStringRef {
   constexpr StringRef ram_ref() const { return StringRef(this->base_, this->len_); }
 #endif
 
-  // Remove before 2027.5.0 (helpers.h's ESPDEPRECATED is not reachable from here)
+  // Remove before 2027.5.0
   [[deprecated(
       "May point to flash; use progmem_ptr() or the owner's accessors. Removed in 2027.5.0")]] constexpr const char *
   c_str() const {

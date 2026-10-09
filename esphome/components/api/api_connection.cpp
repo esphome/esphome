@@ -474,9 +474,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
   msg.key = entity->get_object_id_hash();
 
   if (entity->has_own_name()) {
-    // name is a progmem field, so it is encoded straight from flash
-    const ProgmemStringRef &name = entity->get_name_progmem();
-    msg.name = StringRef(name.progmem_ptr(), name.size());
+    msg.name = entity->get_name_progmem();  // encoded straight from flash
   }
 
   // Set common EntityBase properties

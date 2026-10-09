@@ -415,23 +415,27 @@ def test_progmem_rejected_on_non_bytes_field() -> None:
         create_field_type_info(field, needs_decode=False)
 
 
+def test_progmem_string_field_copies_from_flash() -> None:
+    """A short forced (progmem) string field encodes and dumps through the progmem helpers."""
+    field = _field(9, force=True)
+    field.options.Extensions[pb.progmem] = True
+    field.options.Extensions[pb.max_data_length] = 120
+    ti = create_field_type_info(field, needs_decode=False)
+    assert "ProgmemStringRef value{};" in ti.public_content
+    assert "encode_short_progmem_string_force(" in ti.encode_content
+    assert "dump_progmem_string_field(" in ti.dump_content
+
+
 @pytest.mark.parametrize(
-    ("force", "max_len", "encode_fn"),
-    [
-        (True, 120, "encode_short_progmem_string_force("),
-        (False, None, "encode_progmem_bytes("),
-        (True, None, "encode_progmem_bytes_force("),
-    ],
+    ("force", "max_len"), [(False, 120), (True, None), (True, 200)]
 )
-def test_progmem_string_field_copies_from_flash(
-    force: bool, max_len: int | None, encode_fn: str
+def test_progmem_string_requires_short_forced_field(
+    force: bool, max_len: int | None
 ) -> None:
-    """A (progmem) string field encodes and dumps through the progmem_memcpy helpers."""
+    """A (progmem) string field must take the short encode path, the only one that reads flash."""
     field = _field(9, force=force)
     field.options.Extensions[pb.progmem] = True
     if max_len is not None:
         field.options.Extensions[pb.max_data_length] = max_len
-    ti = create_field_type_info(field, needs_decode=False)
-    assert encode_fn in ti.encode_content
-    assert "encode_string" not in ti.encode_content
-    assert "dump_progmem_string_field(" in ti.dump_content
+    with pytest.raises(ValueError, match="progmem on field 'value'"):
+        create_field_type_info(field, needs_decode=False)

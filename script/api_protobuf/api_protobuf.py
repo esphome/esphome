@@ -536,21 +536,24 @@ def create_field_type_info(
             f"track_presence on field '{field.name}' has no effect; it requires "
             "a non-repeated message field in a message that is decoded"
         )
-    if get_field_opt(field, pb.progmem, False) and (
-        field.label == FieldDescriptorProto.LABEL_REPEATED
-        or (
-            field.type != 9
-            and (
-                field.type != 12
-                or not get_field_opt(field, pb.pointer_to_buffer, False)
-                or get_field_opt(field, pb.fixed_array_size) is not None
+    if get_field_opt(field, pb.progmem, False):
+        is_short_string = (
+            field.type == FieldDescriptorProto.TYPE_STRING
+            and get_field_opt(field, pb.force, False)
+            and (get_field_opt(field, pb.max_data_length) or 128) < 128
+        )
+        is_pointer_bytes = (
+            field.type == FieldDescriptorProto.TYPE_BYTES
+            and get_field_opt(field, pb.pointer_to_buffer, False)
+            and get_field_opt(field, pb.fixed_array_size) is None
+        )
+        if field.label == FieldDescriptorProto.LABEL_REPEATED or not (
+            is_short_string or is_pointer_bytes
+        ):
+            raise ValueError(
+                f"progmem on field '{field.name}' requires a forced string field with "
+                "max_data_length below 128, or a bytes field with pointer_to_buffer"
             )
-        )
-    ):
-        raise ValueError(
-            f"progmem on field '{field.name}' requires a non-repeated string field, "
-            "or a bytes field with pointer_to_buffer"
-        )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
         if get_field_opt(field, pb.packed_buffer, False):
@@ -1262,6 +1265,8 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def public_content(self) -> list[str]:
+        if self.progmem:
+            return [f"ProgmemStringRef {self.field_name}{{}};"]
         if self._starts_null:
             return [
                 f"StringRef {self.field_name}{{nullptr, 0}};  // null until set, encode only"
@@ -1283,14 +1288,6 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
                     else "encode_short_string_force"
                 )
                 return _encode_call(encode_fn, str(tag), f"this->{self.field_name}")
-        if self.progmem:
-            return _encode_call(
-                "encode_progmem_bytes",
-                str(self.number),
-                f"reinterpret_cast<const uint8_t *>(this->{self.field_name}.c_str())",
-                f"this->{self.field_name}.size()",
-                force=self.force,
-            )
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
@@ -3393,12 +3390,10 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
 }
 
 // Helper for string fields in flash: copies the shown characters out with progmem_memcpy first
-static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const StringRef &value,
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
                                       int indent = 2) {
   char buf[DUMP_BYTES_MAX];
-  size_t len = std::min(value.size(), sizeof(buf));
-  progmem_memcpy(buf, value.c_str(), len);
-  dump_field(out, field_name, StringRef(buf, len), indent);
+  dump_field(out, field_name, StringRef(buf, value.write_to(buf, sizeof(buf))), indent);
 }
 #pragma GCC diagnostic pop
 

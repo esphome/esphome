@@ -873,7 +873,7 @@ void Sprinkler::reset_resume() {
 #ifndef USE_ESP8266
 const char *Sprinkler::valve_name(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].controller_switch->get_name_progmem().progmem_ptr();  // RAM off ESP8266
+    return this->valve_[valve_number].controller_switch->get_name_progmem().ram_ref().c_str();
   }
   return nullptr;
 }

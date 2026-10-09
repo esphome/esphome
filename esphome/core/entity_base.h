@@ -82,7 +82,7 @@ class EntityBase {
   }
   /// Get the name of this Entity, copied out of flash into buffer.
   StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
-    return StringRef(buffer.data(), this->name_.write_to(buffer.data(), buffer.size()));
+    return StringRef(buffer.data(), this->write_name_to(buffer.data(), buffer.size()));
   }
 #else
   ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")

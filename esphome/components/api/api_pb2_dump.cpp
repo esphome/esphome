@@ -136,11 +136,10 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
 }
 
 // Helper for string fields in flash: copies the shown characters out with progmem_memcpy first
-static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const StringRef &value, int indent = 2) {
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
+                                      int indent = 2) {
   char buf[DUMP_BYTES_MAX];
-  size_t len = std::min(value.size(), sizeof(buf));
-  progmem_memcpy(buf, value.c_str(), len);
-  dump_field(out, field_name, StringRef(buf, len), indent);
+  dump_field(out, field_name, StringRef(buf, value.write_to(buf, sizeof(buf))), indent);
 }
 #pragma GCC diagnostic pop
 
