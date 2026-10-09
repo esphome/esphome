@@ -258,6 +258,24 @@ class _Batch:
         self.components.append(item.component)
 
 
+def _placement_key(
+    batch: _Batch, item: _BatchItem, lightest: int, slack: int
+) -> tuple[bool, int, int]:
+    """Rank a runner for item.
+
+    Runners that would end within slack seconds of the lightest result
+    compete on how few seconds item adds to them, so a component lands with
+    the bus group partners it shares builds with; a component placed away
+    from them builds alone on every platform they only share there. Runners
+    beyond that compete on load alone, which keeps the spread bounded.
+    """
+    added = batch.added_seconds(item)
+    result = batch.seconds + added
+    if result > lightest + slack:
+        return (True, result, 0)
+    return (False, added, result)
+
+
 def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[str]]:
     """Spread items over enough runners to stay near target_seconds each.
 
@@ -274,10 +292,10 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     total = whole.seconds
     count = min(len(items), max(1, math.ceil(total / target_seconds)))
     batches = [_Batch() for _ in range(count)]
+    slack = target_seconds // 4
     for item in sorted(items, key=lambda i: (-i.standalone_seconds(), i.component)):
-        min(batches, key=lambda b: (b.seconds + b.added_seconds(item), b.seconds)).add(
-            item
-        )
+        lightest = min(b.seconds + b.added_seconds(item) for b in batches)
+        min(batches, key=lambda b: _placement_key(b, item, lightest, slack)).add(item)
     return [batch.components for batch in batches if batch.components]
 
 
