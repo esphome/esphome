@@ -8,7 +8,7 @@
 
 namespace esphome::xgzp68xx {
 
-static const char *const TAG = "xgzp68xx.sensor";
+ESPHOME_LOG_TAG(TAG, "xgzp68xx.sensor");
 
 static const uint8_t CMD_ADDRESS = 0x30;
 static const uint8_t SYSCONFIG_ADDRESS = 0xA5;

@@ -6,11 +6,7 @@
 
 namespace esphome::text {
 
-static const char *const TAG = "text";
-
-void Text::publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
-
-void Text::publish_state(const char *state) { this->publish_state(state, strlen(state)); }
+ESPHOME_LOG_TAG(TAG, "text");
 
 void Text::publish_state(const char *state, size_t len) {
   this->set_has_state(true);

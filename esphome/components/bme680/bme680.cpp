@@ -4,7 +4,7 @@
 
 namespace esphome::bme680 {
 
-static const char *const TAG = "bme680.sensor";
+ESPHOME_LOG_TAG(TAG, "bme680.sensor");
 
 static const uint8_t BME680_REGISTER_COEFF1 = 0x89;
 static const uint8_t BME680_REGISTER_COEFF2 = 0xE1;
@@ -327,10 +327,12 @@ void BME680Component::read_data_() {
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%% gas_resistance=%.1fΩ", temperature, pressure,
            humidity, gas_resistance);
-  if (!gas_valid)
+  if (!gas_valid) {
     ESP_LOGW(TAG, "Gas measurement unsuccessful, reading invalid!");
-  if (!heat_stable)
+  }
+  if (!heat_stable) {
     ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
+  }
 
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
@@ -501,7 +503,6 @@ void BME680Component::set_pressure_oversampling(BME680Oversampling pressure_over
 void BME680Component::set_humidity_oversampling(BME680Oversampling humidity_oversampling) {
   this->humidity_oversampling_ = humidity_oversampling;
 }
-void BME680Component::set_iir_filter(BME680IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 void BME680Component::set_heater(uint16_t heater_temperature, uint16_t heater_duration) {
   this->heater_temperature_ = heater_temperature;
   this->heater_duration_ = heater_duration;

@@ -35,7 +35,7 @@ from esphome.core import (
     TimePeriod,
 )
 from esphome.expression import has_substitution_or_expression
-from esphome.helpers import add_class_to_obj
+from esphome.helpers import FALSY_BOOL_STRINGS, TRUTHY_BOOL_STRINGS, add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,6 +73,12 @@ def _record_dropped_merge_key(parent_file: Path, key: Any) -> None:
 def take_dropped_merge_keys() -> list[tuple[str, str]]:
     """Return and clear the keys dropped during ``<<`` merges so far."""
     return CORE.data.pop(_MERGE_WARNINGS_KEY, [])
+
+
+def _raise_invalid(message: str) -> None:
+    from voluptuous import Invalid
+
+    raise Invalid(message)
 
 
 class SensitiveStr(str):
@@ -224,16 +230,18 @@ class IncludeFile:
 
     Created during YAML parsing instead of loading the file immediately,
     allowing substitution variables to appear in the filename path
-    (e.g. ``!include device-${platform}.yaml``). The actual file is
-    loaded on the first call to ``load()``, and the result is cached.
+    (e.g. ``!include device-${platform}.yaml``) and in an optional condition.
+    The actual file is loaded on the first call to ``load()``, and the result
+    is cached. The client is responsible for testing the condition if needed.
     """
 
     def __init__(
         self,
         parent_file: Path,
         file: str,
-        vars: dict[str, Any] | None,
         yaml_loader: Callable[[Path], Any],
+        vars: dict[str, Any] | None = None,
+        condition: bool | str | None = None,
     ) -> None:
         self.parent_file = parent_file
         # The raw include text may be a substitution/Jinja expression, so it
@@ -241,8 +249,9 @@ class IncludeFile:
         # rewrites "/" to "\", which Jinja then decodes as escapes like
         # "\b" -> backspace (issue #18545).
         self.file = file
-        self.vars = vars
         self.yaml_loader = yaml_loader
+        self.vars = vars
+        self.condition = condition
         self._content: Any = _UNSET
 
     def __repr__(self) -> str:
@@ -256,23 +265,62 @@ class IncludeFile:
         """
         if self._content is not _UNSET:
             return self._content
-        if self.has_unresolved_expressions():
-            from voluptuous import Invalid
-
-            raise Invalid(
+        if self.has_unresolved_file():
+            _raise_invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )
         self._content = self.yaml_loader(self.parent_file.parent / self.file)
         self._content = add_context(self._content, self.vars)
         return self._content
 
-    def has_unresolved_expressions(self) -> bool:
+    def has_unresolved_file(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
         return has_substitution_or_expression(self.file)
 
+    def should_load(self) -> bool:
+        """Evaluates the condition and returns True if the file should be loaded."""
+        if self.condition is None:
+            return True
+        if isinstance(self.condition, bool):
+            return self.condition
+        if self.has_unresolved_condition():
+            _raise_invalid(
+                f"Cannot evaluate include condition for '{self.file}' with unresolved substitutions: {self.condition}"
+            )
+        value = self.condition.lower()
+        if value in TRUTHY_BOOL_STRINGS:
+            return True
+        if value not in FALSY_BOOL_STRINGS:
+            _raise_invalid(
+                f"Cannot convert include condition for '{self.file}' to a boolean, please use 'true' or 'false': {self.condition}"
+            )
+        return False
+
+    def has_unresolved_condition(self) -> bool:
+        """Check if the condition contains substitution variables or Jinja expressions."""
+        return isinstance(self.condition, str) and has_substitution_or_expression(
+            self.condition
+        )
+
     def with_file(self, file: str) -> IncludeFile:
         """Clone this include with *file* as the filename."""
-        return IncludeFile(self.parent_file, file, self.vars, self.yaml_loader)
+        return IncludeFile(
+            self.parent_file,
+            file,
+            self.yaml_loader,
+            vars=self.vars,
+            condition=self.condition,
+        )
+
+    def with_condition(self, condition: bool | str | None) -> IncludeFile:
+        """Clone this include with *condition* as the condition."""
+        return IncludeFile(
+            self.parent_file,
+            self.file,
+            self.yaml_loader,
+            vars=self.vars,
+            condition=condition,
+        )
 
 
 def _is_visible_path(rel: Path) -> bool:
@@ -434,7 +482,7 @@ def force_load_include_files(
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
-        if obj.has_unresolved_expressions():
+        if obj.has_unresolved_file():
             _load_include_candidates(
                 obj,
                 warn_on_unresolved=warn_on_unresolved,
@@ -578,14 +626,21 @@ def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -
     for _ in range(_MAX_MERGE_INCLUDE_DEPTH):
         if not isinstance(value, IncludeFile):
             break
-        if value.has_unresolved_expressions():
+        if value.has_unresolved_file():
             raise yaml.constructor.ConstructorError(
                 "While constructing a mapping",
                 node.start_mark,
                 "Substitution in include filename with merge keys is not supported yet.",
                 value_node.start_mark,
             )
-        value = value.load()
+        if value.has_unresolved_condition():
+            raise yaml.constructor.ConstructorError(
+                "While constructing a mapping",
+                node.start_mark,
+                "Substitution in include condition with merge keys is not supported yet.",
+                value_node.start_mark,
+            )
+        value = value.load() if value.should_load() else {}
     else:
         raise yaml.constructor.ConstructorError(
             "While constructing a mapping",
@@ -791,11 +846,11 @@ class ESPHomeLoaderMixin:
 
     @_add_data_ref
     def construct_include(self, node: yaml.Node) -> Any:
-        from esphome.const import CONF_VARS
+        from esphome.const import CONF_CONDITION, CONF_FILE, CONF_VARS
 
-        def extract_file_vars(node):
+        def extract_fields(node):
             fields = self.construct_yaml_map(node)
-            file = fields.get("file")
+            file = fields.get(CONF_FILE)
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
             if not isinstance(file, str):
@@ -803,14 +858,21 @@ class ESPHomeLoaderMixin:
                     "Include 'file' must be a string", node.start_mark
                 )
             vars = fields.get(CONF_VARS)
-            return file, vars
+            condition = fields.get(CONF_CONDITION)
+            if condition is not None and not isinstance(condition, (bool, str)):
+                raise yaml.MarkedYAMLError(
+                    "Include 'condition' must be a boolean or string", node.start_mark
+                )
+            return file, vars, condition
 
         if isinstance(node, yaml.nodes.MappingNode):
-            file, vars = extract_file_vars(node)
+            file, vars, condition = extract_fields(node)
         else:
-            file, vars = node.value, None
+            file, vars, condition = node.value, None, None
 
-        return IncludeFile(self.name, file, vars, self.yaml_loader)
+        return IncludeFile(
+            self.name, file, self.yaml_loader, vars=vars, condition=condition
+        )
 
     # Directory includes (!include_dir_*) load eagerly during YAML parsing
     # because their paths are directory names, not individual files, and
@@ -967,7 +1029,7 @@ def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> An
     # Top-level !include returns a deferred IncludeFile; resolve it so
     # callers always receive the final content.
     if isinstance(res, IncludeFile):
-        res = res.load()
+        res = res.load() if res.should_load() else {}
     return res
 
 
@@ -1057,11 +1119,19 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
-def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = None):
+def dump(
+    dict_,
+    show_secrets=False,
+    sort_keys=False,
+    relative_to: Path | None = None,
+    data_dir: Path | None = None,
+):
     """Dump YAML to a string and remove null.
 
     When ``relative_to`` is given, Path values are dumped relative to that
-    directory (POSIX form) so the output is machine independent.
+    directory (POSIX form) so the output is machine independent; Path values
+    under ``data_dir`` are then dumped as ``.esphome/<rest>``. ``data_dir``
+    has no effect unless ``relative_to`` is also given.
     """
     if show_secrets:
         _SECRET_VALUES.clear()
@@ -1073,6 +1143,7 @@ def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = 
     class _Dumper(ESPHomeDumper):
         _redact_sensitive = not show_secrets
         _relative_to = relative_to
+        _data_dir = data_dir
 
     return yaml.dump(
         dict_,
@@ -1231,6 +1302,9 @@ class ESPHomeDumper(yaml.SafeDumper):
     # directory (in POSIX form) so the output does not depend on where the
     # config lives on the machine that produced it.
     _relative_to: Path | None = None
+    # Paths under this directory are dumped as ``.esphome/<rest>`` so the
+    # add-on's ``/data`` mount matches the CLI layout.
+    _data_dir: Path | None = None
 
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
@@ -1274,6 +1348,12 @@ class ESPHomeDumper(yaml.SafeDumper):
             # path that still cannot be relativized (e.g. a different drive)
             # keeps its POSIX form so separators stay stable across OSes.
             path = Path(os.path.normpath(value))
+            # Checked first: the default data dir sits inside the config dir.
+            if self._data_dir is not None and path.is_relative_to(
+                data_dir := os.path.normpath(self._data_dir)
+            ):
+                rel = Path(".esphome") / path.relative_to(data_dir)
+                return self.represent_stringify(rel.as_posix())
             with suppress(ValueError):
                 path = path.relative_to(
                     os.path.normpath(self._relative_to), walk_up=True
@@ -1340,8 +1420,12 @@ class ESPHomeDumper(yaml.SafeDumper):
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
-        if value.vars:
-            mapping = {"file": value.file, "vars": value.vars}
+        if value.vars or value.condition is not None:
+            mapping = {"file": value.file}
+            if value.vars:
+                mapping["vars"] = value.vars
+            if value.condition is not None:
+                mapping["condition"] = value.condition
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )

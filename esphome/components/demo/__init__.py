@@ -55,6 +55,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = [
     "alarm_control_panel",
@@ -75,6 +76,7 @@ AUTO_LOAD = [
     "text_sensor",
     "valve",
 ]
+DOMAIN = "demo"
 
 demo_ns = cg.esphome_ns.namespace("demo")
 DemoAlarmControlPanel = demo_ns.class_(
@@ -550,7 +552,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for conf in config[CONF_ALARM_CONTROL_PANELS]:
         var = await alarm_control_panel.new_alarm_control_panel(conf)
         cg.add(var.set_type(conf[CONF_TYPE]))

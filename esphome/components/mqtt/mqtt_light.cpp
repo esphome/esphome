@@ -10,7 +10,7 @@
 #include "esphome/components/light/light_json_schema.h"
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.light";
+ESPHOME_LOG_TAG(TAG, "mqtt.light");
 
 using namespace esphome::light;
 
@@ -66,6 +66,9 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
     color_modes.add(ESPHOME_F("rgbw"));
   if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
     color_modes.add(ESPHOME_F("rgbww"));
+
+  if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
+    root[ESPHOME_F("brightness")] = true;
 
   if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
       traits.supports_color_mode(ColorMode::COLD_WARM_WHITE)) {

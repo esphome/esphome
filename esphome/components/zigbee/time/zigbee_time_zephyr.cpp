@@ -1,10 +1,11 @@
 #include "zigbee_time_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_TIME)
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.time";
+ESPHOME_LOG_TAG(TAG, "zigbee.time");
 
 // This time standard is the number of
 // seconds since 0 hrs 0 mins 0 sec on 1st January 2000 UTC (Universal Coordinated Time).
@@ -47,6 +48,7 @@ void ZigbeeTime::set_epoch_time(uint32_t epoch) {
     this->synchronize_epoch_(epoch);
     this->has_time_ = true;
   });
+  App.wake_loop_threadsafe();
 }
 
 void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {

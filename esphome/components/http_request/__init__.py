@@ -17,17 +17,20 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
+    PLATFORM_ESP32,
     PLATFORM_HOST,
     PlatformFramework,
     __version__,
 )
-from esphome.core import CORE, ID, Lambda
+from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
+DOMAIN = "http_request"
 
 http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)
@@ -94,6 +97,34 @@ def validate_ssl_verification(config: ConfigType) -> ConfigType:
     return config
 
 
+# esp_http_client_open() runs DNS, TCP connect and the TLS handshake with no
+# watchdog feed in between; each can take up to `timeout` on ESP-IDF.
+WATCHDOG_TIMEOUT_MULTIPLIER = 3
+# Headroom over the exact worst case so a fully stalled open does not land on
+# the watchdog deadline.
+WATCHDOG_TIMEOUT_MARGIN_MS = 1000
+
+
+def default_watchdog_timeout(config: ConfigType) -> None:
+    """Arm the request watchdog on ESP32 when the user did not set it.
+
+    The default never goes below the platform task watchdog, so a user who
+    widened `esp32.watchdog_timeout` keeps that window during requests.
+    """
+    if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
+        return
+    derived_ms = (
+        config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
+        + WATCHDOG_TIMEOUT_MARGIN_MS
+    )
+    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
+        CONF_WATCHDOG_TIMEOUT
+    ].total_milliseconds
+    config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
+        milliseconds=max(derived_ms, platform_ms)
+    )
+
+
 def _declare_request_class(value: Any) -> ID:
     if CORE.is_host:
         return cv.declare_id(HttpRequestHost)(value)
@@ -153,6 +184,8 @@ CONFIG_SCHEMA = cv.All(
     validate_ssl_verification,
 )
 
+FINAL_VALIDATE_SCHEMA = default_watchdog_timeout
+
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -170,11 +203,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
-        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time).
-        # esp-tls is re-enabled too because http_request includes <esp_tls.h>
-        # directly and esp_http_client only pulls it in as a private dependency.
-        esp32.include_builtin_idf_component("esp_http_client")
-        esp32.include_builtin_idf_component("esp-tls")
+        esp32.request_http_client()
 
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
@@ -196,9 +225,7 @@ async def to_code(config: ConfigType) -> None:
                 #     framework:
                 #       advanced:
                 #         use_full_certificate_bundle: true
-                esp32.add_idf_sdkconfig_option(
-                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
-                )
+                esp32.require_certificate_bundle()
 
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_TLS_INSECURE",

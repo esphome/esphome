@@ -7,7 +7,7 @@
 
 namespace esphome::pvvx_mithermometer {
 
-static const char *const TAG = "display.pvvx_mithermometer";
+ESPHOME_LOG_TAG(TAG, "display.pvvx_mithermometer");
 
 void PVVXDisplay::dump_config() {
   char service_buf[ble_device_base::UUID_STR_LEN];

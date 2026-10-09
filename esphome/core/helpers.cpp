@@ -8,7 +8,6 @@
 
 #include <strings.h>
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -20,7 +19,16 @@
 
 namespace esphome {
 
-static const char *const TAG = "helpers";
+#ifdef USE_ESP8266
+std::string progmem_string(ProgmemStr str) {
+  auto *src = reinterpret_cast<PGM_P>(str);
+  std::string result(strlen_P(src), '\0');
+  memcpy_P(result.data(), src, result.size());
+  return result;
+}
+#endif
+
+ESPHOME_LOG_TAG(TAG, "helpers");
 
 __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
                                                             size_t elem_size) {
@@ -233,6 +241,26 @@ bool str_contains_ignore_case_fallback(const char *haystack, const char *needle)
   return false;
 }
 
+#ifdef USE_ESP8266
+// _P mirror of str_contains_ignore_case_fallback above; host tests cover only the fallback,
+// so keep the two bodies in sync.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle) {
+  if (haystack == nullptr || needle == nullptr) {
+    return false;
+  }
+  const size_t needle_len = strlen_P(needle);
+  if (needle_len == 0) {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    if (strncasecmp_P(p, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+#endif  // USE_ESP8266
+
 // str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
@@ -247,9 +275,6 @@ char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
 }
 
 // str_sanitize, str_snprintf, str_sprintf moved to alloc_helpers.cpp
-
-// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
-static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len) {
@@ -269,17 +294,6 @@ size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *na
   memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
   buffer[total_len] = '\0';
   return total_len;
-}
-
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len) {
-  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
-  size_t len = make_name_with_suffix_to(buffer, sizeof(buffer), name, name_len, sep, suffix_ptr, suffix_len);
-  return std::string(buffer, len);
-}
-
-std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
-  return make_name_with_suffix(name.c_str(), name.size(), sep, suffix_ptr, suffix_len);
 }
 
 // Parsing & formatting
@@ -562,7 +576,7 @@ size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float 
   }
 
   // Fallback for NaN/Inf/high accuracy/out-of-range
-  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
+  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, static_cast<double>(value));
   if (len < 0)
     return 0;
   return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
@@ -580,27 +594,37 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 }
 
 int8_t step_to_accuracy_decimals(float step) {
-  // use printf %g to find number of digits based on temperature step
-  char buf[32];
-  snprintf(buf, sizeof buf, "%.5g", step);
-
-  std::string str{buf};
-  size_t dot_pos = str.find('.');
-  if (dot_pos == std::string::npos)
+  // Decimals needed to show the step at five significant digits, trailing zeros dropped.
+  if (!std::isfinite(step) || step == 0.0f)
     return 0;
-
-  return str.length() - dot_pos - 1;
+  float mantissa = std::fabs(step);
+  int8_t decimals = 4;  // decimals needed for five significant digits when mantissa is in [1, 10)
+  while (mantissa >= 10.0f) {
+    mantissa /= 10.0f;
+    decimals--;
+  }
+  while (mantissa < 1.0f) {
+    mantissa *= 10.0f;
+    decimals++;
+  }
+  if (decimals <= 0)
+    return 0;
+  float scaled = mantissa * 10000.0f;
+  auto digits = static_cast<uint32_t>(scaled);
+  if (scaled - static_cast<float>(digits) >= 0.5f)
+    digits++;
+  while (decimals > 0 && digits % 10 == 0) {
+    digits /= 10;
+    decimals--;
+  }
+  return decimals;
 }
 
-// Map a base64/base64url character to its 6-bit value (0-63) arithmetically.
-// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
-// Supports both standard base64 (+/) and base64url (-_) alphabets.
-// NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
-// This is safe because is_base64() is ALWAYS checked before calling this function,
-// preventing invalid characters from ever reaching here. The base64_decode function
-// stops processing at the first invalid character due to the is_base64() check in its
-// while loop condition, making this edge case harmless in practice.
-static inline uint8_t base64_find_char(char c) {
+static constexpr uint8_t INVALID_BASE64_CHAR = 0xFF;
+
+// 6-bit value of a base64 or base64url char, or INVALID_BASE64_CHAR.
+// No lookup table: .rodata lives in DRAM on ESP8266.
+static constexpr uint8_t base64_char_value(uint8_t c) {
   if (c >= 'A' && c <= 'Z')
     return c - 'A';
   if (c >= 'a' && c <= 'z')
@@ -612,11 +636,8 @@ static inline uint8_t base64_find_char(char c) {
     return 62;
   if (c == '/' || c == '_')
     return 63;
-  return 0;
+  return INVALID_BASE64_CHAR;
 }
-
-// Check if character is valid base64 or base64url
-static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/') || (c == '-') || (c == '_')); }
 
 // base64_encode (both overloads) moved to alloc_helpers.cpp
 
@@ -624,58 +645,26 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
   return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
 }
 
-// Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated.
-static inline bool base64_decode_quad(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
-  for (int i = 0; i < 4; i++)
-    char_array_4[i] = base64_find_char(char_array_4[i]);
-
-  uint8_t char_array_3[3];
-  char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-  char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-  char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-  bool truncated = false;
-  for (int j = 0; j < count; j++) {
-    if (out < buf_len) {
-      buf[out++] = char_array_3[j];
-    } else {
-      truncated = true;
-    }
-  }
-  return truncated;
-}
-
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
-  size_t in_len = encoded_len;
-  int i = 0;
-  size_t in = 0;
   size_t out = 0;
-  uint8_t char_array_4[4];
-  bool truncated = false;
-
-  // SAFETY: The loop condition checks is_base64() before processing each character.
-  // This ensures base64_find_char() is only called on valid base64 characters,
-  // preventing the edge case where invalid chars would return 0 (same as 'A').
-  while (in_len-- && (encoded_data[in] != '=') && is_base64(encoded_data[in])) {
-    char_array_4[i++] = encoded_data[in];
-    in++;
-    if (i == 4) {
-      truncated |= base64_decode_quad(char_array_4, 3, buf, buf_len, out);
-      i = 0;
+  uint32_t accum = 0;
+  uint32_t bits = 0;
+  // Stops at '=' or any non-alphabet char; leftover bits of a partial group are dropped.
+  for (size_t in = 0; in < encoded_len; in++) {
+    uint8_t value = base64_char_value(encoded_data[in]);
+    if (value == INVALID_BASE64_CHAR)
+      break;
+    accum = (accum << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      if (out == buf_len) {
+        ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+        return out;
+      }
+      buf[out++] = static_cast<uint8_t>(accum >> bits);
     }
   }
-
-  if (i) {
-    for (int j = i; j < 4; j++)
-      char_array_4[j] = 0;
-
-    truncated |= base64_decode_quad(char_array_4, i - 1, buf, buf_len, out);
-  }
-
-  if (truncated) {
-    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
-  }
-
   return out;
 }
 
@@ -722,23 +711,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 }
 
 // Colors
-
-float gamma_correct(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
-float gamma_uncorrect(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
   float max_color_value = std::max({red, green, blue});

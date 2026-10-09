@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/sensor/sensor.h"

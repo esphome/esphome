@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
 )
+from esphome.types import ConfigType
 
 CONF_GPS_ID = "gps_id"
 CONF_HDOP = "hdop"
@@ -32,6 +33,7 @@ DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor"]
 
 CODEOWNERS = ["@coogle", "@ximex"]
+DOMAIN = "gps"
 
 gps_ns = cg.esphome_ns.namespace("gps")
 GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
@@ -93,7 +95,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

@@ -1,8 +1,12 @@
 """ESP-IDF direct build generator for ESPHome."""
 
 import json
+import logging
 from pathlib import Path
+import re
+import textwrap
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
@@ -11,12 +15,15 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.espidf import variant_to_idf_target
 from esphome.framework_helpers import (
     get_project_compile_flags,
     get_project_cxx_compile_flags,
     get_project_link_flags,
 )
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
+
+_LOGGER = logging.getLogger(__name__)
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
@@ -29,13 +36,91 @@ list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
 list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
+# Drops the app archive from ldgen's inputs so app-only edits skip the
+# sections.ld regeneration. Safe: no mapping fragment references it
+# (run_compile re-checks each build). Filters only the top-level call;
+# the prior definition stays reachable with an underscore prefix.
+_LDGEN_OVERRIDE = """\
+if(COMMAND __ldgen_get_lib_deps_of_target)
+    set_property(GLOBAL PROPERTY ESPHOME_LDGEN_ARMED 1)
+    function(__ldgen_get_lib_deps_of_target target out_list_var)
+        if(NOT COMMAND ___ldgen_get_lib_deps_of_target)
+            message(FATAL_ERROR "ESPHome ldgen override lost the original "
+                "implementation; set ESPHOME_LDGEN_FULL_DEPS=1 and rebuild.")
+        endif()
+        ___ldgen_get_lib_deps_of_target(${target} ${out_list_var})
+        if(out_list_var STREQUAL "ldgen_libraries")
+            set_property(GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED 1)
+            list(LENGTH ${out_list_var} esphome_ldgen_before)
+            list(REMOVE_ITEM ${out_list_var} idf::src __idf_src)
+            list(LENGTH ${out_list_var} esphome_ldgen_after)
+            if(esphome_ldgen_before EQUAL esphome_ldgen_after)
+                message(@SEVERITY@ "ESPHome ldgen app archive exclusion matched "
+                    "nothing; app edits will regenerate sections.ld.")
+            endif()
+        endif()
+        set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)
+    endfunction()
+else()
+    message(@MISSING@ "ESPHome ldgen override target not found; "
+        "app edits will regenerate sections.ld.")
+endif()"""
+
+# lwip sources that compile to empty objects with the option off (their own
+# #if guard). (option, regex valid for both Python and CMake); a source is
+# only dropped when its option is defined and off, so a renamed option
+# keeps it.
+LWIP_EMPTY_SOURCES: tuple[tuple[str, str], ...] = (
+    ("CONFIG_LWIP_PPP_SUPPORT", "/netif/ppp/"),
+    ("CONFIG_LWIP_IPV6", "/core/ipv6/"),
+    ("CONFIG_LWIP_AUTOIP", "/core/ipv4/autoip[.]c$"),
+    ("CONFIG_LWIP_STATS", "/core/stats[.]c$"),
+)
+# Drift guard only: keep every lwip source.
+LWIP_FULL_SOURCES_ENV = "ESPHOME_LWIP_FULL_SOURCES"
+
+# Drops the empty objects after project(), once the lwip target exists.
+_LWIP_EMPTY_SOURCES_FILTER = f"""\
+idf_build_get_property(esphome_build_components BUILD_COMPONENTS)
+if(lwip IN_LIST esphome_build_components AND NOT DEFINED ENV{{{LWIP_FULL_SOURCES_ENV}}})
+    idf_component_get_property(esphome_lwip_lib lwip COMPONENT_LIB)
+    get_target_property(esphome_lwip_srcs ${{esphome_lwip_lib}} SOURCES)
+@FILTERS@
+    set_property(TARGET ${{esphome_lwip_lib}} PROPERTY SOURCES ${{esphome_lwip_srcs}})
+endif()"""
+
+
+def lwip_empty_source_gate(option: str, regex: str) -> str:
+    return (
+        f"    if(DEFINED {option} AND NOT {option})\n"
+        f'        list(FILTER esphome_lwip_srcs EXCLUDE REGEX "{regex}")\n'
+        "    endif()"
+    )
+
+
+def _lwip_empty_sources_filter() -> str:
+    gates = "\n".join(lwip_empty_source_gate(*entry) for entry in LWIP_EMPTY_SOURCES)
+    return _LWIP_EMPTY_SOURCES_FILTER.replace("@FILTERS@", gates)
+
+
+# Runs after project() so the walk has happened; catches the remaining
+# silent path where the top-level out-var was renamed.
+_LDGEN_OVERRIDE_CHECK = """\
+get_property(esphome_ldgen_armed GLOBAL PROPERTY ESPHOME_LDGEN_ARMED)
+get_property(esphome_ldgen_filtered GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED)
+if(esphome_ldgen_armed AND NOT esphome_ldgen_filtered)
+    message(@SEVERITY@ "ESPHome ldgen override never filtered the app "
+        "archive; app edits will regenerate sections.ld.")
+endif()"""
+
 
 def get_available_components() -> list[str] | None:
-    """Get list of built-in ESP-IDF components from project_description.json.
+    """List the built-in ESP-IDF components from ``project_description.json``.
 
-    Excludes ``src``, IDF-managed components (``managed_components/``), and
-    converted PIO libs (``pio_components/``). Returns ``None`` if the build
-    dir or ``project_description.json`` isn't ready yet.
+    Only components below its ``idf_path/components`` count, which leaves out
+    ``src``, IDF-managed components, converted PIO libs and project local
+    ones such as the Arduino ``component_stubs``. Returns ``None`` if the
+    build dir or ``project_description.json`` isn't ready yet.
     """
     if CORE.build_path is None:
         return None
@@ -46,30 +131,24 @@ def get_available_components() -> list[str] | None:
     try:
         with project_desc.open(encoding="utf-8") as f:
             data = json.load(f)
-
-        component_info = data.get("build_component_info", {})
-
-        result = []
-        for name, info in component_info.items():
-            # Exclude our own src component
-            if name == "src":
-                continue
-
-            # Exclude IDF-managed and converted-PIO components (external).
-            comp_dir = info.get("dir", "")
-            if "managed_components" in comp_dir or "pio_components" in comp_dir:
-                continue
-
-            result.append(name)
-
-        return result
-    except (json.JSONDecodeError, OSError):
+        root = (Path(data["idf_path"]) / "components").resolve()
+        result = [
+            name
+            for name, info in data.get("build_component_info", {}).items()
+            if (comp_dir := info.get("dir"))
+            and Path(comp_dir).resolve().is_relative_to(root)
+        ]
+    except (json.JSONDecodeError, KeyError, OSError) as err:
+        _LOGGER.debug("Could not read %s: %s", project_desc, err)
         return None
+    if not result:
+        _LOGGER.warning("No ESP-IDF components found under %s", root)
+    return result
 
 
 def has_discovered_components() -> bool:
-    """Check if we have discovered components from a previous configure."""
-    return get_available_components() is not None
+    """Check if a previous configure discovered any built-in components."""
+    return bool(get_available_components())
 
 
 def _cmake_quote(value: str) -> str:
@@ -79,19 +158,101 @@ def _cmake_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
-def get_project_cmakelists(minimal: bool = False) -> str:
+# CONFIG_APP_BUILD_BOOTLOADER is hidden and force-selected, so it can only be
+# cleared at the CMake level (the same state IDF's RAM-app build type uses).
+# The macro is IDF's __build_process_project_includes plus a few added lines;
+# the flag is ignored and the bootloader builds as usual if IDF changes it.
+IDF_BOOTLOADER_OVERRIDE = """\
+# ESPHome bootloader skip switch; see esphome/espidf/toolchain.py.
+if(ESPHOME_SKIP_BOOTLOADER)
+    macro(__build_process_project_includes)
+        idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+        include(${sdkconfig_cmake})
+        set(CONFIG_APP_BUILD_BOOTLOADER "")
+        # bt's CMakeLists reads the lowercase idf_target that the (now
+        # skipped) bootloader project_include leaks; keep it defined, or
+        # its empty TARGET_SRC_NAME sends file(GLOB_RECURSE) across /.
+        idf_build_get_property(idf_target IDF_TARGET)
+        # partition_table's V1 ECDSA signing reads this key, which the
+        # skipped bootloader project_include also sets.
+        get_filename_component(SECURE_BOOT_SIGNING_KEY "${CONFIG_SECURE_BOOT_SIGNING_KEY}" ABSOLUTE BASE_DIR "${project_dir}")
+        idf_build_get_property(build_properties __BUILD_PROPERTIES)
+        foreach(build_property ${build_properties})
+            idf_build_get_property(val ${build_property})
+            set(${build_property} "${val}")
+        endforeach()
+        idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+        foreach(component_target ${build_component_targets})
+            __component_get_property(dir ${component_target} COMPONENT_DIR)
+            __component_get_property(_name ${component_target} COMPONENT_NAME)
+            set(COMPONENT_NAME ${_name})
+            set(COMPONENT_DIR ${dir})
+            set(COMPONENT_PATH ${dir})
+            if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+                include(${COMPONENT_DIR}/project_include.cmake)
+            endif()
+        endforeach()
+    endmacro()
+endif()
+"""
+
+# The lines the override adds to IDF's macro; idf_macro_matches() below
+# strips them before comparing with the live macro.
+BOOTLOADER_OVERRIDE_ADDED_LINES = (
+    'set(CONFIG_APP_BUILD_BOOTLOADER "")',
+    "idf_build_get_property(idf_target IDF_TARGET)",
+    (
+        "get_filename_component(SECURE_BOOT_SIGNING_KEY"
+        ' "${CONFIG_SECURE_BOOT_SIGNING_KEY}" ABSOLUTE BASE_DIR "${project_dir}")'
+    ),
+)
+
+_MACRO = re.compile(
+    r"macro\(__build_process_project_includes\)(.*?)endmacro\(\)", re.DOTALL
+)
+
+
+def _normalized_macro(text: str) -> list[str] | None:
+    """The macro body as comment-free, whitespace-collapsed lines."""
+    if (match := _MACRO.search(text)) is None:
+        return None
+    return [
+        re.sub(r"\s+", " ", line)
+        for raw in match.group(1).splitlines()
+        if (line := raw.split("#", 1)[0].strip())
+    ]
+
+
+_EXPECTED_MACRO = [
+    line
+    for line in _normalized_macro(IDF_BOOTLOADER_OVERRIDE)
+    if line not in BOOTLOADER_OVERRIDE_ADDED_LINES
+]
+
+
+def idf_macro_matches(idf_path: Path) -> bool:
+    """Whether IDF's macro still matches the copy the override replays."""
+    build_cmake = idf_path / "tools" / "cmake" / "build.cmake"
+    live = _normalized_macro(build_cmake.read_text(encoding="utf-8"))
+    return live == _EXPECTED_MACRO
+
+
+def get_project_cmakelists(
+    minimal: bool = False, builtin_components: list[str] | None = None
+) -> str:
     """Generate the top-level CMakeLists.txt for ESP-IDF project.
 
     When ``minimal`` is true, omit ``ESPHOME_PROJECT_BUILTIN_COMPONENTS``
     since ``project_description.json`` may be stale on the first write.
+    ``builtin_components`` supplies the discovered list (from the cache)
+    instead of reading it from ``project_description.json``.
     """
-    # Get IDF target from ESP32 variant (e.g., ESP32S3 -> esp32s3)
-    variant = get_esp32_variant()
-    idf_target = variant.lower().replace("-", "")
+    idf_target = variant_to_idf_target(get_esp32_variant())
 
-    # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
-    # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
-    # --format=raw because the legacy mode doesn't support it.
+    # esp_idf_size 2.x (IDF >=6.0) made NG the default and removed --ng;
+    # 1.x (IDF 5.5) needs --ng for --format=json2. 1.x json2 also lacks
+    # total_size, hence the ELF fallback in espidf/size_summary.py; both
+    # go away together when 1.x support is dropped.
     size_ng_flag = "--ng" if idf_version() < cv.Version(6, 0, 0) else ""
 
     # Project-wide compile options: -D defines and -W warning flags (skip
@@ -120,6 +281,22 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         if CORE.cpp_standard
         else ""
     )
+
+    # Stops the ~3s sections.ld regeneration on app-only edits; see
+    # _LDGEN_OVERRIDE. ESPHOME_LDGEN_FULL_DEPS=1 restores stock behavior;
+    # ESPHOME_LDGEN_STRICT=1 (CI) fails the configure when an IDF bump
+    # breaks the override instead of degrading to stock deps.
+    if get_bool_env("ESPHOME_LDGEN_FULL_DEPS"):
+        ldgen_override = ""
+        ldgen_override_check = ""
+    else:
+        strict = get_bool_env("ESPHOME_LDGEN_STRICT")
+        severity = "FATAL_ERROR" if strict else "WARNING"
+        missing = "FATAL_ERROR" if strict else "STATUS"
+        ldgen_override = _LDGEN_OVERRIDE.replace("@SEVERITY@", severity).replace(
+            "@MISSING@", missing
+        )
+        ldgen_override_check = _LDGEN_OVERRIDE_CHECK.replace("@SEVERITY@", severity)
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
@@ -162,9 +339,11 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(
-                set(get_available_components() or []).difference(
-                    CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";")
-                )
+                set(
+                    builtin_components
+                    if builtin_components is not None
+                    else get_available_components() or []
+                ).difference(CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";"))
             )
         )
     )
@@ -196,6 +375,9 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
+{IDF_BOOTLOADER_OVERRIDE}
+{ldgen_override}
+
 {cpp_standard_options}
 
 {cxx_compile_options}
@@ -208,12 +390,22 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 project({CORE.name})
 
-# Emit raw JSON size data for ESPHome to read post-build.
+{ldgen_override_check}
+
+{_lwip_empty_sources_filter()}
+
+# Emit per-memory-type JSON size data for ESPHome to read post-build.
+# json2 stays small; raw dumps every symbol (~2s on a large map) and
+# this command runs inside the link edge, blocking everything downstream.
+# The map is a BYPRODUCT so ninja knows the link writes it; IDF's size
+# target depends on the map and can then be built in the same run as all.
+# IDF's cmakev2 declares the map itself, so drop this line on that switch.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
-    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=raw
+    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
+    BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
     VERBATIM
 )
@@ -276,10 +468,75 @@ idf_component_register(
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
 )
+{_pch_cmake_block()}"""
+
+
+# Where CMake puts the .gch of the src component; ccache reads the checksum
+# next to it in place of the .gch
+_PCH_SUM_PATH = "build/esp-idf/src/CMakeFiles/__idf_src.dir/cmake_pch.hxx.gch.sum"
+# Where the Windows gate records its choice
+_PCH_CHOICE_VAR = "ESPHOME_PCH"
+
+
+def _pch_cmake_block() -> str:
+    """The CMake block that precompiles the core headers for the C++ sources
+    of the src component; empty when disabled."""
+    if not pch.pch_enabled():
+        return ""
+    headers = "\n".join(
+        f'    "$<$<COMPILE_LANGUAGE:CXX>:${{CMAKE_CURRENT_SOURCE_DIR}}/{header}>"'
+        for header in pch.PCH_DEFAULT_HEADERS
+    )
+    block = f"""target_precompile_headers(${{COMPONENT_LIB}} PRIVATE
+{headers}
+)"""
+    if not pch.pch_needs_gcc_check():
+        return f"\n# ESPHome precompiled header\n{block}\n"
+    # Before the first configure only CMake knows the compiler version
+    return f"""
+# ESPHome precompiled header, unless GCC bug 14940 keeps it from loading
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND ({pch.PCH_WINDOWS_CMAKE_OLD_GCC}))
+  message(STATUS "ESPHome: GCC ${{CMAKE_CXX_COMPILER_VERSION}} cannot load a precompiled header on Windows; compiling without it")
+  set({_PCH_CHOICE_VAR} OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)
+else()
+  set({_PCH_CHOICE_VAR} ON CACHE BOOL "ESPHome precompiled header in use" FORCE)
+{textwrap.indent(block, "  ")}
+endif()
 """
 
 
-def write_project(minimal: bool = False) -> None:
+def _read_if_exists(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def write_pch_checksum() -> None:
+    """Write the checksum ccache uses in place of the .gch: the core headers,
+    the framework version, the sdkconfig and the managed component versions."""
+    from esphome.espidf.toolchain import get_cmake_cache_value
+
+    if not pch.pch_enabled():
+        return
+    # The gate's choice, cached by configure
+    if pch.pch_needs_gcc_check() and get_cmake_cache_value(_PCH_CHOICE_VAR) != "ON":
+        return
+    pch.log_pch_in_use()
+    checksum = pch.pch_checksum(
+        CORE.relative_src_path(),
+        pch.PCH_DEFAULT_HEADERS,
+        (
+            str(idf_version()),
+            _read_if_exists(CORE.relative_build_path(f"sdkconfig.{CORE.name}")),
+            _read_if_exists(CORE.relative_build_path("dependencies.lock")),
+        ),
+    )
+    path = CORE.relative_build_path(_PCH_SUM_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(path, checksum + "\n")
+
+
+def write_project(
+    minimal: bool = False, builtin_components: list[str] | None = None
+) -> None:
     """Write ESP-IDF project files."""
     mkdir_p(CORE.build_path)
     mkdir_p(CORE.relative_src_path())
@@ -287,7 +544,7 @@ def write_project(minimal: bool = False) -> None:
     # Write top-level CMakeLists.txt
     write_file_if_changed(
         CORE.relative_build_path("CMakeLists.txt"),
-        get_project_cmakelists(minimal=minimal),
+        get_project_cmakelists(minimal=minimal, builtin_components=builtin_components),
     )
 
     # Write component CMakeLists.txt in src/

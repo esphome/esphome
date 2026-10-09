@@ -5,7 +5,7 @@
 
 namespace esphome::mics_4514 {
 
-static const char *const TAG = "mics_4514";
+ESPHOME_LOG_TAG(TAG, "mics_4514");
 
 static const uint8_t SENSOR_REGISTER = 0x04;
 static const uint8_t POWER_MODE_REGISTER = 0x0a;
