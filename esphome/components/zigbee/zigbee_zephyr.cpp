@@ -194,6 +194,7 @@ void ZigbeeComponent::setup() {
   zigbee_configure_sleepy_behavior(this->sleepy_);
 #endif
   zigbee_enable();
+  this->disable_loop();
 }
 
 #ifdef ESPHOME_LOG_HAS_CONFIG
@@ -258,7 +259,10 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void ZigbeeComponent::force_report() { this->force_report_ = true; }
+void ZigbeeComponent::force_report() {
+  this->force_report_ = true;
+  this->enable_loop_soon_any_context();
+}
 
 void ZigbeeComponent::add_radio_sleep_time_ms(uint32_t ms) {
   this->radio_sleep_remainder_ += ms;
@@ -272,6 +276,7 @@ void ZigbeeComponent::loop() {
     this->force_report_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
+  this->disable_loop();
 }
 
 void ZigbeeComponent::factory_reset() {
