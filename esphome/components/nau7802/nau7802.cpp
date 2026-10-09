@@ -5,7 +5,7 @@
 
 namespace esphome::nau7802 {
 
-static const char *const TAG = "nau7802";
+ESPHOME_LOG_TAG(TAG, "nau7802");
 
 // Only define what we need
 

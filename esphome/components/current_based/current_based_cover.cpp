@@ -6,7 +6,7 @@
 
 namespace esphome::current_based {
 
-static const char *const TAG = "current_based.cover";
+ESPHOME_LOG_TAG(TAG, "current_based.cover");
 
 using namespace esphome::cover;
 

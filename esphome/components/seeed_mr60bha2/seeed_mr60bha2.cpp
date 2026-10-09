@@ -7,7 +7,7 @@
 
 namespace esphome::seeed_mr60bha2 {
 
-static const char *const TAG = "seeed_mr60bha2";
+ESPHOME_LOG_TAG(TAG, "seeed_mr60bha2");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t MR60BHA2_MAX_LOG_BYTES = 64;

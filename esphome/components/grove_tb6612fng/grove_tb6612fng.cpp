@@ -4,7 +4,7 @@
 
 namespace esphome::grove_tb6612fng {
 
-static const char *const TAG = "GroveMotorDriveTB6612FNG";
+ESPHOME_LOG_TAG(TAG, "GroveMotorDriveTB6612FNG");
 
 static const uint8_t GROVE_MOTOR_DRIVER_I2C_CMD_BRAKE = 0x00;
 static const uint8_t GROVE_MOTOR_DRIVER_I2C_CMD_STOP = 0x01;

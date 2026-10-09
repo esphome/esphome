@@ -29,7 +29,7 @@ extern "C" {
 
 namespace esphome::bk72xx_ble {
 
-static const char *const TAG = "bk72xx_ble";
+ESPHOME_LOG_TAG(TAG, "bk72xx_ble");
 
 // Pin the SDK surface this file depends on: a beken-bdk bump that moves these
 // must fail the build, not corrupt the kernel message.

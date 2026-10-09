@@ -3,7 +3,7 @@
 
 namespace esphome::tcl112 {
 
-static const char *const TAG = "tcl112.climate";
+ESPHOME_LOG_TAG(TAG, "tcl112.climate");
 
 const uint16_t TCL112_STATE_LENGTH = 14;
 const uint16_t TCL112_BITS = TCL112_STATE_LENGTH * 8;

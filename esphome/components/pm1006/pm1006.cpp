@@ -3,7 +3,7 @@
 
 namespace esphome::pm1006 {
 
-static const char *const TAG = "pm1006";
+ESPHOME_LOG_TAG(TAG, "pm1006");
 
 static const uint8_t PM1006_RESPONSE_HEADER[] = {0x16, 0x11, 0x0B};
 static const uint8_t PM1006_REQUEST[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};

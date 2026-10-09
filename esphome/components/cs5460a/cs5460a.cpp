@@ -3,7 +3,7 @@
 
 namespace esphome::cs5460a {
 
-static const char *const TAG = "cs5460a";
+ESPHOME_LOG_TAG(TAG, "cs5460a");
 
 void CS5460AComponent::write_register_(enum CS5460ARegister addr, uint32_t value) {
   this->write_byte(CMD_WRITE | (addr << 1));
