@@ -21,7 +21,7 @@
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "runtime_image";
+ESPHOME_LOG_TAG(TAG, "runtime_image");
 
 // Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
 static constexpr int MAX_IMAGE_DIMENSION = 32767;

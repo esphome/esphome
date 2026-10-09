@@ -6,15 +6,19 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.rc_switch";
+ESPHOME_LOG_TAG(TAG, "remote.rc_switch");
 
 RCSwitchBase rc_switch_protocol(uint8_t index) {
-  RCSwitchBase protocol;
   // entry 0 is the all-zero protocol, so an out of range index from a lambda transmits nothing
   if (index >= std::size(RC_SWITCH_PROTOCOLS))
     index = 0;
-  progmem_memcpy(&protocol, &RC_SWITCH_PROTOCOLS[index], sizeof(protocol));
-  return protocol;
+  return rc_switch_protocol_copy(&RC_SWITCH_PROTOCOLS[index]);
+}
+
+RCSwitchBase rc_switch_protocol_copy(const RCSwitchBase *protocol) {
+  RCSwitchBase copy;
+  progmem_memcpy(&copy, protocol, sizeof(copy));
+  return copy;
 }
 
 void RCSwitchBase::one(RemoteTransmitData *dst) const {
@@ -232,7 +236,7 @@ uint64_t decode_binary_string_mask(const std::string &data) {
 bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   uint64_t decoded_code;
   uint8_t decoded_nbits;
-  if (!this->protocol_.decode(src, &decoded_code, &decoded_nbits))
+  if (!this->protocol_->decode(src, &decoded_code, &decoded_nbits))
     return false;
 
   return decoded_nbits == this->nbits_ && (decoded_code & this->mask_) == (this->code_ & this->mask_);

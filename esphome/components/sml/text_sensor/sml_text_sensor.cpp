@@ -6,7 +6,7 @@
 
 namespace esphome::sml {
 
-static const char *const TAG = "sml_text_sensor";
+ESPHOME_LOG_TAG(TAG, "sml_text_sensor");
 
 SmlTextSensor::SmlTextSensor(std::string server_id, std::string obis_code, SmlType format)
     : SmlListener(std::move(server_id), std::move(obis_code)), format_(format) {}

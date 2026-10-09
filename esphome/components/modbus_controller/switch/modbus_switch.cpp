@@ -7,7 +7,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus_controller.switch";
+ESPHOME_LOG_TAG(TAG, "modbus_controller.switch");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t MODBUS_SWITCH_MAX_LOG_BYTES = 64;

@@ -12,7 +12,7 @@
 
 namespace esphome::ens210 {
 
-static const char *const TAG = "ens210";
+ESPHOME_LOG_TAG(TAG, "ens210");
 
 // ENS210 chip constants
 static const uint8_t ENS210_BOOTING_MS = 2;  // Booting time in ms (also after reset, or going to high power)
