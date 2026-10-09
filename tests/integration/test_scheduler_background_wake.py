@@ -6,8 +6,10 @@ import asyncio
 from pathlib import Path
 import re
 
+from aioesphomeapi import ButtonInfo
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -41,6 +43,14 @@ async def test_scheduler_background_wake(
         device_info = await client.device_info()
         assert device_info is not None
         assert device_info.name == "scheduler-background-wake"
+        entities, _ = await client.list_entities_services()
+        start_button = require_entity(
+            entities,
+            "start_scheduler_timeout",
+            ButtonInfo,
+            description="Start Scheduler Timeout button",
+        )
+        client.button_command(start_button.key)
 
         try:
             elapsed, loop_delta = await asyncio.wait_for(result, timeout=10.0)

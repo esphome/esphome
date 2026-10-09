@@ -5,8 +5,6 @@ esphome:
     then:
       - lambda: |-
           App.set_loop_interval(5000);
-          id(wake_test)->start_async_timeout();
-      - delay: 5s
 
 host:
 api:
@@ -21,3 +19,9 @@ external_components:
 
 wake_test_component:
   id: wake_test
+
+button:
+  - platform: template
+    name: Start Scheduler Timeout
+    on_press:
+      - lambda: id(wake_test)->start_async_timeout();
