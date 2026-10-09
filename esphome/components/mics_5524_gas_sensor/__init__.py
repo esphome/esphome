@@ -25,6 +25,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 
 CODEOWNERS = ["@nliaudat"]
+DOMAIN = "mics_5524_gas_sensor"
 
 # No ``AUTO_LOAD`` here: for a platform component ESPHome processes the list of the
 # platform module, and ``sensor.py`` declares ``sensor``, ``voltage_sampler`` and
