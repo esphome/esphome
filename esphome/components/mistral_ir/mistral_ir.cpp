@@ -4,7 +4,7 @@
 
 namespace esphome::mistral_ir {
 
-static const char *const TAG = "mistral_ir.climate";
+ESPHOME_LOG_TAG(TAG, "mistral_ir.climate");
 
 constexpr uint8_t MISTRAL_MODE_COOL = 0xC0;
 constexpr uint8_t MISTRAL_MODE_DRY = 0x40;
