@@ -342,12 +342,13 @@ display:
       inverted: true
 
   # Good Display GDEY0154D67 1.54" mono e-paper (200x200, SSD1681)
-  # retain_image_in_sleep keeps the image in RTC memory across deep sleep
+  # Keeps the image in RTC memory across deep sleep
   - platform: epaper_spi
     spi_id: spi_bus
     model: goodisplay-gdey0154d67-1.54
     full_update_every: 20
-    retain_image_in_sleep: 6kB
+    partial_update_after_deep_sleep:
+      rtc_memory: 6kB
     cs_pin:
       allow_other_uses: true
       number: GPIO5

@@ -238,7 +238,7 @@ bool EPaperBase::teardown() {
   // With the image kept on this side the panel may lose its RAM, or its power, while asleep
   bool compressed;
   uint16_t size;
-  if (this->sent_valid_ && this->store_image_(compressed, size)) {
+  if (this->image_in_rtc_memory_ && this->sent_valid_ && this->store_image_(compressed, size)) {
     this->save_sleep_state_(false, compressed, size);
     return true;
   }
@@ -651,13 +651,18 @@ void EPaperBase::dump_config() {
                 "  Model: %s\n"
                 "  SPI Data Rate: %uMHz\n"
                 "  Full update every: %d\n"
-                "  Full refresh after deep sleep: %s\n"
+                "  Partial update after deep sleep: %s\n"
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s",
                 this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
-                YESNO(this->sleep_state_hash_ == 0), YESNO(this->transform_ & SWAP_XY),
-                YESNO(this->transform_ & MIRROR_X), YESNO(this->transform_ & MIRROR_Y));
+                this->sleep_state_hash_ == 0 ? LOG_STR_LITERAL("no")
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+                : this->image_in_rtc_memory_ ? LOG_STR_LITERAL("RTC memory")
+#endif
+                                             : LOG_STR_LITERAL("panel"),
+                YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
+                YESNO(this->transform_ & MIRROR_Y));
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

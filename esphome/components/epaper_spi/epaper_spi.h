@@ -64,6 +64,9 @@ class EPaperBase : public Display,
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
   void set_sleep_state_hash(uint32_t hash) { this->sleep_state_hash_ = hash; }
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+  void set_image_in_rtc_memory(bool image_in_rtc_memory) { this->image_in_rtc_memory_ = image_in_rtc_memory; }
+#endif
   bool teardown() override;
   void dump_config() override;
 
@@ -193,6 +196,7 @@ class EPaperBase : public Display,
   bool restore_image_();
   uint32_t image_store_hash_(size_t size) const;
   SleepState stored_image_{};
+  bool image_in_rtc_memory_{};  // this display owns the image store
 #endif
   void hold_pins_() const;
   void release_pins_() const;

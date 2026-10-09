@@ -51,8 +51,11 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
-CONF_FULL_REFRESH_AFTER_DEEP_SLEEP = "full_refresh_after_deep_sleep"
-CONF_RETAIN_IMAGE_IN_SLEEP = "retain_image_in_sleep"
+CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP = "partial_update_after_deep_sleep"
+# The display stays powered through the deep sleep and keeps the image itself
+PANEL = "panel"
+# The image is kept in the ESP32's RTC memory, so the display may lose it, or its power
+CONF_RTC_MEMORY = "rtc_memory"
 
 # One display per build can keep its image in RTC memory: the store is a single static array
 MAX_IMAGE_STORE_SIZE = 8 * 1024
@@ -109,11 +112,14 @@ def _full_update_every_validator(
 
 
 def _validate_image_store(value: Any) -> int:
-    if not CORE.is_esp32 or not _sleep_resume_supported():
+    if not CORE.is_esp32:
         raise cv.Invalid("Only supported on ESP32 variants with RTC memory")
     return cv.All(cv.validate_bytes, cv.int_range(min=1, max=MAX_IMAGE_STORE_SIZE))(
         value
     )
+
+
+IMAGE_STORE_SCHEMA = cv.Schema({cv.Required(CONF_RTC_MEMORY): _validate_image_store})
 
 
 def _sleep_resume_supported() -> bool:
@@ -125,6 +131,23 @@ def _sleep_resume_supported() -> bool:
     from esphome.components.esp32.const import VARIANT_ESP32C2, VARIANT_ESP32C61
 
     return get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32C61)
+
+
+def _partial_update_after_deep_sleep_validator(
+    model: models.EpaperModel,
+) -> Callable[[Any], Any]:
+    def validate(value: Any) -> Any:
+        if not model.get_default(models.RESUMES_AFTER_DEEP_SLEEP):
+            raise cv.Invalid(f"{model.name} does not support this option")
+        if not _sleep_resume_supported():
+            raise cv.Invalid(
+                "Only supported on ESP8266 and on ESP32 variants with RTC memory"
+            )
+        if isinstance(value, dict):
+            return IMAGE_STORE_SCHEMA(value)
+        return cv.one_of(PANEL, lower=True)(value)
+
+    return validate
 
 
 def model_schema(config):
@@ -156,9 +179,9 @@ def model_schema(config):
             cv.Optional(
                 CONF_FULL_UPDATE_EVERY, default=1
             ): _full_update_every_validator(model),
-            # Defaults to true, or to false when retain_image_in_sleep is set
-            cv.Optional(CONF_FULL_REFRESH_AFTER_DEEP_SLEEP): cv.boolean,
-            cv.Optional(CONF_RETAIN_IMAGE_IN_SLEEP): _validate_image_store,
+            cv.Optional(
+                CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP
+            ): _partial_update_after_deep_sleep_validator(model),
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
@@ -197,24 +220,13 @@ def customise_schema(config):
     model.check_requirements()
     config = model_schema(config)(config)
     config = model.validate_config(config)
-    retain = CONF_RETAIN_IMAGE_IN_SLEEP in config
-    config.setdefault(CONF_FULL_REFRESH_AFTER_DEEP_SLEEP, not retain)
-    if retain and config[CONF_FULL_REFRESH_AFTER_DEEP_SLEEP]:
-        raise cv.Invalid(
-            f"{CONF_RETAIN_IMAGE_IN_SLEEP} needs {CONF_FULL_REFRESH_AFTER_DEEP_SLEEP}: false",
-            path=[CONF_RETAIN_IMAGE_IN_SLEEP],
-        )
     if (
-        not config[CONF_FULL_REFRESH_AFTER_DEEP_SLEEP]
+        CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP in config
         and config[CONF_FULL_UPDATE_EVERY] == 1
     ):
         raise cv.Invalid(
             "Only useful with partial updates; set full_update_every above 1",
-            path=[
-                CONF_RETAIN_IMAGE_IN_SLEEP
-                if retain
-                else CONF_FULL_REFRESH_AFTER_DEEP_SLEEP
-            ],
+            path=[CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP],
         )
     width, height = model.get_dimensions(config)
     if width % (width_multiple := model.get_default("width_multiple", 1)):
@@ -249,13 +261,13 @@ def _final_validate(config) -> None:
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
 
-    if CONF_RETAIN_IMAGE_IN_SLEEP in config:
-        if CORE.data.get(DOMAIN, {}).get(CONF_RETAIN_IMAGE_IN_SLEEP):
+    if isinstance(config.get(CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP), dict):
+        if CORE.data.get(DOMAIN, {}).get(CONF_RTC_MEMORY):
             raise cv.Invalid(
-                f"Only one display can use {CONF_RETAIN_IMAGE_IN_SLEEP}",
-                path=[CONF_RETAIN_IMAGE_IN_SLEEP],
+                f"Only one display can keep its image in {CONF_RTC_MEMORY}",
+                path=[CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP],
             )
-        CORE.data.setdefault(DOMAIN, {})[CONF_RETAIN_IMAGE_IN_SLEEP] = True
+        CORE.data.setdefault(DOMAIN, {})[CONF_RTC_MEMORY] = True
 
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
         if LVGL_DOMAIN in global_config:
@@ -315,12 +327,13 @@ async def to_code(config):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-    if not config[CONF_FULL_REFRESH_AFTER_DEEP_SLEEP] and _sleep_resume_supported():
+    if CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP in config:
         # A few bytes in RTC memory let the first update after a deep sleep wake be partial
         preferences.request_rtc_storage()
         cg.add(var.set_sleep_state_hash(fnv1a_32bit_hash(str(config[CONF_ID]))))
-    if (store_size := config.get(CONF_RETAIN_IMAGE_IN_SLEEP)) is not None:
-        cg.add_define("EPAPER_SPI_IMAGE_STORE_SIZE", store_size)
+    if isinstance(mode := config.get(CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP), dict):
+        cg.add_define("EPAPER_SPI_IMAGE_STORE_SIZE", mode[CONF_RTC_MEMORY])
+        cg.add(var.set_image_in_rtc_memory(True))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
     if transform := config.get(CONF_TRANSFORM):
