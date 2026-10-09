@@ -7,7 +7,7 @@
 
 namespace esphome::time {
 
-static const char *const TAG = "automation";
+ESPHOME_LOG_TAG(TAG, "automation");
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 

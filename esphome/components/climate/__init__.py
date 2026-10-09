@@ -62,6 +62,7 @@ from esphome.types import ConfigType, SafeExpType
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "climate"
 climate_ns = cg.esphome_ns.namespace("climate")
 
 Climate = climate_ns.class_("Climate", cg.EntityBase)

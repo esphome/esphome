@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.valve";
+ESPHOME_LOG_TAG(TAG, "mqtt.valve");
 
 using namespace esphome::valve;
 
