@@ -498,6 +498,17 @@ class ProtoEncode {
     progmem_memcpy(pos, data, len);
     return pos + len;
   }
+  /// encode_progmem_bytes for a string field that may be in flash.
+  [[nodiscard]] static inline uint8_t *encode_progmem_string(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                             uint32_t field_id, const ProgmemStringRef &ref) {
+    return encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, field_id,
+                                reinterpret_cast<const uint8_t *>(ref.progmem_ptr()), ref.size());
+  }
+  [[nodiscard]] static inline uint8_t *encode_progmem_string_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                   uint32_t field_id, const ProgmemStringRef &ref) {
+    return encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, field_id,
+                                      reinterpret_cast<const uint8_t *>(ref.progmem_ptr()), ref.size());
+  }
   [[nodiscard]] static inline uint8_t *encode_uint32_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                            uint32_t field_id, uint32_t value) {
     pos = encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 0);

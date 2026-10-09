@@ -1324,17 +1324,13 @@ void GetTimeResponse::decode_field(void *self, uint32_t tag, const uint8_t *data
 uint8_t *ListEntitiesServicesArgument::encode_msg(const void *self,
                                                   uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const ListEntitiesServicesArgument *>(self);
-  pos = ProtoEncode::encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1,
-                                          reinterpret_cast<const uint8_t *>(msg.name.progmem_ptr()), msg.name.size());
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.type));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  pos = ProtoEncode::encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3,
-                                          reinterpret_cast<const uint8_t *>(msg.description.progmem_ptr()),
-                                          msg.description.size());
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.description);
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  pos = ProtoEncode::encode_progmem_bytes(
-      pos PROTO_ENCODE_DEBUG_ARG, 4, reinterpret_cast<const uint8_t *>(msg.example.progmem_ptr()), msg.example.size());
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.example);
 #endif
   return pos;
 }
@@ -1354,17 +1350,14 @@ uint32_t ListEntitiesServicesArgument::calc_size_msg(const void *self) {
 uint8_t *ListEntitiesServicesResponse::encode_msg(const void *self,
                                                   uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const ListEntitiesServicesResponse *>(self);
-  pos = ProtoEncode::encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1,
-                                          reinterpret_cast<const uint8_t *>(msg.name.progmem_ptr()), msg.name.size());
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
   for (auto &it : msg.args) {
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 3, it);
   }
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.supports_response));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  pos = ProtoEncode::encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, 5,
-                                          reinterpret_cast<const uint8_t *>(msg.description.progmem_ptr()),
-                                          msg.description.size());
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.description);
 #endif
   return pos;
 }
