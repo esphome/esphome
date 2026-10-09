@@ -24,4 +24,8 @@ button:
   - platform: template
     name: Start Scheduler Timeout
     on_press:
-      - lambda: id(wake_test)->start_async_timeout();
+      - lambda: id(wake_test)->start_async_timeout(100);
+  - platform: template
+    name: Start Scheduler Defer
+    on_press:
+      - lambda: id(wake_test)->start_async_timeout(0);

@@ -1,4 +1,8 @@
-"""A background scheduler insertion must interrupt the loop's current sleep."""
+"""A background scheduler insertion must interrupt the loop's current sleep.
+
+Covers both set_timeout and defer: a zero-delay insert from another thread
+takes the separate defer queue on multi-threaded builds.
+"""
 
 from __future__ import annotations
 
@@ -27,14 +31,21 @@ async def test_scheduler_background_wake(
     )
 
     loop = asyncio.get_running_loop()
-    result: asyncio.Future[tuple[int, int]] = loop.create_future()
+    results: dict[int, asyncio.Future[tuple[int, int]]] = {
+        100: loop.create_future(),
+        0: loop.create_future(),
+    }
 
     def on_log_line(line: str) -> None:
         match = re.search(
-            r"SCHEDULER_WAKE_RESULT elapsed=(\d+) loop_delta=(-?\d+)", line
+            r"SCHEDULER_WAKE_RESULT delay=(\d+) elapsed=(\d+) loop_delta=(-?\d+)",
+            line,
         )
-        if match and not result.done():
-            result.set_result((int(match.group(1)), int(match.group(2))))
+        if match is None:
+            return
+        result = results[int(match.group(1))]
+        if not result.done():
+            result.set_result((int(match.group(2)), int(match.group(3))))
 
     async with (
         run_compiled(yaml_config, line_callback=on_log_line),
@@ -44,24 +55,30 @@ async def test_scheduler_background_wake(
         assert device_info is not None
         assert device_info.name == "scheduler-background-wake"
         entities, _ = await client.list_entities_services()
-        start_button = require_entity(
-            entities,
-            "start_scheduler_timeout",
-            ButtonInfo,
-            description="Start Scheduler Timeout button",
-        )
-        client.button_command(start_button.key)
+        for object_id, delay in (
+            ("start_scheduler_timeout", 100),
+            ("start_scheduler_defer", 0),
+        ):
+            start_button = require_entity(
+                entities,
+                object_id,
+                ButtonInfo,
+                description=f"{object_id} button",
+            )
+            client.button_command(start_button.key)
 
-        try:
-            elapsed, loop_delta = await asyncio.wait_for(result, timeout=10.0)
-        except TimeoutError:
-            pytest.fail("background scheduler timeout did not fire")
+            try:
+                elapsed, loop_delta = await asyncio.wait_for(
+                    results[delay], timeout=10.0
+                )
+            except TimeoutError:
+                pytest.fail(f"background insert with delay={delay} did not fire")
 
-        assert elapsed < 1000, (
-            f"background timeout should interrupt the five-second sleep; "
-            f"it fired after {elapsed}ms"
-        )
-        assert loop_delta == 0, (
-            f"scheduler-only wake must not run component loops; observed "
-            f"loop_delta={loop_delta} before the timeout callback"
-        )
+            assert elapsed < 1000, (
+                f"background insert with delay={delay} should interrupt the "
+                f"five-second sleep; it fired after {elapsed}ms"
+            )
+            assert loop_delta == 0, (
+                f"scheduler-only wake must not run component loops; observed "
+                f"loop_delta={loop_delta} for delay={delay}"
+            )
