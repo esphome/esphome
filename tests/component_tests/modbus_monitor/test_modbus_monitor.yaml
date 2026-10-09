@@ -34,7 +34,7 @@ modbus_monitor:
   - modbus_id: server_hub
     on_request:
       - lambda: |-
-          ESP_LOGD("test", "Request to %u, function 0x%02X", address, request_pdu[0]);
+          ESP_LOGD("test", "Request to %u, function 0x%02X", address, request[0]);
   - modbus_id: server_hub
     on_request:
       - logger.log: "second"
