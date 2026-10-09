@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 CONFLICTS_WITH = ["usb_host"]
+DOMAIN = "tinyusb"
 
 CONF_ON_MOUNT = "on_mount"
 CONF_ON_UNMOUNT = "on_unmount"

@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
+DOMAIN = "udp"
 
 MULTI_CONF = True
 udp_ns = cg.esphome_ns.namespace("udp")

@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@PolarGoose"]
+DOMAIN = "dsmr"
 
 MULTI_CONF = True
 

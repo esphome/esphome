@@ -9,6 +9,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81", "@bdraco"]
 AUTO_LOAD = ["remote_base"]
+DOMAIN = "ir_rf_base"
 
 ir_rf_base_ns = cg.esphome_ns.namespace("ir_rf_base")
 IrRfEntity = ir_rf_base_ns.class_("IrRfEntity", cg.EntityBase, cg.Component)

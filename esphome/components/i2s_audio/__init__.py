@@ -27,6 +27,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "i2s_audio"
 MULTI_CONF = True
 
 CONF_PDM = "pdm"

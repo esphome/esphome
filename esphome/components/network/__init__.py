@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
+DOMAIN = "network"
 
 _LOGGER = logging.getLogger(__name__)
 

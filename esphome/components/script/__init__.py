@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "script"
 script_ns = cg.esphome_ns.namespace("script")
 Script = script_ns.class_("Script", automation.Trigger.template())
 ScriptExecuteAction = script_ns.class_("ScriptExecuteAction", automation.Action)

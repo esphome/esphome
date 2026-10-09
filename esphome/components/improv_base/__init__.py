@@ -8,6 +8,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "improv_base"
 
 CONF_NEXT_URL = "next_url"
 
