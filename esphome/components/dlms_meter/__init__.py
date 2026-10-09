@@ -1,4 +1,3 @@
-import logging
 import re
 from typing import Any
 
@@ -17,8 +16,6 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
-
-_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
@@ -75,56 +72,6 @@ def validate_custom_pattern(value: ConfigType) -> ConfigType:
     return value
 
 
-def validate_provider_deprecation(config: ConfigType) -> ConfigType:
-    if CONF_PROVIDER in config:
-        provider = str(config[CONF_PROVIDER]).lower()
-        if provider == "netznoe":
-            _LOGGER.warning(
-                "The 'provider: netznoe' option is deprecated and will be removed in 2026.11.0. "
-                "The required custom patterns have been added automatically for this release, but you must update your configuration.\n"
-                "Please remove the 'provider' key and explicitly replace it with the following:\n\n"
-                "custom_patterns:\n"
-                '  - pattern: "L, TSTR"\n'
-                '    name: "MeterID"\n'
-                '    default_obis: "0.0.96.1.0.255"\n'
-                '  - pattern: "F, TDTM"\n'
-                '    name: "DateTime"\n'
-                '    default_obis: "0.0.1.0.0.255"\n'
-            )
-            patterns = config.get(CONF_CUSTOM_PATTERNS, [])
-
-            # Ensure "L, TSTR" for MeterID is present
-            if not any(p.get(CONF_PATTERN) == "L, TSTR" for p in patterns):
-                patterns.append(
-                    {
-                        CONF_PATTERN: "L, TSTR",
-                        CONF_NAME: "MeterID",
-                        CONF_DEFAULT_OBIS: [0, 0, 96, 1, 0, 255],
-                        CONF_PRIORITY: 0,
-                    }
-                )
-
-            # Ensure "F, TDTM" for DateTime is present
-            if not any(p.get(CONF_PATTERN) == "F, TDTM" for p in patterns):
-                patterns.append(
-                    {
-                        CONF_PATTERN: "F, TDTM",
-                        CONF_NAME: "DateTime",
-                        CONF_DEFAULT_OBIS: [0, 0, 1, 0, 0, 255],
-                        CONF_PRIORITY: 0,
-                    }
-                )
-
-            config[CONF_CUSTOM_PATTERNS] = patterns
-        else:
-            _LOGGER.warning(
-                "The 'provider' option is deprecated and will be removed in 2026.11.0. "
-                "The dlms_parser library now handles quirks dynamically. "
-                "Please remove this option from your configuration."
-            )
-    return config
-
-
 CUSTOM_PATTERN_SCHEMA = cv.All(
     custom_pattern_dict,
     cv.Schema(
@@ -138,7 +85,7 @@ CUSTOM_PATTERN_SCHEMA = cv.All(
     validate_custom_pattern,
 )
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DlmsMeterComponent),
@@ -146,15 +93,27 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AUTH_KEY): cv.bind_key(name="Authentication key"),
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
-            cv.Optional(CONF_PROVIDER): cv.string,
+            # Removed in 2026.11.0 - kept to provide helpful error message
+            # Remove before 2027.5.0
+            cv.Optional(CONF_PROVIDER): cv.invalid(
+                "The 'provider' option has been removed in ESPHome 2026.11.0.\n"
+                "For 'provider: netznoe', replace it with:\n\n"
+                "custom_patterns:\n"
+                '  - pattern: "L, TSTR"\n'
+                '    name: "MeterID"\n'
+                '    default_obis: "0.0.96.1.0.255"\n'
+                '  - pattern: "F, TDTM"\n'
+                '    name: "DateTime"\n'
+                '    default_obis: "0.0.1.0.0.255"\n\n'
+                "For any other provider, remove the option"
+            ),
             cv.Optional(
                 CONF_RECEIVE_TIMEOUT, default="1000ms"
             ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
-    validate_provider_deprecation,
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_rx=True)
@@ -193,7 +152,7 @@ async def to_code(config: ConfigType) -> None:
                 cg.ArrayInitializer(
                     p[CONF_PATTERN],
                     name_expr,
-                    p.get(CONF_PRIORITY, 0),
+                    p[CONF_PRIORITY],
                     obis_expr,
                 )
             )
