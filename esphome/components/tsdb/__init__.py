@@ -47,6 +47,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "tsdb"
 AUTO_LOAD = ["sensor", "text_sensor"]
 
 tsdb_ns = cg.esphome_ns.namespace("tsdb")
