@@ -7,6 +7,9 @@ sendspin:
   manufacturer: Test Manufacturer
   model: Test Model
   firmware_version: 1.2.3
+  # No static_pairing_code here: the on_display_pairing_code automation below makes
+  # this a dynamic-pairing-code device, and validation rejects both together.
+  # common-pairing.yaml covers the static-code build.
   on_open_pairing_window:
     then:
       - logger.log: "Pairing window requested"
@@ -16,6 +19,14 @@ sendspin:
     then:
       - logger.log: "Pairing window prompt dismissed"
       - sendspin.cancel_pairing_window:
+  on_display_pairing_code:
+    then:
+      - logger.log:
+          format: "Pairing code: %s"
+          args: ["code.c_str()"]
+  on_clear_pairing_code:
+    then:
+      - logger.log: "Pairing code cleared"
   on_pairing_succeeded:
     then:
       - logger.log:

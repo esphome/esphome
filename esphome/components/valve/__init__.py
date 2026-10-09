@@ -33,6 +33,7 @@ from esphome.cpp_generator import MockObjClass
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "valve"
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
