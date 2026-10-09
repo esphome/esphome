@@ -19,7 +19,7 @@ class HostGPIOPin final : public GPIOPin {
   size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const;
   template<typename T> void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
-    this->attach_interrupt(reinterpret_cast<void (*)(void *)>(func), arg, type);
+    this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
   }
   ISRInternalGPIOPin to_isr() const;
   uint8_t get_pin() const { return pin_; }
@@ -28,7 +28,7 @@ class HostGPIOPin final : public GPIOPin {
   bool is_internal() override { return true; }
 
  protected:
-  void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const;
+  void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 
   uint8_t pin_;
   bool inverted_{};

@@ -1,3 +1,4 @@
+#ifdef USE_HOST
 #include <gtest/gtest.h>
 
 #include "esphome/components/power_supply/power_supply.h"
@@ -9,7 +10,6 @@ namespace esphome::power_supply::testing {
 TEST(PowerSupply, HasHigherPriorityThanBusWhenInternalAndEnableOnBoot) {
   power_supply::PowerSupply ps;
   InternalGPIOPin pin;
-  pin.set_pin(0);
   ps.set_pin(&pin);
   ps.set_enable_on_boot(true);
 
@@ -20,7 +20,6 @@ TEST(PowerSupply, HasHigherPriorityThanBusWhenInternalAndEnableOnBoot) {
 TEST(PowerSupply, FallsBackToIOWhenNotEnableOnBoot) {
   power_supply::PowerSupply ps;
   InternalGPIOPin pin;
-  pin.set_pin(0);
   ps.set_pin(&pin);
   ps.set_enable_on_boot(false);
 
@@ -28,3 +27,4 @@ TEST(PowerSupply, FallsBackToIOWhenNotEnableOnBoot) {
 }
 
 }  // namespace esphome::power_supply::testing
+#endif  // USE_HOST

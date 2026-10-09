@@ -34,7 +34,7 @@ class ZephyrGPIOPin final : public GPIOPin {
   size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const;
   template<typename T> void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
-    this->attach_interrupt(reinterpret_cast<void (*)(void *)>(func), arg, type);
+    this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
   }
   ISRInternalGPIOPin to_isr() const;
   uint8_t get_pin() const { return this->pin_; }
@@ -43,7 +43,7 @@ class ZephyrGPIOPin final : public GPIOPin {
   gpio::Flags get_flags() const override { return flags_; }
 
  protected:
-  void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const;
+  void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
   const device *gpio_{nullptr};
   const char *pin_name_prefix_{nullptr};
   gpio::Flags flags_{};
@@ -52,7 +52,7 @@ class ZephyrGPIOPin final : public GPIOPin {
   bool inverted_{};
   bool value_{false};
 
-  // attach_interrupt()/detach_interrupt() are const, so their interrupt state is mutable.
+  // attach_interrupt_()/detach_interrupt() are const, so their interrupt state is mutable.
   mutable ZephyrGPIOInterrupt interrupt_{};
 };
 

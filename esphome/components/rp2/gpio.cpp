@@ -41,7 +41,7 @@ ISRInternalGPIOPin RP2GPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void RP2GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void RP2GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = LOW;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
