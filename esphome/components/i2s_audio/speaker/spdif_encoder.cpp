@@ -6,7 +6,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.spdif_encoder";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.spdif_encoder");
 
 // S/PDIF preamble patterns (8 BMC bits each)
 // These are the BMC-encoded sync patterns that violate normal BMC rules for easy detection.

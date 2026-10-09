@@ -12,7 +12,7 @@
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
 // Margin past a transmission's expected duration before the chain is declared stalled
 static constexpr uint32_t STALL_MARGIN_MS = 1000;

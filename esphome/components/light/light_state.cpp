@@ -13,7 +13,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light";
+ESPHOME_LOG_TAG(TAG, "light");
 
 // Colour modes are bitmasks of capabilities. A mode the light doesn't support may be a bare set of
 // required capabilities (see restore_state.py's colour mode inference): use the first supported
