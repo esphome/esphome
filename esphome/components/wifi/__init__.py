@@ -61,7 +61,6 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
-    CONF_WIFI,
     PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
@@ -81,6 +80,7 @@ from . import wpa2_eap
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
+DOMAIN = "wifi"
 
 NO_WIFI_VARIANTS = [
     const.VARIANT_ESP32H2,
@@ -1139,7 +1139,7 @@ def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
     values still appear. Empty list means no placeholders were found.
     """
     placeholders: list[str] = []
-    wifi_conf = config.get(CONF_WIFI)
+    wifi_conf = config.get(DOMAIN)
     if not wifi_conf:
         return placeholders
 

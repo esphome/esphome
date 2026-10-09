@@ -51,6 +51,7 @@ from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "remote_base"
 
 
 CONF_RECEIVER_ID = "receiver_id"

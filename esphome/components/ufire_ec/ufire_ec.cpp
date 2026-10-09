@@ -4,7 +4,7 @@
 
 namespace esphome::ufire_ec {
 
-static const char *const TAG = "ufire_ec";
+ESPHOME_LOG_TAG(TAG, "ufire_ec");
 
 void UFireECComponent::setup() {
   uint8_t version;

@@ -18,6 +18,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesterret", "@clydebarrow"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "ch422g"
 MULTI_CONF = True
 ch422g_ns = cg.esphome_ns.namespace("ch422g")
 

@@ -3,7 +3,7 @@
 
 namespace esphome::pid {
 
-static const char *const TAG = "pid.climate";
+ESPHOME_LOG_TAG(TAG, "pid.climate");
 
 bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
   if (threshold_low > threshold_high) {

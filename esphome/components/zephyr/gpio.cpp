@@ -7,7 +7,7 @@
 namespace esphome {
 namespace zephyr {
 
-static const char *const TAG = "zephyr";
+ESPHOME_LOG_TAG(TAG, "zephyr");
 
 static gpio_flags_t flags_to_mode(gpio::Flags flags, bool inverted, bool value) {
   gpio_flags_t ret = 0;

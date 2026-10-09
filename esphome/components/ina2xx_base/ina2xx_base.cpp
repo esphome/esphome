@@ -7,7 +7,7 @@
 
 namespace esphome::ina2xx_base {
 
-static const char *const TAG = "ina2xx";
+ESPHOME_LOG_TAG(TAG, "ina2xx");
 
 #define OKFAILED(b) ((b) ? "OK" : "FAILED")
 

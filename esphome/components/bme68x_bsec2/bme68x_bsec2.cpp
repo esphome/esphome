@@ -13,7 +13,7 @@ namespace esphome::bme68x_bsec2 {
 #define BME68X_BSEC2_SAMPLE_RATE_LOG(r) (r == SAMPLE_RATE_DEFAULT ? "Default" : (r == SAMPLE_RATE_ULP ? "ULP" : "LP"))
 #define BME68X_BSEC2_VOLTAGE_LOG(v) (v == VOLTAGE_3_3V ? "3.3V" : "1.8V")
 
-static const char *const TAG = "bme68x_bsec2.sensor";
+ESPHOME_LOG_TAG(TAG, "bme68x_bsec2.sensor");
 
 static constexpr const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 

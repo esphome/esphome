@@ -51,7 +51,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi";
+ESPHOME_LOG_TAG(TAG, "wifi");
 
 // CompactString implementation
 CompactString::CompactString(const char *str, size_t len) {
