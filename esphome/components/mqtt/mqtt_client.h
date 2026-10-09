@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -284,8 +285,16 @@ class MQTTClientComponent final : public Component {
   void recalculate_availability_();
 
   bool subscribe_(const char *topic, uint8_t qos);
-  void resubscribe_subscription_(MQTTSubscription *sub, bool check_persistence = false);
-  void resubscribe_subscriptions_(bool check_persistence = false);
+  void resubscribe_subscription_(MQTTSubscription *sub);
+  void resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  void persist_subscription_(uint32_t hash);
+  void remove_persisted_subscription_(uint32_t hash);
+  void clear_persisted_subscriptions_();
+#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
+  void save_persisted_subscriptions_();
+#endif
+#endif
 
   MQTTCredentials credentials_;
   /// The last will message. Disabled optional denotes it being default and
@@ -338,15 +347,9 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool session_present_{false};
   bool on_connect_received_{false};
-
-  static uint32_t hash_subscription(const MQTTSubscription &sub);
-  static bool is_subscription_persisted(const MQTTSubscription &sub);
-  static bool persist_subscription(const MQTTSubscription &sub);
-  static bool remove_persisted_subscription(const MQTTSubscription &sub);
-
-#ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
-  /// RTC memory storage for subscription hashes (ESP32 only), 0 means empty
-  inline static RTC_DATA_ATTR uint32_t rtc_subscription_hashes[USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS] = {};
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_MQTT_SESSION_PERSISTENCE_RTC)
+  bool persisted_subscriptions_dirty_{false};
+  ESPPreferenceObject persisted_subscriptions_pref_;
 #endif
 };
 

@@ -24,7 +24,7 @@ void MQTTSubscribeSensor::setup() {
       this->qos_);
 }
 
-float MQTTSubscribeSensor::get_setup_priority() const { return setup_priority::BEFORE_CONNECTION; }
+float MQTTSubscribeSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTSubscribeSensor::dump_config() {
   LOG_SENSOR("", "MQTT Subscribe", this);
   ESP_LOGCONFIG(TAG, "  Topic: %s", this->topic_.c_str());

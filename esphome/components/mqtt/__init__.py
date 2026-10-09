@@ -86,7 +86,11 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
-CONF_RTC_MAX_SUBSCRIPTIONS = "rtc_max_subscriptions"
+CONF_MAX_PERSISTED_SUBSCRIPTIONS = "max_persisted_subscriptions"
+
+STORAGE_FLASH = "FLASH"
+STORAGE_RTC = "RTC"
+PERSISTENT_SESSION_STORAGES = (STORAGE_FLASH, STORAGE_RTC)
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -178,14 +182,14 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # Only if using RTC persistence
-    clean_session = config[CONF_CLEAN_SESSION]
-    if not (CORE.is_esp32 and (clean_session == "RTC" or clean_session is False)):
+    if config[CONF_CLEAN_SESSION] not in PERSISTENT_SESSION_STORAGES:
         return config
-    # Calculate the number of required space for subscriptions for RTC persistence
-    subscription_count = 0
-    fconf = full_config.get()
-    for main_conf in fconf.values():
+    # Count the subscriptions made by the client itself and by every entity.
+    # Subscriptions made from lambdas cannot be counted here.
+    subscription_count = 2 if config[CONF_DISCOVER_IP] else 0
+    subscription_count += len(config.get(CONF_ON_MESSAGE, []))
+    subscription_count += len(config.get(CONF_ON_JSON_MESSAGE, []))
+    for main_conf in full_config.get().values():
         # Skip configs that are not iterable
         if not hasattr(main_conf, "__iter__"):
             continue
@@ -195,16 +199,15 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 continue
             subscription_count += conf.get(CONF_MQTT_SUBSCRIPTION_COUNT, 0)
 
-    if CONF_RTC_MAX_SUBSCRIPTIONS not in config:
-        config[CONF_RTC_MAX_SUBSCRIPTIONS] = subscription_count
-    elif config[CONF_RTC_MAX_SUBSCRIPTIONS] < subscription_count:
+    if CONF_MAX_PERSISTED_SUBSCRIPTIONS not in config:
+        config[CONF_MAX_PERSISTED_SUBSCRIPTIONS] = max(subscription_count, 1)
+    elif config[CONF_MAX_PERSISTED_SUBSCRIPTIONS] < subscription_count:
         _LOGGER.warning(
             "The configured %s (%d) is less than the required number of "
-            "subscriptions (%d). This may lead to lost subscriptions after "
-            "reboots/reconnections/deep sleeps. Consider increasing it to "
-            "at least %d.",
-            CONF_RTC_MAX_SUBSCRIPTIONS,
-            config[CONF_RTC_MAX_SUBSCRIPTIONS],
+            "subscriptions (%d). Subscriptions that do not fit are sent again "
+            "on every connect. Consider increasing it to at least %d.",
+            CONF_MAX_PERSISTED_SUBSCRIPTIONS,
+            config[CONF_MAX_PERSISTED_SUBSCRIPTIONS],
             subscription_count,
             subscription_count,
         )
@@ -263,14 +266,16 @@ def validate_clean_session(value):
     """Validate clean_session configuration.
 
     Accepts:
-    - True: Clean session (no persistence)
-    - False: Persistent session (uses RTC on ESP32, FLASH otherwise)
-    - FLASH: Persistent session using flash storage
-    - RTC: Persistent session using RTC memory (ESP32 only)
+    - True: Clean session
+    - False: Persistent session, all subscriptions are sent again on every connect
+    - FLASH: Persistent session, subscriptions are tracked in flash
+    - RTC: Persistent session, subscriptions are tracked in RTC memory (ESP32 only)
     """
     if CORE.is_esp32:
-        return cv.Any(cv.boolean, cv.one_of("FLASH", "RTC", upper=True))(value)
-    return cv.Any(cv.boolean, cv.one_of("FLASH"))(value)
+        return cv.Any(cv.boolean, cv.one_of(*PERSISTENT_SESSION_STORAGES, upper=True))(
+            value
+        )
+    return cv.Any(cv.boolean, cv.one_of(STORAGE_FLASH, upper=True))(value)
 
 
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
@@ -289,8 +294,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
-            cv.Optional(CONF_CLEAN_SESSION, default=True): validate_clean_session,
-            cv.Optional(CONF_RTC_MAX_SUBSCRIPTIONS): cv.positive_int,
+            cv.Optional(CONF_CLEAN_SESSION, default=False): validate_clean_session,
+            cv.Optional(CONF_MAX_PERSISTED_SUBSCRIPTIONS): cv.positive_not_null_int,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
@@ -431,20 +436,16 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
 
-    # Handle clean_session configuration
     clean_session = config[CONF_CLEAN_SESSION]
-    if clean_session is True:
-        # Standard clean session - no persistence
-        cg.add(var.set_clean_session(True))
-    else:
-        cg.add(var.set_clean_session(False))
-        # Default to RTC on ESP32
-        if CORE.is_esp32 and (clean_session == "RTC" or clean_session is False):
-            cg.add_define("USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE")
-            cg.add_define(
-                "USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS",
-                config[CONF_RTC_MAX_SUBSCRIPTIONS],
-            )
+    cg.add(var.set_clean_session(clean_session is True))
+    if clean_session in PERSISTENT_SESSION_STORAGES:
+        cg.add_define("USE_MQTT_SESSION_PERSISTENCE")
+        cg.add_define(
+            "MQTT_MAX_PERSISTED_SUBSCRIPTIONS",
+            config[CONF_MAX_PERSISTED_SUBSCRIPTIONS],
+        )
+        if clean_session == STORAGE_RTC:
+            cg.add_define("USE_MQTT_SESSION_PERSISTENCE_RTC")
 
     if CONF_CLIENT_ID in config:
         cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
