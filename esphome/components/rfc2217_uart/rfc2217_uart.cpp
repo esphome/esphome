@@ -133,7 +133,7 @@ void Rfc2217Base::read_plain_() {
   uint8_t byte;
   while (n < room && this->tcp_->peek_byte(&byte)) {
     // After an IAC only a second one, an escaped 0xFF, is payload.
-    if (!this->decoder_.idle() && !(this->decoder_.at_iac() && byte == TELNET_IAC)) {
+    if (!this->decoder_.idle() && (!this->decoder_.at_iac() || byte != TELNET_IAC)) {
       break;
     }
     this->tcp_->read_array(&byte, 1);
