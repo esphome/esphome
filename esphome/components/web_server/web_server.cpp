@@ -176,8 +176,7 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 #endif
 
   // Match by entity name
-  char name_buf[ENTITY_NAME_BUF_SIZE];
-  if (this->id == entity->get_name_to(name_buf)) {
+  if (entity->name_equals(this->id)) {
     result.matched = true;
   }
 
@@ -559,10 +558,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 // Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
 // Uses names (not object_id) to avoid UTF-8 collision issues
 static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  char name_buf[ENTITY_NAME_BUF_SIZE];
-  StringRef name = obj->get_name_to(name_buf);
   size_t prefix_len = strlen(prefix);
-  size_t name_len = name.size();
 
 #ifdef USE_DEVICES
   Device *device = obj->get_device();
@@ -592,14 +588,13 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
     *p++ = '/';
   }
 #endif
-  memcpy(p, name.c_str(), name_len);
-  p[name_len] = '\0';
+  const char *name = p;
+  obj->write_name_to(p, id_buf + ID_BUF_SIZE - p);
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = prefix;
-    // Use .c_str() to avoid instantiating set<StringRef> template (saves ~24B)
-    root[ESPHOME_F("name")] = name.c_str();
+    root[ESPHOME_F("name")] = name;
 #ifdef USE_DEVICES
     if (device_name) {
       root[ESPHOME_F("device")] = device_name;

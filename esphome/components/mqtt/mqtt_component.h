@@ -299,7 +299,7 @@ class MQTTComponent : public Component {
   virtual const EntityBase *get_entity() const = 0;
 
   /// Get the friendly name of this MQTT component.
-  const LogString *friendly_name_() const;
+  const LogString *log_name_() const;
 
   /// Get the icon field of this component into a stack buffer
   const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }

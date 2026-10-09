@@ -24,7 +24,7 @@ void MQTTLockComponent::setup() {
     } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("OPEN")) == 0) {
       this->lock_->open();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->friendly_name_()), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
       this->status_momentary_warning("state", 5000);
     }
   });

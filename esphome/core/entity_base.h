@@ -70,17 +70,27 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-#ifndef USE_ESP8266
-  // Get the name of this Entity. Not available on ESP8266, where the name lives in flash;
-  // use get_name_to() or get_log_name() instead.
+#ifdef USE_ESP8266
+  // On ESP8266 the name is in flash and cannot be read as a plain string.
+  template<typename T = int> const StringRef &get_name() const {
+    static_assert(sizeof(T) == 0, "get_name() unavailable on ESP8266 (name is in flash). "
+                                  "Use get_name_to() with a stack buffer, or get_log_name() for logging.");
+    return this->name_;
+  }
+  /// Get the name of this Entity, copied out of flash into buffer.
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const;
+  bool name_equals(const StringRef &other) const;
+#else
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
   const StringRef &get_name() const { return this->name_; }
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_; }
+  bool name_equals(const StringRef &other) const { return this->name_ == other; }
 #endif
 
-  /// Get the name of this Entity. On ESP8266 it is copied out of flash into buffer;
-  /// elsewhere the stored name is returned and buffer is unused.
-  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const;
+  /// Copy the name into buf (null terminated), returns its length.
+  size_t write_name_to(char *buf, size_t buf_size) const;
 
-  /// Get the name for a "%s" log argument (LOG_STR_ARG); may point to flash on ESP8266.
+  /// Get the name for a "%s" log argument (LOG_STR_ARG).
   const LogString *get_log_name() const { return reinterpret_cast<const LogString *>(this->name_.c_str()); }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
@@ -225,7 +235,7 @@ class EntityBase {
 
   void calc_object_id_();
 
-  StringRef name_;  // May point to flash on ESP8266; only pass it to "%s" log arguments there
+  StringRef name_;  // Points to flash on ESP8266; read it with progmem helpers or as a "%s" log argument
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};

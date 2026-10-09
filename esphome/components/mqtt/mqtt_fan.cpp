@@ -32,15 +32,15 @@ void MQTTFanComponent::setup() {
     auto val = parse_on_off(payload.c_str());
     switch (val) {
       case PARSE_ON:
-        ESP_LOGD(TAG, "'%s' Turning Fan ON.", LOG_STR_ARG(this->friendly_name_()));
+        ESP_LOGD(TAG, "'%s' Turning Fan ON.", LOG_STR_ARG(this->log_name_()));
         this->state_->turn_on().perform();
         break;
       case PARSE_OFF:
-        ESP_LOGD(TAG, "'%s' Turning Fan OFF.", LOG_STR_ARG(this->friendly_name_()));
+        ESP_LOGD(TAG, "'%s' Turning Fan OFF.", LOG_STR_ARG(this->log_name_()));
         this->state_->turn_off().perform();
         break;
       case PARSE_TOGGLE:
-        ESP_LOGD(TAG, "'%s' Toggling Fan.", LOG_STR_ARG(this->friendly_name_()));
+        ESP_LOGD(TAG, "'%s' Toggling Fan.", LOG_STR_ARG(this->log_name_()));
         this->state_->toggle().perform();
         break;
       case PARSE_NONE:
@@ -56,11 +56,11 @@ void MQTTFanComponent::setup() {
       auto val = parse_on_off(payload.c_str(), "forward", "reverse");
       switch (val) {
         case PARSE_ON:
-          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", LOG_STR_ARG(this->friendly_name_()));
+          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", LOG_STR_ARG(this->log_name_()));
           this->state_->make_call().set_direction(fan::FanDirection::FORWARD).perform();
           break;
         case PARSE_OFF:
-          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", LOG_STR_ARG(this->friendly_name_()));
+          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", LOG_STR_ARG(this->log_name_()));
           this->state_->make_call().set_direction(fan::FanDirection::REVERSE).perform();
           break;
         case PARSE_TOGGLE:
@@ -83,11 +83,11 @@ void MQTTFanComponent::setup() {
                       auto val = parse_on_off(payload.c_str(), "oscillate_on", "oscillate_off");
                       switch (val) {
                         case PARSE_ON:
-                          ESP_LOGD(TAG, "'%s': Setting oscillating ON", LOG_STR_ARG(this->friendly_name_()));
+                          ESP_LOGD(TAG, "'%s': Setting oscillating ON", LOG_STR_ARG(this->log_name_()));
                           this->state_->make_call().set_oscillating(true).perform();
                           break;
                         case PARSE_OFF:
-                          ESP_LOGD(TAG, "'%s': Setting oscillating OFF", LOG_STR_ARG(this->friendly_name_()));
+                          ESP_LOGD(TAG, "'%s': Setting oscillating OFF", LOG_STR_ARG(this->log_name_()));
                           this->state_->make_call().set_oscillating(false).perform();
                           break;
                         case PARSE_TOGGLE:

@@ -59,9 +59,9 @@ void MQTTAlarmControlPanelComponent::setup() {
       if (!root.isNull()) {
         const char *state = root[ESPHOME_F("state")];
         if (state == nullptr) {
-          ESP_LOGW(TAG, "'%s': JSON payload missing 'state' key", LOG_STR_ARG(this->friendly_name_()));
+          ESP_LOGW(TAG, "'%s': JSON payload missing 'state' key", LOG_STR_ARG(this->log_name_()));
         } else if (!apply_command(call, state)) {
-          ESP_LOGW(TAG, "'%s': Received unknown state in JSON payload: %s", LOG_STR_ARG(this->friendly_name_()), state);
+          ESP_LOGW(TAG, "'%s': Received unknown state in JSON payload: %s", LOG_STR_ARG(this->log_name_()), state);
         } else {
           const char *code = root[ESPHOME_F("code")];
           if (code != nullptr) {
@@ -70,7 +70,7 @@ void MQTTAlarmControlPanelComponent::setup() {
         }
       }
     } else if (!apply_command(call, payload.c_str())) {
-      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", LOG_STR_ARG(this->friendly_name_()), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
     }
     call.perform();
   });

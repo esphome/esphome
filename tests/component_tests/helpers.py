@@ -16,12 +16,12 @@ def extract_packed_value(main_cpp: str, var_name: str) -> int:
     escaped_var = re.escape(var_name)
     legacy_pattern = (
         rf"{escaped_var}->configure_entity_\("
-        r'"(?:\\.|[^"\\])*"'
+        r'(?:ESPHOME_PSTR\()?"(?:\\.|[^"\\])*"\)?'
         r",\s*\w+,\s*(\d+)\)"
     )
     combined_pattern = (
         rf"App\.register_\w+\(\s*{escaped_var}\s*,\s*"
-        r'"(?:\\.|[^"\\])*"'
+        r'(?:ESPHOME_PSTR\()?"(?:\\.|[^"\\])*"\)?'
         r",\s*\w+,\s*(\d+)\)"
     )
     match = re.search(combined_pattern, main_cpp) or re.search(legacy_pattern, main_cpp)

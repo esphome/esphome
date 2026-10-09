@@ -186,11 +186,11 @@ bool MQTTComponent::send_discovery_() {
   StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info);
 
   if (discovery_info.clean) {
-    ESP_LOGV(TAG, "'%s': Cleaning discovery", LOG_STR_ARG(this->friendly_name_()));
+    ESP_LOGV(TAG, "'%s': Cleaning discovery", LOG_STR_ARG(this->log_name_()));
     return global_mqtt_client->publish(discovery_topic.c_str(), "", 0, this->qos_, true);
   }
 
-  ESP_LOGV(TAG, "'%s': Sending discovery", LOG_STR_ARG(this->friendly_name_()));
+  ESP_LOGV(TAG, "'%s': Sending discovery", LOG_STR_ARG(this->log_name_()));
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
@@ -208,7 +208,8 @@ bool MQTTComponent::send_discovery_() {
 
         // Fields from EntityBase
         char name_buf[ENTITY_NAME_BUF_SIZE];
-        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->get_entity()->get_name_to(name_buf) : StringRef();
+        StringRef name = this->get_entity()->get_name_to(name_buf);
+        root[MQTT_NAME] = this->get_entity()->has_own_name() ? name : StringRef();
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
@@ -255,8 +256,7 @@ bool MQTTComponent::send_discovery_() {
         StringRef object_id = this->get_default_object_id_to_(object_id_buf);
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
-          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
-                            fnv1_hash(this->get_entity()->get_name_to(name_buf).c_str()));
+          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32, fnv1_hash(name.c_str()));
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
@@ -408,7 +408,7 @@ void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden
-const LogString *MQTTComponent::friendly_name_() const { return this->get_entity()->get_log_name(); }
+const LogString *MQTTComponent::log_name_() const { return this->get_entity()->get_log_name(); }
 StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   return this->get_entity()->get_object_id_to(buf);
 }
