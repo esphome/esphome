@@ -12,7 +12,17 @@
 
 #include <cstdlib>
 #include <new>
+#include <type_traits>
 #include "esp_system.h"
+
+#ifdef __cpp_exceptions
+#error "CONFIG_COMPILER_CXX_EXCEPTIONS no longer matches -fexceptions"
+#endif
+
+#ifndef CLANG_TIDY  // clang-tidy parses Xtensa with a 64 bit host target
+// --undefined=_Znwj in __init__.py relies on this mangling
+static_assert(std::is_same_v<std::size_t, unsigned int>, "update --undefined=_Znwj");
+#endif
 
 namespace esphome::esp32 {}  // namespace esphome::esp32
 
