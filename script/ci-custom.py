@@ -1257,9 +1257,8 @@ def lint_no_std_bind(fname, match):
 )
 def lint_no_std_nothrow(fname, match):
     return (
-        f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h instead of "
-        f"{highlight('new (std::nothrow)')}: it returns nullptr on failure on every platform and lets you choose PSRAM "
-        f"or internal RAM.\n"
+        f"Use {highlight('RAMAllocator')} from esphome/core/helpers.h instead of {highlight('new (std::nothrow)')}; "
+        f"it returns nullptr on failure on every platform and can choose PSRAM or internal RAM.\n"
         f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
         f"  After:  {highlight('auto buf = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(n);')}\n"
         f"For one object use {highlight('RAMAllocator<T>().make_unique(args...)')}; both return empty on failure.\n"
