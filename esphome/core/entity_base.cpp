@@ -9,6 +9,38 @@ namespace esphome {
 
 ESPHOME_LOG_TAG(TAG, "entity_base");
 
+#ifdef USE_ESP8266
+namespace {
+// RAM copies made by the deprecated get_name(), only for entities whose name is asked for. Remove before 2027.5.0
+struct NameCopy {
+  NameCopy *next;
+  const char *key;
+  StringRef ref;
+};
+NameCopy *name_copies = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+const StringRef EMPTY_NAME;
+}  // namespace
+
+const StringRef &EntityBase::get_name() const {
+  const char *key = this->name_.progmem_ptr();
+  for (NameCopy *copy = name_copies; copy != nullptr; copy = copy->next) {
+    if (copy->key == key)
+      return copy->ref;
+  }
+  size_t len = this->name_.size();
+  auto *copy = static_cast<NameCopy *>(malloc(sizeof(NameCopy) + len + 1));  // NOLINT(cppcoreguidelines-no-malloc)
+  if (copy == nullptr)
+    return EMPTY_NAME;
+  char *buf = reinterpret_cast<char *>(copy + 1);
+  this->name_.write_to(buf, len + 1);
+  copy->next = name_copies;
+  copy->key = key;
+  copy->ref = StringRef(buf, len);
+  name_copies = copy;
+  return copy->ref;
+}
+#endif
+
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = ProgmemStringRef(name, ESPHOME_strlen_P(name));
   if (this->name_.empty()) {

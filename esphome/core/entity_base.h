@@ -73,19 +73,16 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
 #ifdef USE_ESP8266
-  // On ESP8266 the name is in flash and cannot be read as a plain string.
-  template<typename T = int> StringRef get_name() const {
-    static_assert(sizeof(T) == 0, "get_name() unavailable on ESP8266 (name is in flash). "
-                                  "Use get_name_to() with a stack buffer, or get_log_name() for logging.");
-    return {};
-  }
+  /// The name is in flash here; the first call makes a RAM copy that is kept for the life of the device.
+  const StringRef &get_name() const;
   /// Get the name of this Entity, copied out of flash into buffer.
   StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
     return StringRef(buffer.data(), this->write_name_to(buffer.data(), buffer.size()));
   }
 #else
-  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
   const StringRef &get_name() const { return this->name_.ram_ref(); }
   const StringRef &get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
 #endif

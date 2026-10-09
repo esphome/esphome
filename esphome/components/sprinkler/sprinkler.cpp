@@ -870,14 +870,15 @@ void Sprinkler::reset_resume() {
   this->resume_duration_.reset();
 }
 
-#ifndef USE_ESP8266
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 const char *Sprinkler::valve_name(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].controller_switch->get_name_progmem().ram_ref().c_str();
+    return this->valve_[valve_number].controller_switch->get_name().c_str();
   }
   return nullptr;
 }
-#endif
+#pragma GCC diagnostic pop
 
 const LogString *Sprinkler::valve_log_name(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
