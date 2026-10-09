@@ -4,7 +4,7 @@
 
 namespace esphome::sn74hc595 {
 
-static const char *const TAG = "sn74hc595";
+ESPHOME_LOG_TAG(TAG, "sn74hc595");
 
 void SN74HC595Component::pre_setup_() {
   if (this->have_oe_pin_) {  // disable output

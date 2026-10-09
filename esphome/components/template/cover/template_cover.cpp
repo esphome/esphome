@@ -5,7 +5,7 @@ namespace esphome::template_ {
 
 using namespace esphome::cover;
 
-static const char *const TAG = "template.cover";
+ESPHOME_LOG_TAG(TAG, "template.cover");
 
 TemplateCover::TemplateCover() = default;
 void TemplateCover::setup() {

@@ -10,7 +10,7 @@ namespace esphome::statsd {
 // this is needed since statsD does not support fragmented UDP packets
 static const uint16_t SEND_THRESHOLD = 1024;
 
-static const char *const TAG = "statsD";
+ESPHOME_LOG_TAG(TAG, "statsD");
 
 void StatsdComponent::setup() {
 #ifndef USE_ESP8266

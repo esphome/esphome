@@ -9,6 +9,7 @@ from esphome.const import CONF_ID, CONF_ON_DATA
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@alengwenus"]
+DOMAIN = "sml"
 
 DEPENDENCIES = ["uart"]
 

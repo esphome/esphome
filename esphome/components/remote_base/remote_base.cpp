@@ -4,7 +4,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote_base";
+ESPHOME_LOG_TAG(TAG, "remote_base");
 
 /* RemoteReceiveData */
 

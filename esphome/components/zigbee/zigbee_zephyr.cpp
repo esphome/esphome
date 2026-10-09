@@ -16,7 +16,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee";
+ESPHOME_LOG_TAG(TAG, "zigbee");
 
 ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
