@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -27,6 +28,7 @@ enum Flags : uint8_t {
   FLAG_OPEN_DRAIN = 0x04,
   FLAG_PULLUP = 0x08,
   FLAG_PULLDOWN = 0x10,
+  FLAG_HOLD = 0x20,
 };
 
 class FlagsHelper {
@@ -79,6 +81,13 @@ class GPIOPin {
   virtual size_t dump_summary(char *buffer, size_t len) const;
 
   virtual bool is_internal() { return false; }
+#ifdef USE_GPIO_HOLD
+  bool get_hold() const { return this->get_flags() & gpio::FLAG_HOLD; }
+  virtual bool is_held() const { return false; }
+#else
+  bool get_hold() const { return false; }
+  bool is_held() const { return false; }
+#endif
 };
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
