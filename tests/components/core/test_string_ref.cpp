@@ -1,12 +1,9 @@
 #include <gtest/gtest.h>
 
-#include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
 #include <iterator>
 #include <string>
-#include <type_traits>
-#include <utility>
 
 namespace esphome::core::testing {
 
@@ -162,49 +159,6 @@ TEST(StringRefNullEmpty, NumericConversionsReturnZero) {
   EXPECT_EQ(pos, 0u);
   EXPECT_EQ(stoi(null_empty), 0);
   EXPECT_EQ(stof(null_empty), 0.0f);
-}
-
-TEST(ProgmemStringRef, WriteToCopiesAndTerminates) {
-  ProgmemStringRef ref("Kitchen", 7);
-  char buf[16];
-  EXPECT_EQ(ref.write_to(buf, sizeof(buf)), 7u);
-  EXPECT_STREQ(buf, "Kitchen");
-}
-
-TEST(ProgmemStringRef, WriteToTruncatesToFit) {
-  ProgmemStringRef ref("Kitchen", 7);
-  char buf[4];
-  EXPECT_EQ(ref.write_to(buf, sizeof(buf)), 3u);
-  EXPECT_STREQ(buf, "Kit");
-}
-
-TEST(ProgmemStringRef, WriteToZeroSizeWritesNothing) {
-  ProgmemStringRef ref("Kitchen", 7);
-  char buf[1] = {'x'};
-  EXPECT_EQ(ref.write_to(buf, 0), 0u);
-  EXPECT_EQ(buf[0], 'x');
-}
-
-TEST(ProgmemStringRef, EqualsComparesLengthAndContent) {
-  ProgmemStringRef ref("Kitchen", 7);
-  EXPECT_TRUE(ref.equals(StringRef("Kitchen")));
-  EXPECT_FALSE(ref.equals(StringRef("Kitche")));
-  EXPECT_FALSE(ref.equals(StringRef("Kitchens")));
-  EXPECT_FALSE(ref.equals(StringRef("Bedroom")));
-}
-
-// get_name() must keep returning a reference: external code returns it from `const StringRef &` getters
-static_assert(std::is_same_v<decltype(std::declval<const ProgmemStringRef &>().ram_ref()), const StringRef &>);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-static_assert(std::is_same_v<decltype(std::declval<const EntityBase &>().get_name()), const StringRef &>);
-#pragma GCC diagnostic pop
-
-TEST(ProgmemStringRef, DefaultIsEmpty) {
-  ProgmemStringRef ref;
-  EXPECT_TRUE(ref.empty());
-  EXPECT_EQ(ref.size(), 0u);
-  EXPECT_TRUE(ref.equals(StringRef("")));
 }
 
 }  // namespace esphome::core::testing

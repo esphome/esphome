@@ -537,22 +537,17 @@ def create_field_type_info(
             "a non-repeated message field in a message that is decoded"
         )
     if get_field_opt(field, pb.progmem, False):
-        is_short_string = (
-            field.type == FieldDescriptorProto.TYPE_STRING
-            and get_field_opt(field, pb.force, False)
-            and (get_field_opt(field, pb.max_data_length) or 128) < 128
-        )
         is_pointer_bytes = (
             field.type == FieldDescriptorProto.TYPE_BYTES
             and get_field_opt(field, pb.pointer_to_buffer, False)
             and get_field_opt(field, pb.fixed_array_size) is None
         )
         if field.label == FieldDescriptorProto.LABEL_REPEATED or not (
-            is_short_string or is_pointer_bytes
+            field.type == FieldDescriptorProto.TYPE_STRING or is_pointer_bytes
         ):
             raise ValueError(
-                f"progmem on field '{field.name}' requires a forced string field with "
-                "max_data_length below 128, or a bytes field with pointer_to_buffer"
+                f"progmem on field '{field.name}' requires a non-repeated string field, "
+                "or a bytes field with pointer_to_buffer"
             )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
@@ -1288,6 +1283,14 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
                     else "encode_short_string_force"
                 )
                 return _encode_call(encode_fn, str(tag), f"this->{self.field_name}")
+        if self.progmem:
+            return _encode_call(
+                "encode_progmem_bytes",
+                str(self.number),
+                f"reinterpret_cast<const uint8_t *>(this->{self.field_name}.progmem_ptr())",
+                f"this->{self.field_name}.size()",
+                force=self.force,
+            )
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
