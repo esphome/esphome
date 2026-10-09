@@ -34,6 +34,7 @@ def AUTO_LOAD() -> list[str]:
 
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "captive_portal"
 
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)

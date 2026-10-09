@@ -81,6 +81,7 @@ from . import wpa2_eap
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
+DOMAIN = "wifi"
 
 NO_WIFI_VARIANTS = [
     const.VARIANT_ESP32H2,
