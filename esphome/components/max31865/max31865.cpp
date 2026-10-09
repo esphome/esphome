@@ -8,6 +8,8 @@ namespace esphome::max31865 {
 
 ESPHOME_LOG_TAG(TAG, "max31865");
 
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
+
 void MAX31865Sensor::update() {
   // Check new faults since last measurement
   if (!has_fault_) {
@@ -59,7 +61,7 @@ void MAX31865Sensor::update() {
   this->write_config_(0b11100000, 0b10100000);
 
   // Datasheet max conversion time is 55ms for 60Hz / 66ms for 50Hz
-  this->set_timeout("value", filter_ == FILTER_60HZ ? 55 : 66, [this]() { this->read_data_(); });
+  this->set_timeout(READ_TIMEOUT_ID, filter_ == FILTER_60HZ ? 55 : 66, [this]() { this->read_data_(); });
 }
 
 void MAX31865Sensor::setup() {

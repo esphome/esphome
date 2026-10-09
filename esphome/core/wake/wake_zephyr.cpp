@@ -21,9 +21,11 @@ K_SEM_DEFINE(esphome_wake_sem, 0, 1);
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 volatile uint8_t g_wake_requested = 0;
 
+void wake_scheduler_threadsafe() { k_sem_give(&esphome_wake_sem); }
+
 void wake_loop_threadsafe() {
   wake_request_set();
-  k_sem_give(&esphome_wake_sem);
+  wake_scheduler_threadsafe();
 }
 
 namespace internal {

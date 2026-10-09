@@ -2926,6 +2926,11 @@ async def to_code(config):
     # produce reproducible outputs and downstream tooling can reuse artifacts.
     add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
 
+    # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
+    cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
+    cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
