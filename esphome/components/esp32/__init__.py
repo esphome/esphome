@@ -106,6 +106,7 @@ from .gpio import esp32_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp32"
 IS_TARGET_PLATFORM = True
 
 CONF_ASSERTION_LEVEL = "assertion_level"

@@ -1,8 +1,10 @@
 #include "sendspin_text_sensor.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_METADATA) && defined(USE_TEXT_SENSOR)
+#if defined(USE_ESP_IDF) && defined(USE_TEXT_SENSOR)
 
+#ifdef USE_SENDSPIN_METADATA
 #include <sendspin/metadata_role.h>
+#endif
 
 #include <string>
 
@@ -10,6 +12,7 @@ namespace esphome::sendspin_ {
 
 ESPHOME_LOG_TAG(TAG, "sendspin.text_sensor");
 
+#ifdef USE_SENDSPIN_METADATA
 void SendspinTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Sendspin", this); }
 
 // A field is nullopt when the server has not provided it or has explicitly cleared it. Both mean there is nothing to
@@ -49,6 +52,16 @@ void SendspinTextSensor::publish_if_changed_(const char *value) {
   if (this->get_raw_state() != value) {
     this->publish_state(value);
   }
+}
+#endif  // USE_SENDSPIN_METADATA
+
+void SendspinPairingCodeTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Pairing Code", this); }
+
+// THREAD CONTEXT: Main loop. The registered callbacks also fire on the main loop (SendspinHub dispatches them from
+// its loop()).
+void SendspinPairingCodeTextSensor::setup() {
+  this->parent_->add_on_display_pairing_code_callback([this](const std::string &code) { this->publish_state(code); });
+  this->parent_->add_on_clear_pairing_code_callback([this]() { this->publish_state(""); });
 }
 
 }  // namespace esphome::sendspin_
