@@ -3,10 +3,11 @@
 #include "esphome/core/log.h"
 
 #include <cmath>
+#include <numbers>
 
 namespace esphome::tmc22xx {
 
-static const char *const TAG = "tmc22xx";
+ESPHOME_LOG_TAG(TAG, "tmc22xx");
 
 static constexpr uint8_t SYNC_BYTE = 0x05;
 static constexpr uint8_t MASTER_ADDRESS = 0xFF;
@@ -48,7 +49,7 @@ void TMC22XXStepper::setup() {
     return;
   }
   this->version_ = *version;
-  if (this->version_ != this->expected_version_()) {
+  if (this->version_ != this->expected_version()) {
     ESP_LOGW(TAG, "Unexpected IC version 0x%02X", this->version_);
   }
 
@@ -219,11 +220,11 @@ float TMC22XXStepper::full_scale_voltage_() {
 }
 
 float TMC22XXStepper::scale_to_current(uint8_t scale) {
-  return (std::min<uint8_t>(scale, 31) + 1) / 32.0f * this->full_scale_voltage_() / std::sqrt(2.0f);
+  return (std::min<uint8_t>(scale, 31) + 1) / 32.0f * this->full_scale_voltage_() / std::numbers::sqrt2_v<float>;
 }
 
 uint8_t TMC22XXStepper::current_to_scale_(float current) {
-  float scale = 32.0f * std::sqrt(2.0f) * current / this->full_scale_voltage_() - 1.0f;
+  float scale = 32.0f * std::numbers::sqrt2_v<float> * current / this->full_scale_voltage_() - 1.0f;
   if (scale > 31.0f) {
     ESP_LOGW(TAG, "%.2f A is above the %.2f A limit, using the limit", current, this->scale_to_current(31));
     return 31;
@@ -236,7 +237,7 @@ int32_t TMC22XXStepper::speed_to_vactual_(float speed) const {
   return static_cast<int32_t>(std::lround(speed * 16777216.0f / this->clock_frequency_));
 }
 
-uint32_t *TMC22XXStepper::shadow_register_(uint8_t reg) {
+uint32_t *TMC22XXStepper::shadow_register(uint8_t reg) {
   switch (reg) {
     case REG_IHOLD_IRUN:
       return &this->ihold_irun_;
@@ -270,13 +271,13 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
   uint8_t echo[DATAGRAM_SIZE];
   this->read_array(echo, DATAGRAM_SIZE);
 
-  if (uint32_t *shadow = this->shadow_register_(reg))
+  if (uint32_t *shadow = this->shadow_register(reg))
     *shadow = value;
   return true;
 }
 
 optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
-  if (uint32_t *shadow = this->shadow_register_(reg))
+  if (uint32_t *shadow = this->shadow_register(reg))
     return *shadow;
 
   uint8_t request[READ_REQUEST_SIZE] = {SYNC_BYTE, this->address_, reg, 0};

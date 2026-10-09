@@ -3,7 +3,7 @@
 
 namespace esphome::tmc2209 {
 
-static const char *const TAG = "tmc2209";
+ESPHOME_LOG_TAG(TAG, "tmc2209");
 
 void TMC2209Stepper::dump_config() {
   ESP_LOGCONFIG(TAG, "TMC2209:");

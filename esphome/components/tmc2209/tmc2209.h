@@ -9,7 +9,7 @@ class TMC2209Stepper : public tmc22xx::TMC22XXStepper {
   void dump_config() override;
 
  protected:
-  uint8_t expected_version_() const override { return 0x21; }
+  uint8_t expected_version() const override { return 0x21; }
 };
 
 }  // namespace esphome::tmc2209

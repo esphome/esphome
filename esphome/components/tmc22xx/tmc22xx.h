@@ -121,9 +121,9 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
 
  protected:
   /// IC version reported in IOIN by the supported chip.
-  virtual uint8_t expected_version_() const = 0;
+  virtual uint8_t expected_version() const = 0;
   /// Return the cached value of a write-only register, or nullptr when the register is readable.
-  virtual uint32_t *shadow_register_(uint8_t reg);
+  virtual uint32_t *shadow_register(uint8_t reg);
   uint8_t current_to_scale_(float current);
   float full_scale_voltage_();
   int32_t speed_to_vactual_(float speed) const;

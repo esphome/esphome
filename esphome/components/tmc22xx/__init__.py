@@ -17,6 +17,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@remcom"]
+DOMAIN = "tmc22xx"
 DEPENDENCIES = ["uart"]
 
 CONF_ANALOG_CURRENT_SCALE = "analog_current_scale"
