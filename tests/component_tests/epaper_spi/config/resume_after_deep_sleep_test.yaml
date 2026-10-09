@@ -17,4 +17,4 @@ display:
     reset_pin: GPIO23
     cs_pin: GPIO5
     full_update_every: 20
-    full_refresh_after_deep_sleep: false
+    partial_update_after_deep_sleep: panel

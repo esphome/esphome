@@ -607,7 +607,7 @@ def test_sleep_state_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """full_refresh_after_deep_sleep: false gives the display a sleep state slot in RTC memory."""
+    """partial_update_after_deep_sleep gives the display a sleep state slot in RTC memory."""
     main_cpp = generate_main(component_config_path("resume_after_deep_sleep_test.yaml"))
 
     assert "epaper_display->set_sleep_state_hash(" in main_cpp
@@ -623,11 +623,11 @@ def test_no_sleep_state_by_default(
     assert "set_sleep_state_hash(" not in main_cpp
 
 
-def test_resume_after_deep_sleep_needs_partial_updates(
+def test_partial_update_after_deep_sleep_needs_partial_updates(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
-    """full_refresh_after_deep_sleep: false is pointless without partial updates."""
+    """partial_update_after_deep_sleep is pointless without partial updates."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
@@ -641,7 +641,32 @@ def test_resume_after_deep_sleep_needs_partial_updates(
                 "id": "test_display",
                 "model": "ssd1681",
                 "dc_pin": 21,
-                "full_refresh_after_deep_sleep": False,
+                "partial_update_after_deep_sleep": "panel",
+            }
+        )
+
+
+def test_partial_update_after_deep_sleep_needs_a_model_that_supports_it(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Models whose driver cannot resume after a deep sleep reject the option."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="does not support"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1683",
+                "dc_pin": 21,
+                "dimensions": {"width": 200, "height": 200},
+                "full_update_every": 20,
+                "partial_update_after_deep_sleep": "panel",
             }
         )
 

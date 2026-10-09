@@ -21,7 +21,7 @@ class TestableSSD1681 : public EPaperSSD1681 {
     this->set_full_update_every(full_update_every);
     this->init_sent_frame_(this->buffer_length_);
     if (full_update_every > 1)
-      this->set_sleep_state_hash(1);  // full_refresh_after_deep_sleep: false
+      this->set_sleep_state_hash(1);  // partial_update_after_deep_sleep: panel
   }
 
   bool has_comparison_frame() const { return this->sent_.is_valid(); }
