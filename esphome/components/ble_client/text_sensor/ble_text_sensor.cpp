@@ -38,7 +38,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
-        ESP_LOGI(TAG, "[%s] Connected successfully!", this->get_name().c_str());
+        ESP_LOGI(TAG, "[%s] Connected successfully!", LOG_STR_ARG(this->get_log_name()));
         break;
       }
       break;
@@ -104,10 +104,10 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (param->notify.handle != this->handle)
         break;
       if (param->notify.value_len == 0) {
-        ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", this->get_name().c_str());
+        ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", LOG_STR_ARG(this->get_log_name()));
         break;
       }
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
+      ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", LOG_STR_ARG(this->get_log_name()),
                param->notify.handle, param->notify.value[0]);
       this->publish_state(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len);
       break;
@@ -124,11 +124,11 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 
 void BLETextSensor::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
+    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", LOG_STR_ARG(this->get_log_name()));
     return;
   }
   if (this->handle == 0) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", this->get_name().c_str());
+    ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 
@@ -137,7 +137,7 @@ void BLETextSensor::update() {
   if (status) {
     this->status_set_warning();
     this->publish_state("");
-    ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", this->get_name().c_str(), status);
+    ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", LOG_STR_ARG(this->get_log_name()), status);
   }
 }
 

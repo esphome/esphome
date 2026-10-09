@@ -93,7 +93,7 @@ void LightState::setup() {
   call.perform();
 }
 void LightState::dump_config() {
-  ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "Light '%s'", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS)) {
 #ifdef USE_LIGHT_GAMMA_LUT

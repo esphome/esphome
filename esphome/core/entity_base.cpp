@@ -1,5 +1,6 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -10,7 +11,11 @@ namespace esphome {
 ESPHOME_LOG_TAG(TAG, "entity_base");
 
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
+#ifdef USE_ESP8266
+  this->name_ = StringRef(name, strlen_P(name));  // codegen names are in flash
+#else
   this->name_ = StringRef(name);
+#endif
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
     if (this->device_ != nullptr) {
@@ -61,7 +66,7 @@ void EntityBase::set_internal(bool internal) {
   // Remove the after-setup path in 2027.3.0 and ignore the call instead.
   if (App.is_setup_complete()) {
     ESP_LOGE(TAG, "'%s': set_internal() after setup is undefined behavior, stops working in 2027.3.0",
-             this->get_name().c_str());
+             LOG_STR_ARG(this->get_log_name()));
   }
   this->flags_.internal = internal;
 }
@@ -119,13 +124,27 @@ const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LE
 
 // Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
-  this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());
+  char buf[ENTITY_NAME_BUF_SIZE];
+  StringRef name = this->get_name_to(buf);
+  this->object_id_hash_ = fnv1_hash_object_id(name.c_str(), name.size());
+}
+
+StringRef EntityBase::get_name_to([[maybe_unused]] std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
+#ifdef USE_ESP8266
+  size_t len = std::min(this->name_.size(), buffer.size() - 1);
+  progmem_memcpy(buffer.data(), this->name_.c_str(), len);
+  buffer[len] = '\0';
+  return StringRef(buffer.data(), len);
+#else
+  return this->name_;
+#endif
 }
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
   size_t len = std::min(this->name_.size(), buf_size - 1);
+  const auto *name = reinterpret_cast<const uint8_t *>(this->name_.c_str());
   for (size_t i = 0; i < len; i++) {
-    buf[i] = to_sanitized_char(to_snake_case_char(this->name_[i]));
+    buf[i] = to_sanitized_char(to_snake_case_char(static_cast<char>(progmem_read_byte(name + i))));
   }
   buf[len] = '\0';
   return len;

@@ -74,7 +74,7 @@ static void log_percent(const LogString *param, float value) {
 #endif
 
 void LightCall::perform() {
-  const char *name = this->parent_->get_name().c_str();
+  const char *name = LOG_STR_ARG(this->parent_->get_log_name());
   LightColorValues v = this->validate_();
   const bool publish = this->get_publish_();
 
@@ -182,7 +182,7 @@ void LightCall::perform() {
 }
 
 void LightCall::log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log) {
-  auto *name = this->parent_->get_name().c_str();
+  auto *name = LOG_STR_ARG(this->parent_->get_log_name());
   if (use_color_mode_log) {
     log_color_mode_not_supported(name, feature);
   } else {
@@ -192,7 +192,7 @@ void LightCall::log_and_clear_unsupported_(FieldFlags flag, const LogString *fea
 }
 
 LightColorValues LightCall::validate_() {
-  auto *name = this->parent_->get_name().c_str();
+  auto *name = LOG_STR_ARG(this->parent_->get_log_name());
   auto traits = this->parent_->get_traits();
 
   // Snapshot before the adjustments below add flags of their own
@@ -446,7 +446,7 @@ void LightCall::transform_parameters_(const LightTraits &traits) {
       !(this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) &&                      //
       min_mireds > 0.0f && max_mireds > 0.0f) {
     ESP_LOGV(TAG, "'%s': setting cold/warm white channels using white/color temperature values",
-             this->parent_->get_name().c_str());
+             LOG_STR_ARG(this->parent_->get_log_name()));
     // Only compute cold_white/warm_white from color_temperature if they're not already explicitly set.
     // This is important for state restoration, where both color_temperature and cold_white/warm_white
     // are restored from flash - we want to preserve the saved cold_white/warm_white values.
@@ -492,7 +492,7 @@ ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
 
   // Don't change if the current mode is in the intersection (suitable AND supported)
   if (ColorModeMask::mask_contains(intersection, current_mode)) {
-    ESP_LOGV(TAG, "'%s': color mode not specified; retaining %s", this->parent_->get_name().c_str(),
+    ESP_LOGV(TAG, "'%s': color mode not specified; retaining %s", LOG_STR_ARG(this->parent_->get_log_name()),
              LOG_STR_ARG(color_mode_to_human(current_mode)));
     return current_mode;
   }
@@ -500,7 +500,7 @@ ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
   // Use the preferred suitable mode.
   if (intersection != 0) {
     ColorMode mode = ColorModeMask::first_value_from_mask(intersection);
-    ESP_LOGV(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
+    ESP_LOGV(TAG, "'%s': color mode not specified; using %s", LOG_STR_ARG(this->parent_->get_log_name()),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
   }
@@ -508,7 +508,7 @@ ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
   // There's no supported mode for this call, so warn, use the current more or a mode at random and let validation strip
   // out whatever we don't support.
   auto color_mode = current_mode != ColorMode::UNKNOWN ? current_mode : *supported_modes.begin();
-  ESP_LOGW(TAG, "'%s': no suitable color mode supported; defaulting to %s", this->parent_->get_name().c_str(),
+  ESP_LOGW(TAG, "'%s': no suitable color mode supported; defaulting to %s", LOG_STR_ARG(this->parent_->get_log_name()),
            LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
@@ -587,7 +587,7 @@ LightCall &LightCall::set_effect(const char *effect, size_t len) {
     }
   }
   if (!found) {
-    ESP_LOGW(TAG, "'%s': no such effect '%.*s'", this->parent_->get_name().c_str(), (int) len, effect);
+    ESP_LOGW(TAG, "'%s': no such effect '%.*s'", LOG_STR_ARG(this->parent_->get_log_name()), (int) len, effect);
   }
   return *this;
 }

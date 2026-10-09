@@ -473,8 +473,9 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
   // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
 
+  char name_buf[ENTITY_NAME_BUF_SIZE];
   if (entity->has_own_name()) {
-    msg.name = entity->get_name();
+    msg.name = entity->get_name_to(name_buf);
   }
 
   // Set common EntityBase properties

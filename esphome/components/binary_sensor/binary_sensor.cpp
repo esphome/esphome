@@ -13,7 +13,7 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
     return;
   }
 
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, LOG_STR_ARG(obj->get_log_name()));
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
 }
 
@@ -38,7 +38,7 @@ bool BinarySensor::set_new_state(const optional<bool> &new_state) {
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-    ESP_LOGV(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
+    ESP_LOGV(TAG, "'%s' >> %s", LOG_STR_ARG(this->get_log_name()), ONOFFMAYBE(new_state));
     return true;
   }
   return false;

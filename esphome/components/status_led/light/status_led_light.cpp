@@ -35,7 +35,7 @@ void StatusLEDLightOutput::loop() {
 
 void StatusLEDLightOutput::setup_state(light::LightState *state) {
   lightstate_ = state;
-  ESP_LOGD(TAG, "'%s': Setting initial state", state->get_name().c_str());
+  ESP_LOGD(TAG, "'%s': Setting initial state", LOG_STR_ARG(state->get_log_name()));
   this->write_state(state);
 }
 
@@ -46,7 +46,7 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
   // if in warning/error, don't overwrite the status_led
   // once it is back to OK, the loop will restore the state
   if ((App.get_app_state() & (STATUS_LED_ERROR | STATUS_LED_WARNING)) == 0u) {
-    ESP_LOGD(TAG, "'%s': Setting state %s", state->get_name().c_str(), ONOFF(binary));
+    ESP_LOGD(TAG, "'%s': Setting state %s", LOG_STR_ARG(state->get_log_name()), ONOFF(binary));
     this->output_state_(binary);
   }
 }

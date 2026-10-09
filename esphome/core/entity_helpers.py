@@ -23,7 +23,13 @@ from esphome.core.config import (
     ICON_MAX_LENGTH,
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
-from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
+from esphome.cpp_generator import (
+    MockObj,
+    RawExpression,
+    RawStatement,
+    add,
+    get_variable,
+)
 from esphome.cpp_types import App
 import esphome.final_validate as fv
 from esphome.helpers import (
@@ -324,6 +330,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
+    if entity_name and CORE.is_esp8266:
+        # The C++ side reads entity names with flash-safe accessors on ESP8266
+        entity_name = RawExpression(f"PSTR({cpp_string_escape(entity_name)})")
     register_method = config.get(_KEY_REGISTER_METHOD)
     if register_method is not None:
         expr = getattr(App, f"register_{register_method}")(

@@ -20,7 +20,7 @@ void UpdateEntity::publish_state() {
   ESP_LOGV(TAG,
            "'%s' >>\n"
            "  Current Version: %s",
-           this->name_.c_str(), this->update_info_.current_version.c_str());
+           LOG_STR_ARG(this->get_log_name()), this->update_info_.current_version.c_str());
 
   if (!this->update_info_.md5.empty()) {
     ESP_LOGV(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());

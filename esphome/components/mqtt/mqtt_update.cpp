@@ -19,7 +19,7 @@ void MQTTUpdateComponent::setup() {
     if (payload == "INSTALL") {
       this->update_->perform();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown update payload: %s", this->friendly_name_().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown update payload: %s", LOG_STR_ARG(this->friendly_name_()), payload.c_str());
       this->status_momentary_warning("state", 5000);
     }
   });
@@ -49,7 +49,7 @@ void MQTTUpdateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 bool MQTTUpdateComponent::send_initial_state() { return this->publish_state(); }
 
 void MQTTUpdateComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Update '%s': ", this->update_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Update '%s': ", LOG_STR_ARG(this->update_->get_log_name()));
   LOG_MQTT_COMPONENT(true, true);
 }
 

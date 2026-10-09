@@ -11,12 +11,12 @@ void log_button(const char *tag, const char *prefix, const char *type, Button *o
     return;
   }
 
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, LOG_STR_ARG(obj->get_log_name()));
   LOG_ENTITY_ICON(tag, prefix, *obj);
 }
 
 void Button::press() {
-  ESP_LOGV(TAG, "'%s' Pressed.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Pressed.", LOG_STR_ARG(this->get_log_name()));
   this->press_action();
   this->press_callback_.call();
 }

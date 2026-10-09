@@ -18,6 +18,10 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
@@ -268,6 +272,7 @@ def setup_test_environment() -> Generator[list[str], None, None]:
     # Set CORE state for tests
     CORE.name = "test-device"
     CORE.friendly_name = "Test Device"
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     # Store original add function
 
     original_add = entity_helpers.add
@@ -283,6 +288,7 @@ def setup_test_environment() -> Generator[list[str], None, None]:
     yield added_expressions
     # Clean up
     entity_helpers.add = original_add
+    CORE.data.pop(KEY_CORE, None)
 
 
 def extract_object_id_from_config(config: dict[str, Any]) -> str | None:
@@ -1076,6 +1082,23 @@ async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
     packed = _extract_packed_value(added_expressions)
     assert packed == 0
     assert "//" not in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_name_in_flash_on_esp8266(
+    setup_test_environment: list[str],
+) -> None:
+    """Test entity names are emitted with PSTR on ESP8266."""
+    added_expressions = setup_test_environment
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    assert 'PSTR("Test")' in added_expressions[0]
 
 
 @pytest.mark.asyncio

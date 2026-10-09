@@ -176,7 +176,8 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 #endif
 
   // Match by entity name
-  if (this->id == entity->get_name()) {
+  char name_buf[ENTITY_NAME_BUF_SIZE];
+  if (this->id == entity->get_name_to(name_buf)) {
     result.matched = true;
   }
 
@@ -558,7 +559,8 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 // Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
 // Uses names (not object_id) to avoid UTF-8 collision issues
 static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  const StringRef &name = obj->get_name();
+  char name_buf[ENTITY_NAME_BUF_SIZE];
+  StringRef name = obj->get_name_to(name_buf);
   size_t prefix_len = strlen(prefix);
   size_t name_len = name.size();
 

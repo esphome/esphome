@@ -8,12 +8,12 @@ ESPHOME_LOG_TAG(TAG, "number");
 
 // Helper functions to reduce code size for logging
 void NumberCall::log_perform_warning_(const LogString *message) {
-  ESP_LOGW(TAG, "'%s': %s", this->parent_->get_name().c_str(), LOG_STR_ARG(message));
+  ESP_LOGW(TAG, "'%s': %s", LOG_STR_ARG(this->parent_->get_log_name()), LOG_STR_ARG(message));
 }
 
 void NumberCall::log_perform_warning_value_range_(const LogString *comparison, const LogString *limit_type, float val,
                                                   float limit) {
-  ESP_LOGW(TAG, "'%s': %f %s %s %f", this->parent_->get_name().c_str(), val, LOG_STR_ARG(comparison),
+  ESP_LOGW(TAG, "'%s': %f %s %s %f", LOG_STR_ARG(this->parent_->get_log_name()), val, LOG_STR_ARG(comparison),
            LOG_STR_ARG(limit_type), limit);
 }
 
@@ -48,7 +48,7 @@ NumberCall &NumberCall::with_cycle(bool cycle) {
 
 void NumberCall::perform() {
   auto *parent = this->parent_;
-  const auto *name = parent->get_name().c_str();
+  const auto *name = LOG_STR_ARG(parent->get_log_name());
   const auto &traits = parent->traits;
 
   if (this->operation_ == NUMBER_OP_NONE) {

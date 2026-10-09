@@ -31,6 +31,9 @@ static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 // esphome/core/config.py
 static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 
+// Buffer size for EntityBase::get_name_to()
+static constexpr size_t ENTITY_NAME_BUF_SIZE = ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+
 // Maximum domain length (longest: "alarm_control_panel" = 19)
 static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
 
@@ -67,8 +70,18 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  // Get the name of this Entity
+#ifndef USE_ESP8266
+  // Get the name of this Entity. Not available on ESP8266, where the name lives in flash;
+  // use get_name_to() or get_log_name() instead.
   const StringRef &get_name() const { return this->name_; }
+#endif
+
+  /// Get the name of this Entity. On ESP8266 it is copied out of flash into buffer;
+  /// elsewhere the stored name is returned and buffer is unused.
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const;
+
+  /// Get the name for a "%s" log argument (LOG_STR_ARG); may point to flash on ESP8266.
+  const LogString *get_log_name() const { return reinterpret_cast<const LogString *>(this->name_.c_str()); }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -212,7 +225,7 @@ class EntityBase {
 
   void calc_object_id_();
 
-  StringRef name_;
+  StringRef name_;  // May point to flash on ESP8266; only pass it to "%s" log arguments there
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};

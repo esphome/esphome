@@ -872,7 +872,7 @@ void Sprinkler::reset_resume() {
 
 const char *Sprinkler::valve_name(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].controller_switch->get_name().c_str();
+    return LOG_STR_ARG(this->valve_[valve_number].controller_switch->get_log_name());
   }
   return nullptr;
 }

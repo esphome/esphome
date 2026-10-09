@@ -143,7 +143,7 @@ bool IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
   if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
     this->finish_api_reply_(false);
   if (this->api_reply_ != ApiReply::API_REPLY_NONE && !this->send_api_reply_()) {
-    ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("refused, reply still owed"));
+    ESP_LOGW(TAG, "'%s': transmit %s", LOG_STR_ARG(this->get_log_name()), LOG_STR_LITERAL("refused, reply still owed"));
     this->refuse_api_call_(conn);
     return false;
   }
@@ -198,13 +198,14 @@ void IrRfEntity::loop() {
   if (this->api_reply_ != ApiReply::API_REPLY_WAITING) {
     if (this->send_api_reply_() || remaining > 0)
       return;
-    ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply dropped, client not reading"));
+    ESP_LOGW(TAG, "'%s': transmit %s", LOG_STR_ARG(this->get_log_name()),
+             LOG_STR_LITERAL("reply dropped, client not reading"));
     this->clear_api_reply_();
     return;
   }
   if (remaining > 0)
     return;
-  ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("never reported completion"));
+  ESP_LOGW(TAG, "'%s': transmit %s", LOG_STR_ARG(this->get_log_name()), LOG_STR_LITERAL("never reported completion"));
   this->finish_api_reply_(false);
 }
 

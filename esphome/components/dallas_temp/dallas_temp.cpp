@@ -51,7 +51,7 @@ void DallasTemperatureSensor::update() {
     }
 
     float tempc = this->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", this->get_name().c_str(), tempc);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", LOG_STR_ARG(this->get_log_name()), tempc);
     this->publish_state(tempc);
   });
 }
@@ -63,7 +63,7 @@ bool DallasTemperatureSensor::read_scratch_pad_() {
       i = this->bus_->read8();
     }
   } else {
-    ESP_LOGW(TAG, "'%s' - reading scratch pad failed bus reset", this->get_name().c_str());
+    ESP_LOGW(TAG, "'%s' - reading scratch pad failed bus reset", LOG_STR_ARG(this->get_log_name()));
     this->status_set_warning(LOG_STR("bus reset failed"));
   }
   return success;

@@ -120,7 +120,10 @@ std::string PrometheusHandler::relabel_id_(EntityBase *obj) {
 
 std::string PrometheusHandler::relabel_name_(EntityBase *obj) {
   auto item = relabel_map_name_.find(obj);
-  return item == relabel_map_name_.end() ? obj->get_name() : item->second;
+  if (item != relabel_map_name_.end())
+    return item->second;
+  char name_buf[ENTITY_NAME_BUF_SIZE];
+  return obj->get_name_to(name_buf).str();
 }
 
 void PrometheusHandler::add_area_label_(AsyncResponseStream *stream, std::string &area) {
