@@ -19,6 +19,11 @@
 #error "CONFIG_COMPILER_CXX_EXCEPTIONS no longer matches -fexceptions"
 #endif
 
+// libstdc++'s aligned delete calls free() only when built with one of these
+#if !defined(_GLIBCXX_HAVE_ALIGNED_ALLOC) && !defined(_GLIBCXX_HAVE_POSIX_MEMALIGN) && !defined(_GLIBCXX_HAVE_MEMALIGN)
+#error "libstdc++'s aligned operator delete no longer frees with free()"
+#endif
+
 #ifndef CLANG_TIDY  // clang-tidy parses Xtensa with a 64 bit host target
 // --undefined=_Znwj in __init__.py relies on this mangling
 static_assert(std::is_same_v<std::size_t, unsigned int>, "update --undefined=_Znwj");
@@ -54,7 +59,7 @@ void *plain_alloc(std::size_t size) {
   return alloc_or_null(size, [](std::size_t n) { return std::malloc(n); });  // NOLINT(cppcoreguidelines-no-malloc)
 }
 
-// libstdc++'s aligned delete frees with free(), which matches IDF's aligned_alloc()
+// libstdc++'s aligned delete frees with free() (checked above), which matches IDF's aligned_alloc()
 void *aligned_alloc_or_null(std::size_t size, std::align_val_t align) {
   return alloc_or_null(size, [align](std::size_t n) { return ::aligned_alloc(static_cast<std::size_t>(align), n); });
 }
