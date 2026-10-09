@@ -692,7 +692,6 @@ TEST(GreeYX1FF, ClimateChangePreservesReceivedLightState) {
   EXPECT_EQ(transmitted_state[2] & GREE_LIGHT_BIT, 0);
 }
 
-
 TEST(GreeYAC, CapturedYAC1FBSwingAndAuxiliaryFrames) {
   struct SwingCase {
     GreeState state;
@@ -727,11 +726,11 @@ TEST(GreeYAC, AuxiliaryFrameDoesNotOverwriteSwing) {
   device.set_model(GREE_YAC);
   device.set_transmitter(&transmitter);
   remote_base::RemoteReceiverListener *listener = &device;
-  ASSERT_TRUE(listener->on_receive(RemoteReceiveData(
-      encode_signal(GREE_YAC, first), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  ASSERT_TRUE(listener->on_receive(
+      RemoteReceiveData(encode_signal(GREE_YAC, first), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
   EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_BOTH);
-  EXPECT_FALSE(listener->on_receive(RemoteReceiveData(
-      encode_signal(GREE_YAC, second), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_FALSE(listener->on_receive(
+      RemoteReceiveData(encode_signal(GREE_YAC, second), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
   EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_BOTH);
   EXPECT_EQ(transmitter.send_count, 0U);
 }
