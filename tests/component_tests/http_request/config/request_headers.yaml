@@ -50,3 +50,23 @@ button:
           request_headers:
             Accept: application/json
             X-Mode: !lambda return "a";
+
+script:
+  - id: param_a
+    parameters:
+      level: int
+    then:
+      - http_request.get:
+          url: http://example.com
+          request_headers:
+            Accept: application/json
+            X-Mode: a
+  - id: param_b
+    parameters:
+      value: int
+    then:
+      - http_request.get:
+          url: http://example.com
+          request_headers:
+            Accept: application/json
+            X-Mode: a

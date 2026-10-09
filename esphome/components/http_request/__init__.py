@@ -369,11 +369,16 @@ async def http_request_action_to_code(
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
     if request_headers := config.get(CONF_REQUEST_HEADERS):
+        # A user lambda may keep static state, so only all-constant lists are shared
+        share = not any(map(cg.is_template, request_headers.values()))
+        # Constant headers ignore their arguments, so drop the names: identical lists
+        # from scripts with different parameter names then render the same table.
+        header_args = [(arg_type, "") for arg_type, _ in args] if share else args
         headers = [
             cg.StructInitializer(
                 "",
                 ("name", key),
-                ("value", await cg.templatable(value, args, cg.const_char_ptr)),
+                ("value", await cg.templatable(value, header_args, cg.const_char_ptr)),
             )
             for key, value in request_headers.items()
         ]
@@ -381,8 +386,7 @@ async def http_request_action_to_code(
             "http_request_headers",
             RequestHeader.template(*[arg_type for arg_type, _ in args]),
             headers,
-            # A user lambda may keep static state, so only all-constant lists are shared
-            share=not any(map(cg.is_template, request_headers.values())),
+            share=share,
         )
         cg.add(var.set_request_headers(table, len(headers)))
 
