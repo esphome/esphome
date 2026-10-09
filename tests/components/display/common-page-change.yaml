@@ -13,13 +13,13 @@ display:
           it.rectangle(0, 0, 10, 10);
     on_page_change:
       - then:
-          lambda: 'ESP_LOGD("display", "any change");'
+          lambda: 'ESP_LOGD("display", "any change, %p %p", from, to);'
       - from: display_page_change_page1
         then:
-          lambda: 'ESP_LOGD("display", "left page 1");'
+          lambda: 'ESP_LOGD("display", "left page 1, %p %p", from, to);'
       - to: display_page_change_page1
         then:
-          lambda: 'ESP_LOGD("display", "entered page 1");'
+          lambda: 'ESP_LOGD("display", "entered page 1, %p %p", from, to);'
       - from: display_page_change_page1
         to: display_page_change_page2
         then:
