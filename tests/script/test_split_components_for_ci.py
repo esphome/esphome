@@ -249,6 +249,24 @@ def test_make_item_reads_tests_dir(tmp_path: Path) -> None:
     assert item.own_seconds == 55
 
 
+def test_balance_batches_keeps_partners_together() -> None:
+    """Two components sharing a build land on one runner even when the
+    lightest runner is the other one."""
+    share = {
+        ("i2c", "esp32-idf"): split_components_for_ci._GroupedShare(55, frozenset()),
+        ("i2c", "esp8266-ard"): split_components_for_ci._GroupedShare(30, frozenset()),
+    }
+    items = [
+        split_components_for_ci._BatchItem("partner_a", 0, dict(share)),
+        split_components_for_ci._BatchItem("partner_b", 0, dict(share)),
+        split_components_for_ci._BatchItem("alone", 80),
+    ]
+
+    batches = split_components_for_ci.balance_batches(items, target_seconds=120)
+
+    assert sorted(batches) == [["alone"], ["partner_a", "partner_b"]]
+
+
 def test_balance_batches_empty() -> None:
     """No components means no runners."""
     assert split_components_for_ci.balance_batches([], 600) == []

@@ -396,6 +396,25 @@ file does, and it is the authority when they disagree. The most useful starting 
                 )
         ```
 
+        When the callback's parameters differ from the automation's arguments, or the trigger should only
+        fire for some values, pass `params`, `forward` and `when`; the helper then generates a capture-less
+        lambda (stored inline, nothing allocated). Name the parent with `automation.parent_ref(var)` and build
+        `forward` from `MockObj` calls, not f-strings of C++:
+        ```python
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
+        )
+        ```
+        `build_parent_callback_automation`, `build_trigger_callback`, `build_callback_automations` and
+        `build_trigger_automations` cover the other shapes; see their docstrings in `esphome/automation.py`.
+
         **C++ -- no trigger class needed.** The callback registration method must be templatized to accept both `std::function` and lightweight forwarder structs (which avoid heap allocation):
         ```cpp
         class MyComponent : public Component {
