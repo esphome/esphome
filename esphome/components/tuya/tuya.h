@@ -41,8 +41,11 @@ struct TuyaDatapoint {
 
 struct TuyaDatapointListener {
   uint8_t datapoint_id;
-  std::function<void(TuyaDatapoint)> on_datapoint;
+  Callback<void(const TuyaDatapoint &)> on_datapoint;
 };
+
+/// Log a warning when `dp` is not of type `expected`, and return `dp`.
+const TuyaDatapoint &check_expected_datapoint(const TuyaDatapoint &dp, TuyaDatapointType expected);
 
 enum class TuyaCommandType : uint8_t {
   HEARTBEAT = 0x00,
@@ -91,7 +94,9 @@ class Tuya final : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
+  template<typename F> void register_listener(uint8_t datapoint_id, F &&func) {
+    this->register_listener_(datapoint_id, Callback<void(const TuyaDatapoint &)>::create(std::forward<F>(func)));
+  }
   void set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
@@ -117,6 +122,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   }
 
  protected:
+  void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
   void handle_char_(uint8_t c);
   void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
