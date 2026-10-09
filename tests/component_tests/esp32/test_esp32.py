@@ -38,6 +38,12 @@ from esphome.components.esp32.const import (
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
 )
 from esphome.components.esp32.gpio import validate_gpio_pin
 import esphome.config_validation as cv
@@ -57,7 +63,7 @@ def test_esp32_config(
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    from esphome.components.esp32 import CONFIG_SCHEMA, VARIANT_ESP32, VARIANT_FRIENDLY
+    from esphome.components.esp32 import CONFIG_SCHEMA, VARIANT_FRIENDLY
 
     # Example ESP32 configuration
     config = {
@@ -1762,6 +1768,140 @@ def test_esp32_s31_gpio_validation(
     with caplog.at_level("WARNING"):
         validate_supports(pin)
     assert "GPIO36 is a strapping pin" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("variant", "number", "setting", "error"),
+    [
+        *[
+            pytest.param(
+                VARIANT_ESP32,
+                number,
+                setting,
+                error,
+                id=f"esp32-gpio{number}-{setting}",
+            )
+            for number in range(34, 40)
+            for setting, error in (
+                ("output", "does not support output pin mode"),
+                ("pullup", "does not support pullups"),
+                ("pulldown", "does not support pulldowns"),
+                ("hold_state", "is input-only and cannot be held"),
+            )
+        ],
+        pytest.param(
+            VARIANT_ESP32S2,
+            46,
+            "output",
+            "does not support output pin mode",
+            id="s2-output",
+        ),
+        pytest.param(
+            VARIANT_ESP32S2, 46, "pullup", "does not support pullups", id="s2-pullup"
+        ),
+        pytest.param(
+            VARIANT_ESP32S2,
+            46,
+            "pulldown",
+            "does not support pulldowns",
+            id="s2-pulldown",
+        ),
+        pytest.param(
+            VARIANT_ESP32S2,
+            46,
+            "hold_state",
+            "is input-only and cannot be held",
+            id="s2-hold",
+        ),
+    ],
+)
+def test_input_only_gpio_rejects_unsupported_modes(
+    set_core_config: SetCoreConfigCallable,
+    variant: str,
+    number: int,
+    setting: str,
+    error: str,
+) -> None:
+    from esphome.components.const import CONF_HOLD_STATE
+    from esphome.components.esp32.gpio import validate_supports
+    from esphome.const import (
+        CONF_INPUT,
+        CONF_MODE,
+        CONF_OPEN_DRAIN,
+        CONF_OUTPUT,
+        CONF_PULLDOWN,
+        CONF_PULLUP,
+    )
+
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
+    mode = {
+        CONF_INPUT: True,
+        CONF_OUTPUT: False,
+        CONF_OPEN_DRAIN: False,
+        CONF_PULLUP: False,
+        CONF_PULLDOWN: False,
+    }
+    pin = {CONF_NUMBER: number, CONF_MODE: mode}
+    if setting == "hold_state":
+        pin[CONF_HOLD_STATE] = True
+    else:
+        mode[
+            {
+                "output": CONF_OUTPUT,
+                "pullup": CONF_PULLUP,
+                "pulldown": CONF_PULLDOWN,
+            }[setting]
+        ] = True
+
+    with pytest.raises(cv.Invalid, match=error):
+        validate_supports(pin)
+
+
+@pytest.mark.parametrize(
+    ("variant", "number"),
+    [
+        pytest.param(VARIANT_ESP32C3, 18, id="c3-18"),
+        pytest.param(VARIANT_ESP32C3, 19, id="c3-19"),
+        pytest.param(VARIANT_ESP32C6, 12, id="c6-12"),
+        pytest.param(VARIANT_ESP32C6, 13, id="c6-13"),
+        pytest.param(VARIANT_ESP32H2, 26, id="h2-26"),
+        pytest.param(VARIANT_ESP32H2, 27, id="h2-27"),
+        pytest.param(VARIANT_ESP32P4, 24, id="p4-24"),
+        pytest.param(VARIANT_ESP32P4, 25, id="p4-25"),
+        pytest.param(VARIANT_ESP32S3, 19, id="s3-19"),
+        pytest.param(VARIANT_ESP32S3, 20, id="s3-20"),
+    ],
+)
+def test_usb_jtag_gpio_hold_state_warns(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    number: int,
+) -> None:
+    from esphome.components.const import CONF_HOLD_STATE
+    from esphome.components.esp32.gpio import validate_supports
+    from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
+
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
+    pin = {
+        CONF_NUMBER: number,
+        CONF_MODE: {
+            CONF_INPUT: True,
+            CONF_OUTPUT: False,
+            CONF_OPEN_DRAIN: False,
+        },
+        CONF_HOLD_STATE: True,
+    }
+
+    with caplog.at_level(logging.WARNING):
+        validate_supports(pin)
+
+    assert any(
+        record.levelno == logging.WARNING
+        and f"GPIO{number} cannot hold at low level during wakeup from deep sleep."
+        in record.message
+        for record in caplog.records
+    )
 
 
 _TLS_SERVER_OPTIONS = (
