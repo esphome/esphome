@@ -1,9 +1,12 @@
 #include <gtest/gtest.h>
 
+#include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
 #include <iterator>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 namespace esphome::core::testing {
 
@@ -189,6 +192,13 @@ TEST(ProgmemStringRef, EqualsComparesLengthAndContent) {
   EXPECT_FALSE(ref.equals(StringRef("Kitchens")));
   EXPECT_FALSE(ref.equals(StringRef("Bedroom")));
 }
+
+// get_name() must keep returning a reference: external code returns it from `const StringRef &` getters
+static_assert(std::is_same_v<decltype(std::declval<const ProgmemStringRef &>().ram_ref()), const StringRef &>);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+static_assert(std::is_same_v<decltype(std::declval<const EntityBase &>().get_name()), const StringRef &>);
+#pragma GCC diagnostic pop
 
 TEST(ProgmemStringRef, DefaultIsEmpty) {
   ProgmemStringRef ref;

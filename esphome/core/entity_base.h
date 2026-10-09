@@ -86,8 +86,8 @@ class EntityBase {
   }
 #else
   ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
-  StringRef get_name() const { return this->name_.ram_ref(); }
-  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
+  const StringRef &get_name() const { return this->name_.ram_ref(); }
+  const StringRef &get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
 #endif
 
   bool name_equals(const StringRef &other) const { return this->name_.equals(other); }

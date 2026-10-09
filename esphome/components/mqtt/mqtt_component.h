@@ -300,6 +300,10 @@ class MQTTComponent : public Component {
 
   /// Entity name for a "%s" log argument.
   const LogString *log_name_() const;
+#ifndef USE_ESP8266
+  ESPDEPRECATED("Use log_name_() for logging. Removed in 2027.5.0", "2026.11.0")
+  const StringRef &friendly_name_() const;
+#endif
 
   /// Get the icon field of this component into a stack buffer
   const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }

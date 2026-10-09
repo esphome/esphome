@@ -223,27 +223,28 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
   str.append(rhs.c_str(), rhs.size());
   return str;
 }
+
 /// A string that may live in flash (on ESP8266): pointer and length, with no byte-reading operations.
 /// progmem_ptr() is safe as a "%s" log argument; read the contents with write_to() or equals().
 class ProgmemStringRef {
  public:
   constexpr ProgmemStringRef() = default;
-  constexpr ProgmemStringRef(const char *s, size_t len) : base_(s), len_(len) {}
-  constexpr explicit ProgmemStringRef(const StringRef &s) : base_(s.c_str()), len_(s.size()) {}
+  constexpr ProgmemStringRef(const char *s, size_t len) : ref_(s, len) {}
+  constexpr explicit ProgmemStringRef(const StringRef &s) : ref_(s) {}
 
-  constexpr const char *progmem_ptr() const { return this->base_; }
-  constexpr size_t size() const { return this->len_; }
-  constexpr bool empty() const { return this->len_ == 0; }
+  constexpr const char *progmem_ptr() const { return this->ref_.c_str(); }
+  constexpr size_t size() const { return this->ref_.size(); }
+  constexpr bool empty() const { return this->ref_.empty(); }
 
   /// Copy into buf (null terminated, truncated to fit), returns the length copied.
   size_t write_to(char *buf, size_t buf_size) const {
     if (buf_size == 0)
       return 0;
-    size_t len = std::min(this->len_, buf_size - 1);
+    size_t len = std::min(this->ref_.size(), buf_size - 1);
 #ifdef USE_ESP8266
-    memcpy_P(buf, this->base_, len);
+    memcpy_P(buf, this->ref_.c_str(), len);
 #else
-    std::memcpy(buf, this->base_, len);
+    std::memcpy(buf, this->ref_.c_str(), len);
 #endif
     buf[len] = '\0';
     return len;
@@ -251,27 +252,26 @@ class ProgmemStringRef {
 
   bool equals(const StringRef &other) const {
 #ifdef USE_ESP8266
-    return other.size() == this->len_ && memcmp_P(other.c_str(), this->base_, this->len_) == 0;
+    return other.size() == this->ref_.size() && memcmp_P(other.c_str(), this->ref_.c_str(), other.size()) == 0;
 #else
-    return other == StringRef(this->base_, this->len_);
+    return other == this->ref_;
 #endif
   }
 
 #ifndef USE_ESP8266
   /// The string is in RAM here, so it can be viewed directly.
-  constexpr StringRef ram_ref() const { return StringRef(this->base_, this->len_); }
+  constexpr const StringRef &ram_ref() const { return this->ref_; }
 #endif
 
   // Remove before 2027.5.0
   [[deprecated(
       "May point to flash; use progmem_ptr() or the owner's accessors. Removed in 2027.5.0")]] constexpr const char *
   c_str() const {
-    return this->base_;
+    return this->ref_.c_str();
   }
 
  private:
-  const char *base_{""};
-  size_t len_{0};
+  StringRef ref_;
 };
 
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)

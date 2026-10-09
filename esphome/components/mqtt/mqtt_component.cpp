@@ -413,6 +413,9 @@ void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden
+#ifndef USE_ESP8266
+const StringRef &MQTTComponent::friendly_name_() const { return this->get_entity()->get_name_progmem().ram_ref(); }
+#endif
 const LogString *MQTTComponent::log_name_() const { return this->get_entity()->get_log_name(); }
 StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   return this->get_entity()->get_object_id_to(buf);
