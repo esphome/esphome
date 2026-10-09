@@ -111,9 +111,9 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
 
-    // Variants without per-pin deep sleep hold need the global enable
 #if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
 #ifdef USE_GPIO_HOLD
+  // Variants without per-pin deep sleep hold need the global enable
   gpio_deep_sleep_hold_en();
 #else
   if (this->wakeup_pin_ != nullptr)
