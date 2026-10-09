@@ -533,6 +533,23 @@ def final_validate_device_schema(
     )
 
 
+def subtree_references_uart(node: object, uart_id: str) -> bool:
+    """Return True if any dict in the subtree has a uart_id entry naming this bus.
+
+    For the final validation of a component that needs a UART for itself. Bare
+    `id:` references (a uart.write action) and lambdas are not found.
+    """
+    if isinstance(node, dict):
+        return any(
+            (key == CONF_UART_ID and str(value) == uart_id)
+            or subtree_references_uart(value, uart_id)
+            for key, value in node.items()
+        )
+    if isinstance(node, list):
+        return any(subtree_references_uart(item, uart_id) for item in node)
+    return False
+
+
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
