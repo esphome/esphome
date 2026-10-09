@@ -29,7 +29,7 @@ class PIDAutotuner {
 
   void dump_config();
 
-  /// Name shown in log lines; must outlive the autotuner (the climate entity's name).
+  /// Name shown in log lines; must outlive the autotuner.
   void set_autotuner_id(const LogString *id) { this->id_ = id; }
 
   void set_noiseband(float noiseband) {

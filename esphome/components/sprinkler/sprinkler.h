@@ -336,7 +336,7 @@ class Sprinkler final : public Component {
   void reset_resume();
 
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
-  ESPDEPRECATED("Use valve_log_name() or valve_switch()->get_name_to() instead. Removed in 2027.5.0", "2026.11.0")
+  ESPDEPRECATED("Use valve_log_name() or control_switch()->get_name_to() instead. Removed in 2027.5.0", "2026.11.0")
   const char *valve_name(size_t valve_number);
   /// returns a valve's name for a "%s" log argument; returns nullptr if valve_number is invalid
   const LogString *valve_log_name(size_t valve_number);

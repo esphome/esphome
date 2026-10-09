@@ -125,8 +125,7 @@ void PrometheusHandler::print_relabel_name_(AsyncResponseStream *stream, EntityB
     stream->print(item->second.c_str());
     return;
   }
-  char name_buf[ENTITY_NAME_BUF_SIZE];
-  stream->print(obj->get_name_to(name_buf).c_str());
+  stream->print(reinterpret_cast<ProgmemStr>(obj->get_name_progmem().progmem_ptr()));
 }
 
 void PrometheusHandler::add_area_label_(AsyncResponseStream *stream, std::string &area) {

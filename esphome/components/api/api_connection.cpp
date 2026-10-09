@@ -474,7 +474,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
   msg.key = entity->get_object_id_hash();
 
   if (entity->has_own_name()) {
-    msg.name = entity->get_name_progmem();  // encoded straight from flash
+    msg.name = entity->get_name_progmem();
   }
 
   // Set common EntityBase properties

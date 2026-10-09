@@ -34,7 +34,6 @@ static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 // Maximum entity name length - keep in sync with NAME_MAX_LENGTH in esphome/config_validation.py
 static constexpr size_t ESPHOME_ENTITY_NAME_MAX_LEN = 120;
 
-// Buffer size for EntityBase::get_name_to()
 static constexpr size_t ENTITY_NAME_BUF_SIZE = ESPHOME_ENTITY_NAME_MAX_LEN + 1;
 
 // Maximum domain length (longest: "alarm_control_panel" = 19)
@@ -73,16 +72,18 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  // Remove before 2027.5.0
-  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
 #ifdef USE_ESP8266
   /// The name is in flash here; the first call makes a RAM copy that is kept for the life of the device.
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
   const StringRef &get_name() const;
   /// Get the name of this Entity, copied out of flash into buffer.
   StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
     return StringRef(buffer.data(), this->write_name_to(buffer.data(), buffer.size()));
   }
 #else
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
   const StringRef &get_name() const { return this->name_.ram_ref(); }
   const StringRef &get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
 #endif
