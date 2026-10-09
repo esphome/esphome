@@ -40,10 +40,10 @@ DisplayRef = Display.operator("ref")
 DisplayPageShowAction = display_ns.class_("DisplayPageShowAction", automation.Action)
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
-
-_request_page_change_slot = cg.slot_counter("DISPLAY_PAGE_CHANGE_CALLBACK_COUNT")
 CONF_SHOW_TEST_CARD = "show_test_card"
 CONF_UNSPECIFIED = "unspecified"
+
+_request_page_change_slot = cg.slot_counter("DISPLAY_PAGE_CHANGE_CALLBACK_COUNT")
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
