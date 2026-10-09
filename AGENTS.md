@@ -177,6 +177,13 @@ file does, and it is the authority when they disagree. The most useful starting 
         Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
         `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
         https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Scheduler ids:** name a timer only when it must be cancelled or replaced, and use a
+        `static constexpr uint32_t` id, never a string. Ids are per component instance and cannot clash with other
+        components, so number them from 0 and keep all of a component's ids together in one place.
+        ```cpp
+        static constexpr uint32_t READ_TIMEOUT_ID = 0;
+        this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
+        ```
     *   **Don't override a default with the same value:** if a base class method already returns what you
         want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
         component that wants `DATA` should simply leave it alone.
@@ -230,6 +237,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```
 
     *   **Component Metadata:**
+        - `DOMAIN`: Required in every component's `__init__.py`, set to the component's own name as a plain
+          string (e.g. `DOMAIN = "my_component"`). Other code refers to the component through it, e.g.
+          `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
+          metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
         - `AUTO_LOAD`: Components to automatically load
         - `CONFLICTS_WITH`: Incompatible components
@@ -243,6 +254,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         import esphome.config_validation as cv
         from esphome.const import CONF_KEY, CONF_ID
 
+        DOMAIN = "my_component"
         CONF_PARAM = "param"  # A constant that does not yet exist in esphome/const.py
 
         my_component_ns = cg.esphome_ns.namespace("my_component")
