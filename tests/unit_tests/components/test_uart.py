@@ -14,5 +14,11 @@ def test_ignores_other_uarts_and_other_keys() -> None:
     assert not subtree_references_uart(config, "bus")
 
 
+def test_finds_another_key() -> None:
+    config = {"modbus_tcp_uart": [{"tcp_uart_id": ID("bus")}]}
+    assert subtree_references_uart(config, "bus", "tcp_uart_id")
+    assert not subtree_references_uart(config, "bus")
+
+
 def test_handles_scalars() -> None:
     assert not subtree_references_uart("bus", "bus")
