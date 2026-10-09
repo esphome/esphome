@@ -205,6 +205,11 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
     }
   }
 
+  // YAC, like YAG, represents vertical swing in the low nibble of byte 4.
+  // The byte 0 swing flag alone is not sufficient for its vane-position decoder.
+  if (model == GREE_YAC)
+    state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
+
   if (model == GREE_YAC || model == GREE_YAG)
     state[4] |= GreeClimateCodec::encode_horizontal_swing(data.swing_mode) << 4;
 
