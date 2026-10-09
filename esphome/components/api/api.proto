@@ -82,6 +82,7 @@ service APIConnection {
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 
+  rpc sendspin_pairing_token(SendspinPairingTokenRequest) returns (SendspinPairingTokenResponse) {}
   rpc get_yaml(GetYamlRequest) returns (void) {}
 }
 
@@ -406,6 +407,11 @@ message WizardCapabilities {
   bool configured = 1;
 }
 
+message SendspinCapabilities {
+  // Bitmask of the Sendspin features this device supports
+  uint32 feature_flags = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -416,7 +422,8 @@ message DeviceCapabilitiesResponse {
   repeated SerialProxyInfo serial_proxies = 4
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
-  StoreYamlCapabilities store_yaml = 6 [(field_ifdef) = "USE_STORE_YAML"];
+  SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
+  StoreYamlCapabilities store_yaml = 7 [(field_ifdef) = "USE_STORE_YAML"];
 }
 
 // ==================== DEVICE WIZARD ====================
@@ -3079,18 +3086,49 @@ message BluetoothSetConnectionParamsResponse {
   int32 error = 2;
 }
 
+// ==================== SENDSPIN ====================
+enum SendspinPairingTokenStatus {
+  // The Sendspin client has not started yet, so the token does not exist yet. Ask again later.
+  SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY = 0;
+  SENDSPIN_PAIRING_TOKEN_STATUS_OK = 1;
+  // The device has no API encryption key, so it will not send the token. Ask again once a key is set.
+  SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED = 2;
+  // Sendspin is turned off and has not started since boot, so the token does not exist yet.
+  SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED = 3;
+  // The Sendspin client failed to start, and will not start until the device reboots.
+  SENDSPIN_PAIRING_TOKEN_STATUS_FAILED = 4;
+}
+
+// Requests the Sendspin pairing token, which a Sendspin server uses to pair with this device
+message SendspinPairingTokenRequest {
+  option (id) = 159;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SENDSPIN";
+  // Empty
+}
+
+message SendspinPairingTokenResponse {
+  option (id) = 160;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SENDSPIN";
+
+  SendspinPairingTokenStatus status = 1;
+  // The pairing token (Sendspin pairing.md "Pairing Token"). Set only when status is OK.
+  string token = 2 [(max_data_length) = 127];
+}
+
 // ==================== STORE YAML ====================
 // Streams the compressed user YAML embedded in firmware; the client decompresses.
 // A GetYamlRequest during an active transfer is ignored; reconnect to restart.
 message GetYamlRequest {
-  option (id) = 159;
+  option (id) = 161;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_STORE_YAML";
   option (no_delay) = true;
 }
 
 message GetYamlResponse {
-  option (id) = 160;
+  option (id) = 162;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_STORE_YAML";
 

@@ -4,7 +4,7 @@
 
 namespace esphome::sy6970 {
 
-static const char *const TAG = "sy6970";
+ESPHOME_LOG_TAG(TAG, "sy6970");
 
 bool SY6970Component::read_all_registers_() {
   // Read all registers from 0x00 to 0x14 in one transaction (21 bytes)

@@ -16,10 +16,10 @@ from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, decode_fields
 from .types import RunCompiledFunction
 
 # Not in the released aioesphomeapi yet; see esphome/components/api/api.proto.
-GET_YAML_REQUEST = 159
-GET_YAML_RESPONSE = 160
+GET_YAML_REQUEST = 161
+GET_YAML_RESPONSE = 162
 # DeviceCapabilitiesResponse.store_yaml and StoreYamlCapabilities.supported
-CAPABILITIES_STORE_YAML_FIELD = 6
+CAPABILITIES_STORE_YAML_FIELD = 7
 STORE_YAML_SUPPORTED_FIELD = 1
 
 

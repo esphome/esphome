@@ -253,6 +253,10 @@ class APIServerConnectionBase {
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
 #endif
 
+#ifdef USE_SENDSPIN
+  void on_sendspin_pairing_token_request(){};
+#endif
+
 #ifdef USE_STORE_YAML
   void on_get_yaml_request(){};
 #endif
