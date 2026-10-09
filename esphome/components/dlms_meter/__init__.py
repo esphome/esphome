@@ -56,9 +56,8 @@ def obis_string_to_byte_list(value: Any) -> list[int]:
     return bytes_list
 
 
-def to_obis_id_struct(value: str | list[int]) -> cg.Expression:
-    bytes_list = value if isinstance(value, list) else obis_string_to_byte_list(value)
-    return ObisId(*bytes_list)
+def to_obis_id_struct(value: list[int]) -> cg.Expression:
+    return ObisId(*value)
 
 
 _request_sensor_slot = cg.slot_counter("DLMS_MAX_SENSORS")
@@ -66,17 +65,17 @@ _request_text_sensor_slot = cg.slot_counter("DLMS_MAX_TEXT_SENSORS")
 _request_binary_sensor_slot = cg.slot_counter("DLMS_MAX_BINARY_SENSORS")
 
 
-def register_sensor(hub: MockObj, obis: str | list[int], var: MockObj) -> None:
+def register_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
     _request_sensor_slot(str(hub))
     cg.add(hub.register_sensor(to_obis_id_struct(obis), var))
 
 
-def register_text_sensor(hub: MockObj, obis: str | list[int], var: MockObj) -> None:
+def register_text_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
     _request_text_sensor_slot(str(hub))
     cg.add(hub.register_text_sensor(to_obis_id_struct(obis), var))
 
 
-def register_binary_sensor(hub: MockObj, obis: str | list[int], var: MockObj) -> None:
+def register_binary_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
     _request_binary_sensor_slot(str(hub))
     cg.add(hub.register_binary_sensor(to_obis_id_struct(obis), var))
 

@@ -2,9 +2,9 @@
 #if defined(USE_ESP32) || defined(USE_ARDUINO) || defined(USE_HOST)
 
 #include "dlms_meter.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-#include <array>
 #include <cinttypes>
 #include <cstdio>
 
@@ -165,19 +165,28 @@ void DlmsMeterComponent::process_frame_() {
 void DlmsMeterComponent::on_data_(const dlms_parser::AxdrCapture &capture) {
   int updated_count = 0;
 
-#ifdef USE_SENSOR
   if (capture.is_numeric()) {
+#if defined(USE_SENSOR) || defined(USE_BINARY_SENSOR)
+    const float value = capture.value_as_float_with_scaler_applied();
+#endif
+#ifdef USE_SENSOR
     for (const auto &item : this->sensors_) {
       if (item.obis == capture.obis) {
-        item.sensor->publish_state(capture.value_as_float_with_scaler_applied());
+        item.sensor->publish_state(value);
         updated_count++;
       }
     }
-  }
 #endif
-
+#ifdef USE_BINARY_SENSOR
+    for (const auto &item : this->binary_sensors_) {
+      if (item.obis == capture.obis) {
+        item.sensor->publish_state(value != 0.0f);
+        updated_count++;
+      }
+    }
+#endif
+  } else {
 #ifdef USE_TEXT_SENSOR
-  if (!capture.is_numeric()) {
     for (const auto &item : this->text_sensors_) {
       if (item.obis == capture.obis) {
         std::array<char, 128> value_buf;
@@ -186,20 +195,8 @@ void DlmsMeterComponent::on_data_(const dlms_parser::AxdrCapture &capture) {
         updated_count++;
       }
     }
-  }
 #endif
-
-#ifdef USE_BINARY_SENSOR
-  if (capture.is_numeric()) {
-    const bool state = capture.value_as_float_with_scaler_applied() != 0.0f;
-    for (const auto &item : this->binary_sensors_) {
-      if (item.obis == capture.obis) {
-        item.sensor->publish_state(state);
-        updated_count++;
-      }
-    }
   }
-#endif
 
   if (updated_count == 0) {
     std::array<char, 24> obis_buf;
