@@ -870,9 +870,18 @@ void Sprinkler::reset_resume() {
   this->resume_duration_.reset();
 }
 
+#ifndef USE_ESP8266
 const char *Sprinkler::valve_name(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return LOG_STR_ARG(this->valve_[valve_number].controller_switch->get_log_name());
+    return this->valve_[valve_number].controller_switch->get_name_progmem().progmem_ptr();  // RAM off ESP8266
+  }
+  return nullptr;
+}
+#endif
+
+const LogString *Sprinkler::valve_log_name(const size_t valve_number) {
+  if (this->is_a_valid_valve(valve_number)) {
+    return this->valve_[valve_number].controller_switch->get_log_name();
   }
   return nullptr;
 }
@@ -1588,7 +1597,8 @@ void Sprinkler::dump_config() {
                   "  Valve %zu:\n"
                   "    Name: %s\n"
                   "    Run Duration: %" PRIu32 " seconds",
-                  valve_number, this->valve_name(valve_number), this->valve_run_duration(valve_number));
+                  valve_number, LOG_STR_ARG(this->valve_log_name(valve_number)),
+                  this->valve_run_duration(valve_number));
   }
   if (!this->pump_.empty()) {
     ESP_LOGCONFIG(TAG, "  Total number of pumps: %zu", this->pump_.size());

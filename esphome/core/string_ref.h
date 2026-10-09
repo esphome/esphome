@@ -237,6 +237,8 @@ class ProgmemStringRef {
 
   /// Copy into buf (null terminated, truncated to fit), returns the length copied.
   size_t write_to(char *buf, size_t buf_size) const {
+    if (buf_size == 0)
+      return 0;
     size_t len = std::min(this->len_, buf_size - 1);
 #ifdef USE_ESP8266
     memcpy_P(buf, this->base_, len);

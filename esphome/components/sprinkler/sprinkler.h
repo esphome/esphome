@@ -335,8 +335,19 @@ class Sprinkler final : public Component {
   /// resets resume state
   void reset_resume();
 
+#ifdef USE_ESP8266
+  template<typename T = int> const char *valve_name(size_t /*valve_number*/) {
+    static_assert(sizeof(T) == 0, "valve_name() unavailable on ESP8266 (name is in flash). Use valve_log_name() "
+                                  "for logging, or valve_switch()->get_name_to() for a copy.");
+    return nullptr;
+  }
+#else
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
+  ESPDEPRECATED("Use valve_log_name() or valve_switch()->get_name_to() instead. Removed in 2027.5.0", "2026.11.0")
   const char *valve_name(size_t valve_number);
+#endif
+  /// returns a valve's name for a "%s" log argument; returns nullptr if valve_number is invalid
+  const LogString *valve_log_name(size_t valve_number);
 
   /// returns what invoked the valve that is currently active, if any. check with 'has_value()'
   optional<SprinklerValveRunRequestOrigin> active_valve_request_is_from();
