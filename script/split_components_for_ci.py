@@ -30,6 +30,7 @@ from esphome import yaml_util
 from script.analyze_component_buses import (
     ISOLATED_COMPONENTS,
     ISOLATED_SIGNATURE_PREFIX,
+    ISOLATED_TESTS,
     NO_BUSES_SIGNATURE,
     analyze_all_components,
     create_grouping_signature,
@@ -210,7 +211,8 @@ def _make_item(
     tests_dir: Path, component: str, signature: str, is_isolated: bool
 ) -> _BatchItem:
     # Per platform: the seconds of its test files, and the base test's heavy
-    # components; a platform without a base test cannot join a shared build
+    # components; a platform without a base test, or one the component is
+    # tested alone on, cannot join a shared build
     seconds_by_platform: dict[str, int] = defaultdict(int)
     base_heavy: dict[str, frozenset[str]] = {}
     for test_file in (tests_dir / component).glob("test[.-]*.yaml"):
@@ -222,7 +224,11 @@ def _make_item(
     own_seconds = 0
     grouped: dict[tuple[str, str], _GroupedShare] = {}
     for platform, seconds in seconds_by_platform.items():
-        if is_isolated or platform not in base_heavy:
+        if (
+            is_isolated
+            or platform not in base_heavy
+            or (component, platform) in ISOLATED_TESTS
+        ):
             own_seconds += seconds
         else:
             grouped[(signature, platform)] = _GroupedShare(

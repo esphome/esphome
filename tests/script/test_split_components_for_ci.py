@@ -249,6 +249,23 @@ def test_make_item_reads_tests_dir(tmp_path: Path) -> None:
     assert item.own_seconds == 55
 
 
+def test_make_item_isolated_test_is_own_seconds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A platform the component is tested alone on is charged as its own build."""
+    _add_component(
+        tmp_path, "comp", ["test.esp32-idf.yaml", "test.nrf52-adafruit.yaml"]
+    )
+    monkeypatch.setattr(
+        split_components_for_ci, "ISOLATED_TESTS", {("comp", "nrf52-adafruit"): "why"}
+    )
+
+    item = split_components_for_ci._make_item(tmp_path, "comp", "i2c", False)
+
+    assert item.own_seconds == split_components_for_ci.build_seconds("nrf52-adafruit")
+    assert list(item.grouped_builds) == [("i2c", "esp32-idf")]
+
+
 def test_balance_batches_keeps_partners_together() -> None:
     """Two components sharing a build land on one runner even when the
     lightest runner is the other one."""
