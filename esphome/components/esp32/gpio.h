@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 #include "esphome/core/hal.h"
 #include <driver/gpio.h>
+#include <esp_system.h>
 
 namespace esphome::esp32 {
 
