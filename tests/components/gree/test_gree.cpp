@@ -703,8 +703,8 @@ TEST(GreeYAC, EncodeSwingAxesInVaneFields) {
       {climate::CLIMATE_SWING_HORIZONTAL, 0x10},
       {climate::CLIMATE_SWING_BOTH, 0x11},
   }};
-  GreeClimateData data{climate::CLIMATE_MODE_COOL, 23, climate::CLIMATE_FAN_AUTO,
-                       climate::CLIMATE_SWING_OFF, climate::CLIMATE_PRESET_NONE};
+  GreeClimateData data{climate::CLIMATE_MODE_COOL, 23, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF,
+                       climate::CLIMATE_PRESET_NONE};
   for (const auto &test : cases) {
     data.swing_mode = test.mode;
     const GreeState encoded = GreeClimateCodec::encode(GREE_YAC, data);
