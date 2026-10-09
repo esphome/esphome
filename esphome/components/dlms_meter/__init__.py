@@ -35,6 +35,7 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
     "DlmsMeterComponent", cg.Component, uart.UARTDevice
 )
 CustomPattern = dlms_meter_component_ns.struct("CustomPattern")
+ObisId = cg.global_ns.namespace("dlms_parser").class_("ObisId")
 
 
 def obis_string_to_byte_list(value: Any) -> list[int]:
@@ -55,11 +56,9 @@ def obis_string_to_byte_list(value: Any) -> list[int]:
     return bytes_list
 
 
-def to_obis_id_struct(value: str | list[int]) -> cg.RawExpression:
+def to_obis_id_struct(value: str | list[int]) -> cg.Expression:
     bytes_list = value if isinstance(value, list) else obis_string_to_byte_list(value)
-    return cg.RawExpression(
-        f"dlms_parser::ObisId({', '.join(str(b) for b in bytes_list)})"
-    )
+    return ObisId(*bytes_list)
 
 
 _request_sensor_slot = cg.slot_counter("DLMS_MAX_SENSORS")
