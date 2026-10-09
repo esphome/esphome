@@ -1,5 +1,6 @@
 #ifdef USE_ZEPHYR
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/util.h>
 #include "esphome/core/log.h"

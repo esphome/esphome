@@ -6,28 +6,10 @@
 
 namespace esphome::power_supply::testing {
 
-// Minimal dummy internal GPIO pin implementation for testing
-class DummyInternalPin : public InternalGPIOPin {
- public:
-  DummyInternalPin() = default;
-  void setup() override {}
-  void pin_mode(esphome::gpio::Flags) override {}
-  esphome::gpio::Flags get_flags() const override { return esphome::gpio::FLAG_NONE; }
-  bool digital_read() override { return false; }
-  void digital_write(bool) override {}
-  void detach_interrupt() const override {}
-  ISRInternalGPIOPin to_isr() const override { return ISRInternalGPIOPin(); }
-  uint8_t get_pin() const override { return 0; }
-  bool is_inverted() const override { return false; }
-
- protected:
-  // Implement protected attach_interrupt required by InternalGPIOPin
-  void attach_interrupt(void (*func)(void *), void *arg, esphome::gpio::InterruptType type) const override {}
-};
-
 TEST(PowerSupply, HasHigherPriorityThanBusWhenInternalAndEnableOnBoot) {
   power_supply::PowerSupply ps;
-  DummyInternalPin pin;
+  InternalGPIOPin pin;
+  pin.set_pin(0);
   ps.set_pin(&pin);
   ps.set_enable_on_boot(true);
 
@@ -37,7 +19,8 @@ TEST(PowerSupply, HasHigherPriorityThanBusWhenInternalAndEnableOnBoot) {
 
 TEST(PowerSupply, FallsBackToIOWhenNotEnableOnBoot) {
   power_supply::PowerSupply ps;
-  DummyInternalPin pin;
+  InternalGPIOPin pin;
+  pin.set_pin(0);
   ps.set_pin(&pin);
   ps.set_enable_on_boot(false);
 

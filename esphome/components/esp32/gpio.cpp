@@ -4,6 +4,7 @@
 #if defined(USE_ESP32) && defined(USE_ESP32_INTERNAL_GPIO)
 
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"

@@ -1,6 +1,7 @@
 #ifdef USE_RP2
 
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
