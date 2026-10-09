@@ -3,7 +3,7 @@
 
 namespace esphome::whynter {
 
-static const char *const TAG = "climate.whynter";
+ESPHOME_LOG_TAG(TAG, "climate.whynter");
 
 const uint16_t BITS = 32;
 

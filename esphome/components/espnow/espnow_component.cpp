@@ -26,7 +26,7 @@
 
 namespace esphome::espnow {
 
-static constexpr const char *TAG = "espnow";
+ESPHOME_LOG_TAG(TAG, "espnow");
 
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

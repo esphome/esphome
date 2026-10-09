@@ -27,6 +27,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nohat"]
+DOMAIN = "event"
 IS_PLATFORM_COMPONENT = True
 
 DEVICE_CLASSES = [

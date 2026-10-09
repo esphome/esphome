@@ -1,0 +1,1 @@
+DOMAIN = "color_temperature"

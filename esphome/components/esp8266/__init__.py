@@ -71,6 +71,7 @@ CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
 _SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp8266"
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True

@@ -40,7 +40,7 @@ extern "C" {
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_esp8266";
+ESPHOME_LOG_TAG(TAG, "wifi_esp8266");
 
 enum class ESP8266WiFiSTAState : uint8_t {
   IDLE,             // Not connecting

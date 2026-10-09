@@ -3,7 +3,7 @@
 
 namespace esphome::xiaomi_jqjcy01ym {
 
-static const char *const TAG = "xiaomi_jqjcy01ym";
+ESPHOME_LOG_TAG(TAG, "xiaomi_jqjcy01ym");
 
 void XiaomiJQJCY01YM::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi JQJCY01YM");
