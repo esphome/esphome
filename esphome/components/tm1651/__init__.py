@@ -12,6 +12,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mrtoy-me"]
+DOMAIN = "tm1651"
 
 CONF_LEVEL_PERCENT = "level_percent"
 

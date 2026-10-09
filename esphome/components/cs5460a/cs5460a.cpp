@@ -5,6 +5,8 @@ namespace esphome::cs5460a {
 
 ESPHOME_LOG_TAG(TAG, "cs5460a");
 
+static constexpr uint32_t STATUS_CHECK_TIMEOUT_ID = 0;
+
 void CS5460AComponent::write_register_(enum CS5460ARegister addr, uint32_t value) {
   this->write_byte(CMD_WRITE | (addr << 1));
   this->write_byte(value >> 16);
@@ -149,13 +151,13 @@ void CS5460AComponent::schedule_next_check_() {
       this->status_momentary_warning("warning", 1000);
     } else {
       ESP_LOGCONFIG(TAG, "Device officially stuck, resetting");
-      this->cancel_timeout("status-check");
+      this->cancel_timeout(STATUS_CHECK_TIMEOUT_ID);
       this->hw_init_();
       return;
     }
   }
 
-  this->set_timeout("status-check", time_left, [this]() {
+  this->set_timeout(STATUS_CHECK_TIMEOUT_ID, time_left, [this]() {
     if (!this->check_status_())
       this->schedule_next_check_();
   });

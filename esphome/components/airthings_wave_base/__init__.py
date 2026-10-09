@@ -24,6 +24,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ncareau", "@jeromelaban"]
+DOMAIN = "airthings_wave_base"
 
 DEPENDENCIES = ["ble_client"]
 

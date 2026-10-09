@@ -4,6 +4,9 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, uart
+from esphome.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
+from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
+from esphome.components.text_sensor import DOMAIN as TEXT_SENSOR_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -19,6 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "dlms_meter"
 
 CONF_DLMS_METER_ID = "dlms_meter_id"
 CONF_DECRYPTION_KEY = "decryption_key"
@@ -210,15 +214,14 @@ async def to_code(config: ConfigType) -> None:
     hub_id = config[CONF_ID].id
 
     for domain, define in (
-        ("sensor", "DLMS_MAX_SENSORS"),
-        ("text_sensor", "DLMS_MAX_TEXT_SENSORS"),
-        ("binary_sensor", "DLMS_MAX_BINARY_SENSORS"),
+        (SENSOR_DOMAIN, "DLMS_MAX_SENSORS"),
+        (TEXT_SENSOR_DOMAIN, "DLMS_MAX_TEXT_SENSORS"),
+        (BINARY_SENSOR_DOMAIN, "DLMS_MAX_BINARY_SENSORS"),
     ):
         count = sum(
             1
             for conf in CORE.config.get(domain, [])
-            if conf.get("platform") == "dlms_meter"
-            and conf[CONF_DLMS_METER_ID].id == hub_id
+            if conf.get("platform") == DOMAIN and conf[CONF_DLMS_METER_ID].id == hub_id
         )
         cg.add_define(define, count)
 

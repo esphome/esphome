@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pcf8574"
 MULTI_CONF = True
 
 pcf8574_ns = cg.esphome_ns.namespace("pcf8574")

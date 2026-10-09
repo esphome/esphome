@@ -14,6 +14,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "socket"
 
 socket_ns = cg.esphome_ns.namespace("socket")
 Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
