@@ -3,7 +3,7 @@
 
 namespace esphome::ruuvi_ble {
 
-static const char *const TAG = "ruuvi_ble";
+ESPHOME_LOG_TAG(TAG, "ruuvi_ble");
 
 bool parse_ruuvi_data_byte(const ble_device_base::adv_data_t &adv_data, RuuviParseResult &result) {
   const uint8_t data_type = adv_data[0];

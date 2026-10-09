@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["zephyr_ble_server", "uart"]
 CODEOWNERS = ["@tomaszduda23"]
+DOMAIN = "ble_nus"
 
 ble_nus_ns = cg.esphome_ns.namespace("ble_nus")
 BLENUS = ble_nus_ns.class_("BLENUS", cg.Component, UARTComponent)

@@ -9,6 +9,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
+DOMAIN = "adalight"
 
 adalight_ns = cg.esphome_ns.namespace("adalight")
 AdalightLightEffect = adalight_ns.class_(
