@@ -28,11 +28,11 @@ void EPaperMono::deep_sleep() {
 }
 
 bool EPaperMono::reset() {
-  if (EPaperBase::reset()) {
+  if (!EPaperBase::reset())
+    return false;
+  if (this->software_reset_)
     this->command(0x12);
-    return true;
-  }
-  return false;
+  return true;
 }
 
 void EPaperMono::set_window() {

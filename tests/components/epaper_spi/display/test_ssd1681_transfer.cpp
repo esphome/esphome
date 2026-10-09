@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <vector>
 
@@ -116,30 +117,30 @@ TEST(EPaperSSD1681, PartialRefreshWritesOnlyTheChangedWindowOfTheNewImageBank) {
   EXPECT_EQ(bus.data[0x22], (Bytes{0xFF}));
 }
 
-/// Controller RAM does not survive the hardware reset, and deep sleep can only be left by one, so
-/// while partial refreshes are in use the panel is never put to sleep and only a full refresh
-/// resets it.
-TEST(EPaperSSD1681, PanelStaysAwakeAndUnresetBetweenPartialRefreshes) {
+/// The software reset 0x12 turns off the RAM ping-pong the panel's OTP enables, after which the
+/// controller no longer keeps 0x26 in step and the next partial refresh compares against a stale
+/// image. So every update starts with the hardware reset only, and ends in deep sleep mode 1, which
+/// keeps the RAM and is left by that reset.
+TEST(EPaperSSD1681, UpdatesResetInHardwareOnlyAndSleepInBetween) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 5);
 
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   display.run_update();
-  EXPECT_EQ(bus.commands.front(), 0x12) << "full refresh did not send a software reset";
-  EXPECT_EQ(bus.commands.back(), 0x20) << "panel was put to sleep after the full refresh";
+  EXPECT_EQ(bus.commands.front(), 0x44) << "full refresh sent a software reset";
+  EXPECT_EQ(bus.data[0x10], (Bytes{0x01})) << "panel was not put into deep sleep mode 1";
   bus.clear();
 
   display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
   display.set_dirty(8, 1, 16, 2);
   display.run_update();
-  EXPECT_EQ(bus.commands.front(), 0x44) << "partial refresh sent a software reset";
-  EXPECT_EQ(bus.commands.back(), 0x20) << "panel was put to sleep after the partial refresh";
-  EXPECT_TRUE(display.reset_pin.level) << "partial refresh pulsed the reset pin";
+  EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), 0x12), 0) << "partial refresh sent a software reset";
+  EXPECT_EQ(bus.data[0x10], (Bytes{0x01})) << "panel was not put into deep sleep mode 1";
 }
 
-/// With every update a full one the controller is reset and put to sleep every time, as before.
-TEST(EPaperSSD1681, EveryUpdateFullResetsAndSleepsEveryTime) {
+/// With every update a full one the controller loses its RAM in deep sleep mode 2, as before.
+TEST(EPaperSSD1681, EveryUpdateFullSleepsWithoutKeepingRAM) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 1);
@@ -151,11 +152,10 @@ TEST(EPaperSSD1681, EveryUpdateFullResetsAndSleepsEveryTime) {
   display.set_dirty(8, 1, 16, 2);
   display.run_update();
 
-  EXPECT_EQ(bus.commands.front(), 0x12);
   EXPECT_EQ(bus.data[0x26], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
   EXPECT_EQ(bus.data[0x21], (Bytes{0x40, 0x00}));
-  EXPECT_EQ(bus.commands.back(), 0x10);
+  EXPECT_EQ(bus.data[0x10], (Bytes{0x03}));
 }
 
 /// An update whose frame is the one already on the panel sends nothing and does not count towards
@@ -249,9 +249,9 @@ TEST(EPaperSSD1681, ComparisonFrameIsWhatWasSent) {
 }
 
 /// Before the controller sleeps, an update in flight is finished, so nothing is left for the
-/// controller's deep sleep to interrupt. The panel is then already in its powered-down state with
-/// the RAM kept, since every refresh ends that way, so parking it sends nothing more.
-TEST(EPaperSSD1681, TeardownFinishesTheUpdateThenParksThePanel) {
+/// controller's deep sleep to interrupt. The panel is then already in deep sleep mode 1 with its
+/// RAM kept, since every update ends that way, so nothing more is sent.
+TEST(EPaperSSD1681, TeardownFinishesTheUpdateAndSendsNothingMore) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 5);
@@ -265,16 +265,15 @@ TEST(EPaperSSD1681, TeardownFinishesTheUpdateThenParksThePanel) {
   while (!display.teardown()) {
   }
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3})) << "update in flight was not finished";
-  EXPECT_EQ(bus.commands.back(), 0x20) << "something was sent after the refresh";
+  EXPECT_EQ(bus.commands.back(), 0x10) << "something was sent after the deep sleep";
   EXPECT_TRUE(display.panel_holds_image());
   const size_t n = bus.commands.size();
   EXPECT_TRUE(display.teardown()) << "a second teardown should be a no-op";
   EXPECT_EQ(bus.commands.size(), n);
 }
 
-/// With every update a full one the panel is put to sleep after each update and there is nothing
-/// to keep; teardown sends nothing.
-TEST(EPaperSSD1681, TeardownDoesNotParkWithoutPartialUpdates) {
+/// With every update a full one the panel loses its RAM in deep sleep and there is nothing to keep.
+TEST(EPaperSSD1681, NothingKeptWithoutPartialUpdates) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
   display.install(&bus, 1);
@@ -290,8 +289,9 @@ TEST(EPaperSSD1681, TeardownDoesNotParkWithoutPartialUpdates) {
 }
 
 /// After a deep sleep wake with the panel still holding its image, the first update is a partial
-/// one: no reset, the changed window only, 0x26 compared as it is. The comparison frame is not
-/// back yet, so the whole drawn area goes out and the next update can then be compared.
+/// one, like any other: hardware reset and init, the changed window of 0x24 only, 0x26 compared
+/// as it is. The comparison frame is not back yet, so the whole drawn area goes out and the next
+/// update can then be compared.
 TEST(EPaperSSD1681, FirstUpdateAfterWakeIsPartial) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
@@ -301,7 +301,7 @@ TEST(EPaperSSD1681, FirstUpdateAfterWakeIsPartial) {
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   display.set_dirty(0, 0, 16, 2);
   EXPECT_TRUE(display.run_update());
-  EXPECT_EQ(bus.commands.front(), 0x44) << "first update after the wake reset the panel";
+  EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), 0x12), 0) << "a software reset was sent";
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
   EXPECT_EQ(bus.data.count(0x26), 0u);
   EXPECT_EQ(bus.data[0x21], (Bytes{0x00, 0x00}));
