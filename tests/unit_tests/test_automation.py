@@ -341,7 +341,6 @@ async def test_build_callback_automations_single_entry(
         params=None,
         forward=None,
         when=None,
-        parent_check=None,
     )
 
 
@@ -369,7 +368,6 @@ async def test_build_callback_automations_multiple_configs(
         params=None,
         forward=None,
         when=None,
-        parent_check=None,
     )
     mock_build_callback.assert_any_call(
         parent,
@@ -380,7 +378,6 @@ async def test_build_callback_automations_multiple_configs(
         params=None,
         forward=None,
         when=None,
-        parent_check=None,
     )
 
 
@@ -417,7 +414,6 @@ async def test_build_callback_automations_multiple_entries(
             params=None,
             forward=None,
             when=None,
-            parent_check=None,
         ),
         call(
             parent,
@@ -428,7 +424,6 @@ async def test_build_callback_automations_multiple_entries(
             params=None,
             forward=None,
             when=None,
-            parent_check=None,
         ),
     ]
 
@@ -459,7 +454,6 @@ async def test_build_callback_automations_with_forwarder(
         params=None,
         forward=None,
         when=None,
-        parent_check=None,
     )
 
 
@@ -501,7 +495,6 @@ async def test_build_callback_automations_mixed_entries(
             params=None,
             forward=None,
             when=None,
-            parent_check=None,
         ),
         call(
             parent,
@@ -512,7 +505,6 @@ async def test_build_callback_automations_mixed_entries(
             params=None,
             forward=None,
             when=None,
-            parent_check=None,
         ),
         call(
             parent,
@@ -523,7 +515,6 @@ async def test_build_callback_automations_mixed_entries(
             params=None,
             forward=None,
             when=None,
-            parent_check=None,
         ),
     ]
 
@@ -557,7 +548,6 @@ async def test_build_callback_automations_skips_missing_keys(
         params=None,
         forward=None,
         when=None,
-        parent_check=None,
     )
 
 
@@ -583,7 +573,6 @@ async def test_build_callback_automations_defaults(
         params=None,
         forward=None,
         when=None,
-        parent_check=None,
     )
 
 
@@ -990,8 +979,9 @@ async def test_apply_field_nested_key_const_fn_and_type_string(
 def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
     with pytest.raises(ValueError, match="2 placeholder"):
         ApplyCall("set_range({}, {})", (("low", cg.float_),))
-    with pytest.raises(ValueError, match="only bare"):
-        ApplyCall("if ({}) {parent}->reset()", (("reset", cg.bool_),))
+    with pytest.raises(ValueError, match="only {} and {parent}"):
+        ApplyCall("if ({}) {other}->reset()", (("reset", cg.bool_),))
+    assert ApplyCall("if ({}) {parent}->reset()", (("reset", cg.bool_),)).names_parent
     ApplyCall("set_flags({{{}}})", (("flags", cg.int_),))
     with pytest.raises(ValueError, match="each arg is"):
         ApplyCall("set_kp({})", (("kp", cg.float_, None, "extra"),))
@@ -1253,54 +1243,57 @@ async def test_trigger_callback_reshapes_and_filters(mock_cg: MockCodegen) -> No
 
 @pytest.mark.asyncio
 async def test_trigger_callback_filter_has_no_parent(mock_cg: MockCodegen) -> None:
-    """A filter type that names {parent} is rejected up front, a trigger callback has none."""
-    when = ApplyCall("mode == {}", (("mode", "{parent}::Mode"),))
-    with pytest.raises(ValueError, match="names {parent}"):
-        await build_trigger_callback(
-            [], {**TRIGGER_CONF, "mode": 1}, [(cg.int_, "mode")], forward=[], when=when
-        )
+    """A filter that names {parent} is rejected up front when no parent is given."""
+    for when in (
+        ApplyCall("mode == {}", (("mode", "{parent}::Mode"),)),
+        "{parent}->is_failed() == false",
+    ):
+        with pytest.raises(ValueError, match="names {parent}"):
+            await build_trigger_callback(
+                [],
+                {**TRIGGER_CONF, "mode": 1},
+                [(cg.int_, "mode")],
+                forward=[],
+                when=when,
+            )
 
 
 @pytest.mark.asyncio
-async def test_build_callback_automations_parent_check(mock_cg: MockCodegen) -> None:
-    """parent_check is applied to the parent, so a module-level table can filter on its state."""
-    await build_callback_automations(
-        MockObj("valve", "->"),
-        {"on_open": [TRIGGER_CONF]},
-        (
-            CallbackAutomation(
-                "on_open", "add_on_state_callback", parent_check="is_fully_open()"
-            ),
-        ),
-    )
-    assert _squash(mock_cg.add.call_args.args[0]) == (
-        "valve->add_on_state_callback([]() -> void { "
-        f"if (!(::valve->is_fully_open())) return; ::{NEW_OBJ}->trigger(); }})"
-    )
-
-
-@pytest.mark.asyncio
-async def test_trigger_callback_when_and_parent_check(mock_cg: MockCodegen) -> None:
-    """A filter and a parent check combine into one early return; a check needs the parent."""
+async def test_trigger_callback_filter_names_parent(mock_cg: MockCodegen) -> None:
+    """With the parent given, {parent} in a filter is the global-scoped parent."""
     text = _squash(
         await build_trigger_callback(
             [],
             TRIGGER_CONF,
             [(cg.int_, "state")],
             forward=[],
-            when="state == 1 || state == 2",
+            when="state == 1 && {parent}->is_failed() == false",
             parent=MockObj("improv", "->"),
-            parent_check="is_failed() == false",
         )
     )
     assert (
-        "if (!((state == 1 || state == 2) && (::improv->is_failed() == false))) return;"
-        in text
+        "if (!(state == 1 && ::improv->is_failed() == false)) return; "
+        f"::{NEW_OBJ}->trigger();"
+    ) in text
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automations_when_names_parent(
+    mock_cg: MockCodegen,
+) -> None:
+    """A table entry names the parent through {parent}, so it can live at module level."""
+    entries = (
+        CallbackAutomation(
+            "on_open", "add_on_state_callback", when="{parent}->is_fully_open()"
+        ),
     )
-    with pytest.raises(ValueError, match="needs the parent"):
-        await build_trigger_callback(
-            [], TRIGGER_CONF, [], forward=[], parent_check="is_failed() == false"
-        )
+    await build_callback_automations(
+        MockObj("valve", "->"), {"on_open": [TRIGGER_CONF]}, entries
+    )
+    assert _squash(mock_cg.add.call_args.args[0]) == (
+        "valve->add_on_state_callback([]() -> void { "
+        f"if (!(::valve->is_fully_open())) return; ::{NEW_OBJ}->trigger(); }})"
+    )
 
 
 @pytest.mark.asyncio

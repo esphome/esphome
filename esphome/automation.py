@@ -269,8 +269,8 @@ class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
 
     Each arg is ``(conf_key, type_)`` or ``(conf_key, type_, const_fn)``. A ``conf_key`` may be a
-    path into nested sections. A plain ``str`` ``type_`` is raw C++ type text and may use
-    ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
+    path into nested sections. ``target`` and a plain ``str`` ``type_`` (raw C++ type text) may
+    name the parent object as ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
     id bypasses it. The statement is skipped when none of its keys is set, always emitted when it
     has no keys, and a partial set is a config error.
     """
@@ -282,19 +282,25 @@ class ApplyCall:
         fields = [
             f for _, f, _, _ in string.Formatter().parse(self.target) if f is not None
         ]
-        if any(fields):
+        if any(f not in ("", "parent") for f in fields):
             raise ValueError(
-                f"apply target {self.target!r}: only bare {{}} placeholders"
+                f"apply target {self.target!r}: only {{}} and {{parent}} placeholders"
             )
-        if len(fields) != len(self.args):
+        if (count := fields.count("")) != len(self.args):
             raise ValueError(
-                f"apply target {self.target!r} has {len(fields)} "
+                f"apply target {self.target!r} has {count} "
                 f"placeholder(s) for {len(self.args)} config key(s)"
             )
         if any(len(arg) not in (2, 3) for arg in self.args):
             raise ValueError(
                 f"apply target {self.target!r}: each arg is (conf_key, type_[, const_fn])"
             )
+
+    @property
+    def names_parent(self) -> bool:
+        return "{parent}" in self.target or any(
+            isinstance(arg[1], str) and "{parent}" in arg[1] for arg in self.args
+        )
 
     @property
     def members(self) -> list[tuple[Any, Any, Any]]:
@@ -494,7 +500,7 @@ def register_apply_action(
             exprs = await _render_values(
                 name, target, members, values, config, parent, lambda_args
             )
-            statements.append(f"{receiver}{target.format(*exprs)};")
+            statements.append(f"{receiver}{target.format(*exprs, parent=parent)};")
         if call:
             statements = [
                 f"auto apply_call = {parent}->{call}();",
@@ -526,7 +532,7 @@ async def _render_check(
     exprs = await _render_values(
         name, target, members, values, config, parent, lambda_args, compare=True
     )
-    return target.format(*exprs)
+    return target.format(*exprs, parent=parent)
 
 
 def register_apply_condition(
@@ -1062,49 +1068,37 @@ async def build_trigger_callback(
     forward: Sequence[str | Expression] | None = None,
     when: str | ApplyCall | None = None,
     parent: MockObj | None = None,
-    parent_check: str | None = None,
 ) -> LambdaExpression:
     """Build the Automation for ``config`` and return a stateless callback that triggers it.
 
     ``params`` are the parent callback's parameters, ``forward`` the expressions passed to
     ``trigger()`` (default: the parameter names; write the parent as ``parent_ref(var)``),
     ``when`` a filter the callback returns early on, skipped like any ``ApplyCall`` when none
-    of its keys is set. ``parent_check`` is a check applied to ``parent``, as in
-    ``register_apply_condition``: ``"is_fully_open()"`` becomes ``parent->is_fully_open()``,
-    so an entry naming it can live in a module-level table. Both must hold to trigger.
+    of its keys is set. ``when`` may name ``parent`` as ``{parent}``, e.g.
+    ``"{parent}->is_fully_open()"``.
     """
-    if parent_check is not None and parent is None:
-        raise ValueError(f"parent_check {parent_check!r} needs the parent")
     members: list[tuple[Any, Any, Any]] = []
     if when is not None:
         call = when if isinstance(when, ApplyCall) else ApplyCall(when)
         members = call.members
-        # A trigger callback has no parent for a str type to name.
-        if any(isinstance(t, str) and "{parent}" in t for _, t, _ in members):
-            raise ValueError(f"trigger filter {call.target!r}: a type names {{parent}}")
+        if parent is None and call.names_parent:
+            raise ValueError(f"trigger filter {call.target!r} names {{parent}}")
     obj = await _new_automation(args, config)
     lambda_args = _apply_lambda_args(params)
-    checks: list[str] = []
+    statements: list[str] = []
     if when is not None:
         values = _apply_values(config, members)
         if _apply_call_active(members, values):
-            checks.append(
-                await _render_check(
-                    "trigger filter",
-                    call.target,
-                    members,
-                    values,
-                    config,
-                    None,
-                    lambda_args,
-                )
+            check = await _render_check(
+                "trigger filter",
+                call.target,
+                members,
+                values,
+                config,
+                None if parent is None else str(parent_ref(parent)),
+                lambda_args,
             )
-    if parent_check is not None:
-        checks.append(f"{parent_ref(parent)}->{parent_check}")
-    statements: list[str] = []
-    if checks:
-        cond = checks[0] if len(checks) == 1 else " && ".join(f"({c})" for c in checks)
-        statements.append(f"if (!({cond}))\n  return;")
+            statements.append(f"if (!({check}))\n  return;")
     if forward is None:
         forward = [name for _, name in params]
     statements.append(f"{parent_ref(obj)}->trigger({', '.join(map(str, forward))});")
@@ -1122,7 +1116,6 @@ async def build_callback_automation(
     params: TemplateArgsType | None = None,
     forward: Sequence[str | Expression] | None = None,
     when: str | ApplyCall | None = None,
-    parent_check: str | None = None,
 ) -> None:
     """Build an Automation and register it as a callback on the parent.
 
@@ -1134,8 +1127,8 @@ async def build_callback_automation(
     pointer-sized (single Automation* field) to fit inline in Callback::ctx_
     and avoid heap allocation.
 
-    With ``params``, ``forward``, ``when`` or ``parent_check`` the callback is instead the
-    stateless lambda of ``build_trigger_callback``; ``forwarder`` cannot be combined with them.
+    With ``params``, ``forward`` or ``when`` the callback is instead the stateless
+    lambda of ``build_trigger_callback``; ``forwarder`` cannot be combined with them.
 
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
@@ -1145,24 +1138,13 @@ async def build_callback_automation(
         TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
         a single Automation pointer (e.g., TriggerOnTrueForwarder).
     """
-    if (
-        params is not None
-        or forward is not None
-        or when is not None
-        or parent_check is not None
-    ):
+    if params is not None or forward is not None or when is not None:
         if forwarder is not None:
             raise ValueError(
-                "forwarder cannot be combined with params, forward, when or parent_check"
+                "forwarder cannot be combined with params, forward or when"
             )
         callback = await build_trigger_callback(
-            args,
-            config,
-            args if params is None else params,
-            forward,
-            when,
-            parent=parent,
-            parent_check=parent_check,
+            args, config, args if params is None else params, forward, when, parent
         )
         cg.add(getattr(parent, callback_method)(callback))
         return
@@ -1217,7 +1199,6 @@ class CallbackAutomation:
     params: TemplateArgsType | None = None
     forward: Sequence[str | Expression] | None = None
     when: str | ApplyCall | None = None
-    parent_check: str | None = None
 
 
 async def build_callback_automations(
@@ -1242,5 +1223,4 @@ async def build_callback_automations(
                 params=entry.params,
                 forward=entry.forward,
                 when=entry.when,
-                parent_check=entry.parent_check,
             )
