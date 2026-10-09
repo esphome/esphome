@@ -258,20 +258,16 @@ class _Batch:
         self.components.append(item.component)
 
 
-def _placement_key(
-    batch: _Batch, item: _BatchItem, lightest: int, slack: int
-) -> tuple[bool, int, int]:
-    """Rank a runner for item.
+def _placement_key(added: int, result: int, ceiling: int) -> tuple[bool, int, int]:
+    """Rank a runner that item adds added seconds to, ending at result.
 
-    Runners that would end within slack seconds of the lightest result
-    compete on how few seconds item adds to them, so a component lands with
-    the bus group partners it shares builds with; a component placed away
-    from them builds alone on every platform they only share there. Runners
-    beyond that compete on load alone, which keeps the spread bounded.
+    Runners ending at or below ceiling compete on how few seconds item adds
+    to them, so a component lands with the bus group partners it shares
+    builds with; a component placed away from them builds alone on every
+    platform they only share there. Runners beyond that compete on load
+    alone, which keeps the spread bounded.
     """
-    added = batch.added_seconds(item)
-    result = batch.seconds + added
-    if result > lightest + slack:
+    if result > ceiling:
         return (True, result, 0)
     return (False, added, result)
 
@@ -280,8 +276,9 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     """Spread items over enough runners to stay near target_seconds each.
 
     The runner count comes from the total estimate with every grouped build
-    counted once. Heaviest items go first, each to the runner that ends up
-    lightest, so grouped components follow the builds they can join.
+    counted once. Heaviest items go first, each to the runner it adds the
+    fewest seconds to among those ending near the lightest, so grouped
+    components follow the builds they can join.
     """
     if not items:
         return []
@@ -294,8 +291,15 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     batches = [_Batch() for _ in range(count)]
     slack = target_seconds // 4
     for item in sorted(items, key=lambda i: (-i.standalone_seconds(), i.component)):
-        lightest = min(b.seconds + b.added_seconds(item) for b in batches)
-        min(batches, key=lambda b: _placement_key(b, item, lightest, slack)).add(item)
+        costs = [(batch, batch.added_seconds(item)) for batch in batches]
+        ceiling = min(batch.seconds + added for batch, added in costs) + slack
+        batch, _ = min(
+            costs,
+            key=lambda cost: _placement_key(
+                cost[1], cost[0].seconds + cost[1], ceiling
+            ),
+        )
+        batch.add(item)
     return [batch.components for batch in batches if batch.components]
 
 
