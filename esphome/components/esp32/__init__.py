@@ -2949,6 +2949,9 @@ async def to_code(config):
             "_ZSt25__throw_bad_function_callv",
         ]:
             cg.add_build_flag(f"-Wl,--wrap={mangled}")
+        # Replace operator new so nothrow new returns nullptr. See operator_new.cpp.
+        # --undefined pulls it from libsrc.a before libstdc++ (_Znwj: 32 bit size_t on every ESP32).
+        cg.add_build_flag("-Wl,--undefined=_Znwj")
 
         # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
         # (~11 KB). See printf_stubs.cpp for implementation.
