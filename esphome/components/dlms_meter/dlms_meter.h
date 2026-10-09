@@ -4,11 +4,11 @@
 #if defined(USE_ESP32) || defined(USE_ARDUINO) || defined(USE_HOST)
 
 #include <array>
-#include <map>
 #include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
@@ -39,6 +39,36 @@
 #endif
 
 namespace esphome::dlms_meter {
+
+// Entity storage is sized by codegen; a platform with no entities emits no define
+#ifndef DLMS_MAX_SENSORS
+static constexpr uint8_t DLMS_MAX_SENSORS = 0;
+#endif
+#ifndef DLMS_MAX_TEXT_SENSORS
+static constexpr uint8_t DLMS_MAX_TEXT_SENSORS = 0;
+#endif
+#ifndef DLMS_MAX_BINARY_SENSORS
+static constexpr uint8_t DLMS_MAX_BINARY_SENSORS = 0;
+#endif
+
+#ifdef USE_SENSOR
+struct SensorItem {
+  dlms_parser::ObisId obis;
+  sensor::Sensor *sensor;
+};
+#endif
+#ifdef USE_TEXT_SENSOR
+struct TextSensorItem {
+  dlms_parser::ObisId obis;
+  text_sensor::TextSensor *sensor;
+};
+#endif
+#ifdef USE_BINARY_SENSOR
+struct BinarySensorItem {
+  dlms_parser::ObisId obis;
+  binary_sensor::BinarySensor *sensor;
+};
+#endif
 
 struct CustomPattern {
   const char *pattern;
@@ -93,13 +123,13 @@ class DlmsMeterComponent final : public Component, public uart::UARTDevice {
   dlms_parser::DlmsParser parser_;
 
 #ifdef USE_SENSOR
-  std::map<dlms_parser::ObisId, sensor::Sensor *> sensors_;
+  StaticVector<SensorItem, DLMS_MAX_SENSORS> sensors_;
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::map<dlms_parser::ObisId, text_sensor::TextSensor *> text_sensors_;
+  StaticVector<TextSensorItem, DLMS_MAX_TEXT_SENSORS> text_sensors_;
 #endif
 #ifdef USE_BINARY_SENSOR
-  std::map<dlms_parser::ObisId, binary_sensor::BinarySensor *> binary_sensors_;
+  StaticVector<BinarySensorItem, DLMS_MAX_BINARY_SENSORS> binary_sensors_;
 #endif
 };
 

@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
@@ -59,6 +60,26 @@ def to_obis_id_struct(value: str | list[int]) -> cg.RawExpression:
     return cg.RawExpression(
         f"dlms_parser::ObisId({', '.join(str(b) for b in bytes_list)})"
     )
+
+
+_request_sensor_slot = cg.slot_counter("DLMS_MAX_SENSORS")
+_request_text_sensor_slot = cg.slot_counter("DLMS_MAX_TEXT_SENSORS")
+_request_binary_sensor_slot = cg.slot_counter("DLMS_MAX_BINARY_SENSORS")
+
+
+def register_sensor(hub: MockObj, obis: str | list[int], var: MockObj) -> None:
+    _request_sensor_slot(str(hub))
+    cg.add(hub.register_sensor(to_obis_id_struct(obis), var))
+
+
+def register_text_sensor(hub: MockObj, obis: str | list[int], var: MockObj) -> None:
+    _request_text_sensor_slot(str(hub))
+    cg.add(hub.register_text_sensor(to_obis_id_struct(obis), var))
+
+
+def register_binary_sensor(hub: MockObj, obis: str | list[int], var: MockObj) -> None:
+    _request_binary_sensor_slot(str(hub))
+    cg.add(hub.register_binary_sensor(to_obis_id_struct(obis), var))
 
 
 def custom_pattern_dict(value: Any) -> ConfigType:

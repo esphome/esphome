@@ -90,25 +90,25 @@ void DlmsMeterComponent::dump_config() {
   }
 
 #ifdef USE_SENSOR
-  for (const auto &[obis_id, sensor] : this->sensors_) {
-    LOG_SENSOR("  ", "Numeric Sensor (OBIS)", sensor);
-    const auto obis = obis_id.to_string(obis_buf);
+  for (const auto &item : this->sensors_) {
+    LOG_SENSOR("  ", "Numeric Sensor (OBIS)", item.sensor);
+    const auto obis = item.obis.to_string(obis_buf);
     ESP_LOGCONFIG(TAG, "    OBIS: %.*s", static_cast<int>(obis.size()), obis.data());
   }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  for (const auto &[obis_id, sensor] : this->text_sensors_) {
-    LOG_TEXT_SENSOR("  ", "Text Sensor (OBIS)", sensor);
-    const auto obis = obis_id.to_string(obis_buf);
+  for (const auto &item : this->text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "Text Sensor (OBIS)", item.sensor);
+    const auto obis = item.obis.to_string(obis_buf);
     ESP_LOGCONFIG(TAG, "    OBIS: %.*s", static_cast<int>(obis.size()), obis.data());
   }
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  for (const auto &[obis_id, sensor] : this->binary_sensors_) {
-    LOG_BINARY_SENSOR("  ", "Binary Sensor (OBIS)", sensor);
-    const auto obis = obis_id.to_string(obis_buf);
+  for (const auto &item : this->binary_sensors_) {
+    LOG_BINARY_SENSOR("  ", "Binary Sensor (OBIS)", item.sensor);
+    const auto obis = item.obis.to_string(obis_buf);
     ESP_LOGCONFIG(TAG, "    OBIS: %.*s", static_cast<int>(obis.size()), obis.data());
   }
 #endif
@@ -167,20 +167,24 @@ void DlmsMeterComponent::on_data_(const dlms_parser::AxdrCapture &capture) {
 
 #ifdef USE_SENSOR
   if (capture.is_numeric()) {
-    if (const auto it = this->sensors_.find(capture.obis); it != this->sensors_.end()) {
-      it->second->publish_state(capture.value_as_float_with_scaler_applied());
-      updated_count++;
+    for (const auto &item : this->sensors_) {
+      if (item.obis == capture.obis) {
+        item.sensor->publish_state(capture.value_as_float_with_scaler_applied());
+        updated_count++;
+      }
     }
   }
 #endif
 
 #ifdef USE_TEXT_SENSOR
   if (!capture.is_numeric()) {
-    if (const auto it = this->text_sensors_.find(capture.obis); it != this->text_sensors_.end()) {
-      std::array<char, 128> value_buf;
-      const auto value = capture.value_as_string(value_buf);
-      it->second->publish_state(value.data(), value.size());
-      updated_count++;
+    for (const auto &item : this->text_sensors_) {
+      if (item.obis == capture.obis) {
+        std::array<char, 128> value_buf;
+        const auto value = capture.value_as_string(value_buf);
+        item.sensor->publish_state(value.data(), value.size());
+        updated_count++;
+      }
     }
   }
 #endif
@@ -188,9 +192,11 @@ void DlmsMeterComponent::on_data_(const dlms_parser::AxdrCapture &capture) {
 #ifdef USE_BINARY_SENSOR
   if (capture.is_numeric()) {
     const bool state = capture.value_as_float_with_scaler_applied() != 0.0f;
-    if (const auto it = this->binary_sensors_.find(capture.obis); it != this->binary_sensors_.end()) {
-      it->second->publish_state(state);
-      updated_count++;
+    for (const auto &item : this->binary_sensors_) {
+      if (item.obis == capture.obis) {
+        item.sensor->publish_state(state);
+        updated_count++;
+      }
     }
   }
 #endif
@@ -205,19 +211,19 @@ void DlmsMeterComponent::on_data_(const dlms_parser::AxdrCapture &capture) {
 
 #ifdef USE_SENSOR
 void DlmsMeterComponent::register_sensor(const dlms_parser::ObisId &obis, sensor::Sensor *sensor) {
-  this->sensors_[obis] = sensor;
+  this->sensors_.push_back({obis, sensor});
 }
 #endif
 
 #ifdef USE_TEXT_SENSOR
 void DlmsMeterComponent::register_text_sensor(const dlms_parser::ObisId &obis, text_sensor::TextSensor *sensor) {
-  this->text_sensors_[obis] = sensor;
+  this->text_sensors_.push_back({obis, sensor});
 }
 #endif
 
 #ifdef USE_BINARY_SENSOR
 void DlmsMeterComponent::register_binary_sensor(const dlms_parser::ObisId &obis, binary_sensor::BinarySensor *sensor) {
-  this->binary_sensors_[obis] = sensor;
+  this->binary_sensors_.push_back({obis, sensor});
 }
 #endif
 

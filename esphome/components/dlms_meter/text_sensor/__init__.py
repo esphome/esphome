@@ -10,7 +10,7 @@ from .. import (
     CONF_OBIS_CODE,
     DlmsMeterComponent,
     obis_string_to_byte_list,
-    to_obis_id_struct,
+    register_text_sensor,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,9 +58,9 @@ async def to_code(config: ConfigType) -> None:
 
     if obis := config.get(CONF_OBIS_CODE):
         var = await text_sensor.new_text_sensor(config)
-        cg.add(hub.register_text_sensor(to_obis_id_struct(obis), var))
+        register_text_sensor(hub, obis, var)
     else:
         for key, obis_val in TEXT_KEYS.items():
             if text_sensor_config := config.get(key):
                 sens = await text_sensor.new_text_sensor(text_sensor_config)
-                cg.add(hub.register_text_sensor(to_obis_id_struct(obis_val), sens))
+                register_text_sensor(hub, obis_val, sens)
