@@ -111,9 +111,14 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
 
-#if defined(USE_GPIO_HOLD) && !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
-  // Variants without per-pin deep sleep hold need the global enable
+    // Variants without per-pin deep sleep hold need the global enable
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+#ifdef USE_GPIO_HOLD
   gpio_deep_sleep_hold_en();
+#else
+  if (this->wakeup_pin_ != nullptr)
+    gpio_deep_sleep_hold_en();
+#endif
 #endif
 
   // Single pin wakeup (ext0) - ESP32, S2, S3 only
@@ -129,11 +134,6 @@ void DeepSleepComponent::deep_sleep_() {
     }
     gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
     gpio_hold_en(gpio_pin);
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
-    // Some ESP32 variants support holding a single GPIO during deep sleep without this function
-    // For those variants, gpio_hold_en() is sufficient to hold the pin state during deep sleep
-    gpio_deep_sleep_hold_en();
-#endif
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
