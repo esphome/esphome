@@ -363,15 +363,17 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       }
 
+      const bool open_failed = param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN;
       // Bluedroid reports a failed open as DISCONNECT_EVT then a failing OPEN_EVT, with no CONNECT_EVT,
-      // so DISCONNECTING with no id is the expected state here. Anything else means a bad assumption
+      // so DISCONNECTING with no id is expected for a failure. Anything else means a bad assumption
       // about how the ESP BT stack works, so log it.
-      const bool failed_open = this->state() == espbt::ClientState::DISCONNECTING && this->conn_id_ == UNSET_CONN_ID;
-      if (this->state() != espbt::ClientState::CONNECTING && !failed_open) {
+      const bool expected_failure =
+          open_failed && this->state() == espbt::ClientState::DISCONNECTING && this->conn_id_ == UNSET_CONN_ID;
+      if (this->state() != espbt::ClientState::CONNECTING && !expected_failure) {
         ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
                  this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
       }
-      if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
+      if (open_failed) {
         this->log_gattc_warning_("Connection open", param->open.status);
         // Connection was never established so CLOSE_EVT may not follow
         this->set_idle_();
