@@ -170,11 +170,11 @@ class EPaperBase : public Display,
   virtual void deep_sleep() = 0;
 
   /**
-   * Power the display down for the controller's deep sleep without losing the image in its RAM,
-   * so the first update after the wake can be a partial one.
-   * @return false if the display cannot do this; it is put into deep sleep instead
+   * Whether the display, left as it is after an update, still holds the image a partial refresh
+   * compares against once the controller has been through deep sleep and the next update has
+   * reset and initialised it again.
    */
-  virtual bool park() { return false; }
+  virtual bool image_survives_sleep() const { return false; }
 
   struct SleepState {
     uint8_t update_count;
@@ -219,9 +219,8 @@ class EPaperBase : public Display,
   split_buffer::SplitBuffer sent_{};  // the frame last sent to the panel's new-image RAM
   bool sent_valid_{};                 // sent_ holds a whole frame
   bool full_window_{};                // the update in progress covers the whole panel
-  bool panel_holds_image_{};          // the panel's RAM holds the image it shows, as a partial update needs
+  bool panel_holds_image_{};          // the panel holds the image it shows, as a partial update needs
   bool restore_previous_{};           // the next transfer must also write sent_ to the panel's previous-image RAM
-  bool image_kept_in_sleep_{};        // the image is kept on this side, so the panel may lose its RAM in sleep
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
