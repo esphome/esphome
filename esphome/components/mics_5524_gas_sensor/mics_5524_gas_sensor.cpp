@@ -10,7 +10,7 @@
 
 namespace esphome::mics_5524_gas_sensor {
 
-static const char *const TAG = "mics_5524_gas_sensor";
+ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
 
 /// Version tag mixed into the preference key of the persisted calibration value.
 /// The conversion model is added to it, so a value stored for one model can
