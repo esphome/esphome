@@ -189,8 +189,7 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "default_vertical_direction_: %02X", this->default_vertical_direction_);
-  ESP_LOGD(TAG, "vertical_vanes_: %" PRIu8, this->vertical_vanes_);
+  ESP_LOGD(TAG, "Vertical default: 0x%02X, vanes: %u", this->default_vertical_direction_, this->vertical_vanes_);
 
   // Special modes
   switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
