@@ -3,3 +3,6 @@ climate:
     name: Mitsubishi
     transmitter_id: xmitr
     fahrenheit_compatibility: true
+  - platform: mitsubishi
+    name: Mitsubishi Celsius
+    transmitter_id: xmitr
