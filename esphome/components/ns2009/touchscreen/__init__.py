@@ -14,17 +14,15 @@ NS2009Component = ns2009_ns.class_(
     i2c.I2CDevice,
 )
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     touchscreen.touchscreen_schema(calibration_required=True)
     .extend(
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(NS2009Component),
-                cv.Optional(CONF_THRESHOLD, default=40): cv.uint8_t,
-            }
-        )
+        {
+            cv.GenerateID(): cv.declare_id(NS2009Component),
+            cv.Optional(CONF_THRESHOLD, default=40): cv.uint8_t,
+        }
     )
-    .extend(i2c.i2c_device_schema(0x48)),
+    .extend(i2c.i2c_device_schema(0x48))
 )
 
 

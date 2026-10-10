@@ -2,7 +2,6 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/i2c/i2c.h"
 
 namespace esphome::ns2009 {
 
