@@ -21,7 +21,7 @@ class TCA9548AChannel final : public i2c::I2CBus {
 
  protected:
   uint8_t channel_;
-  uint32_t frequency_;
+  uint32_t frequency_{0};
   TCA9548AComponent *parent_;
 };
 

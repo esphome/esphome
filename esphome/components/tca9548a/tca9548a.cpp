@@ -7,26 +7,30 @@ ESPHOME_LOG_TAG(TAG, "tca9548a");
 
 i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                             uint8_t *read_buffer, size_t read_count) {
+  // The multiplexer itself is addressed at the bus frequency; only the
+  // transaction behind the selected port runs at the port frequency.
+  auto err = this->parent_->switch_to_channel(this->channel_);
+  if (err != i2c::ERROR_OK)
+    return err;
+
   const uint32_t original_frequency = this->parent_->bus_->get_frequency();
   if (this->frequency_) {
-    const i2c::ErrorCode err = this->parent_->bus_->set_frequency(this->frequency_);
+    err = this->parent_->bus_->set_frequency(this->frequency_);
     if (err != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Failed to change I²C frequency");
+      this->parent_->disable_all_channels();
       return err;
     }
   }
 
-  auto err = this->parent_->switch_to_channel(this->channel_);
-  if (err != i2c::ERROR_OK)
-    return err;
   err = this->parent_->bus_->write_readv(address, write_buffer, write_count, read_buffer, read_count);
-  this->parent_->disable_all_channels();
 
   if (this->frequency_) {
     if (this->parent_->bus_->set_frequency(original_frequency) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Failed to restore original I²C frequency");
     }
   }
+  this->parent_->disable_all_channels();
 
   return err;
 }
