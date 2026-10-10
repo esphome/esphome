@@ -4,6 +4,7 @@ import re
 from typing import Final
 
 from bleak import BleakClient, BleakScanner, BLEDevice
+from bleak.backends.scanner import AdvertisementData
 from bleak.exc import (
     BleakCharacteristicNotFoundError,
     BleakDBusError,
@@ -30,7 +31,7 @@ def is_ble_address(value: str) -> bool:
     return bool(MAC_ADDRESS_PATTERN.match(value) or UUID_PATTERN.match(value))
 
 
-def _name_matches(device: BLEDevice, adv, name: str) -> bool:
+def _name_matches(device: BLEDevice, adv: AdvertisementData, name: str) -> bool:
     # device.name can be a stale cached name on macOS; adv.local_name is what is on the air now
     return name in (device.name, adv.local_name)
 
