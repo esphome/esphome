@@ -190,7 +190,7 @@ void APC1Component::parse_measurement_frame_() {
           LOG_STR("VOC sensor fault"),
           LOG_STR("RHT sensor fault"),
       };
-      for (uint8_t bit = 0; bit < sizeof(ERROR_BITS) / sizeof(ERROR_BITS[0]); bit++) {
+      for (size_t bit = 0; bit < std::size(ERROR_BITS); bit++) {
         if (error_code & (1 << bit)) {
           ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ERROR_BITS[bit]));
         }
