@@ -8,7 +8,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 // UART parity strings indexed by UARTParityOptions enum (0-2): NONE, EVEN, ODD
 PROGMEM_STRING_TABLE(UARTParityStrings, "NONE", "EVEN", "ODD", "UNKNOWN");

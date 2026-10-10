@@ -9,6 +9,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
+DOMAIN = "e131"
 
 e131_ns = cg.esphome_ns.namespace("e131")
 E131AddressableLightEffect = e131_ns.class_(

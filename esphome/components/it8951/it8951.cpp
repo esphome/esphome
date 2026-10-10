@@ -10,7 +10,7 @@
 
 namespace esphome::it8951 {
 
-static const char *const TAG = "it8951";
+ESPHOME_LOG_TAG(TAG, "it8951");
 
 // Soft cap for time spent in a single XFER_ROWS Op so we yield back to the
 // loop within one tick budget.

@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server.characteristic";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server.characteristic");
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
