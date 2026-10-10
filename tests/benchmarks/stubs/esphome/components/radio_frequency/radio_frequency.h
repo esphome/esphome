@@ -23,7 +23,8 @@ class RadioFrequencyCall {
   RadioFrequencyCall &set_raw_timings_packed(const uint8_t * /*data*/, uint16_t /*length*/, uint16_t /*count*/) {
     return *this;
   }
-  void perform() {}
+  template<typename T> RadioFrequencyCall &set_api_connection(T * /*conn*/) { return *this; }
+  bool perform() { return false; }
 
  protected:
   RadioFrequency *parent_;
@@ -43,6 +44,7 @@ class RadioFrequency : public Component, public EntityBase {
   const RadioFrequencyTraits &get_traits() const { return this->traits_; }
   RadioFrequencyCall make_call() { return RadioFrequencyCall(this); }
   uint32_t get_capability_flags() const { return 0; }
+  template<typename T> void on_api_connection_closed(T * /*conn*/) {}
 
  protected:
   RadioFrequencyTraits traits_;

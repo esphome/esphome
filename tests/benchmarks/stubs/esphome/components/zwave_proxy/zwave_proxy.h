@@ -15,7 +15,9 @@ namespace zwave_proxy {
 class ZWaveProxy {
  public:
   api::APIConnection *get_api_connection() { return nullptr; }
-  void zwave_proxy_request(api::APIConnection *conn, api::enums::ZWaveProxyRequestType type) {}
+  api::enums::ZWaveProxyStatus zwave_proxy_request(api::APIConnection *conn, api::enums::ZWaveProxyRequestType type) {
+    return api::enums::ZWAVE_PROXY_STATUS_OK;
+  }
   void send_frame(api::APIConnection *api_connection, const uint8_t *data, size_t length) {}
   void api_connection_authenticated(api::APIConnection *conn) {}
   uint32_t get_feature_flags() const { return 0; }

@@ -31,7 +31,6 @@ class TeleInfo final : public PollingComponent, public uart::UARTDevice {
   std::vector<TeleInfoListener *> teleinfo_listeners_{};
 
  protected:
-  uint32_t baud_rate_;
   int checksum_area_end_;
   int separator_;
   char buf_[MAX_BUF_SIZE];

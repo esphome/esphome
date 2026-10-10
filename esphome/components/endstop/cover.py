@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_OPEN_ENDSTOP,
     CONF_STOP_ACTION,
 )
+from esphome.types import ConfigType
 
 endstop_ns = cg.esphome_ns.namespace("endstop")
 EndstopCover = endstop_ns.class_("EndstopCover", cover.Cover, cg.Component)
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
 

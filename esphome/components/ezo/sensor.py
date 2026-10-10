@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
 
@@ -58,7 +59,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)

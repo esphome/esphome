@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import climate
 import esphome.config_validation as cv
 from esphome.const import CONF_HEAT_MODE, CONF_TEMPERATURE_SOURCE
+from esphome.types import ConfigType
 
 from .. import BEDJET_CLIENT_SCHEMA, bedjet_ns, register_bedjet_child
 
@@ -37,7 +38,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await register_bedjet_child(var, config)
