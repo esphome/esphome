@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dfplayer {
+namespace esphome::dfplayer {
 
-static const char *const TAG = "dfplayer";
+ESPHOME_LOG_TAG(TAG, "dfplayer");
 
 void DFPlayer::next() {
   this->ack_set_is_playing_ = true;
@@ -101,6 +100,13 @@ void DFPlayer::random() {
   this->ack_set_is_playing_ = true;
   ESP_LOGD(TAG, "Playing random file");
   this->send_cmd_(0x18);
+}
+
+void DFPlayer::set_current_track_repeat(bool enable) {
+  uint16_t arg = enable ? 0x00 : 0x01;
+  ESP_LOGD(TAG, "Setting current track repeat to %s",
+           enable ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
+  this->send_cmd_(0x19, arg);
 }
 
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
@@ -260,6 +266,7 @@ void DFPlayer::loop() {
               ESP_LOGV(TAG, "Playback finished (USB drive)");
               this->is_playing_ = false;
               this->on_finished_playback_callback_.call();
+              break;
             case 0x3D:
               ESP_LOGV(TAG, "Playback finished (SD card)");
               this->is_playing_ = false;
@@ -277,10 +284,6 @@ void DFPlayer::loop() {
     }
   }
 }
-void DFPlayer::dump_config() {
-  ESP_LOGCONFIG(TAG, "DFPlayer:");
-  this->check_uart_settings(9600);
-}
+void DFPlayer::dump_config() { ESP_LOGCONFIG(TAG, "DFPlayer:"); }
 
-}  // namespace dfplayer
-}  // namespace esphome
+}  // namespace esphome::dfplayer

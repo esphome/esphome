@@ -4,7 +4,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/ethernet/ethernet_component.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ETHERNET
 
 namespace esphome::ethernet_info {
 
@@ -13,6 +13,9 @@ class IPAddressEthernetInfo final : public Component,
                                     public text_sensor::TextSensor,
                                     public ethernet::EthernetIPStateListener {
  public:
+  // User provided, not "= default": `new(p) IPAddressEthernetInfo()` would zero-fill .bss that is already zero.
+  IPAddressEthernetInfo() {}
+
   void setup() override;
   void dump_config() override;
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
@@ -50,4 +53,4 @@ class MACAddressEthernetInfo final : public Component, public text_sensor::TextS
 
 }  // namespace esphome::ethernet_info
 
-#endif  // USE_ESP32
+#endif  // USE_ETHERNET

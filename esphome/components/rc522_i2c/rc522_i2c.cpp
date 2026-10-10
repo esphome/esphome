@@ -1,10 +1,9 @@
 #include "rc522_i2c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rc522_i2c {
+namespace esphome::rc522_i2c {
 
-static const char *const TAG = "rc522_i2c";
+ESPHOME_LOG_TAG(TAG, "rc522_i2c");
 
 void RC522I2C::dump_config() {
   RC522::dump_config();
@@ -66,5 +65,4 @@ void RC522I2C::pcd_write_register(PcdRegister reg,  ///< The register to write t
   write_bytes(reg >> 1, values, count);
 }
 
-}  // namespace rc522_i2c
-}  // namespace esphome
+}  // namespace esphome::rc522_i2c

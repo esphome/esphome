@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace adalight {
+namespace esphome::adalight {
 
 class AdalightLightEffect : public light::AddressableLightEffect, public uart::UARTDevice {
  public:
@@ -35,5 +34,4 @@ class AdalightLightEffect : public light::AddressableLightEffect, public uart::U
   std::vector<uint8_t> frame_;
 };
 
-}  // namespace adalight
-}  // namespace esphome
+}  // namespace esphome::adalight

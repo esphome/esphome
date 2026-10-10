@@ -1,0 +1,52 @@
+esphome:
+  name: wake-loop-phase-b
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // Raise loop_interval_ to 2000ms. Without the wake-request flag,
+          // a wake_loop_threadsafe() call would only run Phase A (scheduler)
+          // and leave the component phase gated for ~2s.
+          App.set_loop_interval(2000);
+      # Let boot transients settle.
+      - delay: 1000ms
+      - lambda: |-
+          // Snapshot the loop counter, then ask the component to spawn a
+          // background thread that calls App.wake_loop_threadsafe() after
+          // ~50ms. With the fix, that wake forces Phase B on the next tick
+          // and the counter increments well within the 500ms observation
+          // window below.
+          id(count_at_start) = id(wake_counter)->get_loop_count();
+          id(start_time) = millis();
+          id(wake_counter)->start_async_wake();
+          ESP_LOGI("test", "WAKE_STARTED count=%d", id(count_at_start));
+      # Observation window must be much shorter than loop_interval_ (2000ms)
+      # so a "false pass" isn't possible by simply waiting out the gate.
+      - delay: 500ms
+      - lambda: |-
+          int count_now = id(wake_counter)->get_loop_count();
+          int delta = count_now - id(count_at_start);
+          uint32_t elapsed = millis() - id(start_time);
+          ESP_LOGI("test", "WAKE_RESULT delta=%d elapsed=%u", delta, elapsed);
+
+host:
+api:
+logger:
+  level: INFO
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [wake_test_component]
+
+globals:
+  - id: count_at_start
+    type: int
+    initial_value: "0"
+  - id: start_time
+    type: uint32_t
+    initial_value: "0"
+
+wake_test_component:
+  id: wake_counter

@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace emc2101 {
+namespace esphome::emc2101 {
 
-static const char *const TAG = "EMC2101.sensor";
+ESPHOME_LOG_TAG(TAG, "EMC2101.sensor");
 
 void EMC2101Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Emc2101 sensor:");
@@ -37,5 +36,4 @@ void EMC2101Sensor::update() {
   }
 }
 
-}  // namespace emc2101
-}  // namespace esphome
+}  // namespace esphome::emc2101

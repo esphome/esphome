@@ -1,0 +1,59 @@
+esphome:
+  name: fan-turn-on-action-test
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: test_speed
+    type: int
+    initial_value: "2"
+
+fan:
+  - platform: template
+    id: test_fan
+    name: "Test Fan"
+    has_oscillating: true
+    has_direction: true
+    speed_count: 5
+
+button:
+  # fan.turn_on: speed only
+  - platform: template
+    id: btn_speed
+    name: "Set Speed"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          speed: 3
+
+  # fan.turn_on: oscillating + direction (no speed)
+  - platform: template
+    id: btn_oscillate_direction
+    name: "Set Oscillate Direction"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          oscillating: true
+          direction: REVERSE
+
+  # fan.turn_on: all three fields
+  - platform: template
+    id: btn_all_fields
+    name: "Set All Fields"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          oscillating: false
+          speed: 4
+          direction: FORWARD
+
+  # fan.turn_on: lambda for speed (exercises lambda path)
+  - platform: template
+    id: btn_lambda_speed
+    name: "Lambda Speed"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          speed: !lambda "return id(test_speed);"

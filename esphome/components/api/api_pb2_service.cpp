@@ -1,15 +1,16 @@
 // This file was automatically generated with a tool.
 // See script/api_protobuf/api_protobuf.py
 #include "api_pb2_service.h"
+#include "api_connection.h"
 #include "esphome/core/log.h"
 
 namespace esphome::api {
 
-static const char *const TAG = "api.service";
+ESPHOME_LOG_TAG(TAG, "api.service");
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void APIServerConnectionBase::log_send_message_(const char *name, const char *dump) {
-  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);
+void APIServerConnectionBase::log_send_message_(const LogString *name, const char *dump) {
+  ESP_LOGVV(TAG, "send_message %s: %s", LOG_STR_ARG(name), dump);
 }
 void APIServerConnectionBase::log_receive_message_(const LogString *name, const ProtoMessage &msg) {
   DumpBuffer dump_buf;
@@ -20,7 +21,8 @@ void APIServerConnectionBase::log_receive_message_(const LogString *name) {
 }
 #endif
 
-void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
+#ifdef USE_API
+void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
   // Check authentication/connection requirements
   switch (msg_type) {
     case HelloRequest::MESSAGE_TYPE:       // No setup required
@@ -49,10 +51,12 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case DisconnectRequest::MESSAGE_TYPE: {
+      DisconnectRequest msg;
+      msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_disconnect_request"));
+      this->log_receive_message_(LOG_STR("on_disconnect_request"), msg);
 #endif
-      this->on_disconnect_request();
+      this->on_disconnect_request(msg);
       break;
     }
     case DisconnectResponse::MESSAGE_TYPE: {
@@ -298,7 +302,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothDeviceRequest::MESSAGE_TYPE: {
       BluetoothDeviceRequest msg;
       msg.decode(msg_data, msg_size);
@@ -309,7 +313,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTGetServicesRequest::MESSAGE_TYPE: {
       BluetoothGATTGetServicesRequest msg;
       msg.decode(msg_data, msg_size);
@@ -320,7 +324,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTReadRequest::MESSAGE_TYPE: {
       BluetoothGATTReadRequest msg;
       msg.decode(msg_data, msg_size);
@@ -331,7 +335,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTWriteRequest::MESSAGE_TYPE: {
       BluetoothGATTWriteRequest msg;
       msg.decode(msg_data, msg_size);
@@ -342,7 +346,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTReadDescriptorRequest::MESSAGE_TYPE: {
       BluetoothGATTReadDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
@@ -353,7 +357,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTWriteDescriptorRequest::MESSAGE_TYPE: {
       BluetoothGATTWriteDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
@@ -364,7 +368,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTNotifyRequest::MESSAGE_TYPE: {
       BluetoothGATTNotifyRequest msg;
       msg.decode(msg_data, msg_size);
@@ -375,7 +379,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case 80 /* SubscribeBluetoothConnectionsFreeRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_subscribe_bluetooth_connections_free_request"));
@@ -635,9 +639,132 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyConfigureRequest::MESSAGE_TYPE: {
+      SerialProxyConfigureRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_configure_request"), msg);
+#endif
+      this->on_serial_proxy_configure_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyWriteRequest::MESSAGE_TYPE: {
+      SerialProxyWriteRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_write_request"), msg);
+#endif
+      this->on_serial_proxy_write_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxySetModemPinsRequest::MESSAGE_TYPE: {
+      SerialProxySetModemPinsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_set_modem_pins_request"), msg);
+#endif
+      this->on_serial_proxy_set_modem_pins_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyGetModemPinsRequest::MESSAGE_TYPE: {
+      SerialProxyGetModemPinsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_get_modem_pins_request"), msg);
+#endif
+      this->on_serial_proxy_get_modem_pins_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyRequest::MESSAGE_TYPE: {
+      SerialProxyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_request"), msg);
+#endif
+      this->on_serial_proxy_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
+    case BluetoothSetConnectionParamsRequest::MESSAGE_TYPE: {
+      BluetoothSetConnectionParamsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_bluetooth_set_connection_params_request"), msg);
+#endif
+      this->on_bluetooth_set_connection_params_request(msg);
+      break;
+    }
+#endif
+    case 149 /* DeviceCapabilitiesRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_device_capabilities_request"));
+#endif
+      this->on_device_capabilities_request();
+      break;
+    }
+#ifdef USE_SERIAL_PROXY
+    case SerialProxySetModeRequest::MESSAGE_TYPE: {
+      SerialProxySetModeRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_set_mode_request"), msg);
+#endif
+      this->on_serial_proxy_set_mode_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case 154 /* SubscribeSerialProxyIdentityRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_subscribe_serial_proxy_identity_request"));
+#endif
+      this->on_subscribe_serial_proxy_identity_request();
+      break;
+    }
+#endif
+#ifdef USE_API_WIZARD
+    case 156 /* DeviceWizardRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_device_wizard_request"));
+#endif
+      this->on_device_wizard_request();
+      break;
+    }
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+    case WizardInputSetRequest::MESSAGE_TYPE: {
+      WizardInputSetRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_wizard_input_set_request"), msg);
+#endif
+      this->on_wizard_input_set_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SENDSPIN
+    case 159 /* SendspinPairingTokenRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_sendspin_pairing_token_request"));
+#endif
+      this->on_sendspin_pairing_token_request();
+      break;
+    }
+#endif
     default:
       break;
   }
 }
+#endif  // USE_API
 
 }  // namespace esphome::api

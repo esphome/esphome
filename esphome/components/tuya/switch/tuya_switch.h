@@ -4,10 +4,9 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-class TuyaSwitch : public switch_::Switch, public Component {
+class TuyaSwitch final : public switch_::Switch, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -22,5 +21,4 @@ class TuyaSwitch : public switch_::Switch, public Component {
   uint8_t switch_id_{0};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

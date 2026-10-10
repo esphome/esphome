@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 std::vector<uint16_t> encode_pronto(const std::string &str);
 
@@ -31,9 +30,9 @@ class ProntoProtocol : public RemoteProtocol<ProntoData> {
   std::string compensate_and_dump_sequence_(const RawTimings &data, uint16_t timebase);
 
  public:
-  void encode(RemoteTransmitData *dst, const ProntoData &data) override;
-  optional<ProntoData> decode(RemoteReceiveData src) override;
-  void dump(const ProntoData &data) override;
+  void encode(RemoteTransmitData *dst, const ProntoData &data);
+  optional<ProntoData> decode(RemoteReceiveData src);
+  void dump(const ProntoData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Pronto)
@@ -51,5 +50,4 @@ template<typename... Ts> class ProntoAction : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

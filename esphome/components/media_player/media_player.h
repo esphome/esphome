@@ -3,8 +3,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace media_player {
+namespace esphome::media_player {
 
 enum MediaPlayerEntityFeature : uint32_t {
   PAUSE = 1 << 0,
@@ -155,7 +154,9 @@ class MediaPlayer : public EntityBase {
 
   void publish_state();
 
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   virtual bool is_muted() const { return false; }
 
@@ -166,8 +167,7 @@ class MediaPlayer : public EntityBase {
 
   virtual void control(const MediaPlayerCall &call) = 0;
 
-  LazyCallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void(MediaPlayerState)> state_callback_{};
 };
 
-}  // namespace media_player
-}  // namespace esphome
+}  // namespace esphome::media_player

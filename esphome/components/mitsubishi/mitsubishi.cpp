@@ -1,11 +1,11 @@
 #include "mitsubishi.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mitsubishi {
+namespace esphome::mitsubishi {
 
-static const char *const TAG = "mitsubishi.climate";
+ESPHOME_LOG_TAG(TAG, "mitsubishi.climate");
 
 // IR frame size for Mitsubishi climate
 static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;
@@ -54,44 +54,31 @@ const uint8_t MITSUBISHI_BYTE04 = 0x00;
 const uint8_t MITSUBISHI_BYTE13 = 0x00;
 const uint8_t MITSUBISHI_BYTE16 = 0x00;
 
-climate::ClimateTraits MitsubishiClimate::traits() {
-  auto traits = climate::ClimateTraits();
-  if (this->sensor_ != nullptr) {
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+// Byte 7 codes for 61°F through 88°F. Bit 4 is the half degree bit Mitsubishi uses so every Fahrenheit degree
+// maps to its own code.
+static const uint8_t FAHRENHEIT_CODES[] PROGMEM = {0x00, 0x10, 0x01, 0x11, 0x02, 0x12, 0x03, 0x04, 0x05, 0x15,
+                                                   0x06, 0x16, 0x07, 0x17, 0x08, 0x18, 0x09, 0x19, 0x0a, 0x1a,
+                                                   0x0b, 0x1b, 0x0c, 0x1c, 0x0d, 0x1d, 0x0e, 0x0f};
+static constexpr uint8_t FAHRENHEIT_MIN = 61;
+static constexpr uint8_t MITSUBISHI_HALF_DEGREE = 0x10;
+
+static uint8_t fahrenheit_code(float celsius) {
+  int fahrenheit = (int) roundf(celsius_to_fahrenheit(celsius));
+  size_t index = clamp<int>(fahrenheit - FAHRENHEIT_MIN, 0, sizeof(FAHRENHEIT_CODES) - 1);
+  return progmem_read_byte(&FAHRENHEIT_CODES[index]);
+}
+
+// In Fahrenheit mode a code from the table decodes to the exact Fahrenheit value. Any other code, and every code in
+// Celsius mode, is a whole degree plus the half degree bit, which a remote set to Fahrenheit also sets.
+static float decode_temperature(uint8_t code, bool fahrenheit) {
+  if (fahrenheit) {
+    for (size_t i = 0; i < sizeof(FAHRENHEIT_CODES); i++) {
+      if (code == progmem_read_byte(&FAHRENHEIT_CODES[i])) {
+        return fahrenheit_to_celsius(FAHRENHEIT_MIN + i);
+      }
+    }
   }
-  traits.set_visual_min_temperature(MITSUBISHI_TEMP_MIN);
-  traits.set_visual_max_temperature(MITSUBISHI_TEMP_MAX);
-  traits.set_visual_temperature_step(1.0f);
-  traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
-
-  if (this->supports_cool_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
-  if (this->supports_heat_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
-
-  if (this->supports_cool_ && this->supports_heat_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
-
-  if (this->supports_dry_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
-  if (this->supports_fan_only_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
-
-  // Default to only 3 levels in ESPHome even if most unit supports 4. The 3rd level is not used.
-  traits.set_supported_fan_modes(
-      {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
-  if (this->fan_mode_ == MITSUBISHI_FAN_Q4L)
-    traits.add_supported_fan_mode(climate::CLIMATE_FAN_QUIET);
-  if (/*this->fan_mode_ == MITSUBISHI_FAN_5L ||*/ this->fan_mode_ >= MITSUBISHI_FAN_4L)
-    traits.add_supported_fan_mode(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
-
-  traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
-                                    climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
-
-  traits.set_supported_presets({climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO,
-                                climate::CLIMATE_PRESET_BOOST, climate::CLIMATE_PRESET_SLEEP});
-
-  return traits;
+  return MITSUBISHI_TEMP_MIN + (code & 0x0F) + ((code & MITSUBISHI_HALF_DEGREE) ? 0.5f : 0.0f);
 }
 
 void MitsubishiClimate::transmit_state() {
@@ -143,7 +130,7 @@ void MitsubishiClimate::transmit_state() {
     default:
       remote_state[6] = MITSUBISHI_MODE_COOL;
       remote_state[8] = MITSUBISHI_MODE_A_COOL;
-      if (this->supports_heat_) {
+      if (this->modes_.count(climate::CLIMATE_MODE_HEAT)) {
         remote_state[6] = MITSUBISHI_MODE_HEAT;
         remote_state[8] = MITSUBISHI_MODE_A_HEAT;
       }
@@ -154,6 +141,8 @@ void MitsubishiClimate::transmit_state() {
   // Temperature
   if (this->mode == climate::CLIMATE_MODE_DRY) {
     remote_state[7] = 24 - MITSUBISHI_TEMP_MIN;  // Remote sends always 24°C if "Dry" mode is selected
+  } else if (this->fahrenheit_compatibility_) {
+    remote_state[7] = fahrenheit_code(this->target_temperature);
   } else {
     remote_state[7] = (uint8_t) roundf(
         clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
@@ -180,7 +169,7 @@ void MitsubishiClimate::transmit_state() {
   // For 5Level: Low = 1, Middle = 2, Medium = 3, High = 4
   // For 4Level + Quiet: Low = 1, Middle = 2, Medium = 3, High = 4, Quiet = 5
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       remote_state[9] = 1;
       break;
@@ -209,7 +198,8 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "fan: %02x state: %02x", this->fan_mode.value(), remote_state[9]);
+  ESP_LOGD(TAG, "fan: %02x state: %02x", static_cast<uint8_t>(this->fan_mode.value_or(climate::CLIMATE_FAN_ON)),
+           remote_state[9]);
 
   // Vertical Vane
   switch (this->swing_mode) {
@@ -227,7 +217,7 @@ void MitsubishiClimate::transmit_state() {
   ESP_LOGD(TAG, "default_vertical_direction_: %02X", this->default_vertical_direction_);
 
   // Special modes
-  switch (this->preset.value()) {
+  switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
     case climate::CLIMATE_PRESET_ECO:
       remote_state[6] = MITSUBISHI_MODE_COOL | MITSUBISHI_OTHERWISE;
       remote_state[8] = (remote_state[8] & ~7) | MITSUBISHI_MODE_A_COOL;
@@ -340,7 +330,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Temp
-  this->target_temperature = state_frame[7] + MITSUBISHI_TEMP_MIN;
+  this->target_temperature = decode_temperature(state_frame[7], this->fahrenheit_compatibility_);
 
   // Fan
   uint8_t fan = state_frame[9] & 0x07;  //(Bit 0,1,2 = Speed)
@@ -401,5 +391,4 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace mitsubishi
-}  // namespace esphome
+}  // namespace esphome::mitsubishi

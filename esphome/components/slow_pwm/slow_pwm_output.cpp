@@ -3,10 +3,9 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace slow_pwm {
+namespace esphome::slow_pwm {
 
-static const char *const TAG = "output.slow_pwm";
+ESPHOME_LOG_TAG(TAG, "output.slow_pwm");
 
 void SlowPWMOutput::setup() {
   if (this->pin_)
@@ -79,5 +78,4 @@ void SlowPWMOutput::write_state(float state) {
     this->restart_cycle();
 }
 
-}  // namespace slow_pwm
-}  // namespace esphome
+}  // namespace esphome::slow_pwm

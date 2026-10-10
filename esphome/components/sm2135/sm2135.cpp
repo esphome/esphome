@@ -3,10 +3,9 @@
 
 // Tnx to the work of https://github.com/arendst (Tasmota) for making the initial version of the driver
 
-namespace esphome {
-namespace sm2135 {
+namespace esphome::sm2135 {
 
-static const char *const TAG = "sm2135";
+ESPHOME_LOG_TAG(TAG, "sm2135");
 
 static const uint8_t SM2135_ADDR_MC = 0xC0;  // Max current register
 static const uint8_t SM2135_ADDR_CH = 0xC1;  // RGB or CW channel select register
@@ -25,7 +24,7 @@ void SM2135::setup() {
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(false);
-  this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->clock_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
   this->data_pin_->pin_mode(gpio::FLAG_PULLUP);
   this->clock_pin_->pin_mode(gpio::FLAG_PULLUP);
@@ -149,5 +148,4 @@ void SM2135::sm2135_set_high_(GPIOPin *pin) {
   pin->pin_mode(gpio::FLAG_PULLUP);
 }
 
-}  // namespace sm2135
-}  // namespace esphome
+}  // namespace esphome::sm2135

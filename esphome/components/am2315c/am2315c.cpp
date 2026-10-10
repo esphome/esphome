@@ -24,10 +24,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace am2315c {
+namespace esphome::am2315c {
 
-static const char *const TAG = "am2315c";
+ESPHOME_LOG_TAG(TAG, "am2315c");
 
 bool AM2315C::reset_register_(uint8_t reg) {
   //  code based on demo code sent by www.aosong.com
@@ -176,5 +175,4 @@ void AM2315C::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-}  // namespace am2315c
-}  // namespace esphome
+}  // namespace esphome::am2315c

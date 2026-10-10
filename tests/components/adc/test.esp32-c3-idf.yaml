@@ -1,5 +1,5 @@
 sensor:
-  - id: my_sensor
+  - id: adc_my_sensor
     platform: adc
     pin: GPIO1
     name: ADC Test sensor

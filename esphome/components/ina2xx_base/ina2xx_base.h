@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace ina2xx_base {
+namespace esphome::ina2xx_base {
 
 enum RegisterMap : uint8_t {
   REG_CONFIG = 0x00,
@@ -250,5 +249,4 @@ class INA2XX : public PollingComponent {
   virtual bool read_ina_register(uint8_t a_register, uint8_t *data, size_t len) = 0;
   virtual bool write_ina_register(uint8_t a_register, const uint8_t *data, size_t len) = 0;
 };
-}  // namespace ina2xx_base
-}  // namespace esphome
+}  // namespace esphome::ina2xx_base

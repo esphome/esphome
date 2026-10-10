@@ -18,7 +18,10 @@
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
+#include "sse_chunk.h"
 #endif
+
+struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
 
 namespace esphome {
 #ifdef USE_WEBSERVER
@@ -117,25 +120,28 @@ class AsyncWebServerRequest {
   /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
   /// URL is decoded (e.g., %20 -> space).
   StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string url() const {
-    char buffer[URL_BUF_SIZE];
-    return std::string(this->url_to(buffer));
-  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 
 #ifdef USE_WEBSERVER_AUTH
   bool authenticate(const char *username, const char *password) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void requestAuthentication(const char *realm = nullptr) const;
+  void requestAuthentication() const;
 #endif
 
   void redirect(const std::string &url);
 
-  void send(AsyncWebServerResponse *response);
-  void send(int code, const char *content_type = nullptr, const char *content = nullptr);
+  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
+    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
+  }
+  inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
+    this->init_response_(nullptr, code, content_type);
+    if (content) {
+      httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
+    } else {
+      httpd_resp_send(*this, nullptr, 0);
+    }
+  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
     auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
@@ -224,6 +230,7 @@ class AsyncWebServer {
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
   static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
+  esp_err_t handle_raw_body_(httpd_req_t *r, const char *content_type);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
@@ -251,7 +258,7 @@ class AsyncWebHandler {
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
-using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
+using message_generator_t = void(esphome::web_server::WebServer *, void *, json::JsonBuilder &);
 
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
@@ -282,7 +289,8 @@ class AsyncEventSourceResponse {
   friend class AsyncEventSource;
 
  public:
-  bool try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   void loop();
 
@@ -290,9 +298,42 @@ class AsyncEventSourceResponse {
   AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
 
+  // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
+  void start_session_main_loop_();
+
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
-  void process_buffer_();
+  // A new chunk may go out: not re-entered from a log line, session alive, tail empty
+  bool ready_to_send_();
+  // Non-blocking gather write. Returns bytes written, 0 on would-block or a socket that is not
+  // ours, -1 after requesting the close on any other error.
+  ssize_t send_(struct iovec *iov, int iovcnt);
+  // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
+  void drain_tail_();
+  // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
+  bool reserve_tail_(size_t len);
+  // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
+  bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
+                    size_t sent);
+  // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
+  bool send_json_(void *source, message_generator_t *generator);
+  // Warn once, and close the session once the stall timeout passes with no memory for the tail
+  void tail_alloc_failed_(size_t cap);
+  void request_close_();
+
+  // A log line emitted inside a send re-enters try_send_nodefer on this session; refuse it
+  struct SendGuard {
+    AsyncEventSourceResponse &owner;
+    explicit SendGuard(AsyncEventSourceResponse &owner) : owner(owner) { owner.sending_ = true; }
+    ~SendGuard() { this->owner.sending_ = false; }
+  };
+  void process_close_();
+  static void close_session_work(void *arg);
+
+  // Deletable only after destroy() zeroed fd_ and no queued HTTPD close work still references this object.
+  bool safe_to_delete_() const {
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire);
+  }
 
   static void destroy(void *p);
   AsyncEventSource *server_;
@@ -301,20 +342,46 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer_{""};
-  size_t event_bytes_sent_;
-  uint16_t consecutive_send_failures_{0};
-  static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
+  // One chunk the socket did not take whole, allocated on the first stall; the only heap use
+  // on the send path
+  RAMUniquePtr<uint8_t[]> tail_;
+  uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
+  uint32_t next_close_attempt_ms_{0};
+  uint16_t tail_cap_{0};
+  uint16_t tail_len_{0};  // Zero means nothing pending
+  uint16_t tail_sent_{0};
+  // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
+  std::atomic<bool> close_work_queued_{false};
+  // Main-loop only; the HTTPD task never reads or writes these flags.
+  bool close_requested_{false};
+  bool close_retry_warning_logged_{false};
+  bool sending_{false};
+  // The longest multi line log message in the tree (a climate dump_config) has 22 lines; a
+  // longer one goes through the tail
+  static constexpr size_t MAX_SEND_LINES = 22;
+  static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
+  // Chunk header, retry/id/event lines and the first "data: "
+  static constexpr size_t PREFIX_BUF_SIZE = 128;
+
+  // Stack buffer for a state event's JSON; a larger document is serialized into the tail
+  static constexpr size_t JSON_BUF_SIZE = 1024;
+  // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
+  // document is dropped before anything is on the wire
+  static constexpr size_t JSON_MAX_SIZE = 5120;
+  // Most RAM a stalled session keeps: the largest state document plus any accepted framing
+  static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
+  static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
+  static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
+  static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
 
 class AsyncEventSource : public AsyncWebHandler {
   friend class AsyncEventSourceResponse;
-  using connect_handler_t = std::function<void(AsyncEventSourceClient *)>;
 
  public:
-  AsyncEventSource(std::string url, esphome::web_server::WebServer *ws) : url_(std::move(url)), web_server_(ws) {}
+  AsyncEventSource(StringRef url, esphome::web_server::WebServer *ws) : url_(url), web_server_(ws) {}
   ~AsyncEventSource() override;
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -326,24 +393,27 @@ class AsyncEventSource : public AsyncWebHandler {
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
-
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void loop();
+  /// Returns true if there are sessions remaining (including pending cleanup).
+  bool loop();
   bool empty() { return this->count() == 0; }
 
   size_t count() const { return this->sessions_.size(); }
 
  protected:
-  std::string url_;
-  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
-  // Linear search is faster than red-black tree overhead for this small dataset.
-  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
+  void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
+
+  StringRef url_;  // Must outlive this object (string literal)
+  // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
-  connect_handler_t on_connect_{};
+  // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
+  std::vector<AsyncEventSourceResponse *> pending_sessions_;
+  Mutex pending_mutex_;
   esphome::web_server::WebServer *web_server_;
+  std::atomic<bool> has_pending_sessions_{false};
 };
 #endif  // USE_WEBSERVER
 

@@ -2,10 +2,11 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -192,12 +193,12 @@ void CSE7766Component::parse_data_() {
       this->apparent_power_sensor_->publish_state(apparent_power);
     }
     if (have_power && this->reactive_power_sensor_ != nullptr) {
-      const float reactive_power = apparent_power - power;
-      if (reactive_power < 0.0f) {
-        ESP_LOGD(TAG, "Impossible reactive power: %.4f is negative", reactive_power);
+      const float q_squared = apparent_power * apparent_power - power * power;
+      if (q_squared < 0.0f) {
+        ESP_LOGD(TAG, "Impossible reactive power: S^2-P^2 is negative (%.4f)", q_squared);
         this->reactive_power_sensor_->publish_state(0.0f);
       } else {
-        this->reactive_power_sensor_->publish_state(reactive_power);
+        this->reactive_power_sensor_->publish_state(std::sqrt(q_squared));
       }
     }
     if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
@@ -254,7 +255,6 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
-  this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
 }  // namespace esphome::cse7766

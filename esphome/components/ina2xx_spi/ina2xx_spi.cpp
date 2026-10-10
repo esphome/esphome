@@ -1,10 +1,9 @@
 #include "ina2xx_spi.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ina2xx_spi {
+namespace esphome::ina2xx_spi {
 
-static const char *const TAG = "ina2xx_spi";
+ESPHOME_LOG_TAG(TAG, "ina2xx_spi");
 
 void INA2XXSPI::setup() {
   this->spi_setup();
@@ -34,5 +33,4 @@ bool INA2XXSPI::write_ina_register(uint8_t reg, const uint8_t *data, size_t len)
   this->disable();
   return true;
 }
-}  // namespace ina2xx_spi
-}  // namespace esphome
+}  // namespace esphome::ina2xx_spi

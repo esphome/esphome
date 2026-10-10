@@ -2,10 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace dps310 {
+namespace esphome::dps310 {
 
-static const char *const TAG = "dps310";
+ESPHOME_LOG_TAG(TAG, "dps310");
+
+static constexpr uint32_t READ_RETRY_TIMEOUT_ID = 0;
 
 void DPS310Component::setup() {
   uint8_t coef_data_raw[DPS310_NUM_COEF_REGS];
@@ -127,8 +128,7 @@ void DPS310Component::read_() {
     this->update_in_progress_ = false;
     this->status_clear_warning();
   } else {
-    auto f = std::bind(&DPS310Component::read_, this);
-    this->set_timeout("dps310", 10, f);
+    this->set_timeout(READ_RETRY_TIMEOUT_ID, 10, [this]() { this->read_(); });
   }
 }
 
@@ -183,5 +183,4 @@ int32_t DPS310Component::twos_complement(int32_t val, uint8_t bits) {
   return val;
 }
 
-}  // namespace dps310
-}  // namespace esphome
+}  // namespace esphome::dps310

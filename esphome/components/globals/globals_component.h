@@ -1,13 +1,15 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
+
+#include <array>
 #include <cstring>
 
 namespace esphome::globals {
 
-template<typename T> class GlobalsComponent : public Component {
+template<typename T> class GlobalsComponent final : public Component {
  public:
   using value_type = T;
   explicit GlobalsComponent() = default;
@@ -84,7 +86,7 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
     this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_);
     bool hasdata = this->rtc_.load(&temp);
     if (hasdata) {
-      this->value_.assign(temp + 1, temp[0]);
+      this->value_.assign(temp + 1, static_cast<uint8_t>(temp[0]));
     }
     this->last_checked_value_.assign(this->value_);
   }
@@ -125,20 +127,6 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
   T last_checked_value_{};
   uint32_t name_hash_{};
   ESPPreferenceObject rtc_;
-};
-
-template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...> {
- public:
-  explicit GlobalVarSetAction(C *parent) : parent_(parent) {}
-
-  using T = typename C::value_type;
-
-  TEMPLATABLE_VALUE(T, value);
-
-  void play(const Ts &...x) override { this->parent_->value() = this->value_.value(x...); }
-
- protected:
-  C *parent_;
 };
 
 template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }

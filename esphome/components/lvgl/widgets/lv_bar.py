@@ -11,8 +11,8 @@ from ..defines import (
 )
 from ..lv_validation import animated, lv_int
 from ..lvcode import lv
-from ..types import LvNumber, NumberType
-from . import Widget
+from ..types import LvNumber
+from . import NumberType, Widget
 
 # Note this file cannot be called "bar.py" because that name is disallowed.
 

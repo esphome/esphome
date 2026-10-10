@@ -1,5 +1,5 @@
 #include "web_server_base.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 
 namespace esphome::web_server_base {
 
@@ -7,10 +7,14 @@ WebServerBase *global_web_server_base = nullptr;  // NOLINT(cppcoreguidelines-av
 
 void WebServerBase::add_handler(AsyncWebHandler *handler) {
 #ifdef USE_WEBSERVER_AUTH
-  if (!credentials_.username.empty()) {
+  if (credentials_.is_set()) {
     handler = new internal::AuthMiddlewareHandler(handler, &credentials_);
   }
 #endif
+  this->add_handler_without_auth(handler);
+}
+
+void WebServerBase::add_handler_without_auth(AsyncWebHandler *handler) {
   this->handlers_.push_back(handler);
   if (this->server_ != nullptr) {
     this->server_->addHandler(handler);

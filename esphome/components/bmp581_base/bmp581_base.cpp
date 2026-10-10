@@ -17,7 +17,9 @@
 
 namespace esphome::bmp581_base {
 
-static const char *const TAG = "bmp581";
+ESPHOME_LOG_TAG(TAG, "bmp581");
+
+static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 
 // Oversampling strings indexed by Oversampling enum (0-7): NONE, X2, X4, X8, X16, X32, X64, X128
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
@@ -126,7 +128,7 @@ void BMP581Component::setup() {
   }
 
   // verify id
-  if (chip_id != BMP581_ASIC_ID) {
+  if (chip_id != BMP581_ASIC_ID && chip_id != BMP585_ASIC_ID) {
     ESP_LOGE(TAG, "Unknown chip ID");
 
     this->error_code_ = ERROR_WRONG_CHIP_ID;
@@ -272,7 +274,7 @@ void BMP581Component::update() {
 
   ESP_LOGVV(TAG, "Measurement should take %d ms", this->conversion_time_);
 
-  this->set_timeout("measurement", this->conversion_time_, [this]() {
+  this->set_timeout(MEASUREMENT_TIMEOUT_ID, this->conversion_time_, [this]() {
     float temperature = 0.0;
     float pressure = 0.0;
 
@@ -429,7 +431,7 @@ bool BMP581Component::read_temperature_(float &temperature) {
   }
 
   // temperature MSB is in data[2], LSB is in data[1], XLSB in data[0]
-  int32_t raw_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t raw_temp = static_cast<int32_t>(encode_uint32(data[2], data[1], data[0], 0)) >> 8;
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   return true;
@@ -458,7 +460,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   }
 
   // temperature MSB is in data[2], LSB is in data[1], XLSB in data[0]
-  int32_t raw_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t raw_temp = static_cast<int32_t>(encode_uint32(data[2], data[1], data[0], 0)) >> 8;
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   // pressure MSB is in data[5], LSB is in data[4], XLSB in data[3]
@@ -469,20 +471,27 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
 }
 
 bool BMP581Component::reset_() {
+  // - activates interface (only relevant for SPI mode)
   // - writes reset command to the command register
   // - waits for sensor to complete reset
+  // - activates interface (only relevant for SPI mode)
   // - returns the Power-On-Reboot interrupt status, which is asserted if successful
+
+  // activates communication interface (SPI only)
+  this->activate_interface();
 
   // writes reset command to BMP's command register
   if (!this->bmp_write_byte(BMP581_COMMAND, RESET_COMMAND)) {
     ESP_LOGE(TAG, "Failed to write reset command");
-
     return false;
   }
 
   // t_{soft_res} = 2ms (page 11 of datasheet); time it takes to enter standby mode
   //  - round up to 3 ms
   delay(3);
+
+  // reactivates communication interface after reset (SPI only)
+  this->activate_interface();
 
   // read interrupt status register
   if (!this->bmp_read_byte(BMP581_INT_STATUS, &this->int_status_.reg)) {
@@ -491,7 +500,7 @@ bool BMP581Component::reset_() {
     return false;
   }
 
-  // Power-On-Reboot bit is asserted if sensor successfully reset
+  // power-On-Reboot bit is asserted if sensor successfully reset
   return this->int_status_.bit.por;
 }
 

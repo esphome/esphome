@@ -10,7 +10,7 @@
 
 namespace esphome::sprinkler {
 
-static const char *const TAG = "sprinkler";
+ESPHOME_LOG_TAG(TAG, "sprinkler");
 
 void SprinklerControllerNumber::setup() {
   float value;
@@ -44,7 +44,7 @@ SprinklerControllerSwitch::SprinklerControllerSwitch() = default;
 
 void SprinklerControllerSwitch::loop() {
   // Loop is only enabled when f_ has a value (see setup())
-  auto s = (*this->f_)();
+  auto s = (*this->f_)();  // NOLINT(bugprone-unchecked-optional-access)
   if (s.has_value()) {
     this->publish_state(*s);
   }
@@ -89,20 +89,21 @@ void SprinklerValveOperator::loop() {
   uint32_t now = App.get_loop_component_start_time();
   switch (this->state_) {
     case STARTING:
-      if ((now - *this->start_millis_) > this->start_delay_) {
+      if ((now - *this->start_millis_) > this->start_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
         this->run_();  // start_delay_ has been exceeded, so ensure both valves are on and update the state
       }
       break;
 
     case ACTIVE:
-      if ((now - *this->start_millis_) > (this->start_delay_ + this->run_duration_)) {
+      if ((now - *this->start_millis_) >  // NOLINT(bugprone-unchecked-optional-access)
+          (this->start_delay_ + this->run_duration_)) {
         this->stop();  // start_delay_ + run_duration_ has been exceeded, start shutting down
       }
       break;
 
     case STOPPING:
-      if ((now - *this->stop_millis_) > this->stop_delay_) {
-        this->kill_();  // stop_delay_has been exceeded, ensure all valves are off
+      if ((now - *this->stop_millis_) > this->stop_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
+        this->kill_();                                        // stop_delay_has been exceeded, ensure all valves are off
       }
       break;
 
@@ -210,8 +211,6 @@ uint32_t SprinklerValveOperator::time_remaining() {
   return 0;  // run completed
 }
 
-SprinklerState SprinklerValveOperator::state() { return this->state_; }
-
 switch_::Switch *SprinklerValveOperator::pump_switch() {
   if ((this->controller_ == nullptr) || (this->valve_ == nullptr)) {
     return nullptr;
@@ -287,10 +286,7 @@ SprinklerValveRunRequest::SprinklerValveRunRequest(size_t valve_number, uint32_t
                                                    SprinklerValveOperator *valve_op)
     : valve_number_(valve_number), run_duration_(run_duration), valve_op_(valve_op) {}
 
-bool SprinklerValveRunRequest::has_request() { return this->has_valve_; }
 bool SprinklerValveRunRequest::has_valve_operator() { return !(this->valve_op_ == nullptr); }
-
-void SprinklerValveRunRequest::set_request_from(SprinklerValveRunRequestOrigin origin) { this->origin_ = origin; }
 
 void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
 
@@ -316,8 +312,6 @@ void SprinklerValveRunRequest::reset() {
 
 uint32_t SprinklerValveRunRequest::run_duration() { return this->run_duration_; }
 
-size_t SprinklerValveRunRequest::valve() { return this->valve_number_; }
-
 optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
   if (this->has_valve_) {
     return this->valve_number_;
@@ -327,16 +321,12 @@ optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
 
 SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this->valve_op_; }
 
-SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
-
 Sprinkler::Sprinkler() : Sprinkler("") {}
-Sprinkler::Sprinkler(const char *name) : name_(name) {
-  // The `name` is stored for dump_config logging
-  this->timer_.init(2);
-  // Timer names only need to be unique within this component instance
-  this->timer_.push_back({"sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
-  this->timer_.push_back({"vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
-}
+// The `name` is stored for dump_config logging; the scheduler keys each timer by its SprinklerTimerIndex
+Sprinkler::Sprinkler(const char *name)
+    : name_(name),
+      timer_{{{false, 0, 0, [this]() { this->sm_timer_callback_(); }},
+              {false, 0, 0, [this]() { this->valve_selection_callback_(); }}}} {}
 
 void Sprinkler::setup() {
   this->all_valves_off_(true);
@@ -413,32 +403,12 @@ void Sprinkler::set_controller_main_switch(SprinklerControllerSwitch *controller
   this->sprinkler_turn_on_automation_->add_actions({sprinkler_resumeorstart_action_.get()});
 }
 
-void Sprinkler::set_controller_auto_adv_switch(SprinklerControllerSwitch *auto_adv_switch) {
-  this->auto_adv_sw_ = auto_adv_switch;
-}
-
-void Sprinkler::set_controller_queue_enable_switch(SprinklerControllerSwitch *queue_enable_switch) {
-  this->queue_enable_sw_ = queue_enable_switch;
-}
-
-void Sprinkler::set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch) {
-  this->reverse_sw_ = reverse_switch;
-}
-
 void Sprinkler::set_controller_standby_switch(SprinklerControllerSwitch *standby_switch) {
   this->standby_sw_ = standby_switch;
 
   this->sprinkler_standby_turn_on_automation_ = make_unique<Automation<>>(standby_switch->get_turn_on_trigger());
   this->sprinkler_standby_shutdown_action_ = make_unique<sprinkler::ShutdownAction<>>(this);
   this->sprinkler_standby_turn_on_automation_->add_actions({sprinkler_standby_shutdown_action_.get()});
-}
-
-void Sprinkler::set_controller_multiplier_number(SprinklerControllerNumber *multiplier_number) {
-  this->multiplier_number_ = multiplier_number;
-}
-
-void Sprinkler::set_controller_repeat_number(SprinklerControllerNumber *repeat_number) {
-  this->repeat_number_ = repeat_number;
 }
 
 void Sprinkler::configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration) {
@@ -497,10 +467,6 @@ void Sprinkler::set_multiplier(const optional<float> multiplier) {
   call.perform();
 }
 
-void Sprinkler::set_next_prev_ignore_disabled_valves(bool ignore_disabled) {
-  this->next_prev_ignore_disabled_ = ignore_disabled;
-}
-
 void Sprinkler::set_pump_start_delay(uint32_t start_delay) {
   this->start_delay_is_valve_delay_ = false;
   this->start_delay_ = start_delay;
@@ -519,10 +485,6 @@ void Sprinkler::set_valve_start_delay(uint32_t start_delay) {
 void Sprinkler::set_valve_stop_delay(uint32_t stop_delay) {
   this->stop_delay_is_valve_delay_ = true;
   this->stop_delay_ = stop_delay;
-}
-
-void Sprinkler::set_pump_switch_off_during_valve_open_delay(bool pump_switch_off_during_valve_open_delay) {
-  this->pump_switch_off_during_valve_open_delay_ = pump_switch_off_during_valve_open_delay;
 }
 
 void Sprinkler::set_valve_open_delay(const uint32_t valve_open_delay) {
@@ -567,7 +529,7 @@ void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number, cons
     return;
   }
   auto call = this->valve_[valve_number.value()].run_duration_number->make_call();
-  if (this->valve_[valve_number.value()].run_duration_number->traits.get_unit_of_measurement_ref() == MIN_STR) {
+  if (this->valve_[valve_number.value()].run_duration_number->get_unit_of_measurement_ref() == MIN_STR) {
     call.set_value(run_duration.value() / 60.0);
   } else {
     call.set_value(run_duration.value());
@@ -582,11 +544,7 @@ void Sprinkler::set_auto_advance(const bool auto_advance) {
   if (this->auto_adv_sw_->state == auto_advance) {
     return;
   }
-  if (auto_advance) {
-    this->auto_adv_sw_->turn_on();
-  } else {
-    this->auto_adv_sw_->turn_off();
-  }
+  this->auto_adv_sw_->control(auto_advance);
 }
 
 void Sprinkler::set_repeat(optional<uint32_t> repeat) {
@@ -609,11 +567,7 @@ void Sprinkler::set_queue_enable(bool queue_enable) {
   if (this->queue_enable_sw_->state == queue_enable) {
     return;
   }
-  if (queue_enable) {
-    this->queue_enable_sw_->turn_on();
-  } else {
-    this->queue_enable_sw_->turn_off();
-  }
+  this->queue_enable_sw_->control(queue_enable);
 }
 
 void Sprinkler::set_reverse(const bool reverse) {
@@ -623,11 +577,7 @@ void Sprinkler::set_reverse(const bool reverse) {
   if (this->reverse_sw_->state == reverse) {
     return;
   }
-  if (reverse) {
-    this->reverse_sw_->turn_on();
-  } else {
-    this->reverse_sw_->turn_off();
-  }
+  this->reverse_sw_->control(reverse);
 }
 
 void Sprinkler::set_standby(const bool standby) {
@@ -637,11 +587,7 @@ void Sprinkler::set_standby(const bool standby) {
   if (this->standby_sw_->state == standby) {
     return;
   }
-  if (standby) {
-    this->standby_sw_->turn_on();
-  } else {
-    this->standby_sw_->turn_off();
-  }
+  this->standby_sw_->control(standby);
 }
 
 uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
@@ -649,7 +595,7 @@ uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
     return 0;
   }
   if (this->valve_[valve_number].run_duration_number != nullptr) {
-    if (this->valve_[valve_number].run_duration_number->traits.get_unit_of_measurement_ref() == MIN_STR) {
+    if (this->valve_[valve_number].run_duration_number->get_unit_of_measurement_ref() == MIN_STR) {
       return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state * 60));
     } else {
       return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state));
@@ -668,7 +614,7 @@ uint32_t Sprinkler::valve_run_duration_adjusted(const size_t valve_number) {
   // run_duration must not be less than any of these
   if ((run_duration < this->start_delay_) || (run_duration < this->stop_delay_) ||
       (run_duration < this->switching_delay_.value_or(0) * 2)) {
-    return std::max(this->switching_delay_.value_or(0) * 2, std::max(this->start_delay_, this->stop_delay_));
+    return std::max({this->switching_delay_.value_or(0) * 2, this->start_delay_, this->stop_delay_});
   }
   return run_duration;
 }
@@ -896,11 +842,12 @@ void Sprinkler::resume() {
   }
 
   if (this->paused_valve_.has_value() && (this->resume_duration_.has_value())) {
+    const size_t paused_valve = *this->paused_valve_;
+    const uint32_t resume_duration = *this->resume_duration_;
     // Resume only if valve has not been completed yet
-    if (!this->valve_cycle_complete_(this->paused_valve_.value())) {
-      ESP_LOGD(TAG, "Resuming valve %zu with %" PRIu32 " seconds remaining", this->paused_valve_.value_or(0),
-               this->resume_duration_.value_or(0));
-      this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
+    if (!this->valve_cycle_complete_(paused_valve)) {
+      ESP_LOGD(TAG, "Resuming valve %zu with %" PRIu32 " seconds remaining", paused_valve, resume_duration);
+      this->fsm_request_(paused_valve, resume_duration);
     }
     this->reset_resume();
   } else {
@@ -943,18 +890,12 @@ optional<size_t> Sprinkler::active_valve() {
   return this->active_req_.valve_as_opt();
 }
 
-optional<size_t> Sprinkler::paused_valve() { return this->paused_valve_; }
-
 optional<size_t> Sprinkler::queued_valve() {
   if (!this->queued_valves_.empty()) {
     return this->queued_valves_.back().valve_number;
   }
   return nullopt;
 }
-
-optional<size_t> Sprinkler::manual_valve() { return this->manual_valve_; }
-
-size_t Sprinkler::number_of_valves() { return this->valve_.size(); }
 
 bool Sprinkler::is_a_valid_valve(const size_t valve_number) { return (valve_number < this->number_of_valves()); }
 
@@ -1067,7 +1008,8 @@ uint32_t Sprinkler::total_cycle_time_enabled_incomplete_valves() {
     if (this->valve_is_enabled_(valve)) {
       enabled_valve_count++;
       if (!this->valve_cycle_complete_(valve)) {
-        if (!this->active_valve().has_value() || (valve != this->active_valve().value())) {
+        auto active = this->active_valve();
+        if (!active.has_value() || (valve != *active)) {
           total_time_remaining += this->valve_run_duration_adjusted(valve);
           incomplete_valve_count++;
         } else {
@@ -1190,8 +1132,11 @@ switch_::Switch *Sprinkler::valve_switch(const size_t valve_number) {
 }
 
 switch_::Switch *Sprinkler::valve_pump_switch(const size_t valve_number) {
-  if (this->is_a_valid_valve(valve_number) && this->valve_[valve_number].pump_switch_index.has_value()) {
-    return this->pump_[this->valve_[valve_number].pump_switch_index.value()];
+  if (this->is_a_valid_valve(valve_number)) {
+    auto idx = this->valve_[valve_number].pump_switch_index;
+    if (idx.has_value()) {
+      return this->pump_[*idx];
+    }
   }
   return nullptr;
 }
@@ -1372,7 +1317,7 @@ void Sprinkler::all_valves_off_(const bool include_pump) {
       this->set_pump_state(this->valve_pump_switch(valve_index), false);
     }
   }
-  ESP_LOGD(TAG, "All valves stopped%s", include_pump ? ", including pumps" : "");
+  ESP_LOGD(TAG, "All valves stopped%s", include_pump ? LOG_STR_LITERAL(", including pumps") : "");
 }
 
 void Sprinkler::prep_full_cycle_() {
@@ -1563,7 +1508,7 @@ const LogString *Sprinkler::state_as_str_(SprinklerState state) {
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {
-    this->set_timeout(this->timer_[timer_index].name, this->timer_duration_(timer_index),
+    this->set_timeout(static_cast<uint32_t>(timer_index), this->timer_duration_(timer_index),
                       this->timer_cbf_(timer_index));
     this->timer_[timer_index].start_time = millis();
     this->timer_[timer_index].active = true;
@@ -1574,7 +1519,7 @@ void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
 
 bool Sprinkler::cancel_timer_(const SprinklerTimerIndex timer_index) {
   this->timer_[timer_index].active = false;
-  return this->cancel_timeout(this->timer_[timer_index].name);
+  return this->cancel_timeout(static_cast<uint32_t>(timer_index));
 }
 
 bool Sprinkler::timer_active_(const SprinklerTimerIndex timer_index) { return this->timer_[timer_index].active; }

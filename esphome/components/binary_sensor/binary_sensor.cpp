@@ -5,7 +5,7 @@
 
 namespace esphome::binary_sensor {
 
-static const char *const TAG = "binary_sensor";
+ESPHOME_LOG_TAG(TAG, "binary_sensor");
 
 // Function implementation of LOG_BINARY_SENSOR macro to reduce code size
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj) {
@@ -32,20 +32,13 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->invalidate_state();
   this->publish_state(new_state);
 }
-void BinarySensor::send_state_internal(bool new_state) {
-  // copy the new state to the visible property for backwards compatibility, before any callbacks
-  this->state = new_state;
-  // Note that set_new_state_ de-dups and will only trigger callbacks if the state has actually changed
-  this->set_new_state(new_state);
-}
-
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
   if (StatefulEntityBase::set_new_state(new_state)) {
     // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-    ESP_LOGD(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
+    ESP_LOGV(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
     return true;
   }
   return false;

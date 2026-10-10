@@ -5,13 +5,12 @@
 
 #include "nfc.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
-class NfcOnTagTrigger : public Trigger<std::string, NfcTag> {
+/// Fires with the formatted UID and the tag itself; the tag is passed by reference so no copy is made per trigger
+class NfcOnTagTrigger final : public Trigger<std::string, const NfcTag &> {
  public:
   void process(const std::unique_ptr<NfcTag> &tag);
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

@@ -4,8 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace waveshare_epaper {
+namespace esphome::waveshare_epaper {
 
 class WaveshareEPaperBase : public display::DisplayBuffer,
                             public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -273,7 +272,7 @@ class GDEW029T5 : public WaveshareEPaper {
   void dump_config() override;
 
   void deep_sleep() override;
-  void set_full_update_every(uint32_t full_update_every);
+  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
  protected:
   void init_display_();
@@ -504,7 +503,7 @@ class GDEY042T81 : public WaveshareEPaper {
     this->data(0x01);
   }
 
-  void set_full_update_every(uint32_t full_update_every);
+  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
  protected:
   uint32_t full_update_every_{30};
@@ -696,7 +695,7 @@ class GDEY0583T81 : public WaveshareEPaper {
 
   void deep_sleep() override;
 
-  void set_full_update_every(uint32_t full_update_every);
+  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
  protected:
   int get_width_internal() override;
@@ -1099,5 +1098,4 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
   uint32_t idle_timeout_() override;
 };
 
-}  // namespace waveshare_epaper
-}  // namespace esphome
+}  // namespace esphome::waveshare_epaper

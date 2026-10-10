@@ -4,64 +4,40 @@
 #ifdef USE_API
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 #include <functional>
+#include <string>
+#include <type_traits>
 #include <utility>
-#include <vector>
 #include "api_pb2.h"
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #include "esphome/components/json/json_util.h"
 #endif
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::api {
 
-template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
-  // Verify that const char* uses the base class STATIC_STRING optimization (no heap allocation)
-  // rather than being wrapped in a lambda. The base class constructor for const char* is more
-  // specialized than the templated constructor here, so it should be selected.
-  static_assert(std::is_constructible_v<TemplatableValue<std::string, X...>, const char *>,
-                "Base class must have const char* constructor for STATIC_STRING optimization");
+// Converts a lambda result to the string sent to Home Assistant
+template<typename T>
+requires(!std::is_pointer_v<std::remove_cvref_t<T>>) std::string field_to_string(T &&val) {
+  return to_string(std::forward<T>(val));  // NOLINT
+}
+inline std::string field_to_string(const char *val) { return val ? std::string(val) : std::string(); }
+inline std::string field_to_string(std::string val) { return val; }
+inline std::string field_to_string(StringRef val) { return val.str(); }
 
- private:
-  // Helper to convert value to string - handles the case where value is already a string
-  template<typename T> static std::string value_to_string(T &&val) {
-    return to_string(std::forward<T>(val));  // NOLINT
+/// A key and value from codegen; on ESP8266 the table and its strings are in flash.
+/// The value is the constant `value`, or the result of `fn` when it is set.
+template<typename... Ts> struct HomeAssistantField {
+  const char *key;
+  const char *value;
+  std::string (*fn)(const Ts &...);
+
+  template<typename F> static constexpr HomeAssistantField from_lambda(const char *key, F /*lambda*/) {
+    return {key, nullptr, &call_lambda<F>};
   }
-
-  // Overloads for string types - needed because std::to_string doesn't support them
-  static std::string value_to_string(char *val) {
-    return val ? std::string(val) : std::string();
-  }  // For lambdas returning char* (e.g., itoa)
-  static std::string value_to_string(const char *val) { return std::string(val); }  // For lambdas returning .c_str()
-  static std::string value_to_string(const std::string &val) { return val; }
-  static std::string value_to_string(std::string &&val) { return std::move(val); }
-  static std::string value_to_string(const StringRef &val) { return val.str(); }
-  static std::string value_to_string(StringRef &&val) { return val.str(); }
-
- public:
-  TemplatableStringValue() : TemplatableValue<std::string, X...>() {}
-
-  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
-  TemplatableStringValue(F value) : TemplatableValue<std::string, X...>(value) {}
-
-  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
-  TemplatableStringValue(F f)
-      : TemplatableValue<std::string, X...>([f](X... x) -> std::string { return value_to_string(f(x...)); }) {}
-};
-
-template<typename... Ts> class TemplatableKeyValuePair {
- public:
-  // Default constructor needed for FixedVector::emplace_back()
-  TemplatableKeyValuePair() = default;
-
-  // Keys are always string literals from YAML dictionary keys (e.g., "code", "event")
-  // and never templatable values or lambdas. Only the value parameter can be a lambda/template.
-  // Using const char* avoids std::string heap allocation - keys remain in flash.
-  template<typename T> TemplatableKeyValuePair(const char *key, T value) : key(key), value(value) {}
-
-  const char *key{nullptr};
-  TemplatableStringValue<Ts...> value;
+  template<typename F> static std::string call_lambda(const Ts &...x) { return field_to_string(F{}(x...)); }
 };
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -78,7 +54,8 @@ class ActionResponse {
       : success_(success), error_message_(error_message) {
     if (data == nullptr || data_len == 0)
       return;
-    this->json_document_ = json::parse_json(data, data_len);
+    JsonDocument tmp = json::parse_json(data, data_len);
+    swap(this->json_document_, tmp);
   }
 #endif
 
@@ -103,31 +80,20 @@ class ActionResponse {
 template<typename... Ts> using ActionResponseCallback = std::function<void(const ActionResponse &, Ts...)>;
 #endif
 
-template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts...> {
+template<typename... Ts> class HomeAssistantServiceCallAction final : public Action<Ts...> {
  public:
-  explicit HomeAssistantServiceCallAction(APIServer *parent, bool is_event) : parent_(parent) {
+  using Field = HomeAssistantField<Ts...>;
+
+  /// `fields` is a codegen table: the action or event name (no key), then the data, data_template
+  /// and variables entries.
+  HomeAssistantServiceCallAction(APIServer *parent, bool is_event, const Field *fields, uint8_t data_count,
+                                 uint8_t data_template_count, uint8_t variables_count)
+      : parent_(parent),
+        fields_(fields),
+        data_count_(data_count),
+        data_template_count_(data_template_count),
+        variables_count_(variables_count) {
     this->flags_.is_event = is_event;
-  }
-
-  template<typename T> void set_service(T service) { this->service_ = service; }
-
-  // Initialize FixedVector members - called from Python codegen with compile-time known sizes.
-  // Must be called before any add_* methods; capacity must match the number of subsequent add_* calls.
-  void init_data(size_t count) { this->data_.init(count); }
-  void init_data_template(size_t count) { this->data_template_.init(count); }
-  void init_variables(size_t count) { this->variables_.init(count); }
-
-  // Keys are always string literals from the Python code generation (e.g., cg.add(var.add_data("tag_id", templ))).
-  // The value parameter can be a lambda/template, but keys are never templatable.
-  // Using const char* for keys avoids std::string heap allocation - keys remain in flash.
-  template<typename V> void add_data(const char *key, V &&value) {
-    this->add_kv_(this->data_, key, std::forward<V>(value));
-  }
-  template<typename V> void add_data_template(const char *key, V &&value) {
-    this->add_kv_(this->data_template_, key, std::forward<V>(value));
-  }
-  template<typename V> void add_variable(const char *key, V &&value) {
-    this->add_kv_(this->variables_, key, std::forward<V>(value));
   }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -147,19 +113,61 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
   void play(const Ts &...x) override {
+    const Field *fields = this->fields_;
+    const size_t total = 1 + this->data_count_ + this->data_template_count_ + this->variables_count_;
+
+    // Lambda results, and on ESP8266 the RAM copies of the flash strings, must live until the send
+    size_t lambda_count = 0;
+#ifdef USE_ESP8266
+    size_t flash_len = 0;
+#endif
+    for (size_t i = 0; i < total; i++) {
+      lambda_count += fields[i].fn != nullptr;
+#ifdef USE_ESP8266
+      if (fields[i].fn == nullptr)
+        flash_len += ESPHOME_strlen_P(fields[i].value);
+      if (fields[i].key != nullptr)
+        flash_len += ESPHOME_strlen_P(fields[i].key);
+#endif
+    }
+    FixedVector<std::string> results;
+    results.init(lambda_count);
+#ifdef USE_ESP8266
+    SmallBufferWithHeapFallback<128, char> flash_copy(flash_len);
+    char *cursor = flash_copy.get();
+#endif
+    auto string_ref = [&](const char *str) {
+#ifdef USE_ESP8266
+      size_t len = ESPHOME_strlen_P(str);
+      memcpy_P(cursor, str, len);
+      StringRef ref(cursor, len);
+      cursor += len;
+      return ref;
+#else
+      return StringRef(str);
+#endif
+    };
+    auto value_ref = [&](const Field &field) {
+      if (field.fn == nullptr)
+        return string_ref(field.value);
+      results.push_back(field.fn(x...));
+      return StringRef(results.back());
+    };
+    auto fill = [&](FixedVector<HomeassistantServiceMap> &dest, uint8_t count) {
+      dest.init(count);
+      for (uint8_t i = 0; i < count; i++, fields++) {
+        auto &kv = dest.emplace_back();
+        kv.key = string_ref(fields->key);
+        kv.value = value_ref(*fields);
+      }
+    };
+
     HomeassistantActionRequest resp;
-    std::string service_value = this->service_.value(x...);
-    resp.service = StringRef(service_value);
+    resp.service = value_ref(*fields++);
     resp.is_event = this->flags_.is_event;
-
-    // Local storage for lambda-evaluated strings - lives until after send
-    FixedVector<std::string> data_storage;
-    FixedVector<std::string> data_template_storage;
-    FixedVector<std::string> variables_storage;
-
-    this->populate_service_map(resp.data, this->data_, data_storage, x...);
-    this->populate_service_map(resp.data_template, this->data_template_, data_template_storage, x...);
-    this->populate_service_map(resp.variables, this->variables_, variables_storage, x...);
+    fill(resp.data, this->data_count_);
+    fill(resp.data_template, this->data_template_count_);
+    fill(resp.variables, this->variables_count_);
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
@@ -208,64 +216,26 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   }
 
  protected:
-  // Helper to add key-value pairs to FixedVectors
-  // Keys are always string literals (const char*), values can be lambdas/templates
-  template<typename V> void add_kv_(FixedVector<TemplatableKeyValuePair<Ts...>> &vec, const char *key, V &&value) {
-    auto &kv = vec.emplace_back();
-    kv.key = key;
-    kv.value = std::forward<V>(value);
-  }
-
-  template<typename VectorType, typename SourceType>
-  static void populate_service_map(VectorType &dest, SourceType &source, FixedVector<std::string> &value_storage,
-                                   Ts... x) {
-    dest.init(source.size());
-
-    // Count non-static strings to allocate exact storage needed
-    size_t lambda_count = 0;
-    for (const auto &it : source) {
-      if (!it.value.is_static_string()) {
-        lambda_count++;
-      }
-    }
-    value_storage.init(lambda_count);
-
-    for (auto &it : source) {
-      auto &kv = dest.emplace_back();
-      kv.key = StringRef(it.key);
-
-      if (it.value.is_static_string()) {
-        // Static string from YAML - zero allocation
-        kv.value = StringRef(it.value.get_static_string());
-      } else {
-        // Lambda evaluation - store result, reference it
-        value_storage.push_back(it.value.value(x...));
-        kv.value = StringRef(value_storage.back());
-      }
-    }
-  }
-
   APIServer *parent_;
-  TemplatableStringValue<Ts...> service_{};
-  FixedVector<TemplatableKeyValuePair<Ts...>> data_;
-  FixedVector<TemplatableKeyValuePair<Ts...>> data_template_;
-  FixedVector<TemplatableKeyValuePair<Ts...>> variables_;
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  TemplatableStringValue<Ts...> response_template_{""};
-  Trigger<JsonObjectConst, Ts...> success_trigger_with_response_;
-#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  Trigger<Ts...> success_trigger_;
-  Trigger<std::string, Ts...> error_trigger_;
-#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
-
+  const Field *fields_;
+  uint8_t data_count_;
+  uint8_t data_template_count_;
+  uint8_t variables_count_;
   struct Flags {
     uint8_t is_event : 1;
     uint8_t wants_status : 1;
     uint8_t wants_response : 1;
     uint8_t has_response_template : 1;
-    uint8_t reserved : 5;
+    uint8_t reserved : 4;
   } flags_{0};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  TemplatableValue<std::string, Ts...> response_template_{};
+  Trigger<JsonObjectConst, Ts...> success_trigger_with_response_;
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  Trigger<Ts...> success_trigger_;
+  Trigger<std::string, Ts...> error_trigger_;
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 };
 
 }  // namespace esphome::api

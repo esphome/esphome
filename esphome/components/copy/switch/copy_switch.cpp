@@ -1,10 +1,9 @@
 #include "copy_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-static const char *const TAG = "copy.switch";
+ESPHOME_LOG_TAG(TAG, "copy.switch");
 
 void CopySwitch::setup() {
   source_->add_on_state_callback([this](float value) { this->publish_state(value); });
@@ -14,13 +13,6 @@ void CopySwitch::setup() {
 
 void CopySwitch::dump_config() { LOG_SWITCH("", "Copy Switch", this); }
 
-void CopySwitch::write_state(bool state) {
-  if (state) {
-    source_->turn_on();
-  } else {
-    source_->turn_off();
-  }
-}
+void CopySwitch::write_state(bool state) { this->source_->control(state); }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

@@ -4,15 +4,14 @@
 #include "esphome/components/sun/sun.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
 enum SensorType {
   SUN_SENSOR_ELEVATION,
   SUN_SENSOR_AZIMUTH,
 };
 
-class SunSensor : public sensor::Sensor, public PollingComponent {
+class SunSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void set_parent(Sun *parent) { parent_ = parent; }
   void set_type(SensorType type) { type_ = type; }
@@ -37,5 +36,4 @@ class SunSensor : public sensor::Sensor, public PollingComponent {
   SensorType type_;
 };
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

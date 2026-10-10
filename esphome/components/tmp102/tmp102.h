@@ -4,14 +4,12 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tmp102 {
+namespace esphome::tmp102 {
 
-class TMP102Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
+class TMP102Component final : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
   void dump_config() override;
   void update() override;
 };
 
-}  // namespace tmp102
-}  // namespace esphome
+}  // namespace esphome::tmp102

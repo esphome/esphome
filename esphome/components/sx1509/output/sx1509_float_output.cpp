@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
-static const char *const TAG = "sx1509_float_channel";
+ESPHOME_LOG_TAG(TAG, "sx1509_float_channel");
 
 void SX1509FloatOutputChannel::write_state(float state) {
   const uint16_t max_duty = 255;
@@ -29,5 +28,4 @@ void SX1509FloatOutputChannel::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

@@ -1,10 +1,9 @@
 #include "sigma_delta_output.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sigma_delta_output {
+namespace esphome::sigma_delta_output {
 
-static const char *const TAG = "output.sigma_delta";
+ESPHOME_LOG_TAG(TAG, "output.sigma_delta");
 
 void SigmaDeltaOutput::setup() {
   if (this->pin_)
@@ -53,5 +52,4 @@ void SigmaDeltaOutput::update() {
   }
 }
 
-}  // namespace sigma_delta_output
-}  // namespace esphome
+}  // namespace esphome::sigma_delta_output

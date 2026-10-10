@@ -1,10 +1,9 @@
 #include "bp5758d.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bp5758d {
+namespace esphome::bp5758d {
 
-static const char *const TAG = "bp5758d";
+ESPHOME_LOG_TAG(TAG, "bp5758d");
 
 static const uint8_t BP5758D_MODEL_ID = 0b10000000;
 static const uint8_t BP5758D_ADDR_STANDBY = 0b00000000;
@@ -164,5 +163,4 @@ void BP5758D::write_buffer_(uint8_t *buffer, uint8_t size) {
   delayMicroseconds(BP5758D_DELAY);
 }
 
-}  // namespace bp5758d
-}  // namespace esphome
+}  // namespace esphome::bp5758d

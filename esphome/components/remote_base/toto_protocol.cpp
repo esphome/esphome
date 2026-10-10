@@ -1,10 +1,9 @@
 #include "toto_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.toto";
+ESPHOME_LOG_TAG(TAG, "remote.toto");
 
 static constexpr uint32_t PREAMBLE_HIGH_US = 6200;
 static constexpr uint32_t PREAMBLE_LOW_US = 2800;
@@ -96,5 +95,4 @@ void TotoProtocol::dump(const TotoData &data) {
            data.rc_code_2, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

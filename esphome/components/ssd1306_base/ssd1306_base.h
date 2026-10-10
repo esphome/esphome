@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace ssd1306_base {
+namespace esphome::ssd1306_base {
 
 enum SSD1306Model {
   SSD1306_MODEL_128_32 = 0,
@@ -88,5 +87,4 @@ class SSD1306 : public display::DisplayBuffer {
   bool invert_{false};
 };
 
-}  // namespace ssd1306_base
-}  // namespace esphome
+}  // namespace esphome::ssd1306_base

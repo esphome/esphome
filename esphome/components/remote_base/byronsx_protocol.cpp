@@ -3,10 +3,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.byronsx";
+ESPHOME_LOG_TAG(TAG, "remote.byronsx");
 
 static constexpr uint32_t BIT_TIME_US = 333;
 static constexpr uint8_t NBITS_ADDRESS = 8;
@@ -135,5 +134,4 @@ void ByronSXProtocol::dump(const ByronSXData &data) {
   ESP_LOGD(TAG, "Received ByronSX: address=0x%08X, command=0x%02x", data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

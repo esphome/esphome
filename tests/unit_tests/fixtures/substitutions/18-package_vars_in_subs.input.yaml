@@ -1,0 +1,9 @@
+esphome:
+  name: test
+
+packages:
+  fingerprint: !include
+    file: 18-package_vars_in_subs_inc.yaml
+    vars:
+      sensor_name: "Front Door"
+      sensor_id_prefix: "front_door"

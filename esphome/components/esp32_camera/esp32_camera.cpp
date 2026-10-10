@@ -7,10 +7,9 @@
 
 #include <freertos/task.h>
 
-namespace esphome {
-namespace esp32_camera {
+namespace esphome::esp32_camera {
 
-static const char *const TAG = "esp32_camera";
+ESPHOME_LOG_TAG(TAG, "esp32_camera");
 static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
@@ -146,6 +145,10 @@ void ESP32Camera::dump_config() {
   }
 
   sensor_t *s = esp_camera_sensor_get();
+  if (s == nullptr) {
+    ESP_LOGE(TAG, "  Camera sensor not available");
+    return;
+  }
   auto st = s->status;
   ESP_LOGCONFIG(TAG,
                 "  JPEG Quality: %u\n"
@@ -430,25 +433,10 @@ void ESP32Camera::set_pixel_format(ESP32CameraPixelFormat format) {
   }
 }
 void ESP32Camera::set_jpeg_quality(uint8_t quality) { this->config_.jpeg_quality = quality; }
-void ESP32Camera::set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
-void ESP32Camera::set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
-void ESP32Camera::set_contrast(int contrast) { this->contrast_ = contrast; }
-void ESP32Camera::set_brightness(int brightness) { this->brightness_ = brightness; }
-void ESP32Camera::set_saturation(int saturation) { this->saturation_ = saturation; }
-void ESP32Camera::set_special_effect(ESP32SpecialEffect effect) { this->special_effect_ = effect; }
 /* set exposure parameters */
-void ESP32Camera::set_aec_mode(ESP32GainControlMode mode) { this->aec_mode_ = mode; }
-void ESP32Camera::set_aec2(bool aec2) { this->aec2_ = aec2; }
-void ESP32Camera::set_ae_level(int ae_level) { this->ae_level_ = ae_level; }
-void ESP32Camera::set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_value; }
 /* set gains parameters */
-void ESP32Camera::set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
-void ESP32Camera::set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
-void ESP32Camera::set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
 /* set white balance */
-void ESP32Camera::set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
 /* set test mode */
-void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
 /* set fps */
 void ESP32Camera::set_max_update_interval(uint32_t max_update_interval) {
   this->max_update_interval_ = max_update_interval;
@@ -483,6 +471,9 @@ void ESP32Camera::request_image(camera::CameraRequester requester) { this->singl
 camera::CameraImageReader *ESP32Camera::create_image_reader() { return new ESP32CameraImageReader; }
 void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
+  if (s == nullptr) {
+    return;
+  }
   /* update image */
   s->set_vflip(s, this->vertical_flip_);
   s->set_hmirror(s, this->horizontal_mirror_);
@@ -514,11 +505,9 @@ void ESP32Camera::framebuffer_task(void *pv) {
     camera_fb_t *framebuffer = esp_camera_fb_get();
     xQueueSend(that->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
     // Only wake the main loop if there's a pending request to consume the frame
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     if (that->has_requested_image_()) {
       App.wake_loop_threadsafe();
     }
-#endif
     // return is no-op for config with 1 fb
     xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
     esp_camera_fb_return(framebuffer);
@@ -551,7 +540,6 @@ bool ESP32CameraImage::was_requested_by(camera::CameraRequester requester) const
   return (this->requesters_ & (1 << requester)) != 0;
 }
 
-}  // namespace esp32_camera
-}  // namespace esphome
+}  // namespace esphome::esp32_camera
 
 #endif

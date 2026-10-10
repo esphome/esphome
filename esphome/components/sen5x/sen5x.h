@@ -6,8 +6,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace sen5x {
+namespace esphome::sen5x {
 
 enum ERRORCODE : uint8_t {
   COMMUNICATION_FAILED,
@@ -45,7 +44,7 @@ struct TemperatureCompensation {
 // Prevents wear of the flash because of too many write operations
 static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 2 * 60 * 60 * 1000;
 
-class SEN5XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SEN5XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -96,6 +95,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.time_constant = time_constant;
     this->temperature_compensation_ = temp_comp;
   }
+  void set_model(Sen5xType model) { this->model_override_ = model; }
   bool start_fan_cleaning();
 
  protected:
@@ -104,12 +104,12 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   char serial_number_[17] = "UNKNOWN";
   uint16_t voc_baseline_state_[4]{0};
-  uint32_t voc_baseline_time_;
-  uint16_t firmware_version_;
+  uint32_t voc_baseline_time_{0};
+  uint16_t firmware_version_{0};
   Sen5xType type_{Sen5xType::UNKNOWN};
-  ERRORCODE error_code_;
+  ERRORCODE error_code_{ERRORCODE::UNKNOWN};
   bool initialized_{false};
-  bool store_baseline_;
+  bool store_baseline_{false};
 
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
@@ -127,8 +127,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
+  optional<Sen5xType> model_override_;
   ESPPreferenceObject pref_;
 };
 
-}  // namespace sen5x
-}  // namespace esphome
+}  // namespace esphome::sen5x

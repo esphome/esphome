@@ -2,10 +2,9 @@
 #include "bmp3xx_i2c.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bmp3xx_i2c {
+namespace esphome::bmp3xx_i2c {
 
-static const char *const TAG = "bmp3xx_i2c.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp3xx_i2c.sensor");
 
 bool BMP3XXI2CComponent::read_byte(uint8_t a_register, uint8_t *data) {
   return I2CDevice::read_byte(a_register, data);
@@ -25,5 +24,4 @@ void BMP3XXI2CComponent::dump_config() {
   BMP3XXComponent::dump_config();
 }
 
-}  // namespace bmp3xx_i2c
-}  // namespace esphome
+}  // namespace esphome::bmp3xx_i2c

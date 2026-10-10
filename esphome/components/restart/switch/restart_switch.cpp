@@ -3,10 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace restart {
+namespace esphome::restart {
 
-static const char *const TAG = "restart";
+ESPHOME_LOG_TAG(TAG, "restart");
 
 void RestartSwitch::write_state(bool state) {
   // Acknowledge
@@ -21,5 +20,4 @@ void RestartSwitch::write_state(bool state) {
 }
 void RestartSwitch::dump_config() { LOG_SWITCH("", "Restart Switch", this); }
 
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

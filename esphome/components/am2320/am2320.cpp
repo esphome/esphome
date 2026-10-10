@@ -8,10 +8,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace am2320 {
+namespace esphome::am2320 {
 
-static const char *const TAG = "am2320";
+ESPHOME_LOG_TAG(TAG, "am2320");
 
 void AM2320Component::update() {
   uint8_t data[8];
@@ -86,5 +85,4 @@ bool AM2320Component::read_data_(uint8_t *data) {
   return true;
 }
 
-}  // namespace am2320
-}  // namespace esphome
+}  // namespace esphome::am2320

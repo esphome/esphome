@@ -1,4 +1,3 @@
----
 binary_sensor:
   - platform: template
     name: "Garage Door Open 1"
@@ -14,19 +13,17 @@ sensor:
   - platform: template
     name: "Analog 1"
     lambda: return 10.0;
+    accuracy_decimals: 0
+    device_class: temperature
+    unit_of_measurement: "°C"
   - platform: template
     name: "Analog 2"
     lambda: return 11.0;
+    unit_of_measurement: "°C"
   - platform: template
     name: "Analog 3"
     lambda: return 12.0;
     internal: True
-
-zigbee:
-  wipe_on_boot: true
-  on_join:
-    then:
-      - logger.log: "Joined network"
 
 output:
   - platform: template
@@ -34,9 +31,6 @@ output:
     type: binary
     write_action:
       - zigbee.factory_reset
-
-time:
-  - platform: zigbee
 
 switch:
   - platform: template
@@ -50,3 +44,8 @@ number:
     min_value: 2
     max_value: 100
     step: 1
+    unit_of_measurement: "°C"
+    device_class: temperature
+
+time:
+  - platform: zigbee

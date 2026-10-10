@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace qmp6988 {
+namespace esphome::qmp6988 {
 
 /* oversampling */
 enum QMP6988Oversampling : uint8_t {
@@ -68,7 +67,7 @@ using qmp6988_data_t = struct Qmp6988Data {
   qmp6988_ik_data_t ik;
 };
 
-class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
+class QMP6988Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
@@ -99,12 +98,11 @@ class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
   void write_oversampling_temperature_(QMP6988Oversampling oversampling_t);
   void write_oversampling_pressure_(QMP6988Oversampling oversampling_p);
   void write_filter_(QMP6988IIRFilter filter);
-  void calculate_pressure_();
+  bool calculate_pressure_();
   void calculate_altitude_(float pressure, float temp);
 
   int32_t get_compensated_pressure_(qmp6988_ik_data_t *ik, int32_t dp, int16_t tx);
   int16_t get_compensated_temperature_(qmp6988_ik_data_t *ik, int32_t dt);
 };
 
-}  // namespace qmp6988
-}  // namespace esphome
+}  // namespace esphome::qmp6988

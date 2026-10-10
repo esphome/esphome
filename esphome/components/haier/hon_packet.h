@@ -2,9 +2,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace haier {
-namespace hon_protocol {
+namespace esphome::haier::hon_protocol {
 
 enum class VerticalSwingMode : uint8_t {
   HEALTH_UP = 0x01,
@@ -255,6 +253,4 @@ const std::string HON_ALARM_MESSAGES[] = {
 
 constexpr size_t HON_ALARM_COUNT = sizeof(HON_ALARM_MESSAGES) / sizeof(HON_ALARM_MESSAGES[0]);
 
-}  // namespace hon_protocol
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier::hon_protocol

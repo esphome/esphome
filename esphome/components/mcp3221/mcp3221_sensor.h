@@ -8,13 +8,12 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace mcp3221 {
+namespace esphome::mcp3221 {
 
-class MCP3221Sensor : public sensor::Sensor,
-                      public PollingComponent,
-                      public voltage_sampler::VoltageSampler,
-                      public i2c::I2CDevice {
+class MCP3221Sensor final : public sensor::Sensor,
+                            public PollingComponent,
+                            public voltage_sampler::VoltageSampler,
+                            public i2c::I2CDevice {
  public:
   void set_reference_voltage(float reference_voltage) { this->reference_voltage_ = reference_voltage; }
   void update() override;
@@ -24,5 +23,4 @@ class MCP3221Sensor : public sensor::Sensor,
   float reference_voltage_;
 };
 
-}  // namespace mcp3221
-}  // namespace esphome
+}  // namespace esphome::mcp3221

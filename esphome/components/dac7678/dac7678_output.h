@@ -5,12 +5,11 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace dac7678 {
+namespace esphome::dac7678 {
 
 class DAC7678Output;
 
-class DAC7678Channel : public output::FloatOutput, public Parented<DAC7678Output> {
+class DAC7678Channel final : public output::FloatOutput, public Parented<DAC7678Output> {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
 
@@ -25,7 +24,7 @@ class DAC7678Channel : public output::FloatOutput, public Parented<DAC7678Output
 };
 
 /// DAC7678 float output component.
-class DAC7678Output : public Component, public i2c::I2CDevice {
+class DAC7678Output final : public Component, public i2c::I2CDevice {
  public:
   DAC7678Output() {}
 
@@ -51,5 +50,4 @@ class DAC7678Output : public Component, public i2c::I2CDevice {
   };
 };
 
-}  // namespace dac7678
-}  // namespace esphome
+}  // namespace esphome::dac7678

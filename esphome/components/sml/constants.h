@@ -3,8 +3,7 @@
 #include <array>
 #include <cstdint>
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 enum SmlType : uint8_t {
   SML_OCTET = 0,
@@ -24,5 +23,4 @@ const uint16_t END_MASK = 0x0157;    // 0x1b 1b 1b 1b 1a
 
 constexpr std::array<uint8_t, 8> START_SEQ = {0x1b, 0x1b, 0x1b, 0x1b, 0x01, 0x01, 0x01, 0x01};
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

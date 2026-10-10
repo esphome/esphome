@@ -12,7 +12,7 @@ static constexpr uint8_t CH423_REG_IO_RD = 0x26;  // Read IO7-IO0 (0x4D >> 1, ro
 static constexpr uint8_t CH423_REG_OCL = 0x22;    // Write OC7-OC0 (0x44 >> 1)
 static constexpr uint8_t CH423_REG_OCH = 0x23;    // Write OC15-OC8 (0x46 >> 1)
 
-static const char *const TAG = "ch423";
+ESPHOME_LOG_TAG(TAG, "ch423");
 
 void CH423Component::setup() {
   // set outputs before mode
@@ -128,12 +128,6 @@ bool CH423Component::write_outputs_() {
 }
 
 float CH423Component::get_setup_priority() const { return setup_priority::IO; }
-
-#ifdef USE_LOOP_PRIORITY
-// Run our loop() method very early in the loop, so that we cache read values
-// before other components call our digital_read() method.
-float CH423Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
-#endif
 
 void CH423GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool CH423GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }

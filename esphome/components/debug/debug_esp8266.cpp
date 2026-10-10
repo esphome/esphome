@@ -15,10 +15,9 @@ extern uint32_t core_version;
 extern const char *core_release;
 }
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 // PROGMEM string table for reset reasons, indexed by reason code (0-6), with "Unknown" as fallback
 // clang-format off
@@ -91,7 +90,7 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   return buffer.data();
 }
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
   // ESP8266 doesn't have detailed wakeup cause like ESP32
   return "";
 }
@@ -160,16 +159,13 @@ void DebugComponent::update_platform_() {
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
   }
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
-#endif
 
 #endif
 }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

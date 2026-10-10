@@ -1,1 +1,3 @@
-<<: !include common.yaml
+packages:
+  wifi: !include wifi.yaml
+  ota: !include common.yaml

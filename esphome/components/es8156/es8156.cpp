@@ -4,10 +4,9 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace es8156 {
+namespace esphome::es8156 {
 
-static const char *const TAG = "es8156";
+ESPHOME_LOG_TAG(TAG, "es8156");
 
 // Mark the component as failed; use only in setup
 #define ES8156_ERROR_FAILED(func) \
@@ -118,5 +117,4 @@ bool ES8156::set_mute_state_(bool mute_state) {
   return this->write_byte(ES8156_REG13_DAC_MUTE, reg13);
 }
 
-}  // namespace es8156
-}  // namespace esphome
+}  // namespace esphome::es8156

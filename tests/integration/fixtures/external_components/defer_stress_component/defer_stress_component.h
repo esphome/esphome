@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include <atomic>
 
-namespace esphome {
-namespace defer_stress_component {
+namespace esphome::defer_stress_component {
 
 class DeferStressComponent : public Component {
  public:
@@ -16,5 +15,4 @@ class DeferStressComponent : public Component {
   std::atomic<int> executed_defers_{0};
 };
 
-}  // namespace defer_stress_component
-}  // namespace esphome
+}  // namespace esphome::defer_stress_component

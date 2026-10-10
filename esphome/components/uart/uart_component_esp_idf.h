@@ -5,6 +5,9 @@
 #include <driver/uart.h>
 #include "esphome/core/component.h"
 #include "uart_component.h"
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+#include <driver/uart_select.h>
+#endif
 
 namespace esphome::uart {
 
@@ -12,11 +15,11 @@ namespace esphome::uart {
 ///
 /// Thread safety: All public methods must only be called from the main loop.
 /// The ESP-IDF UART driver API does not guarantee thread safety, and ESPHome's
-/// peek byte state (has_peek_/peek_byte_) is not synchronized. The rx_event_task
-/// (when enabled) must not call any of these methods — it communicates with the
-/// main loop exclusively via App.wake_loop_threadsafe().
-class IDFUARTComponent : public UARTComponent, public Component {
+/// peek byte state (has_peek_/peek_byte_) is not synchronized.
+class IDFUARTComponent final : public UARTComponent, public Component {
  public:
+  // User provided, not "= default": `new(p) IDFUARTComponent()` would zero-fill .bss that is already zero.
+  IDFUARTComponent() {}
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -30,12 +33,24 @@ class IDFUARTComponent : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
-  void flush() override;
+  size_t available_for_write() override;
+  UARTFlushResult flush() override;
+
+  void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
+
+  /// TX ring buffer size for the driver; 0 leaves TX unbuffered so write_array() blocks until
+  /// the FIFO has taken everything.
+  void set_tx_buffer_size(size_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
+
+  void set_clock_source(uart_sclk_t clock_source) { this->clock_source_ = static_cast<uint8_t>(clock_source); }
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }
-#ifdef USE_UART_WAKE_LOOP_ON_RX
-  QueueHandle_t *get_uart_event_queue() { return &this->uart_event_queue_; }
-#endif
+
+  /// Discard everything received so far: the peek cache and the driver's RX buffer.
+  void flush_input() {
+    this->has_peek_ = false;
+    uart_flush_input(this->uart_num_);
+  }
 
   /**
    * Load the UART with the current settings.
@@ -50,26 +65,63 @@ class IDFUARTComponent : public UARTComponent, public Component {
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
   void load_settings(bool dump_config) override;
-  void load_settings() override { this->load_settings(true); }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+
+  /**
+   * Apply the current framing (baud rate, parity, data/stop bits) to the installed
+   * driver in place, without the delete/reinstall of load_settings(). Tasks blocked in
+   * the driver survive and the ring buffers are kept, but both hardware FIFOs are
+   * flushed: a frame in flight reaches the peer truncated and bytes not yet out of the
+   * RX FIFO are dropped. No lock is taken: quiesce writers first if that matters.
+   * rx_full_threshold is not rescaled (call set_rx_full_threshold_ms() first if it
+   * should follow the baud rate); a rollback restores the value from the last accepted
+   * configuration, undoing a standalone set_rx_full_threshold() made since. Without an
+   * installed driver this is a full load_settings(false) instead.
+   *
+   * @return ESP_OK once the new framing is live (a line-setting error after that only
+   * logs). On rejection (unreachable baud rate) the previous framing is restored and
+   * the driver's error returned; if the restore fails too the component is marked
+   * failed. ESP_ERR_INVALID_STATE if already failed; ESP_FAIL if the fallback
+   * load_settings() fails.
+   */
+  esp_err_t apply_settings_live();
+
+  void on_shutdown() override;
 
  protected:
   void check_logger_conflict() override;
-  uart_port_t uart_num_;
+#ifdef USE_GPIO_HOLD
+  void set_pins_hold_(bool hold);
+#endif
+  uint32_t line_inversion_mask_();
+  // Re-applies what uart_param_config() resets: inversion, RX threshold/timeout, mode.
+  esp_err_t apply_line_settings_();
+  uart_port_t uart_num_{UART_NUM_MAX};
   uart_config_t get_config_();
 
+  struct Framing {
+    uint32_t baud_rate;
+    uint8_t data_bits;
+    uint8_t stop_bits;
+    UARTParityOptions parity;
+    size_t rx_full_threshold;  // sized for the baud rate, so rolled back with it
+  };
+  Framing framing_() const {
+    return {this->baud_rate_, this->data_bits_, this->stop_bits_, this->parity_, this->rx_full_threshold_};
+  }
+  void set_framing_(const Framing &framing);
+  // Last framing the driver accepted; baud_rate 0 means none yet.
+  Framing last_good_framing_{};
+
   bool has_peek_{false};
-  uint8_t peek_byte_;
+  uint8_t peek_byte_{0};
+  uint8_t clock_source_{UART_SCLK_DEFAULT};  ///< uart_sclk_t stored in a byte; the IDF values are all small.
+  uint32_t flush_timeout_ms_{0};             ///< 0 means wait indefinitely (portMAX_DELAY).
+  size_t tx_buffer_size_{0};
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-  // RX notification support — runs on a separate FreeRTOS task.
-  // IMPORTANT: rx_event_task_func must NOT call any UART wrapper methods (read_array,
-  // write_array, etc.) or touch has_peek_/peek_byte_. It must only read from the
-  // event queue and call App.wake_loop_threadsafe().
-  void start_rx_event_task_();
-  static void rx_event_task_func(void *param);
-
-  QueueHandle_t uart_event_queue_;
-  TaskHandle_t rx_event_task_handle_{nullptr};
+  // ISR callback for UART RX data notification — wakes the main loop directly.
+  static void uart_rx_isr_callback(uart_port_t uart_num, uart_select_notif_t uart_select_notif, BaseType_t *task_woken);
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 };
 

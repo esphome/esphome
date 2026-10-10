@@ -8,10 +8,16 @@
 #include <vector>
 #include <memory>
 
+#if defined(USE_RP2) || defined(USE_LIBRETINY)
+namespace arduino {
 class UDP;
+}  // namespace arduino
+using arduino::UDP;  // NOLINT(google-global-names-in-headers)
+#else
+class UDP;
+#endif
 
-namespace esphome {
-namespace wled {
+namespace esphome::wled {
 
 class WLEDLightEffect : public light::AddressableLightEffect {
  public:
@@ -42,7 +48,6 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   bool blank_on_start_{true};
 };
 
-}  // namespace wled
-}  // namespace esphome
+}  // namespace esphome::wled
 
 #endif  // USE_ARDUINO

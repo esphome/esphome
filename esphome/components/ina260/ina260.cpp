@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ina260 {
+namespace esphome::ina260 {
 
-static const char *const TAG = "ina260";
+ESPHOME_LOG_TAG(TAG, "ina260");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -122,5 +121,4 @@ void INA260Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace ina260
-}  // namespace esphome
+}  // namespace esphome::ina260

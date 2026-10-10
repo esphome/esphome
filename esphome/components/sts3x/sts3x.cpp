@@ -1,10 +1,9 @@
 #include "sts3x.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sts3x {
+namespace esphome::sts3x {
 
-static const char *const TAG = "sts3x";
+ESPHOME_LOG_TAG(TAG, "sts3x");
 
 static const uint16_t STS3X_COMMAND_READ_SERIAL_NUMBER = 0x3780;
 static const uint16_t STS3X_COMMAND_READ_STATUS = 0xF32D;
@@ -66,5 +65,4 @@ void STS3XComponent::update() {
   });
 }
 
-}  // namespace sts3x
-}  // namespace esphome
+}  // namespace esphome::sts3x

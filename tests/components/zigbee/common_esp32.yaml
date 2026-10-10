@@ -1,0 +1,68 @@
+packages:
+  - !include common.yaml
+
+binary_sensor:
+  - platform: template
+    name: "Occupancy Sensor"
+    report: "default"
+    device_class: occupancy
+    cluster: device_class
+    endpoint: 3
+  - platform: template
+    name: "Garage Door Open 12"
+    report: "force"
+    endpoint: 1
+  - platform: template
+    name: "Garage Door Open 13"
+    endpoint: 2
+    use_device_type: false
+
+sensor:
+  - platform: template
+    name: "Temperature Sensor"
+    lambda: return 10.0;
+    device_class: temperature
+    unit_of_measurement: "°C"
+    endpoint: 1
+    use_device_type: true
+    cluster: device_class
+  - platform: template
+    name: "Light Sensor"
+    lambda: return 100.0;
+    device_class: illuminance
+    unit_of_measurement: "lx"
+    endpoint: 2
+    use_device_type: true
+    cluster: device_class
+  - platform: template
+    name: "pressure_sensor"
+    unit_of_measurement: Pa
+    device_class: pressure
+    cluster: device_class
+  - platform: template
+    name: "flow_sensor"
+    unit_of_measurement: L/h
+    device_class: volume_flow_rate
+    cluster: device_class
+
+switch:
+  - platform: template
+    name: "Template Switch 1"
+    optimistic: true
+    cluster: on_off
+  - platform: template
+    name: "Template Switch 2"
+    optimistic: true
+    cluster: on_off
+    device_class: outlet
+
+zigbee:
+  model: zigbee_test
+  router: false
+  power_source: MAINS_SINGLE_PHASE
+  on_join:
+    then:
+      - logger.log: "Joined network"
+  on_start:
+    then:
+      - logger.log: "Started zigbee stack"

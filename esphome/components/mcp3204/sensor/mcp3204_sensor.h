@@ -7,13 +7,12 @@
 
 #include "../mcp3204.h"
 
-namespace esphome {
-namespace mcp3204 {
+namespace esphome::mcp3204 {
 
-class MCP3204Sensor : public PollingComponent,
-                      public Parented<MCP3204>,
-                      public sensor::Sensor,
-                      public voltage_sampler::VoltageSampler {
+class MCP3204Sensor final : public PollingComponent,
+                            public Parented<MCP3204>,
+                            public sensor::Sensor,
+                            public voltage_sampler::VoltageSampler {
  public:
   MCP3204Sensor(uint8_t pin, bool differential_mode) : pin_(pin), differential_mode_(differential_mode) {}
 
@@ -26,5 +25,4 @@ class MCP3204Sensor : public PollingComponent,
   bool differential_mode_;
 };
 
-}  // namespace mcp3204
-}  // namespace esphome
+}  // namespace esphome::mcp3204

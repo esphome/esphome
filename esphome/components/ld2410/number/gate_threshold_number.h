@@ -5,7 +5,7 @@
 
 namespace esphome::ld2410 {
 
-class GateThresholdNumber : public number::Number, public Parented<LD2410Component> {
+class GateThresholdNumber final : public number::Number, public Parented<LD2410Component> {
  public:
   GateThresholdNumber(uint8_t gate);
 

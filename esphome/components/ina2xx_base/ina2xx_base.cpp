@@ -5,10 +5,9 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace ina2xx_base {
+namespace esphome::ina2xx_base {
 
-static const char *const TAG = "ina2xx";
+ESPHOME_LOG_TAG(TAG, "ina2xx");
 
 #define OKFAILED(b) ((b) ? "OK" : "FAILED")
 
@@ -210,7 +209,8 @@ void INA2XX::dump_config() {
                 "  CURRENT_LSB = %f\n"
                 "  SHUNT_CAL = %d",
                 this->shunt_resistance_ohm_, this->max_current_a_, this->shunt_tempco_ppm_c_,
-                (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV", this->current_lsb_,
+                (uint8_t) this->adc_range_,
+                this->adc_range_ ? LOG_STR_LITERAL("±40.96 mV") : LOG_STR_LITERAL("±163.84 mV"), this->current_lsb_,
                 this->shunt_cal_);
 
   ESP_LOGCONFIG(TAG, "  ADC Samples = %d; ADC times: Bus = %d μs, Shunt = %d μs, Temp = %d μs",
@@ -572,9 +572,8 @@ bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
 }
 
 bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
-  static uint8_t rx_buf[5] = {0};  // max buffer size
-
-  if (reg_size > 5) {
+  uint8_t rx_buf[5]{};
+  if (reg_size > sizeof(rx_buf)) {
     return false;
   }
 
@@ -599,11 +598,6 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
 }
 
 int64_t INA2XX::two_complement_(uint64_t value, uint8_t bits) {
-  if (value > (1ULL << (bits - 1))) {
-    return (int64_t) (value - (1ULL << bits));
-  } else {
-    return (int64_t) value;
-  }
+  return (int64_t) (value << (64 - bits)) >> (64 - bits);
 }
-}  // namespace ina2xx_base
-}  // namespace esphome
+}  // namespace esphome::ina2xx_base

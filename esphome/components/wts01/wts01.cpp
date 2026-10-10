@@ -2,15 +2,14 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-namespace esphome {
-namespace wts01 {
+namespace esphome::wts01 {
 
 constexpr uint8_t HEADER_1 = 0x55;
 constexpr uint8_t HEADER_2 = 0x01;
 constexpr uint8_t HEADER_3 = 0x01;
 constexpr uint8_t HEADER_4 = 0x04;
 
-static const char *const TAG = "wts01";
+ESPHOME_LOG_TAG(TAG, "wts01");
 
 void WTS01Sensor::loop() {
   // Process all available data at once
@@ -90,5 +89,4 @@ void WTS01Sensor::process_packet_() {
   this->publish_state(temperature);
 }
 
-}  // namespace wts01
-}  // namespace esphome
+}  // namespace esphome::wts01

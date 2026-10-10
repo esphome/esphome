@@ -5,18 +5,17 @@
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_reader.h"
 #include "esphome/components/audio/audio_decoder.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
-#include "esphome/core/ring_buffer.h"
+#include "esphome/core/static_task.h"
 
 #include "esp_err.h"
 
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 // Internal sink/source buffers for reader and decoder
 static const size_t DEFAULT_TRANSFER_BUFFER_SIZE = 24 * 1024;
@@ -57,7 +56,7 @@ struct InfoErrorEvent {
   optional<DecodingError> decoding_err;
 };
 
-class AudioPipeline {
+class AudioPipeline final {
  public:
   /// @param speaker ESPHome speaker component for pipeline's audio output
   /// @param buffer_size Size of the buffer in bytes between the reader and decoder
@@ -75,7 +74,7 @@ class AudioPipeline {
   /// @brief Starts an audio pipeline given a AudioFile pointer
   /// @param audio_file pointer to an AudioFile object
   /// @return ESP_OK if successful or an appropriate error if not
-  void start_file(audio::AudioFile *audio_file);
+  void start_file(const audio::AudioFile *audio_file);
 
   /// @brief Stops the pipeline. Sends a stop signal to each task (if running) and clears the ring buffers.
   /// @return ESP_OK if successful or ESP_ERR_TIMEOUT if the tasks did not indicate they stopped
@@ -104,9 +103,6 @@ class AudioPipeline {
   /// @return ESP_OK if successful or an appropriate error if not
   esp_err_t start_tasks_();
 
-  /// @brief Resets the task related pointers and deallocates their stacks.
-  void delete_tasks_();
-
   std::string base_name_;
   UBaseType_t priority_;
 
@@ -125,7 +121,7 @@ class AudioPipeline {
   speaker::Speaker *speaker_{nullptr};
 
   std::string current_uri_{};
-  audio::AudioFile *current_audio_file_{nullptr};
+  const audio::AudioFile *current_audio_file_{nullptr};
 
   audio::AudioFileType current_audio_file_type_;
   audio::AudioStreamInfo current_audio_stream_info_;
@@ -133,7 +129,7 @@ class AudioPipeline {
   size_t buffer_size_;           // Ring buffer between reader and decoder
   size_t transfer_buffer_size_;  // Internal source/sink buffers for the audio reader and decoder
 
-  std::weak_ptr<RingBuffer> raw_file_ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> raw_file_ring_buffer_;
 
   // Handles basic control/state of the three tasks
   EventGroupHandle_t event_group_{nullptr};
@@ -143,18 +139,13 @@ class AudioPipeline {
 
   // Handles reading the media file from flash or a url
   static void read_task(void *params);
-  TaskHandle_t read_task_handle_{nullptr};
-  StaticTask_t read_task_stack_;
-  StackType_t *read_task_stack_buffer_{nullptr};
+  StaticTask read_task_;
 
   // Decodes the media file into PCM audio
   static void decode_task(void *params);
-  TaskHandle_t decode_task_handle_{nullptr};
-  StaticTask_t decode_task_stack_;
-  StackType_t *decode_task_stack_buffer_{nullptr};
+  StaticTask decode_task_;
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

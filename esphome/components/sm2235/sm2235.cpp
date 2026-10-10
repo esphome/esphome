@@ -1,10 +1,9 @@
 #include "sm2235.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sm2235 {
+namespace esphome::sm2235 {
 
-static const char *const TAG = "sm2235";
+ESPHOME_LOG_TAG(TAG, "sm2235");
 
 void SM2235::setup() {
   this->data_pin_->setup();
@@ -24,5 +23,4 @@ void SM2235::dump_config() {
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
 }
 
-}  // namespace sm2235
-}  // namespace esphome
+}  // namespace esphome::sm2235

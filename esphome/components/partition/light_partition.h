@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light.h"
 
-namespace esphome {
-namespace partition {
+namespace esphome::partition {
 
 class AddressableSegment {
  public:
@@ -32,7 +31,7 @@ class AddressableSegment {
   bool reversed_;
 };
 
-class PartitionLightOutput : public light::AddressableLight {
+class PartitionLightOutput final : public light::AddressableLight {
  public:
   explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(std::move(segments)) {
     int32_t off = 0;
@@ -93,5 +92,4 @@ class PartitionLightOutput : public light::AddressableLight {
   std::vector<AddressableSegment> segments_;
 };
 
-}  // namespace partition
-}  // namespace esphome
+}  // namespace esphome::partition

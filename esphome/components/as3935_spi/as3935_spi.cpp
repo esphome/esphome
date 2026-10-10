@@ -1,10 +1,9 @@
 #include "as3935_spi.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as3935_spi {
+namespace esphome::as3935_spi {
 
-static const char *const TAG = "as3935_spi";
+ESPHOME_LOG_TAG(TAG, "as3935_spi");
 
 void SPIAS3935Component::setup() {
   this->spi_setup();
@@ -42,5 +41,4 @@ uint8_t SPIAS3935Component::read_register(uint8_t reg) {
   return value;
 }
 
-}  // namespace as3935_spi
-}  // namespace esphome
+}  // namespace esphome::as3935_spi

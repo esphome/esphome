@@ -2,10 +2,9 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp3204 {
+namespace esphome::mcp3204 {
 
-static const char *const TAG = "mcp3204.sensor";
+ESPHOME_LOG_TAG(TAG, "mcp3204.sensor");
 
 void MCP3204Sensor::dump_config() {
   LOG_SENSOR("", "MCP3204 Sensor", this);
@@ -18,5 +17,4 @@ void MCP3204Sensor::dump_config() {
 float MCP3204Sensor::sample() { return this->parent_->read_data(this->pin_, this->differential_mode_); }
 void MCP3204Sensor::update() { this->publish_state(this->sample()); }
 
-}  // namespace mcp3204
-}  // namespace esphome
+}  // namespace esphome::mcp3204

@@ -60,7 +60,7 @@ Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_
 
 namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420";
+ESPHOME_LOG_TAG(TAG, "ld2420");
 
 // Local const's
 static constexpr uint16_t REFRESH_RATE_MS = 1000;
@@ -170,17 +170,19 @@ static uint8_t calc_checksum(void *data, size_t size) {
   return checksum;
 }
 
-static int get_firmware_int(const char *version_string) {
-  std::string version_str = version_string;
-  if (version_str[0] == 'v') {
-    version_str.erase(0, 1);
+static int32_t get_firmware_int(const char *version_string) {
+  // Convert "v1.5.4" -> 154 by skipping 'v' and '.', accumulating digits
+  const char *p = (*version_string == 'v') ? version_string + 1 : version_string;
+  int32_t result = 0;
+  for (; *p != '\0'; p++) {
+    if (*p == '.')
+      continue;
+    if (*p < '0' || *p > '9')
+      return 0;
+    result = result * 10 + (*p - '0');
   }
-  version_str.erase(remove(version_str.begin(), version_str.end(), '.'), version_str.end());
-  int version_integer = stoi(version_str);
-  return version_integer;
+  return result;
 }
-
-float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
 
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -460,6 +462,10 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   uint8_t index = 6;  // Start at presence byte position
   uint16_t range;
   const uint8_t elements = sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]);
+  if (len < static_cast<int>(index + 1 + sizeof(range) + elements * sizeof(this->gate_energy_[0]))) {
+    ESP_LOGW(TAG, "Energy frame too short: %d bytes", len);
+    return;
+  }
   this->set_presence_(buffer[index]);
   index++;
   memcpy(&range, &buffer[index], sizeof(range));
@@ -471,8 +477,11 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   }
 
   if (this->current_operating_mode == OP_CALIBRATE_MODE) {
-    this->update_radar_data(gate_energy_, sample_number_counter);
-    this->sample_number_counter > CALIBRATE_SAMPLES ? this->sample_number_counter = 0 : this->sample_number_counter++;
+    this->update_radar_data(gate_energy_, this->sample_number_counter);
+    this->sample_number_counter++;
+    if (this->sample_number_counter >= CALIBRATE_SAMPLES) {
+      this->sample_number_counter = 0;
+    }
   }
 
   // Resonable refresh rate for home assistant database size health
@@ -503,22 +512,20 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   char *endptr{nullptr};
   char outbuf[bufsize]{0};
   while (true) {
-    if (inbuf[pos - 2] == 'O' && inbuf[pos - 1] == 'F' && inbuf[pos] == 'F') {
+    if (pos >= 2 && inbuf[pos - 2] == 'O' && inbuf[pos - 1] == 'F' && inbuf[pos] == 'F') {
       this->set_presence_(false);
-    } else if (inbuf[pos - 1] == 'O' && inbuf[pos] == 'N') {
+    } else if (pos >= 1 && inbuf[pos - 1] == 'O' && inbuf[pos] == 'N') {
       this->set_presence_(true);
     }
     if (inbuf[pos] >= '0' && inbuf[pos] <= '9') {
       if (index < bufsize - 1) {
         outbuf[index++] = inbuf[pos];
-        pos++;
       }
+    }
+    if (pos < len - 1) {
+      pos++;
     } else {
-      if (pos < len - 1) {
-        pos++;
-      } else {
-        break;
-      }
+      break;
     }
   }
   outbuf[index] = '\0';
@@ -678,7 +685,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       retry = 0;
     }
     if (this->cmd_reply_.error > 0) {
-      this->handle_cmd_error(error);
+      this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
   return error;
@@ -694,7 +701,8 @@ uint8_t LD2420Component::set_config_mode(bool enable) {
     cmd_frame.data_length += sizeof(CMD_PROTOCOL_VER);
   }
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"),
+           cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
 
@@ -737,7 +745,14 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
   this->send_cmd_from_array(cmd_frame);
 }
 
-void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]); }
+void LD2420Component::handle_cmd_error(uint16_t error) {
+  if (error < std::size(ERR_MESSAGE)) {
+    ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]);
+  } else {
+    // The error word comes from the device reply frame; unknown codes must not index ERR_MESSAGE
+    ESP_LOGE(TAG, "Command failed: error 0x%04X", error);
+  }
+}
 
 int LD2420Component::get_gate_threshold_(uint8_t gate) {
   uint8_t error;

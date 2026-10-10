@@ -44,10 +44,9 @@
 #include "sonoff_d1.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace sonoff_d1 {
+namespace esphome::sonoff_d1 {
 
-static const char *const TAG = "sonoff_d1";
+ESPHOME_LOG_TAG(TAG, "sonoff_d1");
 
 // Protocol constants
 static constexpr size_t SONOFF_D1_ACK_SIZE = 7;
@@ -321,5 +320,4 @@ void SonoffD1Output::loop() {
   }
 }
 
-}  // namespace sonoff_d1
-}  // namespace esphome
+}  // namespace esphome::sonoff_d1

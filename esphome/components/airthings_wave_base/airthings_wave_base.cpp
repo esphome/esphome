@@ -6,10 +6,12 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_wave_base {
+namespace esphome::airthings_wave_base {
 
-static const char *const TAG = "airthings_wave_base";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_base");
+
+static constexpr uint32_t BATTERY_READ_TIMEOUT_ID = 0;
+static constexpr uint32_t RESPONSE_TIMEOUT_ID = 1;
 
 void AirthingsWaveBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                             esp_ble_gattc_cb_param_t *param) {
@@ -182,7 +184,7 @@ void AirthingsWaveBase::read_battery_(uint8_t *raw_value, uint16_t value_len) {
     // read the battery again at the configured update interval
     if (this->battery_update_interval_ != this->update_interval_) {
       this->read_battery_next_update_ = false;
-      this->set_timeout("battery", this->battery_update_interval_,
+      this->set_timeout(BATTERY_READ_TIMEOUT_ID, this->battery_update_interval_,
                         [this]() { this->read_battery_next_update_ = true; });
     }
   }
@@ -205,13 +207,12 @@ void AirthingsWaveBase::response_received_() {
 }
 
 void AirthingsWaveBase::set_response_timeout_() {
-  this->set_timeout("response_timeout", 30 * 1000, [this]() {
+  this->set_timeout(RESPONSE_TIMEOUT_ID, 30 * 1000, [this]() {
     this->responses_pending_ = 1;
     this->response_received_();
   });
 }
 
-}  // namespace airthings_wave_base
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_base
 
 #endif  // USE_ESP32

@@ -1,8 +1,7 @@
 #include "logger_handler.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 void esphome_logger(haier_protocol::HaierLogLevel level, const char *tag, const char *message) {
   switch (level) {
@@ -29,5 +28,4 @@ void esphome_logger(haier_protocol::HaierLogLevel level, const char *tag, const 
 
 void init_haier_protocol_logging() { haier_protocol::set_log_handler(esphome::haier::esphome_logger); };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

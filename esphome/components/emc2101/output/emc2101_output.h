@@ -3,11 +3,10 @@
 #include "../emc2101.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace emc2101 {
+namespace esphome::emc2101 {
 
 /// This class allows to control the EMC2101 output.
-class EMC2101Output : public output::FloatOutput {
+class EMC2101Output final : public output::FloatOutput {
  public:
   EMC2101Output(Emc2101Component *parent) : parent_(parent) {}
 
@@ -18,5 +17,4 @@ class EMC2101Output : public output::FloatOutput {
   Emc2101Component *parent_;
 };
 
-}  // namespace emc2101
-}  // namespace esphome
+}  // namespace esphome::emc2101

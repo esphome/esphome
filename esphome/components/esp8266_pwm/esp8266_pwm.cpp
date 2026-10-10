@@ -8,10 +8,9 @@
 
 #include <core_esp8266_waveform.h>
 
-namespace esphome {
-namespace esp8266_pwm {
+namespace esphome::esp8266_pwm {
 
-static const char *const TAG = "esp8266_pwm";
+ESPHOME_LOG_TAG(TAG, "esp8266_pwm");
 
 void ESP8266PWM::setup() {
   this->pin_->setup();
@@ -53,7 +52,6 @@ void HOT ESP8266PWM::write_state(float state) {
   }
 }
 
-}  // namespace esp8266_pwm
-}  // namespace esphome
+}  // namespace esphome::esp8266_pwm
 
 #endif

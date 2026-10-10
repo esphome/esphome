@@ -4,10 +4,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
-class HomeassistantNumber : public number::Number, public Component {
+class HomeassistantNumber final : public number::Number, public Component {
  public:
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
 
@@ -25,5 +24,4 @@ class HomeassistantNumber : public number::Number, public Component {
 
   const char *entity_id_{nullptr};
 };
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

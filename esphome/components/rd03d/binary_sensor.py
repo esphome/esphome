@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_TARGET, DEVICE_CLASS_OCCUPANCY
+from esphome.types import ConfigType
 
 from . import CONF_RD03D_ID, RD03DComponent
 
@@ -26,12 +27,11 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_RD03D_ID])
 
-    if target_config := config.get(CONF_TARGET):
-        sens = await binary_sensor.new_binary_sensor(target_config)
-        cg.add(hub.set_target_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_TARGET, hub.set_target_binary_sensor)
 
     for i in range(MAX_TARGETS):
         if target_config := config.get(f"target_{i + 1}"):

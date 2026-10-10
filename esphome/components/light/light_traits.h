@@ -3,15 +3,7 @@
 #include "color_mode.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-
-#ifdef USE_API
-namespace api {
-class APIConnection;
-}  // namespace api
-#endif
-
-namespace light {
+namespace esphome::light {
 
 /// This class is used to represent the capabilities of a light.
 class LightTraits {
@@ -43,5 +35,4 @@ class LightTraits {
   ColorModeMask supported_color_modes_{};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
