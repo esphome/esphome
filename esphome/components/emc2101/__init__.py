@@ -1,10 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_RESOLUTION
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ellull"]
+DOMAIN = "emc2101"
 
 DEPENDENCIES = ["i2c"]
 
@@ -13,7 +15,6 @@ MULTI_CONF = True
 CONF_PWM = "pwm"
 CONF_DIVIDER = "divider"
 CONF_DAC = "dac"
-CONF_CONVERSION_RATE = "conversion_rate"
 
 CONF_EMC2101_ID = "emc2101_id"
 

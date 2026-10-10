@@ -5,16 +5,17 @@
 #include "api_buffer.h"
 // Must precede clients_ so APIConnection is complete for default_delete (libc++).
 #include "api_connection.h"
-#ifdef USE_API_NOISE
+#if defined(USE_API_NOISE) || defined(USE_NOISE_SPARE_EPHEMERAL)
 // Only present in the build when the noise component is loaded
 #include "esphome/components/noise/noise.h"
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
+#include "api_outgoing_connection.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
+#include "esphome/core/entity_includes.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #ifdef USE_PROVISIONING
@@ -43,9 +44,13 @@ struct SavedNoisePsk {
   noise::psk_t psk;
 } PACKED;  // NOLINT
 #endif
+#if defined(USE_API_NOISE) && defined(USE_OTA_ENCRYPTION_PROVISIONED)
+/// One-shot read of the provisioned key for a boot without an api server (safe mode); false when
+/// there is no key
+bool load_saved_noise_psk(noise::psk_t &out);
+#endif
 
-class APIServer final : public Component,
-                        public Controller
+class APIServer final : public Component
 #ifdef USE_CAMERA
     ,
                         public camera::CameraListener
@@ -86,61 +91,65 @@ class APIServer final : public Component,
   void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }
   noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Called by APIConnection when a client declares itself a dial-back target in its hello
+  void on_outgoing_target_client(APIConnection *conn);
+#endif
 
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj);
 #endif
 #ifdef USE_COVER
-  void on_cover_update(cover::Cover *obj) override;
+  void on_cover_update(cover::Cover *obj);
 #endif
 #ifdef USE_FAN
-  void on_fan_update(fan::Fan *obj) override;
+  void on_fan_update(fan::Fan *obj);
 #endif
 #ifdef USE_LIGHT
-  void on_light_update(light::LightState *obj) override;
+  void on_light_update(light::LightState *obj);
 #endif
 #ifdef USE_SENSOR
-  void on_sensor_update(sensor::Sensor *obj) override;
+  void on_sensor_update(sensor::Sensor *obj);
 #endif
 #ifdef USE_SWITCH
-  void on_switch_update(switch_::Switch *obj) override;
+  void on_switch_update(switch_::Switch *obj);
 #endif
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj);
 #endif
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::Climate *obj) override;
+  void on_climate_update(climate::Climate *obj);
 #endif
 #ifdef USE_NUMBER
-  void on_number_update(number::Number *obj) override;
+  void on_number_update(number::Number *obj);
 #endif
 #ifdef USE_DATETIME_DATE
-  void on_date_update(datetime::DateEntity *obj) override;
+  void on_date_update(datetime::DateEntity *obj);
 #endif
 #ifdef USE_DATETIME_TIME
-  void on_time_update(datetime::TimeEntity *obj) override;
+  void on_time_update(datetime::TimeEntity *obj);
 #endif
 #ifdef USE_DATETIME_DATETIME
-  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  void on_datetime_update(datetime::DateTimeEntity *obj);
 #endif
 #ifdef USE_TEXT
-  void on_text_update(text::Text *obj) override;
+  void on_text_update(text::Text *obj);
 #endif
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj) override;
+  void on_select_update(select::Select *obj);
 #endif
 #ifdef USE_LOCK
-  void on_lock_update(lock::Lock *obj) override;
+  void on_lock_update(lock::Lock *obj);
 #endif
 #ifdef USE_VALVE
-  void on_valve_update(valve::Valve *obj) override;
+  void on_valve_update(valve::Valve *obj);
 #endif
 #ifdef USE_MEDIA_PLAYER
-  void on_media_player_update(media_player::MediaPlayer *obj) override;
+  void on_media_player_update(media_player::MediaPlayer *obj);
 #endif
 #ifdef USE_WATER_HEATER
-  void on_water_heater_update(water_heater::WaterHeater *obj) override;
+  void on_water_heater_update(water_heater::WaterHeater *obj);
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call);
@@ -183,18 +192,22 @@ class APIServer final : public Component,
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
 #endif
 #ifdef USE_EVENT
-  void on_event(event::Event *obj) override;
+  void on_event(event::Event *obj);
 #endif
 #ifdef USE_UPDATE
-  void on_update(update::UpdateEntity *obj) override;
+  void on_update(update::UpdateEntity *obj);
 #endif
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// Tell every subscribed client that a serial proxy port's identity changed
+  void send_serial_proxy_identity(const SerialProxyIdentity &msg);
+#endif
+#ifdef USE_IR_RF
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
@@ -263,6 +276,16 @@ class APIServer final : public Component,
  protected:
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
+  /// Takes the socket into a new connection and starts it; callers must have
+  /// checked at_client_limit_() first
+  APIConnection *add_client_(std::unique_ptr<socket::Socket> sock);
+  bool at_client_limit_() const { return this->api_connection_count_ >= MAX_API_CONNECTIONS; }
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Returns the new connection, or nullptr (socket dropped) when at the limit
+  APIConnection *add_outgoing_client_(std::unique_ptr<socket::Socket> sock);
+  bool has_outgoing_target_client_() const { return this->outgoing_target_count_ != 0; }
+  friend class OutgoingConnectionManager;
+#endif
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
@@ -303,6 +326,8 @@ class APIServer final : public Component,
     delete this->socket_;
     this->socket_ = nullptr;
   }
+  /// Log the failure, drop the listen socket, and mark the component failed
+  /// unless this build can still dial out
   void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
   socket::ListenSocket *socket_{nullptr};
@@ -314,7 +339,7 @@ class APIServer final : public Component,
 #endif
 
   // 4-byte aligned types
-  uint32_t reboot_timeout_{300000};
+  uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t last_connected_{0};
 
   // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.
@@ -351,18 +376,23 @@ class APIServer final : public Component,
 #endif
 
   // Group smaller types together
-  uint16_t port_{6053};
-  uint16_t batch_delay_{100};
-  // Connection limits - these defaults will be overridden by config values
-  // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
-  uint8_t listen_backlog_{4};
+  uint16_t port_{6053};        // Keep in sync with DEFAULT_PORT in __init__.py
+  uint16_t batch_delay_{100};  // Keep in sync with DEFAULT_BATCH_DELAY in __init__.py
+  uint8_t listen_backlog_{4};  // Keep in sync with DEFAULT_LISTEN_BACKLOG in __init__.py
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Connected clients whose hello declared them a dial-back target
+  uint8_t outgoing_target_count_{0};
+#endif
 #if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
   // Index assigned by the provisioning manager for reporting this transport's state.
   uint8_t provisioning_source_{0};
 #endif
 
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+  void refill_spare_ephemeral_();
+#endif
 #ifdef USE_API_NOISE
   noise::NoiseContext noise_ctx_;
 #ifndef USE_API_NOISE_PSK_FROM_YAML
@@ -370,6 +400,9 @@ class APIServer final : public Component,
 #endif
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  OutgoingConnectionManager outgoing_conn_;
+#endif
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

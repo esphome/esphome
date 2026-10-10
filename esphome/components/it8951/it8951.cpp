@@ -10,7 +10,7 @@
 
 namespace esphome::it8951 {
 
-static const char *const TAG = "it8951";
+ESPHOME_LOG_TAG(TAG, "it8951");
 
 // Soft cap for time spent in a single XFER_ROWS Op so we yield back to the
 // loop within one tick budget.
@@ -349,6 +349,12 @@ void IT8951Display::setup() {
 void IT8951Display::on_safe_shutdown() {
   // Best-effort synchronous sleep — runs during shutdown so we don't queue.
   this->spi_cmd_(TCON_SLEEP);
+}
+
+void IT8951Display::on_powerdown() {
+  for (auto *pin : this->enable_pins_) {
+    pin->digital_write(false);
+  }
 }
 
 // --- Init op enqueuers -------------------------------------------------------
@@ -777,12 +783,12 @@ void IT8951Display::update() {
 }
 
 void IT8951Display::update_mode(UpdateMode mode) {
-  if (!this->is_ready())
-    return;
   if (mode == UPDATE_MODE_NONE) {
-    ESP_LOGW(TAG, "Unknown update mode");
+    this->update();
     return;
   }
+  if (!this->is_ready())
+    return;
   this->start_update_(mode);
 }
 
@@ -855,7 +861,7 @@ void IT8951Display::apply_transform_(int &x, int &y) const {
 }
 
 bool IT8951Display::rotate_coordinates_(int &x, int &y) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   this->apply_transform_(x, y);
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
@@ -929,7 +935,7 @@ void IT8951Display::fill(Color color) {
 void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   if (this->buffer_ == nullptr)
     return;
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
   if (!this->rotate_coordinates_(x, y))
     return;
   this->write_pixel_native_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), color);

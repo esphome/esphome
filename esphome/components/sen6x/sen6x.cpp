@@ -5,7 +5,7 @@
 
 namespace esphome::sen6x {
 
-static const char *const TAG = "sen6x";
+ESPHOME_LOG_TAG(TAG, "sen6x");
 
 static constexpr uint8_t POLL_RETRIES = 24;     // 24 attempts
 static constexpr uint32_t I2C_READ_DELAY = 20;  // 20 ms to wait for I2C read to complete

@@ -36,14 +36,13 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_ID])
+    hub = await cg.get_variable(config[CONF_ID])
 
     if phase_cfg := config.get(CONF_PHASE_STATUS):
         for i, key in enumerate(PHASE_KEYS):
             if sub_phase_cfg := phase_cfg.get(key):
                 sens = await text_sensor.new_text_sensor(sub_phase_cfg)
-                cg.add(parent.set_phase_status_text_sensor(i, sens))
+                cg.add(hub.set_phase_status_text_sensor(i, sens))
 
-    if freq_status_config := config.get(CONF_FREQUENCY_STATUS):
-        sens = await text_sensor.new_text_sensor(freq_status_config)
-        cg.add(parent.set_freq_status_text_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_FREQUENCY_STATUS, hub.set_freq_status_text_sensor)

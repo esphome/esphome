@@ -21,8 +21,6 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
   int conf_offset, ep_offset;
   // look for an interface with an interrupt endpoint (notify), and one with two bulk endpoints (data in/out)
   CdcEps eps{};
-  eps.bulk_interface_number = 0xFF;
-  eps.interrupt_interface_number = 0xFF;
   for (;;) {
     const auto *intf_desc = usb_parse_interface_descriptor(config_desc, intf_idx++, 0, &conf_offset);
     if (!intf_desc) {
@@ -431,15 +429,20 @@ void USBUartTypeCdcAcm::on_connected() {
     // they enable data flow on the bulk endpoints.
     if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
         channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
-      auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
-                                               channel->cdc_dev_.interrupt_interface_number, 0);
-      if (err_comm != ESP_OK) {
-        // Continue anyway: the interface number stays valid for CDC request addressing
-        ESP_LOGW(TAG, "Could not claim comm interface %d: %s", channel->cdc_dev_.interrupt_interface_number,
-                 esp_err_to_name(err_comm));
+      if (!this->claim_comm_interface_) {
+        ESP_LOGD(TAG, "Skipping comm interface %d (claim_comm_interface: false)",
+                 channel->cdc_dev_.interrupt_interface_number);
       } else {
-        ESP_LOGD(TAG, "Claimed comm interface %d", channel->cdc_dev_.interrupt_interface_number);
-        channel->cdc_dev_.interrupt_interface_claimed = true;
+        auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
+                                                 channel->cdc_dev_.interrupt_interface_number, 0);
+        if (err_comm != ESP_OK) {
+          // Continue anyway: the interface number stays valid for CDC request addressing
+          ESP_LOGW(TAG, "Could not claim comm interface %d: %s", channel->cdc_dev_.interrupt_interface_number,
+                   esp_err_to_name(err_comm));
+        } else {
+          ESP_LOGD(TAG, "Claimed comm interface %d", channel->cdc_dev_.interrupt_interface_number);
+          channel->cdc_dev_.interrupt_interface_claimed = true;
+        }
       }
     }
     auto err =
@@ -458,10 +461,12 @@ void USBUartTypeCdcAcm::on_connected() {
 
 void USBUartTypeCdcAcm::on_disconnected() {
   for (auto *channel : this->channels_) {
-    if (channel->cdc_dev_.in_ep != nullptr) {
-      usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
-      usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
-    }
+    // Not set up for this device: it was rejected before on_connected() ran, or it has
+    // fewer ports than there are channels. Nothing was claimed for it.
+    if (channel->cdc_dev_.in_ep == nullptr)
+      continue;
+    usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
+    usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
     if (channel->cdc_dev_.out_ep != nullptr) {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
@@ -489,6 +494,8 @@ void USBUartTypeCdcAcm::on_disconnected() {
       }
     }
     channel->initialised_.store(false);
+    // The descriptors these point into are freed with the device
+    channel->cdc_dev_ = {};
   }
   USBClient::on_disconnected();
 }
@@ -655,6 +662,8 @@ bool USBUartComponent::run_config_machine_() {
     this->cfg_single_ = nullptr;
   } else if (++this->cfg_channel_idx_ >= this->channels_.size()) {
     this->cfg_active_ = false;
+    // Init is done and the line settings are on the wire: now the device is ready to use
+    this->report_connected_();
   }
 
   // If the machine just went idle and a reload was requested while it was busy, start it now.

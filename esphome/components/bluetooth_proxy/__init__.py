@@ -58,6 +58,7 @@ _HUB_PLATFORMS = (PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
 CODEOWNERS = ["@jesserockz", "@bdraco"]
+DOMAIN = "bluetooth_proxy"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -393,6 +394,17 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     cg.add(var.set_ble_hub(hub))
 
     await _connections_to_code(var, config)
+
+
+def enable_advertisement_filter() -> None:
+    """Compile the advertisement filter hook into bluetooth_proxy.
+
+    Called by external filtering components from to_code(). The define behind
+    this is an implementation detail; do not emit it directly.
+
+    Public API for external components. Do not remove.
+    """
+    cg.add_define("USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER")
 
 
 async def to_code(config: ConfigType) -> None:

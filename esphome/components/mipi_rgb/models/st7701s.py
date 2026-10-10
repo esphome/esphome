@@ -7,6 +7,10 @@ SDIR_CMD = 0xC7
 
 
 class ST7701S(RgbDriverChip):
+    def __init__(self, *args, reset_delay=50, **kwargs):
+        kwargs["reset_delay"] = reset_delay
+        super().__init__(*args, **kwargs)
+
     # The ST7701s does not use the standard MADCTL bits for x/y mirroring
     def add_madctl(self, sequence: list, config: dict) -> int:
         transform = self.get_transform(config)
@@ -49,7 +53,6 @@ st7701s = ST7701S(
     pclk_frequency="16MHz",
     pclk_inverted=True,
     initsequence=(
-        (0x01,),  # Software Reset
         (0xFF, 0x77, 0x01, 0x00, 0x00, 0x10),  # Page 0
         (0xC0, 0x3B, 0x00), (0xC1, 0x0D, 0x02), (0xC2, 0x31, 0x05),
         (0xB0, 0x00, 0x11, 0x18, 0x0E, 0x11, 0x06, 0x07, 0x08, 0x07, 0x22, 0x04, 0x12, 0x0F, 0xAA, 0x31, 0x18,),
