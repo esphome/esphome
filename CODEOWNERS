@@ -454,6 +454,7 @@ esphome/components/rd03d/* @jasstrong
 esphome/components/resampler/speaker/* @kahrendt
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
+esphome/components/rfc2217_uart/* @Bascht74
 esphome/components/rgbct/* @jesserockz
 esphome/components/ring_buffer/* @kahrendt
 esphome/components/router/speaker/* @kahrendt

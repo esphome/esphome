@@ -1,0 +1,4 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+  rfc2217_uart: !include common.yaml
+  rfc2217_uart_server: !include common-server.yaml

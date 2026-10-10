@@ -1,0 +1,8 @@
+# Server alone: builds without the client and the virtual UART base.
+packages:
+  rfc2217_uart_server: !include common-server.yaml
+
+uart:
+  - id: uart_bus
+    baud_rate: 9600
+    port: /dev/ttyS0
