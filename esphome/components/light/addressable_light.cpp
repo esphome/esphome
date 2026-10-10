@@ -30,16 +30,18 @@ void AddressableLight::apply_power_limit_() {
 
   // Recover the unscaled draw (the buffer already includes power_scale_) so the new scale is
   // computed against the intended draw and stays stable. Only the pixel-driven part scales with
-  // power_scale_; the idle draw is constant and must not be un-scaled with it. The scale is
-  // applied non-destructively through the color correction, which dims every future write
-  // (static, transitions, effects) and is inverted on read-back, so effect buffers never compound.
+  // power_scale_; the idle draw is constant, so the scale divides the budget left after the idle
+  // draw among the pixels. The scale is applied non-destructively through the color correction,
+  // which dims every future write (static, transitions, effects) and is inverted on read-back, so
+  // effect buffers never compound.
   float idle_total = this->size() * this->idle_ma_per_led_;
   float pixel_ma = estimated - idle_total;
-  float intended = (this->power_scale_ > 0) ? pixel_ma * 255.0f / this->power_scale_ + idle_total : estimated;
-  // Clamp to at least 1 so a pathological budget can't drive the scale to 0, which would black
-  // out the strip and make the next frame's estimate oscillate back to full brightness.
-  this->power_scale_ = (intended > this->max_current_ma_)
-                           ? static_cast<uint8_t>(std::max((this->max_current_ma_ / intended) * 255.0f, 1.0f))
+  float pixel_intended = (this->power_scale_ > 0) ? pixel_ma * 255.0f / this->power_scale_ : pixel_ma;
+  float pixel_budget = this->max_current_ma_ - idle_total;
+  // Clamp to at least 1 so a budget at or below the idle draw can't drive the scale to 0, which
+  // would black out the strip and make the next frame's estimate oscillate back to full brightness.
+  this->power_scale_ = (pixel_intended > pixel_budget)
+                           ? static_cast<uint8_t>(std::max((pixel_budget / pixel_intended) * 255.0f, 1.0f))
                            : uint8_t(255);
   this->correction_.set_power_brightness(this->power_scale_);
 }
