@@ -1736,8 +1736,7 @@ def test_tcp_retransmits(platform: str, info: bytes, expected: int | None) -> No
 
 
 def test_udp_channel_reports_socket_errors() -> None:
-    """A dead link still fails after the no-progress timeout, naming the socket
-    error behind it."""
+    """A closed device port fails fast instead of waiting out the timeout."""
     gone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     gone.bind(("127.0.0.1", 0))
     addr = gone.getsockname()
@@ -1745,12 +1744,36 @@ def test_udp_channel_reports_socket_errors() -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect(addr)
     channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
-    channel.settimeout(0.5)
-    with pytest.raises(
-        espota2.OTANetworkError, match="no progress over UDP.*last error"
-    ):
+    channel.settimeout(60.0)
+    with pytest.raises(espota2.OTANetworkError, match="closed its UDP port"):
         channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
+    # A probe that is refused falls back instead
+    assert not espota2.UdpChannel(sock, b"\x01\x01\x01\x01").probe()
     channel.close()
+
+
+def test_udp_channel_no_progress_names_last_error() -> None:
+    """Without refusals, the no-progress timeout names the last socket error."""
+    sock = Mock()
+    sock.send.side_effect = BlockingIOError(35, "full")
+    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+    channel.settimeout(0.2)
+    channel.sendall(b"x")
+    with (
+        patch("select.select", return_value=([], [], [])),
+        pytest.raises(espota2.OTANetworkError, match="no progress.*full"),
+    ):
+        while True:
+            channel._pump()
+
+
+def test_udp_channel_ack_resets_refusals() -> None:
+    """Refusals only count in a row; an ACK in between resets them."""
+    channel = espota2.UdpChannel(Mock(), b"\x01\x01\x01\x01")
+    ack = bytes([espota2.UDP_MSG_ACK]) + b"\x01\x01\x01\x01" + bytes(6) + b"\x40"
+    for _ in range(espota2.UDP_REFUSALS * 2):
+        channel._socket_error(ConnectionRefusedError(61, "refused"))
+        channel._handle_ack(ack)
 
 
 def _udp_handshake() -> list[bytes]:

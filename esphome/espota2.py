@@ -142,6 +142,8 @@ UDP_RESEND_MIN = 0.2
 UDP_RESEND_MAX = 2.0
 # Acks still asking for the head after later messages arrived; resend it once
 UDP_DUP_ACKS = 2
+# Refusals in a row with no ACK between: the device's UDP port is closed
+UDP_REFUSALS = 3
 UDP_FALLBACK = b"\x00"
 # The UDP format this client speaks; devices decline values they do not know
 UDP_REQUEST = b"\x01"
@@ -621,6 +623,7 @@ class UdpChannel:
         self._sends = 0
         # Last socket error, e.g. refused once the device's socket is gone
         self._last_error: OSError | None = None
+        self._refusals = 0
 
     def settimeout(self, timeout: float) -> None:
         self._timeout = timeout
@@ -640,11 +643,14 @@ class UdpChannel:
     def probe(self) -> bool:
         """True once the device answers over UDP within UDP_PROBE_TIMEOUT."""
         deadline = time.monotonic() + UDP_PROBE_TIMEOUT
-        while (now := time.monotonic()) < deadline:
-            self._send(UDP_MSG_PROBE, 0, b"")
-            self._receive(min(UDP_PROBE_INTERVAL, deadline - now))
-            if self._committed:
-                return True
+        try:
+            while (now := time.monotonic()) < deadline:
+                self._send(UDP_MSG_PROBE, 0, b"")
+                self._receive(min(UDP_PROBE_INTERVAL, deadline - now))
+                if self._committed:
+                    return True
+        except OTANetworkError:
+            pass  # rejected, e.g. by a firewall
         return False
 
     def sendall(self, data: bytes) -> None:
@@ -740,6 +746,10 @@ class UdpChannel:
         if self._last_error is None or err.errno != self._last_error.errno:
             _LOGGER.debug("UDP socket error: %s", err)
         self._last_error = err
+        if isinstance(err, ConnectionRefusedError):
+            self._refusals += 1
+            if self._refusals >= UDP_REFUSALS:
+                raise OTANetworkError(f"device closed its UDP port: {err}")
 
     def _sample_rtt(self, sample: float) -> None:
         # RFC 6298 smoothing
@@ -758,6 +768,7 @@ class UdpChannel:
             return
         now = time.monotonic()
         self._committed = True
+        self._refusals = 0
         received = int.from_bytes(data[5:7], "big")
         prompted = int.from_bytes(data[7:9], "big")
         self._free = data[11] >> 4
