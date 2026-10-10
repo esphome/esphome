@@ -27,6 +27,7 @@ const uint8_t MITSUBISHI_WIDE_VANE_SWING = 0xC0;
 
 const uint8_t MITSUBISHI_FAN_AUTO = 0x00;
 
+const uint8_t MITSUBISHI_VERTICAL_VANE_MASK = 0x38;  // Bits 3,4,5
 const uint8_t MITSUBISHI_VERTICAL_VANE_SWING = 0x38;
 
 // const uint8_t MITSUBISHI_AUTO = 0x80;
@@ -52,7 +53,6 @@ const uint8_t MITSUBISHI_BYTE02 = 0x26;
 const uint8_t MITSUBISHI_BYTE03 = 0x01;
 const uint8_t MITSUBISHI_BYTE04 = 0x00;
 const uint8_t MITSUBISHI_BYTE13 = 0x00;
-const uint8_t MITSUBISHI_BYTE16 = 0x00;
 
 // Byte 7 codes for 61°F through 88°F. Bit 4 is the half degree bit Mitsubishi uses so every Fahrenheit degree
 // maps to its own code.
@@ -100,7 +100,7 @@ void MitsubishiClimate::transmit_state() {
   // Byte 13: Constant 0x00
   // Byte 14: HVAC specfic, i.e. ECONO COOL, CLEAN MODE, always 0x00
   // Byte 15: HVAC specfic, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
-  // Byte 16: Constant 0x00
+  // Byte 16: Left vane control (for specific models). Constants match right vane controls.
   // Byte 17: Checksum: SUM[Byte0...Byte16]
   uint8_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -214,7 +214,7 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "default_vertical_direction_: %02X", this->default_vertical_direction_);
+  ESP_LOGD(TAG, "Vertical default: 0x%02X, vanes: %u", this->default_vertical_direction_, this->vertical_vanes_);
 
   // Special modes
   switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
@@ -234,6 +234,11 @@ void MitsubishiClimate::transmit_state() {
     case climate::CLIMATE_PRESET_NONE:
     default:
       break;
+  }
+
+  if (this->vertical_vanes_ > 1) {
+    // Heads with two vertical vanes carry the left vane in byte 16; it follows the right one, presets included
+    remote_state[16] = remote_state[9] & MITSUBISHI_VERTICAL_VANE_MASK;
   }
 
   // Checksum
@@ -296,11 +301,11 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
     state_frame[pos] = byte;
 
-    // Check Header && Footer
+    // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
     if ((pos == 0 && byte != MITSUBISHI_BYTE00) || (pos == 1 && byte != MITSUBISHI_BYTE01) ||
         (pos == 2 && byte != MITSUBISHI_BYTE02) || (pos == 3 && byte != MITSUBISHI_BYTE03) ||
         (pos == 4 && byte != MITSUBISHI_BYTE04) || (pos == 13 && byte != MITSUBISHI_BYTE13) ||
-        (pos == 16 && byte != MITSUBISHI_BYTE16)) {
+        (pos == 16 && (byte & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0)) {
       ESP_LOGV(TAG, "Bytes 0,1,2,3,4,13 or 16 fail - invalid value");
       return false;
     }
@@ -362,7 +367,9 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Vertical Vane
-  uint8_t vertical_vane = state_frame[9] & 0x38;  // Bits 3,4,5
+  // On dual vane heads, the left vane is in [16] and right vane is in [9]. Left is ignored here because
+  // the swing_mode enum doesn't convey that level of detail.
+  uint8_t vertical_vane = state_frame[9] & MITSUBISHI_VERTICAL_VANE_MASK;
   switch (vertical_vane) {
     case MITSUBISHI_VERTICAL_VANE_SWING:
       if (this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL) {
