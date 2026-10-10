@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include <algorithm>
+
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
@@ -45,5 +47,18 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
   int32_t val = clamp<int32_t>((this->baud_rate_ / (bytelength * 1000 / time)) - 1, 1, 120);
   this->set_rx_full_threshold(val);
 }
+
+#ifdef USE_ESP8266
+void UARTComponent::write_array_progmem(const uint8_t *data, size_t len) {
+  uint8_t buf[32];
+  while (len > 0) {
+    const size_t chunk = std::min(len, sizeof(buf));
+    progmem_memcpy(buf, data, chunk);
+    this->write_array(buf, chunk);
+    data += chunk;
+    len -= chunk;
+  }
+}
+#endif
 
 }  // namespace esphome::uart
