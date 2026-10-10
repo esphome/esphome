@@ -7,10 +7,6 @@ on:
 permissions:
   pull-requests: read  # issues.listLabelsOnIssue to detect blocking labels (needs-docs, needs-developer-docs, merge-after-release, chained-pr)
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   check:
     name: Check blocking labels

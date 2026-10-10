@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
@@ -56,30 +55,6 @@ class UFireECComponent final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ec_sensor_{nullptr};
   float temperature_compensation_{0.0};
   float temperature_coefficient_{0.0};
-};
-
-template<typename... Ts> class UFireECCalibrateProbeAction final : public Action<Ts...> {
- public:
-  UFireECCalibrateProbeAction(UFireECComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, solution)
-  TEMPLATABLE_VALUE(float, temperature)
-
-  void play(const Ts &...x) override {
-    this->parent_->calibrate_probe(this->solution_.value(x...), this->temperature_.value(x...));
-  }
-
- protected:
-  UFireECComponent *parent_;
-};
-
-template<typename... Ts> class UFireECResetAction final : public Action<Ts...> {
- public:
-  UFireECResetAction(UFireECComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->reset_board(); }
-
- protected:
-  UFireECComponent *parent_;
 };
 
 }  // namespace esphome::ufire_ec

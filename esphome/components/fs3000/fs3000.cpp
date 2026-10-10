@@ -3,7 +3,7 @@
 
 namespace esphome::fs3000 {
 
-static const char *const TAG = "fs3000";
+ESPHOME_LOG_TAG(TAG, "fs3000");
 
 void FS3000Component::setup() {
   if (model_ == FIVE) {

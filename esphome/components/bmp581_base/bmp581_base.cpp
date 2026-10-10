@@ -17,7 +17,9 @@
 
 namespace esphome::bmp581_base {
 
-static const char *const TAG = "bmp581";
+ESPHOME_LOG_TAG(TAG, "bmp581");
+
+static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 
 // Oversampling strings indexed by Oversampling enum (0-7): NONE, X2, X4, X8, X16, X32, X64, X128
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
@@ -272,7 +274,7 @@ void BMP581Component::update() {
 
   ESP_LOGVV(TAG, "Measurement should take %d ms", this->conversion_time_);
 
-  this->set_timeout("measurement", this->conversion_time_, [this]() {
+  this->set_timeout(MEASUREMENT_TIMEOUT_ID, this->conversion_time_, [this]() {
     float temperature = 0.0;
     float pressure = 0.0;
 

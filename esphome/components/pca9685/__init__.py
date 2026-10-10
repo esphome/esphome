@@ -10,6 +10,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pca9685"
 MULTI_CONF = True
 
 pca9685_ns = cg.esphome_ns.namespace("pca9685")
