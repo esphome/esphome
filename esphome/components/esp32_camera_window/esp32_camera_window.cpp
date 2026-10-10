@@ -303,8 +303,8 @@ void Esp32CameraWindow::setup() {
     ESP_LOGE(TAG, "No sensor; the camera has not finished setting up");
     return;
   }
-  if (!is_window_supported_(sensor)) {
-    ESP_LOGW(TAG, "%s does not support windows, so no window is used", sensor_name_(sensor));
+  if (!is_window_supported(sensor)) {
+    ESP_LOGW(TAG, "%s does not support windows, so no window is used", sensor_name(sensor));
     return;
   }
 
@@ -324,8 +324,8 @@ void Esp32CameraWindow::dump_config() {
     ESP_LOGCONFIG(TAG, "  No sensor");
     return;
   }
-  ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor_name_(sensor));
-  ESP_LOGCONFIG(TAG, "  Window support: %s", YESNO(is_window_supported_(sensor)));
+  ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor_name(sensor));
+  ESP_LOGCONFIG(TAG, "  Window support: %s", YESNO(is_window_supported(sensor)));
   if (this->initial_window_.enabled) {
     ESP_LOGCONFIG(TAG, "  Window: offset %d,%d size %dx%d", this->initial_window_.offset_x,
                   this->initial_window_.offset_y, this->initial_window_.width, this->initial_window_.height);
@@ -342,8 +342,8 @@ bool Esp32CameraWindow::set_window(int offset_x, int offset_y, int width, int he
     ESP_LOGE(TAG, "No sensor; the camera has not finished setting up");
     return false;
   }
-  if (!is_window_supported_(sensor)) {
-    ESP_LOGE(TAG, "%s does not support windows", sensor_name_(sensor));
+  if (!is_window_supported(sensor)) {
+    ESP_LOGE(TAG, "%s does not support windows", sensor_name(sensor));
     return false;
   }
 
@@ -365,8 +365,8 @@ bool Esp32CameraWindow::reset_window() {
     ESP_LOGE(TAG, "No sensor; the camera has not finished setting up");
     return false;
   }
-  if (!is_window_supported_(sensor)) {
-    ESP_LOGE(TAG, "%s does not support windows", sensor_name_(sensor));
+  if (!is_window_supported(sensor)) {
+    ESP_LOGE(TAG, "%s does not support windows", sensor_name(sensor));
     return false;
   }
 
@@ -387,7 +387,7 @@ bool Esp32CameraWindow::supports_window() const {
   if (this->camera_ == nullptr)
     return false;
   sensor_t *sensor = esp_camera_sensor_get();
-  return sensor != nullptr && is_window_supported_(sensor);
+  return sensor != nullptr && is_window_supported(sensor);
 }
 
 bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &window) {
@@ -410,19 +410,19 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
         ESP_LOGE(TAG,
                  "%s reads out a window as it is and cannot scale it, so a window has to be the size of "
                  "the %dx%d frame; %dx%d was asked for",
-                 sensor_name_(sensor), frame.width, frame.height, window.width, window.height);
+                 sensor_name(sensor), frame.width, frame.height, window.width, window.height);
         return false;
       }
       const ScWindowFormat &format = sensor->id.PID == SC101IOT_PID ? SC101IOT_FORMAT : SC030IOT_FORMAT;
       return set_sc_window(sensor, window, format);
     }
     default:
-      ESP_LOGE(TAG, "%s does not support windows", sensor_name_(sensor));
+      ESP_LOGE(TAG, "%s does not support windows", sensor_name(sensor));
       return false;
   }
 }
 
-bool Esp32CameraWindow::is_window_supported_(sensor_t *sensor) {
+bool Esp32CameraWindow::is_window_supported(sensor_t *sensor) {
   // The OV2640 crops inside the readout it is already doing, and the OV3660 and OV5640 accept any
   // part of the sensor as their readout. The SC101IOT and SC030IOT take a window over their whole
   // readout, of the size of the frame. Every other sensor the driver knows is read out through a
@@ -439,7 +439,7 @@ bool Esp32CameraWindow::is_window_supported_(sensor_t *sensor) {
   }
 }
 
-const char *Esp32CameraWindow::sensor_name_(sensor_t *sensor) {
+const char *Esp32CameraWindow::sensor_name(sensor_t *sensor) {
   const camera_sensor_info_t *info = esp_camera_sensor_get_info(&sensor->id);
   return info != nullptr ? info->name : "unknown sensor";
 }

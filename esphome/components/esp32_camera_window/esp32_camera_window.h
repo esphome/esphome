@@ -76,8 +76,8 @@ class Esp32CameraWindow : public Component {
 
  protected:
   bool set_sensor_window_(sensor_t *sensor, const Window &window);
-  static bool is_window_supported_(sensor_t *sensor);
-  static const char *sensor_name_(sensor_t *sensor);
+  static bool is_window_supported(sensor_t *sensor);
+  static const char *sensor_name(sensor_t *sensor);
 
   esp32_camera::ESP32Camera *camera_;
   Window initial_window_{0, 0, 0, 0, false};
