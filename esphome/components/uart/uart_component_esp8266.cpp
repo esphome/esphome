@@ -16,7 +16,8 @@
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
-bool ESP8266UartComponent::serial0_in_use = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 bool ESP8266UartComponent::serial0_swapped = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t ESP8266UartComponent::get_config() {
