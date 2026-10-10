@@ -724,7 +724,7 @@ async def condition_group_to_code(
     if len(conditions) == 1:
         return conditions[0]
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -840,11 +840,13 @@ async def if_action_to_code(
     condition = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, if_template_arg, condition)
     if CONF_THEN in config:
-        actions = await build_action_list(config[CONF_THEN], template_arg, args)
-        cg.add(var.add_then(actions))
+        for action in await build_action_list(config[CONF_THEN], template_arg, args):
+            cg.add(var.add_then_action(action))
+        cg.add(var.finish_then())
     if has_else:
-        actions = await build_action_list(config[CONF_ELSE], template_arg, args)
-        cg.add(var.add_else(actions))
+        for action in await build_action_list(config[CONF_ELSE], template_arg, args):
+            cg.add(var.add_else_action(action))
+        cg.add(var.finish_else())
     return var
 
 
@@ -867,8 +869,9 @@ async def while_action_to_code(
 ) -> MockObj:
     condition = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, condition)
-    actions = await build_action_list(config[CONF_THEN], template_arg, args)
-    cg.add(var.add_then(actions))
+    for action in await build_action_list(config[CONF_THEN], template_arg, args):
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -897,7 +900,9 @@ async def repeat_action_to_code(
         cg.TemplateArguments(cg.uint32, *template_arg.args),
         [(cg.uint32, "iteration"), *args],
     )
-    cg.add(var.add_then(actions))
+    for action in actions:
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -1055,7 +1060,8 @@ async def _new_automation(
     templ = cg.TemplateArguments(*(arg[0] for arg in args))
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     actions = await build_action_list(config[CONF_THEN], templ, args)
-    cg.add(obj.add_actions(actions))
+    for action in actions:
+        cg.add(obj.add_action(action))
     return obj
 
 

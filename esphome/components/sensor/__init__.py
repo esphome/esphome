@@ -672,7 +672,7 @@ async def delta_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
 async def or_filter_to_code(config, filter_id):
     filters = await build_filters(config)
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), filters)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), *filters)
 
 
 @FILTER_REGISTRY.register(
@@ -1033,7 +1033,8 @@ async def setup_sensor_core_(var, config):
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_SENSOR_FILTER")
         filters = await _build_chain_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_sensor_automations, var, config)
 

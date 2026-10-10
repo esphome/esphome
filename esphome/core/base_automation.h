@@ -21,6 +21,9 @@ template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> 
   explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+  requires(sizeof...(Cs) == N) explicit AndCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -39,6 +42,9 @@ template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
   explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+  requires(sizeof...(Cs) == N) explicit OrCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -66,6 +72,9 @@ template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> 
   explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+  requires(sizeof...(Cs) == N) explicit XorCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -310,10 +319,9 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  // Precondition: add_then/add_else must be called at most once per instance.
-  // Codegen always batches the full action list into a single call. Calling
-  // twice would re-append the same inline continuation pointer and form a
-  // self-loop in the next_ chain.
+  // Precondition: build each branch either with one add_then/add_else call, or with
+  // add_then_action/add_else_action calls followed by one finish_then/finish_else, never both.
+  // Appending the inline continuation twice forms a self-loop in the next_ chain.
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->then_continuation_);
@@ -323,6 +331,13 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     this->else_.add_actions(actions);
     this->else_.add_action(&this->else_continuation_.action);
   }
+
+  // Codegen appends branch actions one at a time, then finishes each branch once; a list literal
+  // would be a constant array in .rodata, which is RAM on ESP8266.
+  void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.add_action(&this->then_continuation_); }
+  void add_else_action(Action<Ts...> *action) requires(HasElse) { this->else_.add_action(action); }
+  void finish_else() requires(HasElse) { this->else_.add_action(&this->else_continuation_.action); }
 
   void play_complex(const Ts &...x) override {
     this->num_running_++;
@@ -363,11 +378,14 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  // Precondition: must be called at most once per instance (see IfAction::add_then).
+  // Precondition: use either add_then or add_then_action plus one finish_then, never both
+  // (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
   }
+  void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.add_action(&this->loop_continuation_); }
 
   friend class WhileLoopContinuation<Ts...>;
 
@@ -427,11 +445,14 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
-  // Precondition: must be called at most once per instance (see IfAction::add_then).
+  // Precondition: use either add_then or add_then_action plus one finish_then, never both
+  // (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
   }
+  void add_then_action(Action<uint32_t, Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.add_action(&this->loop_continuation_); }
 
   friend class RepeatLoopContinuation<Ts...>;
 
