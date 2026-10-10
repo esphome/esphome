@@ -1,57 +1,41 @@
 ARG BUILD_VERSION=dev
 ARG BUILD_BASE_VERSION=2026.06.1
 ARG BUILD_TYPE=docker
-# Python minor version shipped by docker-base; the runtime stage copies site-packages by this path
-ARG PYTHON_VERSION=3.14
 
-# Builder images carry build-essential for compiling native Python extensions
-FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS builder-source-docker
-FROM ghcr.io/esphome/docker-base:debian-ha-addon-${BUILD_BASE_VERSION} AS builder-source-ha-addon
-
-# Runtime images ship the same Python and tools without the compiler toolchain
+# Runtime images ship Python and the tools ESPHome needs without the compiler toolchain
 FROM ghcr.io/esphome/docker-base:debian-runtime-${BUILD_BASE_VERSION} AS runtime-source-docker
 FROM ghcr.io/esphome/docker-base:debian-ha-addon-runtime-${BUILD_BASE_VERSION} AS runtime-source-ha-addon
 
 
 # ======================= builder =======================
-ARG BUILD_TYPE
-FROM builder-source-${BUILD_TYPE} AS builder
+# The full image carries build-essential for native Python extensions. Everything is installed into
+# one virtualenv so the runtime stage can copy a single directory that carries no Python version in its path.
+FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS builder
 
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-
-RUN pip install --no-cache-dir -U pip uv==0.10.1
+RUN pip install --no-cache-dir --disable-pip-version-check uv==0.10.1 \
+    && python3 -m venv /opt/venv
 
 COPY requirements.txt /
 
 RUN \
-    uv pip install --no-cache-dir \
+    uv pip install --no-cache-dir --python /opt/venv/bin/python \
     -r /requirements.txt
 
 # Install the ESPHome Device Builder dashboard.
-RUN uv pip install --no-cache-dir esphome-device-builder==1.23.0
-
-# Copy esphome and install
-COPY . /esphome
-RUN uv pip install --no-cache-dir -e /esphome
+RUN uv pip install --no-cache-dir --python /opt/venv/bin/python esphome-device-builder==1.23.0
 
 
 # ======================= runtime =======================
-ARG BUILD_TYPE
 FROM runtime-source-${BUILD_TYPE} AS base
 
 RUN git config --system --add safe.directory "*" \
     && git config --system advice.detachedHead false
 
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+# The venv's pip stays in front so the add-on's fork install lands in the same environment
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/opt/venv/bin:$PATH"
 
-ARG PYTHON_VERSION
-# Python packages and console scripts from the builder. pip stays for the add-on's fork installs; uv is build-time only.
-COPY --from=builder /usr/local/lib/python${PYTHON_VERSION}/site-packages /usr/local/lib/python${PYTHON_VERSION}/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-RUN rm -f /usr/local/bin/uv /usr/local/bin/uvx
-
-# esphome is installed in editable mode, so its source comes along
-COPY --from=builder /esphome /esphome
+COPY --from=builder /opt/venv /opt/venv
 
 RUN \
     platformio settings set enable_telemetry No \
@@ -107,5 +91,8 @@ LABEL \
     io.hass.version="${BUILD_VERSION}"
     # io.hass.arch is inherited from addon-debian-base
 
-ARG BUILD_TYPE
 FROM base-${BUILD_TYPE} AS final
+
+# ESPHome itself is pure Python; installing it last keeps the dependency layer cached across source changes
+COPY . /esphome
+RUN pip install --no-cache-dir --no-deps -e /esphome
