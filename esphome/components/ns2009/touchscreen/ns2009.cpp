@@ -29,24 +29,29 @@ void NS2009Component::update_touches() {
     return;
   }
 
-  auto data_x = this->read_bytes<2>(GET_X);
-  if (!data_x.has_value()) {
+  auto x = this->read_axis_(GET_X);
+  if (!x.has_value()) {
     ESP_LOGW(TAG, "failed to read %s, skipping update", LOG_STR_LITERAL("X position"));
     this->skip_update_ = true;
     return;
   }
-  uint16_t x = encode_uint16((*data_x)[0], (*data_x)[1]) >> 4;  // 12 bit followed by 4 0's
-
-  auto data_y = this->read_bytes<2>(GET_Y);
-  if (!data_y.has_value()) {
+  auto y = this->read_axis_(GET_Y);
+  if (!y.has_value()) {
     ESP_LOGW(TAG, "failed to read %s, skipping update", LOG_STR_LITERAL("Y position"));
     this->skip_update_ = true;
     return;
   }
-  uint16_t y = encode_uint16((*data_y)[0], (*data_y)[1]) >> 4;  // 12 bit followed by 4 0's
 
-  ESP_LOGV(TAG, "X %4d   Y %4d   Z %3d", x, y, z);
-  this->add_raw_touch_position_(0, x, y, z);
+  ESP_LOGV(TAG, "X %4d   Y %4d   Z %3d", *x, *y, z);
+  this->add_raw_touch_position_(0, *x, *y, z);
+}
+
+optional<uint16_t> NS2009Component::read_axis_(uint8_t cmd) {
+  auto data = this->read_bytes<2>(cmd);
+  if (!data.has_value()) {
+    return {};
+  }
+  return encode_uint16((*data)[0], (*data)[1]) >> 4;  // 12 bit followed by 4 0's
 }
 
 void NS2009Component::dump_config() {

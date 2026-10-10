@@ -15,6 +15,8 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
 
  protected:
   void update_touches() override;
+  /// Read a 12 bit axis value, or nothing when the read fails
+  optional<uint16_t> read_axis_(uint8_t cmd);
 
   /// @brief The threshold at which a touch is registered.
   uint8_t threshold_{40};
