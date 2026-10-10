@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
+#include <utility>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -57,14 +58,11 @@ static const LogString *espnow_error_to_str(esp_err_t error) {
   }
 }
 
+// The analyzer traces a leak on the failed-push path, which cannot happen: the
+// pools are sized to the queue capacity (SIZE-1), so allocate() returns nullptr
+// before push() can find the ring full.
+// NOLINTBEGIN(clang-analyzer-unix.Malloc)
 void ESPNowComponent::send_reported(const uint8_t *mac_addr, esp_now_send_status_t status) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  format_mac_addr_upper(mac_addr, peer_buf);
-  ESP_LOGVV(TAG, "Send callback peer=%s status=%d (%s) ch=%u", peer_buf, status,
-            LOG_STR_ARG(espnow_error_to_str(status)), this->wifi_channel_);
-#endif
-
   // Allocate an event from the pool
   ESPNowPacket *packet = this->receive_packet_pool_.allocate();
   if (packet == nullptr) {
@@ -114,6 +112,7 @@ void ESPNowComponent::packet_received(const uint8_t *src_addr, const uint8_t *de
   // Re-enable and wake the main loop to process the ESP-NOW receive event
   this->enable_loop_soon_any_context();
 }
+// NOLINTEND(clang-analyzer-unix.Malloc)
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 
@@ -172,7 +171,9 @@ void ESPNowComponent::on_wifi_connect_state(StringRef ssid, std::span<const uint
   this->get_wifi_channel();
   if (this->wifi_channel_ != old_channel) {
     ESP_LOGI(TAG, "WiFi channel changed from %d to %d", old_channel, this->wifi_channel_);
-    this->apply_peer_channel_();
+    if (this->state_ == ESPNOW_STATE_ENABLED) {
+      platform::rebind_peers();
+    }
   }
 }
 #endif
@@ -196,7 +197,7 @@ void ESPNowComponent::enable_() {
 
   esp_err_t err = platform::init();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Init failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
+    ESP_LOGE(TAG, "Init failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
@@ -219,7 +220,7 @@ void ESPNowComponent::disable() {
 
   esp_err_t err = platform::deinit();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Deinit failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
+    ESP_LOGE(TAG, "Deinit failed: %s", esp_err_to_name(err));
   }
 }
 
@@ -239,13 +240,7 @@ void ESPNowComponent::apply_wifi_channel() {
   ESP_LOGI(TAG, "Channel set to %d.", this->wifi_channel_);
   platform::set_channel(this->wifi_channel_);
   if (this->state_ == ESPNOW_STATE_ENABLED) {
-    this->apply_peer_channel_();
-  }
-}
-
-void ESPNowComponent::apply_peer_channel_() {
-  for (const auto &peer : this->peers_) {
-    platform::set_peer_channel(peer.address, this->wifi_channel_);
+    platform::rebind_peers();
   }
 }
 
@@ -282,21 +277,15 @@ void ESPNowComponent::loop() {
                    format_hex_pretty_to(hex_buf, packet->packet_.receive.data,
                                         std::min<uint16_t>(packet->packet_.receive.size, ESP_NOW_MAX_DATA_LEN)));
 #endif
-          // Without a destination address, unicast handlers get first claim on every packet and broadcast
-          // handlers see what they leave unhandled
-          const bool is_broadcast = memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0;
-          bool handled = false;
-          if (!ESPNOW_DESTINATION_KNOWN || !is_broadcast) {
-            for (auto *handler : this->receive_handlers_) {
-              if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size)) {
-                handled = true;
-                break;  // If a handler returns true, stop processing further handlers
-              }
-            }
-          }
-          if (!handled && (!ESPNOW_DESTINATION_KNOWN || is_broadcast)) {
+          // Without a destination address every packet goes to the receive handlers
+          if (ESPNOW_REPORTS_DESTINATION && memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
             for (auto *handler : this->broadcast_handlers_) {
               if (handler->on_broadcast(info, packet->packet_.receive.data, packet->packet_.receive.size))
+                break;  // If a handler returns true, stop processing further handlers
+            }
+          } else {
+            for (auto *handler : this->receive_handlers_) {
+              if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           }
@@ -307,7 +296,7 @@ void ESPNowComponent::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(packet->packet_.sent.address, addr_buf);
-        ESP_LOGVV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
+        ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
           if (this->current_send_packet_->callback_ != nullptr) {
@@ -359,7 +348,7 @@ uint8_t ESPNowComponent::get_wifi_channel() {
 }
 
 esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
-                                const send_callback_t &callback) {
+                                send_callback_t callback) {
   if (this->state_ != ESPNOW_STATE_ENABLED) {
     return ESP_ERR_ESPNOW_NOT_INIT;
   } else if (this->is_failed()) {
@@ -372,11 +361,6 @@ esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payl
     return ESP_ERR_ESPNOW_DATA_SIZE;
   } else if (!platform::peer_exists(peer_address)) {
     if (memcmp(peer_address, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0 || this->auto_add_peer_) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-      format_mac_addr_upper(peer_address, peer_buf);
-      ESP_LOGVV(TAG, "Peer %s not in table, adding dynamically (auto_add=%s)", peer_buf, YESNO(this->auto_add_peer_));
-#endif
       esp_err_t err = this->add_peer(peer_address);
       if (err != ESP_OK) {
         return err;
@@ -394,7 +378,7 @@ esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payl
     return ESP_ERR_ESPNOW_NO_MEM;
   }
   // Load the packet data
-  packet->load_data(peer_address, payload, size, callback);
+  packet->load_data(peer_address, payload, size, std::move(callback));
   // Push the packet to the send queue
   this->send_packet_queue_.push(packet);
   // Loop may be disabled while idle; re-enable it to send the packet
@@ -408,13 +392,6 @@ void ESPNowComponent::send_() {
   if (packet == nullptr) {
     return;  // No packets to send
   }
-
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  format_mac_addr_upper(packet->address_, addr_buf);
-  ESP_LOGVV(TAG, "Sending packet to %s size=%u ch=%u peer_exists=%s", addr_buf, packet->size_, this->wifi_channel_,
-            YESNO(platform::peer_exists(packet->address_)));
-#endif
 
   this->current_send_packet_ = packet;
   esp_err_t err = platform::send(packet->address_, packet->data_, packet->size_);
@@ -451,12 +428,6 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
       this->status_momentary_warning();
       return err;
     }
-
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    format_mac_addr_upper(peer, peer_buf);
-    ESP_LOGVV(TAG, "Added peer %s on channel %u", peer_buf, this->wifi_channel_);
-#endif
   }
   bool found = false;
   for (auto &it : this->peers_) {

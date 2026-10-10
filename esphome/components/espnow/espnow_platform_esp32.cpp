@@ -13,23 +13,17 @@
 namespace esphome::espnow::platform {
 
 static void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
-  if (global_esp_now != nullptr) {
-    global_esp_now->packet_received(info->src_addr, info->des_addr, data, size, info->rx_ctrl->rssi,
-                                    info->rx_ctrl->timestamp);
-  }
+  global_esp_now->packet_received(info->src_addr, info->des_addr, data, size, info->rx_ctrl->rssi,
+                                  info->rx_ctrl->timestamp);
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 static void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status) {
-  if (global_esp_now != nullptr) {
-    global_esp_now->send_reported(info->des_addr, status);
-  }
+  global_esp_now->send_reported(info->des_addr, status);
 }
 #else
 static void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  if (global_esp_now != nullptr) {
-    global_esp_now->send_reported(mac_addr, status);
-  }
+  global_esp_now->send_reported(mac_addr, status);
 }
 #endif
 
@@ -92,8 +86,8 @@ esp_err_t add_peer(const uint8_t *mac) {
 
 esp_err_t del_peer(const uint8_t *mac) { return esp_now_del_peer(mac); }
 
-// Peers are added on channel 0, which ESP-IDF treats as the radio's current channel
-void set_peer_channel(const uint8_t *mac, uint8_t channel) {}
+// Peers are added on channel 0, which ESP-IDF treats as whatever channel the radio is on
+void rebind_peers() {}
 
 esp_err_t send(const uint8_t *mac, const uint8_t *data, uint16_t size) { return esp_now_send(mac, data, size); }
 

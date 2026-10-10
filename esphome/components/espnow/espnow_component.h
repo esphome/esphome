@@ -23,16 +23,6 @@
 
 namespace esphome::espnow {
 
-// Maximum size of the ESPNow event queues - must be a power of 2 for the lock-free queue.
-// The ESP8266 has far less heap and only one send is ever in flight, so it gets half the depth.
-#ifdef USE_ESP8266
-static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 8;
-static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 8;
-#else
-static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
-static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
-#endif
-
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
 enum class ESPNowTriggers : uint8_t {
@@ -154,12 +144,10 @@ class ESPNowComponent final : public Component {
   /// @param payload Data payload to send
   /// @param callback Callback to call when the send operation is complete
   /// @return ESP_OK on success, or an error code on failure
-  esp_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload,
-                 const send_callback_t &callback = nullptr) {
-    return this->send(peer_address, payload.data(), payload.size(), callback);
+  esp_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload, send_callback_t callback = nullptr) {
+    return this->send(peer_address, payload.data(), payload.size(), std::move(callback));
   }
-  esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
-                 const send_callback_t &callback = nullptr);
+  esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size, send_callback_t callback = nullptr);
 
   void register_receive_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {
@@ -168,7 +156,7 @@ class ESPNowComponent final : public Component {
   void register_broadcast_handler(ESPNowBroadcastHandler *handler) { this->broadcast_handlers_.push_back(handler); }
 
   // Entry points for the radio driver callbacks in espnow_platform_*.cpp; they run outside the main loop and
-  // only queue the event. des_addr is nullptr when the SDK does not report it.
+  // only queue the event
   void packet_received(const uint8_t *src_addr, const uint8_t *des_addr, const uint8_t *data, int size, int8_t rssi,
                        uint32_t timestamp);
   void send_reported(const uint8_t *mac_addr, esp_now_send_status_t status);
@@ -176,8 +164,6 @@ class ESPNowComponent final : public Component {
  protected:
   void enable_();
   void send_();
-  // Move every registered peer to the current channel where the SDK binds peers to one
-  void apply_peer_channel_();
 
   std::vector<ESPNowUnknownPeerHandler *> unknown_peer_handlers_;
   std::vector<ESPNowReceivedPacketHandler *> receive_handlers_;
@@ -187,9 +173,9 @@ class ESPNowComponent final : public Component {
 
   uint8_t own_address_[ESP_NOW_ETH_ALEN]{0};
   LockFreeQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
-  // Pool sized to queue capacity (SIZE-1) because the ring buffer holds N-1 elements.
-  // This guarantees allocate() returns nullptr before push() can fail, preventing
-  // a pool slot leak.
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing a pool slot leak.
   EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE - 1> receive_packet_pool_{};
 
   LockFreeQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
@@ -208,4 +194,4 @@ extern ESPNowComponent *global_esp_now;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32 || ESP8266
+#endif  // USE_ESP32 || USE_ESP8266

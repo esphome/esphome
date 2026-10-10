@@ -9,19 +9,13 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace esphome::espnow {
 
 static const uint8_t ESPNOW_BROADCAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static const uint8_t ESPNOW_MULTICAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE};
-
-// The ESP8266 SDK does not report the destination address of a received frame; des_addr is then all zeros
-#ifdef USE_ESP8266
-static constexpr bool ESPNOW_DESTINATION_KNOWN = false;
-#else
-static constexpr bool ESPNOW_DESTINATION_KNOWN = true;
-#endif
 
 // Maximum payload this component sends and receives, from the
 // ``max_payload_size`` option. The radio stack speaks ESP-NOW v2 regardless
@@ -38,19 +32,6 @@ static_assert(ESPNOW_MAX_DATA_LEN <= ESP_NOW_MAX_DATA_LEN_V2,
 #else
 static_assert(ESPNOW_MAX_DATA_LEN <= ESP_NOW_MAX_DATA_LEN,
               "espnow max_payload_size beyond 250 bytes requires an ESP-IDF with ESP-NOW v2 support (5.4+)");
-#endif
-
-struct WifiPacketRxControl {
-  int8_t rssi;         // Received Signal Strength Indicator (RSSI) of packet, unit: dBm
-  uint32_t timestamp;  // Timestamp in microseconds when the packet was received, precise only if modem sleep or
-                       // light sleep is not enabled
-};
-
-// Handlers read rx_ctrl through the ESP-IDF type so existing lambdas keep compiling; the ESP8266 has no such type
-#ifdef USE_ESP8266
-using rx_ctrl_t = WifiPacketRxControl;
-#else
-using rx_ctrl_t = wifi_pkt_rx_ctrl_t;
 #endif
 
 struct ESPNowRecvInfo {
@@ -74,16 +55,11 @@ class ESPNowPacket {
 
   void release() {}
 
-  // des_addr is nullptr on platforms whose SDK does not report it
   void load_received_data(const uint8_t *src_addr, const uint8_t *des_addr, const uint8_t *data, uint16_t size,
                           int8_t rssi, uint32_t timestamp) {
     this->type_ = RECEIVED;
     memcpy(this->packet_.receive.info.src_addr, src_addr, ESP_NOW_ETH_ALEN);
-    if (des_addr != nullptr) {
-      memcpy(this->packet_.receive.info.des_addr, des_addr, ESP_NOW_ETH_ALEN);
-    } else {
-      memset(this->packet_.receive.info.des_addr, 0, ESP_NOW_ETH_ALEN);
-    }
+    memcpy(this->packet_.receive.info.des_addr, des_addr, ESP_NOW_ETH_ALEN);
     memcpy(this->packet_.receive.data, data, size);
     this->packet_.receive.size = size;
 
@@ -143,9 +119,9 @@ class ESPNowSendPacket {
   ESPNowSendPacket(const ESPNowSendPacket &) = delete;
   ESPNowSendPacket &operator=(const ESPNowSendPacket &) = delete;
 
-  void load_data(const uint8_t *peer_address, const uint8_t *payload, size_t size, const send_callback_t &callback) {
+  void load_data(const uint8_t *peer_address, const uint8_t *payload, size_t size, send_callback_t &&callback) {
     this->init_data_(peer_address, payload, size);
-    this->callback_ = callback;
+    this->callback_ = std::move(callback);
   }
 
   void load_data(const uint8_t *peer_address, const uint8_t *payload, size_t size) {

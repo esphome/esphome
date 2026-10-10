@@ -130,11 +130,17 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),
-            cv.Optional(CONF_ON_BROADCAST): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastTrigger),
-                    cv.Optional(CONF_ADDRESS): cv.mac_address,
-                }
+            # The ESP8266 SDK does not report the destination address, so broadcasts are indistinguishable there
+            cv.Optional(CONF_ON_BROADCAST): cv.All(
+                cv.only_on_esp32,
+                automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            OnBroadcastTrigger
+                        ),
+                        cv.Optional(CONF_ADDRESS): cv.mac_address,
+                    }
+                ),
             ),
         },
     ).extend(cv.COMPONENT_SCHEMA),

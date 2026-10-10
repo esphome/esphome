@@ -24,8 +24,8 @@ uint32_t get_version();  // 0 where the SDK has no version call
 bool peer_exists(const uint8_t *mac);
 esp_err_t add_peer(const uint8_t *mac);
 esp_err_t del_peer(const uint8_t *mac);
-// Keep a registered peer on the channel the radio moved to; only the NONOS SDK binds peers to a channel
-void set_peer_channel(const uint8_t *mac, uint8_t channel);
+// Move the registered peers to the radio's current channel; only the NONOS SDK binds peers to a channel
+void rebind_peers();
 
 esp_err_t send(const uint8_t *mac, const uint8_t *data, uint16_t size);
 

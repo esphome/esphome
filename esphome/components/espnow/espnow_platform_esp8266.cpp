@@ -4,22 +4,22 @@
 
 #include "espnow_component.h"
 
+#include "esphome/core/helpers.h"
+
 namespace esphome::espnow::platform {
 
 // The SDK reports 0 for success and a non-zero value for any failure
 static esp_err_t sdk_result(int result) { return result == 0 ? ESP_OK : ESP_FAIL; }
 
+// Stands in for the destination address, which the SDK does not report
+static const uint8_t UNKNOWN_ADDR[ESP_NOW_ETH_ALEN] = {0};
+
 static void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size) {
-  if (global_esp_now != nullptr) {
-    // The SDK reports neither the destination address nor the signal strength
-    global_esp_now->packet_received(mac_addr, nullptr, data, size, 0, 0);
-  }
+  global_esp_now->packet_received(mac_addr, UNKNOWN_ADDR, data, size, 0, 0);
 }
 
 static void on_send_report(uint8_t *mac_addr, uint8_t status) {
-  if (global_esp_now != nullptr) {
-    global_esp_now->send_reported(mac_addr, status == 0 ? ESP_NOW_SEND_SUCCESS : ESP_NOW_SEND_FAIL);
-  }
+  global_esp_now->send_reported(mac_addr, status == 0 ? ESP_NOW_SEND_SUCCESS : ESP_NOW_SEND_FAIL);
 }
 
 void init_radio() {
@@ -36,7 +36,7 @@ void set_channel(uint8_t channel) {
 
 uint8_t get_channel() { return wifi_get_channel(); }
 
-void read_mac(uint8_t *mac) { wifi_get_macaddr(STATION_IF, mac); }
+void read_mac(uint8_t *mac) { get_mac_address_raw(mac); }
 
 esp_err_t init() {
   int result = esp_now_init();
@@ -69,8 +69,11 @@ esp_err_t add_peer(const uint8_t *mac) {
 
 esp_err_t del_peer(const uint8_t *mac) { return sdk_result(esp_now_del_peer(const_cast<uint8_t *>(mac))); }
 
-void set_peer_channel(const uint8_t *mac, uint8_t channel) {
-  esp_now_set_peer_channel(const_cast<uint8_t *>(mac), channel);
+void rebind_peers() {
+  const uint8_t channel = wifi_get_channel();
+  for (uint8_t *mac = esp_now_fetch_peer(true); mac != nullptr; mac = esp_now_fetch_peer(false)) {
+    esp_now_set_peer_channel(mac, channel);
+  }
 }
 
 esp_err_t send(const uint8_t *mac, const uint8_t *data, uint16_t size) {
