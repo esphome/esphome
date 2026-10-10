@@ -2,7 +2,6 @@
 
 #ifdef USE_ESP32
 #include "esphome/core/gpio_pin.h"
-#include <esp_system.h>
 #include <driver/gpio.h>
 #include <esp_system.h>
 
@@ -38,6 +37,8 @@ class ESP32InternalGPIOPin final : public GPIOPin {
   gpio_num_t get_pin_num() const { return static_cast<gpio_num_t>(this->pin_); }
   gpio_drive_cap_t get_drive_strength() const { return static_cast<gpio_drive_cap_t>(this->pin_flags_.drive_strength); }
 #ifdef USE_GPIO_HOLD
+  /// Apply or release the pad hold. Does nothing unless the pin is configured with hold_state.
+  void set_hold(bool hold) const;
   bool is_held() const override {
     if (!this->get_hold())
       return false;

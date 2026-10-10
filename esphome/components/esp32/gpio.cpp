@@ -142,12 +142,22 @@ size_t ESP32InternalGPIOPin::dump_summary(char *buffer, size_t len) const {
   return snprintf(buffer, len, "GPIO%" PRIu32, static_cast<uint32_t>(this->pin_));
 }
 
+#ifdef USE_GPIO_HOLD
+void ESP32InternalGPIOPin::set_hold(bool hold) const {
+  if (!this->get_hold())
+    return;
+  if (hold) {
+    gpio_hold_en(this->get_pin_num());
+  } else {
+    gpio_hold_dis(this->get_pin_num());
+  }
+}
+#endif
+
 void ESP32InternalGPIOPin::setup() {
 #ifdef USE_GPIO_HOLD
   // Hold before gpio_config so the pad keeps its state while the registers change
-  if (this->get_hold()) {
-    gpio_hold_en(this->get_pin_num());
-  }
+  this->set_hold(true);
 #endif
   gpio_config_t conf{};
   conf.pin_bit_mask = 1ULL << static_cast<uint32_t>(this->pin_);
