@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.config import read_config
+from esphome.config import _print_line_message, read_config
 from esphome.const import ErrorFormat
 from esphome.core import CORE
 
@@ -104,3 +104,41 @@ def test_missing_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> Non
     assert lines[0].startswith(
         f"{tmp_path / 'missing.yaml'}: error: Error reading file "
     )
+
+
+def test_multi_line_message(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    lines = _read(
+        tmp_path,
+        {
+            "test.yaml": (
+                "esphome:\n  name: test\nhost:\n"
+                "packages:\n  p: !include ${ undefined_var }.yaml\n"
+            ),
+        },
+        capsys,
+    )
+    location = f"{tmp_path / 'test.yaml'}:5:3"
+    assert lines == [
+        (
+            f"{location}: error: Error including file '${{ undefined_var }}.yaml': "
+            "Cannot load include with unresolved substitutions: "
+            "${ undefined_var }.yaml"
+        ),
+        f"{location}: note: In: packages->p in {tmp_path / 'test.yaml'} 5:3.",
+    ]
+
+
+def test_print_line_message_skips_blank_lines(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_line_message("a.yaml:1:1", "error", "first\n\n  second  \n")
+    assert capsys.readouterr().out.splitlines() == [
+        "a.yaml:1:1: error: first",
+        "a.yaml:1:1: note: second",
+    ]
+
+
+def test_reset_restores_default_format() -> None:
+    CORE.error_format = ErrorFormat.LINE
+    CORE.reset()
+    assert CORE.error_format is ErrorFormat.YAML

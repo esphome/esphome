@@ -1571,6 +1571,19 @@ def _format_location(location: DocumentLocation | None) -> str:
     return f"{location.document}:{location.line + 1}:{location.column + 1}"
 
 
+def _print_line_message(location: str, kind: str, message: object) -> None:
+    """Print *message* as `location: kind: text`, one line per message line.
+
+    Lines after the first become `note:` lines, so tools that read one
+    message per line still see every line with its location.
+    """
+    lines = [line.strip() for line in str(message).splitlines() if line.strip()]
+    first, *rest = lines or [""]
+    safe_print(f"{location}: {kind}: {first}")
+    for line in rest:
+        safe_print(f"{location}: note: {line}")
+
+
 def _find_marked_yaml_error(err: BaseException) -> yaml.MarkedYAMLError | None:
     cause: BaseException | None = err
     while cause is not None and not isinstance(cause, yaml.MarkedYAMLError):
@@ -1582,10 +1595,10 @@ def _print_marked_yaml_error(err: yaml.MarkedYAMLError) -> None:
     # Errors raised as MarkedYAMLError(message, mark) put the message in context
     mark = err.problem_mark or err.context_mark
     location = DocumentLocation.from_mark(mark) if mark is not None else None
-    safe_print(f"{_format_location(location)}: error: {err.problem or err.context}")
+    _print_line_message(_format_location(location), "error", err.problem or err.context)
     if err.problem and err.context and err.context_mark is not None:
         context_location = DocumentLocation.from_mark(err.context_mark)
-        safe_print(f"{_format_location(context_location)}: note: {err.context}")
+        _print_line_message(_format_location(context_location), "note", err.context)
 
 
 def _print_line_errors(res: Config) -> None:
@@ -1597,9 +1610,9 @@ def _print_line_errors(res: Config) -> None:
         # A YAML error in an included file is wrapped in a validation error
         if (yaml_err := _find_marked_yaml_error(err)) is not None:
             _print_marked_yaml_error(yaml_err)
-            safe_print(f"{location}: note: included from here")
+            _print_line_message(location, "note", "included from here")
         else:
-            safe_print(f"{location}: error: {_format_vol_invalid(err, res)}")
+            _print_line_message(location, "error", _format_vol_invalid(err, res))
 
 
 def _print_line_load_error(err: EsphomeError) -> None:
@@ -1608,7 +1621,7 @@ def _print_line_load_error(err: EsphomeError) -> None:
     else:
         # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
         message = err.base_exc if isinstance(err, InvalidYAMLError) else err
-        safe_print(f"{_format_location(None)}: error: {message}")
+        _print_line_message(_format_location(None), "error", message)
 
 
 def line_info(config, path, highlight=True):
