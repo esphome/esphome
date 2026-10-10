@@ -268,6 +268,11 @@ class HttpContainer : public Parented<HttpRequestComponent> {
     return !this->is_chunked_ && this->bytes_read_ >= this->content_length;
   }
 
+  /**
+   * @brief Get the value of a response header by name.
+   * @param header_name The name of the header to retrieve.
+   * @return The value of the header if found, otherwise an empty string.
+   */
   std::string get_response_header(const std::string &header_name);
 
  protected:

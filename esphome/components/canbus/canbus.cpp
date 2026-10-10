@@ -4,7 +4,7 @@
 
 namespace esphome::canbus {
 
-static const char *const TAG = "canbus";
+ESPHOME_LOG_TAG(TAG, "canbus");
 
 void Canbus::setup() {
   if (!this->setup_internal()) {
@@ -22,10 +22,11 @@ void Canbus::dump_config() {
 }
 
 canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
-                                const std::vector<uint8_t> &data) {
+                                const uint8_t *data, size_t len) {
   struct CanFrame can_message;
 
-  uint8_t size = static_cast<uint8_t>(data.size());
+  // Clamp before narrowing, so a lambda payload of 256 bytes or more cannot wrap to a short length
+  const uint8_t size = static_cast<uint8_t>(std::min<size_t>(len, CAN_MAX_DATA_LENGTH));
   if (use_extended_id) {
     ESP_LOGD(TAG, "send extended id=0x%08" PRIx32 " rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request),
              size);
@@ -33,8 +34,6 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
     ESP_LOGD(TAG, "send standard id=0x%03" PRIx32 " rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request),
              size);
   }
-  if (size > CAN_MAX_DATA_LENGTH)
-    size = CAN_MAX_DATA_LENGTH;
   can_message.can_data_length_code = size;
   can_message.can_id = can_id;
   can_message.use_extended_id = use_extended_id;

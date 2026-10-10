@@ -5,7 +5,7 @@
 
 namespace esphome::cm1106 {
 
-static const char *const TAG = "cm1106";
+ESPHOME_LOG_TAG(TAG, "cm1106");
 static const uint8_t C_M1106_CMD_GET_CO2[4] = {0x11, 0x01, 0x01, 0xED};
 static const uint8_t C_M1106_CMD_SET_CO2_CALIB[6] = {0x11, 0x03, 0x03, 0x00, 0x00, 0x00};
 static const uint8_t C_M1106_CMD_SET_CO2_CALIB_RESPONSE[4] = {0x16, 0x01, 0x03, 0xE6};

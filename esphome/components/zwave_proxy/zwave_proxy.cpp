@@ -12,7 +12,7 @@
 
 namespace esphome::zwave_proxy {
 
-static const char *const TAG = "zwave_proxy";
+ESPHOME_LOG_TAG(TAG, "zwave_proxy");
 
 // Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t ZWAVE_MAX_LOG_BYTES = 168;

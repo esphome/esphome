@@ -1,17 +1,23 @@
 from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass
 from enum import StrEnum
+from ipaddress import IPv4Address, IPv4Network
 import logging
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "socket"
+
+socket_ns = cg.esphome_ns.namespace("socket")
+Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
 
 CONF_IMPLEMENTATION = "implementation"
 IMPLEMENTATION_LWIP_TCP = "lwip_tcp"
@@ -140,6 +146,81 @@ def require_wake_loop_threadsafe() -> None:
     cg.add_define("USE_SOCKET_SELECT_SUPPORT")
 
 
+# For an Ipv4Allow config option; a sanity cap on the list length.
+IPV4_ALLOW_SCHEMA = cv.All(cv.ensure_list(cv.ipv4network), cv.Length(max=255))
+
+
+_HOST = cv.Any(cv.domain, cv.hostname)
+
+
+def ipv4_host(value: object) -> str:
+    """Validate an IPv4 address or a hostname; the resolver behind it is IPv4 only."""
+    value = cv.string(value)
+    try:
+        cv.ipv6address(value)
+    except cv.Invalid:
+        return _HOST(value)
+    raise cv.Invalid(
+        "IPv6 addresses are not supported, use an IPv4 address or a hostname"
+    )
+
+
+def _network_order(addr: IPv4Address) -> int:
+    """The s_addr value for addr on the little endian targets."""
+    return int.from_bytes(addr.packed, "little")
+
+
+def add_ipv4_allow(
+    setter: cg.MockObj, networks: list[IPv4Network], owner_id: ID | str
+) -> None:
+    """Emit a flash array for validated IPV4_ALLOW_SCHEMA entries and wire it to setter.
+
+    PROGMEM on esp8266. Emits nothing for an empty list.
+    """
+    if not networks:
+        return
+    cg.add_define("USE_SOCKET_IPV4_ALLOW")
+    entries = [
+        cg.StructInitializer(
+            Ipv4AllowEntry,
+            ("addr", _network_order(net.network_address)),
+            ("mask", _network_order(net.netmask)),
+        )
+        for net in networks
+    ]
+    arr_id = ID(f"{owner_id}_ipv4_allow", is_declaration=True, type=Ipv4AllowEntry)
+    arr = cg.progmem_array(arr_id, cg.ArrayInitializer(*entries))
+    cg.add(setter(arr, len(entries)))
+
+
+def require_ipv4_resolve() -> None:
+    """Compile the shared IPv4 lookup; call from a consumer's to_code."""
+    cg.add_define("USE_SOCKET_IPV4_RESOLVE")
+
+
+def require_tcp_client_link() -> None:
+    """Compile the reconnecting TCP client link; call from a consumer's to_code."""
+    require_ipv4_resolve()
+    cg.add_define("USE_SOCKET_TCP_CLIENT_LINK")
+
+
+def require_tcp_listener() -> None:
+    """Compile the TCP listener; call from a server role's to_code."""
+    require_tcp_client_link()
+    cg.add_define("USE_SOCKET_TCP_LISTENER")
+
+
+def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Socket accounting for a role keyed client or server schema."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        if config[CONF_ROLE] == "server":
+            consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
+        return consume_sockets(1, component)(config)
+
+    return validator
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
@@ -184,11 +265,15 @@ async def to_code(config: ConfigType) -> None:
 
 
 # Each implementation file is fully #ifdef'd on the define set in to_code
-# for the selected implementation.
+# for the selected implementation. The helper files compile only for
+# consumers that called the matching require_ function.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
+        "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",
+        "tcp_client_link.cpp": "USE_SOCKET_TCP_CLIENT_LINK",
+        "tcp_listener.cpp": "USE_SOCKET_TCP_LISTENER",
     }
 )

@@ -177,6 +177,13 @@ file does, and it is the authority when they disagree. The most useful starting 
         Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
         `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
         https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Scheduler ids:** name a timer only when it must be cancelled or replaced, and use a
+        `static constexpr uint32_t` id, never a string. Ids are per component instance and cannot clash with other
+        components, so number them from 0 and keep all of a component's ids together in one place.
+        ```cpp
+        static constexpr uint32_t READ_TIMEOUT_ID = 0;
+        this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
+        ```
     *   **Don't override a default with the same value:** if a base class method already returns what you
         want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
         component that wants `DATA` should simply leave it alone.
@@ -230,6 +237,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```
 
     *   **Component Metadata:**
+        - `DOMAIN`: Required in every component's `__init__.py`, set to the component's own name as a plain
+          string (e.g. `DOMAIN = "my_component"`). Other code refers to the component through it, e.g.
+          `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
+          metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
         - `AUTO_LOAD`: Components to automatically load
         - `CONFLICTS_WITH`: Incompatible components
@@ -243,6 +254,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         import esphome.config_validation as cv
         from esphome.const import CONF_KEY, CONF_ID
 
+        DOMAIN = "my_component"
         CONF_PARAM = "param"  # A constant that does not yet exist in esphome/const.py
 
         my_component_ns = cg.esphome_ns.namespace("my_component")
@@ -322,6 +334,25 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
+          `sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`,
+          `sub_selects` in their domains), adding `parent=hub` for entities that derive from `Parented<T>`,
+          then make one call per key, even when there is only one. A call creates the entity only when its key
+          is configured, passes it to the setter and returns it (or `None`); extra arguments such as
+          `min_value` or `options` go on the call. Always name the setter explicitly on the object that owns
+          it, never with `getattr` and an f-string, and keep that variable short (`var` for the component
+          itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
+          setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
+          ```python
+          async def to_code(config):
+              var = cg.new_Pvariable(config[CONF_ID])
+              sensors = sensor.sub_sensors(config)
+              await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+              buttons = button.sub_buttons(config, parent=var)
+              await buttons(CONF_RESTART, var.set_restart_button)
+          ```
+
 *   **Automations (Triggers, Actions, Conditions):**
 
     Automations have three building blocks: **Triggers** (fire when something happens), **Actions** (do something), and **Conditions** (check if something is true).
@@ -364,6 +395,25 @@ file does, and it is the authority when they disagree. The most useful starting 
                     var, "add_on_state_callback", [], conf, forwarder=forwarder
                 )
         ```
+
+        When the callback's parameters differ from the automation's arguments, or the trigger should only
+        fire for some values, pass `params`, `forward` and `when`; the helper then generates a capture-less
+        lambda (stored inline, nothing allocated). Name the parent with `automation.parent_ref(var)` and build
+        `forward` from `MockObj` calls, not f-strings of C++:
+        ```python
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
+        )
+        ```
+        `build_parent_callback_automation`, `build_trigger_callback`, `build_callback_automations` and
+        `build_trigger_automations` cover the other shapes; see their docstrings in `esphome/automation.py`.
 
         **C++ -- no trigger class needed.** The callback registration method must be templatized to accept both `std::function` and lightweight forwarder structs (which avoid heap allocation):
         ```cpp
@@ -443,6 +493,20 @@ file does, and it is the authority when they disagree. The most useful starting 
 
         Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
 
+        **Actions that only forward templatable values to their parent need no C++ class.** Register them
+        with `register_apply_action`; do not write a `TEMPLATABLE_VALUE` class or a builder for this shape.
+        ```python
+        automation.register_apply_action(
+            "my_component.set_gains",
+            schema,
+            automation.ApplyField(CONF_KP, "set_kp", cg.float_),
+            automation.ApplyField(CONF_KI, "set_ki", cg.float_),
+        )
+        ```
+        The `ApplyField`, `ApplyCall` and `register_apply_action` docstrings in `esphome/automation.py` cover
+        the rest; `cover.control` and `cover.template.publish` are in-tree examples. `TEMPLATABLE_VALUE` with
+        `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
+
     *   **Conditions:**
         ```cpp
         template<typename... Ts> class MyCondition : public Condition<Ts...> {
@@ -455,6 +519,19 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```
         Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`;
         `register_bare_condition`, `register_parented_condition` and the decorator follow the action rules.
+
+        **Conditions that only test their parent need no C++ class either.** Register them with
+        `register_apply_condition`; the expression is applied to the parent, and an `ApplyCall` compares
+        against config values.
+        ```python
+        automation.register_apply_condition("my_component.is_active", schema, "is_active()")
+        automation.register_apply_condition(
+            "my_component.state_is",
+            schema,
+            automation.ApplyCall("state == {}", ((CONF_STATE, cg.bool_),)),
+        )
+        ```
+        `cover.is_open`, `rtttl.is_playing` and `component.is_idle` are in-tree examples.
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
 
@@ -710,7 +787,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
         6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
 
-        7. **Detection:** Look for these patterns in compiler output:
+        7. **Never use `new (std::nothrow)`:** On ESP-IDF exceptions are disabled, so a failed nothrow allocation aborts instead of returning `nullptr`. Use `RAMAllocator` from `esphome/core/helpers.h`; CI rejects `std::nothrow`.
+
+        8. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)

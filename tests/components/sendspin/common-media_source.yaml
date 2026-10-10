@@ -9,3 +9,9 @@ media_source:
     static_delay_adjustable: true
     fixed_delay: 480us
     decode_memory: internal
+
+wifi:
+  on_connect:
+    then:
+      - sendspin.media_source.enable_static_delay_adjustment: media_source_id
+      - sendspin.media_source.disable_static_delay_adjustment: media_source_id

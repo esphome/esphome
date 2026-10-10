@@ -3,7 +3,7 @@
 
 namespace esphome::teleinfo {
 
-static const char *const TAG = "teleinfo";
+ESPHOME_LOG_TAG(TAG, "teleinfo");
 
 /* Helpers */
 static int get_field(char *dest, char *buf_start, char *buf_end, int sep, int max_len) {

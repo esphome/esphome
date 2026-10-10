@@ -4,7 +4,7 @@
 
 namespace esphome::pmsx003 {
 
-static const char *const TAG = "pmsx003";
+ESPHOME_LOG_TAG(TAG, "pmsx003");
 
 static const uint8_t START_CHARACTER_1 = 0x42;
 static const uint8_t START_CHARACTER_2 = 0x4D;

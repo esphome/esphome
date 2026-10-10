@@ -5,6 +5,7 @@ from esphome.const import CONF_CHANNEL, CONF_CHANNELS, CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@andreashergert1984"]
+DOMAIN = "tca9548a"
 
 DEPENDENCIES = ["i2c"]
 

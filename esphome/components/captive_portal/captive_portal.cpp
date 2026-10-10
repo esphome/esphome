@@ -13,7 +13,7 @@
 
 namespace esphome::captive_portal {
 
-static const char *const TAG = "captive_portal";
+ESPHOME_LOG_TAG(TAG, "captive_portal");
 
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));

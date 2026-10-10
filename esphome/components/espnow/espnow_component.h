@@ -116,9 +116,18 @@ class ESPNowComponent final : public Component {
   esp_err_t add_peer(const uint8_t *peer);
   // Remove a peer with the esp_now api and remove from the internal list if exists
   esp_err_t del_peer(const uint8_t *peer);
+  // Action entry points; distinct names because add_peer(peer_address_t) only fills the boot-time list
+  esp_err_t add_peer_from_action(const peer_address_t &address) { return this->add_peer(address.data()); }
+  esp_err_t del_peer_from_action(const peer_address_t &address) { return this->del_peer(address.data()); }
 
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
   void apply_wifi_channel();
+  void set_channel_from_action(uint8_t channel) {
+    if (this->is_wifi_enabled())
+      return;
+    this->set_wifi_channel(channel);
+    this->apply_wifi_channel();
+  }
   uint8_t get_wifi_channel();
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }

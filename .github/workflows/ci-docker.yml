@@ -12,15 +12,14 @@ on:
       - ".github/workflows/ci-docker.yml"
       - "requirements*.txt"
       - "pyproject.toml"
-      - "platformio.ini"
       - "esphome/idf_component.yml"
-      - "script/platformio_install_deps.py"
       # Core, build pipeline, toolchain, and target-platform changes can change
       # how a toolchain is set up or built, so re-run the per-toolchain compile
       # smoke test when they change.
       - "esphome/core/**"
       - "esphome/writer.py"
       - "esphome/build_gen/**"
+      - "esphome/build_helpers/**"
       - "esphome/espidf/**"
       - "esphome/platformio/**"
       - "esphome/components/bk72xx/**"
@@ -197,6 +196,7 @@ jobs:
         # the default.
         id:
           - esp8266-arduino
+          - esp8266-arduino-native
           - esp32-arduino-platformio
           - esp32-arduino-esp-idf
           - esp32-idf-platformio
@@ -219,5 +219,6 @@ jobs:
         run: |
           docker run --rm \
             -v "${{ github.workspace }}/docker/test_configs:/config" \
+            -e ESPHOME_LDGEN_STRICT=1 \
             "ghcr.io/esphome/esphome-amd64:${{ needs.check-docker.outputs.tag }}" \
             compile "${{ matrix.id }}.yaml"

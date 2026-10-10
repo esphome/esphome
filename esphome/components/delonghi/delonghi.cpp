@@ -3,7 +3,7 @@
 
 namespace esphome::delonghi {
 
-static const char *const TAG = "delonghi.climate";
+ESPHOME_LOG_TAG(TAG, "delonghi.climate");
 
 void DelonghiClimate::transmit_state() {
   uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};

@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.10.0-dev"
+__version__ = "2026.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -23,12 +23,14 @@ class Toolchain(StrEnum):
     SDK_NRF = "sdk-nrf"
     # ESP8266: the Arduino core built directly (no PlatformIO)
     ARDUINO = "arduino"
+    # host: the system C/C++ compiler driven by ninja (no PlatformIO)
+    HOST = "host"
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
 # SDK_NRF is absent on purpose: the zephyr backend keeps consuming
 # platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
 
 
 class Platform(StrEnum):

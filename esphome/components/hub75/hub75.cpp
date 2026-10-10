@@ -6,7 +6,7 @@
 
 namespace esphome::hub75 {
 
-static const char *const TAG = "hub75";
+ESPHOME_LOG_TAG(TAG, "hub75");
 
 // ========================================
 // Constructor
