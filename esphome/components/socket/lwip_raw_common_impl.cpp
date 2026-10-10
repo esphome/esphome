@@ -91,17 +91,24 @@ bool sockaddr_to_lwip_bind(sa_family_t family, const struct sockaddr *addr, sock
   return true;
 }
 
-int lwip_bind_err(err_t err) {
-  if (err == ERR_OK)
-    return 0;
-  if (err == ERR_USE) {
-    errno = EADDRINUSE;
-  } else if (err == ERR_VAL) {
-    errno = EINVAL;
-  } else {
-    errno = EIO;
+int lwip_err_to_errno(err_t err) {
+  switch (err) {
+    case ERR_MEM:
+      return ENOMEM;
+    case ERR_BUF:
+      return EAGAIN;  // transient, e.g. no free local port
+    case ERR_RTE:
+      return EHOSTUNREACH;  // no route, e.g. no address yet
+    case ERR_VAL:
+    case ERR_ARG:
+      return EINVAL;
+    case ERR_USE:
+      return EADDRINUSE;
+    case ERR_ISCONN:
+      return EISCONN;
+    default:
+      return EIO;
   }
-  return -1;
 }
 
 }  // namespace esphome::socket

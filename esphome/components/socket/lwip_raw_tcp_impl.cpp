@@ -41,27 +41,6 @@ static inline void yield_to_sys() { optimistic_yield(ESP8266_YIELD_INTERVAL_US);
 static inline void yield_to_sys() {}
 #endif
 
-// errno for a failed tcp_* call
-static int lwip_err_to_errno(err_t err) {
-  switch (err) {
-    case ERR_MEM:
-      return ENOMEM;
-    case ERR_BUF:
-      return EAGAIN;  // transient, e.g. no free local port
-    case ERR_RTE:
-      return EHOSTUNREACH;  // no route, e.g. no address yet
-    case ERR_VAL:
-    case ERR_ARG:
-      return EINVAL;
-    case ERR_USE:
-      return EADDRINUSE;
-    case ERR_ISCONN:
-      return EISCONN;
-    default:
-      return EIO;
-  }
-}
-
 // set to 1 to enable verbose lwip logging
 #if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
 #define LWIP_LOG(msg, ...) ESP_LOGVV(TAG, "socket %p: " msg, this, ##__VA_ARGS__)
@@ -112,33 +91,14 @@ LWIPRawCommon::~LWIPRawCommon() {
   }
 }
 
-bool LWIPRawCommon::sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) const {
-  if (name == nullptr) {
-    errno = EINVAL;
-    return false;
-  }
-#if LWIP_IPV6
-  if (this->family_ == AF_INET6) {
-    if (addrlen < sizeof(sockaddr_in6)) {
-      errno = EINVAL;
-      return false;
-    }
-    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
-    *port = ntohs(addr6->sin6_port);
-    inet6_addr_to_ip6addr(ip_2_ip6(ip), &addr6->sin6_addr);
-    // ANY lets bind() accept both families; connect() picks the concrete type
-    IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_ANY);
+bool LWIPRawCommon::sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port,
+                                 bool for_bind) const {
+  if (name != nullptr && name->sa_family == this->family_ &&
+      (for_bind ? sockaddr_to_lwip_bind(this->family_, name, addrlen, ip, port)
+                : sockaddr_to_lwip(name, addrlen, ip, port)))
     return true;
-  }
-#endif
-  if (this->family_ != AF_INET || addrlen < sizeof(sockaddr_in)) {
-    errno = EINVAL;
-    return false;
-  }
-  auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-  *port = ntohs(addr4->sin_port);
-  ip_addr_set_ip4_u32(ip, addr4->sin_addr.s_addr);
-  return true;
+  errno = EINVAL;
+  return false;
 }
 
 int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
@@ -149,7 +109,7 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   }
   ip_addr_t ip;
   uint16_t port;
-  if (!this->sockaddr2ip_(name, addrlen, &ip, &port)) {
+  if (!this->sockaddr2ip_(name, addrlen, &ip, &port, true)) {
     return -1;
   }
   LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ipaddr_ntoa(&ip), port);
@@ -414,20 +374,10 @@ int LWIPRawImpl::connect(const struct sockaddr *addr, socklen_t addrlen) {
   }
   ip_addr_t ip;
   uint16_t port;
-  if (!this->sockaddr2ip_(addr, addrlen, &ip, &port)) {
+  // Concrete type for tcp_connect; a remembered IPv4 peer arrives v4-mapped and is unmapped
+  if (!this->sockaddr2ip_(addr, addrlen, &ip, &port, false)) {
     return -1;
   }
-#if LWIP_IPV6
-  // tcp_connect needs a concrete type; a remembered IPv4 peer arrives v4-mapped
-  if (IP_IS_ANY_TYPE_VAL(ip)) {
-    if (ip6_addr_isipv4mappedipv6(ip_2_ip6(&ip))) {
-      unmap_ipv4_mapped_ipv6(ip_2_ip4(&ip), ip_2_ip6(&ip));
-      IP_SET_TYPE_VAL(ip, IPADDR_TYPE_V4);
-    } else {
-      IP_SET_TYPE_VAL(ip, IPADDR_TYPE_V6);
-    }
-  }
-#endif
   LWIP_LOG("tcp_connect(%p ip=%s port=%u)", this->pcb_, ipaddr_ntoa(&ip), port);
   err_t err = tcp_connect(this->pcb_, &ip, port, LWIPRawImpl::s_connected_fn);
   if (err != ERR_OK) {

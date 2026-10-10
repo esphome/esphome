@@ -46,7 +46,12 @@ int LWIPRawUDPSendImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
     errno = EINVAL;
     return -1;
   }
-  return lwip_bind_err(udp_bind(this->pcb_, &ip, port));
+  err_t err = udp_bind(this->pcb_, &ip, port);
+  if (err != ERR_OK) {
+    errno = lwip_err_to_errno(err);
+    return -1;
+  }
+  return 0;
 }
 
 int LWIPRawUDPSendImpl::close() {
@@ -109,7 +114,7 @@ ssize_t LWIPRawUDPSendImpl::sendto(const void *buf, size_t len, int flags, const
   pbuf_free(pb);
 
   if (err != ERR_OK) {
-    errno = err == ERR_MEM ? ENOMEM : EIO;
+    errno = lwip_err_to_errno(err);
     return -1;
   }
   return (ssize_t) len;

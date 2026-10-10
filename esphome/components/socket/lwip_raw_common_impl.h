@@ -45,8 +45,8 @@ bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t 
 bool sockaddr_to_lwip_bind(sa_family_t family, const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip,
                            uint16_t *port);
 
-/// Map lwip bind error to errno. Returns 0 on success, -1 on error with errno set.
-int lwip_bind_err(err_t err);
+/// errno for a failed lwip call
+int lwip_err_to_errno(err_t err);
 
 }  // namespace esphome::socket
 
