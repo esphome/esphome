@@ -98,7 +98,9 @@ async def setup_event_core_(
 ) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    cg.add(var.set_event_types(event_types))
+    if event_types:
+        table = cg.shared_progmem_array("event_types", cg.const_char_ptr, event_types)
+        cg.add(var.set_event_types_static(table, len(event_types)))
 
     setup_device_class(config)
 

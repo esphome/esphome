@@ -3460,7 +3460,7 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("list_entities_event_response"); }
 #endif
   StringRef device_class{nullptr, 0};  // null until set, encode only
-  const FixedVector<const char *> *event_types{};
+  const ConstVector<const char *, true> *event_types{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
