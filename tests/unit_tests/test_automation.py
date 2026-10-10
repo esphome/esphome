@@ -944,6 +944,30 @@ async def test_apply_action_call_shape(
 
 
 @pytest.mark.asyncio
+async def test_apply_target_names_parent(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """{parent} in a target is the global-scoped parent, also beside a call object."""
+    fields = (ApplyCall("set_peer({parent}->id(), {})", (("level", cg.float_),)),)
+    await _run_apply_action(registries, fields, {"level": 0.5})
+    assert (
+        f"::{PARENT_OBJ}->set_peer(::{PARENT_OBJ}->id(), 0.5f);"
+        in _apply_definition(mock_cg)
+    )
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields, {"level": 0.5}, call="make_call")
+    assert f"apply_call.set_peer(::{PARENT_OBJ}->id(), 0.5f);" in _apply_definition(
+        mock_cg
+    )
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_condition(registries, "is_peer({parent}->id())", {})
+    assert (
+        f"return ::{PARENT_OBJ}->is_peer(::{PARENT_OBJ}->id());"
+        in _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
 async def test_apply_field_nested_key_const_fn_and_type_string(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -979,8 +1003,10 @@ async def test_apply_field_nested_key_const_fn_and_type_string(
 def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
     with pytest.raises(ValueError, match="2 placeholder"):
         ApplyCall("set_range({}, {})", (("low", cg.float_),))
-    with pytest.raises(ValueError, match="only bare"):
-        ApplyCall("if ({}) {parent}->reset()", (("reset", cg.bool_),))
+    with pytest.raises(ValueError, match="only {} and {parent}"):
+        ApplyCall("if ({}) {other}->reset()", (("reset", cg.bool_),))
+    assert ApplyCall("if ({}) {parent}->reset()", (("reset", cg.bool_),)).names_parent
+    assert not ApplyCall("set_flags({{parent}})").names_parent
     ApplyCall("set_flags({{{}}})", (("flags", cg.int_),))
     with pytest.raises(ValueError, match="each arg is"):
         ApplyCall("set_kp({})", (("kp", cg.float_, None, "extra"),))
@@ -1242,12 +1268,57 @@ async def test_trigger_callback_reshapes_and_filters(mock_cg: MockCodegen) -> No
 
 @pytest.mark.asyncio
 async def test_trigger_callback_filter_has_no_parent(mock_cg: MockCodegen) -> None:
-    """A filter type that names {parent} is rejected up front, a trigger callback has none."""
-    when = ApplyCall("mode == {}", (("mode", "{parent}::Mode"),))
-    with pytest.raises(ValueError, match="names {parent}"):
+    """A filter that names {parent} is rejected up front when no parent is given."""
+    for when in (
+        ApplyCall("mode == {}", (("mode", "{parent}::Mode"),)),
+        "{parent}->is_failed() == false",
+    ):
+        with pytest.raises(ValueError, match="names {parent}"):
+            await build_trigger_callback(
+                [],
+                {**TRIGGER_CONF, "mode": 1},
+                [(cg.int_, "mode")],
+                forward=[],
+                when=when,
+            )
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_filter_names_parent(mock_cg: MockCodegen) -> None:
+    """With the parent given, {parent} in a filter is the global-scoped parent."""
+    text = _squash(
         await build_trigger_callback(
-            [], {**TRIGGER_CONF, "mode": 1}, [(cg.int_, "mode")], forward=[], when=when
+            [],
+            TRIGGER_CONF,
+            [(cg.int_, "state")],
+            forward=[],
+            when="state == 1 && {parent}->is_failed() == false",
+            parent=MockObj("improv", "->"),
         )
+    )
+    assert (
+        "if (!(state == 1 && ::improv->is_failed() == false)) return; "
+        f"::{NEW_OBJ}->trigger();"
+    ) in text
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automations_when_names_parent(
+    mock_cg: MockCodegen,
+) -> None:
+    """A table entry names the parent through {parent}, so it can live at module level."""
+    entries = (
+        CallbackAutomation(
+            "on_open", "add_on_state_callback", when="{parent}->is_fully_open()"
+        ),
+    )
+    await build_callback_automations(
+        MockObj("valve", "->"), {"on_open": [TRIGGER_CONF]}, entries
+    )
+    assert _squash(mock_cg.add.call_args.args[0]) == (
+        "valve->add_on_state_callback([]() -> void { "
+        f"if (!(::valve->is_fully_open())) return; ::{NEW_OBJ}->trigger(); }})"
+    )
 
 
 @pytest.mark.asyncio
