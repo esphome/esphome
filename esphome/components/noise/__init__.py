@@ -10,6 +10,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "noise"
 
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
 # LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
