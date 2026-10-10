@@ -43,9 +43,8 @@ jobs:
         This pull request has merge conflicts. Please merge the latest dev
         branch into your branch to resolve them.
       stale-conflicting-pr-message: >
-        The merge conflicts on this pull request have not been resolved for
-        30 days, so it has been marked as stale and will be closed if they
-        are not resolved within 7 days.
+        The merge conflicts on this pull request have not been resolved, so
+        it has been marked as stale and will be closed soon unless they are.
 
         Please merge the latest dev branch into your branch. Once the pull
         request is mergeable again the stale label is removed.
