@@ -196,6 +196,13 @@ void ESPNowComponent::enable_() {
   }
   this->get_wifi_channel();
 
+  // The radio callbacks allocate from these pools, so fill them now rather than from callback context
+  if (!this->receive_packet_pool_.warm() || !this->send_packet_pool_.warm()) {
+    ESP_LOGE(TAG, "Packet pool warm-up failed");
+    this->mark_failed();
+    return;
+  }
+
   esp_err_t err = platform::init();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Init failed: %s", esp_err_to_name(err));
