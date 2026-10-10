@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
@@ -444,6 +445,37 @@ UART_DEVICE_SCHEMA = cv.Schema(
 KEY_UART_DEVICES = "uart_devices"
 
 
+@dataclass
+class UARTData:
+    # (UART, the UART whose settings it runs with), in the order they were declared.
+    settings_sources: list[tuple[ID, ID]] = field(default_factory=list)
+
+
+def _get_data() -> UARTData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = UARTData()
+    return CORE.data[DOMAIN]
+
+
+def inherit_settings(uart_id: ID, source_id: ID) -> None:
+    """Check the devices on a UART against the baud rate, data bits, parity and stop bits of another one.
+
+    For a UART without settings of its own that passes on the bytes of source_id. Call it from
+    CONFIG_SCHEMA: the devices' final validation can run before that of the caller.
+    """
+    _get_data().settings_sources.append((uart_id, source_id))
+
+
+def _settings_source(uart_id: ID) -> ID | None:
+    """Return the UART whose settings uart_id runs with, following every hop, or None."""
+    sources = {str(uart): source for uart, source in _get_data().settings_sources}
+    found = None
+    # pop() ends the walk on a loop.
+    while (source := sources.pop(str(uart_id), None)) is not None:
+        found = uart_id = source
+    return found
+
+
 def final_validate_device_schema(
     name: str,
     *,
@@ -498,6 +530,7 @@ def final_validate_device_schema(
 
     def validate_hub(hub_config):
         hub_schema = {}
+        settings_schema = {}
         uart_id = hub_config[CONF_ID]
         uart_id_type_str = str(uart_id.type)
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
@@ -518,13 +551,17 @@ def final_validate_device_schema(
                 )
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
-            hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+            settings_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
         if data_bits is not None:
-            hub_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
+            settings_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
         if parity is not None:
-            hub_schema[cv.Required(CONF_PARITY)] = validate_parity
+            settings_schema[cv.Required(CONF_PARITY)] = validate_parity
         if stop_bits is not None:
-            hub_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+            settings_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+        if (source_id := _settings_source(uart_id)) is None:
+            hub_schema.update(settings_schema)
+        elif settings_schema:
+            fv.id_declaration_match_schema(settings_schema)(source_id)
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
