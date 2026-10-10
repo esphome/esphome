@@ -18,7 +18,8 @@ struct MagiQuestData {
   uint32_t wand_id;
 
   // Not symmetric: `this` is the decoded frame and `rhs` the configured match. A configured wand_id of 0 matches
-  // any wand. Magnitude is not compared; it appears to encode the cast type rather than a strength.
+  // any wand. Magnitude is not compared; it appears to encode the cast type rather than a strength. The legacy
+  // match applies to every configured id, so an id below 2^26 also matches the 32 wands whose full id shifts to it.
   bool operator==(const MagiQuestData &rhs) const {
     return rhs.wand_id == 0 || rhs.wand_id == this->wand_id ||
            rhs.wand_id == (this->wand_id >> MAGIQUEST_LEGACY_WAND_ID_SHIFT);
