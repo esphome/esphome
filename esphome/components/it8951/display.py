@@ -145,8 +145,7 @@ IT8951Model(
     reset_pin=12,
     cs_pin=10,
     # Board power-enable rails: 1.8V logic supply (GPIO21) and the EPD supply
-    # (GPIO11). Driven high during setup so no separate power_supply is needed.
-    # and held low during deep_sleep.
+    # (GPIO11). Driven high during setup so no separate power_supply is needed, and held low during deep_sleep.
     enable_pin=[{"number": 21, "hold_state": True}, {"number": 11, "hold_state": True}],
     vcom=1400,
     # reTerminal E1003 panel firmware only accepts the 0x0002 VCOM SET
