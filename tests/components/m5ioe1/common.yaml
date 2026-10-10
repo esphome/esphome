@@ -1,0 +1,98 @@
+m5ioe1:
+  id: m5ioe1_hub
+  reset: true
+  pwm_frequency: 500Hz
+  interrupt_pin: ${interrupt_pin}
+
+# GPIO pins as binary sensor and switch
+binary_sensor:
+  - platform: gpio
+    name: "M5IOE1 Button"
+    pin:
+      m5ioe1_id: m5ioe1_hub
+      number: 0
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+
+switch:
+  - platform: gpio
+    name: "M5IOE1 Relay"
+    pin:
+      m5ioe1_id: m5ioe1_hub
+      number: 1
+      mode:
+        output: true
+
+  # AW8737A amplifier control
+  - platform: m5ioe1
+    id: amplifier
+    m5ioe1_id: m5ioe1_hub
+    pin: 5
+    pulse_num: 2
+    name: "Audio Amplifier"
+
+# PWM outputs
+output:
+  - platform: m5ioe1
+    id: pwm_ch1
+    m5ioe1_id: m5ioe1_hub
+    channel: PWM_1
+    pwm_polarity: ACTIVE_HIGH
+  - platform: m5ioe1
+    id: pwm_ch2
+    m5ioe1_id: m5ioe1_hub
+    channel: PWM_2
+    pwm_polarity: ACTIVE_HIGH
+
+# PWM-controlled lights
+light:
+  - platform: monochromatic
+    name: "M5IOE1 PWM Light 1"
+    output: pwm_ch1
+  - platform: monochromatic
+    name: "M5IOE1 PWM Light 2"
+    output: pwm_ch2
+
+# Addressable RGB LEDs
+  - platform: m5ioe1
+    id: rgb_leds
+    m5ioe1_id: m5ioe1_hub
+    num_led: 10
+    name: "M5IOE1 RGB Strip"
+
+# ADC sensors
+sensor:
+  - platform: m5ioe1
+    id: adc1
+    m5ioe1_id: m5ioe1_hub
+    channel: ADC_1
+    type: adc
+    update_interval: 10s
+    name: "M5IOE1 ADC 1"
+  - platform: m5ioe1
+    id: adc2
+    m5ioe1_id: m5ioe1_hub
+    channel: ADC_2
+    type: adc
+    update_interval: 10s
+    name: "M5IOE1 ADC 2"
+
+  # ADC Reference voltage
+  - platform: m5ioe1
+    name: "ADC Reference Voltage"
+    type: adc
+    channel: REF_VOLT
+    unit_of_measurement: "mV"
+    device_class: "voltage"
+    accuracy_decimals: 1
+    filters:
+      - delta: 10
+
+  # Internal temperature of device
+  - platform: m5ioe1
+    name: "M5IOE1 Temerature"
+    type: temperature
+    filters:
+      - delta: 1
