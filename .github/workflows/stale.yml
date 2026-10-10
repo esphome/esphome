@@ -16,7 +16,7 @@ jobs:
     # No GITHUB_TOKEN permissions: the reusable workflow mints an ESPHome
     # GitHub App token so the labels, comments and closures come from
     # esphome[bot] instead of github-actions[bot].
-    uses: esphome/workflows/.github/workflows/stale.yml@96355d4f3d3383711a36b7aacb6a6c0ae18567d4  # stale-merge-conflicts
+    uses: esphome/workflows/.github/workflows/stale.yml@fe68f3766f4a0584021ab1f7146d306a813f1896  # stale-merge-conflicts
     secrets:
       ESPHOME_GITHUB_APP_PRIVATE_KEY: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
     with:
