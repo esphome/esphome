@@ -86,6 +86,10 @@ class UARTComponent {
   // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
   virtual size_t available_for_write() { return SIZE_MAX; }
 
+  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the line time since
+  // last_write_ms, a loop start time: at most one loop interval and 4 s, at least one byte.
+  size_t paced_write_room(uint32_t last_write_ms);
+
   // Pure virtual method to block until all bytes have been written to the UART bus.
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
   virtual UARTFlushResult flush() = 0;

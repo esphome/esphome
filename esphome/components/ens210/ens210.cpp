@@ -12,7 +12,9 @@
 
 namespace esphome::ens210 {
 
-static const char *const TAG = "ens210";
+ESPHOME_LOG_TAG(TAG, "ens210");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 // ENS210 chip constants
 static const uint8_t ENS210_BOOTING_MS = 2;  // Booting time in ms (also after reset, or going to high power)
@@ -149,7 +151,7 @@ void ENS210Component::update() {
     return;
   }
   // Wait for measurement to complete
-  this->set_timeout("data", uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
     int temperature_data, temperature_status, humidity_data, humidity_status;
     uint8_t data[6];
     uint32_t h_val_data, t_val_data;

@@ -10,7 +10,7 @@
 
 namespace esphome::mdns {
 
-static const char *const TAG = "mdns";
+ESPHOME_LOG_TAG(TAG, "mdns");
 
 #ifndef USE_OPENTHREAD
 static esp_err_t add_service(const MDNSService &service) {

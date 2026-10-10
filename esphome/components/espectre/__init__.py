@@ -10,8 +10,9 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WIFI
+from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -162,7 +163,7 @@ async def to_code(config: ConfigType) -> None:
     if (off_hits := config.get(CONF_MOTION_OFF_HITS)) is not None:
         cg.add(var.set_motion_off_hits(off_hits))
     if esp32.get_esp32_variant() == VARIANT_ESP32C5:
-        band = CORE.config[CONF_WIFI].get(wifi.CONF_BAND_MODE, "AUTO")
+        band = CORE.config[WIFI_DOMAIN].get(wifi.CONF_BAND_MODE, "AUTO")
         cg.add(
             var.set_wifi_band_policy(
                 {

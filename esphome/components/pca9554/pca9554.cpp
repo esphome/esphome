@@ -9,7 +9,7 @@ const uint8_t OUTPUT_REG = 1;
 const uint8_t INVERT_REG = 2;
 const uint8_t CONFIG_REG = 3;
 
-static const char *const TAG = "pca9554";
+ESPHOME_LOG_TAG(TAG, "pca9554");
 
 void PCA9554Component::setup() {
   this->reg_width_ = (this->pin_count_ + 7) / 8;
