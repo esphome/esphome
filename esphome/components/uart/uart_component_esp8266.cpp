@@ -246,35 +246,23 @@ UARTFlushResult ESP8266UartComponent::flush() {
 void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate,
                                   uint8_t stop_bits, uint32_t data_bits, UARTParityOptions parity,
                                   size_t rx_buffer_size) {
-  // load_settings() calls this again; keep the ISR out while the settings and the buffer change
-  if (this->gpio_rx_pin_ != nullptr) {
-    this->gpio_rx_pin_->detach_interrupt();
-  }
   this->bit_time_ = F_CPU / baud_rate;
+  this->rx_buffer_size_ = rx_buffer_size;
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
-  // to_isr() allocates, so a reload with the same pins skips the pin setup
-  if (tx_pin != nullptr && tx_pin != this->gpio_tx_pin_) {
-    this->gpio_tx_pin_ = tx_pin;
-    this->gpio_tx_pin_->setup();
-    this->tx_pin_ = this->gpio_tx_pin_->to_isr();
-    this->tx_pin_.digital_write(true);
+  if (tx_pin != nullptr) {
+    gpio_tx_pin_ = tx_pin;
+    gpio_tx_pin_->setup();
+    tx_pin_ = gpio_tx_pin_->to_isr();
+    tx_pin_.digital_write(true);
   }
   if (rx_pin != nullptr) {
-    if (rx_pin != this->gpio_rx_pin_) {
-      this->gpio_rx_pin_ = rx_pin;
-      this->gpio_rx_pin_->setup();
-      this->rx_pin_ = this->gpio_rx_pin_->to_isr();
-    }
-    if (this->rx_buffer_ == nullptr || rx_buffer_size != this->rx_buffer_size_) {
-      delete[] this->rx_buffer_;
-      this->rx_buffer_ = new uint8_t[rx_buffer_size];  // NOLINT
-      this->rx_buffer_size_ = rx_buffer_size;
-    }
-    this->rx_in_pos_ = 0;
-    this->rx_out_pos_ = 0;
-    this->gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    gpio_rx_pin_ = rx_pin;
+    gpio_rx_pin_->setup();
+    rx_pin_ = gpio_rx_pin_->to_isr();
+    rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
+    gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 }
 // A byte can arrive while a CpuFrequencyBoost has an 80 MHz build at 160 MHz; the clock select bit doubles
