@@ -1,0 +1,20 @@
+# The sensor readout window, and both actions.
+esphome:
+  on_boot:
+    then:
+      - esp32_camera_window.set:
+          id: test_window
+          offset_x: 0
+          offset_y: 0
+          width: 480
+          height: 320
+      - esp32_camera_window.reset: test_window
+
+esp32_camera_window:
+  id: test_window
+  camera_id: test_camera
+  window:
+    offset_x: 100
+    offset_y: 80
+    width: 320
+    height: 240
