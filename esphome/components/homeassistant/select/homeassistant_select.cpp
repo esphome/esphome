@@ -10,7 +10,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.select";
+ESPHOME_LOG_TAG(TAG, "homeassistant.select");
 
 namespace {
 
@@ -229,6 +229,13 @@ void HomeassistantSelect::control(size_t index) {
     ESP_LOGE(TAG, "No clients connected to API server");
     return;
   }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
 
   static constexpr auto SERVICE_SELECT = StringRef::from_lit("select.select_option");
   static constexpr auto SERVICE_INPUT_SELECT = StringRef::from_lit("input_select.select_option");

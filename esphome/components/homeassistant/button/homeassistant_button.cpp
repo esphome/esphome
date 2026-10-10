@@ -9,7 +9,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.button";
+ESPHOME_LOG_TAG(TAG, "homeassistant.button");
 
 void HomeassistantButton::dump_config() {
   LOG_BUTTON("", "Homeassistant Button", this);
@@ -23,6 +23,13 @@ void HomeassistantButton::press_action() {
     ESP_LOGE(TAG, "No clients connected to API server");
     return;
   }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
 
   static constexpr auto SERVICE_BUTTON = StringRef::from_lit("button.press");
   static constexpr auto SERVICE_INPUT_BUTTON = StringRef::from_lit("input_button.press");

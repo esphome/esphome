@@ -5,7 +5,7 @@
 
 namespace esphome::status_led {
 
-static const char *const TAG = "status_led";
+ESPHOME_LOG_TAG(TAG, "status_led");
 
 void StatusLEDLightOutput::loop() {
   uint8_t new_state = App.get_app_state() & STATUS_LED_MASK;

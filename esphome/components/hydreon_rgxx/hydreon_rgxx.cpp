@@ -3,7 +3,10 @@
 
 namespace esphome::hydreon_rgxx {
 
-static const char *const TAG = "hydreon_rgxx.sensor";
+ESPHOME_LOG_TAG(TAG, "hydreon_rgxx.sensor");
+
+static constexpr uint32_t REBOOT_INTERVAL_ID = 0;
+
 static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
 #define HYDREON_RGXX_COMMA ,
@@ -138,7 +141,7 @@ void HydreonRGxxComponent::loop() {
  */
 void HydreonRGxxComponent::schedule_reboot_() {
   this->boot_count_ = 0;
-  this->set_interval("reboot", 5000, [this]() {
+  this->set_interval(REBOOT_INTERVAL_ID, 5000, [this]() {
     if (this->boot_count_ < 0) {
       ESP_LOGW(TAG, "hydreon_rgxx failed to boot %d times", -this->boot_count_);
     }
@@ -188,7 +191,7 @@ void HydreonRGxxComponent::process_line_() {
     } else {
       this->boot_count_++;
     }
-    this->cancel_interval("reboot");
+    this->cancel_interval(REBOOT_INTERVAL_ID);
     this->no_response_count_ = 0;
     ESP_LOGI(TAG, "Boot detected: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
 

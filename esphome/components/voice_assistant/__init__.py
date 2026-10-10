@@ -19,6 +19,7 @@ AUTO_LOAD = ["audio", "ring_buffer", "socket"]
 DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "voice_assistant"
 
 CONF_ON_END = "on_end"
 CONF_ON_INTENT_END = "on_intent_end"

@@ -207,9 +207,11 @@ def compile_edges(
 
 
 def library_edges(
-    lines: list[str], libraries: list[ArduinoLibrary]
+    lines: list[str], libraries: list[ArduinoLibrary], extra_flags: str = ""
 ) -> tuple[list[str], list[str]]:
     """Emit every library's compile and archive edges.
+
+    ``extra_flags`` (raw ninja text) precede each library's own flags.
 
     Returns the archive names and the objects that link directly. A
     library's own include dirs lead its compile lines, as PlatformIO searched
@@ -232,7 +234,7 @@ def library_edges(
             lib.sources,
             common_parent(lib.sources),
             f"lib/{lib.name}",
-            flags=" ".join(_shell_token(f) for f in lib.flags),
+            flags=" ".join(filter(None, [extra_flags, *map(_shell_token, lib.flags)])),
             own_includes=" ".join(f"-I{_q(d)}" for d in lib.include_dirs),
         )
         if not lib.lib_archive:

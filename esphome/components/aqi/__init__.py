@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 
 CODEOWNERS = ["@jasstrong", "@ximex", "@freekode"]
+DOMAIN = "aqi"
 
 aqi_ns = cg.esphome_ns.namespace("aqi")
 AQICalculatorType = aqi_ns.enum("AQICalculatorType")

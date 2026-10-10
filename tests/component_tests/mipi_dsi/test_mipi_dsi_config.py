@@ -10,9 +10,11 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4
 
-# Importing xl9535 registers its pin schema with pins.PIN_SCHEMA_REGISTRY so that
-# models (e.g. SEEED-RETERMINAL-D1001) that reference xl9535-backed pins in their
-# defaults can be validated by the mipi_dsi CONFIG_SCHEMA in this test.
+# Importing the I/O expanders registers their pin schemas with
+# pins.PIN_SCHEMA_REGISTRY so that models whose defaults reference expander-backed
+# pins (e.g. SEEED-RETERMINAL-D1001 uses xl9535, the M5Stack Tab5 models use
+# pi4ioe5v6408) can be validated by the mipi_dsi CONFIG_SCHEMA in this test.
+import esphome.components.pi4ioe5v6408  # noqa: F401
 import esphome.components.xl9535  # noqa: F401
 from esphome.const import (
     CONF_DIMENSIONS,
