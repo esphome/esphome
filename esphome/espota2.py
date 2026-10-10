@@ -65,9 +65,15 @@ CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
 CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
 CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
+CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
+# Binding once offered: the device then expects the image size and a deflate stream
+SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
+
+# Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
+DEFLATE_WINDOW_BITS = 12
 
 NOISE_FRAME_INDICATOR = 0x01
 NOISE_HANDSHAKE_OK = 0x00
@@ -87,6 +93,9 @@ _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
 )
 
 UPLOAD_BLOCK_SIZE = 8192
+# Sizes on the wire are 4 bytes MSB first
+SIZE_FIELD_BYTES = 4
+COMPRESS_LEVEL = 9
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 
 # Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
@@ -210,6 +219,27 @@ class OTANetworkError(OTAError):
 class OTAEncryptionFallback(OTAError):
     """The encrypted attempt failed and the caller may retry in plaintext."""
 
+
+# Uploader side option under `ota: encryption:`; the ota component imports the
+# name so the upload path never loads the component module
+CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
+ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
+    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; expected once, on the install that "
+    "migrates a device which never encrypted. If this device encrypted before, "
+    "something on the network stripped the offer: remove the option and check "
+    "the network."
+)
+# Logged only once the device is seen encrypting, so the migration install
+# itself is never nagged and the user learns exactly when removal is safe
+ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING = f"""
+******************************************************************
+*  This device offers OTA encryption and accepted the key, so
+*  '{CONF_ALLOW_PLAINTEXT_UPLOAD}' under 'ota: encryption:' has done
+*  its job. Remove it from the configuration now, together with
+*  any 'password:' on that block: leaving the option in place lets
+*  an attacker on the network strip the encryption offer and
+*  downgrade a future upload to plaintext.
+******************************************************************"""
 
 # Remove before 2027.3.0
 PLAINTEXT_FALLBACK_NOTICE = (
@@ -512,6 +542,7 @@ def perform_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> None:
     # Validate up front; an out-of-range value would only surface as a
     # ValueError deep inside send_check, bypassing OTAError handling
@@ -551,6 +582,7 @@ def perform_ota(
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+        | CLIENT_FEATURE_SUPPORTS_DEFLATE
     )
     if noise_psk:
         features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
@@ -577,25 +609,32 @@ def perform_ota(
         features = 0
 
     if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
-        if plaintext_fallback:
-            # Remove before 2027.3.0: older firmware that cannot encrypt still
-            # gets its update on this connection
+        # Remove before 2027.3.0: drop `or plaintext_fallback` and
+        # PLAINTEXT_FALLBACK_NOTICE here; allow_plaintext_upload stays
+        if allow_plaintext_upload or plaintext_fallback:
+            # The running firmware cannot encrypt; it still gets this update,
+            # and the build being sent offers encryption for the next one
             _LOGGER.warning(
                 "The device did not offer OTA encryption; continuing in plaintext. %s",
-                PLAINTEXT_FALLBACK_NOTICE,
+                ALLOW_PLAINTEXT_UPLOAD_NOTICE
+                if allow_plaintext_upload
+                else PLAINTEXT_FALLBACK_NOTICE,
             )
             noise_psk = None
         else:
             # Fail closed: an attacker could otherwise strip the offer and
             # capture the image (wifi credentials, api key)
+            # Remove before 2027.3.0: installing without the block no longer
+            # falls back then; advise 'allow_plaintext_upload: true' instead
             raise OTAError(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
                 "The running firmware predates ESPHome 2026.9.0 or has no "
                 "'api: encryption: key'. With an api key, install once "
                 "without the 'ota: encryption:' block (that build offers "
-                "encryption), then restore it; otherwise flash by serial or "
-                "the web_server OTA platform."
+                f"encryption), then restore it; otherwise set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: "
+                "true' under 'ota: encryption:' for this one install, or flash by "
+                "serial or the web_server OTA platform."
             )
     if noise_psk:
         # The prologue binds every negotiation byte both sides saw, so any
@@ -619,6 +658,8 @@ def perform_ota(
                 raise OTAEncryptionFallback(str(err)) from err
             raise
         _LOGGER.info("Encrypted connection established")
+        if allow_plaintext_upload:
+            _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -644,8 +685,18 @@ def perform_ota(
                 f"retry {flag_name}."
             )
 
-    if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
-        upload_contents = gzip.compress(file_contents, compresslevel=9)
+    deflate = bool(extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE)
+    if deflate:
+        import zlib
+
+        # The device inflates while receiving through a small ring window
+        upload_contents = zlib.compress(
+            file_contents, COMPRESS_LEVEL, wbits=-DEFLATE_WINDOW_BITS
+        )
+        _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
+    elif features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
+        # The device stores the gzip file and inflates it when it reboots
+        upload_contents = gzip.compress(file_contents, compresslevel=COMPRESS_LEVEL)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     else:
         upload_contents = file_contents
@@ -704,22 +755,20 @@ def perform_ota(
         send_check(sock, ota_type, "ota type")
 
     upload_size = len(upload_contents)
-    upload_size_encoded = [
-        (upload_size >> 24) & 0xFF,
-        (upload_size >> 16) & 0xFF,
-        (upload_size >> 8) & 0xFF,
-        (upload_size >> 0) & 0xFF,
-    ]
     # The device erases flash between receiving the size and acking the
     # prepare, so this window shows the erase cost (near zero when the
     # device erases lazily during the upload)
     prepare_start = time.perf_counter()
-    send_check(sock, upload_size_encoded, "binary size")
+    send_check(sock, upload_size.to_bytes(SIZE_FIELD_BYTES, "big"), "binary size")
+    if deflate:
+        # Own frame: an encrypted session carries one field per frame
+        send_check(sock, file_size.to_bytes(SIZE_FIELD_BYTES, "big"), "image size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
     prepare_duration = time.perf_counter() - prepare_start
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
+    # The device hashes what it writes: the inflated image, else the received bytes
+    upload_md5 = hashlib.md5(file_contents if deflate else upload_contents).hexdigest()
     _LOGGER.debug("MD5 of upload is %s", upload_md5)
 
     send_check(sock, upload_md5, "file checksum")
@@ -824,6 +873,7 @@ def run_ota_impl_(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -899,6 +949,7 @@ def run_ota_impl_(
                     ota_type,
                     encryption.noise_psk,
                     encryption.plaintext_fallback,
+                    allow_plaintext_upload=allow_plaintext_upload,
                 )
             except OTAEncryptionFallback as err:
                 # Same address and attempt budget: not a network retry
@@ -940,6 +991,7 @@ def run_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(
@@ -950,6 +1002,7 @@ def run_ota(
             ota_type,
             noise_psk,
             plaintext_fallback,
+            allow_plaintext_upload,
         )
     except OTAError as err:
         _LOGGER.error(err)

@@ -4,7 +4,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus.number";
+ESPHOME_LOG_TAG(TAG, "modbus.number");
 
 // Maximum uint16_t registers to log in verbose hex output
 static constexpr size_t MODBUS_NUMBER_MAX_LOG_REGISTERS = 32;

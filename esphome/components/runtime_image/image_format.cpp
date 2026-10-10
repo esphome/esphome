@@ -1,5 +1,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "image_format.h"
 
 namespace esphome::runtime_image {
@@ -26,6 +27,8 @@ static constexpr MimeLookup MIME_LOOKUP_TABLE[] = {
 #endif
 };
 
+PROGMEM_STRING_TABLE(ImageFormatStrings, "AUTO", "BMP", "JPEG", "PNG", "QOI", "UNKNOWN");
+
 const char *get_mime_type_for_format(ImageFormat format) {
   for (const auto &entry : MIME_LOOKUP_TABLE) {
     if (entry.format == format) {
@@ -42,6 +45,10 @@ std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type) {
     }
   }
   return std::nullopt;
+}
+
+const LogString *get_format_name(ImageFormat format) {
+  return ImageFormatStrings::get_log_str(static_cast<uint8_t>(format), ImageFormatStrings::LAST_INDEX);
 }
 
 }  // namespace esphome::runtime_image

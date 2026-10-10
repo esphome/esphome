@@ -1,0 +1,11 @@
+packages:
+  common: !include common.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Outgoing connection on the lwip_sockets implementation used by LibreTiny
+api:
+  outgoing_connection:
+    host: 192.168.1.2
