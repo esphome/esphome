@@ -1383,42 +1383,14 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $bin.DirectoryName
           & $bin.FullName --version
 
-      - name: Write the test config
-        shell: pwsh
-        run: |
-          $dir = Join-Path $env:RUNNER_TEMP "esp8266-native"
-          New-Item -ItemType Directory -Force $dir | Out-Null
-          # The components a typical ESP8266 device uses; they pull in the
-          # ESPAsyncWebServer and ArduinoJson libraries.
-          @"
-          esphome:
-            name: esp8266nativewin
-
-          esp8266:
-            board: d1_mini
-
-          logger:
-
-          wifi:
-            ssid: testssid
-            password: testpassword
-
-          api:
-
-          ota:
-            - platform: esphome
-
-          web_server:
-
-          captive_portal:
-          "@ | Set-Content -Path (Join-Path $dir "esp8266.yaml")
-
       - name: Compile
         shell: pwsh
+        # One component test: web_server brings wifi, api and the async web
+        # server libraries, the shape of a typical ESP8266 device
         run: |
           . .\venv\Scripts\Activate.ps1
-          $cfg = Join-Path $env:RUNNER_TEMP "esp8266-native\esp8266.yaml"
-          $p = Start-Process -FilePath python -ArgumentList "-m", "esphome", "compile", $cfg -NoNewWindow -PassThru
+          $arguments = "script/test_build_components.py", "-e", "compile", "-t", "esp8266-ard", "-c", "web_server", "--toolchain", "arduino", "--fail-on-no-tests"
+          $p = Start-Process -FilePath python -ArgumentList $arguments -NoNewWindow -PassThru
           # Reading the handle keeps ExitCode available after the process exits
           $null = $p.Handle
           if (-not $p.WaitForExit(25 * 60 * 1000)) {
