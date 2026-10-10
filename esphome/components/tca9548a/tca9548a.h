@@ -24,6 +24,12 @@ class TCA9548AChannel final : public i2c::I2CBus {
 
  protected:
 #ifdef I2C_PORT_FREQUENCY_COUNT
+  uint32_t select_frequency_() const;
+  uint32_t transfer_frequency_() const;
+  i2c::ErrorCode write_readv_at_port_frequency_(uint8_t address, const uint8_t *write_buffer, size_t write_count,
+                                                uint8_t *read_buffer, size_t read_count);
+  i2c::ErrorCode transfer_(uint32_t select_frequency, uint8_t address, const uint8_t *write_buffer, size_t write_count,
+                           uint8_t *read_buffer, size_t read_count);
   /// Switch the upstream bus, flagging the multiplexer when that fails
   i2c::ErrorCode switch_bus_(uint32_t frequency);
   uint32_t frequency_{0};
