@@ -835,7 +835,7 @@ _PCH_CMAKE_LINES = [
     "set(esphome_kept_options)",
     "set(esphome_pch_headers)",
     "foreach(option IN LISTS esphome_options)",
-    '  if(option MATCHES "imacros> (.+)$")',
+    '  if(option MATCHES "imacros> ([^>]+)")',
     '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
     "    list(APPEND esphome_kept_options",
     '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
