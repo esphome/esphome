@@ -39,11 +39,19 @@ def _root_bus_id(bus_id: ID) -> ID:
     return bus_id
 
 
+def _declared_bus_type(bus_id: ID) -> cg.MockObjClass | None:
+    """The class the i2c component declared for a bus, or None for an external bus."""
+    for bus in CORE.config.get(i2c.DOMAIN, []):
+        if bus[CONF_ID].id == bus_id.id:
+            return bus[CONF_ID].type
+    return None
+
+
 async def _add_frequency(root_bus_id: ID, frequency: int) -> None:
     """Count the frequency against the root bus; the built-in ESP32 bus also
     creates its device handle in setup()."""
     _request_port_frequency_slot(str(root_bus_id))
-    if root_bus_id.type is i2c.IDFI2CBus:
+    if _declared_bus_type(root_bus_id) is i2c.IDFI2CBus:
         root = await cg.get_variable(root_bus_id)
         cg.add(root.add_frequency(frequency))
 
