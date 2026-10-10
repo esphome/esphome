@@ -13,6 +13,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
+DOMAIN = "canbus"
 IS_PLATFORM_COMPONENT = True
 
 CONF_CAN_ID = "can_id"

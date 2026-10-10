@@ -36,19 +36,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _subtree_references_uart(node: object, uart_id: str) -> bool:
-    """Return True if any dict in the subtree has a uart_id entry naming this bus."""
-    if isinstance(node, dict):
-        return any(
-            (key == CONF_UART_ID and str(value) == uart_id)
-            or _subtree_references_uart(value, uart_id)
-            for key, value in node.items()
-        )
-    if isinstance(node, list):
-        return any(_subtree_references_uart(item, uart_id) for item in node)
-    return False
-
-
 def _reject_debug(uart_conf: ConfigType) -> ConfigType:
     # The worker tasks use the IDF driver directly, so the uart debugger never sees
     # bridge traffic and its dummy_receiver would drain RX bytes on the main loop.
@@ -86,7 +73,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         for domain, domain_conf in full_config.items():
             if domain == BRIDGE_DOMAIN:
                 continue
-            if _subtree_references_uart(domain_conf, owned_id):
+            if uart.subtree_references_uart(domain_conf, owned_id):
                 raise cv.Invalid(
                     f"The {label} '{owned_id}' is also used by '{domain}'; a bridge "
                     f"requires exclusive use of its {label}.",
