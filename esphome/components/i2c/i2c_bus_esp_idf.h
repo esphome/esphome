@@ -4,9 +4,13 @@
 
 #include "esphome/core/component.h"
 #include "i2c_bus.h"
+#include "esphome/core/helpers.h"
 #include <driver/i2c_master.h>
 
 namespace esphome::i2c {
+
+// The bus frequency plus the distinct port frequencies of attached multiplexers
+static constexpr size_t MAX_FREQUENCY_DEVICES = 4;
 
 enum RecoveryCode {
   RECOVERY_FAILED_SCL_LOW,
@@ -38,11 +42,17 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
 
  private:
   void recover_();
-  ErrorCode configure_device_();
+  i2c_master_dev_handle_t add_device_(uint32_t frequency);
   RecoveryCode recovery_result_{};
 
  protected:
   i2c_master_dev_handle_t dev_{};
+  // One handle per frequency used on the bus; the first is the configured one
+  struct FrequencyDevice {
+    uint32_t frequency;
+    i2c_master_dev_handle_t dev;
+  };
+  StaticVector<FrequencyDevice, MAX_FREQUENCY_DEVICES> devices_;
   i2c_master_bus_handle_t bus_{};
   i2c_port_t port_{};
   uint8_t sda_pin_{};

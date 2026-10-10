@@ -67,10 +67,12 @@ void IDFI2CBus::setup() {
     return;
   }
 
-  if (this->configure_device_() != ERROR_OK) {
+  this->dev_ = this->add_device_(this->frequency_);
+  if (this->dev_ == nullptr) {
     this->mark_failed();
     return;
   }
+  this->devices_.push_back({this->frequency_, this->dev_});
 
   this->initialized_ = true;
 
@@ -80,26 +82,19 @@ void IDFI2CBus::setup() {
   }
 }
 
-ErrorCode IDFI2CBus::configure_device_() {
-  if (this->dev_ != nullptr) {
-    const esp_err_t err = i2c_master_bus_rm_device(this->dev_);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "i2c_master_bus_rm_device failed: %s", esp_err_to_name(err));
-      return ERROR_UNKNOWN;
-    }
-    this->dev_ = nullptr;
-  }
+i2c_master_dev_handle_t IDFI2CBus::add_device_(uint32_t frequency) {
   i2c_device_config_t dev_conf{};
   dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
   dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
-  dev_conf.scl_speed_hz = this->frequency_;
+  dev_conf.scl_speed_hz = frequency;
   dev_conf.scl_wait_us = this->timeout_;
-  const esp_err_t err = i2c_master_bus_add_device(this->bus_, &dev_conf, &this->dev_);
+  i2c_master_dev_handle_t dev{};
+  const esp_err_t err = i2c_master_bus_add_device(this->bus_, &dev_conf, &dev);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
-    return ERROR_UNKNOWN;
+    return nullptr;
   }
-  return ERROR_OK;
+  return dev;
 }
 
 void IDFI2CBus::dump_config() {
@@ -216,10 +211,29 @@ ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
   if (this->frequency_ == frequency) {
     return ERROR_OK;
   }
-  this->frequency_ = frequency;
-  if (this->initialized_) {
-    return this->configure_device_();
+  if (!this->initialized_) {
+    this->frequency_ = frequency;
+    return ERROR_OK;
   }
+  // The driver applies each device handle's own timing, so one handle per
+  // frequency is created once and switched after that.
+  for (const auto &device : this->devices_) {
+    if (device.frequency == frequency) {
+      this->dev_ = device.dev;
+      this->frequency_ = frequency;
+      return ERROR_OK;
+    }
+  }
+  if (this->devices_.size() == this->devices_.capacity()) {
+    return ERROR_UNKNOWN;
+  }
+  i2c_master_dev_handle_t dev = this->add_device_(frequency);
+  if (dev == nullptr) {
+    return ERROR_UNKNOWN;
+  }
+  this->devices_.push_back({frequency, dev});
+  this->dev_ = dev;
+  this->frequency_ = frequency;
   return ERROR_OK;
 }
 

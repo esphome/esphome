@@ -20,7 +20,7 @@ class TCA9548AChannel final : public i2c::I2CBus {
     this->frequency_ = frequency;
     return i2c::ERROR_OK;
   }
-  uint32_t get_frequency() const override { return this->frequency_; }
+  uint32_t get_frequency() const override;
 
  protected:
   uint8_t channel_;

@@ -124,17 +124,14 @@ ErrorCode ZephyrI2CBus::set_frequency(uint32_t frequency) {
   if (this->frequency_ == frequency) {
     return ERROR_OK;
   }
-  this->frequency_ = frequency;
-  this->dev_config_ &= ~I2C_SPEED_MASK;
-  if (frequency >= 400000) {
-    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_FAST);
-  } else {
-    this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_STANDARD);
-  }
+  uint32_t dev_config = this->dev_config_ & ~I2C_SPEED_MASK;
+  dev_config |= I2C_SPEED_SET(frequency >= 400000 ? I2C_SPEED_FAST : I2C_SPEED_STANDARD);
   // Until ready, setup() applies dev_config_
-  if (this->is_ready() && i2c_configure(this->i2c_dev_, this->dev_config_) < 0) {
+  if (this->is_ready() && i2c_configure(this->i2c_dev_, dev_config) < 0) {
     return ERROR_UNKNOWN;
   }
+  this->dev_config_ = dev_config;
+  this->frequency_ = frequency;
   return ERROR_OK;
 }
 

@@ -24,8 +24,8 @@ CONFIG_SCHEMA = (
                 {
                     cv.Required(CONF_BUS_ID): cv.declare_id(TCA9548AChannel),
                     cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
-                    cv.Optional(CONF_FREQUENCY, default="0"): cv.All(
-                        cv.frequency, cv.Range(min=0)
+                    cv.Optional(CONF_FREQUENCY): cv.All(
+                        cv.frequency, cv.Range(min=0, min_included=False)
                     ),
                 }
             ),
@@ -45,5 +45,5 @@ async def to_code(config: ConfigType) -> None:
         chan = cg.new_Pvariable(conf[CONF_BUS_ID])
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(conf[CONF_CHANNEL]))
-        if frequency := int(conf[CONF_FREQUENCY]):
-            cg.add(chan.set_frequency(frequency))
+        if (frequency := conf.get(CONF_FREQUENCY)) is not None:
+            cg.add(chan.set_frequency(int(frequency)))
