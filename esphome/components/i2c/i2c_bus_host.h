@@ -22,7 +22,10 @@ class HostI2CBus final : public I2CBus, public Component {
   void set_device(const std::string &device) { this->device_ = device; }
   void set_scan(bool scan) { this->scan_ = scan; }
 
-  ErrorCode set_frequency(uint32_t frequency) override;
+  ErrorCode set_frequency(uint32_t frequency) override {
+    this->frequency_ = frequency;
+    return ERROR_OK;
+  }
   uint32_t get_frequency() const override { return this->frequency_; }
 
   const std::string &get_device() const { return this->device_; }

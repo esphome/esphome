@@ -45,4 +45,5 @@ async def to_code(config: ConfigType) -> None:
         chan = cg.new_Pvariable(conf[CONF_BUS_ID])
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(conf[CONF_CHANNEL]))
-        cg.add(chan.set_frequency(conf[CONF_FREQUENCY]))
+        if frequency := int(conf[CONF_FREQUENCY]):
+            cg.add(chan.set_frequency(frequency))

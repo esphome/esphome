@@ -13,31 +13,29 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
   if (err != i2c::ERROR_OK)
     return err;
 
-  const uint32_t original_frequency = this->parent_->bus_->get_frequency();
-  if (this->frequency_) {
-    err = this->parent_->bus_->set_frequency(this->frequency_);
-    if (err != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "Failed to change I²C frequency");
-      this->parent_->disable_all_channels();
-      return err;
-    }
+  i2c::I2CBus *bus = this->parent_->bus_;
+  if (this->frequency_ == 0) {
+    err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+    this->parent_->disable_all_channels();
+    return err;
   }
 
-  err = this->parent_->bus_->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+  const uint32_t original_frequency = bus->get_frequency();
+  err = bus->set_frequency(this->frequency_);
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Failed to change I²C frequency");
+    this->parent_->disable_all_channels();
+    return err;
+  }
 
-  if (this->frequency_) {
-    if (this->parent_->bus_->set_frequency(original_frequency) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "Failed to restore original I²C frequency");
-    }
+  err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+
+  if (bus->set_frequency(original_frequency) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Failed to restore original I²C frequency");
   }
   this->parent_->disable_all_channels();
 
   return err;
-}
-
-i2c::ErrorCode TCA9548AChannel::set_frequency(uint32_t frequency) {
-  this->frequency_ = frequency;
-  return i2c::ERROR_OK;
 }
 
 void TCA9548AComponent::setup() {

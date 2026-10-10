@@ -90,7 +90,6 @@ ErrorCode IDFI2CBus::configure_device_() {
     this->dev_ = nullptr;
   }
   i2c_device_config_t dev_conf{};
-  memset(&dev_conf, 0, sizeof(dev_conf));
   dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
   dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
   dev_conf.scl_speed_hz = this->frequency_;

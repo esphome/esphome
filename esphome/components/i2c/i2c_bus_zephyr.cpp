@@ -131,7 +131,7 @@ ErrorCode ZephyrI2CBus::set_frequency(uint32_t frequency) {
   } else {
     this->dev_config_ |= I2C_SPEED_SET(I2C_SPEED_STANDARD);
   }
-  // Before setup the config word is applied there
+  // Until ready, setup() applies dev_config_
   if (this->is_ready() && i2c_configure(this->i2c_dev_, this->dev_config_) < 0) {
     return ERROR_UNKNOWN;
   }

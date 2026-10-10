@@ -46,15 +46,15 @@ void ArduinoI2CBus::set_pins_and_clock_() {
   this->wire_->setSCL(this->scl_pin_);
   this->wire_->begin();
 #else
-  this->wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
+  this->wire_->begin(static_cast<int>(this->sda_pin_), static_cast<int>(this->scl_pin_));
 #endif
-  if (timeout_ > 0) {  // if timeout specified in yaml
+  if (this->timeout_ > 0) {  // if timeout specified in yaml
 #if defined(USE_ESP8266)
     // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
-    this->wire_->setClockStretchLimit(timeout_);  // unit: us
+    this->wire_->setClockStretchLimit(this->timeout_);  // unit: us
 #elif defined(USE_RP2)
     // https://github.com/earlephilhower/ArduinoCore-API/blob/e37df85425e0ac020bfad226d927f9b00d2e0fb7/api/Stream.h
-    this->wire_->setTimeout(timeout_ / 1000);  // unit: ms
+    this->wire_->setTimeout(this->timeout_ / 1000);  // unit: ms
 #endif
   }
   this->wire_->setClock(this->frequency_);
