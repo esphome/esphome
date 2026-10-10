@@ -34,13 +34,28 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
 #endif
 
   int get_port() const override { return this->port_; }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  /// Register a frequency used on the bus so setup() creates its device handle
+  void add_frequency(uint32_t frequency);
+  ErrorCode switch_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
+#endif
 
  private:
   void recover_();
+  i2c_master_dev_handle_t add_device_(uint32_t frequency);
   RecoveryCode recovery_result_{};
 
  protected:
   i2c_master_dev_handle_t dev_{};
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  // One handle per frequency used on the bus, registered at code generation
+  struct FrequencyDevice {
+    uint32_t frequency;
+    i2c_master_dev_handle_t dev;
+  };
+  StaticVector<FrequencyDevice, I2C_PORT_FREQUENCY_COUNT + 1> devices_;
+#endif
   i2c_master_bus_handle_t bus_{};
   i2c_port_t port_{};
   uint8_t sda_pin_{};
