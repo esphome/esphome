@@ -29,7 +29,9 @@ uint32_t TCA9548AChannel::select_frequency_() const {
   if (mux_frequency != 0 || this->frequency_ == 0) {
     return mux_frequency;
   }
-  return std::min(this->frequency_, this->parent_->bus_->get_frequency());
+  // A bus that does not report its frequency gets the port's, and fails the switch
+  const uint32_t bus_frequency = this->parent_->bus_->get_frequency();
+  return bus_frequency != 0 ? std::min(this->frequency_, bus_frequency) : this->frequency_;
 }
 
 // The port frequency, else the multiplexer's
@@ -52,8 +54,8 @@ i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint8_t address, 
     err = this->transfer_(select_frequency, address, write_buffer, write_count, read_buffer, read_count);
     this->parent_->disable_all_channels();
   }
-  this->switch_bus_(original_frequency);
-  return err;
+  const i2c::ErrorCode restored = this->switch_bus_(original_frequency);
+  return err != i2c::ERROR_OK ? err : restored;
 }
 
 // Transfer at the port frequency, back to the select frequency for the deselect
@@ -67,8 +69,8 @@ i2c::ErrorCode TCA9548AChannel::transfer_(uint32_t select_frequency, uint8_t add
   if (err == i2c::ERROR_OK) {
     err = this->parent_->bus_->write_readv(address, write_buffer, write_count, read_buffer, read_count);
   }
-  this->switch_bus_(select_frequency);
-  return err;
+  const i2c::ErrorCode restored = this->switch_bus_(select_frequency);
+  return err != i2c::ERROR_OK ? err : restored;
 }
 
 // Forward to the shared upstream bus
