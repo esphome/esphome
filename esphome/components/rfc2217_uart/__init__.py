@@ -65,13 +65,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
     server = config[CONF_ROLE] == "server"
     if server:
         # A server on a UART without a wire would answer line changes that never happen.
-        declared = next(
-            (
-                i
-                for i, _ in full_config.declare_ids
-                if i.id == str(config[CONF_UART_ID])
-            ),
-            None,
+        declared = full_config.get_config_for_path(
+            full_config.get_path_for_id(config[CONF_UART_ID])
         )
         if isinstance(getattr(declared, "type", None), MockObjClass) and (
             declared.type.inherits_from(uart.VirtualUARTComponent)
