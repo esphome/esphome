@@ -12,8 +12,9 @@ namespace esphome::api {
 
 #ifdef USE_ESP8266
 // Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
-void DumpBuffer::append_p_esp8266(const char *str) {
-  size_t len = strlen_P(str);
+void DumpBuffer::append_p_esp8266(const char *str) { this->append_p_esp8266(str, strlen_P(str)); }
+
+void DumpBuffer::append_p_esp8266(const char *str, size_t len) {
   size_t space = CAPACITY - 1 - pos_;
   if (len > space)
     len = space;
@@ -133,6 +134,13 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
   len = std::min(len, sizeof(data_buf));
   progmem_memcpy(data_buf, data, len);
   dump_bytes_field(out, field_name, data_buf, len, indent);
+}
+
+// Helper for string fields in flash
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
+                                      int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append_p(value.progmem_ptr(), value.size()).append("'\n");
 }
 #pragma GCC diagnostic pop
 
@@ -1612,19 +1620,19 @@ const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_USER_DEFINED_ACTIONS
 const char *ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesArgument"));
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ServiceArgType>(this->type));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("description"), this->description);
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("example"), this->example);
+  dump_progmem_string_field(out, ESPHOME_PSTR("example"), this->example);
 #endif
   return out.c_str();
 }
 const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesResponse"));
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
   for (const auto &it : this->args) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("args")).append(": ");
@@ -1633,7 +1641,7 @@ const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
   }
   dump_field(out, ESPHOME_PSTR("supports_response"), static_cast<enums::SupportsResponseType>(this->supports_response));
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  dump_field(out, ESPHOME_PSTR("description"), this->description);
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
 #endif
   return out.c_str();
 }

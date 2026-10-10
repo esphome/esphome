@@ -123,7 +123,7 @@ extend google.protobuf.FieldOptions {
     // from an absent one (e.g. a UTC ParsedTimezone, which is all zeros).
     optional bool track_presence = 50020 [default=false];
 
-    // progmem: The pointer_to_buffer bytes field points into flash (PROGMEM).
+    // progmem: The string field, or pointer_to_buffer bytes field, points into flash (PROGMEM).
     // The generated encode and dump copy it with progmem_memcpy, as ESP8266
     // cannot read flash with ordinary loads.
     optional bool progmem = 50021 [default=false];

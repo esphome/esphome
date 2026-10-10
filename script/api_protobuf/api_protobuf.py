@@ -536,16 +536,19 @@ def create_field_type_info(
             f"track_presence on field '{field.name}' has no effect; it requires "
             "a non-repeated message field in a message that is decoded"
         )
-    if get_field_opt(field, pb.progmem, False) and (
-        field.label == FieldDescriptorProto.LABEL_REPEATED
-        or field.type != 12
-        or not get_field_opt(field, pb.pointer_to_buffer, False)
-        or get_field_opt(field, pb.fixed_array_size) is not None
-    ):
-        raise ValueError(
-            f"progmem on field '{field.name}' requires a non-repeated bytes field "
-            "with pointer_to_buffer"
+    if get_field_opt(field, pb.progmem, False):
+        is_pointer_bytes = (
+            field.type == FieldDescriptorProto.TYPE_BYTES
+            and get_field_opt(field, pb.pointer_to_buffer, False)
+            and get_field_opt(field, pb.fixed_array_size) is None
         )
+        if field.label == FieldDescriptorProto.LABEL_REPEATED or not (
+            field.type == FieldDescriptorProto.TYPE_STRING or is_pointer_bytes
+        ):
+            raise ValueError(
+                f"progmem on field '{field.name}' requires a non-repeated string field, "
+                "or a bytes field with pointer_to_buffer"
+            )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
         if get_field_opt(field, pb.packed_buffer, False):
@@ -1251,7 +1254,14 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         return not self._needs_decode and not self.force
 
     @property
+    def progmem(self) -> bool:
+        """Whether the string is in flash, so encode and dump copy it with progmem_memcpy."""
+        return get_field_opt(self._field, pb.progmem, False)
+
+    @property
     def public_content(self) -> list[str]:
+        if self.progmem:
+            return [f"ProgmemStringRef {self.field_name}{{}};"]
         if self._starts_null:
             return [
                 f"StringRef {self.field_name}{{nullptr, 0}};  // null until set, encode only"
@@ -1267,9 +1277,19 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
             )
             tag = self.calculate_tag()
             if tag < 128:
-                return _encode_call(
-                    "encode_short_string_force", str(tag), f"this->{self.field_name}"
+                encode_fn = (
+                    "encode_short_progmem_string_force"
+                    if self.progmem
+                    else "encode_short_string_force"
                 )
+                return _encode_call(encode_fn, str(tag), f"this->{self.field_name}")
+        if self.progmem:
+            return _encode_call(
+                "encode_progmem_string",
+                str(self.number),
+                f"this->{self.field_name}",
+                force=self.force,
+            )
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
@@ -1297,6 +1317,8 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def dump_content(self) -> str:
+        if self.progmem:
+            return f'dump_progmem_string_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
         return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -3246,8 +3268,9 @@ namespace esphome::api {
 
 #ifdef USE_ESP8266
 // Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
-void DumpBuffer::append_p_esp8266(const char *str) {
-  size_t len = strlen_P(str);
+void DumpBuffer::append_p_esp8266(const char *str) { this->append_p_esp8266(str, strlen_P(str)); }
+
+void DumpBuffer::append_p_esp8266(const char *str, size_t len) {
   size_t space = CAPACITY - 1 - pos_;
   if (len > space)
     len = space;
@@ -3367,6 +3390,13 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
   len = std::min(len, sizeof(data_buf));
   progmem_memcpy(data_buf, data, len);
   dump_bytes_field(out, field_name, data_buf, len, indent);
+}
+
+// Helper for string fields in flash
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
+                                      int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append_p(value.progmem_ptr(), value.size()).append("'\\n");
 }
 #pragma GCC diagnostic pop
 
