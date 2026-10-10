@@ -7,7 +7,7 @@
 
 namespace esphome::datetime {
 
-static const char *const TAG = "datetime.date_entity";
+ESPHOME_LOG_TAG(TAG, "datetime.date_entity");
 
 void DateEntity::publish_state() {
   if (this->year_ == 0 || this->month_ == 0 || this->day_ == 0) {
@@ -36,8 +36,6 @@ void DateEntity::publish_state() {
   ControllerRegistry::notify_date_update(this);
 #endif
 }
-
-DateCall DateEntity::make_call() { return DateCall(this); }
 
 void DateCall::validate_() {
   if (this->year_.has_value() && (this->year_ < 1970 || this->year_ > 3000)) {

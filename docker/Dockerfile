@@ -1,21 +1,21 @@
 ARG BUILD_VERSION=dev
 ARG BUILD_BASE_VERSION=2026.06.1
 ARG BUILD_TYPE=docker
+# Python minor version shipped by docker-base; the runtime stage copies site-packages by this path
+ARG PYTHON_VERSION=3.14
 
-# Builder stages (with build-essential for compiling native Python extensions)
+# Builder images carry build-essential for compiling native Python extensions
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS builder-source-docker
 FROM ghcr.io/esphome/docker-base:debian-ha-addon-${BUILD_BASE_VERSION} AS builder-source-ha-addon
 
-# Runtime stages (no build-essential)
+# Runtime images ship the same Python and tools without the compiler toolchain
 FROM ghcr.io/esphome/docker-base:debian-runtime-${BUILD_BASE_VERSION} AS runtime-source-docker
 FROM ghcr.io/esphome/docker-base:debian-ha-addon-runtime-${BUILD_BASE_VERSION} AS runtime-source-ha-addon
+
 
 # ======================= builder =======================
 ARG BUILD_TYPE
 FROM builder-source-${BUILD_TYPE} AS builder
-
-RUN git config --system --add safe.directory "*" \
-    && git config --system advice.detachedHead false
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
@@ -28,43 +28,35 @@ RUN \
     -r /requirements.txt
 
 # Install the ESPHome Device Builder dashboard.
-RUN uv pip install --no-cache-dir esphome-device-builder==1.6.10
+RUN uv pip install --no-cache-dir esphome-device-builder==1.23.0
+
+# Copy esphome and install
+COPY . /esphome
+RUN uv pip install --no-cache-dir -e /esphome
+
+
+# ======================= runtime =======================
+ARG BUILD_TYPE
+FROM runtime-source-${BUILD_TYPE} AS base
+
+RUN git config --system --add safe.directory "*" \
+    && git config --system advice.detachedHead false
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+ARG PYTHON_VERSION
+# Python packages and console scripts from the builder. pip stays for the add-on's fork installs; uv is build-time only.
+COPY --from=builder /usr/local/lib/python${PYTHON_VERSION}/site-packages /usr/local/lib/python${PYTHON_VERSION}/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+RUN rm -f /usr/local/bin/uv /usr/local/bin/uvx
+
+# esphome is installed in editable mode, so its source comes along
+COPY --from=builder /esphome /esphome
 
 RUN \
     platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
     && mkdir -p /piolibs
-
-COPY script/platformio_install_deps.py platformio.ini /
-RUN /platformio_install_deps.py /platformio.ini --libraries \
-    && rm -rf /root/.platformio/.cache
-
-# Install esphome itself
-COPY . /esphome
-RUN uv pip install --no-cache-dir -e /esphome
-
-
-# ======================= runtime base =======================
-ARG BUILD_TYPE
-FROM runtime-source-${BUILD_TYPE} AS runtime-base
-
-RUN git config --system --add safe.directory "*" \
-    && git config --system advice.detachedHead false
-
-# Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy PlatformIO libraries (pre-installed, no cache)
-COPY --from=builder /root/.platformio /root/.platformio
-
-# Copy PlatformIO config
-COPY --from=builder /platformio.ini /platformio.ini
-COPY --from=builder /platformio_install_deps.py /platformio_install_deps.py
-COPY --from=builder /piolibs /piolibs
-
-# Copy esphome source (installed in editable mode)
-COPY --from=builder /esphome /esphome
 
 ARG BUILD_VERSION
 
@@ -80,7 +72,7 @@ LABEL \
 
 
 # ======================= docker-type image =======================
-FROM runtime-base AS base-docker
+FROM base AS base-docker
 
 # Expose the dashboard to Docker
 EXPOSE 6052
@@ -102,7 +94,7 @@ CMD ["dashboard", "/config"]
 
 
 # ======================= ha-addon-type image =======================
-FROM runtime-base AS base-ha-addon
+FROM base AS base-ha-addon
 
 # Copy root filesystem
 COPY docker/ha-addon-rootfs/ /
