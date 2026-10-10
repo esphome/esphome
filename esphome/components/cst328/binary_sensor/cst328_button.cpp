@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::cst328 {
-static const char *const TAG = "cst328.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "cst328.binary_sensor");
 
 void CST328Button::setup() {
   this->parent_->register_button_listener(this);

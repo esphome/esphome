@@ -6,7 +6,7 @@ namespace esphome::havells_solar {
 
 namespace helpers = modbus::helpers;
 
-static const char *const TAG = "havells_solar";
+ESPHOME_LOG_TAG(TAG, "havells_solar");
 
 static const uint8_t MODBUS_REGISTER_COUNT = 48;  // 48 x 16-bit registers
 
