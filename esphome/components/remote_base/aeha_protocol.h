@@ -15,7 +15,10 @@ struct AEHAData {
 
 class AEHAProtocol : public RemoteProtocol<AEHAData> {
  public:
-  void encode(RemoteTransmitData *dst, const AEHAData &data);
+  void encode(RemoteTransmitData *dst, const AEHAData &data) {
+    this->encode(dst, data.address, data.data.data(), data.data.size());
+  }
+  void encode(RemoteTransmitData *dst, uint16_t address, const uint8_t *data, size_t len);
   optional<AEHAData> decode(RemoteReceiveData src);
   void dump(const AEHAData &data);
 
@@ -32,11 +35,10 @@ template<typename... Ts> class AEHAAction : public RemoteTransmitterActionBase<T
   TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    AEHAData data{};
-    data.address = this->address_.value(x...);
-    data.data = this->data_.value(x...);
+    const uint16_t address = this->address_.value(x...);
     dst->set_carrier_frequency(this->carrier_frequency_.value(x...));
-    AEHAProtocol().encode(dst, data);
+    this->data_.visit(
+        [dst, address](const uint8_t *data, size_t len) { AEHAProtocol().encode(dst, address, data, len); }, x...);
   }
 };
 
