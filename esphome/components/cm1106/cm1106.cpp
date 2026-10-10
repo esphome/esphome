@@ -6,16 +6,16 @@
 namespace esphome::cm1106 {
 
 ESPHOME_LOG_TAG(TAG, "cm1106");
-static const uint8_t C_M1106_CMD_GET_CO2[4] = {0x11, 0x01, 0x01, 0xED};
-static const uint8_t C_M1106_CMD_SET_CO2_CALIB[6] = {0x11, 0x03, 0x03, 0x00, 0x00, 0x00};
-static const uint8_t C_M1106_CMD_SET_CO2_CALIB_RESPONSE[4] = {0x16, 0x01, 0x03, 0xE6};
+static constexpr uint8_t C_M1106_CMD_GET_CO2[4] = {0x11, 0x01, 0x01, 0xED};
+static constexpr uint8_t C_M1106_CMD_SET_CO2_CALIB[6] = {0x11, 0x03, 0x03, 0x00, 0x00, 0x00};
+static constexpr uint8_t C_M1106_CMD_SET_CO2_CALIB_RESPONSE[4] = {0x16, 0x01, 0x03, 0xE6};
 // The factory default ABC calibration cycle differs between CM1106 models, so
 // every ABC write applies the configured cycle and baseline explicitly.
-static const uint8_t C_M1106_CMD_SET_ABC_STATUS[10] = {0x11, 0x07, 0x10, 0x64, 0x00, 0x0F, 0x01, 0x90, 0x64, 0x00};
-static const uint8_t C_M1106_CMD_SET_ABC_STATUS_RESPONSE[4] = {0x16, 0x01, 0x10, 0xD9};
+static constexpr uint8_t C_M1106_CMD_SET_ABC_STATUS[10] = {0x11, 0x07, 0x10, 0x64, 0x00, 0x0F, 0x01, 0x90, 0x64, 0x00};
+static constexpr uint8_t C_M1106_CMD_SET_ABC_STATUS_RESPONSE[4] = {0x16, 0x01, 0x10, 0xD9};
 
-static const uint8_t CM1106_ABC_FLAG_ENABLE = 0x0;
-static const uint8_t CM1106_ABC_FLAG_DISABLE = 0x2;
+static constexpr uint8_t CM1106_ABC_FLAG_ENABLE = 0x0;
+static constexpr uint8_t CM1106_ABC_FLAG_DISABLE = 0x2;
 uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
   uint8_t crc = 0;
   for (size_t i = 0; i < len - 1; i++) {
