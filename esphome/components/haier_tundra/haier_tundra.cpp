@@ -3,8 +3,7 @@
 namespace esphome::haier_tundra {
 
 void HaierTundra::transmit_state() {
-  remote_base::HaierData remote_state{
-    {
+  remote_base::HaierData remote_state{{
       HAIER_HEADER_UNIT_A,
       static_cast<uint8_t>(this->temperature_() << 4 | this->vertical_swing_()),
       static_cast<uint8_t>(this->horizontal_swing_() << 5),
@@ -18,8 +17,7 @@ void HaierTundra::transmit_state() {
       static_cast<uint8_t>(this->self_clean_() << 4),
       0x00,
       this->button_(),
-    }
-  };
+  }};
 
   auto transmit = this->transmitter_->transmit();
   remote_base::HaierProtocol().encode(transmit.get_data(), remote_state);
@@ -42,7 +40,7 @@ uint8_t HaierTundra::vertical_swing_() {
       if (this->mode == climate::CLIMATE_MODE_HEAT) {
         return HAIER_SWING_V_1BOT;
       }
-      return HAIER_SWING_V_1TOP; // Cool/Dry/Auto
+      return HAIER_SWING_V_1TOP;  // Cool/Dry/Auto
   }
 }
 
@@ -56,13 +54,9 @@ uint8_t HaierTundra::horizontal_swing_() {
   }
 }
 
-uint8_t HaierTundra::health_() {
-  return this->health_mode_ ? 1 : 0;
-}
+uint8_t HaierTundra::health_() { return this->health_mode_ ? 1 : 0; }
 
-uint8_t HaierTundra::power_() {
-  return this->mode == climate::CLIMATE_MODE_OFF ? 0 : 1;
-}
+uint8_t HaierTundra::power_() { return this->mode == climate::CLIMATE_MODE_OFF ? 0 : 1; }
 
 uint8_t HaierTundra::fan_speed_() {
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
@@ -78,13 +72,9 @@ uint8_t HaierTundra::fan_speed_() {
   }
 }
 
-uint8_t HaierTundra::quiet_() {
-  return this->quiet_mode_ ? 1 : 0;
-}
+uint8_t HaierTundra::quiet_() { return this->quiet_mode_ ? 1 : 0; }
 
-uint8_t HaierTundra::turbo_() {
-  return this->turbo_mode_ ? 1 : 0;
-}
+uint8_t HaierTundra::turbo_() { return this->turbo_mode_ ? 1 : 0; }
 
 uint8_t HaierTundra::operation_mode_() {
   switch (this->mode) {
@@ -156,9 +146,7 @@ bool HaierTundra::on_haier_(const remote_base::HaierData &haier) {
   return true;
 }
 
-float HaierTundra::get_temperature_(uint8_t temp) {
-  return temp + HAIER_TEMP_MIN;
-}
+float HaierTundra::get_temperature_(uint8_t temp) { return temp + HAIER_TEMP_MIN; }
 
 climate::ClimateSwingMode HaierTundra::get_swing_mode_(uint8_t swing_v, uint8_t swing_h) {
   if (swing_v == HAIER_SWING_V_AUTO) {

@@ -18,35 +18,35 @@ static constexpr uint8_t HAIER_TEMP_MIN = 16;
 static constexpr uint8_t HAIER_TEMP_MAX = 30;
 
 // Byte 1[3:0] - Vertical Swing
-static constexpr uint8_t HAIER_SWING_V_OFF  = 0x0; // Power off value; from Auto, stops at current position
-static constexpr uint8_t HAIER_SWING_V_2TOP = 0x1; // [|/   ]
-static constexpr uint8_t HAIER_SWING_V_1TOP = 0x2; // [|    ] (Not available in Heat mode)
-static constexpr uint8_t HAIER_SWING_V_2BOT = 0x3; // [   //]
-static constexpr uint8_t HAIER_SWING_V_1BOT = 0xA; // [    /] (Heat mode only)
+static constexpr uint8_t HAIER_SWING_V_OFF = 0x0;   // Power off value; from Auto, stops at current position
+static constexpr uint8_t HAIER_SWING_V_2TOP = 0x1;  // [|/   ]
+static constexpr uint8_t HAIER_SWING_V_1TOP = 0x2;  // [|    ] (Not available in Heat mode)
+static constexpr uint8_t HAIER_SWING_V_2BOT = 0x3;  // [   //]
+static constexpr uint8_t HAIER_SWING_V_1BOT = 0xA;  // [    /] (Heat mode only)
 static constexpr uint8_t HAIER_SWING_V_AUTO = 0xC;
 
 // Byte 2[7:5] - Horizontal Swing
-static constexpr uint8_t HAIER_SWING_H_MIDDLE       = 0x0; // [ || ]
-static constexpr uint8_t HAIER_SWING_H_LEFT         = 0x3; // [/   ]
-static constexpr uint8_t HAIER_SWING_H_MIDDLE_LEFT  = 0x4; // [ |  ]
-static constexpr uint8_t HAIER_SWING_H_MIDDLE_RIGHT = 0x5; // [  | ]
-static constexpr uint8_t HAIER_SWING_H_RIGHT        = 0x6; // [   \]
-static constexpr uint8_t HAIER_SWING_H_AUTO         = 0x7; // [/||\]
+static constexpr uint8_t HAIER_SWING_H_MIDDLE = 0x0;        // [ || ]
+static constexpr uint8_t HAIER_SWING_H_LEFT = 0x3;          // [/   ]
+static constexpr uint8_t HAIER_SWING_H_MIDDLE_LEFT = 0x4;   // [ |  ]
+static constexpr uint8_t HAIER_SWING_H_MIDDLE_RIGHT = 0x5;  // [  | ]
+static constexpr uint8_t HAIER_SWING_H_RIGHT = 0x6;         // [   \]
+static constexpr uint8_t HAIER_SWING_H_AUTO = 0x7;          // [/||\]
 
 // Byte 3[7:5] - Timer Mode
 static constexpr uint8_t HAIER_TIMER_MODE_DISABLED = 0x0;
-static constexpr uint8_t HAIER_TIMER_MODE_OFF      = 0x1; // OFF
-static constexpr uint8_t HAIER_TIMER_MODE_ON       = 0x2; // ON
-static constexpr uint8_t HAIER_TIMER_MODE_ON_OFF   = 0x4; // ON → OFF
-static constexpr uint8_t HAIER_TIMER_MODE_OFF_ON   = 0x5; // ON ← OFF
+static constexpr uint8_t HAIER_TIMER_MODE_OFF = 0x1;     // OFF
+static constexpr uint8_t HAIER_TIMER_MODE_ON = 0x2;      // ON
+static constexpr uint8_t HAIER_TIMER_MODE_ON_OFF = 0x4;  // ON → OFF
+static constexpr uint8_t HAIER_TIMER_MODE_OFF_ON = 0x5;  // ON ← OFF
 
 // Byte 3[1] - Health
 // Byte 4[6] - Power
 
 // Byte 5[7:5] - Fan Speed
 static constexpr uint8_t HAIER_FAN_HIGH = 0x1;
-static constexpr uint8_t HAIER_FAN_MED  = 0x2;
-static constexpr uint8_t HAIER_FAN_LOW  = 0x3;
+static constexpr uint8_t HAIER_FAN_MED = 0x2;
+static constexpr uint8_t HAIER_FAN_LOW = 0x3;
 static constexpr uint8_t HAIER_FAN_AUTO = 0x5;
 
 // Byte 5[4:0] - Timer Off Hours (0-23) 0x00..0x17
@@ -57,9 +57,9 @@ static constexpr uint8_t HAIER_FAN_AUTO = 0x5;
 // Byte 7[7:5] - Mode
 static constexpr uint8_t HAIER_MODE_AUTO = 0x0;
 static constexpr uint8_t HAIER_MODE_COOL = 0x1;
-static constexpr uint8_t HAIER_MODE_DRY  = 0x2;
+static constexpr uint8_t HAIER_MODE_DRY = 0x2;
 static constexpr uint8_t HAIER_MODE_HEAT = 0x4;
-static constexpr uint8_t HAIER_MODE_FAN  = 0x6;
+static constexpr uint8_t HAIER_MODE_FAN = 0x6;
 
 // Byte 7[4:0] - Timer On Hours (0-23) 0x00..0x17
 // Byte 8[7] - Sleep Mode
@@ -67,26 +67,28 @@ static constexpr uint8_t HAIER_MODE_FAN  = 0x6;
 // Byte 10[4] - Self Clean
 
 // Byte 12 - Button
-static constexpr uint8_t HAIER_BUTTON_TEMP_UP     = 0x00;
-static constexpr uint8_t HAIER_BUTTON_TEMP_DOWN   = 0x01;
-static constexpr uint8_t HAIER_BUTTON_SWING_V     = 0x02;
-static constexpr uint8_t HAIER_BUTTON_SWING_H     = 0x03;
-static constexpr uint8_t HAIER_BUTTON_FAN_SPEED   = 0x04;
-static constexpr uint8_t HAIER_BUTTON_POWER       = 0x05;
-static constexpr uint8_t HAIER_BUTTON_MODE        = 0x06;
-static constexpr uint8_t HAIER_BUTTON_HEALTH      = 0x07;
+static constexpr uint8_t HAIER_BUTTON_TEMP_UP = 0x00;
+static constexpr uint8_t HAIER_BUTTON_TEMP_DOWN = 0x01;
+static constexpr uint8_t HAIER_BUTTON_SWING_V = 0x02;
+static constexpr uint8_t HAIER_BUTTON_SWING_H = 0x03;
+static constexpr uint8_t HAIER_BUTTON_FAN_SPEED = 0x04;
+static constexpr uint8_t HAIER_BUTTON_POWER = 0x05;
+static constexpr uint8_t HAIER_BUTTON_MODE = 0x06;
+static constexpr uint8_t HAIER_BUTTON_HEALTH = 0x07;
 static constexpr uint8_t HAIER_BUTTON_TURBO_QUIET = 0x08;
-static constexpr uint8_t HAIER_BUTTON_SLEEP       = 0x0B;
-static constexpr uint8_t HAIER_BUTTON_TIMER       = 0x10;
-static constexpr uint8_t HAIER_BUTTON_LIGHT       = 0x15;
-static constexpr uint8_t HAIER_BUTTON_SELF_CLEAN  = 0x19;
+static constexpr uint8_t HAIER_BUTTON_SLEEP = 0x0B;
+static constexpr uint8_t HAIER_BUTTON_TIMER = 0x10;
+static constexpr uint8_t HAIER_BUTTON_LIGHT = 0x15;
+static constexpr uint8_t HAIER_BUTTON_SELF_CLEAN = 0x19;
 
 class HaierTundra final : public climate_ir::ClimateIR {
  public:
-  HaierTundra() : climate_ir::ClimateIR(HAIER_TEMP_MIN, HAIER_TEMP_MAX, 1.0f, true, true,
-    {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
-    {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}
-  ) {}
+  HaierTundra()
+      : climate_ir::ClimateIR(HAIER_TEMP_MIN, HAIER_TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+                               climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
 #ifdef USE_SWITCH
   SUB_SWITCH(health);
