@@ -215,6 +215,8 @@ class ImageRGB111(ImageEncoder):
 
     def encode(self, pixel):
         r, g, b, a = pixel
+        if self.invert_alpha:
+            a ^= 0xFF
         # Convert to 3-bit color (1 bit per channel)
         self.add_bit(r > 127)
         self.add_bit(g > 127)

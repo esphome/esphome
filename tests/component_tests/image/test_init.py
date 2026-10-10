@@ -1020,12 +1020,12 @@ async def test_rgb111_layout_per_frame(
     rgb_size = (width * height * 3 + 7) // 8
     frame_size = rgb_size
     assert len(data) == frame_size * frame_count, (
-        f"RGB111 animation buffer must be {frame_size} bytes per frame."
+        f"RGB111 animation buffer must be {frame_size} bytes per frame, not {len(data) // frame_count}"
     )
 
-    # Frame 0 is red, frame 1 is blue. RGB111 stores 3 bits per channel and
-    # packs the bits across the frame without row padding, so the per-frame bytes
-    # are not a uniform value even for a solid color.
+    # Frame 0 is red, frame 1 is blue. RGB111 stores 1 bit per channel and
+    # packs the bits across the frame with only paddingat the end, so the
+    # per-frame bytes are not a uniform value even for a solid color.
     frame0_rgb = data[:frame_size]
     frame1_rgb = data[frame_size:]
     assert frame0_rgb == [146, 73, 36, 146, 73, 32], (
@@ -1081,7 +1081,7 @@ async def test_rgb111alpha_layout_per_frame(
     row_stride = (width * 4 + 7) // 8
     frame_size = row_stride * height
     assert len(data) == frame_size * frame_count, (
-        f"RGB111 animation buffer must be {frame_size} bytes per frame, not {len(data) / 2}"
+        f"RGB111 animation buffer must be {frame_size} bytes per frame, not {len(data) // frame_count}"
     )
 
     # Frame 0 is red, frame 1 is blue. RGB111 stores 1 bit per color channel
