@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 from unittest.mock import MagicMock, call, patch
 
@@ -260,6 +261,14 @@ def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
     ):
         env = toolchain._get_idf_env(version="5.5.4")
     assert "PYTHONPATH" not in env
+
+
+def test_get_idf_env_pops_inherited_idf_target(setup_core: Path) -> None:
+    """An inherited IDF_TARGET does not reach cmake."""
+    toolchain._cache().env.clear()
+    with patch.dict(os.environ, {"IDF_PATH": str(setup_core), "IDF_TARGET": "esp32"}):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "IDF_TARGET" not in env
 
 
 def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
@@ -1575,3 +1584,193 @@ def test_missing_image_hint_names_the_flag(setup_core: Path) -> None:
         f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
     )
     assert "--skip-bootloader" in toolchain.missing_image_hint()
+
+
+def _write_target_tree(
+    main: str | None = None,
+    bootloader: str | None = None,
+    bootloader_toolchain: str | None = None,
+    sdkconfig: str | None = None,
+) -> None:
+    """Write the target into the CMake caches and sdkconfig."""
+    tools = "/idf/tools/cmake"
+    for rel, target, toolchain_target in (
+        ("build", main, main),
+        ("build/bootloader", bootloader, bootloader_toolchain or bootloader),
+    ):
+        if target is None:
+            continue
+        cache = CORE.relative_build_path(rel, "CMakeCache.txt")
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(
+            f"CMAKE_TOOLCHAIN_FILE:FILEPATH={tools}/toolchain-{toolchain_target}.cmake\n"
+            f"IDF_TARGET:STRING={target}\n"
+        )
+    if sdkconfig is not None:
+        path = CORE.relative_build_path("sdkconfig.test")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f'CONFIG_FOO=y\nCONFIG_IDF_TARGET="{sdkconfig}"\n')
+
+
+@pytest.mark.parametrize(
+    ("tree", "expected"),
+    [
+        ({}, None),
+        ({"main": "esp32c6", "bootloader": "esp32c6", "sdkconfig": "esp32c6"}, None),
+        ({"main": "esp32h2"}, "esp32h2"),
+        ({"bootloader": "esp32h2"}, "esp32h2"),
+        # Failed bootloader configure: new IDF_TARGET, old toolchain file
+        ({"bootloader": "esp32c6", "bootloader_toolchain": "esp32h2"}, "esp32h2"),
+        ({"main": "esp32c6", "sdkconfig": "esp32h2"}, "esp32h2"),
+        (
+            {
+                "main": "esp32c6",
+                "bootloader": "esp32c6",
+                "bootloader_toolchain": "clang-esp32c6",
+            },
+            None,
+        ),
+        (
+            {
+                "main": "esp32c6",
+                "bootloader": "esp32c6",
+                "bootloader_toolchain": "clang-esp32h2",
+            },
+            "esp32h2",
+        ),
+    ],
+)
+def test_foreign_idf_target(
+    setup_core: Path, tree: dict[str, str], expected: str | None
+) -> None:
+    """Another target in any cache or sdkconfig counts."""
+    _setup_build(setup_core)
+    _write_target_tree(**tree)
+    assert toolchain._foreign_idf_target("esp32c6") == expected
+
+
+@pytest.mark.parametrize(
+    ("cache", "sdkconfig", "expected"),
+    [
+        ("IDF_TARGET:STRING=esp32h2\n", None, "esp32h2"),
+        (None, "CONFIG_FOO=y\n", None),
+    ],
+)
+def test_foreign_idf_target_partial_entries(
+    setup_core: Path, cache: str | None, sdkconfig: str | None, expected: str | None
+) -> None:
+    """Missing entries are skipped."""
+    _setup_build(setup_core)
+    for rel, content in (
+        ("build/CMakeCache.txt", cache),
+        ("sdkconfig.test", sdkconfig),
+    ):
+        if content is not None:
+            path = CORE.relative_build_path(rel)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+    assert toolchain._foreign_idf_target("esp32c6") == expected
+
+
+def test_foreign_idf_target_ignores_unreadable_files(setup_core: Path) -> None:
+    """Unreadable files are ignored."""
+    _setup_build(setup_core)
+    for rel in ("build/CMakeCache.txt", "sdkconfig.test"):
+        path = CORE.relative_build_path(rel)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\xff\xfe IDF_TARGET:STRING=esp32h2\n")
+    assert toolchain._foreign_idf_target("esp32c6") is None
+
+
+@pytest.mark.parametrize("snapshot", [True, False])
+def test_clean_foreign_target_tree_cleans_and_resets_sdkconfig(
+    setup_core: Path, snapshot: bool
+) -> None:
+    """A foreign tree is cleaned and sdkconfig reset from the snapshot."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_VARIANT] = "ESP32C6"
+    _write_target_tree(bootloader="esp32c6", bootloader_toolchain="esp32h2")
+    _write_target_tree(sdkconfig="esp32h2")
+    internal = CORE.relative_build_path("sdkconfig.test.esphomeinternal")
+    if snapshot:
+        internal.write_text("CONFIG_IDF_TARGET_ESP32C6=y\n")
+
+    with patch(
+        "esphome.writer.clean_build",
+        side_effect=lambda **_: shutil.rmtree(CORE.relative_build_path("build")),
+    ) as mock_clean:
+        toolchain._clean_foreign_target_tree()
+
+    mock_clean.assert_called_once_with(clear_pio_cache=False)
+    sdkconfig = CORE.relative_build_path("sdkconfig.test").read_text()
+    if snapshot:
+        assert sdkconfig == "CONFIG_IDF_TARGET_ESP32C6=y\n"
+    else:
+        assert 'CONFIG_IDF_TARGET="esp32h2"' in sdkconfig
+
+
+@pytest.mark.parametrize("variant", ["ESP32C6", None])
+def test_clean_foreign_target_tree_keeps_matching_tree(
+    setup_core: Path, variant: str | None
+) -> None:
+    """A matching tree or unknown variant is left alone."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_VARIANT] = variant
+    _write_target_tree(main="esp32c6", bootloader="esp32c6", sdkconfig="esp32c6")
+    internal = CORE.relative_build_path("sdkconfig.test.esphomeinternal")
+    internal.write_text("CONFIG_IDF_TARGET_ESP32C6=y\n")
+    sdkconfig = CORE.relative_build_path("sdkconfig.test")
+    before = sdkconfig.read_text()
+
+    with patch("esphome.writer.clean_build") as mock_clean:
+        toolchain._clean_foreign_target_tree()
+
+    mock_clean.assert_not_called()
+    assert sdkconfig.read_text() == before
+
+
+@pytest.mark.parametrize("main", ["esp32h2", None])
+def test_clean_foreign_target_tree_skipped_clean_keeps_sdkconfig(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch, main: str | None
+) -> None:
+    """ESPHOME_SKIP_CLEAN_BUILD keeps the tree and sdkconfig."""
+    _setup_build(setup_core)
+    monkeypatch.setenv("ESPHOME_SKIP_CLEAN_BUILD", "1")
+    CORE.data[KEY_ESP32][KEY_VARIANT] = "ESP32C6"
+    _write_target_tree(main=main, sdkconfig="esp32h2")
+    CORE.relative_build_path("sdkconfig.test.esphomeinternal").write_text(
+        "CONFIG_IDF_TARGET_ESP32C6=y\n"
+    )
+
+    toolchain._clean_foreign_target_tree()
+
+    assert CORE.relative_build_path("build/CMakeCache.txt").is_file() == bool(main)
+    assert 'CONFIG_IDF_TARGET="esp32h2"' in (
+        CORE.relative_build_path("sdkconfig.test").read_text()
+    )
+
+
+def test_run_compile_cleans_foreign_target_tree_first(setup_core: Path) -> None:
+    """run_compile cleans a foreign tree before the reconfigure check."""
+    _setup_build(setup_core)
+    CORE.data[KEY_ESP32][KEY_VARIANT] = "ESP32C6"
+    _write_target_tree(main="esp32h2")
+    calls: list[str] = []
+
+    with (
+        patch(
+            "esphome.writer.clean_build",
+            side_effect=lambda **_: calls.append("clean"),
+        ),
+        patch.object(
+            toolchain,
+            "need_reconfigure",
+            side_effect=lambda: calls.append("check") or False,
+        ),
+        patch.object(toolchain, "_cache_entries_changed", return_value=False),
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+
+    assert calls == ["clean", "check"]
