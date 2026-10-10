@@ -6,6 +6,8 @@ namespace esphome::ufire_ec {
 
 ESPHOME_LOG_TAG(TAG, "ufire_ec");
 
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
+
 void UFireECComponent::setup() {
   uint8_t version;
   if (!this->read_byte(REGISTER_VERSION, &version) || version == 0xFF) {
@@ -45,7 +47,7 @@ void UFireECComponent::update() {
   }
 
   if (wait > 0) {
-    this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+    this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
   }
 }
 

@@ -13,6 +13,8 @@ namespace esphome::bme280_base {
 
 ESPHOME_LOG_TAG(TAG, "bme280.sensor");
 
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
+
 static const uint8_t BME280_REGISTER_DIG_T1 = 0x88;
 static const uint8_t BME280_REGISTER_DIG_T2 = 0x8A;
 static const uint8_t BME280_REGISTER_DIG_T3 = 0x8C;
@@ -221,7 +223,7 @@ void BME280Component::update() {
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
   meas_time += 2.3f * oversampling_to_time(this->humidity_oversampling_) + 0.575f;
 
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ceilf(meas_time)), [this]() {
     uint8_t data[8];
     if (!this->read_bytes(BME280_REGISTER_MEASUREMENTS, data, 8)) {
       ESP_LOGW(TAG, "Error reading registers");
