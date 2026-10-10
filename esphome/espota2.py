@@ -66,11 +66,13 @@ CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
 CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
 CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
+CLIENT_FEATURE_SUPPORTS_UDP = 0x20
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
 # Binding once offered: the device then expects the image size and a deflate stream
 SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
+SERVER_FEATURE_SUPPORTS_UDP = 0x10
 
 # Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
 DEFLATE_WINDOW_BITS = 12
@@ -99,16 +101,54 @@ COMPRESS_LEVEL = 9
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 
 # Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
-# to clean up a half-open connection (its handshake watchdog runs at 20s) before it
+# to clean up a half-open connection (its handshake watchdog runs at 60s) before it
 # accepts a new one, so wait between attempts instead of failing the upload outright.
 # Every resolved address is tried once, and this many extra attempts are shared
 # across the addresses on top of that.
-EXTRA_UPLOAD_ATTEMPTS = 2
+EXTRA_UPLOAD_ATTEMPTS = 4
+# Once a connection has reached the device, a lossy link (not a dead device) is
+# the likely cause, so keep trying like an API reconnect would
+EXTRA_UPLOAD_ATTEMPTS_REACHED = 8
 UPLOAD_RETRY_DELAY = 5.0
+# Connect and handshake waits; as patient as an API connect on a lossy link, and
+# matching the device's OTA_SOCKET_TIMEOUT_HANDSHAKE
+SETUP_TIMEOUT = 60.0
 # Data phase timeout; must stay longer than the device's OTA_SOCKET_TIMEOUT_DATA
 # (105 s) so a stalled session is gone before a retry, and long enough for lwIP
 # to get a lost chunk ack through after the retransmit run seen in practice
 DATA_PHASE_TIMEOUT = 160.0
+
+# UDP data phase; wire format in ota_esphome_udp.cpp
+UDP_MSG_DATA = 0x01
+UDP_MSG_PING = 0x02
+UDP_MSG_PROBE = 0x03
+UDP_FLAG_COMMITTED = 0x80
+UDP_MSG_ACK = 0x40
+UDP_HEADER_SIZE = 9
+UDP_ACK_HEADER_SIZE = 12
+# Stream bytes per datagram, within one Ethernet frame
+UDP_MAX_PAYLOAD = 1400
+# Messages the device queues unconsumed (UDP_WINDOW in ota_esphome.h); as many
+# as TCP's window holds, so UDP costs the device no more memory than TCP
+UDP_WINDOW = 4
+# Probe this long before falling back to TCP; the device waits 70 s
+UDP_PROBE_TIMEOUT = 5.0
+UDP_PROBE_INTERVAL = 0.1
+# Resend timeout bounds around srtt + 4 * rttvar; loss never grows it
+UDP_RESEND_INITIAL = 0.5
+UDP_RESEND_MIN = 0.2
+UDP_RESEND_MAX = 2.0
+# Acks still asking for the head after later messages arrived; resend it once
+UDP_DUP_ACKS = 2
+UDP_FALLBACK = b"\x00"
+UDP_REQUEST = b"\x01"
+# A plain handshake exchange slower than this hid a retransmit (the device's
+# lwIP waits about a second before resending); UDP is used from then on
+UDP_SLOW_EXCHANGE = 0.75
+# getsockopt(IPPROTO_TCP) option, size, offset and format of the retransmit
+# count: tcp_info.tcpi_total_retrans (Linux), tcp_connection_info.
+# tcpi_txretransmitbytes (macOS)
+_TCP_RETRANS_OPTION = {"linux": (11, 104, 100, "I"), "darwin": (0x106, 80, 72, "Q")}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -434,6 +474,10 @@ class NoiseSocketWrapper:
         self._decrypt = None
         self._buffer = b""
 
+    def use_transport(self, transport: UdpChannel) -> None:
+        """Continue the session over another byte stream."""
+        self._sock = transport
+
     # Only harmless socket controls pass through; byte-moving methods are
     # deliberately absent so plaintext cannot leak past the transport.
     def settimeout(self, timeout: float | None) -> None:
@@ -534,6 +578,252 @@ class NoiseSocketWrapper:
         return data
 
 
+class _UdpMessage:
+    """One datagram of the UDP stream and its send history."""
+
+    __slots__ = ("held", "last_send", "payload", "resend", "sends", "seq")
+
+    def __init__(self, seq: int, payload: bytes) -> None:
+        self.seq = seq
+        self.payload = payload
+        self.last_send = 0.0
+        self.sends = 0
+        self.resend = False  # duplicate acks asked for it
+        self.held = False  # the device keeps it, waiting for an earlier one
+
+
+class UdpChannel:
+    """Byte stream over numbered UDP datagrams, standing in for the socket.
+
+    The device acks every datagram on arrival and says how many it has room
+    for; each is resent after TCP's srtt + 4 * rttvar, without backoff, so loss
+    slows the transfer instead of ending it.
+    """
+
+    def __init__(self, sock: socket.socket, token: bytes) -> None:
+        self._sock = sock
+        self._token = token
+        self._timeout = DATA_PHASE_TIMEOUT
+        self._next_seq = 0
+        self._queue: list[_UdpMessage] = []  # not yet received, oldest first
+        self._rx = bytearray()
+        self._device_bytes = 0
+        self._committed = False
+        self._srtt: float | None = None
+        self._rttvar = 0.0
+        self._dup_acks = 0
+        self._free = UDP_WINDOW  # the device's empty slots, as of its last ACK
+        self._last_ping = 0.0
+        self._last_progress = time.monotonic()
+        self._sends = 0
+
+    def settimeout(self, timeout: float) -> None:
+        self._timeout = timeout
+
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
+        """TCP tuning does not apply."""
+
+    def close(self) -> None:
+        _LOGGER.debug(
+            "UDP: %d messages in %d datagrams, smoothed RTT %.0f ms",
+            self._next_seq,
+            self._sends,
+            (self._srtt or 0) * 1000,
+        )
+        self._sock.close()
+
+    def probe(self) -> bool:
+        """True once the device answers over UDP within UDP_PROBE_TIMEOUT."""
+        deadline = time.monotonic() + UDP_PROBE_TIMEOUT
+        while (now := time.monotonic()) < deadline:
+            self._send(UDP_MSG_PROBE, 0, b"")
+            self._receive(min(UDP_PROBE_INTERVAL, deadline - now))
+            if self._committed:
+                return True
+        return False
+
+    def sendall(self, data: bytes) -> None:
+        for offset in range(0, len(data), UDP_MAX_PAYLOAD):
+            self._queue.append(
+                _UdpMessage(self._next_seq, data[offset : offset + UDP_MAX_PAYLOAD])
+            )
+            self._next_seq = (self._next_seq + 1) & 0xFFFF
+        # Return once everything is at least in flight
+        while len(self._queue) > UDP_WINDOW:
+            self._pump()
+
+    def recv(self, amount: int) -> bytes:
+        while not self._rx:
+            self._pump()
+        data = bytes(self._rx[:amount])
+        del self._rx[:amount]
+        return data
+
+    def flush(self, timeout: float) -> None:
+        """Best effort: wait until the device has every message."""
+        deadline = time.monotonic() + timeout
+        with contextlib.suppress(OTANetworkError):
+            while self._queue and time.monotonic() < deadline:
+                self._pump()
+
+    def _rto(self) -> float:
+        if self._srtt is None:
+            return UDP_RESEND_INITIAL
+        return min(max(self._srtt + 4 * self._rttvar, UDP_RESEND_MIN), UDP_RESEND_MAX)
+
+    def _send(self, msg_type: int, seq: int, payload: bytes) -> None:
+        flags = UDP_FLAG_COMMITTED if self._committed else 0
+        header = (
+            bytes([msg_type | flags])
+            + self._token
+            + seq.to_bytes(2, "big")
+            + (self._device_bytes & 0xFFFF).to_bytes(2, "big")
+        )
+        self._sends += 1
+        with contextlib.suppress(OSError):
+            # A full buffer or ICMP error is just more loss
+            self._sock.send(header + payload)
+
+    def _pump(self) -> None:
+        now = time.monotonic()
+        if now - self._last_progress > self._timeout:
+            raise OTANetworkError(f"no progress over UDP for {self._timeout:.0f}s")
+        rto = self._rto()
+        wake = now + rto
+        # At least the head, which doubles as the probe while the device is busy
+        in_flight = self._queue[: max(self._free, 1)]
+        for message in in_flight:
+            if message.held:
+                continue
+            if message.sends == 0 or message.resend or now - message.last_send >= rto:
+                message.last_send = now
+                message.sends += 1
+                message.resend = False
+                self._send(UDP_MSG_DATA, message.seq, message.payload)
+            wake = min(wake, message.last_send + rto)
+        if all(message.held for message in in_flight):
+            # Nothing to send: ask for the device's responses
+            if now - self._last_ping >= rto:
+                self._last_ping = now
+                self._send(UDP_MSG_PING, 0, b"")
+            wake = self._last_ping + rto
+        self._receive(wake - now)
+
+    def _receive(self, wait: float) -> None:
+        import select
+
+        # Wait for the first datagram, then drain whatever else arrived
+        while select.select([self._sock], [], [], max(wait, 0))[0]:
+            wait = 0
+            try:
+                data = self._sock.recv(2048)
+            except OSError:
+                continue
+            self._handle_ack(data)
+
+    def _sample_rtt(self, sample: float) -> None:
+        # RFC 6298 smoothing
+        if self._srtt is None:
+            self._srtt, self._rttvar = sample, sample / 2
+        else:
+            self._rttvar = 0.75 * self._rttvar + 0.25 * abs(self._srtt - sample)
+            self._srtt = 0.875 * self._srtt + 0.125 * sample
+
+    def _handle_ack(self, data: bytes) -> None:
+        if (
+            len(data) < UDP_ACK_HEADER_SIZE
+            or data[0] != UDP_MSG_ACK
+            or data[1:5] != self._token
+        ):
+            return
+        now = time.monotonic()
+        self._committed = True
+        received = int.from_bytes(data[5:7], "big")
+        prompted = int.from_bytes(data[7:9], "big")
+        self._free = data[11] >> 4
+        if self._queue:
+            head = self._queue[0].seq
+            index = (prompted - head) & 0xFFFF
+            # This datagram's own round trip; only from messages sent once (Karn)
+            if index < len(self._queue) and self._queue[index].sends == 1:
+                self._sample_rtt(now - self._queue[index].last_send)
+            done = (received - head) & 0xFFFF
+            if 0 < done <= len(self._queue):
+                del self._queue[:done]
+                self._last_progress = now
+                self._dup_acks = 0
+            elif done == 0 and self._queue[0].sends:
+                # A later message arrived while the head is missing; resend it once
+                self._dup_acks += 1
+                if self._dup_acks == UDP_DUP_ACKS:
+                    self._queue[0].resend = True
+            # Rebuilt from every ACK, so a reordered one cannot leave a stale mark
+            for k, message in enumerate(self._queue[:UDP_WINDOW]):
+                message.held = (received + k - message.seq) & 0xFFFF == 0 and bool(
+                    data[11] & (1 << k)
+                )
+        skip = (self._device_bytes - int.from_bytes(data[9:11], "big")) & 0xFFFF
+        fresh = data[UDP_ACK_HEADER_SIZE + skip :]
+        if skip <= len(data) - UDP_ACK_HEADER_SIZE and fresh:
+            self._rx += fresh
+            self._device_bytes += len(fresh)
+            self._last_progress = now
+
+
+def _tcp_retransmits(sock: socket.socket) -> int | None:
+    """Segments this side retransmitted, where the OS reports it."""
+    import struct
+    import sys
+
+    if (option := _TCP_RETRANS_OPTION.get(sys.platform)) is None:
+        return None
+    optname, size, offset, fmt = option
+    try:
+        info = sock.getsockopt(socket.IPPROTO_TCP, optname, size)
+    except (OSError, TypeError):
+        return None
+    if len(info) < offset + struct.calcsize(fmt):
+        return None
+    return struct.unpack_from(fmt, info, offset)[0]
+
+
+def _link_lossy(
+    tcp_sock: socket.socket, slowest_exchange: float, prefer_udp: bool
+) -> bool:
+    """Whether the handshake showed loss, so the data phase should use UDP."""
+    return (
+        prefer_udp
+        or slowest_exchange > UDP_SLOW_EXCHANGE
+        or bool(_tcp_retransmits(tcp_sock))
+    )
+
+
+def _start_udp(
+    sock: socket.socket | NoiseSocketWrapper, tcp_sock: socket.socket, lossy: bool
+) -> UdpChannel | None:
+    """Move the data phase to UDP; None keeps it on TCP."""
+    # A clean link asks to stay on TCP
+    send_check(sock, UDP_REQUEST if lossy else UDP_FALLBACK, "UDP request")
+    token = receive_exactly(sock, 4, "UDP token", None, decode=False)
+    if not lossy:
+        _LOGGER.debug("Link looks clean, staying on TCP")
+        return None
+    if token == bytes(4):
+        _LOGGER.debug("Device declined UDP")
+        return None
+    udp_sock = socket.socket(tcp_sock.family, socket.SOCK_DGRAM)
+    udp_sock.connect(tcp_sock.getpeername())
+    channel = UdpChannel(udp_sock, token)
+    if channel.probe():
+        _LOGGER.info("Using UDP")
+        return channel
+    channel.close()
+    _LOGGER.info("UDP blocked, using TCP")
+    # Raw, outside any Noise frame: forging it only forces the TCP path
+    send_check(tcp_sock, UDP_FALLBACK, "UDP fallback")
+    return None
+
+
 def perform_ota(
     sock: socket.socket,
     password: str | None,
@@ -543,6 +833,7 @@ def perform_ota(
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
+    prefer_udp: bool = False,
 ) -> None:
     # Validate up front; an out-of-range value would only surface as a
     # ValueError deep inside send_check, bypassing OTAError handling
@@ -565,11 +856,15 @@ def perform_ota(
     file_size = len(file_contents)
     _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
+    # sock may become a Noise wrapper or a UDP channel; UDP needs the peer
+    tcp_sock = sock
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    exchange_start = time.monotonic()
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
+    slowest_exchange = time.monotonic() - exchange_start
     _LOGGER.info("Connection established; device supports OTA version %s", version)
     supported_versions = (OTA_VERSION_1_0, OTA_VERSION_2_0)
     if version not in supported_versions:
@@ -583,9 +878,11 @@ def perform_ota(
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
         | CLIENT_FEATURE_SUPPORTS_DEFLATE
+        | CLIENT_FEATURE_SUPPORTS_UDP
     )
     if noise_psk:
         features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
+    exchange_start = time.monotonic()
     send_check(sock, features_to_send, "features")
     features = receive_exactly(
         sock,
@@ -593,6 +890,7 @@ def perform_ota(
         "features",
         None,  # Accept any response
     )[0]
+    slowest_exchange = max(slowest_exchange, time.monotonic() - exchange_start)
 
     extended_proto = False
     if features == RESPONSE_FEATURE_FLAGS:
@@ -751,6 +1049,18 @@ def perform_ota(
 
     sock.settimeout(DATA_PHASE_TIMEOUT)
 
+    udp: UdpChannel | None = None
+    if extended_proto and features & SERVER_FEATURE_SUPPORTS_UDP:
+        udp = _start_udp(
+            sock, tcp_sock, _link_lossy(tcp_sock, slowest_exchange, prefer_udp)
+        )
+        if udp is not None:
+            # The device drops TCP once it hears the committed channel
+            if isinstance(sock, NoiseSocketWrapper):
+                sock.use_transport(udp)
+            else:
+                sock = udp
+
     if extended_proto:
         send_check(sock, ota_type, "ota type")
 
@@ -806,7 +1116,8 @@ def perform_ota(
                     )
                 raise OTANetworkError(f"sending data: {err}") from err
 
-            if version >= OTA_VERSION_2_0:
+            # The UDP channel acks every message itself
+            if version >= OTA_VERSION_2_0 and udp is None:
                 try:
                     receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
                 except OTANetworkError as err:
@@ -860,6 +1171,10 @@ def perform_ota(
         _LOGGER.info("OTA successful (end acknowledgement not delivered)")
     else:
         _LOGGER.info("OTA successful")
+    if udp is not None:
+        # Nothing waits for this; just give the end acknowledgement a chance
+        udp.flush(2.0)
+        udp.close()
 
     # Do not connect logs until it is fully on
     time.sleep(1)
@@ -904,7 +1219,7 @@ def run_ota_impl_(
     # are shared across the addresses, cycling through them. Wait before an
     # attempt when the previous one actually reached the device, or when
     # revisiting an address, so a flaky link can recover and the device can
-    # clean up a half-open connection (its handshake watchdog runs at 20s);
+    # clean up a half-open connection (its handshake watchdog runs at 60s);
     # moving on to the next address family stays immediate. Known limitation:
     # a silent mid-transfer drop with no reset can wedge the device until its
     # 105s data timeout, which outlasts this budget; the retries target the
@@ -914,6 +1229,8 @@ def run_ota_impl_(
     reached_device = False
     attempt = 0
     encryption = _EncryptionAttempt(noise_psk, plaintext_fallback)
+    # A network failure means a lossy link, so later attempts send data over UDP
+    prefer_udp = False
     while attempt < total_attempts:
         af, socktype, _, _, sa = res[attempt % len(res)]
         if reached_device or attempt >= len(res):
@@ -927,18 +1244,20 @@ def run_ota_impl_(
         reached_device = False
         _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
         sock = socket.socket(af, socktype)
-        sock.settimeout(20.0)
+        sock.settimeout(SETUP_TIMEOUT)
         try:
             sock.connect(sa)
         except OSError as err:
             sock.close()
             _LOGGER.warning("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
             last_error = f"connecting to {sa[0]} failed: {err}"
+            prefer_udp = True
             attempt += 1
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
         reached_device = True
+        total_attempts = max(total_attempts, len(res) + EXTRA_UPLOAD_ATTEMPTS_REACHED)
         with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
             try:
                 perform_ota(
@@ -950,6 +1269,7 @@ def run_ota_impl_(
                     encryption.noise_psk,
                     encryption.plaintext_fallback,
                     allow_plaintext_upload=allow_plaintext_upload,
+                    prefer_udp=prefer_udp,
                 )
             except OTAEncryptionFallback as err:
                 # Same address and attempt budget: not a network retry
@@ -958,6 +1278,7 @@ def run_ota_impl_(
                 continue
             except OTAHandshakeNetworkError as err:
                 last_error = str(err)
+                prefer_udp = True
                 if encryption.handshake_fault_falls_back():
                     encryption.downgrade(last_error)
                     continue
@@ -967,6 +1288,7 @@ def run_ota_impl_(
             except OTANetworkError as err:
                 # Transient network failure; retry
                 last_error = str(err)
+                prefer_udp = True
                 _LOGGER.warning("%s", last_error)
                 attempt += 1
                 continue

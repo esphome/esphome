@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 import socket
 import struct
+from typing import Self
 from unittest.mock import Mock, call, patch
 import zlib
 
@@ -356,6 +357,7 @@ def test_perform_ota_successful_md5_auth(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+                | espota2.CLIENT_FEATURE_SUPPORTS_UDP
             ]
         )
     )
@@ -764,7 +766,7 @@ def test_run_ota_impl_successful(
     assert result_host == "192.168.1.100"
 
     # Verify socket was configured correctly
-    mock_socket.settimeout.assert_called_with(20.0)
+    mock_socket.settimeout.assert_called_with(espota2.SETUP_TIMEOUT)
     mock_socket.connect.assert_called_once_with(("192.168.1.100", 3232))
     mock_socket.close.assert_called_once()
 
@@ -835,13 +837,22 @@ def test_run_ota_impl_network_error_retry_succeeds(
     assert result_host == "192.168.1.100"
     assert mock_perform_ota.call_count == 2
     mock_sleep.assert_called_once_with(espota2.UPLOAD_RETRY_DELAY)
+    # The failure marks the link lossy, so the retry moves the data to UDP
+    assert [c.kwargs["prefer_udp"] for c in mock_perform_ota.call_args_list] == [
+        False,
+        True,
+    ]
 
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
 def test_run_ota_impl_network_error_exhausts_attempts(
     mock_socket: Mock, firmware_file: Path, mock_perform_ota: Mock, mock_sleep: Mock
 ) -> None:
-    """Test run_ota_impl_ gives up after all attempts hit network errors."""
+    """Test run_ota_impl_ gives up after all attempts hit network errors.
+
+    Every attempt connected, so the budget is the longer one for a reachable
+    device on a lossy link.
+    """
     mock_perform_ota.side_effect = espota2.OTANetworkError("sending data: broken pipe")
 
     result_code, result_host = espota2.run_ota_impl_(
@@ -850,8 +861,8 @@ def test_run_ota_impl_network_error_exhausts_attempts(
 
     assert result_code == 1
     assert result_host is None
-    assert mock_perform_ota.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS + 1
-    assert mock_sleep.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS
+    assert mock_perform_ota.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS_REACHED + 1
+    assert mock_sleep.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS_REACHED
 
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip_dual")
@@ -872,12 +883,10 @@ def test_run_ota_impl_multiple_addresses_cycle(
     assert mock_socket.connect.call_args_list == [
         call(DUAL_STACK_SA6),
         call(DUAL_STACK_SA4),
-        call(DUAL_STACK_SA6),
-        call(DUAL_STACK_SA4),
-    ]
+    ] * (1 + espota2.EXTRA_UPLOAD_ATTEMPTS // 2)
     # No connect ever reached the device, so the delay only applies before
     # the revisits
-    assert mock_sleep.call_count == 2
+    assert mock_sleep.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS
 
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip_dual")
@@ -1061,6 +1070,7 @@ def test_perform_ota_successful_sha256_auth(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+                | espota2.CLIENT_FEATURE_SUPPORTS_UDP
             ]
         )
     )
@@ -1118,6 +1128,7 @@ def test_perform_ota_sha256_fallback_to_md5(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+                | espota2.CLIENT_FEATURE_SUPPORTS_UDP
             ]
         )
     )
@@ -1228,6 +1239,7 @@ def test_perform_ota_extended_protocol_app(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+                | espota2.CLIENT_FEATURE_SUPPORTS_UDP
             ]
         )
     )
@@ -1289,6 +1301,7 @@ def test_perform_ota_successful_partition_table(
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
                 | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+                | espota2.CLIENT_FEATURE_SUPPORTS_UDP
             ]
         )
     )
@@ -1554,3 +1567,179 @@ def test_perform_ota_with_deflate(mock_socket: Mock, server_features: int) -> No
     assert len(payload) == sent_size < len(original_content)
     assert zlib.decompress(payload, -espota2.DEFLATE_WINDOW_BITS) == original_content
     assert sent[5] == hashlib.md5(original_content).hexdigest().encode()
+
+
+class _LossyUdpDevice:
+    """The device side of the UDP channel (ota_esphome_udp.cpp) on a lossy link."""
+
+    def __init__(self, token: bytes, loss: float, seed: int = 1) -> None:
+        import random
+        import threading
+
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.settimeout(0.05)
+        self.token = token
+        self.loss = loss
+        self.random = random.Random(seed)
+        self.next_seq = 0
+        self.slots: dict[int, bytes] = {}  # early messages within the window
+        self.received: list[bytes] = []
+        self.out = bytearray()
+        self.out_base = 0
+        self.committed = False
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def __enter__(self) -> Self:
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        self._thread.join()
+        self.sock.close()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                data, peer = self.sock.recvfrom(2048)
+            except TimeoutError:
+                continue
+            if self.random.random() < self.loss:
+                continue
+            if data[1:5] != self.token:
+                continue
+            self.committed |= bool(data[0] & espota2.UDP_FLAG_COMMITTED)
+            acked = (int.from_bytes(data[7:9], "big") - self.out_base) & 0xFFFF
+            if acked <= len(self.out):
+                del self.out[:acked]
+                self.out_base += acked
+            seq = int.from_bytes(data[5:7], "big")
+            msg_type = data[0] & ~espota2.UDP_FLAG_COMMITTED
+            if (
+                msg_type == espota2.UDP_MSG_DATA
+                and (seq - self.next_seq) & 0xFFFF < espota2.UDP_WINDOW
+            ):
+                self.slots.setdefault(seq, data[espota2.UDP_HEADER_SIZE :])
+            # Consumed as soon as it is next, like a device that is never busy
+            while self.next_seq in self.slots:
+                self.received.append(self.slots.pop(self.next_seq))
+                self.next_seq = (self.next_seq + 1) & 0xFFFF
+            if self.random.random() < self.loss:
+                continue
+            held = sum(
+                1 << k
+                for k in range(1, espota2.UDP_WINDOW)
+                if (self.next_seq + k) & 0xFFFF in self.slots
+            )
+            # Consumes at once, so every slot it does not hold is free
+            held |= (espota2.UDP_WINDOW - len(self.slots)) << 4
+            self.sock.sendto(
+                bytes([espota2.UDP_MSG_ACK])
+                + self.token
+                + self.next_seq.to_bytes(2, "big")
+                + seq.to_bytes(2, "big")
+                + (self.out_base & 0xFFFF).to_bytes(2, "big")
+                + bytes([held])
+                + bytes(self.out),
+                peer,
+            )
+
+
+def _udp_client(device: _LossyUdpDevice) -> espota2.UdpChannel:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect(device.sock.getsockname())
+    return espota2.UdpChannel(sock, device.token)
+
+
+@pytest.mark.parametrize("loss", [0.0, 0.5])
+def test_udp_channel_delivers_in_order(loss: float) -> None:
+    """The stream arrives intact and responses come back, despite loss."""
+    data = bytes(range(256)) * 160
+    with _LossyUdpDevice(b"\x01\x02\x03\x04", loss) as device:
+        channel = _udp_client(device)
+        assert channel.probe()
+        channel.sendall(data)
+        device.out += bytes([espota2.RESPONSE_RECEIVE_OK])
+        assert channel.recv(1) == bytes([espota2.RESPONSE_RECEIVE_OK])
+        channel.flush(30.0)
+        channel.close()
+    assert b"".join(device.received) == data
+    assert all(len(m) <= espota2.UDP_MAX_PAYLOAD for m in device.received)
+    assert device.committed
+
+
+def test_udp_channel_times_out_without_progress() -> None:
+    """A dead link still fails, after the no-progress timeout."""
+    with _LossyUdpDevice(b"\x01\x01\x01\x01", 1.0) as device:
+        channel = _udp_client(device)
+        channel.settimeout(0.3)
+        with pytest.raises(espota2.OTANetworkError, match="no progress over UDP"):
+            channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
+        channel.close()
+
+
+def test_start_udp_falls_back_when_blocked(mock_socket: Mock) -> None:
+    """No answer to the probes sends the fallback over TCP and stays on TCP."""
+    with _LossyUdpDevice(b"\x05\x06\x07\x08", 1.0) as device:
+        mock_socket.family = socket.AF_INET
+        mock_socket.getpeername.return_value = device.sock.getsockname()
+        mock_socket.recv.side_effect = [b"\x05", b"\x06\x07\x08"]
+        with patch.object(espota2, "UDP_PROBE_TIMEOUT", 0.3):
+            assert espota2._start_udp(mock_socket, mock_socket, True) is None
+    assert mock_socket.sendall.call_args_list == [
+        call(espota2.UDP_REQUEST),
+        call(espota2.UDP_FALLBACK),  # raw on the TCP socket
+    ]
+
+
+def test_start_udp_declined(mock_socket: Mock) -> None:
+    """A zero token means the device could not open UDP; nothing is probed."""
+    mock_socket.recv.side_effect = [b"\x00", b"\x00\x00\x00"]
+    assert espota2._start_udp(mock_socket, mock_socket, True) is None
+    assert mock_socket.sendall.call_args_list == [call(espota2.UDP_REQUEST)]
+
+
+def test_start_udp_clean_link_stays_on_tcp(mock_socket: Mock) -> None:
+    """A clean handshake asks to stay on TCP and opens no UDP socket."""
+    mock_socket.recv.side_effect = [b"\x00", b"\x00\x00\x00"]
+    with patch.object(espota2.socket, "socket") as udp_socket:
+        assert espota2._start_udp(mock_socket, mock_socket, False) is None
+    udp_socket.assert_not_called()
+    assert mock_socket.sendall.call_args_list == [call(espota2.UDP_FALLBACK)]
+
+
+@pytest.mark.parametrize(
+    ("slowest", "prefer_udp", "retransmits", "lossy"),
+    [
+        (0.01, False, 0, False),
+        (0.01, False, None, False),
+        (espota2.UDP_SLOW_EXCHANGE + 0.1, False, 0, True),
+        (0.01, True, 0, True),
+        (0.01, False, 2, True),
+    ],
+)
+def test_link_lossy(
+    slowest: float, prefer_udp: bool, retransmits: int | None, lossy: bool
+) -> None:
+    """A slow exchange, a retransmit or an earlier failure means UDP."""
+    with patch.object(espota2, "_tcp_retransmits", return_value=retransmits):
+        assert espota2._link_lossy(Mock(), slowest, prefer_udp) is lossy
+
+
+@pytest.mark.parametrize(
+    ("platform", "info", "expected"),
+    [
+        ("linux", bytes(100) + (3).to_bytes(4, "little") + bytes(100), 3),
+        ("darwin", bytes(72) + (1460).to_bytes(8, "little") + bytes(8), 1460),
+        ("win32", b"", None),
+        ("linux", bytes(10), None),
+    ],
+)
+def test_tcp_retransmits(platform: str, info: bytes, expected: int | None) -> None:
+    """The retransmit counter is read where the OS reports it."""
+    sock = Mock()
+    sock.getsockopt.return_value = info
+    with patch("sys.platform", platform):
+        assert espota2._tcp_retransmits(sock) == expected
