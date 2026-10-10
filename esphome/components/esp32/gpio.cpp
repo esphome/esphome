@@ -1,9 +1,10 @@
 #include "esphome/core/defines.h"
-// Also defines the core ISRInternalGPIOPin methods; those are only reachable
-// via ESP32InternalGPIOPin::to_isr(), so the same define gates both safely.
-#if defined(USE_ESP32) && defined(USE_ESP32_INTERNAL_GPIO)
+// Always built: InternalGPIOPin is this class, so components that merely hold a
+// pointer to it reference these methods even in configs without a pin.
+#ifdef USE_ESP32
 
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
@@ -68,7 +69,7 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
@@ -207,4 +208,4 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
 
 }  // namespace esphome
 
-#endif  // USE_ESP32 && USE_ESP32_INTERNAL_GPIO
+#endif  // USE_ESP32
