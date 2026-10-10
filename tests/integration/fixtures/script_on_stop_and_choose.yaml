@@ -30,7 +30,7 @@ api:
                 - logger.log:
                     format: "CHOOSE large %d"
                     args: [value]
-            - then:
+            - else:
                 - logger.log:
                     format: "CHOOSE default %d"
                     args: [value]

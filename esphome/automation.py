@@ -878,15 +878,30 @@ async def if_action_to_code(
     return var
 
 
-def _validate_choose_default(choices: list[ConfigType]) -> list[ConfigType]:
-    """A choice without `if` is the default; it must be last and not the only choice."""
+def _validate_choice(choice: ConfigType) -> ConfigType:
+    """A choice is either `if` with `then`, or `else` on its own."""
+    if CONF_ELSE in choice:
+        for key in (CONF_IF, CONF_THEN):
+            if key in choice:
+                raise cv.Invalid(f"'{key}' cannot be used with 'else'", path=[key])
+        return choice
+    for key in (CONF_IF, CONF_THEN):
+        if key not in choice:
+            raise cv.Invalid(f"'{key}' is required", path=[key])
+    return choice
+
+
+def _validate_choose_else(choices: list[ConfigType]) -> list[ConfigType]:
+    """`else` may only be the last choice, and not the only one."""
     for index, choice in enumerate(choices[:-1]):
-        if CONF_IF not in choice:
+        if CONF_ELSE in choice:
             raise cv.Invalid(
-                "Only the last choice may leave out 'if'", path=[index, CONF_IF]
+                "Only the last choice may be 'else'", path=[index, CONF_ELSE]
             )
-    if CONF_IF not in choices[-1] and len(choices) == 1:
-        raise cv.Invalid("At least one choice must have 'if'", path=[0, CONF_IF])
+    if len(choices) == 1 and CONF_ELSE in choices[0]:
+        raise cv.Invalid(
+            "At least one choice must have 'if' and 'then'", path=[0, CONF_ELSE]
+        )
     return choices
 
 
@@ -895,16 +910,20 @@ def _validate_choose_default(choices: list[ConfigType]) -> list[ConfigType]:
     IfAction,
     cv.All(
         cv.ensure_list(
-            cv.Schema(
-                {
-                    cv.GenerateID(CONF_CHOICE_ID): cv.declare_id(IfAction),
-                    cv.Optional(CONF_IF): validate_potentially_and_condition,
-                    cv.Required(CONF_THEN): validate_action_list,
-                }
+            cv.All(
+                cv.Schema(
+                    {
+                        cv.GenerateID(CONF_CHOICE_ID): cv.declare_id(IfAction),
+                        cv.Optional(CONF_IF): validate_potentially_and_condition,
+                        cv.Optional(CONF_THEN): validate_action_list,
+                        cv.Optional(CONF_ELSE): validate_action_list,
+                    }
+                ),
+                _validate_choice,
             )
         ),
         cv.Length(min=1),
-        _validate_choose_default,
+        _validate_choose_else,
     ),
     synchronous=True,
 )
@@ -915,11 +934,11 @@ async def choose_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     # Built as a chain of if/else actions: each choice's else branch holds the next choice,
-    # and the last choice's else branch holds the default actions, if any.
+    # and the last choice's else branch holds the `else` actions, if any.
     else_actions: list[MockObj] = []
-    if CONF_IF not in config[-1]:
+    if CONF_ELSE in config[-1]:
         else_actions = await build_action_list(
-            config[-1][CONF_THEN], template_arg, args
+            config[-1][CONF_ELSE], template_arg, args
         )
         config = config[:-1]
     var: MockObj | None = None

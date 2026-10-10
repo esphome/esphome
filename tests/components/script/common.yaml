@@ -39,7 +39,7 @@ esphome:
               - script.is_running: my_script_restart
             then:
               - logger.log: second choice
-          - then:
+          - else:
               - logger.log: default choice
 
 script:

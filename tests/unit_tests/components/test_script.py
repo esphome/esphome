@@ -69,12 +69,27 @@ def test_script_stop_without_id_outside_script_is_invalid() -> None:
         pytest.param([], id="empty"),
         pytest.param([{CONF_THEN: [{"delay": "1s"}]}], id="missing_if"),
         pytest.param([{"if": {"and": []}}], id="missing_then"),
+        pytest.param([{"else": [{"delay": "1s"}]}], id="only_else"),
         pytest.param(
             [
-                {CONF_THEN: [{"delay": "1s"}]},
+                {"else": [{"delay": "1s"}]},
                 {"if": {"and": []}, CONF_THEN: [{"delay": "2s"}]},
             ],
-            id="default_not_last",
+            id="else_not_last",
+        ),
+        pytest.param(
+            [
+                {"if": {"and": []}, CONF_THEN: [{"delay": "1s"}]},
+                {"if": {"and": []}, "else": [{"delay": "2s"}]},
+            ],
+            id="else_with_if",
+        ),
+        pytest.param(
+            [
+                {"if": {"and": []}, CONF_THEN: [{"delay": "1s"}]},
+                {CONF_THEN: [{"delay": "2s"}]},
+            ],
+            id="then_without_if",
         ),
     ],
 )
@@ -99,14 +114,14 @@ def test_choose_valid() -> None:
     assert all(automation.CONF_CHOICE_ID in choice for choice in choices)
 
 
-def test_choose_default_choice() -> None:
+def test_choose_else() -> None:
     result = automation.validate_action(
         {
             "choose": [
                 {"if": {"or": []}, CONF_THEN: [{"delay": "1s"}]},
-                {CONF_THEN: [{"delay": "2s"}]},
+                {"else": [{"delay": "2s"}]},
             ]
         }
     )
 
-    assert "if" not in result["choose"][1]
+    assert "else" in result["choose"][1]

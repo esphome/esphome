@@ -41,7 +41,7 @@ async def test_script_on_stop_and_choose(
         _, services = await client.list_entities_services()
         service: dict[str, UserService] = {s.name: s for s in services}
 
-        # choose runs only the first choice whose condition is true, or the default
+        # choose runs only the first choice whose condition is true, or the else
         # choice if none is, then continues
         for value, label in (
             (5, "small"),
