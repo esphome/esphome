@@ -40,11 +40,16 @@ from esphome.components.esp32.const import (
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
 from esphome.components.esp32.gpio import validate_gpio_pin, validate_supports
 import esphome.config_validation as cv
@@ -1737,7 +1742,6 @@ def test_esp32_s31_gpio_validation(
     """S31: GPIO26-28/30-32 are reserved for the SPI flash interface, GPIO29
     and GPIO41 do not exist, GPIO33 is a normal pin, and GPIO36 is a
     strapping pin."""
-    from esphome.components.esp32.const import VARIANT_ESP32S31
     from esphome.components.esp32.gpio import validate_supports
     from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
 
@@ -1838,14 +1842,24 @@ def test_input_only_gpio_rejects_unsupported_modes(
     [
         pytest.param(VARIANT_ESP32C3, 18, id="c3-18"),
         pytest.param(VARIANT_ESP32C3, 19, id="c3-19"),
+        pytest.param(VARIANT_ESP32C5, 13, id="c5-13"),
+        pytest.param(VARIANT_ESP32C5, 14, id="c5-14"),
         pytest.param(VARIANT_ESP32C6, 12, id="c6-12"),
         pytest.param(VARIANT_ESP32C6, 13, id="c6-13"),
+        pytest.param(VARIANT_ESP32C61, 12, id="c61-12"),
+        pytest.param(VARIANT_ESP32C61, 13, id="c61-13"),
         pytest.param(VARIANT_ESP32H2, 26, id="h2-26"),
         pytest.param(VARIANT_ESP32H2, 27, id="h2-27"),
+        pytest.param(VARIANT_ESP32H4, 13, id="h4-13"),
+        pytest.param(VARIANT_ESP32H4, 14, id="h4-14"),
+        pytest.param(VARIANT_ESP32H21, 17, id="h21-17"),
+        pytest.param(VARIANT_ESP32H21, 18, id="h21-18"),
         pytest.param(VARIANT_ESP32P4, 24, id="p4-24"),
         pytest.param(VARIANT_ESP32P4, 25, id="p4-25"),
         pytest.param(VARIANT_ESP32S3, 19, id="s3-19"),
         pytest.param(VARIANT_ESP32S3, 20, id="s3-20"),
+        pytest.param(VARIANT_ESP32S31, 33, id="s31-33"),
+        pytest.param(VARIANT_ESP32S31, 34, id="s31-34"),
     ],
 )
 def test_usb_jtag_gpio_hold_state_warns(
