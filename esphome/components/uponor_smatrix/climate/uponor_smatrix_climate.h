@@ -20,6 +20,7 @@ class UponorSmatrixClimate final : public climate::Climate, public Component, pu
   float min_temperature_{5.0f};
   float max_temperature_{35.0f};
   uint16_t eco_setback_value_raw_{0x0048};
+  uint16_t heating_cooling_offset_raw_{0x0024};
   uint16_t target_temperature_raw_;
 };
 
