@@ -14,6 +14,8 @@
 
 #include <freertos/event_groups.h>
 #include <freertos/queue.h>
+#include <functional>
+#include <utility>
 
 namespace esphome::speaker {
 
@@ -93,6 +95,7 @@ class AudioPipeline final {
   uint32_t get_playback_ms() { return this->playback_ms_; }
 
   void set_pause_state(bool pause_state);
+  void set_start_condition(std::function<bool()> condition) { this->start_condition_ = std::move(condition); }
 
  protected:
   /// @brief Allocates the event group and info error queue.
@@ -117,6 +120,7 @@ class AudioPipeline final {
   // Pending file start state used to ensure the pipeline fully stops before attempting to start the next file
   bool pending_url_{false};
   bool pending_file_{false};
+  std::function<bool()> start_condition_;
 
   speaker::Speaker *speaker_{nullptr};
 

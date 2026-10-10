@@ -64,6 +64,7 @@ void AudioPipeline::start_url(const std::string &uri) {
   }
   this->current_uri_ = uri;
   this->pending_url_ = true;
+  this->pending_file_ = false;
 }
 
 void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
@@ -72,9 +73,12 @@ void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
   }
   this->current_audio_file_ = audio_file;
   this->pending_file_ = true;
+  this->pending_url_ = false;
 }
 
 esp_err_t AudioPipeline::stop() {
+  this->pending_url_ = false;
+  this->pending_file_ = false;
   xEventGroupSetBits(this->event_group_, EventGroupBits::PIPELINE_COMMAND_STOP);
 
   return ESP_OK;
@@ -157,24 +161,32 @@ AudioPipelineState AudioPipeline::process_state() {
   if (this->pending_url_ || this->pending_file_) {
     // Init command pending
     if (!(event_bits & EventGroupBits::PIPELINE_COMMAND_STOP)) {
-      // Only start if there is no pending stop command
-      if (!this->read_task_.is_created() || !this->decode_task_.is_created()) {
-        // At least one task isn't running
-        this->start_tasks_();
-      }
+      if (this->start_condition_ && !this->start_condition_()) {
+        // Report playback as active so on_play/on_announcement can release a shared resource.
+        // No reader or decoder task may start until the condition is true.
+        if (!this->read_task_.is_created() && !this->decode_task_.is_created()) {
+          return AudioPipelineState::PLAYING;
+        }
+      } else {
+        // Only start if there is no pending stop command
+        if (!this->read_task_.is_created() || !this->decode_task_.is_created()) {
+          // At least one task isn't running
+          this->start_tasks_();
+        }
 
-      if (this->pending_url_) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_HTTP);
-        this->playback_ms_ = 0;
-        this->pending_url_ = false;
-      } else if (this->pending_file_) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_FILE);
-        this->playback_ms_ = 0;
-        this->pending_file_ = false;
-      }
+        if (this->pending_url_) {
+          xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_HTTP);
+          this->playback_ms_ = 0;
+          this->pending_url_ = false;
+        } else if (this->pending_file_) {
+          xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_FILE);
+          this->playback_ms_ = 0;
+          this->pending_file_ = false;
+        }
 
-      this->is_playing_ = true;
-      return AudioPipelineState::PLAYING;
+        this->is_playing_ = true;
+        return AudioPipelineState::PLAYING;
+      }
     }
   }
 
