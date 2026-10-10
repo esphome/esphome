@@ -6,7 +6,7 @@ import esphome.codegen as cg
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
-    include_builtin_idf_component,
+    request_http_client,
     require_certificate_bundle,
 )
 import esphome.config_validation as cv
@@ -334,8 +334,7 @@ def _emit_memory_pair(value: str | None, psram_key: str, internal_key: str) -> N
 
 
 async def to_code(config: ConfigType) -> None:
-    # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
-    include_builtin_idf_component("esp_http_client")
+    request_http_client()
     # HTTPS streams verify the server against the root certificate bundle
     require_certificate_bundle()
 

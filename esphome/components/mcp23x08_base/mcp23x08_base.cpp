@@ -3,7 +3,7 @@
 
 namespace esphome::mcp23x08_base {
 
-static const char *const TAG = "mcp23x08_base";
+ESPHOME_LOG_TAG(TAG, "mcp23x08_base");
 
 bool MCP23X08Base::digital_read_hw(uint8_t pin) {
   if (!this->read_reg(mcp23x08_base::MCP23X08_GPIO, &this->input_mask_)) {

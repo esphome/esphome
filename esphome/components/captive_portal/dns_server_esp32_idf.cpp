@@ -9,7 +9,7 @@
 
 namespace esphome::captive_portal {
 
-static const char *const TAG = "captive_portal.dns";
+ESPHOME_LOG_TAG(TAG, "captive_portal.dns");
 
 // DNS constants
 static constexpr uint16_t DNS_PORT = 53;
