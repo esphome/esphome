@@ -15,57 +15,36 @@ dlms_meter:
       default_obis: "0.0.1.0.0.255"
 
 sensor:
-  # Old Schema tests
   - platform: dlms_meter
-    voltage_l1:
-      name: "Voltage L1"
-    voltage_l2:
-      name: "Voltage L2"
-    voltage_l3:
-      name: "Voltage L3"
-    current_l1:
-      name: "Current L1"
-    current_l2:
-      name: "Current L2"
-    current_l3:
-      name: "Current L3"
-    active_power_plus:
-      name: "Active power taken from grid"
-    active_power_minus:
-      name: "Active power put into grid"
-    active_energy_plus:
-      name: "Active energy taken from grid"
-    active_energy_minus:
-      name: "Active energy put into grid"
-    reactive_energy_plus:
-      name: "Reactive energy taken from grid"
-    reactive_energy_minus:
-      name: "Reactive energy put into grid"
-    power_factor:
-      name: "Power factor"
+    obis_code: "1.0.32.7.0.255"
+    name: "Voltage L1"
+    unit_of_measurement: V
+    accuracy_decimals: 1
+    device_class: voltage
+    state_class: measurement
+  - platform: dlms_meter
+    obis_code: "1.0.1.8.0.255"
+    name: "Active energy taken from grid"
+    unit_of_measurement: Wh
+    device_class: energy
+    state_class: total_increasing
 
-  # Dynamic Schema tests
   - platform: dlms_meter
     dlms_meter_id: dlms_meter_hub
     obis_code: "1-0:99.99.9"
     name: "Custom Dynamic Sensor"
 
 text_sensor:
-  # Old Schema tests
   - platform: dlms_meter
-    timestamp:
-      name: "timestamp"
-    meternumber:
-      name: "Meter Number"
+    obis_code: "0.0.1.0.0.255"
+    name: "timestamp"
 
-  # Dynamic Schema tests
   - platform: dlms_meter
     dlms_meter_id: dlms_meter_hub
     obis_code: "0-0:99.99.9"
     name: "Custom Dynamic Text Sensor"
 
 binary_sensor:
-  # Dynamic Schema tests (Binary sensors only use the dynamic schema)
   - platform: dlms_meter
     dlms_meter_id: dlms_meter_hub
     obis_code: "0-1:2.3.4"
