@@ -1,0 +1,11 @@
+esp32_ulp:
+  sources:
+    - ulp/main.c
+  wakeup_period: 100ms
+  reserve_memory: 4096
+
+sensor:
+  - platform: template
+    name: ULP Counter
+    lambda: return ulp_counter;
+    update_interval: 1s

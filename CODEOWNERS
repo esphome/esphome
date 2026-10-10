@@ -205,6 +205,7 @@ esphome/components/esp32_hosted/update/* @swoboda1337
 esphome/components/esp32_power_management/* @rwrozelle
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
+esphome/components/esp32_ulp/* @swoboda1337
 esphome/components/esp8266/* @esphome/core
 esphome/components/esp_ldo/* @clydebarrow
 esphome/components/espectre/* @francescopace

@@ -81,6 +81,7 @@ from .const import (
     KEY_REF,
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
+    KEY_SRC_CMAKE,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -703,6 +704,7 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
     CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE] = []
 
     return config
 
@@ -1088,6 +1090,16 @@ def add_extra_script(stage: str, filename: str, path: Path):
     key = f"{stage}:{filename}"
     if add_extra_build_file(filename, path):
         cg.add_platformio_option("extra_scripts", [key])
+
+
+def add_src_cmake(block: str) -> None:
+    """Append CMake to the generated src/CMakeLists.txt.
+
+    The block is emitted after ``idf_component_register`` so it can use
+    ``COMPONENT_LIB`` and friends; IDF's requirements pass stops at
+    ``idf_component_register`` so the block never runs in script mode.
+    """
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE].append(block)
 
 
 def add_extra_build_file(filename: str, path: Path) -> bool:
