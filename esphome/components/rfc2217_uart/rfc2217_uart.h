@@ -97,7 +97,8 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
     if (!this->link_was_up_ && !this->ending_) {
       return;
     }
-    // Commands after the payload that follows a batch wait in the link until the batch is answered.
+    // Commands after the payload that follows a batch wait in the link until the batch is answered. Commands in the
+    // same TCP read join the batch; a client that waits for each answer, as pySerial does, is not affected.
     if (this->answering_() && this->to_serial_len_ != this->fence_) {
       this->read_plain_();
     } else if (this->tcp_->available() != 0) {
