@@ -1601,6 +1601,12 @@ def _print_marked_yaml_error(err: yaml.MarkedYAMLError) -> None:
         _print_line_message(_format_location(context_location), "note", err.context)
 
 
+def _wrapper_text(message: object, yaml_err: yaml.MarkedYAMLError) -> str:
+    """Return the text *message* adds around the YAML error it contains."""
+    remainder = str(message).replace(str(yaml_err), "")
+    return "\n".join(line.strip(" :.") for line in remainder.splitlines())
+
+
 def _print_line_errors(res: Config) -> None:
     for err in res.errors:
         doc_range = get_invalid_range(res, err)
@@ -1610,18 +1616,24 @@ def _print_line_errors(res: Config) -> None:
         # A YAML error in an included file is wrapped in a validation error
         if (yaml_err := _find_marked_yaml_error(err)) is not None:
             _print_marked_yaml_error(yaml_err)
-            _print_line_message(location, "note", "included from here")
+            wrapper = _wrapper_text(_format_vol_invalid(err, res), yaml_err)
+            _print_line_message(
+                location, "note", wrapper.strip() or "included from here"
+            )
         else:
             _print_line_message(location, "error", _format_vol_invalid(err, res))
 
 
 def _print_line_load_error(err: EsphomeError) -> None:
-    if (yaml_err := _find_marked_yaml_error(err)) is not None:
-        _print_marked_yaml_error(yaml_err)
-    else:
-        # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
-        message = err.base_exc if isinstance(err, InvalidYAMLError) else err
+    # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
+    message = err.base_exc if isinstance(err, InvalidYAMLError) else err
+    if (yaml_err := _find_marked_yaml_error(err)) is None:
         _print_line_message(_format_location(None), "error", message)
+        return
+    _print_marked_yaml_error(yaml_err)
+    # Keep any context the wrapping errors added, e.g. an earlier failure
+    if wrapper := _wrapper_text(message, yaml_err).strip():
+        _print_line_message(_format_location(None), "note", wrapper)
 
 
 def line_info(config, path, highlight=True):

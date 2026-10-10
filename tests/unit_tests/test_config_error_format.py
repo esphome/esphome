@@ -3,10 +3,18 @@
 from pathlib import Path
 
 import pytest
+import voluptuous as vol
+import yaml
 
-from esphome.config import _print_line_message, read_config
+from esphome.config import (
+    Config,
+    _print_line_errors,
+    _print_line_load_error,
+    _print_line_message,
+    read_config,
+)
 from esphome.const import ErrorFormat
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 
 def _read(
@@ -79,8 +87,34 @@ def test_yaml_syntax_error_in_package(
     assert lines == [
         f"{tmp_path / 'pkg.yaml'}:3:5: error: expected ',' or ']', but got ':'",
         f"{tmp_path / 'pkg.yaml'}:2:10: note: while parsing a flow sequence",
-        f"{tmp_path / 'test.yaml'}:5:3: note: included from here",
+        f"{tmp_path / 'test.yaml'}:5:3: note: Error including file 'pkg.yaml'",
+        (
+            f"{tmp_path / 'test.yaml'}:5:3: note: In: packages->pkg in "
+            f"{tmp_path / 'test.yaml'} 5:3"
+        ),
     ]
+
+
+def test_secret_error_keeps_earlier_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "sub").mkdir()
+    lines = _read(
+        tmp_path,
+        {
+            "test.yaml": (
+                "esphome:\n  name: test\nhost:\npackages:\n  p: !include sub/pkg.yaml\n"
+            ),
+            "sub/pkg.yaml": "logger:\n  level: !secret lvl\n",
+            "secrets.yaml": "lvl: [1, 2\nx: 1\n",
+        },
+        capsys,
+    )
+    assert lines[0] == (
+        f"{tmp_path / 'secrets.yaml'}:2:2: error: expected ',' or ']', but got ':'"
+    )
+    # The missing package-local secrets file is reported, not dropped
+    assert f"Error reading file {tmp_path / 'sub' / 'secrets.yaml'}" in lines[2]
 
 
 def test_undefined_secret(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -142,3 +176,50 @@ def test_reset_restores_default_format() -> None:
     CORE.error_format = ErrorFormat.LINE
     CORE.reset()
     assert CORE.error_format is ErrorFormat.YAML
+
+
+def _yaml_error() -> yaml.MarkedYAMLError:
+    with pytest.raises(yaml.MarkedYAMLError) as exc_info:
+        yaml.safe_load("a: [1, 2\nb: 1\n")
+    return exc_info.value
+
+
+def test_load_error_keeps_wrapper_context(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    CORE.config_path = Path("main.yaml")
+    yaml_err = _yaml_error()
+    err = EsphomeError(f"First file failed\n{yaml_err}")
+    err.__cause__ = yaml_err
+    _print_line_load_error(err)
+    assert capsys.readouterr().out.splitlines() == [
+        "<unicode string>:2:2: error: expected ',' or ']', but got ':'",
+        "<unicode string>:1:4: note: while parsing a flow sequence",
+        "main.yaml: note: First file failed",
+    ]
+
+
+def test_include_error_without_wrapper_text(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    CORE.config_path = Path("main.yaml")
+    yaml_err = _yaml_error()
+    err = vol.Invalid(str(yaml_err), [])
+    err.__cause__ = yaml_err
+    res = Config()
+    res.errors = [err]
+    _print_line_errors(res)
+    assert capsys.readouterr().out.splitlines()[-1] == (
+        "main.yaml: note: included from here"
+    )
+
+
+def test_default_format_logs_load_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    CORE.config_path = tmp_path / "missing.yaml"
+    assert read_config({}) is None
+    assert capsys.readouterr().out == ""
+    assert "Error while reading config: Invalid YAML syntax" in caplog.text
