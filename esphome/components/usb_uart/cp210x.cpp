@@ -43,6 +43,12 @@ static constexpr uint8_t SET_BAUDRATE = 0x1E;     // Set the baud rate.
 static constexpr uint8_t SET_CHARS = 0x19;        // Set special characters.
 static constexpr uint8_t VENDOR_SPECIFIC = 0xFF;  // Vendor specific command.
 
+// SET_MHS value bits. The high byte selects which lines the low byte changes.
+static constexpr uint16_t CONTROL_DTR = 0x0001;
+static constexpr uint16_t CONTROL_RTS = 0x0002;
+static constexpr uint16_t CONTROL_WRITE_DTR = 0x0100;
+static constexpr uint16_t CONTROL_WRITE_RTS = 0x0200;
+
 std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev_hdl) {
   const usb_config_desc_t *config_desc;
   const usb_device_desc_t *device_desc;
@@ -119,9 +125,21 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, baud.get_data());
       return true;
     }
+    case 3:  // Apply the modem lines (init only)
+      if (reload)
+        return false;
+      this->modem_control_transfer(channel);
+      return true;
     default:
       return false;
   }
+}
+
+void USBUartTypeCP210X::modem_control_transfer(USBUartChannelBase *channel) {
+  const uint16_t value =
+      CONTROL_WRITE_DTR | CONTROL_WRITE_RTS | (channel->dtr_ ? CONTROL_DTR : 0) | (channel->rts_ ? CONTROL_RTS : 0);
+  ESP_LOGD(TAG, "SET_MHS: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_MHS, value, channel->index_);
 }
 }  // namespace esphome::usb_uart
 

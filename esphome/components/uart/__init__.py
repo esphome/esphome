@@ -54,6 +54,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
 _LOGGER = getLogger(__name__)
@@ -122,6 +123,12 @@ UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
+
+
+def is_host_uart(uart_id: ID, full_config: ConfigType) -> bool:
+    return CORE.is_host and any(
+        conf[CONF_ID] == uart_id for conf in full_config.get(DOMAIN) or []
+    )
 
 
 def validate_raw_data(value):

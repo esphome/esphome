@@ -10,6 +10,11 @@ namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 
+static constexpr uint8_t CH341_REQ_MODEM_CTRL = 0xA4;
+// Modem control bits, sent inverted
+static constexpr uint8_t CH341_BIT_DTR = 1 << 5;
+static constexpr uint8_t CH341_BIT_RTS = 1 << 6;
+
 struct CH34xEntry {
   const char *name;
   uint16_t pid;
@@ -148,11 +153,21 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
       return true;
     }
     case 1:
-      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd + 3, 0x80, 0);
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
+}
+
+void USBUartTypeCH34X::modem_control_transfer(USBUartChannelBase *channel) {
+  uint8_t request = CH341_REQ_MODEM_CTRL + channel->index_;
+  if (channel->index_ >= 2)
+    request += 0xE;
+  const uint8_t control = (channel->dtr_ ? CH341_BIT_DTR : 0) | (channel->rts_ ? CH341_BIT_RTS : 0);
+  ESP_LOGD(TAG, "MODEM_CTRL: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  // Integer promotion makes this 16 bits wide, as in Linux: 0xFF9F with both lines on
+  this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, request, static_cast<uint16_t>(~control), 0);
 }
 
 std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_hdl) {

@@ -109,6 +109,10 @@ async def to_code(config: ConfigType) -> None:
         channel = await cg.get_variable(config[CONF_UART_ID])
         cg.add(var.set_usb_channel(channel))
         cg.add_define("USE_SERIAL_PROXY_USB_IDENTITY")
+    if uart.is_host_uart(config[CONF_UART_ID], CORE.config):
+        host_uart = await cg.get_variable(config[CONF_UART_ID])
+        cg.add(var.set_host_uart(host_uart))
+        cg.add_define("USE_SERIAL_PROXY_HOST_UART")
     cg.add_define("USE_SERIAL_PROXY")
 
     # Track instance count for the FINAL priority define

@@ -643,6 +643,7 @@
 
 #ifdef USE_HOST
 #define USE_HTTP_REQUEST_RESPONSE
+#define USE_SERIAL_PROXY_HOST_UART
 // Host only: the uart arm would shadow the native logger UART arms in other envs
 #define USE_IMPROV_SERIAL_UART
 #define USE_SOCKET_IMPL_BSD_SOCKETS

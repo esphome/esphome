@@ -13,6 +13,13 @@ namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 
+static constexpr uint8_t SIO_SET_MODEM_CTRL = 0x01;
+// The high byte selects which lines the low byte changes
+static constexpr uint16_t SIO_SET_DTR_MASK = 0x0100;
+static constexpr uint16_t SIO_SET_RTS_MASK = 0x0200;
+static constexpr uint16_t SIO_DTR_HIGH = 0x0001;
+static constexpr uint16_t SIO_RTS_HIGH = 0x0002;
+
 // FTDI chip family identifiers. These map to USB device bcdDevice values
 // and determine how baudrate divisors and clock sources are calculated.
 enum FtdiChipType {
@@ -398,12 +405,19 @@ bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, b
     case 3:  // set modem control DTR+RTS (init only)
       if (reload)
         return false;
-      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x01, 0x0000,
-                             channel->cdc_dev_.bulk_interface_number + 1);
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
+}
+
+void USBUartTypeFT23XX::modem_control_transfer(USBUartChannelBase *channel) {
+  const uint16_t value =
+      SIO_SET_DTR_MASK | SIO_SET_RTS_MASK | (channel->dtr_ ? SIO_DTR_HIGH : 0) | (channel->rts_ ? SIO_RTS_HIGH : 0);
+  ESP_LOGD(TAG, "SIO_SET_MODEM_CTRL: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, SIO_SET_MODEM_CTRL, value,
+                         channel->cdc_dev_.bulk_interface_number + 1);
 }
 
 }  // namespace esphome::usb_uart
