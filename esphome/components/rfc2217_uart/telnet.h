@@ -57,7 +57,7 @@ class TelnetDecoder {
   };
 
   Event feed(uint8_t byte);
-  void reset();
+  void reset() { *this = TelnetDecoder(); }
   /// No sequence is open: the next byte is payload unless it is IAC.
   bool idle() const { return this->state_ == State::STATE_DATA; }
   /// The last byte was an IAC outside a subnegotiation.
