@@ -10,9 +10,9 @@ using namespace bmm150;  // NOLINT - sole consumer of the BMM150 aux-device defi
 ESPHOME_LOG_TAG(TAG, "bmi270");
 
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
-static const size_t MAX_I2C_BUFFER_SIZE = 32;
+static constexpr size_t MAX_I2C_BUFFER_SIZE = 32;
 #else
-static const size_t MAX_I2C_BUFFER_SIZE = 256;
+static constexpr size_t MAX_I2C_BUFFER_SIZE = 256;
 #endif
 
 //  Configuration blob upload
@@ -21,12 +21,12 @@ static const size_t MAX_I2C_BUFFER_SIZE = 256;
 
 bool BMI270Component::load_config_file_() {
   // 1. Disable advanced power-save so the config port is accessible
-  if (!this->write_byte(BMI270_REG_PWR_CONF, 0x00))
+  if (!this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_ADV_POWER_SAVE_OFF))
     return false;
   delay(1);
 
   // 2. Prepare config load: write 0x00 to INIT_CTRL to start
-  if (!this->write_byte(BMI270_REG_INIT_CTRL, 0x00))
+  if (!this->write_byte(BMI270_REG_INIT_CTRL, BMI270_INIT_CTRL_LOAD_START))
     return false;
 
   // 3. Burst-write the config in pages
@@ -52,7 +52,7 @@ bool BMI270Component::load_config_file_() {
   }
 
   // 4. Signal end of config load
-  if (!this->write_byte(BMI270_REG_INIT_CTRL, 0x01))
+  if (!this->write_byte(BMI270_REG_INIT_CTRL, BMI270_INIT_CTRL_LOAD_DONE))
     return false;
   delay(20);  // spec: wait ≥20 ms for init to complete
 
@@ -60,7 +60,7 @@ bool BMI270Component::load_config_file_() {
   uint8_t status = 0;
   if (!this->read_byte(BMI270_REG_INTERNAL_STATUS, &status))
     return false;
-  if ((status & 0x0F) != 0x01) {
+  if ((status & BMI270_INTERNAL_STATUS_MASK) != BMI270_INTERNAL_STATUS_INIT_OK) {
     ESP_LOGE(TAG, "Config load failed: INTERNAL_STATUS=0x%02X (expected 0x01)", status);
     return false;
   }
@@ -86,7 +86,7 @@ void BMI270Component::setup() {
   ESP_LOGD(TAG, "Chip ID: 0x%02X", chip_id);
 
   // 2. Soft-reset via CMD register (0x7E = 0xB6)
-  if (!this->write_byte(0x7E, 0xB6)) {
+  if (!this->write_byte(BMI270_REG_CMD, BMI270_CMD_SOFT_RESET)) {
     this->mark_failed();
     return;
   }
@@ -102,7 +102,8 @@ void BMI270Component::setup() {
 
   // 5. Configure accelerometer
   // ACC_CONF: ODR | BWP(0x2 = normal avg4) | perf_mode(1)
-  uint8_t acc_conf = (uint8_t) (accel_odr_) | (0x2 << 4) | (1 << 7);
+  uint8_t acc_conf =
+      (uint8_t) (accel_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) | BMI270_ACC_CONF_PERF_MODE;
   if (!this->write_byte(BMI270_REG_ACC_CONF, acc_conf)) {
     this->mark_failed();
     return;
@@ -114,7 +115,8 @@ void BMI270Component::setup() {
 
   // 6. Configure gyroscope
   // GYR_CONF: ODR | BWP(0x2 = normal) | noise_perf(1) | filter_perf(1)
-  uint8_t gyr_conf = (uint8_t) (gyro_odr_) | (0x2 << 4) | (1 << 6) | (1 << 7);
+  uint8_t gyr_conf = (uint8_t) (gyro_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) |
+                     BMI270_GYR_CONF_NOISE_PERF | BMI270_GYR_CONF_FILTER_PERF;
   if (!this->write_byte(BMI270_REG_GYR_CONF, gyr_conf)) {
     this->mark_failed();
     return;
@@ -126,7 +128,7 @@ void BMI270Component::setup() {
 
   // 7. Enable accelerometer, gyroscope, and temperature sensor
   //    PWR_CTRL bits: temp_en[3] | gyr_en[2] | acc_en[1]
-  if (!this->write_byte(BMI270_REG_PWR_CTRL, 0x0E)) {
+  if (!this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU)) {
     this->mark_failed();
     return;
   }
@@ -134,7 +136,7 @@ void BMI270Component::setup() {
 
   // 8. Re-enable advanced power save (optional; keeps current low between reads)
   // Disabled here for simplicity – leave in performance mode
-  if (!this->write_byte(BMI270_REG_PWR_CONF, 0x02)) {  // bit1 = fifo_self_wakeup
+  if (!this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_FIFO_SELF_WAKEUP)) {  // bit1 = fifo_self_wakeup
     this->mark_failed();
     return;
   }
@@ -153,7 +155,7 @@ void BMI270Component::setup() {
 }
 
 bool BMI270Component::wait_for_aux_idle_(uint32_t timeout_ms) {
-  // STATUS bit 2 (0x04) is set while an aux transaction is in flight. Aux transaction
+  // The STATUS aux-busy bit is set while an aux transaction is in flight. Aux transaction
   // duration depends on the attached device's own timing, so poll with a bounded
   // timeout instead of guessing a fixed delay.
   uint32_t start = millis();
@@ -161,7 +163,7 @@ bool BMI270Component::wait_for_aux_idle_(uint32_t timeout_ms) {
     uint8_t status = 0;
     if (!this->read_byte(BMI270_REG_STATUS, &status))
       return false;
-    if ((status & 0x04) == 0)
+    if ((status & BMI270_STATUS_AUX_BUSY) == 0)
       return true;
     if (millis() - start >= timeout_ms)
       return false;
@@ -169,65 +171,88 @@ bool BMI270Component::wait_for_aux_idle_(uint32_t timeout_ms) {
   }
 }
 
+bool BMI270Component::write_aux_register_(uint8_t reg, uint8_t value) {
+  if (!this->write_byte(BMI270_REG_AUX_WR_DATA, value))
+    return false;
+  if (!this->write_byte(BMI270_REG_AUX_WR_ADDR, reg))
+    return false;
+  return this->wait_for_aux_idle_(20);
+}
+
+bool BMI270Component::read_aux_block_(uint8_t reg, uint8_t *buf) {
+  if (!this->write_byte(BMI270_REG_AUX_RD_ADDR, reg))
+    return false;
+  if (!this->wait_for_aux_idle_(20))
+    return false;
+  return this->read_bytes(BMI270_REG_AUX_X_LSB, buf, BMI270_AUX_DATA_LEN);
+}
+
+bool BMI270Component::read_magnetometer_trim_() {
+  uint8_t regs[BMM150_TRIM_BLOCKS * BMM150_TRIM_BLOCK_LEN];
+  for (uint8_t i = 0; i < BMM150_TRIM_BLOCKS; i++) {
+    if (!this->read_aux_block_(BMM150_REG_TRIM_START + i * BMM150_TRIM_BLOCK_LEN, regs + i * BMM150_TRIM_BLOCK_LEN))
+      return false;
+  }
+  this->mag_trim_ = bmm150_parse_trim(regs);
+  return true;
+}
+
 bool BMI270Component::setup_magnetometer_() {
-  // Sequence adapted from the Bosch BMI270 aux-interface protocol: enable the
-  // secondary I2C master, point it at the BMM150's address, soft-reset + power-on
-  // the BMM150 through the aux write path, verify its chip ID via an aux read,
-  // put it in normal/30Hz mode, then switch the aux interface to auto-burst mode
-  // so BMI270 keeps AUX_X/Y/Z_LSB refreshed from the BMM150's data registers.
+  // Sequence adapted from the Bosch BMI270 aux-interface protocol: enable the secondary
+  // I2C master in manual mode, point it at the BMM150's address, power the BMM150 up
+  // and soft-reset it, verify its chip ID, read its factory trim values, put it in
+  // normal/30Hz mode, then switch the aux interface to auto-burst mode so BMI270 keeps
+  // AUX_X/Y/Z/R refreshed from the BMM150's data registers.
   ESP_LOGD(TAG, "Setting up BMM150 magnetometer via BMI270 aux interface...");
 
-  if (!this->write_byte(BMI270_REG_IF_CONF, 0x20))  // aux_if_en
+  if (!this->write_byte(BMI270_REG_IF_CONF, BMI270_IF_CONF_AUX_IF_EN))
     return false;
-  if (!this->write_byte(BMI270_REG_PWR_CTRL, 0x0E))  // temp+gyr+acc on, aux still off
-    return false;
-  if (!this->write_byte(BMI270_REG_AUX_IF_CONF, 0x80))  // manual mode, burst length 1
+  if (!this->write_byte(BMI270_REG_AUX_IF_CONF, BMI270_AUX_IF_CONF_MANUAL_EN | BMI270_AUX_IF_CONF_MAN_RD_BURST_8))
     return false;
   if (!this->write_byte(BMI270_REG_AUX_DEV_ID, (uint8_t) (this->aux_device_address_ << 1)))
     return false;
 
-  // Soft-reset + power on the BMM150 (write 0x83 to its POWER_CONTROL register 0x4B).
-  if (!this->write_byte(BMI270_REG_AUX_WR_DATA, BMM150_CMD_POWER_ON_RESET))
-    return false;
-  if (!this->write_byte(BMI270_REG_AUX_WR_ADDR, BMM150_REG_POWER_CONTROL))
-    return false;
-  if (!this->wait_for_aux_idle_(20)) {
+  // Suspend -> sleep, then a soft reset so the BMM150 starts from a known state even if it
+  // stayed powered across a restart. The chip ID is only readable once the power bit is set.
+  if (!this->write_aux_register_(BMM150_REG_POWER_CONTROL, BMM150_CMD_POWER_ON)) {
     ESP_LOGW(TAG, "BMM150 power-on write timed out");
     return false;
   }
-
-  // Point the aux read address at the BMM150's chip-ID register and verify it.
-  if (!this->write_byte(BMI270_REG_AUX_IF_CONF, 0x80))  // enable read, burst length 1
-    return false;
-  if (!this->write_byte(BMI270_REG_AUX_RD_ADDR, BMM150_REG_CHIP_ID))
-    return false;
-  if (!this->wait_for_aux_idle_(20)) {
-    ESP_LOGW(TAG, "BMM150 chip-ID read timed out");
+  delay(BMM150_START_UP_TIME_MS);
+  if (!this->write_aux_register_(BMM150_REG_POWER_CONTROL, BMM150_CMD_SOFT_RESET)) {
+    ESP_LOGW(TAG, "BMM150 soft-reset write timed out");
     return false;
   }
-  uint8_t chip_id = 0;
-  if (!this->read_byte(BMI270_REG_AUX_X_LSB, &chip_id) || chip_id != BMM150_CHIP_ID_VALUE) {
-    ESP_LOGW(TAG, "BMM150 not detected (chip ID 0x%02X, expected 0x%02X)", chip_id, BMM150_CHIP_ID_VALUE);
+  delay(BMM150_SOFT_RESET_TIME_MS);
+
+  uint8_t chip_id[BMI270_AUX_DATA_LEN];
+  if (!this->read_aux_block_(BMM150_REG_CHIP_ID, chip_id)) {
+    ESP_LOGW(TAG, "BMM150 chip-ID read failed");
+    return false;
+  }
+  if (chip_id[0] != BMM150_CHIP_ID_VALUE) {
+    ESP_LOGW(TAG, "BMM150 not detected (chip ID 0x%02X, expected 0x%02X)", chip_id[0], BMM150_CHIP_ID_VALUE);
     return false;
   }
 
-  // Put the BMM150 in normal power mode, ODR 30 Hz (write 0x38 to OP_MODE register 0x4C).
-  if (!this->write_byte(BMI270_REG_AUX_WR_DATA, BMM150_CMD_NORMAL_MODE_ODR_30HZ))
+  if (!this->read_magnetometer_trim_()) {
+    ESP_LOGW(TAG, "BMM150 trim data read failed");
     return false;
-  if (!this->write_byte(BMI270_REG_AUX_WR_ADDR, BMM150_REG_OP_MODE))
-    return false;
-  if (!this->wait_for_aux_idle_(20)) {
+  }
+
+  if (!this->write_aux_register_(BMM150_REG_OP_MODE, BMM150_CMD_NORMAL_MODE_ODR_30HZ)) {
     ESP_LOGW(TAG, "BMM150 mode write timed out");
     return false;
   }
 
   // Switch to auto-burst mode: BMI270 will keep polling 8 bytes from the BMM150's
   // data registers (0x42) into its own AUX_X/Y/Z/R registers automatically.
-  if (!this->write_byte(BMI270_REG_AUX_IF_CONF, 0x4F))  // fcu_write_en, burst length 8
+  if (!this->write_byte(BMI270_REG_AUX_IF_CONF, BMI270_AUX_IF_CONF_FCU_WRITE_EN | BMI270_AUX_IF_CONF_MAN_RD_BURST_8 |
+                                                    BMI270_AUX_IF_CONF_RD_BURST_8))
     return false;
   if (!this->write_byte(BMI270_REG_AUX_RD_ADDR, BMM150_REG_DATA_X_LSB))
     return false;
-  if (!this->write_byte(BMI270_REG_PWR_CTRL, 0x0F))  // temp+gyr+acc+aux all on
+  if (!this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU | BMI270_PWR_CTRL_AUX_EN))
     return false;
 
   ESP_LOGD(TAG, "BMM150 magnetometer ready");
@@ -262,8 +287,15 @@ bool BMI270Component::update_data(motion::MotionData &data) {
     return false;
 
   //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
-  uint8_t raw_data[REG_READ_LEN];
-  if (!this->read_bytes(BMI270_REG_DATA_8, raw_data, REG_READ_LEN)) {
+  // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
+  // the accel data, so one burst read from AUX_X_LSB fetches both.
+  const bool read_mag = this->magnetometer_ready_ && !this->magnetometer_callback_.empty();
+  uint8_t buf[BMI270_AUX_DATA_LEN + REG_READ_LEN];
+  const uint8_t *mag_raw = buf;
+  const uint8_t *raw_data = read_mag ? buf + BMI270_AUX_DATA_LEN : buf;
+  const bool read_ok = read_mag ? this->read_bytes(BMI270_REG_AUX_X_LSB, buf, sizeof(buf))
+                                : this->read_bytes(BMI270_REG_DATA_8, buf, REG_READ_LEN);
+  if (!read_ok) {
     ESP_LOGW(TAG, "Failed to read IMU data");
     return false;
   }
@@ -302,20 +334,9 @@ bool BMI270Component::update_data(motion::MotionData &data) {
     this->temperature_callback_.call(temperature);
   }
 
-  // Magnetometer: separate read, since AUX_X/Y/Z live at 0x04-0x09, well before the
-  // accel/gyro/temp block read above. Only touched when the BMM150 aux setup succeeded.
-  if (this->magnetometer_ready_ && !this->magnetometer_callback_.empty()) {
-    uint8_t mag_raw[6];
-    if (this->read_bytes(BMI270_REG_AUX_X_LSB, mag_raw, sizeof(mag_raw))) {
-      BMM150Data mag_data{
-          .x = (int16_t) ((mag_raw[1] << 8) | mag_raw[0]) * BMM150_MICROTESLA_PER_LSB,
-          .y = (int16_t) ((mag_raw[3] << 8) | mag_raw[2]) * BMM150_MICROTESLA_PER_LSB,
-          .z = (int16_t) ((mag_raw[5] << 8) | mag_raw[4]) * BMM150_MICROTESLA_PER_LSB,
-      };
-      this->magnetometer_callback_.call(mag_data);
-    } else {
-      ESP_LOGW(TAG, "Failed to read magnetometer data");
-    }
+  if (read_mag) {
+    BMM150Data mag_data = bmm150_convert(this->mag_trim_, mag_raw);
+    this->magnetometer_callback_.call(mag_data);
   }
   return true;
 }
