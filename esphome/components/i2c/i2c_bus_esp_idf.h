@@ -48,8 +48,7 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
  protected:
   i2c_master_dev_handle_t dev_{};
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  // One handle per frequency used on the bus: the configured one plus the
-  // multiplexer port frequencies, counted at code generation
+  // One handle per frequency used on the bus, counted at code generation
   struct FrequencyDevice {
     uint32_t frequency;
     i2c_master_dev_handle_t dev;

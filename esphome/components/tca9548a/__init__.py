@@ -23,8 +23,7 @@ TCA9548AChannel = tca9548a_ns.class_("TCA9548AChannel", i2c.I2CBus)
 MULTI_CONF = True
 
 CONF_BUS_ID = "bus_id"
-# Sizes the root bus's frequency table; a port frequency is only compiled in
-# when one is configured
+# Sizes the root bus's frequency table; only emitted when a frequency is set
 _request_port_frequency_slot = cg.slot_counter("I2C_PORT_FREQUENCY_COUNT")
 
 

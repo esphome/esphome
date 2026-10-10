@@ -218,8 +218,7 @@ ErrorCode IDFI2CBus::switch_frequency(uint32_t frequency) {
     this->frequency_ = frequency;
     return ERROR_OK;
   }
-  // The driver applies each device handle's own timing, so one handle per
-  // frequency is created once and switched after that.
+  // One handle per frequency, created once and switched after that
   i2c_master_dev_handle_t dev = nullptr;
   for (const auto &device : this->devices_) {
     if (device.frequency == frequency) {

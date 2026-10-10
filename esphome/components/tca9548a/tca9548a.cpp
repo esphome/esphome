@@ -21,14 +21,13 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
 }
 
 #ifdef I2C_PORT_FREQUENCY_COUNT
-// The multiplexer is addressed at its own frequency when it has one, else at
-// the port's: a multiplexer tolerates a faster bus but may not answer at it.
+// A multiplexer may not answer at the bus frequency, so it is addressed at its own
 uint32_t TCA9548AChannel::select_frequency_() const {
   const uint32_t mux_frequency = this->parent_->frequency_;
   return mux_frequency != 0 ? mux_frequency : this->frequency_;
 }
 
-// The transfer behind the port runs at the port frequency, else the multiplexer's
+// The port frequency, else the multiplexer's
 uint32_t TCA9548AChannel::transfer_frequency_() const {
   return this->frequency_ != 0 ? this->frequency_ : this->parent_->frequency_;
 }
@@ -38,7 +37,7 @@ i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint8_t address, 
                                                                size_t read_count) {
   const uint32_t original_frequency = this->parent_->bus_->get_frequency();
   const uint32_t select_frequency = this->select_frequency_();
-  // A switch only takes effect when it succeeds, so there is nothing to restore here
+  // A failed switch leaves the bus as it was
   auto err = this->switch_bus_(select_frequency);
   if (err != i2c::ERROR_OK)
     return err;
@@ -52,8 +51,7 @@ i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint8_t address, 
   return err;
 }
 
-// Run the transfer at the port's frequency, then return to the frequency the
-// multiplexer is addressed at for the deselect
+// Transfer at the port frequency, back to the select frequency for the deselect
 i2c::ErrorCode TCA9548AChannel::transfer_(uint32_t select_frequency, uint8_t address, const uint8_t *write_buffer,
                                           size_t write_count, uint8_t *read_buffer, size_t read_count) {
   const uint32_t transfer_frequency = this->transfer_frequency_();
@@ -68,7 +66,7 @@ i2c::ErrorCode TCA9548AChannel::transfer_(uint32_t select_frequency, uint8_t add
   return err;
 }
 
-// A multiplexer behind this port switches and reads the shared upstream bus
+// Forward to the shared upstream bus
 i2c::ErrorCode TCA9548AChannel::switch_frequency(uint32_t frequency) {
   return this->parent_->bus_->switch_frequency(frequency);
 }
