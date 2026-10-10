@@ -9,6 +9,7 @@ from esphome.const import CONF_DEVICE, CONF_FILE, CONF_ID, CONF_VOLUME
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "dfplayer"
 
 dfplayer_ns = cg.esphome_ns.namespace("dfplayer")
 DFPlayer = dfplayer_ns.class_("DFPlayer", cg.Component)

@@ -6,7 +6,7 @@
 
 namespace esphome::tmp117 {
 
-static const char *const TAG = "tmp117";
+ESPHOME_LOG_TAG(TAG, "tmp117");
 
 void TMP117Component::update() {
   int16_t data;

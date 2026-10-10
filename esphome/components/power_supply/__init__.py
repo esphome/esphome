@@ -11,6 +11,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "power_supply"
 power_supply_ns = cg.esphome_ns.namespace("power_supply")
 PowerSupply = power_supply_ns.class_("PowerSupply", cg.Component)
 MULTI_CONF = True

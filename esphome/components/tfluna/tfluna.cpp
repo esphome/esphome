@@ -16,8 +16,10 @@ static constexpr uint8_t MODE_TRIGGER = 0x01;
 static constexpr uint8_t TRIGGER_ONESHOT_REGISTER = 0x24;
 static constexpr uint8_t MAX_READ_ATTEMPTS = 5;
 static constexpr uint8_t READ_RETRY_MS = 5;
-static const char *const TAG = "tfluna";
-static const char *const READ_RETRY_TIMEOUT = "read_retry";
+ESPHOME_LOG_TAG(TAG, "tfluna");
+
+static constexpr uint32_t SETUP_TIMEOUT_ID = 0;
+static constexpr uint32_t READ_RETRY_TIMEOUT_ID = 1;
 
 void TFLuna::dump_config() {
   ESP_LOGCONFIG(TAG, "TF-Luna (i2c):");
@@ -121,7 +123,7 @@ void TFLuna::read_data_timeout_() {
   } else {
     if (this->attempt_ < MAX_READ_ATTEMPTS) {
       this->attempt_++;
-      this->set_timeout(READ_RETRY_TIMEOUT, READ_RETRY_MS, [this]() { this->read_data_timeout_(); });
+      this->set_timeout(READ_RETRY_TIMEOUT_ID, READ_RETRY_MS, [this]() { this->read_data_timeout_(); });
     } else {
       this->status_set_warning("Hung device, restarting...");
       this->restart();
@@ -130,7 +132,7 @@ void TFLuna::read_data_timeout_() {
 }
 
 void TFLuna::update() {
-  this->cancel_timeout(READ_RETRY_TIMEOUT);
+  this->cancel_timeout(READ_RETRY_TIMEOUT_ID);
   this->attempt_ = 0;
   if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
@@ -145,7 +147,7 @@ void TFLuna::factory_reset() {
     return;
   }
   this->status_set_warning("Factory reset issued; waiting for device to become ready");
-  this->set_timeout("_setup", 100, [this]() { this->setup(); });
+  this->set_timeout(SETUP_TIMEOUT_ID, 100, [this]() { this->setup(); });
 }
 
 void TFLuna::restart() {

@@ -19,7 +19,7 @@ static const uint32_t READ_DURATION_MS = 16;
 static const size_t TASK_STACK_SIZE = 4096;
 static const ssize_t TASK_PRIORITY = 23;
 
-static const char *const TAG = "i2s_audio.microphone";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.microphone");
 
 enum MicrophoneEventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),  // stops the microphone task, set and cleared by ``loop``
@@ -397,7 +397,7 @@ void I2SAudioMicrophone::loop() {
 
       if (!this->start_driver_()) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-        this->status_momentary_error("driver_fail", 1000);
+        this->status_momentary_error(1000);
         this->stop_driver_();  // Stop/frees whatever possibly started
         break;
       }
@@ -408,7 +408,7 @@ void I2SAudioMicrophone::loop() {
 
         if (this->task_handle_ == nullptr) {
           ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-          this->status_momentary_error("task_fail", 1000);
+          this->status_momentary_error(1000);
           this->stop_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
         }
       }

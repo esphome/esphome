@@ -20,7 +20,7 @@
 
 namespace esphome::ens160_base {
 
-static const char *const TAG = "ens160";
+ESPHOME_LOG_TAG(TAG, "ens160");
 
 // Datasheet specifies 10ms, but some users report that 10ms is not sufficient for the
 // sensor to boot and be ready for commands. 11ms seems to be a safe value.
