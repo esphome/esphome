@@ -79,12 +79,13 @@ def tool_lines(
     ]
 
 
-def compile_rule_lines(ccache: bool) -> list[str]:
+def compile_rule_lines(ccache: str | None) -> list[str]:
     """The compile rules; ``$own_includes`` is empty unless an edge sets it.
 
-    ``ccache`` puts the launcher in front of each command. It is spliced in
-    rather than left as an empty variable: a leading space on the command
-    line makes CreateProcess fail on Windows.
+    ``ccache`` is the launcher ``tool_lines`` was given; the same test here
+    keeps the variable and the rules in step. It is spliced in rather than
+    left as an empty variable: a leading space on the command line makes
+    CreateProcess fail on Windows.
     """
     launcher = "$ccache " if ccache else ""
     return [

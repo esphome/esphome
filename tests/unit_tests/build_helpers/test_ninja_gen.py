@@ -57,8 +57,8 @@ def test_collect_sources_skips_excluded_and_other_files(tmp_path: Path) -> None:
     ]
 
 
-@pytest.mark.parametrize("ccache", [True, False])
-def test_compile_rule_lines_splice_the_launcher(ccache: bool) -> None:
+@pytest.mark.parametrize("ccache", ["/usr/bin/ccache", None])
+def test_compile_rule_lines_splice_the_launcher(ccache: str | None) -> None:
     """Without ccache no command keeps a leading space, which CreateProcess
     on Windows rejects; with it every compile rule starts with the launcher."""
     commands = [
