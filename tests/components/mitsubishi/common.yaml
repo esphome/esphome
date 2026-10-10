@@ -2,4 +2,4 @@ climate:
   - platform: mitsubishi
     name: Mitsubishi
     transmitter_id: xmitr
-    vertical_vanes: 1
+    vertical_vanes: 2
