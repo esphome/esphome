@@ -218,7 +218,7 @@ static constexpr uint8_t PROGMEM
       100 };                        //     100 ms delay
 
 // clang-format on
-static const char *const TAG = "st7735";
+ESPHOME_LOG_TAG(TAG, "st7735");
 
 ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr,
                bool invert_colors)

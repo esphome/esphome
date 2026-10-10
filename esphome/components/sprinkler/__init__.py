@@ -23,6 +23,7 @@ from esphome.helpers import docs_url
 
 AUTO_LOAD = ["number", "switch"]
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "sprinkler"
 
 CONF_AUTO_ADVANCE_SWITCH = "auto_advance_switch"
 CONF_DIVIDER = "divider"

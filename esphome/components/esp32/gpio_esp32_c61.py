@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
+
 # GPIO14-17, GPIO19-21 are used for SPI flash/PSRAM
 _ESP32C61_SPI_PSRAM_PINS = {
     14: "SPICS0",
@@ -18,6 +20,8 @@ _ESP32C61_SPI_PSRAM_PINS = {
 
 _ESP32C61_STRAPPING_PINS = {8, 9}
 
+_ESP32C61_USB_JTAG_PINS = {12, 13}
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -29,6 +33,7 @@ def esp32_c61_validate_gpio_pin(value: int) -> int:
             f"This pin cannot be used on ESP32-C61s and is already used by the SPI/PSRAM interface (function: {_ESP32C61_SPI_PSRAM_PINS[value]})"
         )
 
+    check_usb_jtag_pin(value, _ESP32C61_USB_JTAG_PINS, _LOGGER)
     return value
 
 
@@ -42,6 +47,8 @@ def esp32_c61_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32-C61 pins support input mode
         pass
+
+    check_usb_jtag_hold(value, _ESP32C61_USB_JTAG_PINS, _LOGGER)
 
     check_strapping_pin(value, _ESP32C61_STRAPPING_PINS, _LOGGER)
     return value
