@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_MILLIAMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -34,8 +35,6 @@ CONF_REMAINING_CAPACITY = "remaining_capacity"
 CONF_FULL_CHARGE_CAPACITY = "full_charge_capacity"
 CONF_TIME_TO_EMPTY = "time_to_empty"
 CONF_STATE_OF_HEALTH = "state_of_health"
-# Moves to esphome.components.const once #20495 lands
-UNIT_MILLIAMPERE_HOUR = "mAh"
 
 # Other SLUUBD4A standard commands are intentionally not exposed to keep the
 # component focused; they can be added later if there is demand: TimeToFull
