@@ -1751,3 +1751,171 @@ def test_udp_channel_reports_socket_errors() -> None:
     ):
         channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
     channel.close()
+
+
+def _udp_handshake() -> list[bytes]:
+    """TCP recv responses up to auth, from a device that offers UDP."""
+    return [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([espota2.SERVER_FEATURE_SUPPORTS_UDP]),
+        bytes([espota2.RESPONSE_AUTH_OK]),
+    ]
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_over_udp(mock_socket: Mock) -> None:
+    """The data phase moves to the channel, which acks chunks itself."""
+    mock_socket.recv.side_effect = _udp_handshake()
+    udp = Mock()
+    udp.pending.return_value = False
+    udp.recv.side_effect = [
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),
+        bytes([espota2.RESPONSE_RECEIVE_OK]),
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),
+    ]
+    with patch.object(espota2, "_start_udp", return_value=udp) as start:
+        espota2.perform_ota(
+            mock_socket, None, io.BytesIO(bytes(20000)), "test.bin", prefer_udp=True
+        )
+    assert start.call_args.args[2] is True  # an earlier failure means lossy
+    assert udp.recv.call_count == 4  # no chunk acks
+    udp.flush.assert_called_once()
+    udp.close.assert_called_once()
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_over_udp_device_error(mock_socket: Mock) -> None:
+    """A device error mid upload stops the upload and is not retried."""
+    mock_socket.recv.side_effect = _udp_handshake()
+    mock_socket.getsockopt.return_value = b""  # no retransmit counter
+    udp = Mock()
+    udp.pending.return_value = True
+    udp.recv.side_effect = [
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),
+        bytes([espota2.RESPONSE_ERROR_WRITING_FLASH]),
+    ]
+    with (
+        patch.object(espota2, "_start_udp", return_value=udp),
+        pytest.raises(espota2.OTAError, match="Writing OTA data") as exc,
+    ):
+        espota2.perform_ota(mock_socket, None, io.BytesIO(bytes(20000)), "test.bin")
+    assert not isinstance(exc.value, espota2.OTANetworkError)
+    udp.close.assert_called()
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_udp_declined_stays_on_tcp(mock_socket: Mock) -> None:
+    """Without a channel the upload continues on TCP with chunk acks."""
+    mock_socket.recv.side_effect = [
+        *_udp_handshake(),
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),
+        *_UPLOAD_TAIL,
+    ]
+    with patch.object(espota2, "_start_udp", return_value=None):
+        espota2.perform_ota(
+            mock_socket, None, io.BytesIO(b"x" * 100), "test.bin", prefer_udp=True
+        )
+    assert mock_socket.sendall.call_args_list[-1] == call(bytes([espota2.RESPONSE_OK]))
+
+
+def test_udp_channel_records_socket_errors() -> None:
+    """Send and receive errors are recorded like loss."""
+    sock = Mock()
+    sock.send.side_effect = BlockingIOError(35, "full")
+    sock.recv.side_effect = ConnectionRefusedError(61, "refused")
+    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+    channel._send(espota2.UDP_MSG_PING, 0, b"")
+    assert isinstance(channel._last_error, BlockingIOError)
+    with patch("select.select", side_effect=[([sock], [], []), ([], [], [])]):
+        channel._receive(0.0)
+    assert isinstance(channel._last_error, ConnectionRefusedError)
+
+
+def test_start_udp_probe_succeeds(mock_socket: Mock) -> None:
+    """A device that answers the probe gets the data phase over UDP."""
+    with _LossyUdpDevice(b"\x05\x06\x07\x09", 0.0) as device:
+        mock_socket.family = socket.AF_INET
+        mock_socket.getpeername.return_value = device.sock.getsockname()
+        mock_socket.recv.side_effect = [b"\x05", b"\x06\x07\x09"]
+        channel = espota2._start_udp(mock_socket, mock_socket, True)
+        assert channel is not None
+        channel.close()
+    assert mock_socket.sendall.call_args_list == [call(espota2.UDP_REQUEST)]
+
+
+def test_udp_channel_pings_when_all_held() -> None:
+    """With every message in flight already held, it asks for responses instead,
+    at most once per resend timeout."""
+    device = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    device.bind(("127.0.0.1", 0))
+    device.settimeout(1.0)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect(device.getsockname())
+    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+    channel.sendall(b"x")
+    channel._queue[0].held = True
+    with patch.object(channel, "_receive"):
+        channel._pump()
+        channel._pump()
+    assert device.recv(2048)[0] == espota2.UDP_MSG_PING
+    device.settimeout(0.1)
+    with pytest.raises(TimeoutError):
+        device.recv(2048)
+    channel.close()
+    device.close()
+
+
+def test_udp_channel_ignores_foreign_datagrams() -> None:
+    """Short, non-ACK or wrong-token datagrams change nothing."""
+    channel = espota2.UdpChannel(Mock(), b"\x01\x01\x01\x01")
+    for data in (b"\x40", bytes(espota2.UDP_ACK_HEADER_SIZE), b"\x40" + bytes(11)):
+        channel._handle_ack(data)
+    assert not channel.pending()
+    # An ACK before the head was ever sent is no duplicate
+    channel.sendall(b"x")
+    ack = bytes([espota2.UDP_MSG_ACK]) + b"\x01\x01\x01\x01" + bytes(6) + b"\x40"
+    channel._handle_ack(ack)
+    channel._handle_ack(ack)
+    assert not channel._queue[0].resend
+
+
+def test_udp_channel_logs_each_socket_error_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A repeated error is recorded but logged only when it changes."""
+    channel = espota2.UdpChannel(Mock(), b"\x01\x01\x01\x01")
+    with caplog.at_level(logging.DEBUG, "esphome.espota2"):
+        channel._socket_error(ConnectionRefusedError(61, "refused"))
+        channel._socket_error(ConnectionRefusedError(61, "refused again"))
+    assert caplog.text.count("UDP socket error") == 1
+    assert "again" in str(channel._last_error)
+
+
+def test_tcp_retransmits_unsupported_option() -> None:
+    """An OS that rejects the option reports nothing."""
+    sock = Mock()
+    sock.getsockopt.side_effect = OSError("not supported")
+    with patch("sys.platform", "linux"):
+        assert espota2._tcp_retransmits(sock) is None
+
+
+@pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
+def test_run_ota_impl_handshake_failure_prefers_udp(
+    firmware_file: Path, mock_perform_ota: Mock, mock_sleep: Mock
+) -> None:
+    """A handshake that dies after reaching the device moves the retry to UDP."""
+    mock_perform_ota.side_effect = [
+        espota2.OTAHandshakeNetworkError("noise handshake: timed out"),
+        None,
+    ]
+    result_code, _ = espota2.run_ota_impl_("test.local", 3232, None, str(firmware_file))
+    assert result_code == 0
+    assert [c.kwargs["prefer_udp"] for c in mock_perform_ota.call_args_list] == [
+        False,
+        True,
+    ]
