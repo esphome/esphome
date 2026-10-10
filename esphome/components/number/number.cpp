@@ -5,7 +5,7 @@
 
 namespace esphome::number {
 
-static const char *const TAG = "number";
+ESPHOME_LOG_TAG(TAG, "number");
 
 // Function implementation of LOG_NUMBER macro to reduce code size
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj) {

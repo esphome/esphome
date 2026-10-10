@@ -35,6 +35,8 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
+DOMAIN = "mipi"
+
 LOGGER = cv.logging.getLogger(__name__)
 
 CONF_TRANSFORMS = "transforms"
@@ -648,7 +650,10 @@ class DriverChip:
             sequence.append((INVON,))
         else:
             sequence.append((INVOFF,))
-        if brightness := config.get(CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS)):
+        brightness = config.get(
+            CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS, None)
+        )
+        if brightness is not None:
             sequence.append((BRIGHTNESS, brightness))
         # Add a SLPOUT command if required.
         if not self.skip_command("SLPOUT"):

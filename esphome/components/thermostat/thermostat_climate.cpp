@@ -6,7 +6,7 @@
 
 namespace esphome::thermostat {
 
-static const char *const TAG = "thermostat.climate";
+ESPHOME_LOG_TAG(TAG, "thermostat.climate");
 
 void ThermostatClimate::setup() {
   if (this->use_startup_delay_) {

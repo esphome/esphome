@@ -50,7 +50,7 @@ static constexpr size_t PACKET_MAX_LOG_BYTES = 168;
  * Ping key (4 bytes)
  *
  */
-static const char *const TAG = "packet_transport";
+ESPHOME_LOG_TAG(TAG, "packet_transport");
 
 static size_t round4(size_t value) { return (value + 3) & ~3; }
 
