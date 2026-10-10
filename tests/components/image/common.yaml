@@ -21,6 +21,28 @@ image:
     type: RGB111
     transparency: alpha_channel
   - platform: file
+    id: rgb111_dither_image_palette
+    file: ../../pnglogo.png
+    type: RGB111
+    dither:
+      type: FloydSteinberg
+      palette:
+        - 0x000000
+        - 0xFF0000
+        - 0x00FF00
+        - 0x0000FF
+        - 0xFFFFFF
+    transparency: opaque
+  - platform: file
+    id: rgb111_dither_image_palette_simple
+    file: ../../pnglogo.png
+    type: RGB111
+    dither:
+      palette:
+        - 0x000000
+        - 0xFF0000
+        - 0xFFFFFF
+  - platform: file
     id: rgb111_dither_image
     file: ../../pnglogo.png
     type: RGB111
