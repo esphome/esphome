@@ -1273,12 +1273,6 @@ def lint_no_std_nothrow(fname, match):
     r"\s*(?:=\s*\{?|[{(])\s*\"",
     prefilter="TAG",
     include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
-    # Deprecated components, converted in a follow-up PR
-    exclude=[
-        "esphome/components/st7735/*",
-        "esphome/components/st7789v/*",
-        "esphome/components/waveshare_epaper/*",
-    ],
 )
 def lint_log_tag_macro(fname, match):
     return (

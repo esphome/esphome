@@ -4001,11 +4001,9 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
-# gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
-# are instantiated solely by the pin schema codegen (esp32_pin_to_code)
+# Each stub only compiles under its define, so keep the sources out of other builds
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
-        "gpio.cpp": "USE_ESP32_INTERNAL_GPIO",
         "sscanf_stubs.cpp": "USE_ESP32_SSCANF_STUB",
         "vasprintf_stubs.cpp": "USE_ESP32_VASPRINTF_STUB",
     }
