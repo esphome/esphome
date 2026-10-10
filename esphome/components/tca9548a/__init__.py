@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_I2C_ID,
     CONF_ID,
 )
+from esphome.core import CORE, ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@andreashergert1984"]
@@ -22,9 +23,22 @@ TCA9548AChannel = tca9548a_ns.class_("TCA9548AChannel", i2c.I2CBus)
 MULTI_CONF = True
 
 CONF_BUS_ID = "bus_id"
-# Sizes the upstream bus's frequency table; a port frequency is only compiled
-# in when one is configured
+# Sizes the root bus's frequency table; a port frequency is only compiled in
+# when one is configured
 _request_port_frequency_slot = cg.slot_counter("I2C_PORT_FREQUENCY_COUNT")
+
+
+def _root_bus_id(bus_id: ID) -> str:
+    """The hardware bus behind a port, through any multiplexers in between."""
+    parents = {
+        str(chan[CONF_BUS_ID]): mux[CONF_I2C_ID]
+        for mux in CORE.config.get(DOMAIN, [])
+        for chan in mux.get(CONF_CHANNELS, [])
+    }
+    while (parent := parents.get(str(bus_id))) is not None:
+        bus_id = parent
+    return str(bus_id)
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -56,5 +70,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(conf[CONF_CHANNEL]))
         if (frequency := conf.get(CONF_FREQUENCY)) is not None:
-            _request_port_frequency_slot(str(config[CONF_I2C_ID]))
+            _request_port_frequency_slot(_root_bus_id(config[CONF_I2C_ID]))
             cg.add(chan.set_frequency(int(frequency)))

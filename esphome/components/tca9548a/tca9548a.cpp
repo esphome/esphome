@@ -36,14 +36,14 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
 }
 
 #ifdef I2C_PORT_FREQUENCY_COUNT
+// Both act on the shared upstream bus: a multiplexer behind this port
+// switches it, and restores whatever it ran at before. When ports at both
+// levels set a frequency, the outer port's is the one the transfer uses.
 i2c::ErrorCode TCA9548AChannel::switch_frequency(uint32_t frequency) {
-  // A multiplexer behind this port switches the shared upstream bus
   return this->parent_->bus_->switch_frequency(frequency);
 }
 
-uint32_t TCA9548AChannel::get_frequency() const {
-  return this->frequency_ != 0 ? this->frequency_ : this->parent_->bus_->get_frequency();
-}
+uint32_t TCA9548AChannel::get_frequency() const { return this->parent_->bus_->get_frequency(); }
 #endif
 
 void TCA9548AComponent::setup() {
