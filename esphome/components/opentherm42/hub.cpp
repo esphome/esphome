@@ -2454,7 +2454,7 @@ bool OpenTherm42Hub::should_invalidate_now_(RequestKind kind, MessageType type) 
     char kind_desc[80];
     this->describe_request_kind_(kind, kind_desc, sizeof(kind_desc));
     ESP_LOGE(TAG, "%s: %u consecutive DATA_INVALID responses reached max_data_invalid (%u); marking Unknown", kind_desc,
-             entry->consecutive_data_invalid, this->max_data_invalid_);
+             entry->consecutive_data_invalid, static_cast<unsigned>(this->max_data_invalid_));
   }
   return true;
 }
