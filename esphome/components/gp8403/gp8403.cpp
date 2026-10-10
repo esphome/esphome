@@ -4,7 +4,7 @@
 
 namespace esphome::gp8403 {
 
-static const char *const TAG = "gp8403";
+ESPHOME_LOG_TAG(TAG, "gp8403");
 
 static const uint8_t RANGE_REGISTER = 0x01;
 static const uint8_t OUTPUT_REGISTER = 0x02;

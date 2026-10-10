@@ -1,7 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP32) || defined(USE_ZEPHYR) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_HOST) || \
-    defined(USE_ESP8266)
+#if defined(USE_ESP32) || defined(USE_ZEPHYR) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_HOST)
 
 #include <atomic>
 #include <cstddef>
@@ -117,4 +116,3 @@ template<class T, uint8_t SIZE> class EventPool {
 }  // namespace esphome
 
 #endif  // defined(USE_ESP32) || defined(USE_ZEPHYR) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_HOST)
-        // || defined(USE_ESP8266)

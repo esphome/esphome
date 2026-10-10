@@ -11,8 +11,7 @@
 #include <memory>
 #include <vector>
 
-#if defined(USE_ESP8266)
-#else
+#if !defined(USE_ESP8266)
 #include <esp_idf_version.h>
 #endif
 
@@ -78,16 +77,11 @@ class ESPNowPacket {
 #if defined(USE_ESP8266)
   // Constructor for sent data
   ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
-#elif defined(ESP_IDF_VERSION_VAL)
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // Constructor for sent data
   ESPNowPacket(const esp_now_send_info_t *info, esp_now_send_status_t status) {
     this->init_sent_data_(info->src_addr, status);
   }
-#else
-  // Constructor for sent data
-  ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
-#endif
 #else
   // Constructor for sent data
   ESPNowPacket(const uint8_t *mac_addr, espnow_send_status_t status) { this->init_sent_data_(mac_addr, status); }
@@ -174,8 +168,10 @@ class ESPNowPacket {
     memcpy(this->packet_.receive.data, data, size);
     this->packet_.receive.size = size;
 
-    this->packet_.receive.rx_ctrl = *info->rx_ctrl;
-    this->packet_.receive.info.rx_ctrl = &this->packet_.receive.rx_ctrl;
+    this->packet_.receive.rx_ctrl.rssi = info->rx_ctrl->rssi;
+    this->packet_.receive.rx_ctrl.timestamp = info->rx_ctrl->timestamp;
+
+    this->packet_.receive.info.rx_ctrl = reinterpret_cast<wifi_pkt_rx_ctrl_t *>(&this->packet_.receive.rx_ctrl);
   }
 #endif
 

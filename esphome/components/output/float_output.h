@@ -123,6 +123,7 @@ class FloatOutput : public BinaryOutput {
   virtual void write_state(float state) = 0;
 
 #ifdef USE_OUTPUT_FLOAT_POWER_SCALING
+  // Codegen skips the setters for these values; keep in sync with output/__init__.py
   float max_power_{1.0f};
   float min_power_{0.0f};
   bool zero_means_zero_{false};

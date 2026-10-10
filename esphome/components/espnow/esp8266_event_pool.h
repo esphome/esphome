@@ -14,6 +14,8 @@
 namespace esphome::espnow {
 
 template<class T, uint8_t SIZE> class ESP8266EventPool {
+  static_assert(SIZE < 255, "SIZE + 1 must fit in a uint8_t");
+
  public:
   ESP8266EventPool() : total_created_(0) {}
 
@@ -52,7 +54,8 @@ template<class T, uint8_t SIZE> class ESP8266EventPool {
   }
 
  private:
-  ESP8266Queue<T, SIZE> free_list_;
+  // SIZE + 1 slots so all SIZE objects fit when the pool is fully drained (the ring reserves one slot)
+  ESP8266Queue<T, SIZE + 1> free_list_;
   uint8_t total_created_;
 };
 

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import light, output
 import esphome.config_validation as cv
 from esphome.const import CONF_OUTPUT, CONF_OUTPUT_ID
+from esphome.types import ConfigType
 
 from .. import binary_ns
 
@@ -15,7 +16,7 @@ CONFIG_SCHEMA = light.BINARY_LIGHT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 

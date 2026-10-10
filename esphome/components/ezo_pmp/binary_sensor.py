@@ -31,12 +31,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ID])
+    hub = await cg.get_variable(config[CONF_ID])
 
-    if CONF_PUMP_STATE in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_PUMP_STATE])
-        cg.add(parent.set_is_dosing(sens))
-
-    if CONF_IS_PAUSED in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_IS_PAUSED])
-        cg.add(parent.set_is_paused(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_PUMP_STATE, hub.set_is_dosing)
+    await binary_sensors(CONF_IS_PAUSED, hub.set_is_paused)

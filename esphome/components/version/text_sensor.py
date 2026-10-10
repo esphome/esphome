@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_NEW_BOX,
 )
+from esphome.types import ConfigType
 
 version_ns = cg.esphome_ns.namespace("version")
 VersionTextSensor = version_ns.class_(
@@ -31,8 +32,11 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await text_sensor.new_text_sensor(config)
     await cg.register_component(var, config)
-    cg.add(var.set_hide_hash(config[CONF_HIDE_HASH]))
-    cg.add(var.set_hide_timestamp(config[CONF_HIDE_TIMESTAMP]))
+    # Both flags default to false in C++, so only true needs a setter.
+    if config[CONF_HIDE_HASH]:
+        cg.add(var.set_hide_hash(True))
+    if config[CONF_HIDE_TIMESTAMP]:
+        cg.add(var.set_hide_timestamp(True))
