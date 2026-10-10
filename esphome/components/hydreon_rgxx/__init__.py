@@ -3,6 +3,7 @@ from esphome.components import uart
 
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "hydreon_rgxx"
 
 hydreon_rgxx_ns = cg.esphome_ns.namespace("hydreon_rgxx")
 RGModel = hydreon_rgxx_ns.enum("RGModel")

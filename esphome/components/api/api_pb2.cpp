@@ -306,6 +306,19 @@ uint32_t WizardCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_SENDSPIN
+uint8_t *SendspinCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SendspinCapabilities *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.feature_flags);
+  return pos;
+}
+uint32_t SendspinCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SendspinCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.feature_flags);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
 #ifdef USE_BLUETOOTH_PROXY
@@ -324,6 +337,9 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__res
 #endif
 #ifdef USE_API_WIZARD
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.wizard);
+#endif
+#ifdef USE_SENDSPIN
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.sendspin);
 #endif
   return pos;
 }
@@ -346,6 +362,9 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_API_WIZARD
   size += ProtoSize::calc_message(1, msg.wizard.calculate_size());
+#endif
+#ifdef USE_SENDSPIN
+  size += ProtoSize::calc_message(1, msg.sendspin.calculate_size());
 #endif
   return size;
 }
@@ -669,8 +688,8 @@ uint8_t *ListEntitiesLightResponse::encode_msg(const void *self, uint8_t *__rest
   if (uint32_t raw = float_to_raw(msg.max_mireds); raw != 0) [[likely]] {
     pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 85, raw);
   }
-  for (const char *it : *msg.effects) {
-    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 11, it, strlen(it));
+  for (const auto &it : *msg.effects) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 11, it);
   }
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -694,8 +713,8 @@ uint32_t ListEntitiesLightResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_float(1, msg.min_mireds);
   size += ProtoSize::calc_float(1, msg.max_mireds);
   if (!msg.effects->empty()) {
-    for (const char *it : *msg.effects) {
-      size += ProtoSize::calc_length_force(1, strlen(it));
+    for (const auto &it : *msg.effects) {
+      size += ProtoSize::calc_length_force(1, it.size());
     }
   }
   size += ProtoSize::calc_bool(1, msg.disabled_by_default);
@@ -4226,6 +4245,22 @@ uint32_t BluetoothSetConnectionParamsResponse::calc_size_msg(const void *self) {
   uint32_t size = 0;
   size += ProtoSize::calc_uint64(1, msg.address);
   size += ProtoSize::calc_int32(1, msg.error);
+  return size;
+}
+#endif
+#ifdef USE_SENDSPIN
+uint8_t *SendspinPairingTokenResponse::encode_msg(const void *self,
+                                                  uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const SendspinPairingTokenResponse *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.status));
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.token);
+  return pos;
+}
+uint32_t SendspinPairingTokenResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const SendspinPairingTokenResponse *>(self);
+  uint32_t size = 0;
+  size += msg.status ? 2 : 0;
+  size += !msg.token.empty() ? 2 + msg.token.size() : 0;
   return size;
 }
 #endif
