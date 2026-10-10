@@ -23,7 +23,7 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
   const uint32_t original_frequency = bus->get_frequency();
   err = bus->set_frequency(this->frequency_);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Failed to change I²C frequency");
+    ESP_LOGE(TAG, "Failed to %s I2C frequency", LOG_STR_LITERAL("set"));
     this->parent_->disable_all_channels();
     return err;
   }
@@ -31,7 +31,7 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
   err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
 
   if (bus->set_frequency(original_frequency) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Failed to restore original I²C frequency");
+    ESP_LOGE(TAG, "Failed to %s I2C frequency", LOG_STR_LITERAL("restore"));
   }
   this->parent_->disable_all_channels();
 
