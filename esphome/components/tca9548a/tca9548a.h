@@ -23,10 +23,12 @@ class TCA9548AChannel final : public i2c::I2CBus {
 #endif
 
  protected:
-  uint8_t channel_;
 #ifdef I2C_PORT_FREQUENCY_COUNT
+  /// Switch the upstream bus, flagging the multiplexer when that fails
+  i2c::ErrorCode switch_bus_(i2c::I2CBus *bus, uint32_t frequency);
   uint32_t frequency_{0};
 #endif
+  uint8_t channel_;
   TCA9548AComponent *parent_;
 };
 
@@ -39,8 +41,15 @@ class TCA9548AComponent final : public Component, public i2c::I2CDevice {
 
   i2c::ErrorCode switch_to_channel(uint8_t channel);
   void disable_all_channels();
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  /// The frequency the multiplexer itself is addressed at, and the default for its ports
+  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
+#endif
 
  protected:
   friend class TCA9548AChannel;
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  uint32_t frequency_{0};
+#endif
 };
 }  // namespace esphome::tca9548a

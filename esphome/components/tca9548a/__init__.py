@@ -44,6 +44,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TCA9548AComponent),
+            cv.Optional(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.Range(min=0, min_included=False)
+            ),
             cv.Optional(CONF_CHANNELS, default=[]): cv.ensure_list(
                 {
                     cv.Required(CONF_BUS_ID): cv.declare_id(TCA9548AChannel),
@@ -64,11 +67,15 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    root_bus_id = _root_bus_id(config[CONF_I2C_ID])
+    if (frequency := config.get(CONF_FREQUENCY)) is not None:
+        _request_port_frequency_slot(root_bus_id)
+        cg.add(var.set_frequency(int(frequency)))
 
     for conf in config[CONF_CHANNELS]:
         chan = cg.new_Pvariable(conf[CONF_BUS_ID])
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(conf[CONF_CHANNEL]))
         if (frequency := conf.get(CONF_FREQUENCY)) is not None:
-            _request_port_frequency_slot(_root_bus_id(config[CONF_I2C_ID]))
+            _request_port_frequency_slot(root_bus_id)
             cg.add(chan.set_frequency(int(frequency)))
