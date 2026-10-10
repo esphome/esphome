@@ -103,7 +103,8 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
             ) from exc
         raise EsphomeError(f"BLE error connecting to {device}: {exc}") from exc
     except SMPBLETransportException as exc:
-        raise EsphomeError(f"Connection error with {device}") from exc
+        # Reached when a device with the right name has no SMP service, among other causes
+        raise EsphomeError(f"Connection error with {device}: {exc}") from exc
 
     _LOGGER.info("Connected %s...", device)
     try:
