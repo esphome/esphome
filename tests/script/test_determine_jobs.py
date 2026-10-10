@@ -2613,8 +2613,8 @@ def test_component_batching_beta_branch_groups_evenly(
     For beta/release branches, all components should be groupable (not isolated),
     so they share one grouped build per runner and spread evenly.
     """
-    # Create 120 test components with test files
-    component_names = [f"comp_{i:03d}" for i in range(120)]
+    # Create 200 test components with test files
+    component_names = [f"comp_{i:03d}" for i in range(200)]
     tests_dir = tmp_path / "tests" / "components"
 
     for comp in component_names:
@@ -2675,15 +2675,15 @@ def test_component_batching_beta_branch_groups_evenly(
     assert "component_test_batches" in output
     batches = output["component_test_batches"]
 
-    # One grouped esp32-idf build plus 5 s per extra component is 640 s,
-    # so two runners of 60 components each
-    assert [len(batch["components"].split()) for batch in batches] == [60, 60]
+    # One grouped esp32-idf build plus 3 s per extra component is 652 s,
+    # so two runners of 100 components each
+    assert [len(batch["components"].split()) for batch in batches] == [100, 100]
 
-    # Verify all 120 components are in batches
+    # Verify all 200 components are in batches
     all_components = []
     for batch in batches:
         all_components.extend(batch["components"].split())
-    assert len(all_components) == 120
+    assert len(all_components) == 200
     assert set(all_components) == set(component_names)
 
 
