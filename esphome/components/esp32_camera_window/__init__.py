@@ -28,13 +28,18 @@ WINDOW_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Esp32CameraWindow),
-        cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
-        cv.Optional(CONF_WINDOW): WINDOW_SCHEMA,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(Esp32CameraWindow),
+            cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
+            cv.Optional(CONF_WINDOW): WINDOW_SCHEMA,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on_esp32,
+    # The window is applied through esp_camera.h, which is only available in ESP-IDF builds.
+    cv.only_with_framework("esp-idf"),
+)
 
 
 async def to_code(config: ConfigType) -> None:

@@ -2,7 +2,10 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32_CAMERA_WINDOW
+// The feature define alone is not a gate: esphome/core/defines.h, which the clang-tidy
+// header run lints, sets it for every target, while esp_camera.h only exists in ESP-IDF
+// builds. The component is ESP-IDF only, so gate on that too.
+#if defined(USE_ESP32_CAMERA_WINDOW) && defined(USE_ESP_IDF)
 
 #include "esphome/components/esp32_camera/esp32_camera.h"
 #include "esphome/core/component.h"
@@ -82,4 +85,4 @@ class Esp32CameraWindow : public Component {
 
 }  // namespace esphome::esp32_camera_window
 
-#endif  // USE_ESP32_CAMERA_WINDOW
+#endif  // USE_ESP32_CAMERA_WINDOW && USE_ESP_IDF
