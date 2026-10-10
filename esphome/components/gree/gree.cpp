@@ -3,18 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.climate";
-
-climate::ClimateTraits GreeClimate::traits() {
-  auto t = climate_ir::ClimateIR::traits();
-  // ClimateIR unconditionally includes HEAT_COOL in the base mode set; remove it when heat is not supported.
-  if (!this->supports_heat_) {
-    auto modes = t.get_supported_modes();
-    modes.erase(climate::CLIMATE_MODE_HEAT_COOL);
-    t.set_supported_modes(modes);
-  }
-  return t;
-}
+ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {
@@ -237,7 +226,7 @@ uint8_t GreeClimate::vertical_swing_() {
 }
 
 uint8_t GreeClimate::temperature_() {
-  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX));
+  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX)) - GREE_TEMP_MIN;
 }
 
 uint8_t GreeClimate::preset_() {

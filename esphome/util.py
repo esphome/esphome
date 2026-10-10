@@ -179,15 +179,21 @@ class RedirectText:
             s = s.replace("\033", "\\033")
         self._out.write(s)
 
-    def _emit_line(self, line: str) -> None:
-        line_without_ansi = ANSI_ESCAPE.sub("", line)
-        line_without_end = line_without_ansi.rstrip()
-        if (
+    def _is_filtered(self, line: str) -> bool:
+        return (
             self._filter_pattern is not None
-            and self._filter_pattern.match(line_without_end) is not None
-        ):
-            # Filter pattern matched, ignore the line
+            and self._filter_pattern.match(ANSI_ESCAPE.sub("", line).rstrip())
+            is not None
+        )
+
+    def _splits_lines(self) -> bool:
+        """Whether output is handled line by line rather than passed through."""
+        return self._filter_pattern is not None or bool(self._line_callbacks)
+
+    def _emit_line(self, line: str) -> None:
+        if self._is_filtered(line):
             return
+        line_without_end = ANSI_ESCAPE.sub("", line).rstrip()
 
         self._write_color_replace(line)
         # Check for flash size error and provide helpful guidance
@@ -233,7 +239,7 @@ class RedirectText:
         if not isinstance(s, str):
             s = s.decode()
 
-        if self._filter_pattern is not None or self._line_callbacks:
+        if self._splits_lines():
             lines = (self._line_buffer + s).splitlines(True)
             # Every piece but the last ends with something
             # ``str.splitlines`` treats as a break, so only the last one can
@@ -344,6 +350,10 @@ def run_external_command(
         return cap_stdout.getvalue()
 
     return retval
+
+
+# How a command starts another esphome, as a child of this one
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
 
 
 def run_external_process(*cmd: str, **kwargs: Any) -> int | str:

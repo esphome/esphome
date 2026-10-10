@@ -16,7 +16,9 @@
 
 namespace esphome::improv_serial {
 
-static const char *const TAG = "improv_serial";
+ESPHOME_LOG_TAG(TAG, "improv_serial");
+
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 0;
 
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
@@ -73,7 +75,7 @@ void ImprovSerialComponent::loop() {
       wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
                                                  this->connecting_sta_.get_password());
       this->connecting_sta_ = {};
-      this->cancel_timeout("wifi-connect-timeout");
+      this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
       this->set_state_(improv::STATE_PROVISIONED);
 
       this->send_settings_response_(improv::WIFI_SETTINGS);
@@ -302,7 +304,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      this->set_timeout("wifi-connect-timeout", switching ? WIFI_SWITCH_TIMEOUT_MS : WIFI_CONNECT_TIMEOUT_MS,
+      this->set_timeout(WIFI_CONNECT_TIMEOUT_ID, switching ? WIFI_SWITCH_TIMEOUT_MS : WIFI_CONNECT_TIMEOUT_MS,
                         [this]() { this->on_wifi_connect_timeout_(); });
 #else
       // No Wi-Fi support compiled in; there is nothing to provision.

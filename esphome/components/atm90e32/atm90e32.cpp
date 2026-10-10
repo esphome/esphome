@@ -7,7 +7,7 @@
 
 namespace esphome::atm90e32 {
 
-static const char *const TAG = "atm90e32";
+ESPHOME_LOG_TAG(TAG, "atm90e32");
 
 static const LogString *offset_calibration_name(bool power_offsets) {
   return power_offsets ? LOG_STR("Power offset") : LOG_STR("Offset");

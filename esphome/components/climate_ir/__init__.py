@@ -19,6 +19,7 @@ CONF_SUPPORTS_HEAT_COOL = "supports_heat_cool"
 DEPENDENCIES = ["remote_transmitter"]
 AUTO_LOAD = ["sensor", "remote_base"]
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "climate_ir"
 
 climate_ir_ns = cg.esphome_ns.namespace("climate_ir")
 ClimateIR = climate_ir_ns.class_(

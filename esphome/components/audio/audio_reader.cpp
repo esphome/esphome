@@ -22,7 +22,7 @@ static const size_t HTTP_STREAM_BUFFER_SIZE = 2048;
 
 static const uint8_t MAX_REDIRECTIONS = 5;
 
-static const char *const TAG = "audio_reader";
+ESPHOME_LOG_TAG(TAG, "audio_reader");
 
 // Some common HTTP status codes - borrowed from http_request component accessed 20241224
 enum HttpStatus {
@@ -72,7 +72,7 @@ esp_err_t AudioReader::add_sink(const std::weak_ptr<ring_buffer::RingBuffer> &ou
   return ESP_ERR_INVALID_STATE;
 }
 
-esp_err_t AudioReader::start(AudioFile *audio_file, AudioFileType &file_type) {
+esp_err_t AudioReader::start(const AudioFile *audio_file, AudioFileType &file_type) {
   file_type = AudioFileType::NONE;
 
   this->current_audio_file_ = audio_file;

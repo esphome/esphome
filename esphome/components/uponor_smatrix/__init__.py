@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kroimon"]
+DOMAIN = "uponor_smatrix"
 
 DEPENDENCIES = ["uart"]
 
