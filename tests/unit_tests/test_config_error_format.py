@@ -248,3 +248,25 @@ def test_default_format_logs_load_error(
     assert read_config({}) is None
     assert capsys.readouterr().out == ""
     assert "Error while reading config: Invalid YAML syntax" in caplog.text
+
+
+def test_exception_as_error_message(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # "ms" with no number makes the time period validator raise Invalid(ValueError)
+    lines = _read(
+        tmp_path,
+        {
+            "test.yaml": (
+                "esphome:\n  name: test\nhost:\nsensor:\n  - platform: template\n"
+                "    name: foo\n    update_interval: ms\n"
+            )
+        },
+        capsys,
+    )
+    assert lines == [
+        (
+            f"{tmp_path / 'test.yaml'}:7:22: error: "
+            "could not convert string to float: ''."
+        )
+    ]
