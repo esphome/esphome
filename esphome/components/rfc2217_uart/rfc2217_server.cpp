@@ -160,6 +160,7 @@ void Rfc2217Server::apply_line_() {
     return;
   }
   this->set_line_(this->pending_line_);
+  this->pending_line_ = this->line_();
   if (!this->link_was_up_) {
     std::memset(this->answers_due_, 0, sizeof(this->answers_due_));
     return;

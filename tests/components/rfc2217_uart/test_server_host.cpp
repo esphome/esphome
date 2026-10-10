@@ -169,6 +169,30 @@ TEST(Rfc2217Server, FailedReloadKeepsTheOldLine) {
   expect_only(pipe, want);
 }
 
+TEST(Rfc2217Server, RejectedChangeWaitingForRoomReloadsOnce) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  server.can_reload_ = false;
+  accept(pipe, server);
+  // The payload ahead holds the change until the answer finds no room.
+  serial.room_ = 0;
+  const uint8_t before[] = {1};
+  pipe.feed(before);
+  set_baud(pipe, 19200);
+  server.loop();
+  serial.room_ = 1024;
+  pipe.room_ = 5;
+  for (int i = 0; i < 3; i++) {
+    server.loop();
+  }
+  pipe.room_ = 1024;
+  server.loop();
+  EXPECT_EQ(server.reloads_, 1);
+  const uint8_t want[] = {0xFF, 0xFA, 0x2C, 101, 0x00, 0x00, 0x25, 0x80, 0xFF, 0xF0};
+  expect_only(pipe, want);
+}
+
 TEST(Rfc2217Server, UnsupportedValuesAreAnsweredWithTheValueInUse) {
   Pipe pipe;
   FakeSerial serial;
