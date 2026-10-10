@@ -2,7 +2,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.time";
+ESPHOME_LOG_TAG(TAG, "template.time");
 
 time_t TemplateRealTimeClock::timestamp_now() {
   auto val = this->f_.call();

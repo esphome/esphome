@@ -6,6 +6,7 @@ from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "audio_adc"
 IS_PLATFORM_COMPONENT = True
 
 audio_adc_ns = cg.esphome_ns.namespace("audio_adc")

@@ -28,6 +28,7 @@ CONF_LN882H_BLE_ID = "ln882h_ble_id"
 DEPENDENCIES = ["ln882x"]
 AUTO_LOAD = ["ble_device_base", "ln882h_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "ln882h_ble_tracker"
 
 ble_device_base.register_hub_provider("ln882h_ble_tracker")
 

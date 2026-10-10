@@ -4,7 +4,7 @@
 
 namespace esphome::tee501 {
 
-static const char *const TAG = "tee501";
+ESPHOME_LOG_TAG(TAG, "tee501");
 
 static constexpr size_t TEE501_SERIAL_NUMBER_SIZE = 7;
 

@@ -39,6 +39,7 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj
 
+DOMAIN = "fan"
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")

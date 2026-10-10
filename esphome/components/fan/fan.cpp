@@ -6,7 +6,7 @@
 
 namespace esphome::fan {
 
-static const char *const TAG = "fan";
+ESPHOME_LOG_TAG(TAG, "fan");
 
 static const FanPresetModes EMPTY_PRESET_MODES;  // NOLINT
 

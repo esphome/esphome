@@ -9,7 +9,7 @@
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp");
 
 // Hoermann HCP holding-register blocks.
 static constexpr uint16_t COMMAND_REG = 0x9C41;    // Commands written by the bus controller
