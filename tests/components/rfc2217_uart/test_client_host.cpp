@@ -150,6 +150,28 @@ TEST_F(Rfc2217ClientTest, PayloadGoesWhenComPortIsRefused) {
   expect_only(pipe, data);
 }
 
+TEST_F(Rfc2217ClientTest, LateComPortAfterReloadSendsTheSettings) {
+  Pipe pipe;
+  Client client(&pipe);
+  client.loop();
+  pipe.clear();
+  const uint8_t before[] = {0x41, 0x42};
+  client.write_array(before, sizeof(before));
+  client.reload();
+  // The server accepts COM-PORT only after the wait, when the bytes before the reload have left.
+  at(3000);
+  client.loop();
+  expect_only(pipe, before);
+  pipe.clear();
+  pipe.feed(DO_COM_PORT);
+  client.loop();
+  expect_only(pipe, SETTINGS);
+  pipe.clear();
+  const uint8_t after[] = {0x43};
+  client.write_array(after, sizeof(after));
+  expect_only(pipe, after);
+}
+
 TEST_F(Rfc2217ClientTest, PayloadIacIsDoubled) {
   Pipe pipe;
   Client client(&pipe);

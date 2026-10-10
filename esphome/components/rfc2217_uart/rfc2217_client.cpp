@@ -185,9 +185,8 @@ void Rfc2217Client::send_tx_() {
   }
   this->write_tcp_(out, n);
   this->tx_len_ = static_cast<uint16_t>(this->tx_len_ - used);
-  if (settings_due) {
-    this->settings_fence_ = static_cast<uint16_t>(this->settings_fence_ - used);
-  }
+  // The bytes written before a line change leave first, also while COM-PORT is not accepted.
+  this->settings_fence_ = static_cast<uint16_t>(this->settings_fence_ - std::min(used, size_t{this->settings_fence_}));
   std::memmove(this->tx_, this->tx_ + used, this->tx_len_);
 }
 
