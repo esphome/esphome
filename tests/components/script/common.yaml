@@ -22,6 +22,12 @@ esphome:
             - script.is_running: my_script
           then:
             - logger.log: my_script is running
+      - if:
+          any:
+            - script.is_running: my_script
+            - script.is_running: my_script_restart
+          then:
+            - logger.log: a script is running
       - script.execute: my_script_stops_itself
       - choose:
           - if:

@@ -40,7 +40,14 @@ from esphome.automation import (
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_AUTOMATION_ID, CONF_CONDITION, CONF_ID, CONF_THEN
+from esphome.const import (
+    CONF_ALL,
+    CONF_ANY,
+    CONF_AUTOMATION_ID,
+    CONF_CONDITION,
+    CONF_ID,
+    CONF_THEN,
+)
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
 from esphome.util import Registry, RegistryEntry
@@ -1385,6 +1392,14 @@ def test_if_accepts_bare_condition() -> None:
     assert "or" not in bare["if"]
 
 
+@pytest.mark.parametrize("key", [CONF_ANY, CONF_ALL])
+def test_if_any_all_are_not_bare_conditions(key: str) -> None:
+    """`any:` and `all:` under `if:` are the if action's own keys, not a bare condition."""
+    result = validate_action({"if": {key: [{"or": []}], CONF_THEN: [{"delay": "1s"}]}})
+    assert key in result["if"]
+    assert CONF_CONDITION not in result["if"]
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -1392,6 +1407,9 @@ def test_if_accepts_bare_condition() -> None:
         pytest.param(
             {"or": [], CONF_CONDITION: {"and": []}, CONF_THEN: []},
             id="bare_and_wrapped",
+        ),
+        pytest.param(
+            {"or": [], CONF_ANY: [{"and": []}], CONF_THEN: []}, id="bare_and_any"
         ),
     ],
 )

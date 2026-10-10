@@ -817,7 +817,12 @@ def _wrap_bare_if_condition(value: Any) -> Any:
     """Allow a single condition directly under `if:` in place of `condition: {...}`."""
     if not isinstance(value, dict):
         return value
-    bare = [key for key in value if key in CONDITION_REGISTRY]
+    # `any` and `all` are also registered conditions, but here they are the if action's own keys
+    bare = [
+        key
+        for key in value
+        if key in CONDITION_REGISTRY and key not in (CONF_ANY, CONF_ALL)
+    ]
     if not bare:
         return value
     if len(bare) > 1 or any(
