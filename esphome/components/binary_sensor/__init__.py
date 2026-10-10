@@ -146,6 +146,7 @@ DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
+AutorepeatFilterTiming = binary_sensor_ns.struct("AutorepeatFilterTiming")
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter)
@@ -233,53 +234,49 @@ async def delayed_off_filter_to_code(config, filter_id):
     return var
 
 
+AUTOREPEAT_TIMING_SCHEMA = cv.Schema(
+    {
+        cv.Optional(
+            CONF_DELAY, default=DEFAULT_DELAY
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_OFF, default=DEFAULT_TIME_OFF
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_ON, default=DEFAULT_TIME_ON
+        ): cv.positive_time_period_milliseconds,
+    }
+)
+
+
 @register_filter(
     "autorepeat",
     AutorepeatFilter,
-    cv.All(
-        cv.ensure_list(
-            {
-                cv.Optional(
-                    CONF_DELAY, default=DEFAULT_DELAY
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_OFF, default=DEFAULT_TIME_OFF
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_ON, default=DEFAULT_TIME_ON
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
-        cv.Length(max=254),
-    ),
+    cv.All(cv.ensure_list(AUTOREPEAT_TIMING_SCHEMA), cv.Length(max=254)),
 )
-async def autorepeat_filter_to_code(config, filter_id):
-    if len(config) > 0:
-        timings = [
-            cg.StructInitializer(
-                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
-                ("delay", conf[CONF_DELAY]),
-                ("time_off", conf[CONF_TIME_OFF]),
-                ("time_on", conf[CONF_TIME_ON]),
-            )
-            for conf in config
-        ]
-    else:
-        timings = [
-            cg.StructInitializer(
-                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
-                ("delay", cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds),
-                (
-                    "time_off",
-                    cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
-                ),
-                (
-                    "time_on",
-                    cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
-                ),
-            )
-        ]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
+async def autorepeat_filter_to_code(config: list[ConfigType], filter_id: ID) -> MockObj:
+    config = config or [AUTOREPEAT_TIMING_SCHEMA({})]
+    timings = [
+        cg.StructInitializer(
+            AutorepeatFilterTiming,
+            ("delay", conf[CONF_DELAY].total_milliseconds),
+            ("time_off", conf[CONF_TIME_OFF].total_milliseconds),
+            ("time_on", conf[CONF_TIME_ON].total_milliseconds),
+        )
+        for conf in config
+    ]
+    # A never-run delay ends the table, so the filter stores no count.
+    timings.append(
+        cg.StructInitializer(
+            AutorepeatFilterTiming, ("delay", cg.RawExpression("SCHEDULER_DONT_RUN"))
+        )
+    )
+    table = cg.shared_progmem_array(
+        "binary_sensor_autorepeat_timings",
+        AutorepeatFilterTiming,
+        cg.ArrayInitializer(*timings),
+    )
+    return cg.new_Pvariable(filter_id, table)
 
 
 @register_filter("lambda", LambdaFilter, cv.returning_lambda)
