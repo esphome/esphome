@@ -4,13 +4,14 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, logger, uart
 from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
+from esphome.components.logger import DOMAIN as LOGGER_DOMAIN
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BEEPER,
     CONF_CURRENT_TEMPERATURE,
     CONF_DISPLAY,
     CONF_LEVEL,
-    CONF_LOGGER,
     CONF_LOGS,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -22,7 +23,6 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_STEP,
     CONF_VISUAL,
-    CONF_WIFI,
 )
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
@@ -326,9 +326,9 @@ automation.register_apply_action(
 
 def _final_validate(config) -> None:
     full_config = fv.full_config.get()
-    if CONF_LOGGER in full_config:
+    if LOGGER_DOMAIN in full_config:
         _level = "NONE"
-        logger_config = full_config[CONF_LOGGER]
+        logger_config = full_config[LOGGER_DOMAIN]
         if CONF_LOGS in logger_config:
             if "haier.protocol" in logger_config[CONF_LOGS]:
                 _level = logger_config[CONF_LOGS]["haier.protocol"]
@@ -344,7 +344,7 @@ def _final_validate(config) -> None:
             "No logger component found, logging for Haier protocol is disabled"
         )
         cg.add_build_flag("-DHAIER_LOG_LEVEL=0")
-    if config.get(CONF_WIFI_SIGNAL) and CONF_WIFI not in full_config:
+    if config.get(CONF_WIFI_SIGNAL) and WIFI_DOMAIN not in full_config:
         raise cv.Invalid(
             f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration"
         )

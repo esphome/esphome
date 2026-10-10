@@ -20,11 +20,13 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_SWITCH,
     CONF_TEXT,
-    CONF_TRIGGER_ID,
     CONF_TYPE,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@numo68"]
+DOMAIN = "display_menu_base"
 
 display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
 
@@ -85,26 +87,6 @@ MENU_MODES = {
     CONF_JOYSTICK: MenuMode.MENU_MODE_JOYSTICK,
 }
 
-DisplayMenuOnEnterTrigger = display_menu_base_ns.class_(
-    "DisplayMenuOnEnterTrigger", automation.Trigger
-)
-
-DisplayMenuOnLeaveTrigger = display_menu_base_ns.class_(
-    "DisplayMenuOnLeaveTrigger", automation.Trigger
-)
-
-DisplayMenuOnValueTrigger = display_menu_base_ns.class_(
-    "DisplayMenuOnValueTrigger", automation.Trigger
-)
-
-DisplayMenuOnNextTrigger = display_menu_base_ns.class_(
-    "DisplayMenuOnNextTrigger", automation.Trigger
-)
-
-DisplayMenuOnPrevTrigger = display_menu_base_ns.class_(
-    "DisplayMenuOnPrevTrigger", automation.Trigger
-)
-
 
 def validate_format(format):
     if re.search(r"^%[+-]*(\d+)?(\.\d+)?[fg]$", format) is None:
@@ -128,44 +110,20 @@ MENU_ITEM_COMMON_SCHEMA = cv.Schema(
 
 MENU_ITEM_ENTER_LEAVE_SCHEMA = MENU_ITEM_COMMON_SCHEMA.extend(
     {
-        cv.Optional(CONF_ON_ENTER): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayMenuOnEnterTrigger
-                ),
-            }
-        ),
-        cv.Optional(CONF_ON_LEAVE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayMenuOnLeaveTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_ENTER): automation.validate_automation({}),
+        cv.Optional(CONF_ON_LEAVE): automation.validate_automation({}),
     }
 )
 
 MENU_ITEM_VALUE_SCHEMA = MENU_ITEM_COMMON_SCHEMA.extend(
     {
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayMenuOnValueTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
     }
 )
 
 MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA = MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
     {
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayMenuOnValueTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
     }
 )
 
@@ -229,20 +187,8 @@ MENU_ITEM_SCHEMA = cv.typed_schema(
                 cv.GenerateID(CONF_ID): cv.declare_id(MenuItemCustom),
                 cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                 cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
-                cv.Optional(CONF_ON_NEXT): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            DisplayMenuOnNextTrigger
-                        ),
-                    }
-                ),
-                cv.Optional(CONF_ON_PREV): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            DisplayMenuOnPrevTrigger
-                        ),
-                    }
-                ),
+                cv.Optional(CONF_ON_NEXT): automation.validate_automation({}),
+                cv.Optional(CONF_ON_PREV): automation.validate_automation({}),
             }
         ),
     },
@@ -255,20 +201,8 @@ DISPLAY_MENU_BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
         cv.GenerateID(CONF_ROOT_ITEM_ID): cv.declare_id(MenuItemMenu),
         cv.Optional(CONF_MODE, default=CONF_ROTARY): cv.enum(MENU_MODES),
-        cv.Optional(CONF_ON_ENTER): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayMenuOnEnterTrigger
-                ),
-            }
-        ),
-        cv.Optional(CONF_ON_LEAVE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    DisplayMenuOnLeaveTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_ENTER): automation.validate_automation({}),
+        cv.Optional(CONF_ON_LEAVE): automation.validate_automation({}),
         cv.Required(CONF_ITEMS): cv.All(
             cv.ensure_list(MENU_ITEM_SCHEMA), cv.Length(min=1)
         ),
@@ -299,6 +233,24 @@ for _name, _call in (
 automation.register_apply_condition(
     "display_menu.is_active", MENU_ACTION_SCHEMA, "is_active()"
 )
+
+
+# Each item callback carries nothing; the automation receives the item itself.
+_ITEM_CALLBACKS = (
+    (CONF_ON_ENTER, "add_on_enter_callback"),
+    (CONF_ON_LEAVE, "add_on_leave_callback"),
+    (CONF_ON_VALUE, "add_on_value_callback"),
+    (CONF_ON_NEXT, "add_on_next_callback"),
+    (CONF_ON_PREV, "add_on_prev_callback"),
+)
+
+
+async def _build_item_automations(item: MockObj, config: ConfigType) -> None:
+    for conf_key, callback_method in _ITEM_CALLBACKS:
+        for conf in config.get(conf_key, []):
+            await automation.build_parent_callback_automation(
+                item, callback_method, (MenuItemConstPtr, "it"), conf
+            )
 
 
 async def menu_item_to_code(menu, config, parent):
@@ -339,21 +291,7 @@ async def menu_item_to_code(menu, config, parent):
         cg.add(item.set_switch_variable(var))
         cg.add(item.set_on_text(config[CONF_ON_TEXT]))
         cg.add(item.set_off_text(config[CONF_OFF_TEXT]))
-    for conf in config.get(CONF_ON_ENTER, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
-        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
-    for conf in config.get(CONF_ON_LEAVE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
-        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
-    for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
-        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
-    for conf in config.get(CONF_ON_NEXT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
-        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
-    for conf in config.get(CONF_ON_PREV, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
-        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
+    await _build_item_automations(item, config)
 
 
 async def display_menu_to_code(menu, config):
@@ -363,9 +301,4 @@ async def display_menu_to_code(menu, config):
     cg.add(menu.set_mode(config[CONF_MODE]))
     for c in config[CONF_ITEMS]:
         await menu_item_to_code(menu, c, root_item)
-    for conf in config.get(CONF_ON_ENTER, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], root_item)
-        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
-    for conf in config.get(CONF_ON_LEAVE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], root_item)
-        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
+    await _build_item_automations(root_item, config)

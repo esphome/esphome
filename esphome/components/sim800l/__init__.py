@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_MESSAGE
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "sim800l"
 MULTI_CONF = True
 
 sim800l_ns = cg.esphome_ns.namespace("sim800l")

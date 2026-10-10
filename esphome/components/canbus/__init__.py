@@ -10,6 +10,7 @@ from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
+DOMAIN = "canbus"
 IS_PLATFORM_COMPONENT = True
 
 CONF_CAN_ID = "can_id"

@@ -2,6 +2,7 @@
 #ifdef USE_ZEPHYR
 #include <cinttypes>
 #include <climits>
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
