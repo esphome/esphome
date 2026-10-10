@@ -1,0 +1,7 @@
+sensor:
+  - platform: grove_ultrasonic
+    id: grove_single_pin
+    name: Grove Ultrasonic
+    sig_pin: 14
+    timeout: 3.5m
+    update_interval: 5s
