@@ -40,7 +40,7 @@ from esphome.loader import ComponentManifest, get_component, get_platform
 from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
-from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.voluptuous_schema import ExtraKeysInvalid, KeyInvalid
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
 
 if TYPE_CHECKING:
@@ -287,12 +287,8 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             last_root = max(
                 i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
             )
-            # can't change the path so re-create the error
-            error = vol.Invalid(
-                message=error.error_message,
-                path=error.path[last_root + 1 :],
-                error_type=error.error_type,
-            )
+            # Trim in place, as Invalid.prepend() does, to keep the subclass
+            error._path = error.path[last_root + 1 :]  # pylint: disable=protected-access
         self.errors.append(error)
 
     def add_validation_step(self, step: ConfigValidationStep):
@@ -1559,14 +1555,9 @@ def load_config(
 
 def get_invalid_range(res: Config, invalid: vol.Invalid) -> DocumentRange | None:
     """Return the source range of the YAML that caused *invalid*."""
-    # An unrecognized key is the problem, so anchor on the key, not its value.
-    # Also covers validate_registry_entry's "Unable to find <kind>" (e.g. an unknown action).
-    # error_message can be an exception object, e.g. Invalid(ValueError(...))
-    message = str(invalid.error_message)
-    get_key = message == "extra keys not allowed" or message.startswith(
-        "Unable to find "
+    return res.get_deepest_document_range_for_path(
+        invalid.path, isinstance(invalid, KeyInvalid)
     )
-    return res.get_deepest_document_range_for_path(invalid.path, get_key)
 
 
 def _format_location(location: DocumentLocation | None) -> str:
@@ -1606,12 +1597,6 @@ def _print_marked_yaml_error(err: yaml.MarkedYAMLError) -> None:
         _print_line_message(_format_location(context_location), "note", err.context)
 
 
-def _wrapper_text(message: object, yaml_err: yaml.MarkedYAMLError) -> str:
-    """Return the text *message* adds around the YAML error it contains."""
-    remainder = str(message).replace(str(yaml_err), "")
-    return "\n".join(line.strip(" :.") for line in remainder.splitlines())
-
-
 def _print_line_errors(res: Config) -> None:
     for err in res.errors:
         doc_range = get_invalid_range(res, err)
@@ -1621,24 +1606,21 @@ def _print_line_errors(res: Config) -> None:
         # A YAML error in an included file is wrapped in a validation error
         if (yaml_err := _find_marked_yaml_error(err)) is not None:
             _print_marked_yaml_error(yaml_err)
-            wrapper = _wrapper_text(_format_vol_invalid(err, res), yaml_err)
-            _print_line_message(
-                location, "note", wrapper.strip() or "included from here"
-            )
+            _print_line_message(location, "note", "included from here")
+        elif isinstance(err, cv.SourceTraceInvalid):
+            # The trace only repeats the location this line already starts with
+            _print_line_message(location, "error", humanize_error(res, err.detail))
         else:
             _print_line_message(location, "error", _format_vol_invalid(err, res))
 
 
 def _print_line_load_error(err: EsphomeError) -> None:
-    # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
-    message = err.base_exc if isinstance(err, InvalidYAMLError) else err
-    if (yaml_err := _find_marked_yaml_error(err)) is None:
+    if (yaml_err := _find_marked_yaml_error(err)) is not None:
+        _print_marked_yaml_error(yaml_err)
+    else:
+        # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
+        message = err.base_exc if isinstance(err, InvalidYAMLError) else err
         _print_line_message(_format_location(None), "error", message)
-        return
-    _print_marked_yaml_error(yaml_err)
-    # Keep any context the wrapping errors added, e.g. an earlier failure
-    if wrapper := _wrapper_text(message, yaml_err).strip():
-        _print_line_message(_format_location(None), "note", wrapper)
 
 
 def line_info(config, path, highlight=True):

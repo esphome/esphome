@@ -2206,6 +2206,16 @@ def _add_states_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _error_format(value: str) -> ErrorFormat:
+    try:
+        return ErrorFormat(value.lower())
+    except ValueError:
+        choices = ", ".join(ErrorFormat)
+        raise argparse.ArgumentTypeError(
+            f"invalid choice: '{value}' (choose from {choices})"
+        ) from None
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2270,14 +2280,12 @@ def parse_args(argv):
 
     options_parser.add_argument(
         "--error-format",
-        type=ErrorFormat,
-        default=os.getenv("ESPHOME_ERROR_FORMAT", ErrorFormat.YAML.value),
-        choices=list(ErrorFormat),
+        type=_error_format,
         metavar="{" + ",".join(f.value for f in ErrorFormat) + "}",
         help=(
             "How configuration errors are shown. 'yaml' shows them inside the "
             "failing YAML; 'line' prints one 'file:line:column: error: message' "
-            "line per error."
+            "line per error. Default: $ESPHOME_ERROR_FORMAT, else 'yaml'."
         ),
     )
 
@@ -2584,9 +2592,18 @@ def parse_args(argv):
         args, unknown_args = parser.parse_known_args(arguments)
         if unknown_args:
             _LOGGER.warning("Ignored unrecognized arguments: %s", unknown_args)
-        return args
+    else:
+        args = parser.parse_args(arguments)
 
-    return parser.parse_args(arguments)
+    # Read here rather than as the option default, so a bad value is reported
+    # against the environment variable instead of --error-format
+    if args.error_format is None:
+        env_value = os.getenv("ESPHOME_ERROR_FORMAT", ErrorFormat.YAML.value)
+        try:
+            args.error_format = _error_format(env_value)
+        except argparse.ArgumentTypeError as err:
+            parser.error(f"ESPHOME_ERROR_FORMAT: {err}")
+    return args
 
 
 def _warn_if_source_tree_mismatch() -> None:

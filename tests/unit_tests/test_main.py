@@ -6470,6 +6470,10 @@ def test_parse_args_logs_states() -> None:
         (["--error-format", "line"], None, ErrorFormat.LINE),
         ([], "line", ErrorFormat.LINE),
         (["--error-format", "yaml"], "line", ErrorFormat.YAML),
+        (["--error-format", "LINE"], None, ErrorFormat.LINE),
+        ([], "Line", ErrorFormat.LINE),
+        # The command line wins, so a bad environment value is not an error
+        (["--error-format", "line"], "bogus", ErrorFormat.LINE),
     ],
 )
 def test_parse_args_error_format(
@@ -6486,6 +6490,33 @@ def test_parse_args_error_format(
 
     args = parse_args(["esphome", *argv, "config", "device.yaml"])
     assert args.error_format is expected
+
+
+@pytest.mark.parametrize(
+    ("argv", "env_value", "expected_name"),
+    [
+        ([], "bogus", "ESPHOME_ERROR_FORMAT"),
+        (["--error-format", "bogus"], None, "--error-format"),
+    ],
+)
+def test_parse_args_error_format_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    env_value: str | None,
+    expected_name: str,
+) -> None:
+    """A bad value is reported against the setting that supplied it."""
+    if env_value is None:
+        monkeypatch.delenv("ESPHOME_ERROR_FORMAT", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_ERROR_FORMAT", env_value)
+
+    with pytest.raises(SystemExit):
+        parse_args(["esphome", *argv, "config", "device.yaml"])
+    err = capsys.readouterr().err
+    assert expected_name in err
+    assert "invalid choice: 'bogus' (choose from yaml, line)" in err
 
 
 @pytest.mark.parametrize("command", ["logs", "run"])

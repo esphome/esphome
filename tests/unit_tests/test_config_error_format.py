@@ -3,18 +3,12 @@
 from pathlib import Path
 
 import pytest
-import voluptuous as vol
-import yaml
 
-from esphome.config import (
-    Config,
-    _print_line_errors,
-    _print_line_load_error,
-    _print_line_message,
-    read_config,
-)
+from esphome import config_validation as cv
+from esphome.config import Config, _print_line_message, read_config
 from esphome.const import ErrorFormat
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
+from esphome.voluptuous_schema import ExtraKeysInvalid, KeyInvalid
 
 
 def _read(
@@ -66,10 +60,8 @@ def test_validation_error_in_package(
 def test_unknown_action_anchors_on_the_key(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # validate_registry_entry's "Unable to find <kind> with the name '<key>'"
-    # is raised as Invalid(msg, [key]) -- a path ending on the unrecognized
-    # key itself, same as ExtraKeysInvalid. The location must land on that
-    # key, not on the action's value (the previous behavior).
+    # validate_registry_entry raises KeyInvalid for an unknown action, so the
+    # location is the key, not the action's value.
     lines = _read(
         tmp_path,
         {
@@ -112,15 +104,11 @@ def test_yaml_syntax_error_in_package(
     assert lines == [
         f"{tmp_path / 'pkg.yaml'}:3:5: error: expected ',' or ']', but got ':'",
         f"{tmp_path / 'pkg.yaml'}:2:10: note: while parsing a flow sequence",
-        f"{tmp_path / 'test.yaml'}:5:3: note: Error including file 'pkg.yaml'",
-        (
-            f"{tmp_path / 'test.yaml'}:5:3: note: In: packages->pkg in "
-            f"{tmp_path / 'test.yaml'} 5:3"
-        ),
+        f"{tmp_path / 'test.yaml'}:5:3: note: included from here",
     ]
 
 
-def test_secret_error_keeps_earlier_failure(
+def test_secret_syntax_error_in_package(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     (tmp_path / "sub").mkdir()
@@ -135,11 +123,11 @@ def test_secret_error_keeps_earlier_failure(
         },
         capsys,
     )
-    assert lines[0] == (
-        f"{tmp_path / 'secrets.yaml'}:2:2: error: expected ',' or ']', but got ':'"
-    )
-    # The missing package-local secrets file is reported, not dropped
-    assert f"Error reading file {tmp_path / 'sub' / 'secrets.yaml'}" in lines[2]
+    assert lines == [
+        f"{tmp_path / 'secrets.yaml'}:2:2: error: expected ',' or ']', but got ':'",
+        f"{tmp_path / 'secrets.yaml'}:1:6: note: while parsing a flow sequence",
+        f"{tmp_path / 'test.yaml'}:5:3: note: included from here",
+    ]
 
 
 def test_undefined_secret(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -165,7 +153,9 @@ def test_missing_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> Non
     )
 
 
-def test_multi_line_message(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_source_trace_omitted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     lines = _read(
         tmp_path,
         {
@@ -176,14 +166,13 @@ def test_multi_line_message(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
         },
         capsys,
     )
-    location = f"{tmp_path / 'test.yaml'}:5:3"
+    # The "In: packages->p in test.yaml 5:3" trace would repeat the location
     assert lines == [
         (
-            f"{location}: error: Error including file '${{ undefined_var }}.yaml': "
-            "Cannot load include with unresolved substitutions: "
-            "${ undefined_var }.yaml"
+            f"{tmp_path / 'test.yaml'}:5:3: error: Error including file "
+            "'${ undefined_var }.yaml': Cannot load include with unresolved "
+            "substitutions: ${ undefined_var }.yaml."
         ),
-        f"{location}: note: In: packages->p in {tmp_path / 'test.yaml'} 5:3.",
     ]
 
 
@@ -203,40 +192,24 @@ def test_reset_restores_default_format() -> None:
     assert CORE.error_format is ErrorFormat.YAML
 
 
-def _yaml_error() -> yaml.MarkedYAMLError:
-    with pytest.raises(yaml.MarkedYAMLError) as exc_info:
-        yaml.safe_load("a: [1, 2\nb: 1\n")
-    return exc_info.value
-
-
-def test_load_error_keeps_wrapper_context(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    CORE.config_path = Path("main.yaml")
-    yaml_err = _yaml_error()
-    err = EsphomeError(f"First file failed\n{yaml_err}")
-    err.__cause__ = yaml_err
-    _print_line_load_error(err)
-    assert capsys.readouterr().out.splitlines() == [
-        "<unicode string>:2:2: error: expected ',' or ']', but got ':'",
-        "<unicode string>:1:4: note: while parsing a flow sequence",
-        "main.yaml: note: First file failed",
-    ]
-
-
-def test_include_error_without_wrapper_text(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    CORE.config_path = Path("main.yaml")
-    yaml_err = _yaml_error()
-    err = vol.Invalid(str(yaml_err), [])
-    err.__cause__ = yaml_err
+@pytest.mark.parametrize(
+    "error",
+    [
+        KeyInvalid("Unable to find action", ["a", cv.ROOT_CONFIG_PATH, "b"]),
+        ExtraKeysInvalid(
+            "extra keys not allowed",
+            ["a", cv.ROOT_CONFIG_PATH, "b"],
+            candidates=["c"],
+        ),
+    ],
+)
+def test_add_error_keeps_error_class(error: KeyInvalid) -> None:
     res = Config()
-    res.errors = [err]
-    _print_line_errors(res)
-    assert capsys.readouterr().out.splitlines()[-1] == (
-        "main.yaml: note: included from here"
-    )
+    res.add_error(error)
+    (added,) = res.errors
+    assert type(added) is type(error)
+    assert added.path == ["b"]
+    assert getattr(added, "candidates", None) == getattr(error, "candidates", None)
 
 
 def test_default_format_logs_load_error(
