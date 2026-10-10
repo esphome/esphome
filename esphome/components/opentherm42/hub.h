@@ -367,10 +367,9 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(pass_duration, pass_duration_sensor_)
   // Synthetic diagnostic entity: true if any conversation during the most recently completed sweep
   // was rejected or failed at the datalink level (timeout, Manchester/parity/stop-bit error,
-  // DATA_INVALID, UNKNOWN_DATA_ID, or an unexpected message type) -- including ones
-  // should_invalidate_now_() chose not to actually invalidate an entity for (a DATA_INVALID within
-  // max_data_invalid's grace period), since those are exactly the kind of error that's otherwise
-  // only visible in the log. See sweep_had_error_'s declaration comment for how this is tracked.
+  // DATA_INVALID, UNKNOWN_DATA_ID, or an unexpected message type) and actually invalidated an entity --
+  // a DATA_INVALID masked by max_data_invalid's grace period does not count, since it's tolerated by
+  // definition. See sweep_had_error_'s declaration comment for how this is tracked.
   OT42_SET_BINARY_SENSOR(sweep_had_errors, sweep_had_errors_binary_sensor_)
 
   // §5.2's mandatory heartbeat (id=0) -- unconditionally required in config (see
@@ -1094,11 +1093,13 @@ class OpenTherm42Hub : public Component {
   // happened to cross a sweep boundary. Unlike sweep_start_ms_, this always advances once per pass.
   uint32_t pass_start_ms_{0};
   sensor::Sensor *pass_duration_sensor_{nullptr};
-  // Set by OT42_LOG_REJECTION()/OT42_LOG_REJECTION_ALWAYS() (every rejected conversation) and by
-  // loop()'s DataLinkState::ERROR case (every datalink-level failure), accumulating across the
-  // sweep currently in progress. Published to sweep_had_errors_binary_sensor_ and reset to false at
-  // every sweep boundary (see pull_next_due_entry_()), so it always reflects only the most recently
-  // *completed* sweep, same lifecycle as sweep_duration_sensor_.
+  // Set by OT42_LOG_REJECTION() when it's actually invalidating an entity (not for a DATA_INVALID
+  // masked by max_data_invalid's grace period), by OT42_LOG_REJECTION_ALWAYS() (every rejected
+  // conversation of a kind with no grace period), and by loop()'s DataLinkState::ERROR case (every
+  // datalink-level failure) -- accumulating across the sweep currently in progress. Published to
+  // sweep_had_errors_binary_sensor_ and reset to false at every sweep boundary (see
+  // pull_next_due_entry_()), so it always reflects only the most recently *completed* sweep, same
+  // lifecycle as sweep_duration_sensor_.
   bool sweep_had_error_{false};
   binary_sensor::BinarySensor *sweep_had_errors_binary_sensor_{nullptr};
 

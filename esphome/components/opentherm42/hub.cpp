@@ -13,17 +13,17 @@ static const char *const TAG = "opentherm42";
 // (a DATA_INVALID within max_data_invalid's grace period -- see its declaration comment) so the
 // severity reflects that nothing user-visible happened. Expands to the normal ESP_LOGE/ESP_LOGW
 // macros, so compile-time log-level stripping still applies to whichever branch is actually reachable.
-// Also marks the current sweep as having had an error regardless of severity -- see
-// sweep_had_error_'s declaration comment -- since a masked DATA_INVALID is exactly the kind of
-// otherwise-invisible-outside-the-log condition that sensor is meant to surface.
+// Only marks the current sweep as having had an error (see sweep_had_error_'s declaration comment) in
+// the ERROR/invalidating case -- a DATA_INVALID masked by max_data_invalid's grace period is, by
+// definition, tolerated, so it must not flip this any more than it flips the entity itself.
 #define OT42_LOG_REJECTION(invalidate_now, ...) \
   do { \
     if (invalidate_now) { \
       ESP_LOGE(TAG, __VA_ARGS__); \
+      this->sweep_had_error_ = true; \
     } else { \
       ESP_LOGW(TAG, __VA_ARGS__); \
     } \
-    this->sweep_had_error_ = true; \
   } while (0)
 
 // Same as OT42_LOG_REJECTION, for kinds with no should_invalidate_now_() grace period (every
