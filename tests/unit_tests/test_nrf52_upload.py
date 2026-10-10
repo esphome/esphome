@@ -6,7 +6,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
+from esphome.components.nrf52.const import (
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    BOOTLOADER_NRF,
+)
 from esphome.components.zephyr.const import (
     KEY_BOARD,
     KEY_BOOTLOADER,
@@ -337,6 +340,29 @@ class TestUploadProgramSerialDfu:
         assert "-p" in cmd
         assert host in cmd
         assert "--singlebank" in cmd
+
+    def test_open_dfu_bootloader_skips_the_touch(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The factory Open DFU bootloader has no auto-entry, so no 1200 bps touch is sent."""
+        import serial
+
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(bootloader=BOOTLOADER_NRF, build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        paths = _make_paths(tmp_path)
+        dfu_package = CORE.relative_pioenvs_path(CORE.name) / "firmware.zip"
+        dfu_package.parent.mkdir(parents=True, exist_ok=True)
+        dfu_package.touch()
+
+        host = "/dev/ttyACM0"
+        with ExitStack() as stack:
+            mock_run = _enter_serial_dfu_patches(stack, host, tmp_path, paths)
+            assert upload_program(config={}, args=None, host=host) is True
+            assert not serial.Serial.mock_calls  # pylint: disable=no-member
+
+        assert str(dfu_package) in mock_run.call_args[0][0]
 
     def test_serial_dfu_failure_raises(self, setup_core: Path, tmp_path: Path) -> None:
         """A failed nordicsemi DFU must raise EsphomeError."""

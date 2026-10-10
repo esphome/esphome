@@ -34,15 +34,8 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
         ]
     },
-    # Nordic nRF52840 Dongle (PCA10059). Ships with Nordic's Open DFU
-    # Bootloader factory-flashed at 0xE0000-0x100000; it chains to the
-    # application at 0x1000. The bootloader cannot be replaced over USB
-    # alone, so reserve its region instead of building one.
-    "nrf52840dongle": {
-        KEY_BOOTLOADER: [
-            BOOTLOADER_NRF,
-        ]
-    },
+    # Nordic nRF52840 Dongle (PCA10059): factory Open DFU bootloader at 0xE0000, kept in place
+    "nrf52840dongle": {KEY_BOOTLOADER: [BOOTLOADER_NRF]},
 }
 
 # https://github.com/ffenix113/zigbee_home/blob/17bb7b9e9d375e756da9e38913f53303937fb66a/types/board/known_boards.go
@@ -60,8 +53,7 @@ BOOTLOADER_CONFIG = {
         Section("SoftDevice", 0x0, 0x27000, "flash_primary"),
         Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
     ],
-    # Partition layout that coexists with the factory Open DFU Bootloader.
-    # The partition manager fills 0x1000-0xD8000 as the application.
+    # The application fills 0x1000-0xD8000 below these
     BOOTLOADER_NRF: [
         Section("settings_storage", 0xD8000, 0x8000, "flash_primary"),
         Section("open_bootloader", 0xE0000, 0x20000, "flash_primary"),

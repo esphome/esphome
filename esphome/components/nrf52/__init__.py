@@ -193,14 +193,16 @@ def set_framework(config: ConfigType) -> ConfigType:
     )(config)
 
 
-BOOTLOADERS = [
+# Bootloaders flashed over serial with nrfutil; mcuboot uses mcumgr instead
+SERIAL_DFU_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
-    BOOTLOADER_NRF,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    BOOTLOADER_MCUBOOT,
-]
+    BOOTLOADER_NRF,
+)
+BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
+
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 
@@ -471,12 +473,8 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
-    if config[KEY_BOOTLOADER] == BOOTLOADER_NRF:
-        # The nrf52840dongle board DTS enables uart0 unconditionally and its
-        # pinctrl maps UART RX to P0.24, RTS to P0.17 and CTS to P0.22. The
-        # dongle has no wired serial console, and those pins are the ones
-        # exposed on the castellated edge for GPIO use — disable uart0 so
-        # nothing claims them.
+    if config[CONF_BOARD] == "nrf52840dongle":
+        # The board DTS enables uart0 on edge GPIOs (P0.17, P0.22, P0.24) although nothing is wired to it
         zephyr_add_overlay(
             """
                 &uart0 {
@@ -606,6 +604,32 @@ def _upload_using_platformio(
     return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
+def _reset_into_bootloader(host: str) -> None:
+    """Send the 1200 bps touch that resets an Adafruit bootloader into DFU mode."""
+    import time as _time
+
+    import serial as _serial
+    import serial.tools.list_ports as _list_ports
+
+    try:
+        ser = _serial.Serial(host, baudrate=1200, timeout=1)
+        ser.close()
+    except _serial.SerialException as err:
+        raise EsphomeError(f"Failed to open {host}: {err}") from err
+
+    # Wait for device to reset (port disappears)
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline:
+        _time.sleep(0.1)
+        if host not in {p.device for p in _list_ports.comports()}:
+            break
+    else:
+        _LOGGER.warning(
+            "Device did not leave %s within 5 s; it may not have entered bootloader mode",
+            host,
+        )
+
+
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions
     from esphome.upload_targets import PortType, get_port_type
@@ -629,13 +653,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         else:
             if not CORE.using_toolchain_platformio:
                 bootloader = zephyr_data()[KEY_BOOTLOADER]
-                if bootloader not in (
-                    BOOTLOADER_ADAFRUIT,
-                    BOOTLOADER_NRF,
-                    BOOTLOADER_ADAFRUIT_NRF52_SD132,
-                    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-                    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-                ):
+                if bootloader not in SERIAL_DFU_BOOTLOADERS:
                     raise EsphomeError("Not implemented yet")
                 check_and_install()
                 paths = get_build_paths()
@@ -646,45 +664,26 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     raise EsphomeError("Firmware not found. Please compile first.")
                 import time as _time
 
-                import serial as _serial
                 import serial.tools.list_ports as _list_ports
 
-                try:
-                    if bootloader != BOOTLOADER_NRF:
-                        # Adafruit bootloader: 1200bps touch forces a reset
-                        # into the bootloader.
-                        ser = _serial.Serial(host, baudrate=1200, timeout=1)
-                        ser.close()
-                    # BOOTLOADER_NRF (Nordic Open DFU Bootloader) has no
-                    # auto-entry: the user enters it by holding SW1 during
-                    # power-up. The port wait below handles both cases.
-                except _serial.SerialException as err:
-                    raise EsphomeError(f"Failed to open {host}: {err}") from err
+                # The Open DFU bootloader has no auto-entry: the user holds SW1 while plugging in
+                if bootloader != BOOTLOADER_NRF:
+                    _reset_into_bootloader(host)
 
-                # Wait for device to reset (port disappears)
-                deadline = _time.monotonic() + 5
-                while _time.monotonic() < deadline:
-                    _time.sleep(0.1)
-                    if host not in {p.device for p in _list_ports.comports()}:
-                        break
-                else:
-                    _LOGGER.warning(
-                        "Device did not leave %s within 5 s; "
-                        "it may not have entered bootloader mode",
-                        host,
-                    )
-
-                # Wait for DFU port to reappear
+                # Wait for the DFU port
                 deadline = _time.monotonic() + 10
                 while _time.monotonic() < deadline:
-                    _time.sleep(0.1)
                     if host in {p.device for p in _list_ports.comports()}:
                         break
+                    _time.sleep(0.1)
                 else:
+                    hint = (
+                        "Enter bootloader mode first (hold SW1 while plugging the device in)."
+                        if bootloader == BOOTLOADER_NRF
+                        else "Check that the device entered DFU mode."
+                    )
                     raise EsphomeError(
-                        f"DFU port {host!r} was not available within 10 s. "
-                        "Enter bootloader mode first (on the nrf52840dongle: "
-                        "hold SW1 while plugging the device in)."
+                        f"DFU port {host!r} was not available within 10 s. {hint}"
                     )
 
                 # Wait for udev to finish setting up device permissions
@@ -1119,12 +1118,7 @@ def run_compile(args, config: ConfigType) -> bool:
         ):
             raise EsphomeError(f"Failed to generate UF2 from {hex_file.name}")
 
-    if bootloader in (
-        BOOTLOADER_ADAFRUIT,
-        BOOTLOADER_ADAFRUIT_NRF52_SD132,
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    ):
+    if bootloader in SERIAL_DFU_BOOTLOADERS:
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),
