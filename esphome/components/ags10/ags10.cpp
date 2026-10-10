@@ -4,7 +4,7 @@
 #include <cinttypes>
 
 namespace esphome::ags10 {
-static const char *const TAG = "ags10";
+ESPHOME_LOG_TAG(TAG, "ags10");
 
 // Data acquisition.
 static const uint8_t REG_TVOC = 0x00;

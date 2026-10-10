@@ -7,7 +7,7 @@
 
 namespace esphome::ble_client {
 
-static const char *const TAG = "ble_client";
+ESPHOME_LOG_TAG(TAG, "ble_client");
 
 void BLEClient::register_ble_node(BLEClientNode *node) {
   node->set_ble_client_parent(this);

@@ -6,7 +6,7 @@
 
 namespace esphome::ble_device_base {
 
-static const char *const TAG = "ble_gatt_client";
+ESPHOME_LOG_TAG(TAG, "ble_device_base");
 
 const GattCharacteristic *find_characteristic(const GattServiceTable &table, const GattService &service,
                                               const ESPBTUUID &uuid) {

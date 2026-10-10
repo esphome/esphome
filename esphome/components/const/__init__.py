@@ -1,6 +1,7 @@
 """Constants used by esphome components."""
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "const"
 
 BYTE_ORDER_LITTLE = "little_endian"
 BYTE_ORDER_BIG = "big_endian"
@@ -8,6 +9,7 @@ BYTE_ORDER_BIG = "big_endian"
 CONF_ACCELEROMETER_ODR = "accelerometer_odr"
 CONF_ACCELEROMETER_RANGE = "accelerometer_range"
 CONF_ALLOWED_IPS = "allowed_ips"
+CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
 CONF_B_CONSTANT = "b_constant"
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
 CONF_BYTE_ORDER = "byte_order"
@@ -26,6 +28,7 @@ CONF_ENABLE_OTA_DOWNGRADE_PROTECTION = "enable_ota_downgrade_protection"
 CONF_ENABLED = "enabled"
 CONF_GYROSCOPE_ODR = "gyroscope_odr"
 CONF_GYROSCOPE_RANGE = "gyroscope_range"
+CONF_HOLD_STATE = "hold_state"
 CONF_HOST = "host"
 CONF_HUMIDITY_SOURCE = "humidity_source"
 CONF_IAQ = "iaq"

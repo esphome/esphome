@@ -63,6 +63,7 @@ def AUTO_LOAD() -> list[str]:
 
 
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
+DOMAIN = "ble_client"
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {

@@ -7,7 +7,7 @@
 
 namespace esphome::graphical_display_menu {
 
-static const char *const TAG = "graphical_display_menu";
+ESPHOME_LOG_TAG(TAG, "graphical_display_menu");
 
 void GraphicalDisplayMenu::setup() {
   if (this->display_ != nullptr) {
@@ -241,6 +241,6 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
                 "draw_item should be called.");
 }
 
-void GraphicalDisplayMenu::update() { this->on_redraw_callbacks_.call(); }
+void GraphicalDisplayMenu::update() { this->on_redraw_callbacks_.call(this); }
 
 }  // namespace esphome::graphical_display_menu

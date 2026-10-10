@@ -5,6 +5,7 @@ from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Cossid"]
+DOMAIN = "bp5758d"
 MULTI_CONF = True
 
 AUTO_LOAD = ["output"]

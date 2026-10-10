@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -241,9 +242,18 @@ def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
 
 
 def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
-    """The link declares the map so size can build in the same ninja run."""
+    """The map is a link byproduct only when IDF has not declared it itself."""
     content = _render()
-    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map" in content
+    assert (
+        "get_source_file_property(esphome_map_declared\n"
+        "    ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map GENERATED)"
+    ) in content
+    assert (
+        "set(esphome_map_byproducts BYPRODUCTS "
+        "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map)"
+    ) in content
+    assert "    ${esphome_map_byproducts}\n    WORKING_DIRECTORY" in content
+    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map\n" not in content
 
 
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
@@ -350,15 +360,52 @@ def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None
     assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd" not in content
 
 
-def test_get_project_cmakelists_minimal_emits_exclude_components() -> None:
-    """The discovery (minimal) write also excludes components so they never
-    register in project_description.json."""
+def test_get_project_cmakelists_minimal_excludes_only_managed_components(
+    tmp_path: Path,
+) -> None:
+    """The discovery (minimal) write lets built-in components register so
+    the cached list serves every exclusion set; managed ones stay excluded."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "espressif__esp_hosted"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        minimal = _render(minimal=True)
+        full = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted")' in minimal
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted;unity")' in full
+
+
+def test_get_project_cmakelists_minimal_keeps_exclusions_for_custom_idf_path(
+    tmp_path: Path,
+) -> None:
+    """Nothing is cached for a user-supplied IDF_PATH, so its discovery write
+    keeps every exclusion."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
     register_exclude_components_cmake_arg()
 
-    content = _render(minimal=True)
+    with (
+        patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path),
+        patch.dict(os.environ, {"IDF_PATH": str(tmp_path)}),
+    ):
+        content = _render(minimal=True)
 
     assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+
+
+def test_get_project_cmakelists_minimal_drops_exclude_line_when_all_builtin(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        content = _render(minimal=True)
+
+    assert "EXCLUDE_COMPONENTS" not in content
 
 
 def test_get_project_cmakelists_no_exclude_components_line_when_empty() -> None:

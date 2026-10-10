@@ -9,7 +9,7 @@
 
 namespace esphome::radon_eye_rd200 {
 
-static const char *const TAG = "radon_eye_rd200";
+ESPHOME_LOG_TAG(TAG, "radon_eye_rd200");
 
 using ble_device_base::ESPBTUUID;
 
