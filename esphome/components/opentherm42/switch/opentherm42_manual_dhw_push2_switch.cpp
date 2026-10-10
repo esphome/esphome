@@ -2,7 +2,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42.switch";
+ESPHOME_LOG_TAG(TAG, "opentherm42.switch");
 
 void OpenTherm42ManualDhwPush2Switch::dump_config() { LOG_SWITCH("", "OpenTherm 4.2 Manual DHW Push2 Switch", this); }
 

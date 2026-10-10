@@ -10,6 +10,7 @@ from esphome.types import ConfigType
 from .const import CONF_OPENTHERM42_ID
 
 CODEOWNERS = ["@fornellas"]
+DOMAIN = "opentherm42"
 MULTI_CONF = True
 # hub.h unconditionally declares fields of each of these types (e.g. every possible boiler sensor,
 # even ones the user hasn't configured), so their headers must always be compiled in -- regardless

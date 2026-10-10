@@ -6,7 +6,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42";
+ESPHOME_LOG_TAG(TAG, "opentherm42");
 
 // Logs a rejected conversation at a severity matching what's about to happen to its entity: ERROR if
 // this rejection is actually invalidating it now, WARN if should_invalidate_now_() decided to mask it

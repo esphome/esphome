@@ -11,7 +11,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42.datalink_rmt";
+ESPHOME_LOG_TAG(TAG, "opentherm42.datalink_rmt");
 
 // §3.3.2: 1ms nominal bit period, split into two 500µs Manchester half-bits. For TX, one
 // rmt_symbol_word_t (two levels + two durations) is emitted per OT bit -- a 34-bit frame (start + 32

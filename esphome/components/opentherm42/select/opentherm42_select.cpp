@@ -2,7 +2,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42.select";
+ESPHOME_LOG_TAG(TAG, "opentherm42.select");
 
 void OpenTherm42Select::setup() {
   this->pref_ = this->make_entity_preference<size_t>();

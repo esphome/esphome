@@ -2,7 +2,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42.select";
+ESPHOME_LOG_TAG(TAG, "opentherm42.select");
 
 void OpenTherm42RemoteOverrideModeSelect::dump_config() {
   LOG_SELECT("", "OpenTherm 4.2 Remote Override Mode Select", this);

@@ -2,7 +2,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42.number";
+ESPHOME_LOG_TAG(TAG, "opentherm42.number");
 
 void OpenTherm42SensorFeedNumber::dump_config() { LOG_NUMBER("", "OpenTherm 4.2 Number", this); }
 

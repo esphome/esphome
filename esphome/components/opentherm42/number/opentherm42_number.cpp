@@ -2,7 +2,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42.number";
+ESPHOME_LOG_TAG(TAG, "opentherm42.number");
 
 void OpenTherm42Number::control(float value) {
   ESP_LOGD(TAG, "'%s' commanded to %.2f", this->get_name().c_str(), value);

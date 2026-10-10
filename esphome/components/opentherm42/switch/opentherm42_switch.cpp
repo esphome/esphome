@@ -2,7 +2,7 @@
 
 namespace esphome::opentherm42 {
 
-static const char *const TAG = "opentherm42.switch";
+ESPHOME_LOG_TAG(TAG, "opentherm42.switch");
 
 void OpenTherm42Switch::write_state(bool state) { this->publish_state(state); }
 
