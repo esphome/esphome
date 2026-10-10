@@ -6,7 +6,7 @@
 
 namespace esphome::ns2009 {
 
-static const char *const TAG = "ns2009";
+ESPHOME_LOG_TAG(TAG, "ns2009");
 
 static constexpr uint8_t PRIMARY_ADDRESS = 0x48;
 static constexpr uint8_t SECONDARY_ADDRESS = 0x49;
@@ -18,23 +18,24 @@ void NS2009Component::setup() {
   auto data_z = this->read_byte(GET_Z);
 
   if (!data_z.has_value()) {
-    ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", "configured", this->address_, "not ");
+    ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", LOG_STR_LITERAL("configured"), this->address_,
+             LOG_STR_LITERAL("not "));
     auto configured_address = this->address_;
 
     if (this->address_ != PRIMARY_ADDRESS) {
       this->address_ = PRIMARY_ADDRESS;
       data_z = this->read_byte(GET_Z);
 
-      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", "primary", this->address_,
-               (data_z.has_value() ? "" : "not "));
+      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", LOG_STR_LITERAL("primary"), this->address_,
+               data_z.has_value() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("not "));
     }
 
     if (this->address_ != SECONDARY_ADDRESS && !data_z.has_value()) {
       this->address_ = SECONDARY_ADDRESS;
       data_z = this->read_byte(GET_Z);
 
-      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", "secondary", this->address_,
-               (data_z.has_value() ? "" : "not "));
+      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", LOG_STR_LITERAL("secondary"), this->address_,
+               data_z.has_value() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("not "));
     }
 
     if (data_z.has_value() && this->address_ != configured_address) {

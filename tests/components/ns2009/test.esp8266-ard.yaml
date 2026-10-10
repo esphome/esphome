@@ -5,5 +5,4 @@ substitutions:
 packages:
   spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
   i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
-
-<<: !include common.yaml
+  ns2009: !include common.yaml

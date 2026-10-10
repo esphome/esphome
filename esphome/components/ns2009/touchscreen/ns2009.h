@@ -22,9 +22,8 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
 
   /// @brief The threshold at which a touch is registered.
   uint8_t threshold_{40};
-
- private:
-  uint8_t detected_address_;
+  /// The address the chip answered on when it differs from the configured one
+  uint8_t detected_address_{0};
 };
 
 }  // namespace esphome::ns2009
