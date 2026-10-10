@@ -1,0 +1,141 @@
+"""Tests for rfc2217_uart: exclusive use of both UARTs and the ESP32 line change."""
+
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components import rfc2217_uart
+from esphome.config import Config
+from esphome.const import (
+    CONF_DEBUG,
+    CONF_DUMMY_RECEIVER,
+    CONF_ID,
+    CONF_UART_ID,
+    PlatformFramework,
+)
+from esphome.core import CORE, ID
+from esphome.types import ConfigType
+from tests.component_tests.types import SetCoreConfigCallable
+
+_final_validate = rfc2217_uart._final_validate
+
+DIR = "tests/component_tests/rfc2217_uart"
+
+
+def _full_config(uarts: list[ConfigType] | None = None, **domains) -> Config:
+    """A full config declaring uart_0, uart_1 and tcp_uart link, as the ID pass leaves it."""
+    uarts = uarts or [{CONF_ID: ID("uart_0")}, {CONF_ID: ID("uart_1")}]
+    full = Config()
+    full["uart"] = uarts
+    for index, uart_conf in enumerate(uarts):
+        full.declare_ids.append((uart_conf[CONF_ID], ["uart", index, CONF_ID]))
+    full["tcp_uart"] = [{CONF_ID: ID("link")}, {CONF_ID: ID("link2")}]
+    for index, link in enumerate(full["tcp_uart"]):
+        full.declare_ids.append((link[CONF_ID], ["tcp_uart", index, CONF_ID]))
+    full.update(domains)
+    return full
+
+
+def _entry(uart_id: str = "uart_0", tcp_uart_id: str = "link") -> ConfigType:
+    return {
+        "role": "server",
+        CONF_UART_ID: ID(uart_id),
+        rfc2217_uart.CONF_TCP_UART_ID: ID(tcp_uart_id),
+    }
+
+
+def _set(set_core_config: SetCoreConfigCallable, full: Config) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+
+
+def test_accepts_entries_on_distinct_uarts(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(set_core_config, _full_config())
+    _final_validate(_entry("uart_0", "link"))
+    _final_validate(_entry("uart_1", "link2"))
+
+
+def test_rejects_a_tcp_uart_as_the_hardware_uart(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(set_core_config, _full_config())
+    with pytest.raises(cv.Invalid, match="not a tcp_uart"):
+        _final_validate(_entry("link2", "link"))
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        (("uart_0", "link"), ("uart_0", "link2")),
+        (("uart_0", "link"), ("uart_1", "link")),
+    ],
+)
+def test_rejects_two_entries_on_one_uart(
+    set_core_config: SetCoreConfigCallable,
+    first: tuple[str, str],
+    second: tuple[str, str],
+) -> None:
+    _set(set_core_config, _full_config())
+    _final_validate(_entry(*first))
+    with pytest.raises(cv.Invalid, match="already used by another 'rfc2217_uart'"):
+        _final_validate(_entry(*second))
+
+
+@pytest.mark.parametrize("shared", ["uart_0", "link"])
+def test_rejects_a_uart_shared_with_another_component(
+    set_core_config: SetCoreConfigCallable, shared: str
+) -> None:
+    _set(
+        set_core_config,
+        _full_config(modbus=[{CONF_ID: ID("hub"), CONF_UART_ID: ID(shared)}]),
+    )
+    with pytest.raises(cv.Invalid, match="also used by 'modbus'"):
+        _final_validate(_entry())
+
+
+def test_rejects_a_tcp_uart_shared_through_tcp_uart_id(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(
+        set_core_config,
+        _full_config(modbus_tcp_uart=[{rfc2217_uart.CONF_TCP_UART_ID: ID("link")}]),
+    )
+    with pytest.raises(cv.Invalid, match="also used by 'modbus_tcp_uart'"):
+        _final_validate(_entry("uart_0", "link"))
+
+
+def test_testing_mode_allows_a_shared_bus(
+    set_core_config: SetCoreConfigCallable, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Grouped CI builds put several components on one bus package.
+    monkeypatch.setattr(CORE, "testing_mode", True)
+    _set(
+        set_core_config,
+        _full_config(modbus=[{CONF_ID: ID("hub"), CONF_UART_ID: ID("uart_0")}]),
+    )
+    _final_validate(_entry())
+
+
+def test_rejects_dummy_receiver(set_core_config: SetCoreConfigCallable) -> None:
+    _set(
+        set_core_config,
+        _full_config(
+            uarts=[{CONF_ID: ID("uart_0"), CONF_DEBUG: {CONF_DUMMY_RECEIVER: True}}]
+        ),
+    )
+    with pytest.raises(cv.Invalid, match="dummy_receiver"):
+        _final_validate(_entry())
+
+
+def test_role_and_uart_id_are_required() -> None:
+    with pytest.raises(cv.Invalid, match="role"):
+        rfc2217_uart.CONFIG_SCHEMA({"tcp_uart_id": "link", "uart_id": "uart_0"})
+    with pytest.raises(cv.Invalid, match="uart_id"):
+        rfc2217_uart.CONFIG_SCHEMA({"role": "server", "tcp_uart_id": "link"})
+
+
+def test_esp32_hardware_uart_changes_its_line_in_place(generate_main) -> None:
+    main_cpp = generate_main(f"{DIR}/test_rfc2217_uart.yaml")
+    assert "port_server->set_tcp_uart(inbound);" in main_cpp
+    assert "port_server->set_uart_parent(serial_bus);" in main_cpp
+    assert "port_server->set_idf_uart(true);" in main_cpp
