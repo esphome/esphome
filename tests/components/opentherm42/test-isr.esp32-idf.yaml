@@ -1,0 +1,7 @@
+packages:
+  opentherm42: !include common.yaml
+
+# Forces the esp_isr datalink backend so it stays covered by compile tests on ESP32, since esp32_rmt is
+# the default there and would otherwise be the only one exercised.
+opentherm42:
+  datalink: esp_isr
