@@ -1,0 +1,23 @@
+climate:
+  - platform: haier_tundra
+    name: Haier AC
+    id: my_haier_ac
+    transmitter_id: xmitr
+
+switch:
+  - platform: haier_tundra
+    haier_tundra_id: my_haier_ac
+    quiet_mode:
+      name: "Quiet Mode"
+    turbo_mode:
+      name: "Turbo Mode"
+    health_mode:
+      name: "Health Mode"
+
+button:
+  - platform: haier_tundra
+    haier_tundra_id: my_haier_ac
+    light:
+      name: "Toggle Light"
+    self_clean:
+      name: "Start Self Clean"

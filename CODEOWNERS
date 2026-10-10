@@ -230,6 +230,9 @@ esphome/components/haier/button/* @paveldn
 esphome/components/haier/sensor/* @paveldn
 esphome/components/haier/switch/* @paveldn
 esphome/components/haier/text_sensor/* @paveldn
+esphome/components/haier_tundra/* @fauxpark
+esphome/components/haier_tundra/button/* @fauxpark
+esphome/components/haier_tundra/switch/* @fauxpark
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
