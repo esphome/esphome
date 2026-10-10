@@ -4,7 +4,6 @@ import json
 import logging
 from pathlib import Path
 
-from bleak import BleakScanner
 from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
@@ -22,9 +21,9 @@ from smpclient.transport.serial import SMPSerialTransport
 
 from esphome.core import EsphomeError
 from esphome.espota2 import ProgressBar
-from esphome.upload_targets import PortType, get_port_type
 
-SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
+from .ble_logger import find_device_by_name, is_ble_address
+
 BLE_SCAN_TIMEOUT = 10.0  # seconds
 RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execute
 
@@ -44,33 +43,12 @@ def _json_state(o: object) -> object:
 
 async def smpmgr_scan(name: str) -> str:
     _LOGGER.info("Scanning bluetooth for %s...", name)
-    # Do NOT pass service_uuids= to the scanner. The SMP/OTA service UUID is
-    # carried in the BLE *scan response*, not the primary advertisement: a
-    # 128-bit UUID (18 bytes) plus the complete device name does not fit in the
-    # 31-byte primary advertising payload (see zephyr_ble_server's AD vs SD).
-    # macOS/CoreBluetooth's service-UUID scan filter only matches UUIDs in the
-    # primary advertisement, so filtering on it hides the device entirely even
-    # though it is plainly discoverable by name. Match by name instead (the same
-    # way ble_logger does); the SMP GATT service is verified on connect.
-    smp_uuid = SMP_SERVICE_UUID.lower()
-    fallback: str | None = None
-    devices = await BleakScanner.discover(timeout=BLE_SCAN_TIMEOUT, return_adv=True)
-    for device, adv in devices.values():
-        # Match the live advertised name (local_name) as well as device.name.
-        # On macOS, device.name is the cached GAP "Device Name" from a previous
-        # connection, which goes stale after the firmware's name changes; the
-        # current name is in the advertisement's local_name.
-        if name not in (device.name, adv.local_name):
-            continue
-        # Prefer a device that actually advertises the OTA service (reliable on
-        # backends like BlueZ that report scan-response UUIDs), but fall back to
-        # the name match when the UUID is not visible (e.g. macOS).
-        if smp_uuid in (uuid.lower() for uuid in adv.service_uuids):
-            return device.address
-        fallback = device.address
-    if fallback is not None:
-        return fallback
-    raise EsphomeError(f"BLE device {name} with OTA service not found")
+    # No service filter: the SMP UUID only fits in the scan response, which macOS does not filter on.
+    # The SMP service is checked on connect.
+    device = await find_device_by_name(name, timeout=BLE_SCAN_TIMEOUT)
+    if device is None:
+        raise EsphomeError(f"BLE device {name} not found")
+    return device.address
 
 
 async def smpmgr_upload(device: str, firmware: Path) -> None:
@@ -108,14 +86,10 @@ def _get_image_tlv_sha256(file: Path) -> bytes:
 async def _smpmgr_upload(device: str, firmware: Path) -> None:
     image_tlv_sha256 = _get_image_tlv_sha256(firmware)
 
-    # Serial ports are filesystem paths (/dev/..., COMx); anything else is a
-    # BLE peripheral. Don't gate on is_mac_address() here: macOS/CoreBluetooth
-    # identifies BLE devices by UUID (not MAC), so a scanned BLE address would
-    # otherwise be misrouted to the serial transport and time out.
-    if get_port_type(device) == PortType.SERIAL:
-        smp_client = SMPClient(SMPSerialTransport(), device)
-    else:
+    if is_ble_address(device):
         smp_client = SMPClient(SMPBLETransport(), device)
+    else:
+        smp_client = SMPClient(SMPSerialTransport(), device)
 
     _LOGGER.info("Connecting %s...", device)
     try:
