@@ -101,6 +101,7 @@ CONF_ON_CLOSED = "on_closed"
 CONF_ON_OPENED = "on_opened"
 CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
+CONF_STOP_TILT = "stop_tilt"
 
 TRIGGERS = {
     CONF_ON_OPEN: CoverOpenedTrigger,  # Deprecated, use on_opened
@@ -250,6 +251,7 @@ for _name, _command in (
     ("cover.open", "set_command_open()"),
     ("cover.close", "set_command_close()"),
     ("cover.stop", "set_command_stop()"),
+    ("cover.stop_tilt", "set_command_stop_tilt()"),
     ("cover.toggle", "set_command_toggle()"),
 ):
     automation.register_apply_action(
@@ -261,6 +263,7 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Cover),
         cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
+        cv.Optional(CONF_STOP_TILT): cv.templatable(cv.boolean),
         cv.Exclusive(CONF_STATE, "pos"): cv.templatable(validate_cover_state),
         cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.percentage),
         cv.Optional(CONF_TILT): cv.templatable(cv.percentage),
@@ -274,6 +277,7 @@ automation.register_apply_action(
     "cover.control",
     COVER_CONTROL_ACTION_SCHEMA,
     automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    automation.ApplyField(CONF_STOP_TILT, "set_stop_tilt", cg.bool_),
     automation.ApplyField(CONF_STATE, "set_position", cg.float_),
     automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
     automation.ApplyField(CONF_TILT, "set_tilt", cg.float_),
