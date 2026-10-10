@@ -13,12 +13,13 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    require_mbedtls_ecp,
     require_mbedtls_tls_extras,
     require_mbedtls_tls_server,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.network import add_use_address
+from esphome.components.network import DOMAIN as NETWORK_DOMAIN, add_use_address
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
@@ -61,6 +62,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@mrene"]
+DOMAIN = "openthread"
 
 AUTO_LOAD = ["network"]
 
@@ -112,9 +114,9 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
-    # OpenThread's DTLS commissioner is a TLS server, and its crypto platform
-    # uses AES-CCM and deterministic ECDSA directly. Keep the esp32 component
-    # from trimming them out of mbedTLS.
+    # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
+    # setting one under sdkconfig_options keeps TLS in the build automatically.
+    # The crypto platform uses AES-CCM and deterministic ECDSA directly.
     require_mbedtls_tls_server()
     require_mbedtls_tls_extras(
         ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
@@ -259,7 +261,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(_: ConfigType) -> None:
     full_config = fv.full_config.get()
-    network_config = full_config.get("network", {})
+    network_config = full_config.get(NETWORK_DOMAIN, {})
     if not network_config.get(CONF_ENABLE_IPV6, False):
         raise cv.Invalid(
             "OpenThread requires IPv6 to be enabled in the network component. "
@@ -293,6 +295,8 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
+        # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
+        require_mbedtls_ecp()
 
     cg.add_define("USE_OPENTHREAD")
     if config.get(CONF_FORCE_DATASET):

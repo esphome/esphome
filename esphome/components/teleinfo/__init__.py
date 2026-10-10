@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@0hax"]
+DOMAIN = "teleinfo"
 MULTI_CONF = True
 
 teleinfo_ns = cg.esphome_ns.namespace("teleinfo")

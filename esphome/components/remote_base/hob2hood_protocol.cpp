@@ -7,7 +7,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.hob2hood";
+ESPHOME_LOG_TAG(TAG, "remote.hob2hood");
 
 // A frame is 25 bits: a leading 0, then the command byte, command + 1 and command + 2. Zero bits are marks
 // and one bits are spaces; equal neighbours merge into one run of n * BIT_TIME_US plus a fixed adjustment.

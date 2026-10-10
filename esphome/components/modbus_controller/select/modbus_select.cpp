@@ -3,7 +3,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus_controller.select";
+ESPHOME_LOG_TAG(TAG, "modbus_controller.select");
 
 void ModbusSelect::dump_config() { LOG_SELECT(TAG, "Modbus Controller Select", this); }
 

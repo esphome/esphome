@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.nexa";
+ESPHOME_LOG_TAG(TAG, "remote.nexa");
 
 static constexpr uint8_t NBITS = 32;
 static constexpr uint32_t HEADER_HIGH_US = 319;
