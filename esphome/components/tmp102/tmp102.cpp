@@ -72,12 +72,15 @@ void TMP102Component::dump_config() {
   const uint8_t fault_bits = (this->config_ >> 11) & 0x03;
   ESP_LOGCONFIG(TAG, "  Fault Queue: %u", fault_bits == 3 ? 6 : 1U << fault_bits);
   const bool extended = this->config_ & TMP102_EXTENDED_MODE_BIT;
-  if (this->configured_limits_ & 0x02)
+  if (this->configured_limits_ & 0x02) {
     ESP_LOGCONFIG(TAG, "  Temperature High: %.4f°C", decode_limit(this->high_limit_, extended));
-  if (this->configured_limits_ & 0x01)
+  }
+  if (this->configured_limits_ & 0x01) {
     ESP_LOGCONFIG(TAG, "  Temperature Low: %.4f°C", decode_limit(this->low_limit_, extended));
-  if (this->config_ & TMP102_THERMOSTAT_MODE_BIT)
+  }
+  if (this->config_ & TMP102_THERMOSTAT_MODE_BIT) {
     ESP_LOGW(TAG, "Register reads clear the interrupt-mode ALERT pin");
+  }
 #endif
 }
 
@@ -167,8 +170,9 @@ bool TMP102Component::check_configuration_() {
   this->status_set_warning();
   if (!this->write_register_(TMP102_REGISTER_CONFIGURATION, this->config_) ||
       !this->write_register_(TMP102_REGISTER_HIGH_LIMIT, this->high_limit_) ||
-      !this->write_register_(TMP102_REGISTER_LOW_LIMIT, this->low_limit_))
+      !this->write_register_(TMP102_REGISTER_LOW_LIMIT, this->low_limit_)) {
     ESP_LOGW(TAG, "Failed to restore configuration and thresholds");
+  }
   return false;
 }
 

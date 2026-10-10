@@ -1,5 +1,5 @@
-from esphome.core import CORE
 import esphome.codegen as cg
+from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
