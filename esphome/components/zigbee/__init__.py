@@ -135,8 +135,11 @@ NUMBER_SCHEMA = (
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:
-    if config.get(CONF_ROUTER) and config.get(CONF_SLEEPY):
-        raise cv.Invalid("router and sleepy are mutually exclusive")
+    if config.get(CONF_ROUTER):
+        if config.get(CONF_SLEEPY):
+            raise cv.Invalid("router and sleepy are mutually exclusive")
+        if config.get(CONF_POLLING_INTERVAL):
+            raise cv.Invalid(f"{CONF_POLLING_INTERVAL} is only valid for end devices.")
     return config
 
 
