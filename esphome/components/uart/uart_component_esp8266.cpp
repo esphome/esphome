@@ -257,16 +257,19 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
+  // to_isr() allocates, so call it only for a new or changed pin
   if (tx_pin != nullptr) {
+    if (tx_pin != this->gpio_tx_pin_)
+      this->tx_pin_ = tx_pin->to_isr();
     gpio_tx_pin_ = tx_pin;
     gpio_tx_pin_->setup();
-    tx_pin_ = gpio_tx_pin_->to_isr();
     tx_pin_.digital_write(true);
   }
   if (rx_pin != nullptr) {
+    if (rx_pin != this->gpio_rx_pin_)
+      this->rx_pin_ = rx_pin->to_isr();
     gpio_rx_pin_ = rx_pin;
     gpio_rx_pin_->setup();
-    rx_pin_ = gpio_rx_pin_->to_isr();
     uint8_t *buffer = this->rx_.buffer();
     if (this->rx_.buffer_size() != rx_buffer_size) {
       delete[] buffer;                       // NOLINT
