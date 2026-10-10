@@ -29,6 +29,8 @@ def _full_config(uarts: list[ConfigType] | None = None, **domains) -> Config:
     for index, uart_conf in enumerate(uarts):
         full.declare_ids.append((uart_conf[CONF_ID], ["uart", index, CONF_ID]))
     full["tcp_uart"] = [{CONF_ID: ID("link")}, {CONF_ID: ID("link2")}]
+    for index, link in enumerate(full["tcp_uart"]):
+        full.declare_ids.append((link[CONF_ID], ["tcp_uart", index, CONF_ID]))
     full.update(domains)
     return full
 

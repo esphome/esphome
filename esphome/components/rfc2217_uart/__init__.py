@@ -3,8 +3,7 @@ from esphome.components import tcp_uart, uart
 from esphome.components.const import CONF_ROLE
 from esphome.components.tcp_uart import DOMAIN as TCP_UART_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG, CONF_DUMMY_RECEIVER, CONF_ID, CONF_UART_ID
-from esphome.core import CORE
+from esphome.const import CONF_ID, CONF_UART_ID
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -36,49 +35,16 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
-    debug = uart_conf.get(CONF_DEBUG)
-    if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
-        raise cv.Invalid(
-            "dummy_receiver reads this UART and drops the bytes rfc2217_uart should forward.",
-            [CONF_DEBUG, CONF_DUMMY_RECEIVER],
-        )
-    return uart_conf
-
-
 def _final_validate(config: ConfigType) -> ConfigType:
     # Another reader of either UART would split the bytes with this one.
     full_config = fv.full_config.get()
-    data = full_config.data.setdefault(DOMAIN, {})
     uart_id = str(config[CONF_UART_ID])
     if uart_id in {str(conf[CONF_ID]) for conf in full_config.get(TCP_UART_DOMAIN, [])}:
         raise cv.Invalid(
             "uart_id must be the hardware UART, not a tcp_uart.", [CONF_UART_ID]
         )
     for key in (CONF_TCP_UART_ID, CONF_UART_ID):
-        owned_id = str(config[key])
-        used = data.setdefault(key, set())
-        if owned_id in used:
-            raise cv.Invalid(
-                f"The UART '{owned_id}' is already used by another 'rfc2217_uart' entry.",
-                [key],
-            )
-        used.add(owned_id)
-        # Grouped CI builds share one bus between components, like uart's pin check.
-        if CORE.testing_mode:
-            continue
-        for domain, domain_conf in full_config.items():
-            # A tcp_uart is also attached through tcp_uart_id.
-            if domain != DOMAIN and any(
-                uart.subtree_references_uart(domain_conf, owned_id, conf_key)
-                for conf_key in {CONF_UART_ID, key}
-            ):
-                raise cv.Invalid(
-                    f"The UART '{owned_id}' is also used by '{domain}'. "
-                    "rfc2217_uart requires exclusive use of that UART.",
-                    [key],
-                )
-    fv.id_declaration_match_schema(_reject_dummy_receiver)(config[CONF_UART_ID])
+        uart.claim_exclusive(config, DOMAIN, key)
     uart.final_validate_device_schema(DOMAIN, require_tx=True, require_rx=True)(config)
     return config
 
