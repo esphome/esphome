@@ -1,6 +1,5 @@
 #include "rfc2217_uart.h"
 
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -9,8 +8,6 @@
 namespace esphome::rfc2217_uart {
 
 ESPHOME_LOG_TAG(TAG, "rfc2217_uart");
-
-static const uint8_t SIGNATURE[] PROGMEM = {'E', 'S', 'P', 'H', 'o', 'm', 'e'};
 
 void Rfc2217Base::link_edge_() {
   const bool up = this->tcp_->is_connected();
@@ -71,12 +68,6 @@ bool Rfc2217Base::send_command_(uint8_t code, const uint8_t *value, size_t len) 
   }
   this->write_tcp_(command, n);
   return true;
-}
-
-void Rfc2217Base::send_signature_() {
-  uint8_t text[sizeof(SIGNATURE)];
-  progmem_memcpy(text, SIGNATURE, sizeof(text));
-  this->send_command_(COM_SIGNATURE, text, sizeof(text));
 }
 
 void Rfc2217Base::on_option_(uint8_t verb, uint8_t option) {

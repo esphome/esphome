@@ -98,7 +98,7 @@ void Rfc2217Client::on_command(uint8_t code, const uint8_t *value, size_t len) {
     case SERVER_OFFSET + COM_SIGNATURE:
       // Without text it asks for ours.
       if (len == 0) {
-        this->send_signature_();
+        this->send_command_(COM_SIGNATURE, SIGNATURE, sizeof(SIGNATURE));
       }
       return;
     case SERVER_OFFSET + COM_FLOWCONTROL_SUSPEND:

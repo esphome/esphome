@@ -219,7 +219,7 @@ void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
     case COM_SIGNATURE:
       // Without text it asks for ours.
       if (len == 0) {
-        this->send_signature_();
+        this->send_command_(COM_SIGNATURE, SIGNATURE, sizeof(SIGNATURE));
       }
       return;
     default:

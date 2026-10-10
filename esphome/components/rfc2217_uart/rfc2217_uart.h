@@ -45,6 +45,7 @@ class Rfc2217Base : public Component {
   static constexpr size_t BINARY = 0;
   static constexpr size_t COM_PORT = 1;
   static constexpr size_t READ_CHUNK = 128;
+  static constexpr uint8_t SIGNATURE[] = {'E', 'S', 'P', 'H', 'o', 'm', 'e'};
 
   /// Starts or ends a session when the link state changed.
   void link_edge_();
@@ -54,8 +55,6 @@ class Rfc2217Base : public Component {
   void flush_tcp_();
   /// Sends a COM-PORT command; the server's codes get SERVER_OFFSET. False without room.
   bool send_command_(uint8_t code, const uint8_t *value, size_t len);
-  /// Answers a SIGNATURE request with this side's text.
-  void send_signature_();
   /// COM-PORT is enabled in the direction RFC 2217 uses: client WILL, server DO.
   bool com_port_() const {
     return (this->server_ ? this->him_[COM_PORT] : this->us_[COM_PORT]) == OptionState::OPTION_STATE_YES;
