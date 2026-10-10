@@ -68,10 +68,7 @@ i2c::ErrorCode TCA9548AChannel::transfer_(uint32_t select_frequency, uint8_t add
   return err;
 }
 
-// Both act on the shared upstream bus: a multiplexer behind this port
-// switches it, and restores whatever it ran at before. When ports at both
-// levels set a frequency, the outer port's is the one the transfer uses,
-// and the inner port's covers the outer multiplexer's select.
+// A multiplexer behind this port switches and reads the shared upstream bus
 i2c::ErrorCode TCA9548AChannel::switch_frequency(uint32_t frequency) {
   return this->parent_->bus_->switch_frequency(frequency);
 }
