@@ -67,6 +67,8 @@ inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 /// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
 enum class InternalSchedulerID : uint32_t {
   POLLING_UPDATE = 0,  // PollingComponent interval
+  STATUS_WARNING = 1,  // status_momentary_warning() without a name
+  STATUS_ERROR = 2,    // status_momentary_error() without a name
 };
 
 // Forward declaration
@@ -307,6 +309,11 @@ class Component {
    */
   void status_momentary_warning(const char *name, uint32_t length = 5000);
 
+  /// Set warning status flag and clear it after `length` ms. A new call restarts the timeout.
+  /// `message` is logged in place of "unspecified" when the flag gets set.
+  void status_momentary_warning(uint32_t length = 5000);
+  void status_momentary_warning(const LogString *message, uint32_t length = 5000);
+
   /** Set error status flag and automatically clear it after a timeout.
    *
    * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
@@ -315,6 +322,11 @@ class Component {
    * @param length Duration in milliseconds before the error is automatically cleared.
    */
   void status_momentary_error(const char *name, uint32_t length = 5000);
+
+  /// Set error status flag and clear it after `length` ms. A new call restarts the timeout.
+  /// `message` is logged in place of "unspecified"; unlike status_set_error() it is not stored.
+  void status_momentary_error(uint32_t length = 5000);
+  void status_momentary_error(const LogString *message, uint32_t length = 5000);
 
   bool has_overridden_loop() const { return (this->component_state_ & COMPONENT_HAS_LOOP) != 0; }
 
@@ -356,6 +368,8 @@ class Component {
   /// Note: Callers often use the return value to decide whether to log a warning/error,
   /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
   bool set_status_flag_(uint8_t flag);
+  /// Set the error flag and log it; true when it was not set before.
+  bool set_error_flag_(const LogString *message);
 
   /** Set an interval function with a const char* name. Empty name means no cancelling possible.
    *
