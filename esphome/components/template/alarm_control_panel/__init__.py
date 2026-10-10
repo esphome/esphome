@@ -117,8 +117,13 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = await alarm_control_panel.new_alarm_control_panel(config)
     await cg.register_component(var, config)
-    if CONF_CODES in config:
-        cg.add(var.set_codes(config[CONF_CODES]))
+    # Shared flash table ended by nullptr, so the panel stores only a pointer.
+    # requires_code_to_arm needs codes (validate_config) and defaults to false.
+    if codes := config.get(CONF_CODES):
+        table = cg.shared_progmem_array(
+            "alarm_codes", cg.const_char_ptr, [*codes, cg.nullptr]
+        )
+        cg.add(var.set_codes(table))
         if CONF_REQUIRES_CODE_TO_ARM in config:
             cg.add(var.set_requires_code_to_arm(config[CONF_REQUIRES_CODE_TO_ARM]))
 
