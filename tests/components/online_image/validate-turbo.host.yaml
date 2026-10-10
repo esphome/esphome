@@ -1,0 +1,26 @@
+# Config-only: selecting the libjpeg-turbo decoder on the host platform links the
+# system libjpeg, which CI does not install, so this is never compiled.
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+
+runtime_image:
+  jpeg_decoder: LIBJPEG_TURBO
+
+display:
+  - platform: sdl
+    id: online_image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  - platform: online_image
+    id: online_turbo_jpeg_image
+    url: http://www.faqs.org/images/library.jpg
+    format: JPEG
+    type: RGB565
+    resize: 100x100
