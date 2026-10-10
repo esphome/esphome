@@ -454,6 +454,12 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
+#ifdef USE_WIFI_APSTA
+  void set_ap_coexist(bool coexist) { this->ap_coexist_ = coexist; }
+#endif
+#ifdef USE_WIFI_AP_NAPT
+  void set_ap_napt(bool napt) { this->ap_napt_ = napt; }
+#endif
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -797,6 +803,10 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_AP
   bool wifi_ap_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
+#ifdef USE_CAPTIVE_PORTAL
+  /// Bring up the captive portal on the AP that has just started.
+  void start_captive_portal_();
+#endif  // USE_CAPTIVE_PORTAL
 #endif  // USE_WIFI_AP
 
   bool wifi_disconnect_();
@@ -1020,6 +1030,12 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
+#ifdef USE_WIFI_APSTA
+  bool ap_coexist_{false};
+#endif
+#ifdef USE_WIFI_AP_NAPT
+  bool ap_napt_{false};
+#endif
 #ifdef USE_WIFI_AP_EXCLUSIVE
   uint8_t ap_clients_{0};  // Devices joined to the AP, which keep it from pausing
 #endif

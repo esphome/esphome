@@ -919,28 +919,23 @@ void WiFiComponent::loop() {
         provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
 #endif
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
-      if (this->ap_timeout_ != 0 &&
-          (now - this->last_connected_ > this->ap_timeout_)
-#ifdef USE_WIFI_AP_EXCLUSIVE
-          // After a pause, or a start that failed, the networks get a full
-          // ap_timeout before the AP is tried again.
-          && now - this->ap_exclusive_changed_ > this->ap_timeout_
+#ifdef USE_WIFI_APSTA
+      if (this->ap_coexist_) {
+        ESP_LOGI(TAG, "Starting coexist AP");
+        this->setup_ap_config_();
+#ifdef USE_CAPTIVE_PORTAL
+        this->start_captive_portal_();
 #endif
-      ) {
+      } else
+#endif
+          if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
         ESP_LOGI(TAG, "Starting fallback AP");
 #ifdef USE_WIFI_AP_EXCLUSIVE
         this->ap_exclusive_changed_ = now;
 #endif
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        // Where the AP runs on its own, a portal with no AP behind it would
-        // only stretch the cooldowns.
-        if (captive_portal::global_captive_portal != nullptr && (!WIFI_AP_EXCLUSIVE || this->ap_setup_)) {
-          // Reset so we force one full scan after captive portal starts
-          // (previous scans were filtered because captive portal wasn't active yet)
-          this->has_completed_scan_after_captive_portal_start_ = false;
-          captive_portal::global_captive_portal->start();
-        }
+        this->start_captive_portal_();
 #endif
       }
     }
@@ -1742,7 +1737,27 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->num_retried_ = 0;
 #ifdef USE_WIFI_AP
     if (this->has_ap()) {
-      this->disable_ap_();
+#ifdef USE_CAPTIVE_PORTAL
+      if (this->is_captive_portal_active_()) {
+        captive_portal::global_captive_portal->end();
+      }
+#endif
+#ifdef USE_WIFI_APSTA
+      if (this->ap_coexist_) {
+        // Coexistence mode: AP stays up permanently; do not disable after STA connects.
+        ESP_LOGD(TAG, "STA connected; AP remains active (coexist mode)");
+#ifdef USE_ESP32
+        wifi_mode_t mode;
+        esp_wifi_get_mode(&mode);
+        ESP_LOGVV(TAG, "WiFi mode after STA connect (coexist): %d", mode);
+#endif
+      } else {
+#endif
+        ESP_LOGD(TAG, "Disabling AP");
+        this->wifi_mode_({}, false);
+#ifdef USE_WIFI_APSTA
+      }
+#endif
     }
 #endif
 #ifdef USE_IMPROV_BLE
@@ -2329,6 +2344,20 @@ bool WiFiComponent::is_captive_portal_active_() {
   return false;
 #endif
 }
+
+#if defined(USE_CAPTIVE_PORTAL) && defined(USE_WIFI_AP)
+void WiFiComponent::start_captive_portal_() {
+  // Where the AP runs on its own, a portal with no AP behind it would only
+  // stretch the cooldowns.
+  if (captive_portal::global_captive_portal == nullptr || (WIFI_AP_EXCLUSIVE && !this->ap_setup_))
+    return;
+  // Reset so we force one full scan after captive portal starts
+  // (previous scans were filtered because captive portal wasn't active yet)
+  this->has_completed_scan_after_captive_portal_start_ = false;
+  captive_portal::global_captive_portal->start();
+}
+#endif
+
 bool WiFiComponent::is_improv_ble_active_() {
 #ifdef USE_IMPROV_BLE
   return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();

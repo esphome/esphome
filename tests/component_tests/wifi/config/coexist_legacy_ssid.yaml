@@ -1,0 +1,17 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  # Legacy single network spelling: the schema folds it into 'networks'.
+  ssid: test
+  password: testtest
+  post_connect_roaming: false
+  ap:
+    ssid: fallback
+    coexist: true

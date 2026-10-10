@@ -1,0 +1,16 @@
+# AP+STA coexistence (esp-idf WIFI_MODE_APSTA) with NAPT IP forwarding.
+# Compiles the USE_WIFI_APSTA / USE_WIFI_AP_NAPT code paths: the access point
+# stays up while the station remains connected to the network below.
+wifi:
+  networks:
+    - ssid: MySSID
+      password: password1
+  # coexist: true is rejected while the default post_connect_roaming applies
+  post_connect_roaming: false
+  ap:
+    ssid: Fallback AP
+    password: fallback_password
+    coexist: true
+    napt: true
+
+captive_portal:
