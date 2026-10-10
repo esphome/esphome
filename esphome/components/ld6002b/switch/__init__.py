@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
+from esphome.types import ConfigType
 
 from .. import LD6002BComponent, ld6002b_ns
 from ..const import (
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
     for key, switch_type, setter in (

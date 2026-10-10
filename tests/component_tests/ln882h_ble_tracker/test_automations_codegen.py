@@ -17,7 +17,11 @@ def test_trigger_codegen(
     main_cpp = generate_main(component_config_path("test_automations.yaml"))
 
     # on_ble_advertise: multi-mac filter (two addresses in one initializer list)
-    assert "set_addresses({0xAC3743775F4CULL, 0x112233445566ULL})" in main_cpp
+    assert (
+        "static constexpr uint64_t ble_mac_filter[] PROGMEM = "
+        "{0xAC3743775F4CULL, 0x112233445566ULL, 0};" in main_cpp
+    )
+    assert "set_addresses(ble_mac_filter)" in main_cpp
     # 128-bit service uuid goes out reversed (BLE wire order); single-mac filter
     assert (
         "set_service_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
@@ -34,12 +38,13 @@ def test_trigger_codegen(
         "set_manufacturer_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
         "0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB})" in main_cpp
     )
-    # scan-control actions: templatable continuous lambda + parented actions.
+    # scan-control actions: templatable continuous lambda + stop_scan forwarded
+    # straight to the tracker (register_apply_action, no action class).
     # Exactly one set_continuous: the bare start_scan emits none, pinning the
     # restore-configured-mode divergence from esp32 against a future default=.
     assert main_cpp.count("->set_continuous(") == 1
     assert "startscanaction_id->set_continuous(" in main_cpp
-    assert "stopscanaction_id->set_parent(" in main_cpp
+    assert main_cpp.count("->stop_scan();") == 1
     # scan_parameters continuous: false reaches the YAML-mode setter, not the
     # runtime override.
     assert "->set_configured_continuous(false)" in main_cpp

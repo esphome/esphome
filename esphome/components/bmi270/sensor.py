@@ -14,6 +14,7 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import CONF_BMI270_ID, BMI270Component, bmi270_ns
 from .motion import CONF_AUX_DEVICE
@@ -62,7 +63,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config: dict) -> None:
+def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] not in _MAGNETIC_FIELDS:
         return
     full_config = fv.full_config.get()
@@ -78,7 +79,7 @@ def _final_validate(config: dict) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     sensor_type = config[CONF_TYPE]
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_BMI270_ID])

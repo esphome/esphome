@@ -7,7 +7,7 @@ namespace esphome::bmi270 {
 
 using namespace bmm150;  // NOLINT - sole consumer of the BMM150 aux-device definitions
 
-static const char *const TAG = "bmi270";
+ESPHOME_LOG_TAG(TAG, "bmi270");
 
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
 static const size_t MAX_I2C_BUFFER_SIZE = 32;

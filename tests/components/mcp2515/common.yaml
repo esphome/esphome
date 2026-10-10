@@ -10,6 +10,11 @@ canbus:
           - lambda: |-
               std::string b(x.begin(), x.end());
               ESP_LOGD("can_id 500", "%s", b.c_str());
+          - canbus.send:
+              canbus_id: mcp2515_can
+              can_id: 501
+              data: !lambda |-
+                return {static_cast<uint8_t>(can_id), x.empty() ? uint8_t(0) : x[0]};
       - can_id: 23
         then:
           - if:
@@ -36,3 +41,22 @@ canbus:
                   break;
                 // to be continued...
               }
+
+button:
+  - platform: template
+    name: MCP2515 Send
+    on_press:
+      # Identical on purpose: both sends share one constant payload
+      - canbus.send:
+          canbus_id: mcp2515_can
+          data: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          data: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 0x123
+          data: "abc"
+      - canbus.send:
+          canbus_id: mcp2515_can
+          data: !lambda return {0x01, 0x02};

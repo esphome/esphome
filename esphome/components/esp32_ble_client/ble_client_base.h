@@ -41,6 +41,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void connect() override;
   esp_err_t pair();
   void disconnect() override;
+  void ble_before_disabled_event_handler() override;
   void unconditional_disconnect();
   void release_services();
 
@@ -114,7 +115,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 #endif
 
   // Group 3: 4-byte types
-  int gattc_if_;
+  int gattc_if_{ESP_GATT_IF_NONE};
   esp_gatt_status_t status_{ESP_GATT_OK};
 
   // Group 4: Arrays
@@ -139,7 +140,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint8_t pending_notify_regs_{0};
   bool auto_connect_{false};
   bool paired_{false};
-  // Set only when release_services() cleans the stack's GATT cache, which no API may then walk
+  // Set by release_services() on RAM-cache builds; the stack's GATT database must not be walked after it
   bool services_released_{false};
   // 8 bytes used, no padding
 
@@ -155,10 +156,11 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
   /// Hook called once a connection has been fully torn down (after release_services() and
-  /// set_idle_()), from both the CLOSE_EVT handler and the DISCONNECTING safety timeout.
+  /// set_idle_()): CLOSE_EVT, the DISCONNECTING safety timeout, or the BLE stack going down.
   /// Subclasses with extra per-connection accounting (e.g. bluetooth_proxy slot state)
-  /// override this to release that state. `reason` is the controller reason code, or
-  /// ESP_GATT_CONN_TIMEOUT for the safety-timeout path.
+  /// override this to release that state. `reason` is the controller reason code,
+  /// ESP_GATT_CONN_TIMEOUT for the safety timeout, or ESP_GATT_CONN_TERMINATE_LOCAL_HOST
+  /// for the stack going down.
   virtual void on_disconnect_complete(esp_err_t reason) {}
   /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
   void set_idle_() {
