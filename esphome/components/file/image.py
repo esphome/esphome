@@ -20,6 +20,7 @@ from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
     ImageEncoder,
+    ImageRGB111,
     add_metadata,
     get_image_type_enum,
     get_transparency_enum,
@@ -67,6 +68,9 @@ MDI_SOURCES = {
 # Shared by the schema validator and the prefetch extractor so they cannot
 # drift.
 _MDI_ICON_RE = re.compile(r"^[a-zA-Z0-9\-]+$")
+
+# Dither configuration constants
+CONF_PALETTE = "palette"
 
 
 def compute_local_image_path(value: str | ConfigType) -> Path:
@@ -198,11 +202,45 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
 )
 
 
+def validate_palette_list(value: Any) -> list[int]:
+    """Validate a list of palette colors (RGB as 24-bit hex values)."""
+    if not isinstance(value, list):
+        value = [value]
+    return [cv.hex_uint32_t(item) for item in value]
+
+
+def validate_dither(value: Any) -> dict | str:
+    """Validate dither configuration.
+
+    Accepts either:
+    - A string: "NONE" or "FLOYDSTEINBERG"
+    - A dict with type and optional palette:
+      type: floydsteinberg
+      palette:
+        - 0x000000
+        - 0xFFFFFF
+        - ...
+    """
+    if isinstance(value, str):
+        return cv.one_of("NONE", "FLOYDSTEINBERG", upper=True)(value)
+
+    if isinstance(value, dict):
+        schema = cv.Schema(
+            {
+                cv.Optional(CONF_TYPE, default="FLOYDSTEINBERG"): cv.one_of(
+                    "FLOYDSTEINBERG", upper=True
+                ),
+                cv.Optional(CONF_PALETTE): validate_palette_list,
+            }
+        )
+        return schema(value)
+
+    raise cv.Invalid("dither must be a string or a mapping")
+
+
 OPTIONS_SCHEMA = {
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
-        "NONE", "FLOYDSTEINBERG", upper=True
-    ),
+    cv.Optional(CONF_DITHER, default="NONE"): validate_dither,
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
     cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
     cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
@@ -302,11 +340,23 @@ async def write_image(
             path,
         )
 
-    dither = (
-        Image.Dither.NONE
-        if config[CONF_DITHER] == "NONE"
-        else Image.Dither.FLOYDSTEINBERG
-    )
+    # Parse dither configuration
+    dither_config = config[CONF_DITHER]
+    if isinstance(dither_config, str):
+        dither = (
+            Image.Dither.NONE
+            if dither_config == "NONE"
+            else Image.Dither.FLOYDSTEINBERG
+        )
+        palette = None
+    else:
+        # dither_config is a dict with 'type' and optional 'palette'
+        dither_type = dither_config[CONF_TYPE].upper()
+        dither = (
+            Image.Dither.NONE if dither_type == "NONE" else Image.Dither.FLOYDSTEINBERG
+        )
+        palette = dither_config.get(CONF_PALETTE)
+
     type = config[CONF_TYPE]
     transparency = config.get(CONF_TRANSPARENCY, CONF_OPAQUE)
     invert_alpha = config[CONF_INVERT_ALPHA]
@@ -327,6 +377,8 @@ async def write_image(
     for frame_index in range(frame_count):
         image.seek(frame_index)
         encoder = IMAGE_TYPE[type](width, height, transparency, dither, invert_alpha)
+        if isinstance(encoder, ImageRGB111) and palette is not None:
+            encoder.set_palette(palette)
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings
             encoder.set_big_endian(byte_order == "BIG_ENDIAN")

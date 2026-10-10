@@ -9,7 +9,13 @@ from esphome.components.display import add_metadata
 from esphome.components.lvgl import final_validation
 from esphome.config import Config
 from esphome.config_validation import Invalid
-from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+from esphome.const import (
+    CONF_ID,
+    CONF_TYPE,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE, ID
 from esphome.final_validate import full_config
 
@@ -175,3 +181,55 @@ class TestDrawRoundingMerge:
         configs = [_make_lvgl_config(["my_disp"])]
         final_validation(configs)
         assert configs[0]["draw_rounding"] == 2
+
+
+class TestImageTypeValidation:
+    """Test that LVGL rejects RGB111 images."""
+
+    def _register_images(self, *image_configs: dict) -> None:
+        """Register image configs in full_config so get_path_for_id works."""
+        fc = full_config.get()
+        fc["image"] = list(image_configs)
+        for i, img_conf in enumerate(image_configs):
+            if CONF_ID in img_conf:
+                fc.declare_ids.append((img_conf[CONF_ID], ["image", i, CONF_ID]))
+
+    def test_rgb111_image_raises_validation_error(self) -> None:
+        """LVGL should reject images with RGB111 type."""
+        from esphome.components.lvgl.defines import DOMAIN, KEY_LV_IMAGES_USED
+
+        image_id = ID("my_image", True)
+        self._register_images({CONF_ID: image_id, CONF_TYPE: "RGB111"})
+
+        # Register the image as used by LVGL
+        CORE.data.setdefault(DOMAIN, {})[KEY_LV_IMAGES_USED] = {image_id}
+
+        configs = [_make_lvgl_config(["my_disp"])]
+        with pytest.raises(Invalid, match="does not support RGB111"):
+            final_validation(configs)
+
+    def test_rgb565_image_passes(self) -> None:
+        """LVGL should accept images with RGB565 type."""
+        from esphome.components.lvgl.defines import DOMAIN, KEY_LV_IMAGES_USED
+
+        image_id = ID("my_image", True)
+        self._register_images({CONF_ID: image_id, CONF_TYPE: "RGB565"})
+
+        # Register the image as used by LVGL
+        CORE.data.setdefault(DOMAIN, {})[KEY_LV_IMAGES_USED] = {image_id}
+
+        configs = [_make_lvgl_config(["my_disp"])]
+        final_validation(configs)
+
+    def test_rgb_image_passes(self) -> None:
+        """LVGL should accept images with RGB type."""
+        from esphome.components.lvgl.defines import DOMAIN, KEY_LV_IMAGES_USED
+
+        image_id = ID("my_image", True)
+        self._register_images({CONF_ID: image_id, CONF_TYPE: "RGB"})
+
+        # Register the image as used by LVGL
+        CORE.data.setdefault(DOMAIN, {})[KEY_LV_IMAGES_USED] = {image_id}
+
+        configs = [_make_lvgl_config(["my_disp"])]
+        final_validation(configs)
