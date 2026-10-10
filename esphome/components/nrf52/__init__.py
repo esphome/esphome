@@ -562,19 +562,14 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
-    if (build_dir / UF2_PATH).is_file():
+    has_uf2 = (build_dir / UF2_PATH).is_file()
+    if has_uf2:
         types = [
             {
                 "title": "UF2 package (recommended)",
                 "description": "For flashing via Adafruit nRF52 Bootloader as a flash drive.",
                 "file": UF2_PATH,
                 "download": f"{storage_json.name}.uf2",
-            },
-            {
-                "title": "DFU package",
-                "description": "For flashing via adafruit-nrfutil using USB CDC.",
-                "file": DFU_PATH,
-                "download": f"dfu-{storage_json.name}.zip",
             },
         ]
     else:
@@ -588,6 +583,16 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
                     else HEX_PATH
                 ),
                 "download": f"{storage_json.name}.hex",
+            },
+        ]
+    # Bootloaders without a UF2 family (the dongle's Open DFU bootloader) still get a DFU package
+    if has_uf2 or (build_dir / DFU_PATH).is_file():
+        types += [
+            {
+                "title": "DFU package",
+                "description": "For flashing via nrfutil using USB CDC.",
+                "file": DFU_PATH,
+                "download": f"dfu-{storage_json.name}.zip",
             },
         ]
     if (build_dir / APP_IMAGE_PATH).is_file():
