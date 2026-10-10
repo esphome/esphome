@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.const import UNIT_MILLIAMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -22,7 +21,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
-from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -30,12 +29,12 @@ bq27220_ns = cg.esphome_ns.namespace("bq27220")
 BQ27220Component = bq27220_ns.class_(
     "BQ27220Component", cg.PollingComponent, i2c.I2CDevice
 )
-BQ27220Data = bq27220_ns.class_("BQ27220Data")
 
 CONF_REMAINING_CAPACITY = "remaining_capacity"
 CONF_FULL_CHARGE_CAPACITY = "full_charge_capacity"
 CONF_TIME_TO_EMPTY = "time_to_empty"
 CONF_STATE_OF_HEALTH = "state_of_health"
+UNIT_MILLIAMPERE_HOUR = "mAh"
 
 # Other SLUUBD4A standard commands are intentionally not exposed to keep the
 # component focused; they can be added later if there is demand: TimeToFull
@@ -108,31 +107,17 @@ CONFIG_SCHEMA = (
 )
 
 
-_FIELD_BY_CONF = {
-    CONF_VOLTAGE: "voltage",
-    CONF_CURRENT: "current",
-    CONF_BATTERY_LEVEL: "battery_level",
-    CONF_TEMPERATURE: "temperature",
-    CONF_REMAINING_CAPACITY: "remaining_capacity",
-    CONF_FULL_CHARGE_CAPACITY: "full_charge_capacity",
-    CONF_TIME_TO_EMPTY: "time_to_empty",
-    CONF_STATE_OF_HEALTH: "state_of_health",
-}
-
-
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    # Each configured sensor gets a listener that reads its field from the decoded
-    # BQ27220Data the component broadcasts every poll and publishes it.
-    data = MockObj("data")
-    for conf_key, field in _FIELD_BY_CONF.items():
-        if (conf := config.get(conf_key)) is not None:
-            sens = await sensor.new_sensor(conf)
-            lambda_ = await cg.process_lambda(
-                sens.publish_state(getattr(data, field)),
-                [(BQ27220Data.operator("ref").operator("const"), "data")],
-            )
-            cg.add(var.add_on_data_callback(lambda_))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_REMAINING_CAPACITY, var.set_remaining_capacity_sensor)
+    await sensors(CONF_FULL_CHARGE_CAPACITY, var.set_full_charge_capacity_sensor)
+    await sensors(CONF_TIME_TO_EMPTY, var.set_time_to_empty_sensor)
+    await sensors(CONF_STATE_OF_HEALTH, var.set_state_of_health_sensor)
