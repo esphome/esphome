@@ -2,6 +2,9 @@
 
 #include "esphome/core/log.h"
 #include "esphome/components/climate_ir/climate_ir.h"
+#ifdef USE_HITACHI_AC344_MILDEW_PROOF
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::hitachi_ac344 {
 
@@ -82,6 +85,11 @@ class HitachiClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
+#ifdef USE_HITACHI_AC344_MILDEW_PROOF
+  bool get_mildew_proof() const;
+  void set_mildew_proof(bool on);
+  void set_mildew_proof_switch(switch_::Switch *sw);
+#endif
 
  protected:
   uint8_t remote_state_[HITACHI_AC344_STATE_LENGTH]{0x01, 0x10, 0x00, 0x40, 0x00, 0xFF, 0x00, 0xCC, 0x00, 0x00, 0x00,
@@ -89,6 +97,9 @@ class HitachiClimate final : public climate_ir::ClimateIR {
                                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
                                                     0x80, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   uint8_t previous_temp_{27};
+#ifdef USE_HITACHI_AC344_MILDEW_PROOF
+  switch_::Switch *mildew_proof_switch_{nullptr};
+#endif
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   bool get_power_();
