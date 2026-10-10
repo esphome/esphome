@@ -288,6 +288,10 @@ button:
             ESP_LOGD("test", "%s", preset);
           for (const char *mode : traits.get_supported_custom_fan_modes())
             ESP_LOGD("test", "%s", mode);
+          if (fan_modes.size() > 1) {
+            const auto *it = std::find(fan_modes.begin(), fan_modes.end(), fan_modes[1]);
+            ESP_LOGD("test", "index %d", (int) (it - fan_modes.begin()));
+          }
           std::vector<const char *> presets{"eco_plus", "max"};
           id(template_climate_custom_modes).set_supported_custom_presets(presets);
           id(template_climate_custom_modes).set_supported_custom_presets({"eco_plus"});

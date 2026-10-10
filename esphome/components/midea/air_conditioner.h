@@ -44,8 +44,6 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
-  void set_custom_presets(std::initializer_list<const char *> presets) { this->set_supported_custom_presets(presets); }
-  void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->set_supported_custom_fan_modes(modes); }
 
  protected:
   void control(const ClimateCall &call) override;
