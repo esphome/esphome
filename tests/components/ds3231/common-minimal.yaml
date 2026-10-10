@@ -1,0 +1,25 @@
+# Only the time - no alarm / square-wave / 32 kHz / aging-offset features, so none of
+# the USE_DS3231_* defines are emitted. Exercises the gated-off build.
+ds3231:
+  - id: ds3231_component
+    i2c_id: i2c_bus
+    address: 0x68
+    update_interval: never
+
+time:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    id: ds3231_time
+    update_interval: never
+
+sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    name: DS3231 Temperature
+    update_interval: never
+
+binary_sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    oscillator_stopped:
+      name: DS3231 Oscillator Stopped

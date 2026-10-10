@@ -1,0 +1,106 @@
+ds3231:
+  - id: ds3231_component
+    i2c_id: i2c_bus
+    address: 0x68
+    update_interval: never
+    square_wave_output: 1Hz
+    battery_backed_square_wave: true
+    int_sqw_startup_mode: square_wave
+    enable_32khz_output: false
+    alarm_1:
+      mode: MATCH_HOUR_MINUTE_SECOND
+      hour: 6
+      minute: 30
+      second: 0
+    alarm_2:
+      mode: MATCH_DAY_OF_WEEK
+      day_of_week: 2
+      hour: 7
+      minute: 0
+      enabled: false
+    on_alarm_1:
+      then:
+        - logger.log: "Alarm 1 fired"
+    on_alarm_2:
+      then:
+        - logger.log: "Alarm 2 fired"
+
+time:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    id: ds3231_time
+    update_interval: never
+
+sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    name: DS3231 Temperature
+    unit: fahrenheit
+    update_interval: never
+
+binary_sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    alarm_1:
+      name: DS3231 Alarm 1
+    alarm_2:
+      name: DS3231 Alarm 2
+    oscillator_stopped:
+      name: DS3231 Oscillator Stopped
+
+switch:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    enable_32khz_output:
+      name: DS3231 32kHz Output
+    alarm_1:
+      name: DS3231 Alarm 1 Enabled
+    alarm_2:
+      name: DS3231 Alarm 2 Enabled
+
+select:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    output_mode:
+      name: DS3231 Output Mode
+    square_wave_frequency:
+      name: DS3231 Square Wave Frequency
+
+number:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    aging_offset:
+      name: DS3231 Aging Offset
+    refresh_interval:
+      name: DS3231 Refresh Interval
+
+interval:
+  - interval: 60s
+    then:
+      - ds3231.set_alarm_1:
+          id: ds3231_component
+          mode: MATCH_HOUR_MINUTE_SECOND
+          hour: 7
+          minute: 30
+          second: 0
+      - ds3231.set_alarm_2:
+          id: ds3231_component
+          mode: MATCH_DAY_OF_WEEK
+          day_of_week: 2
+          hour: 8
+          minute: 0
+      - ds3231.clear_alarm:
+          id: ds3231_component
+          alarm: 1
+      - ds3231.disable_alarm:
+          id: ds3231_component
+          alarm: 2
+      - ds3231.enable_alarm:
+          id: ds3231_component
+          alarm: 2
+      - ds3231.force_temperature_conversion: ds3231_component
+      - ds3231.set_refresh_interval:
+          id: ds3231_component
+          refresh_interval: 30s
+      - ds3231.write_time: ds3231_time
+      - ds3231.read_time: ds3231_time
