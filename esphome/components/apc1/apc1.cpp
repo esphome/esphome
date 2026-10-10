@@ -132,24 +132,23 @@ void APC1Component::loop() {
       continue;
     }
 
-    // The length check below rejects any frame that would not fit, so this never overruns
     this->rx_buffer_[this->rx_index_++] = byte;
+    if (this->rx_index_ < APC1_FRAME_HEADER_SIZE) {
+      continue;
+    }
 
-    // Once the frame header (2 magic bytes + 2 length bytes) is received, calculate total frame length
-    if (this->rx_index_ >= APC1_FRAME_HEADER_SIZE) {
-      uint16_t payload_len = encode_uint16(this->rx_buffer_[2], this->rx_buffer_[3]);
-      uint16_t total_len = payload_len + APC1_FRAME_HEADER_SIZE;
-
-      if (total_len > this->rx_buffer_.size()) {
-        ESP_LOGW(TAG, "Frame length too large: %u", total_len);
-        this->rx_index_ = 0;
-        continue;
-      }
-
-      if (this->rx_index_ == total_len) {
-        this->parse_frame_(total_len);
-        this->rx_index_ = 0;
-      }
+    // The payload carries at least the checksum and must fit the buffer; checking it before the sum keeps a
+    // corrupt length from wrapping the total and walking past the buffer
+    const uint16_t payload_len = encode_uint16(this->rx_buffer_[2], this->rx_buffer_[3]);
+    if (payload_len < 2 || payload_len > this->rx_buffer_.size() - APC1_FRAME_HEADER_SIZE) {
+      ESP_LOGW(TAG, "Invalid frame length: %u", payload_len);
+      this->rx_index_ = 0;
+      continue;
+    }
+    const uint8_t total_len = payload_len + APC1_FRAME_HEADER_SIZE;
+    if (this->rx_index_ == total_len) {
+      this->parse_frame_(total_len);
+      this->rx_index_ = 0;
     }
   }
 }
