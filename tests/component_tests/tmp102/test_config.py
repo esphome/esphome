@@ -26,8 +26,7 @@ def write_config(tmp_path: Path, config: dict) -> Path:
 def test_basic_unchanged(tmp_path: Path, generate_main: Callable[[Path], str]) -> None:
     config = base_config()
     source = generate_main(write_config(tmp_path, config))
-    assert "set_configure" not in source
-    assert "set_temperature_high" not in source
+    assert "set_configuration" not in source
     defines = " ".join(define.name for define in CORE.defines)
     assert "USE_TMP102_" not in defines
 
@@ -47,4 +46,7 @@ def test_advanced_options_enable_configuration_once(
         temperature_low=25,
     )
     source = generate_main(write_config(tmp_path, config))
-    assert source.count("set_configure(true)") == 1
+    assert source.count("set_configuration(") == 1
+    assert "set_configuration(3648, 7680, 6400, 3)" in source
+    defines = " ".join(define.name for define in CORE.defines)
+    assert "USE_TMP102_CONFIGURE" in defines

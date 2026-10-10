@@ -60,7 +60,7 @@ class TMP102Test : public ::testing::Test {
   }
 
   void TearDown() override {
-    App.scheduler.cancel_timeout(&this->chip_, "read_temp");
+    App.scheduler.cancel_timeout(&this->chip_, uint32_t{0});
     App.scheduler.call(millis());
     App.~Application();
   }
@@ -70,6 +70,11 @@ class TMP102Test : public ::testing::Test {
     delay(duration);
     App.scheduler.call(millis());
   }
+
+  void configure(uint16_t config = 0x0080, uint16_t high = 0x5000, uint16_t low = 0x4B00,
+                 uint8_t configured_limits = 0) {
+    this->chip_.set_configuration(config, high, low, configured_limits);
+  }
 };
 
 TEST_F(TMP102Test, LegacySetupAndContinuousReadDoNotWriteRegisters) {
@@ -77,6 +82,7 @@ TEST_F(TMP102Test, LegacySetupAndContinuousReadDoNotWriteRegisters) {
   this->chip_.setup();
   EXPECT_EQ(this->bus_.transactions, 0);
   this->chip_.update();
+  run_timers(55);
   EXPECT_FLOAT_EQ(this->chip_.state, 25);
   EXPECT_EQ(this->publications_, 1);
   EXPECT_EQ(this->bus_.writes, 0);
@@ -85,9 +91,8 @@ TEST_F(TMP102Test, LegacySetupAndContinuousReadDoNotWriteRegisters) {
 
 TEST_F(TMP102Test, SampleFormatOverridesConfiguredModeInBothDirections) {
   for (bool configured_extended : {false, true}) {
-    this->chip_.set_configure(true);
-    this->chip_.set_extended_mode(configured_extended);
-    this->chip_.set_conversion_rate(TMP102_CONVERSION_RATE_0_25HZ);
+    this->configure(configured_extended ? 0x0010 : 0, configured_extended ? 0x2800 : 0x5000,
+                    configured_extended ? 0x2580 : 0x4B00);
     this->chip_.setup();
     const auto writes = this->bus_.writes;
     for (auto raw : {0x1900, 0x0C81, 0xFF00, 0xFF81}) {
@@ -101,43 +106,32 @@ TEST_F(TMP102Test, SampleFormatOverridesConfiguredModeInBothDirections) {
 }
 
 TEST_F(TMP102Test, WritableConfigurationFields) {
-  for (auto rate : {TMP102_CONVERSION_RATE_0_25HZ, TMP102_CONVERSION_RATE_1HZ, TMP102_CONVERSION_RATE_4HZ,
-                    TMP102_CONVERSION_RATE_8HZ}) {
+  for (uint8_t rate : {0, 1, 2, 3}) {
     for (uint8_t faults : {1, 2, 4, 6}) {
       for (bool enabled : {false, true}) {
-        this->chip_.set_configure(true);
-        this->chip_.set_conversion_rate(rate);
-        this->chip_.set_fault_queue(faults);
-        this->chip_.set_extended_mode(enabled);
-        this->chip_.set_one_shot_mode(enabled);
-        this->chip_.set_alert_polarity(enabled ? TMP102_ALERT_POLARITY_ACTIVE_HIGH : TMP102_ALERT_POLARITY_ACTIVE_LOW);
-        this->chip_.set_thermostat_mode(enabled ? TMP102_THERMOSTAT_MODE_INTERRUPT : TMP102_THERMOSTAT_MODE_COMPARATOR);
-        this->chip_.setup();
         unsigned fault_bits = faults == 1 ? 0 : faults == 2 ? 1 : faults == 4 ? 2 : 3;
-        EXPECT_EQ(this->bus_.registers[1], (fault_bits << 11) | (unsigned(rate) << 6) | (enabled ? 0x710 : 0));
-        EXPECT_EQ(this->bus_.registers[3], enabled ? 0x2800 : 0x5000);
-        EXPECT_EQ(this->bus_.registers[2], enabled ? 0x2580 : 0x4B00);
+        const uint16_t config = (fault_bits << 11) | (unsigned(rate) << 6) | (enabled ? 0x710 : 0);
+        const uint16_t high = enabled ? 0x2800 : 0x5000;
+        const uint16_t low = enabled ? 0x2580 : 0x4B00;
+        this->configure(config, high, low);
+        this->chip_.setup();
+        EXPECT_EQ(this->bus_.registers[1], config);
+        EXPECT_EQ(this->bus_.registers[3], high);
+        EXPECT_EQ(this->bus_.registers[2], low);
       }
     }
   }
 }
 
 TEST_F(TMP102Test, StaticThresholdsAreQuantizedAndEncoded) {
-  this->chip_.set_configure(true);
-  this->chip_.set_temperature_high(12.22f);
-  this->chip_.set_temperature_low(-12.22f);
+  this->configure(0x0080, 0x0C40, 0xF3C0, 0x03);
   this->chip_.setup();
-  EXPECT_FLOAT_EQ(this->chip_.get_limit_temperature(TMP102_LIMIT_HIGH), 12.25f);
-  EXPECT_FLOAT_EQ(this->chip_.get_limit_temperature(TMP102_LIMIT_LOW), -12.25f);
   EXPECT_EQ(this->bus_.registers[3], 0x0C40);
   EXPECT_EQ(this->bus_.registers[2], 0xF3C0);
 }
 
 TEST_F(TMP102Test, RestoresRegistersAfterChipOnlyResetBeforePublishing) {
-  this->chip_.set_configure(true);
-  this->chip_.set_extended_mode(true);
-  this->chip_.set_temperature_high(90);
-  this->chip_.set_temperature_low(85);
+  this->configure(0x0090, 0x2D00, 0x2A80, 0x03);
   this->chip_.setup();
   const auto configured = this->bus_.registers;
   this->chip_.update();
@@ -154,7 +148,7 @@ TEST_F(TMP102Test, RestoresRegistersAfterChipOnlyResetBeforePublishing) {
 }
 
 TEST_F(TMP102Test, RecoveryRetriesFailedWritesAndDetectsThresholdOnlyChange) {
-  this->chip_.set_configure(true);
+  this->configure();
   this->chip_.setup();
   this->bus_.registers[3] = 0;
   this->bus_.fail_write = 3;
@@ -168,7 +162,7 @@ TEST_F(TMP102Test, RecoveryRetriesFailedWritesAndDetectsThresholdOnlyChange) {
 }
 
 TEST_F(TMP102Test, ConfigurationReadFailuresDoNotPublishOrOverwriteRegisters) {
-  this->chip_.set_configure(true);
+  this->configure();
   this->chip_.setup();
   for (int reg : {1, 2, 3}) {
     const auto publications = this->publications_;
@@ -183,7 +177,7 @@ TEST_F(TMP102Test, ConfigurationReadFailuresDoNotPublishOrOverwriteRegisters) {
 }
 
 TEST_F(TMP102Test, ReadOnlyConfigurationBitsDoNotTriggerRecovery) {
-  this->chip_.set_configure(true);
+  this->configure();
   this->chip_.setup();
   const auto writes = this->bus_.writes;
   this->bus_.registers[1] ^= 0xE020;
@@ -194,8 +188,7 @@ TEST_F(TMP102Test, ReadOnlyConfigurationBitsDoNotTriggerRecovery) {
 }
 
 TEST_F(TMP102Test, OneShotTriggerFailureSetsWarning) {
-  this->chip_.set_configure(true);
-  this->chip_.set_one_shot_mode(true);
+  this->configure(0x0180);
   this->chip_.setup();
   this->bus_.fail_write = 1;
   this->chip_.update();
@@ -205,8 +198,7 @@ TEST_F(TMP102Test, OneShotTriggerFailureSetsWarning) {
 }
 
 TEST_F(TMP102Test, OneShotWaitsOnceAndReselectsTemperature) {
-  this->chip_.set_configure(true);
-  this->chip_.set_one_shot_mode(true);
+  this->configure(0x0180);
   this->chip_.setup();
   this->chip_.update();
   auto transactions = this->bus_.transactions;
@@ -220,6 +212,7 @@ TEST_F(TMP102Test, OneShotWaitsOnceAndReselectsTemperature) {
 }
 
 TEST_F(TMP102Test, RecursiveUpdateFromPublicationDoesNotStartAnotherRead) {
+  this->configure();
   this->chip_.add_on_state_callback([this](float) { this->chip_.update(); });
   this->chip_.setup();
   this->chip_.update();
@@ -231,7 +224,7 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
     TMP102Component failed;
     failed.set_i2c_bus(&this->bus_);
     failed.set_i2c_address(0x48);
-    failed.set_configure(true);
+    failed.set_configuration(0x0080, 0x5000, 0x4B00, 0);
     this->bus_.fail_write = reg;
     failed.setup();
     EXPECT_TRUE(failed.is_failed());

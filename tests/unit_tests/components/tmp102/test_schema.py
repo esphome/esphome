@@ -21,7 +21,9 @@ def test_valid_limits(extended: bool, high: float, low: float) -> None:
         "temperature_high": high,
         "temperature_low": low,
     }
-    assert component.validate_tmp102_thresholds(config) == config
+    validated = CONFIG_SCHEMA({"name": "Temperature", **config})
+    assert validated["temperature_high"] == high
+    assert validated["temperature_low"] == low
 
 
 @pytest.mark.parametrize(
@@ -39,7 +41,26 @@ def test_valid_limits(extended: bool, high: float, low: float) -> None:
 )
 def test_invalid_limits(config: dict) -> None:
     with pytest.raises(cv.Invalid):
-        component.validate_tmp102_thresholds(config)
+        CONFIG_SCHEMA({"name": "Temperature", **config})
+
+
+def test_precomputed_register_values() -> None:
+    config = CONFIG_SCHEMA(
+        {
+            "name": "Temperature",
+            "extended_mode": True,
+            "conversion_rate": "0.25Hz",
+            "one_shot_mode": True,
+            "alert_polarity": "active_high",
+            "thermostat_mode": "interrupt",
+            "fault_queue": 6,
+            "temperature_high": 12.22,
+            "temperature_low": -12.22,
+        }
+    )
+    assert component.build_configuration(config) == 0x1F10
+    assert component.encode_temperature(config["temperature_high"], True) == 0x0620
+    assert component.encode_temperature(config["temperature_low"], True) == 0xF9E0
 
 
 def test_upstream_defaults() -> None:

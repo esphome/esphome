@@ -2,6 +2,7 @@
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -12,11 +13,6 @@ TMP102Component = tmp102_ns.class_(
     "TMP102Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
 
-TMP102ConversionRate = tmp102_ns.enum("TMP102ConversionRate")
-TMP102ThermostatMode = tmp102_ns.enum("TMP102ThermostatMode")
-TMP102AlertPolarity = tmp102_ns.enum("TMP102AlertPolarity")
-TMP102LimitType = tmp102_ns.enum("TMP102LimitType")
-
 CONF_EXTENDED_MODE = "extended_mode"
 CONF_ONE_SHOT_MODE = "one_shot_mode"
 CONF_TEMPERATURE_HIGH = "temperature_high"
@@ -25,26 +21,48 @@ CONF_ALERT_POLARITY = "alert_polarity"
 CONF_THERMOSTAT_MODE = "thermostat_mode"
 CONF_FAULT_QUEUE = "fault_queue"
 
-CONVERSION_RATES = {
-    "0.25Hz": TMP102ConversionRate.TMP102_CONVERSION_RATE_0_25HZ,
-    "1Hz": TMP102ConversionRate.TMP102_CONVERSION_RATE_1HZ,
-    "4Hz": TMP102ConversionRate.TMP102_CONVERSION_RATE_4HZ,
-    "8Hz": TMP102ConversionRate.TMP102_CONVERSION_RATE_8HZ,
-}
+CONVERSION_RATES = {"0.25Hz": 0, "1Hz": 1, "4Hz": 2, "8Hz": 3}
+THERMOSTAT_MODES = {"comparator": 0, "interrupt": 1}
+ALERT_POLARITIES = {"active_low": 0, "active_high": 1}
+FAULT_QUEUE_BITS = {1: 0, 2: 1, 4: 2, 6: 3}
 
-THERMOSTAT_MODES = {
-    "comparator": TMP102ThermostatMode.TMP102_THERMOSTAT_MODE_COMPARATOR,
-    "interrupt": TMP102ThermostatMode.TMP102_THERMOSTAT_MODE_INTERRUPT,
-}
+TMP102_CONVERSION_FACTOR = 0.0625
+TMP102_DEFAULT_THIGH = 80.0
+TMP102_DEFAULT_TLOW = 75.0
 
-ALERT_POLARITIES = {
-    "active_low": TMP102AlertPolarity.TMP102_ALERT_POLARITY_ACTIVE_LOW,
-    "active_high": TMP102AlertPolarity.TMP102_ALERT_POLARITY_ACTIVE_HIGH,
-}
 
-# Chip power-up defaults used when the user omits one or both limit registers.
-_TMP102_DEFAULT_THIGH = 80.0
-_TMP102_DEFAULT_TLOW = 75.0
+def encode_temperature(temperature: float, extended: bool) -> int:
+    """Encode a temperature as a TMP102 limit-register word."""
+    steps = round(temperature / TMP102_CONVERSION_FACTOR)
+    return (steps << (3 if extended else 4)) & 0xFFFF
+
+
+def build_configuration(config: ConfigType) -> int:
+    """Build the writable TMP102 configuration-register bits."""
+    conversion_rate = config.get(CONF_CONVERSION_RATE)
+    alert_polarity = config.get(CONF_ALERT_POLARITY)
+    thermostat_mode = config.get(CONF_THERMOSTAT_MODE)
+    value = (
+        conversion_rate.enum_value
+        if conversion_rate is not None
+        else CONVERSION_RATES["4Hz"]
+    ) << 6
+    value |= FAULT_QUEUE_BITS[config.get(CONF_FAULT_QUEUE, 1)] << 11
+    value |= (
+        alert_polarity.enum_value
+        if alert_polarity is not None
+        else ALERT_POLARITIES["active_low"]
+    ) << 10
+    value |= (
+        thermostat_mode.enum_value
+        if thermostat_mode is not None
+        else THERMOSTAT_MODES["comparator"]
+    ) << 9
+    if config.get(CONF_ONE_SHOT_MODE, False):
+        value |= 1 << 8
+    if config.get(CONF_EXTENDED_MODE, False):
+        value |= 1 << 4
+    return value
 
 
 def _validate_temperature_range(key: str, value: float, extended: bool) -> None:
@@ -61,45 +79,27 @@ def _validate_temperature_range(key: str, value: float, extended: bool) -> None:
 
 def validate_tmp102_thresholds(config: ConfigType) -> ConfigType:
     extended = config.get(CONF_EXTENDED_MODE, False)
-    # Normal mode: datasheet format table covers -55°C to +127.9375°C (12-bit signed, 0.0625°C/LSB).
-    # Extended mode: datasheet spec is -55°C to +150°C.
     for key in (CONF_TEMPERATURE_HIGH, CONF_TEMPERATURE_LOW):
-        if key not in config:
-            continue
-        value = config[key]
-        _validate_temperature_range(key, value, extended)
+        if key in config:
+            _validate_temperature_range(key, config[key], extended)
 
-    high_initial = config.get(CONF_TEMPERATURE_HIGH)
-    low_initial = config.get(CONF_TEMPERATURE_LOW)
-
-    if (
-        high_initial is not None
-        and low_initial is not None
-        and low_initial > high_initial
-    ):
+    high = config.get(CONF_TEMPERATURE_HIGH)
+    low = config.get(CONF_TEMPERATURE_LOW)
+    if high is not None and low is not None and low > high:
         raise cv.Invalid(
-            f"initial low limit ({low_initial}°C) must be <= initial high limit ({high_initial}°C)",
+            f"low limit ({low}°C) must be <= high limit ({high}°C)",
             [CONF_TEMPERATURE_LOW],
         )
-    if (
-        high_initial is not None
-        and low_initial is None
-        and high_initial < _TMP102_DEFAULT_TLOW
-    ):
+    if high is not None and low is None and high < TMP102_DEFAULT_TLOW:
         raise cv.Invalid(
-            f"initial high limit ({high_initial}°C) is below the chip power-up "
-            f"TLOW default ({_TMP102_DEFAULT_TLOW}°C). Set temperature_low explicitly.",
+            f"high limit ({high}°C) is below the chip power-up TLOW default "
+            f"({TMP102_DEFAULT_TLOW}°C). Set temperature_low explicitly.",
             [CONF_TEMPERATURE_HIGH],
         )
-    if (
-        low_initial is not None
-        and high_initial is None
-        and low_initial > _TMP102_DEFAULT_THIGH
-    ):
+    if low is not None and high is None and low > TMP102_DEFAULT_THIGH:
         raise cv.Invalid(
-            f"initial low limit ({low_initial}°C) is above the chip power-up "
-            f"THIGH default ({_TMP102_DEFAULT_THIGH}°C). Set temperature_high explicitly.",
+            f"low limit ({low}°C) is above the chip power-up THIGH default "
+            f"({TMP102_DEFAULT_THIGH}°C). Set temperature_high explicitly.",
             [CONF_TEMPERATURE_LOW],
         )
-
     return config
