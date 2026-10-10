@@ -10,8 +10,10 @@ ESPHOME_LOG_TAG(TAG, "tca9548a");
 i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                             uint8_t *read_buffer, size_t read_count) {
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  if (this->select_frequency_() != 0) {
-    return this->write_readv_at_port_frequency_(address, write_buffer, write_count, read_buffer, read_count);
+  const uint32_t select_frequency = this->select_frequency_();
+  if (select_frequency != 0) {
+    return this->write_readv_at_port_frequency_(select_frequency, address, write_buffer, write_count, read_buffer,
+                                                read_count);
   }
 #endif
   auto err = this->parent_->switch_to_channel(this->channel_);
@@ -39,11 +41,10 @@ uint32_t TCA9548AChannel::transfer_frequency_() const {
   return this->frequency_ != 0 ? this->frequency_ : this->parent_->frequency_;
 }
 
-i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint8_t address, const uint8_t *write_buffer,
-                                                               size_t write_count, uint8_t *read_buffer,
-                                                               size_t read_count) {
+i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint32_t select_frequency, uint8_t address,
+                                                               const uint8_t *write_buffer, size_t write_count,
+                                                               uint8_t *read_buffer, size_t read_count) {
   const uint32_t original_frequency = this->parent_->bus_->get_frequency();
-  const uint32_t select_frequency = this->select_frequency_();
   // A failed switch leaves the bus as it was
   auto err = this->switch_bus_(select_frequency);
   if (err != i2c::ERROR_OK)
