@@ -16,7 +16,7 @@ jobs:
     # No GITHUB_TOKEN permissions: the reusable workflow mints an ESPHome
     # GitHub App token so the labels, comments and closures come from
     # esphome[bot] instead of github-actions[bot].
-    uses: esphome/workflows/.github/workflows/stale.yml@d97e8f27a4bd02d4d106462b3b2ea2e529af8088  # stale-merge-conflicts
+    uses: esphome/workflows/.github/workflows/stale.yml@12a719d856777c2688814adebf55633b2226427c  # stale-merge-conflicts
     secrets:
       ESPHOME_GITHUB_APP_PRIVATE_KEY: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
     with:
@@ -39,10 +39,16 @@ jobs:
         branch to ensure that it's up to date with the latest changes.
 
         Thank you for your contribution!
+      conflict-pr-message: >
+        This pull request has merge conflicts. Please merge the latest dev
+        branch into your branch to resolve them.
+
+        If the conflicts are not resolved within 30 days, this pull request
+        will be marked as stale and closed 7 days after that.
       stale-conflicting-pr-message: >
-        This pull request has merge conflicts and there hasn't been any
-        activity on it for 30 days. It has been marked as stale and will be
-        closed if the conflicts are not resolved within 7 days.
+        The merge conflicts on this pull request have not been resolved for
+        30 days, so it has been marked as stale and will be closed if they
+        are not resolved within 7 days.
 
         Please merge the latest dev branch into your branch. Once the pull
         request is mergeable again the stale label is removed.
