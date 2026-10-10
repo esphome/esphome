@@ -1,2 +1,4 @@
+# ESP32-C2 boards don't have the RMT hardware peripheral, so this covers the automatic fallback to the
+# esp_isr backend when datalink is left unset on such a board (see common.yaml).
 packages:
   opentherm42: !include common.yaml
