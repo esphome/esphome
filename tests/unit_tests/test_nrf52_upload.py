@@ -227,6 +227,7 @@ def _enter_serial_dfu_patches(
     paths: dict,
     vid: int | None = None,
     pid: int | None = None,
+    port_always_present: bool = False,
 ) -> MagicMock:
     """Enter all context managers needed for the serial DFU happy path.
 
@@ -246,7 +247,7 @@ def _enter_serial_dfu_patches(
 
     def _comports():
         _comports_calls[0] += 1
-        if _comports_calls[0] == 1:
+        if _comports_calls[0] == 1 and not port_always_present:
             return []  # port disappeared → disappear loop breaks
         return [
             MagicMock(device=host, vid=vid, pid=pid)
@@ -368,10 +369,8 @@ class TestUploadProgramSerialDfu:
         host = "/dev/ttyACM0"
         with ExitStack() as stack:
             mock_run = _enter_serial_dfu_patches(
-                stack, host, tmp_path, paths, *OPEN_DFU_USB_ID
+                stack, host, tmp_path, paths, *OPEN_DFU_USB_ID, port_always_present=True
             )
-            # comports() is empty on its first call; the bootloader check must look again
-            serial.tools.list_ports.comports()  # pylint: disable=no-member
             assert upload_program(config={}, args=None, host=host) is True
             assert not serial.Serial.mock_calls  # pylint: disable=no-member
 
@@ -387,7 +386,7 @@ class TestUploadProgramSerialDfu:
         host = "/dev/ttyACM0"
         with ExitStack() as stack:
             mock_run = _enter_serial_dfu_patches(
-                stack, host, tmp_path, paths, 0x2FE3, 0x0100
+                stack, host, tmp_path, paths, 0x2FE3, 0x0100, port_always_present=True
             )
             with pytest.raises(EsphomeError, match="hold SW1"):
                 upload_program(config={}, args=None, host=host)

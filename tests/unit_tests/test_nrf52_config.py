@@ -2,13 +2,17 @@
 
 import pytest
 
-from esphome.components.nrf52 import _detect_bootloader, set_core_data
+from esphome.components.nrf52 import (
+    _detect_bootloader,
+    _validate_open_dfu_toolchain,
+    set_core_data,
+)
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.nrf52.const import BOOTLOADER_NRF
 from esphome.components.zephyr.const import KEY_BOOTLOADER, KEY_PM_STATIC, KEY_ZEPHYR
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE
+from esphome.const import KEY_CORE, Toolchain
 from esphome.core import CORE
 
 
@@ -50,3 +54,20 @@ def test_nrf_bootloader_rejects_mcumgr_ota() -> None:
     assert CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] == BOOTLOADER_NRF
     with pytest.raises(cv.Invalid, match="does not support OTA"):
         _validate_bootloader({})
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "accepted"),
+    [(Toolchain.SDK_NRF, True), (Toolchain.PLATFORMIO, False)],
+)
+def test_nrf_bootloader_needs_the_sdk_nrf_toolchain(
+    toolchain: Toolchain, accepted: bool
+) -> None:
+    """The PlatformIO upload path has no Open DFU port check, so the bootloader is sdk-nrf only."""
+    CORE.toolchain = toolchain
+    config = {"bootloader": BOOTLOADER_NRF}
+    if accepted:
+        _validate_open_dfu_toolchain(config)
+    else:
+        with pytest.raises(cv.Invalid, match="sdk-nrf"):
+            _validate_open_dfu_toolchain(config)

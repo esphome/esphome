@@ -314,6 +314,14 @@ def _validate_mcumgr(config):
         raise cv.Invalid(f"'{bootloader}' bootloader does not support DFU")
 
 
+def _validate_open_dfu_toolchain(config: ConfigType) -> None:
+    # Only the sdk-nrf upload path knows how to talk to the factory Open DFU bootloader
+    if config[KEY_BOOTLOADER] == BOOTLOADER_NRF and CORE.using_toolchain_platformio:
+        raise cv.Invalid(
+            f"'{BOOTLOADER_NRF}' bootloader requires 'toolchain: {Toolchain.SDK_NRF}'"
+        )
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -322,6 +330,7 @@ def _final_validate(config):
             "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
             "Please use 'toolchain: sdk-nrf' instead."
         )
+    _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
         _validate_mcumgr(config)
