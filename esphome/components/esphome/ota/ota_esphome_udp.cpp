@@ -239,10 +239,8 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
   link.pcb = udp_new();
 #endif
   // On failure the reply stays all zero and ~UdpLink removes the pcb
-  if (link.pcb == nullptr || udp_bind(link.pcb, IP_ANY_TYPE, this->port_) != ERR_OK) {
-    ESP_LOGW(TAG, "UDP unavailable, using TCP");
+  if (link.pcb == nullptr || udp_bind(link.pcb, IP_ANY_TYPE, this->port_) != ERR_OK)
     return;
-  }
   udp_recv(link.pcb, udp_recv_cb, &link);
 #else
   link.peer = peer;
@@ -254,10 +252,8 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
       socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->port_);
   if (link.sock == nullptr || local_len == 0 ||
       link.sock->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) != 0 ||
-      link.sock->setblocking(false) != 0) {
-    ESP_LOGW(TAG, "UDP unavailable, using TCP");
+      link.sock->setblocking(false) != 0)
     return;
-  }
 #endif
   // Below the error codes (0x80 and up) the client checks the first byte against, and never all zero
   token[0] = (token[0] & 0x7F) | 0x01;
@@ -294,7 +290,11 @@ bool ESPHomeOTAComponent::udp_start_() {
       this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
       return true;
     }
-    if (read == 0 || !this->would_block_(errno))
+    if (read == 0) {
+      this->remote_closed_ = true;
+      return false;
+    }
+    if (!this->would_block_(errno))
       return false;
     App.feed_wdt();
   }

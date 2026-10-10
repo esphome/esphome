@@ -532,8 +532,11 @@ void ESPHomeOTAComponent::handle_data_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     // 1 is this UDP format; other values are free for later ones, which we decline (a zero reply keeps TCP)
-    if (buf[0] == UDP_REQUEST_V1)
+    if (buf[0] == UDP_REQUEST_V1) {
       this->udp_open_(udp_link);
+      if (udp_link.reply[0] == 0)
+        ESP_LOGW(TAG, "UDP unavailable, using TCP");
+    }
     if (!this->data_write_(udp_link.reply, sizeof(udp_link.reply)))
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     if (udp_link.reply[0] != 0) {

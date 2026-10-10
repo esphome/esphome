@@ -1919,3 +1919,15 @@ def test_run_ota_impl_handshake_failure_prefers_udp(
         False,
         True,
     ]
+
+
+def test_start_udp_socket_error_falls_back(mock_socket: Mock) -> None:
+    """A UDP socket that cannot reach the peer stays on TCP."""
+    mock_socket.family = socket.AF_INET
+    mock_socket.getpeername.side_effect = OSError("not connected")
+    mock_socket.recv.side_effect = [b"\x05", b"\x06\x07\x08"]
+    assert espota2._start_udp(mock_socket, mock_socket, True) is None
+    assert mock_socket.sendall.call_args_list == [
+        call(espota2.UDP_REQUEST),
+        call(espota2.UDP_FALLBACK),
+    ]

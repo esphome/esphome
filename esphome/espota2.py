@@ -832,13 +832,18 @@ def _start_udp(
         _LOGGER.debug("Device declined UDP")
         return None
     udp_sock = socket.socket(tcp_sock.family, socket.SOCK_DGRAM)
-    udp_sock.connect(tcp_sock.getpeername())
-    channel = UdpChannel(udp_sock, token)
-    if channel.probe():
-        _LOGGER.info("Using UDP")
-        return channel
-    channel.close()
-    _LOGGER.info("UDP blocked, using TCP")
+    try:
+        udp_sock.connect(tcp_sock.getpeername())
+    except OSError as err:
+        udp_sock.close()
+        _LOGGER.info("UDP unavailable (%s), using TCP", err)
+    else:
+        channel = UdpChannel(udp_sock, token)
+        if channel.probe():
+            _LOGGER.info("Using UDP")
+            return channel
+        channel.close()
+        _LOGGER.info("UDP blocked, using TCP")
     # Raw, outside any Noise frame: forging it only forces the TCP path
     send_check(tcp_sock, UDP_FALLBACK, "UDP fallback")
     return None
