@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
@@ -74,6 +75,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire; see require_virtual_uart().
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
@@ -444,6 +447,52 @@ UART_DEVICE_SCHEMA = cv.Schema(
 KEY_UART_DEVICES = "uart_devices"
 
 
+@dataclass
+class UARTData:
+    # (UART, the UART whose settings it runs with), in the order they were declared.
+    settings_sources: list[tuple[ID, ID]] = field(default_factory=list)
+    # UARTs that drop what is written to them.
+    receive_only: list[ID] = field(default_factory=list)
+
+
+def _get_data() -> UARTData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = UARTData()
+    return CORE.data[DOMAIN]
+
+
+def inherit_settings(uart_id: ID, source_id: ID) -> None:
+    """Check the devices on a UART against the baud rate, data bits, parity and stop bits of another one.
+
+    For a UART without settings of its own that passes on the bytes of source_id. Call it from
+    CONFIG_SCHEMA: the devices' final validation can run before that of the caller.
+    """
+    _get_data().settings_sources.append((uart_id, source_id))
+
+
+def mark_receive_only(uart_id: ID) -> None:
+    """Reject devices that require TX on uart_id, a UART that drops what is written to it.
+
+    Call it from CONFIG_SCHEMA, like inherit_settings().
+    """
+    _get_data().receive_only.append(uart_id)
+
+
+def _is_receive_only(uart_id: ID) -> bool:
+    # By name: a generated id is named only after the schemas ran.
+    return any(str(uart) == str(uart_id) for uart in _get_data().receive_only)
+
+
+def _settings_source(uart_id: ID) -> ID | None:
+    """Return the UART whose settings uart_id runs with, following every hop, or None."""
+    sources = {str(uart): source for uart, source in _get_data().settings_sources}
+    found = None
+    # pop() ends the walk on a loop.
+    while (source := sources.pop(str(uart_id), None)) is not None:
+        found = uart_id = source
+    return found
+
+
 def final_validate_device_schema(
     name: str,
     *,
@@ -498,11 +547,16 @@ def final_validate_device_schema(
 
     def validate_hub(hub_config):
         hub_schema = {}
+        settings_schema = {}
         uart_id = hub_config[CONF_ID]
         uart_id_type_str = str(uart_id.type)
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
+        if require_tx and _is_receive_only(uart_id):
+            raise cv.Invalid(
+                f"Component {name} requires the uart referenced by {uart_bus} to transmit, but it is receive-only"
+            )
         if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
@@ -518,13 +572,17 @@ def final_validate_device_schema(
                 )
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
-            hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+            settings_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
         if data_bits is not None:
-            hub_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
+            settings_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
         if parity is not None:
-            hub_schema[cv.Required(CONF_PARITY)] = validate_parity
+            settings_schema[cv.Required(CONF_PARITY)] = validate_parity
         if stop_bits is not None:
-            hub_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+            settings_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+        if (source_id := _settings_source(uart_id)) is None:
+            hub_schema.update(settings_schema)
+        elif settings_schema:
+            fv.id_declaration_match_schema(settings_schema)(source_id)
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
@@ -550,6 +608,11 @@ def subtree_references_uart(
     if isinstance(node, list):
         return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
     return False
+
+
+def require_virtual_uart() -> None:
+    """Compile the VirtualUARTComponent base; call from the to_code of a class that derives from it."""
+    cg.add_define("USE_UART_VIRTUAL")
 
 
 async def register_uart_device(var, config):
@@ -620,9 +683,12 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 # uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
-# debug block is configured.
+# debug block is configured; uart_virtual.cpp on USE_UART_VIRTUAL.
 _define_filter = filter_source_files_from_defines(
-    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+    {
+        "uart_debugger.cpp": "USE_UART_DEBUGGER",
+        "uart_virtual.cpp": "USE_UART_VIRTUAL",
+    }
 )
 
 

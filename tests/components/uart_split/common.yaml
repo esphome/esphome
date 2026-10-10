@@ -1,0 +1,32 @@
+uart_split:
+  - id: split_bus
+    uart_id: uart_bus
+    outputs:
+      - id: bus
+        debug:
+      - id: tap
+        rx_only: true
+        direction: BOTH
+      - id: pins_only
+        rx_only: true
+        direction: RX
+      - id: distance_tap
+        rx_only: true
+
+# Checks the baud rate of its UART: an output reports the one of uart_bus.
+sensor:
+  - platform: a01nyub
+    uart_id: distance_tap
+    name: Distance
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          uint8_t byte;
+          if (id(bus).read_byte(&byte)) {
+            id(bus).write_byte(byte);
+          }
+          if (id(tap).read_byte(&byte)) {
+            id(pins_only).read_byte(&byte);
+          }
