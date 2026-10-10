@@ -20,7 +20,7 @@ void MQTTButtonComponent::setup() {
       this->button_->press();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
-      this->status_momentary_warning("state", 5000);
+      this->status_momentary_warning(5000);
     }
   });
 }
