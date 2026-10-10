@@ -4,7 +4,7 @@
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp.cover";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp.cover");
 
 cover::CoverTraits HoermannHcpCover::get_traits() {
   cover::CoverTraits traits;

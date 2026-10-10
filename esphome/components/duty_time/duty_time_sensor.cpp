@@ -3,7 +3,7 @@
 
 namespace esphome::duty_time_sensor {
 
-static const char *const TAG = "duty_time_sensor";
+ESPHOME_LOG_TAG(TAG, "duty_time_sensor");
 
 #ifdef USE_BINARY_SENSOR
 void DutyTimeSensor::set_sensor(binary_sensor::BinarySensor *const sensor) {

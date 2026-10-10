@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]
 CODEOWNERS = ["@jeffeb3"]
+DOMAIN = "radon_eye_ble"
 
 radon_eye_ble_ns = cg.esphome_ns.namespace("radon_eye_ble")
 RadonEyeListener = radon_eye_ble_ns.class_(

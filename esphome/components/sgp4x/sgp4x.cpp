@@ -7,7 +7,7 @@
 
 namespace esphome::sgp4x {
 
-static const char *const TAG = "sgp4x";
+ESPHOME_LOG_TAG(TAG, "sgp4x");
 
 void SGP4xComponent::setup() {
   // Serial Number identification

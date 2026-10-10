@@ -3,7 +3,7 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.switch";
+ESPHOME_LOG_TAG(TAG, "tuya.switch");
 
 void TuyaSwitch::setup() {
   this->parent_->register_listener(this->switch_id_, [this](const TuyaDatapoint &datapoint) {

@@ -14,8 +14,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "script"))
 
 import check_idf_py_equivalence as guard  # noqa: E402
 
+from esphome.build_gen import espidf as build_gen  # noqa: E402
 from esphome.core import CORE  # noqa: E402
-from esphome.espidf import toolchain  # noqa: E402
+from esphome.espidf import framework, toolchain  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -25,12 +26,26 @@ def _reset_core() -> Iterator[None]:
     CORE.reset()
 
 
-def _make_tree(tmp_path: Path) -> Path:
+BOOTLOADER_LOG = "build/bootloader/.ninja_log"
+ALL_LOGS = (guard.TOP_NINJA_LOG, BOOTLOADER_LOG)
+
+
+def _make_tree(tmp_path: Path, skip_bootloader: bool = False) -> Path:
+    """A fake build tree; stock shape by default, or the skip shape
+    (define set to 1, no bootloader bin, no sub-build)."""
     tree = tmp_path / "config" / ".esphome" / "build" / "dev"
     build = tree / "build"
-    for name in (*guard.watched("dev"), *guard.NINJA_LOGS):
+    files = [
+        *guard.watched("dev", skip_bootloader),
+        *guard._ninja_logs(skip_bootloader),
+    ]
+    for name in files:
         (tree / name).parent.mkdir(parents=True, exist_ok=True)
         (tree / name).write_bytes(b"x")
+    define = "1" if skip_bootloader else "0"
+    (build / "CMakeCache.txt").write_text(
+        f"{toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED={define}\n"
+    )
     (build / "project_description.json").write_text(
         json.dumps(
             {
@@ -44,9 +59,10 @@ def _make_tree(tmp_path: Path) -> Path:
         "# ninja log v7\n1\t2\t10\tesp-idf/a.obj\t0\n"
         "1\t2\t10\tbootloader/bootloader.bin\t0\n"
     )
-    (build / "bootloader" / ".ninja_log").write_text(
-        "# ninja log v7\n1\t2\t10\tbootloader.elf\t0\n"
-    )
+    if not skip_bootloader:
+        (build / "bootloader" / ".ninja_log").write_text(
+            "# ninja log v7\n1\t2\t10\tbootloader.elf\t0\n"
+        )
     (tree / "sdkconfig.dev").write_text("")
     return tree
 
@@ -56,11 +72,14 @@ def _run_check(
     side_effect: Callable[[list[str]], None] = lambda cmd: None,
     rc: int = 0,
     esphome_rcs: tuple[int, int] = (0, 0),
+    macro_matches: bool = True,
     envs: list[dict[str, str]] | None = None,
+    versions: tuple[str | None, str | None, str] = ("5.5", "5.5", "5.5"),
 ) -> tuple[list[str], list[list[str]]]:
     """Run check() with idf.py replaced by ``side_effect``; return problems, calls.
 
-    ``envs`` collects the env each idf.py call receives.
+    ``envs`` collects the env each idf.py call receives. ``versions`` is what
+    version.txt, the version header and idf_tools report for the framework.
     """
     calls: list[list[str]] = []
 
@@ -80,6 +99,11 @@ def _run_check(
         patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
         patch.object(toolchain, "run_reconfigure", return_value=esphome_rcs[0]),
         patch.object(toolchain, "_run_ninja", return_value=esphome_rcs[1]),
+        patch.object(build_gen, "idf_macro_matches", return_value=macro_matches),
+        patch.object(framework, "read_idf_version_txt", return_value=versions[0]),
+        patch.object(framework, "read_idf_version_header", return_value=versions[1]),
+        patch.object(framework, "idf_tools_version", return_value=versions[2]),
+        patch.object(guard, "_lwip_empty_source_problems", return_value=[]),
         patch.object(guard.subprocess, "run", side_effect=run),
         patch.dict(os.environ),
     ):
@@ -168,9 +192,7 @@ def test_check_stops_when_idf_py_fails(tmp_path: Path) -> None:
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize(
-    "remove", ["build/build.ninja", "build/dev.bin", *guard.NINJA_LOGS]
-)
+@pytest.mark.parametrize("remove", ["build/build.ninja", "build/dev.bin", *ALL_LOGS])
 def test_check_fails_when_an_input_is_missing(tmp_path: Path, remove: str) -> None:
     """A moved or renamed output must not compare as unchanged."""
     tree = _make_tree(tmp_path)
@@ -197,7 +219,7 @@ def test_check_stops_when_the_esphome_baseline_fails(
     assert calls == []
 
 
-@pytest.mark.parametrize("log", guard.NINJA_LOGS)
+@pytest.mark.parametrize("log", ALL_LOGS)
 def test_check_fails_when_a_ninja_log_has_no_entries(tmp_path: Path, log: str) -> None:
     """A log format change must not leave the rebuild check with nothing to compare."""
     tree = _make_tree(tmp_path)
@@ -223,6 +245,70 @@ def test_main_rejects_a_path_that_is_not_a_tree(
     mock_check.assert_not_called()
 
 
+def test_check_resets_the_skip_memo_per_tree(tmp_path: Path) -> None:
+    """A second tree must not inherit the first tree's memoized mode."""
+    tree = _make_tree(tmp_path)
+    CORE.skip_bootloader = True
+    toolchain._cache().skip_bootloader = True  # leftover from a prior tree
+    problems, _ = _run_check(tree)
+    assert problems == []
+    assert toolchain._skip_bootloader() is False
+
+
+def test_check_accepts_a_skip_bootloader_tree(tmp_path: Path) -> None:
+    """No bootloader bin or sub-build is the skip shape, not missing input."""
+    tree = _make_tree(tmp_path, skip_bootloader=True)
+    problems, calls = _run_check(tree)
+    assert problems == []
+    assert len(calls) == 2
+    # The baseline reconfigure must not flip the tree's mode.
+    assert CORE.skip_bootloader is True
+
+
+def test_check_flags_an_ineffective_override(tmp_path: Path) -> None:
+    """A skip-mode tree that still built a bootloader must fail CI."""
+    tree = _make_tree(tmp_path, skip_bootloader=True)
+    (tree / guard.BOOTLOADER_BIN).parent.mkdir(parents=True)
+    (tree / guard.BOOTLOADER_BIN).write_bytes(b"x")
+    problems, _ = _run_check(tree)
+    assert problems == [guard.OVERRIDE_INEFFECTIVE]
+
+
+def test_check_requires_the_sub_log_on_a_stock_tree(tmp_path: Path) -> None:
+    """The mode comes from the define, so a vanished sub-build stays an error."""
+    tree = _make_tree(tmp_path)
+    (tree / BOOTLOADER_LOG).unlink()
+    problems, calls = _run_check(tree)
+    assert problems == [f"missing {BOOTLOADER_LOG}"]
+    assert calls == []
+
+
+def test_check_fails_loudly_when_the_idf_macro_changed(tmp_path: Path) -> None:
+    """An IDF bump that rewrites the overridden macro must fail CI."""
+    tree = _make_tree(tmp_path)
+    problems, calls = _run_check(tree, macro_matches=False)
+    assert problems == [guard.MACRO_CHANGED]
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("versions", "source"),
+    [(("5.4", "5.5", "5.5"), "txt"), (("5.5", None, "5.5"), "header")],
+)
+def test_check_fails_loudly_when_the_version_read_drifts(
+    tmp_path: Path, versions: tuple[str | None, str | None, str], source: str
+) -> None:
+    """An IDF bump that changes how idf_tools reads its version must fail CI;
+    both sources are checked since a managed tree never reaches the header."""
+    tree = _make_tree(tmp_path)
+    problems, calls = _run_check(tree, versions=versions)
+    ours = versions[0] if source == "txt" else versions[1]
+    assert problems == [
+        guard.VERSION_DRIFT.format(ours=ours, source=source, theirs="5.5")
+    ]
+    assert calls == []
+
+
 def test_main_without_build_trees(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -232,6 +318,99 @@ def test_main_without_build_trees(
     ):
         assert guard.main() == 1
     assert "No native ESP-IDF build tree found" in capsys.readouterr().out
+
+
+def _make_lwip_tree(tmp_path: Path, objects: list[str], config: dict) -> Path:
+    """A tree with lwip objects, their sdkconfig.json and an nm in the cache."""
+    tree = _make_tree(tmp_path)
+    objdir = tree / "build" / "esp-idf" / "lwip" / "CMakeFiles" / "__idf_lwip.dir"
+    for name in objects:
+        (objdir / name).parent.mkdir(parents=True, exist_ok=True)
+        (objdir / name).write_bytes(b"x")
+    (tree / "build" / "config").mkdir(parents=True, exist_ok=True)
+    (tree / "build" / "config" / "sdkconfig.json").write_text(json.dumps(config))
+    with (tree / "build" / "CMakeCache.txt").open("a") as cache:
+        cache.write("CMAKE_NM:FILEPATH=/tools/nm\n")
+    return tree
+
+
+def _run_lwip_check(
+    tree: Path,
+    non_empty: set[str] = frozenset(),
+    failing: set[str] = frozenset(),
+    calls: list[list[str]] | None = None,
+) -> list[str]:
+    """Run the lwip check with nm faked; ``calls`` collects the nm commands."""
+
+    def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        if calls is not None:
+            calls.append(cmd)
+        name = Path(cmd[-1]).name
+        if name in failing:
+            return subprocess.CompletedProcess(cmd, 1, "", "bad object")
+        return subprocess.CompletedProcess(
+            cmd, 0, "symbol\n" if name in non_empty else "", ""
+        )
+
+    with (
+        patch.object(toolchain, "run_reconfigure", return_value=0) as reconfigure,
+        patch.object(toolchain, "_run_ninja", return_value=0),
+        patch.object(guard.subprocess, "run", side_effect=run),
+    ):
+        problems = guard._lwip_empty_source_problems(tree)
+    reconfigure.assert_called_once_with(
+        extra_env={build_gen.LWIP_FULL_SOURCES_ENV: "1"}
+    )
+    return problems
+
+
+def test_lwip_check_inspects_only_the_dropped_sources(tmp_path: Path) -> None:
+    """An option that is on, or absent (invisible), keeps its sources unchecked."""
+    tree = _make_lwip_tree(
+        tmp_path,
+        [
+            "lwip/src/netif/ppp/auth.c.obj",
+            "lwip/src/core/ipv6/ip6.c.obj",
+            "lwip/src/core/ipv4/autoip.c.obj",
+        ],
+        {"LWIP_PPP_SUPPORT": False, "LWIP_IPV6": True},
+    )
+    calls: list[list[str]] = []
+    assert _run_lwip_check(tree, calls=calls) == []
+    assert [Path(c[-1]).name for c in calls] == ["auth.c.obj"]
+
+
+def test_lwip_check_flags_a_dropped_source_with_symbols(tmp_path: Path) -> None:
+    tree = _make_lwip_tree(
+        tmp_path, ["lwip/src/netif/ppp/auth.c.obj"], {"LWIP_PPP_SUPPORT": False}
+    )
+    assert _run_lwip_check(tree, non_empty={"auth.c.obj"}) == [
+        guard.LWIP_NOT_EMPTY.format(source="auth.c", option="CONFIG_LWIP_PPP_SUPPORT")
+    ]
+
+
+def test_lwip_check_flags_a_failed_nm(tmp_path: Path) -> None:
+    """A broken nm must not pass as an empty object."""
+    tree = _make_lwip_tree(
+        tmp_path, ["lwip/src/netif/ppp/auth.c.obj"], {"LWIP_PPP_SUPPORT": False}
+    )
+    assert _run_lwip_check(tree, failing={"auth.c.obj"}) == [
+        guard.LWIP_NM_FAILED.format(source="auth.c", error="bad object")
+    ]
+
+
+def test_lwip_check_fails_per_pattern_that_matched_nothing(tmp_path: Path) -> None:
+    """A stale pattern is reported even while the others still match."""
+    tree = _make_lwip_tree(
+        tmp_path,
+        ["lwip/src/netif/ppp/auth.c.obj"],
+        {"LWIP_PPP_SUPPORT": False, "LWIP_STATS": False},
+    )
+    assert _run_lwip_check(tree) == [
+        guard.LWIP_NOTHING_MATCHED.format(
+            regex="/core/stats[.]c$", option="CONFIG_LWIP_STATS"
+        )
+    ]
 
 
 @pytest.mark.parametrize(("problems", "rc"), [([], 0), (["idf.py changed x"], 1)])
