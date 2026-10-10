@@ -3,7 +3,7 @@
 
 namespace esphome::tlc5971 {
 
-static const char *const TAG = "tlc5971";
+ESPHOME_LOG_TAG(TAG, "tlc5971");
 
 void TLC5971::setup() {
   this->data_pin_->setup();

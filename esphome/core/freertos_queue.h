@@ -27,9 +27,7 @@ namespace esphome {
 
 template<class T, uint8_t SIZE> class FreeRTOSQueue {
  public:
-  FreeRTOSQueue() : dropped_count_(0) {
-    this->handle_ = xQueueCreateStatic(SIZE, sizeof(T *), this->storage_, &this->queue_buf_);
-  }
+  FreeRTOSQueue() : dropped_count_(0) { xQueueCreateStatic(SIZE, sizeof(T *), this->storage_, &this->queue_buf_); }
 
   // No destructor — ESPHome components are never destroyed. Intentionally
   // omitted to avoid pulling in vQueueDelete code on resource-constrained targets.
@@ -44,7 +42,7 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
     if (element == nullptr)
       return false;
 
-    if (xQueueSend(this->handle_, &element, 0) != pdPASS) {
+    if (xQueueSend(this->handle_(), &element, 0) != pdPASS) {
       this->increment_dropped_count();
       return false;
     }
@@ -53,7 +51,7 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
 
   T *pop() {
     T *element;
-    if (xQueueReceive(this->handle_, &element, 0) != pdTRUE) {
+    if (xQueueReceive(this->handle_(), &element, 0) != pdTRUE) {
       return nullptr;
     }
     return element;
@@ -80,18 +78,24 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
     portEXIT_CRITICAL();
   }
 
-  bool empty() const { return uxQueueMessagesWaiting(this->handle_) == 0; }
+  bool empty() const { return uxQueueMessagesWaiting(this->handle_()) == 0; }
 
-  bool full() const { return uxQueueSpacesAvailable(this->handle_) == 0; }
+  bool full() const { return uxQueueSpacesAvailable(this->handle_()) == 0; }
 
-  size_t size() const { return uxQueueMessagesWaiting(this->handle_); }
+  size_t size() const { return uxQueueMessagesWaiting(this->handle_()); }
 
  protected:
   // Static storage for the queue — lives in BSS, no heap allocation
   uint8_t storage_[SIZE * sizeof(T *)];
   StaticQueue_t queue_buf_;
-  QueueHandle_t handle_;
   uint16_t dropped_count_;
+
+  // xQueueCreateStatic() returns the static queue structure itself as the handle;
+  // its only other checks are asserts, and a zero length is the one we could hit
+  static_assert(SIZE > 0, "FreeRTOSQueue needs at least one slot");
+  QueueHandle_t handle_() const {
+    return reinterpret_cast<QueueHandle_t>(const_cast<StaticQueue_t *>(&this->queue_buf_));
+  }
 };
 
 }  // namespace esphome

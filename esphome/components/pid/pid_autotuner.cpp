@@ -5,7 +5,7 @@
 
 namespace esphome::pid {
 
-static const char *const TAG = "pid.autotune";
+ESPHOME_LOG_TAG(TAG, "pid.autotune");
 
 /*
  * # PID Autotuner

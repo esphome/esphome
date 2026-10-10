@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "sdl"
 
 SDL_KeyCode = cg.global_ns.enum("SDL_KeyCode")
 
