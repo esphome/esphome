@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_DIR_PIN,
     CONF_ID,
-    CONF_PLATFORM,
     CONF_STEP_PIN,
     CONF_UART_ID,
 )
@@ -79,25 +78,38 @@ def tmc22xx_schema(cls: MockObjClass, max_address: int) -> cv.Schema:
                 cv.Optional(CONF_ANALOG_CURRENT_SCALE, default=False): cv.boolean,
                 cv.Optional(CONF_RUN_CURRENT): validate_current,
                 cv.Optional(CONF_HOLD_CURRENT): validate_current,
-                cv.Optional(CONF_MICROSTEPS): validate_microsteps,
+                cv.Optional(CONF_MICROSTEPS, default=16): validate_microsteps,
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
         .extend(uart.UART_DEVICE_SCHEMA),
         cv.has_exactly_one_key(CONF_INDEX_PIN, CONF_STEP_PIN),
         cv.has_none_or_all_keys(CONF_STEP_PIN, CONF_DIR_PIN),
+        _validate_analog_current_scale,
     )
 
 
+def _validate_analog_current_scale(config: ConfigType) -> ConfigType:
+    if config[CONF_ANALOG_CURRENT_SCALE]:
+        for key in (CONF_RUN_CURRENT, CONF_HOLD_CURRENT):
+            if key in config:
+                raise cv.Invalid(
+                    f"'{key}' can't be used with '{CONF_ANALOG_CURRENT_SCALE}', the "
+                    f"current then depends on VREF; set '{CONF_IRUN}'/'{CONF_IHOLD}' "
+                    "with the currents action instead",
+                    path=[key],
+                )
+    return config
+
+
 def final_validate(config: ConfigType) -> ConfigType:
-    """Reject two drivers with the same address on one UART bus."""
+    """Reject two drivers of the family with the same address on one UART bus."""
     for other in fv.full_config.get().get("stepper", []):
         if other is config:
             break
         if (
-            other[CONF_PLATFORM] == config[CONF_PLATFORM]
-            and other[CONF_UART_ID] == config[CONF_UART_ID]
-            and other[CONF_ADDRESS] == config[CONF_ADDRESS]
+            other.get(CONF_UART_ID) == config[CONF_UART_ID]
+            and other.get(CONF_ADDRESS) == config[CONF_ADDRESS]
         ):
             raise cv.Invalid(
                 f"Address {config[CONF_ADDRESS]} is already used by '{other[CONF_ID]}' "
@@ -115,6 +127,7 @@ async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(var.set_clock_frequency(config[CONF_CLOCK_FREQUENCY]))
     cg.add(var.set_analog_current_scale(config[CONF_ANALOG_CURRENT_SCALE]))
+    cg.add(var.set_initial_microsteps(config[CONF_MICROSTEPS]))
     for key, setter in (
         (CONF_ENN_PIN, var.set_enn_pin),
         (CONF_STEP_PIN, var.set_step_pin),
@@ -129,7 +142,6 @@ async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
         (CONF_OTTRIM, var.set_ottrim),
         (CONF_RUN_CURRENT, var.set_initial_run_current),
         (CONF_HOLD_CURRENT, var.set_initial_hold_current),
-        (CONF_MICROSTEPS, var.set_initial_microsteps),
     ):
         if (value := config.get(key)) is not None:
             cg.add(setter(value))

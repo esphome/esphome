@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <cmath>
+#include <cstring>
 #include <numbers>
 
 namespace esphome::tmc22xx {
@@ -17,6 +18,11 @@ static constexpr size_t DATAGRAM_SIZE = 8;
 static constexpr uint8_t DEFAULT_TOFF = 3;
 static constexpr float SENSE_RESISTOR_OFFSET = 0.02f;  // Ohm, added to RSENSE in the datasheet current formula
 static constexpr float INTERNAL_RSENSE_OHM = 0.17f;    // Equivalent sense resistance when using internal sensing
+// INDEX pulses are counted once per loop, so near the target the speed is limited to cover the remaining
+// distance in no less than this time. A slow loop pass then cannot run far past the target.
+static constexpr float APPROACH_TIME_S = 0.02f;
+// Skip VACTUAL writes that change the speed by less than 1/16, each write blocks the loop for the UART transfer
+static constexpr int32_t VACTUAL_CHANGE_DIVISOR = 16;
 
 static uint8_t crc8(const uint8_t *data, size_t len) {
   uint8_t crc = 0;
@@ -75,8 +81,7 @@ void TMC22XXStepper::setup() {
   if (toff.has_value() && *toff != 0)
     this->toff_ = *toff;
 
-  if (this->initial_microsteps_.has_value())
-    this->set_microsteps(*this->initial_microsteps_);
+  this->set_microsteps(this->initial_microsteps_);
   if (this->initial_run_current_.has_value())
     this->set_run_current(*this->initial_run_current_);
   if (this->initial_hold_current_.has_value())
@@ -102,16 +107,26 @@ void TMC22XXStepper::setup() {
 }
 
 void TMC22XXStepper::dump_config() {
+  uint8_t irun = this->read_field(IRUN).value_or(0);
+  uint8_t ihold = this->read_field(IHOLD).value_or(0);
   ESP_LOGCONFIG(TAG,
                 "  Address: %u\n"
                 "  IC version: 0x%02X\n"
-                "  Microsteps: %u\n"
-                "  Run current: %.2f A\n"
-                "  Hold current: %.2f A\n"
-                "  Max current: %.2f A",
-                this->address_, this->version_, this->get_microsteps(),
-                this->scale_to_current(this->read_field(IRUN).value_or(0)),
-                this->scale_to_current(this->read_field(IHOLD).value_or(0)), this->scale_to_current(31));
+                "  Microsteps: %u",
+                this->address_, this->version_, this->get_microsteps());
+  if (this->analog_current_scale_) {
+    ESP_LOGCONFIG(TAG,
+                  "  Run current scale: %u\n"
+                  "  Hold current scale: %u\n"
+                  "  Current scaled by VREF",
+                  irun, ihold);
+  } else {
+    ESP_LOGCONFIG(TAG,
+                  "  Run current: %.2f A\n"
+                  "  Hold current: %.2f A\n"
+                  "  Max current: %.2f A",
+                  this->scale_to_current(irun), this->scale_to_current(ihold), this->scale_to_current(31));
+  }
   LOG_PIN("  ENN Pin: ", this->enn_pin_);
   LOG_PIN("  STEP Pin: ", this->step_pin_);
   LOG_PIN("  DIR Pin: ", this->dir_pin_);
@@ -147,21 +162,24 @@ void TMC22XXStepper::loop_serial_() {
   }
   this->current_position += pulses;
 
+  int32_t remaining = this->target_position - this->current_position;
+  int8_t direction = (remaining > 0) - (remaining < 0);
+  // Ran past the target, restart the ramp from standstill in the other direction
+  if (direction != 0 && direction == -this->direction_)
+    this->current_speed_ = 0.0f;
   this->calculate_speed_(micros());
-  int8_t direction = 0;
-  if (this->target_position > this->current_position) {
-    direction = 1;
-  } else if (this->target_position < this->current_position) {
-    direction = -1;
-  }
+  this->current_speed_ = std::min(this->current_speed_, static_cast<float>(std::abs(remaining)) / APPROACH_TIME_S);
 
   int32_t vactual = direction * this->speed_to_vactual_(this->current_speed_);
-  if (vactual == this->vactual_)
+  int32_t last = this->get_vactual_();
+  if (vactual == last)
+    return;
+  if (vactual != 0 && (vactual > 0) == (last > 0) && std::abs(vactual - last) < std::abs(last) / VACTUAL_CHANGE_DIVISOR)
     return;
   // Pulses that arrive while VACTUAL changes direction are counted in the new direction
   this->index_store_.direction = direction;
-  if (this->write_field(VACTUAL, static_cast<uint32_t>(vactual)))
-    this->vactual_ = vactual;
+  this->direction_ = direction;
+  this->write_field(VACTUAL, static_cast<uint32_t>(vactual));
 }
 
 void TMC22XXStepper::loop_step_dir_() {
@@ -178,7 +196,7 @@ void TMC22XXStepper::loop_step_dir_() {
 }
 
 void TMC22XXStepper::on_shutdown() {
-  if (this->vactual_ != 0)
+  if (this->get_vactual_() != 0)
     this->write_field(VACTUAL, 0);
 }
 
@@ -186,8 +204,8 @@ void TMC22XXStepper::set_enabled(bool enabled) {
   if (!enabled) {
     // Stop at the current position, so the motor does not run off again when re-enabled
     this->target_position = this->current_position;
-    if (this->vactual_ != 0 && this->write_field(VACTUAL, 0))
-      this->vactual_ = 0;
+    if (this->get_vactual_() != 0)
+      this->write_field(VACTUAL, 0);
   }
   if (this->enn_pin_ != nullptr) {
     this->enn_pin_->digital_write(!enabled);
@@ -214,17 +232,31 @@ uint16_t TMC22XXStepper::get_microsteps() {
   return 256u >> *mres;
 }
 
-float TMC22XXStepper::full_scale_voltage_() {
+void TMC22XXStepper::set_run_current(float current) {
+  if (auto scale = this->current_to_scale_(current))
+    this->write_field(IRUN, *scale);
+}
+
+void TMC22XXStepper::set_hold_current(float current) {
+  if (auto scale = this->current_to_scale_(current))
+    this->write_field(IHOLD, *scale);
+}
+
+float TMC22XXStepper::full_scale_current_() {
   return (this->vsense_active_ ? 0.180f : 0.325f) /
          (this->rsense_.value_or(INTERNAL_RSENSE_OHM) + SENSE_RESISTOR_OFFSET);
 }
 
 float TMC22XXStepper::scale_to_current(uint8_t scale) {
-  return (std::min<uint8_t>(scale, 31) + 1) / 32.0f * this->full_scale_voltage_() / std::numbers::sqrt2_v<float>;
+  return (std::min<uint8_t>(scale, 31) + 1) / 32.0f * this->full_scale_current_() / std::numbers::sqrt2_v<float>;
 }
 
-uint8_t TMC22XXStepper::current_to_scale_(float current) {
-  float scale = 32.0f * std::numbers::sqrt2_v<float> * current / this->full_scale_voltage_() - 1.0f;
+optional<uint8_t> TMC22XXStepper::current_to_scale_(float current) {
+  if (this->analog_current_scale_) {
+    ESP_LOGW(TAG, "Current in A is not supported with analog current scale, use irun/ihold");
+    return {};
+  }
+  float scale = 32.0f * std::numbers::sqrt2_v<float> * current / this->full_scale_current_() - 1.0f;
   if (scale > 31.0f) {
     ESP_LOGW(TAG, "%.2f A is above the %.2f A limit, using the limit", current, this->scale_to_current(31));
     return 31;
@@ -269,7 +301,10 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
   this->flush();
   // On the single wire bus every byte sent is also received, drop that echo
   uint8_t echo[DATAGRAM_SIZE];
-  this->read_array(echo, DATAGRAM_SIZE);
+  if (!this->read_array(echo, DATAGRAM_SIZE) || memcmp(echo, datagram, DATAGRAM_SIZE) != 0) {
+    ESP_LOGW(TAG, "No echo writing register 0x%02X", reg);
+    return false;
+  }
 
   if (uint32_t *shadow = this->shadow_register(reg))
     *shadow = value;
