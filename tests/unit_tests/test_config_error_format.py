@@ -63,6 +63,31 @@ def test_validation_error_in_package(
     ]
 
 
+def test_unknown_action_anchors_on_the_key(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # validate_registry_entry's "Unable to find <kind> with the name '<key>'"
+    # is raised as Invalid(msg, [key]) -- a path ending on the unrecognized
+    # key itself, same as ExtraKeysInvalid. The location must land on that
+    # key, not on the action's value (the previous behavior).
+    lines = _read(
+        tmp_path,
+        {
+            "test.yaml": (
+                "esphome:\n  name: test\nhost:\nlogger:\nbutton:\n"
+                '  - platform: template\n    on_press:\n      - loggr.log: "msg"\n'
+            )
+        },
+        capsys,
+    )
+    assert lines == [
+        (
+            f"{tmp_path / 'test.yaml'}:8:9: error: Unable to find action "
+            "with the name 'loggr.log'."
+        )
+    ]
+
+
 def test_yaml_syntax_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     lines = _read(tmp_path, {"test.yaml": "esphome:\n  name: [1, 2\nhost:\n"}, capsys)
     assert lines == [

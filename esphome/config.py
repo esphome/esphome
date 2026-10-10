@@ -1559,9 +1559,13 @@ def load_config(
 
 def get_invalid_range(res: Config, invalid: vol.Invalid) -> DocumentRange | None:
     """Return the source range of the YAML that caused *invalid*."""
-    return res.get_deepest_document_range_for_path(
-        invalid.path, invalid.error_message == "extra keys not allowed"
+    # An unrecognized key is the problem, so anchor on the key, not its value.
+    # Also covers validate_registry_entry's "Unable to find <kind>" (e.g. an unknown action).
+    get_key = (
+        invalid.error_message == "extra keys not allowed"
+        or invalid.error_message.startswith("Unable to find ")
     )
+    return res.get_deepest_document_range_for_path(invalid.path, get_key)
 
 
 def _format_location(location: DocumentLocation | None) -> str:
