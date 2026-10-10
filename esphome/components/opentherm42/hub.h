@@ -1033,7 +1033,8 @@ class OpenTherm42Hub : public Component {
   // consecutive_data_invalid counter (incrementing on DATA_INVALID, which is why this isn't const).
   // Every handle_response_() rejection branch (except TSP/FHB, whose slots share one RequestKind
   // across many independent data-ids, so a single per-kind counter can't distinguish which slot
-  // last succeeded) gates its invalidate_*() call(s) on this.
+  // last succeeded) gates its invalidate_*() call(s) on this. Also logs an ERROR naming the kind and
+  // id, once, on the exact call where the grace period runs out.
   bool should_invalidate_now_(RequestKind kind, MessageType type);
   // Formats a short "Name (id=N)"-style description of the given request kind into buf, for the raw
   // datalink error log in loop() -- that log fires before any frame is parsed, so unlike

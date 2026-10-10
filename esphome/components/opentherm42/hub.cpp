@@ -2444,7 +2444,19 @@ bool OpenTherm42Hub::should_invalidate_now_(RequestKind kind, MessageType type) 
     return true;
   }
   entry->consecutive_data_invalid++;
-  return entry->consecutive_data_invalid > this->max_data_invalid_;
+  if (entry->consecutive_data_invalid <= this->max_data_invalid_) {
+    return false;
+  }
+  // Logged only on the exact call that exhausts the grace period (not every subsequent
+  // still-invalid poll, which would just repeat this every pass) -- see set_max_data_invalid()'s
+  // declaration comment for what this limit is tolerating.
+  if (entry->consecutive_data_invalid == this->max_data_invalid_ + 1) {
+    char kind_desc[80];
+    this->describe_request_kind_(kind, kind_desc, sizeof(kind_desc));
+    ESP_LOGE(TAG, "%s: %u consecutive DATA_INVALID responses reached max_data_invalid (%u); marking Unknown", kind_desc,
+             entry->consecutive_data_invalid, this->max_data_invalid_);
+  }
+  return true;
 }
 
 void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
