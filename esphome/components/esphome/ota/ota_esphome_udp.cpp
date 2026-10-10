@@ -46,6 +46,10 @@ struct UdpLock {
 #if LWIP_TCPIP_CORE_LOCKING
   UdpLock() { LOCK_TCPIP_CORE(); }
   ~UdpLock() { UNLOCK_TCPIP_CORE(); }
+#else
+  // Empty bodies, not = default, so clang-tidy does not flag the guards as unused
+  UdpLock() {}
+  ~UdpLock() {}
 #endif
 };
 #else
