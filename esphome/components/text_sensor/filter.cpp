@@ -73,25 +73,25 @@ bool PrependFilter::new_value(std::string &value) {
   return true;
 }
 
-// Substitute — non-template helper
-bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value) {
-  for (size_t i = 0; i < count; i++) {
-    const size_t from_len = strlen(substitutions[i].from);
-    const size_t to_len = strlen(substitutions[i].to);
+// Substitute
+bool SubstituteFilter::new_value(std::string &value) {
+  for (const Substitution *s = this->substitutions_; s->from != nullptr; s++) {
+    const size_t from_len = strlen(s->from);
+    const size_t to_len = strlen(s->to);
     std::size_t pos = 0;
-    while ((pos = value.find(substitutions[i].from, pos, from_len)) != std::string::npos) {
-      value.replace(pos, from_len, substitutions[i].to, to_len);
+    while ((pos = value.find(s->from, pos, from_len)) != std::string::npos) {
+      value.replace(pos, from_len, s->to, to_len);
       pos += to_len;
     }
   }
   return true;
 }
 
-// Map — non-template helper
-bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value) {
-  for (size_t i = 0; i < count; i++) {
-    if (value == mappings[i].from) {
-      value.assign(mappings[i].to);
+// Map
+bool MapFilter::new_value(std::string &value) {
+  for (const Substitution *m = this->mappings_; m->from != nullptr; m++) {
+    if (value == m->from) {
+      value.assign(m->to);
       return true;
     }
   }
