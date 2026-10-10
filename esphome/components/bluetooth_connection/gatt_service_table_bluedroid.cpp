@@ -6,7 +6,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "gatt_service_table";
+ESPHOME_LOG_TAG(TAG, "bluetooth_connection");
 
 // A stack that never reports end-of-range would otherwise walk forever.
 static constexpr uint16_t MAX_DESCRIPTORS_PER_CHARACTERISTIC = 64;

@@ -5,7 +5,7 @@
 
 namespace esphome::wiegand {
 
-static const char *const TAG = "wiegand";
+ESPHOME_LOG_TAG(TAG, "wiegand");
 static const char *const KEYS = "0123456789*#";
 
 void IRAM_ATTR HOT WiegandStore::d0_gpio_intr(WiegandStore *arg) {

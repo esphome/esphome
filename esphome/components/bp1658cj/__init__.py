@@ -5,6 +5,7 @@ from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Cossid"]
+DOMAIN = "bp1658cj"
 MULTI_CONF = True
 
 CONF_MAX_POWER_COLOR_CHANNELS = "max_power_color_channels"

@@ -58,6 +58,7 @@ _HUB_PLATFORMS = (PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
 CODEOWNERS = ["@jesserockz", "@bdraco"]
+DOMAIN = "bluetooth_proxy"
 
 _LOGGER = logging.getLogger(__name__)
 
