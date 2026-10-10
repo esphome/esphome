@@ -8,21 +8,26 @@ FROM ghcr.io/esphome/docker-base:debian-ha-addon-runtime-${BUILD_BASE_VERSION} A
 
 
 # ======================= builder =======================
-# The full image carries build-essential for native Python extensions. Everything is installed into
-# one virtualenv so the runtime stage can copy a single directory that carries no Python version in its path.
+# The full image carries build-essential for native Python extensions. Everything, uv included, is installed
+# into one virtualenv so the runtime stage can copy a single directory that carries no Python version in its path.
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS builder
 
-RUN pip install --no-cache-dir --disable-pip-version-check uv==0.10.1 \
-    && python3 -m venv /opt/venv
+# docker-base sets UV_SYSTEM_PYTHON, which would make uv skip the venv and install into the system Python
+ENV VIRTUAL_ENV=/opt/venv \
+    UV_SYSTEM_PYTHON=false \
+    PATH="/opt/venv/bin:$PATH"
+
+RUN python3 -m venv /opt/venv \
+    && pip install --no-cache-dir --disable-pip-version-check uv==0.10.1
 
 COPY requirements.txt /
 
 RUN \
-    uv pip install --no-cache-dir --python /opt/venv/bin/python \
+    uv pip install --no-cache-dir \
     -r /requirements.txt
 
 # Install the ESPHome Device Builder dashboard.
-RUN uv pip install --no-cache-dir --python /opt/venv/bin/python esphome-device-builder==1.23.0
+RUN uv pip install --no-cache-dir esphome-device-builder==1.23.0
 
 
 # ======================= runtime =======================
@@ -31,8 +36,10 @@ FROM runtime-source-${BUILD_TYPE} AS base
 RUN git config --system --add safe.directory "*" \
     && git config --system advice.detachedHead false
 
-# The venv's pip stays in front so the add-on's fork install lands in the same environment
+# The venv goes first on PATH so pip, uv and the console scripts all resolve inside it
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    VIRTUAL_ENV=/opt/venv \
+    UV_SYSTEM_PYTHON=false \
     PATH="/opt/venv/bin:$PATH"
 
 COPY --from=builder /opt/venv /opt/venv
@@ -95,4 +102,4 @@ FROM base-${BUILD_TYPE} AS final
 
 # ESPHome itself is pure Python; installing it last keeps the dependency layer cached across source changes
 COPY . /esphome
-RUN pip install --no-cache-dir --no-deps -e /esphome
+RUN uv pip install --no-cache-dir -e /esphome
