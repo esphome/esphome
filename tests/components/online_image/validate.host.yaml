@@ -1,0 +1,22 @@
+# Legacy top-level `online_image:` form (deprecated; migrates to
+# `platform: online_image`). Config-only test exercising the deprecation path.
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+
+display:
+  - platform: sdl
+    id: online_image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+online_image:
+  - id: legacy_online_image
+    url: http://www.example.org/example.png
+    format: PNG
+    type: RGB565
+    resize: 50x50

@@ -7,9 +7,7 @@ namespace esphome::light {
 
 class AddressableLightWrapper : public light::AddressableLight {
  public:
-  explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {
-    this->wrapper_state_ = new uint8_t[5];  // NOLINT(cppcoreguidelines-owning-memory)
-  }
+  explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {}
 
   int32_t size() const override { return 1; }
 
@@ -76,11 +74,10 @@ class AddressableLightWrapper : public light::AddressableLight {
       return;
     }
 
-    float gamma = this->light_state_->get_gamma_correct();
-    float r = gamma_uncorrect(this->wrapper_state_[0] / 255.0f, gamma);
-    float g = gamma_uncorrect(this->wrapper_state_[1] / 255.0f, gamma);
-    float b = gamma_uncorrect(this->wrapper_state_[2] / 255.0f, gamma);
-    float w = gamma_uncorrect(this->wrapper_state_[3] / 255.0f, gamma);
+    float r = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[0] / 255.0f);
+    float g = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[1] / 255.0f);
+    float b = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[2] / 255.0f);
+    float w = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[3] / 255.0f);
 
     auto call = this->light_state_->make_call();
 
@@ -118,7 +115,7 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
   light::LightState *light_state_;
-  uint8_t *wrapper_state_;
+  mutable uint8_t wrapper_state_[5]{};
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 

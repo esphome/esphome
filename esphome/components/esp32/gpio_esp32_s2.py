@@ -1,5 +1,7 @@
 import logging
+from typing import Any
 
+from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
@@ -26,7 +28,7 @@ _ESP32S2_STRAPPING_PINS = {0, 45, 46}
 _LOGGER = logging.getLogger(__name__)
 
 
-def esp32_s2_validate_gpio_pin(value):
+def esp32_s2_validate_gpio_pin(value: int) -> int:
     if value < 0 or value > 46:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-46)")
 
@@ -43,7 +45,7 @@ def esp32_s2_validate_gpio_pin(value):
     return value
 
 
-def esp32_s2_validate_supports(value):
+def esp32_s2_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     num = value[CONF_NUMBER]
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
@@ -68,6 +70,11 @@ def esp32_s2_validate_supports(value):
     if is_pulldown and num == 46:
         raise cv.Invalid(
             f"GPIO{num} does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
+        )
+    if value.get(CONF_HOLD_STATE) and num == 46:
+        raise cv.Invalid(
+            f"GPIO{num} is input-only and cannot be held.",
+            [CONF_HOLD_STATE],
         )
 
     check_strapping_pin(value, _ESP32S2_STRAPPING_PINS, _LOGGER)

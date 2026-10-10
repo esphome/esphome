@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace axs15231 {
+namespace esphome::axs15231 {
 
-static const char *const TAG = "ax15231.touchscreen";
+ESPHOME_LOG_TAG(TAG, "ax15231.touchscreen");
 
 constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x8};
 
@@ -64,5 +63,4 @@ void AXS15231Touchscreen::dump_config() {
                 this->x_raw_max_, this->y_raw_max_);
 }
 
-}  // namespace axs15231
-}  // namespace esphome
+}  // namespace esphome::axs15231

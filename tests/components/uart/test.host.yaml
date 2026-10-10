@@ -5,7 +5,7 @@ esphome:
       - uart.write: [0x00, 0x20, 0x42]
 
 uart:
-  - id: uart_uart
+  - id: uart_id
     port: "/dev/ttyS0"
     baud_rate: 9600
     data_bits: 8

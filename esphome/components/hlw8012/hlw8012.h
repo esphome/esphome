@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace hlw8012 {
+namespace esphome::hlw8012 {
 
 enum HLW8012InitialMode { HLW8012_INITIAL_MODE_CURRENT = 0, HLW8012_INITIAL_MODE_VOLTAGE };
 
@@ -24,14 +23,13 @@ enum HLW8012SensorModels {
 #define USE_PCNT false
 #endif
 
-class HLW8012Component : public PollingComponent {
+class HLW8012Component final : public PollingComponent {
  public:
   HLW8012Component()
       : cf_store_(*pulse_counter::get_storage(USE_PCNT)), cf1_store_(*pulse_counter::get_storage(USE_PCNT)) {}
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_initial_mode(HLW8012InitialMode initial_mode) {
@@ -73,5 +71,4 @@ class HLW8012Component : public PollingComponent {
   float power_multiplier_{0.0f};
 };
 
-}  // namespace hlw8012
-}  // namespace esphome
+}  // namespace esphome::hlw8012

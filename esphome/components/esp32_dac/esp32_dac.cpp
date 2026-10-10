@@ -4,8 +4,7 @@
 
 #if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
 
-namespace esphome {
-namespace esp32_dac {
+namespace esphome::esp32_dac {
 
 #ifdef USE_ESP32_VARIANT_ESP32S2
 static constexpr uint8_t DAC0_PIN = 17;
@@ -13,7 +12,7 @@ static constexpr uint8_t DAC0_PIN = 17;
 static constexpr uint8_t DAC0_PIN = 25;
 #endif
 
-static const char *const TAG = "esp32_dac";
+ESPHOME_LOG_TAG(TAG, "esp32_dac");
 
 void ESP32DAC::setup() {
   this->pin_->setup();
@@ -41,7 +40,6 @@ void ESP32DAC::write_state(float state) {
   dac_oneshot_output_voltage(this->dac_handle_, state);
 }
 
-}  // namespace esp32_dac
-}  // namespace esphome
+}  // namespace esphome::esp32_dac
 
 #endif  // USE_ESP32_VARIANT_ESP32 || USE_ESP32_VARIANT_ESP32S2

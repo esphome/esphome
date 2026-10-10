@@ -1,10 +1,9 @@
 #include "tca9548a.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tca9548a {
+namespace esphome::tca9548a {
 
-static const char *const TAG = "tca9548a";
+ESPHOME_LOG_TAG(TAG, "tca9548a");
 
 i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                             uint8_t *read_buffer, size_t read_count) {
@@ -44,5 +43,4 @@ void TCA9548AComponent::disable_all_channels() {
   }
 }
 
-}  // namespace tca9548a
-}  // namespace esphome
+}  // namespace esphome::tca9548a

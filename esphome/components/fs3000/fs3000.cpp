@@ -1,10 +1,9 @@
 #include "fs3000.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace fs3000 {
+namespace esphome::fs3000 {
 
-static const char *const TAG = "fs3000";
+ESPHOME_LOG_TAG(TAG, "fs3000");
 
 void FS3000Component::setup() {
   if (model_ == FIVE) {
@@ -101,5 +100,4 @@ float FS3000Component::fit_raw_(uint16_t raw_value) {
   }
 }
 
-}  // namespace fs3000
-}  // namespace esphome
+}  // namespace esphome::fs3000

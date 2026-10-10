@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cst226 {
+namespace esphome::cst226 {
 
 static const uint8_t CST226_REG_STATUS = 0x00;
 
@@ -16,7 +15,7 @@ class CST226ButtonListener {
   virtual void update_button(bool state) = 0;
 };
 
-class CST226Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class CST226Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void update_touches() override;
@@ -40,5 +39,4 @@ class CST226Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   bool button_touched_{};
 };
 
-}  // namespace cst226
-}  // namespace esphome
+}  // namespace esphome::cst226

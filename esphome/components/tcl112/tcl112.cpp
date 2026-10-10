@@ -1,10 +1,9 @@
 #include "tcl112.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tcl112 {
+namespace esphome::tcl112 {
 
-static const char *const TAG = "tcl112.climate";
+ESPHOME_LOG_TAG(TAG, "tcl112.climate");
 
 const uint16_t TCL112_STATE_LENGTH = 14;
 const uint16_t TCL112_BITS = TCL112_STATE_LENGTH * 8;
@@ -89,7 +88,7 @@ void Tcl112Climate::transmit_state() {
 
   // Set fan
   uint8_t selected_fan;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       selected_fan = TCL112_FAN_HIGH;
       break;
@@ -240,5 +239,4 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace tcl112
-}  // namespace esphome
+}  // namespace esphome::tcl112

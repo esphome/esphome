@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef USE_BK72XX
+
 #include <MLX90393.h>
 #include <MLX90393Hal.h>
 #include "esphome/components/i2c/i2c.h"
@@ -7,8 +9,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace mlx90393 {
+namespace esphome::mlx90393 {
 
 enum MLX90393Setting {
   MLX90393_GAIN_SEL = 0,
@@ -21,11 +22,10 @@ enum MLX90393Setting {
   MLX90393_LAST,
 };
 
-class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
+class MLX90393Cls final : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_drdy_gpio(GPIOPin *pin) { drdy_pin_ = pin; }
@@ -77,5 +77,6 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   void verify_settings_timeout_(MLX90393Setting stage);
 };
 
-}  // namespace mlx90393
-}  // namespace esphome
+}  // namespace esphome::mlx90393
+
+#endif  // USE_BK72XX

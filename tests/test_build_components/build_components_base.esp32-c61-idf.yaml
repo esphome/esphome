@@ -1,0 +1,18 @@
+esphome:
+  name: componenttestesp32c61idf
+  friendly_name: $component_name
+
+esp32:
+  variant: ESP32C61
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

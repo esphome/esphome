@@ -1,10 +1,9 @@
 #include "bp1658cj.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bp1658cj {
+namespace esphome::bp1658cj {
 
-static const char *const TAG = "bp1658cj";
+ESPHOME_LOG_TAG(TAG, "bp1658cj");
 
 static const uint8_t BP1658CJ_MODEL_ID = 0x80;
 static const uint8_t BP1658CJ_ADDR_STANDBY = 0x0;
@@ -128,5 +127,4 @@ void BP1658CJ::write_buffer_(uint8_t *buffer, uint8_t size) {
   delayMicroseconds(BP1658CJ_DELAY);
 }
 
-}  // namespace bp1658cj
-}  // namespace esphome
+}  // namespace esphome::bp1658cj

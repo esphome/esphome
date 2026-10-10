@@ -5,8 +5,7 @@
 #include <vector>
 #include <chrono>
 
-namespace esphome {
-namespace defer_stress_component {
+namespace esphome::defer_stress_component {
 
 static const char *const TAG = "defer_stress";
 
@@ -71,5 +70,4 @@ void DeferStressComponent::run_multi_thread_test() {
   ESP_LOGI(TAG, "All threads finished in %lldms. Created %d defer requests", thread_time, this->total_defers_.load());
 }
 
-}  // namespace defer_stress_component
-}  // namespace esphome
+}  // namespace esphome::defer_stress_component

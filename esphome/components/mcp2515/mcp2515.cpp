@@ -1,10 +1,9 @@
 #include "mcp2515.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp2515 {
+namespace esphome::mcp2515 {
 
-static const char *const TAG = "mcp2515";
+ESPHOME_LOG_TAG(TAG, "mcp2515");
 
 const struct MCP2515::TxBnRegs MCP2515::TXB[N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
                                                             {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
@@ -133,8 +132,8 @@ uint8_t MCP2515::get_status_() {
 canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
   modify_register_(MCP_CANCTRL, CANCTRL_REQOP, mode);
 
-  uint32_t end_time = millis() + 10;
-  while (millis() < end_time) {
+  uint32_t start_time = millis();
+  while (millis() - start_time < 10) {
     if ((read_register_(MCP_CANSTAT) & CANSTAT_OPMOD) == mode)
       return canbus::ERROR_OK;
   }
@@ -506,6 +505,7 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
           cfg3 = MCP_12MHZ_40KBPS_CFG3;
           break;
         case (canbus::CAN_50KBPS):  //  50Kbps
+          cfg1 = MCP_12MHZ_50KBPS_CFG1;
           cfg2 = MCP_12MHZ_50KBPS_CFG2;
           cfg3 = MCP_12MHZ_50KBPS_CFG3;
           break;
@@ -706,5 +706,4 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
     return canbus::ERROR_FAIL;
   }
 }
-}  // namespace mcp2515
-}  // namespace esphome
+}  // namespace esphome::mcp2515

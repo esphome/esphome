@@ -1,7 +1,9 @@
+from esphome.build_helpers.pch import pch_script_enabled
 from esphome.const import __version__
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
-from esphome.writer import find_begin_end, update_storage_json
+from esphome.platformio.toolchain import copy_pch_script
+from esphome.writer import find_begin_end
 
 INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
 INI_AUTO_GENERATE_END = "; =========== AUTO GENERATED CODE END ============"
@@ -33,12 +35,27 @@ def format_ini(data: dict[str, str | list[str]]) -> str:
     return content
 
 
+# All -std= variants a platform/framework may set by default, in both the GNU
+# and strict dialects; unflagged so the cg.set_cpp_standard() value is the
+# only standard left in the build.
+CPP_STD_VARIANTS = [
+    f"{prefix}{year}"
+    for year in ("11", "14", "17", "20", "23", "26", "2a", "2b", "2c")
+    for prefix in ("gnu++", "c++")
+]
+
+
 def get_ini_content():
     CORE.add_platformio_option(
         "lib_deps",
         [x.as_lib_dep for x in CORE.platformio_libraries.values()]
         + ["${common.lib_deps}"],
     )
+    if CORE.cpp_standard:
+        for variant in CPP_STD_VARIANTS:
+            if variant != CORE.cpp_standard:
+                CORE.add_build_unflag(f"-std={variant}")
+        CORE.add_build_flag(f"-std={CORE.cpp_standard}")
     # Sort to avoid changing build flags order
     CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
@@ -47,6 +64,19 @@ def get_ini_content():
 
     # Add extra script for C++ flags
     CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])
+    if pch_script_enabled():
+        CORE.add_platformio_option("extra_scripts", ["post:pch.py"])
+
+    # Add CMake args. A user-supplied value (str or list) is deliberately
+    # replaced; this option was always overwritten at FINAL priority.
+    if CORE.cmake_args:
+        CORE.add_platformio_option(
+            "board_build.cmake_extra_args",
+            " ".join(
+                f"-D{name}={value}" for name, value in sorted(CORE.cmake_args.items())
+            ),
+            replace=True,
+        )
 
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
@@ -58,7 +88,6 @@ def get_ini_content():
 
 
 def write_ini(content):
-    update_storage_json()
     path = CORE.relative_build_path("platformio.ini")
 
     if path.is_file():
@@ -81,6 +110,8 @@ def write_project():
 
     # Write extra script for C++ specific flags
     write_cxx_flags_script()
+    if pch_script_enabled():
+        copy_pch_script()
 
 
 CXX_FLAGS_FILE_NAME = "cxx_flags.py"
@@ -94,7 +125,6 @@ Import("env")
 def write_cxx_flags_script() -> None:
     path = CORE.relative_build_path(CXX_FLAGS_FILE_NAME)
     contents = CXX_FLAGS_FILE_CONTENTS
-    if not CORE.is_host:
-        contents += 'env.Append(CXXFLAGS=["-Wno-volatile"])'
-        contents += "\n"
+    for flag in sorted(CORE.cxx_build_flags):
+        contents += f'env.Append(CXXFLAGS=["{flag}"])\n'
     write_file_if_changed(path, contents)

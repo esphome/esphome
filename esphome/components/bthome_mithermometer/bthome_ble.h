@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
@@ -8,12 +8,12 @@
 #include <initializer_list>
 #include <vector>
 
-#ifdef USE_ESP32
+// No platform #ifdef: ble_device_base provides the BLE types on every platform; this
+// component is only compiled when configured (which requires a BLE hub). bindkey (AES-CCM)
+// decryption availability is selected per platform in the .cpp.
+namespace esphome::bthome_mithermometer {
 
-namespace esphome {
-namespace bthome_mithermometer {
-
-class BTHomeMiThermometer : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, public Component {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(std::initializer_list<uint8_t> bindkey);
@@ -25,11 +25,11 @@ class BTHomeMiThermometer : public esp32_ble_tracker::ESPBTDeviceListener, publi
   void set_signal_strength(sensor::Sensor *signal_strength) { this->signal_strength_ = signal_strength; }
 
   void dump_config() override;
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 
  protected:
-  bool handle_service_data_(const esp32_ble_tracker::ServiceData &service_data,
-                            const esp32_ble_tracker::ESPBTDevice &device);
+  bool handle_service_data_(const ble_device_base::ServiceData &service_data,
+                            const ble_device_base::ESPBTDevice &device);
   bool decrypt_bthome_payload_(const std::vector<uint8_t> &data, uint64_t source_address,
                                std::vector<uint8_t> &payload) const;
 
@@ -45,7 +45,4 @@ class BTHomeMiThermometer : public esp32_ble_tracker::ESPBTDeviceListener, publi
   sensor::Sensor *signal_strength_{nullptr};
 };
 
-}  // namespace bthome_mithermometer
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::bthome_mithermometer

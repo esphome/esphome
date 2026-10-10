@@ -4,17 +4,14 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mpu6886 {
+namespace esphome::mpu6886 {
 
-class MPU6886Component : public PollingComponent, public i2c::I2CDevice {
+class MPU6886Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
 
   void update() override;
-
-  float get_setup_priority() const override;
 
   void set_accel_x_sensor(sensor::Sensor *accel_x_sensor) { accel_x_sensor_ = accel_x_sensor; }
   void set_accel_y_sensor(sensor::Sensor *accel_y_sensor) { accel_y_sensor_ = accel_y_sensor; }
@@ -33,7 +30,5 @@ class MPU6886Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *gyro_y_sensor_{nullptr};
   sensor::Sensor *gyro_z_sensor_{nullptr};
 };
-;
 
-}  // namespace mpu6886
-}  // namespace esphome
+}  // namespace esphome::mpu6886

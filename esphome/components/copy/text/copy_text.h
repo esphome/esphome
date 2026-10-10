@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text/text.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-class CopyText : public text::Text, public Component {
+class CopyText final : public text::Text, public Component {
  public:
   void set_source(text::Text *source) { source_ = source; }
   void setup() override;
@@ -18,5 +17,4 @@ class CopyText : public text::Text, public Component {
   text::Text *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

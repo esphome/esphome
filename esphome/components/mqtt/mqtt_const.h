@@ -243,6 +243,7 @@
   X(MQTT_STATE_VALUE_TEMPLATE, "stat_val_tpl", "state_value_template") \
   X(MQTT_STEP, "step", "step") \
   X(MQTT_SUBTYPE, "stype", "subtype") \
+  X(MQTT_SUGGESTED_DISPLAY_PRECISION, "sug_dsp_prc", "suggested_display_precision") \
   X(MQTT_SUPPORTED_COLOR_MODES, "sup_clrm", "supported_color_modes") \
   X(MQTT_SUPPORTED_FEATURES, "sup_feat", "supported_features") \
   X(MQTT_SWING_MODE_COMMAND_TEMPLATE, "swing_mode_cmd_tpl", "swing_mode_command_template") \

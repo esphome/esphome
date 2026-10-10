@@ -1,0 +1,84 @@
+esphome:
+  name: test-line
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO3
+
+lvgl:
+  widgets:
+    # Dict format
+    - line:
+        id: line_dict
+        points:
+          - x: 10
+            y: 20
+          - x: 100
+            y: 200
+          - x: 0
+            y: 0
+
+    # List format
+    - line:
+        id: line_list
+        points:
+          - [10, 20]
+          - [100, 200]
+          - [0, 0]
+
+    # String format
+    - line:
+        id: line_string
+        points:
+          - "10, 20"
+          - "100, 200"
+          - "0, 0"
+
+    # Percentage - dict format
+    - line:
+        id: line_pct_dict
+        points:
+          - x: "50%"
+            y: "75%"
+
+    # Percentage - list format
+    - line:
+        id: line_pct_list
+        points:
+          - ["50%", "75%"]
+
+    # Percentage - string format
+    - line:
+        id: line_pct_string
+        points:
+          - "50%, 75%"
+
+    # Mixed integer and percentage
+    - line:
+        id: line_mixed_dict
+        points:
+          - x: 10
+            y: "50%"
+          - x: "25%"
+            y: 200
+
+    - line:
+        id: line_mixed_list
+        points:
+          - [10, "50%"]
+          - ["25%", 200]

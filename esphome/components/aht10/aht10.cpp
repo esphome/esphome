@@ -17,10 +17,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace aht10 {
+namespace esphome::aht10 {
 
-static const char *const TAG = "aht10";
+ESPHOME_LOG_TAG(TAG, "aht10");
 static const uint8_t AHT10_INITIALIZE_CMD[] = {0xE1, 0x08, 0x00};
 static const uint8_t AHT20_INITIALIZE_CMD[] = {0xBE, 0x08, 0x00};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
@@ -150,8 +149,6 @@ void AHT10Component::update() {
   this->restart_read_();
 }
 
-float AHT10Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void AHT10Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AHT10:");
   LOG_I2C_DEVICE(this);
@@ -162,5 +159,4 @@ void AHT10Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-}  // namespace aht10
-}  // namespace esphome
+}  // namespace esphome::aht10

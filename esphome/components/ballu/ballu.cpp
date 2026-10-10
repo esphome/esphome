@@ -1,10 +1,9 @@
 #include "ballu.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ballu {
+namespace esphome::ballu {
 
-static const char *const TAG = "ballu.climate";
+ESPHOME_LOG_TAG(TAG, "ballu.climate");
 
 const uint16_t BALLU_HEADER_MARK = 9000;
 const uint16_t BALLU_HEADER_SPACE = 4500;
@@ -47,7 +46,7 @@ void BalluClimate::transmit_state() {
   remote_state[11] = 0x1e;
 
   // Fan speed
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[4] |= BALLU_FAN_HIGH;
       break;
@@ -235,5 +234,4 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace ballu
-}  // namespace esphome
+}  // namespace esphome::ballu

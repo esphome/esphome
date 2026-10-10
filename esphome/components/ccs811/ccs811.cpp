@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ccs811 {
+namespace esphome::ccs811 {
 
-static const char *const TAG = "ccs811";
+ESPHOME_LOG_TAG(TAG, "ccs811");
 
 // based on
 //  - https://cdn.sparkfun.com/datasheets/BreakoutBoards/CCS811_Programming_Guide.pdf
@@ -186,5 +185,4 @@ void CCS811Component::dump_config() {
   }
 }
 
-}  // namespace ccs811
-}  // namespace esphome
+}  // namespace esphome::ccs811

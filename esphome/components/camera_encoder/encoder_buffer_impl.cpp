@@ -4,7 +4,8 @@ namespace esphome::camera_encoder {
 
 bool EncoderBufferImpl::set_buffer_size(size_t size) {
   if (size > this->capacity_) {
-    uint8_t *p = this->allocator_.reallocate(this->data_, size);
+    RAMAllocator<uint8_t> allocator;
+    uint8_t *p = allocator.reallocate(this->data_, size);
     if (p == nullptr)
       return false;
 
@@ -16,8 +17,10 @@ bool EncoderBufferImpl::set_buffer_size(size_t size) {
 }
 
 EncoderBufferImpl::~EncoderBufferImpl() {
-  if (this->data_ != nullptr)
-    this->allocator_.deallocate(this->data_, this->capacity_);
+  if (this->data_ != nullptr) {
+    RAMAllocator<uint8_t> allocator;
+    allocator.deallocate(this->data_, this->capacity_);
+  }
 }
 
 }  // namespace esphome::camera_encoder

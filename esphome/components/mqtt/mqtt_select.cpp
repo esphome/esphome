@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.select";
+ESPHOME_LOG_TAG(TAG, "mqtt.select");
 
 using namespace esphome::select;
 
@@ -50,7 +50,8 @@ bool MQTTSelectComponent::send_initial_state() {
   }
 }
 bool MQTTSelectComponent::publish_state(const std::string &value) {
-  return this->publish(this->get_state_topic_(), value);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
 }
 
 }  // namespace esphome::mqtt

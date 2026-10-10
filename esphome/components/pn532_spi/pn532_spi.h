@@ -4,14 +4,13 @@
 #include "esphome/components/pn532/pn532.h"
 #include "esphome/components/spi/spi.h"
 
-#include <vector>
+#include <span>
 
-namespace esphome {
-namespace pn532_spi {
+namespace esphome::pn532_spi {
 
-class PN532Spi : public pn532::PN532,
-                 public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                       spi::DATA_RATE_1MHZ> {
+class PN532Spi final : public pn532::PN532,
+                       public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   void setup() override;
 
@@ -19,10 +18,9 @@ class PN532Spi : public pn532::PN532,
 
  protected:
   bool is_read_ready() override;
-  bool write_data(const std::vector<uint8_t> &data) override;
-  bool read_data(std::vector<uint8_t> &data, uint8_t len) override;
-  bool read_response(uint8_t command, std::vector<uint8_t> &data) override;
+  bool write_data(std::span<const uint8_t> data) override;
+  bool read_data(pn532::PN532Frame &data, size_t len) override;
+  bool read_response(uint8_t command, pn532::PN532Frame &data) override;
 };
 
-}  // namespace pn532_spi
-}  // namespace esphome
+}  // namespace esphome::pn532_spi

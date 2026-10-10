@@ -23,8 +23,7 @@
 #include "esphome/components/graphical_display_menu/graphical_display_menu.h"
 #endif
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 /** TextAlign is used to tell the display class how to position a piece of text. By default
  * the coordinates you enter for the print*() functions take the upper left corner of the text
@@ -288,19 +287,21 @@ template<typename T> class DisplayWriter {
 // Type alias for Display writer - uses optimized DisplayWriter instead of std::function
 using display_writer_t = DisplayWriter<Display>;
 
+// Callers usually pass `this`; checking a copy keeps GCC's -Wnonnull-compare quiet.
 #define LOG_DISPLAY(prefix, type, obj) \
-  if ((obj) != nullptr) { \
+  if (auto *log_display_obj = (obj); log_display_obj != nullptr) { \
     ESP_LOGCONFIG(TAG, \
                   prefix type "\n" \
                               "%s  Rotations: %d °\n" \
                               "%s  Dimensions: %dpx x %dpx", \
-                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
+                  prefix, log_display_obj->rotation_, prefix, log_display_obj->get_width(), \
+                  log_display_obj->get_height()); \
   }
 
 /// Turn the pixel OFF.
-extern const Color COLOR_OFF;
+inline constexpr Color COLOR_OFF(0, 0, 0, 0);
 /// Turn the pixel ON.
-extern const Color COLOR_ON;
+inline constexpr Color COLOR_ON(255, 255, 255, 255);
 
 class BaseImage {
  public:
@@ -704,7 +705,7 @@ class Display : public PollingComponent {
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
   /// Internal method to set the display rotation with.
-  void set_rotation(DisplayRotation rotation);
+  virtual void set_rotation(DisplayRotation rotation);
 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
@@ -759,6 +760,13 @@ class Display : public PollingComponent {
 
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
+  /// Whether (x, y) falls outside the active clipping rectangle. Tests the
+  /// stack top in place: get_clipping() is out of line and returns the Rect
+  /// by value, which per pixel drawing cannot afford.
+  bool ESPHOME_ALWAYS_INLINE is_point_clipped(int x, int y) const {
+    return this->is_clipping() && !this->clipping_rectangle_.back().inside(x, y);
+  }
+
   /** Check if pixel is within region of display.
    */
   bool clip(int x, int y);
@@ -774,6 +782,17 @@ class Display : public PollingComponent {
 
   void do_update_();
   void clear_clipping_();
+
+  /// Watchdog feed for per pixel loops. App.feed_wdt() is already rate
+  /// limited, but every call reads the clock; only every 256th pixel makes
+  /// that call, so the real feeds are unchanged and a pixel costs a counter.
+  /// At 20 us per pixel on the slowest e-paper path that is about 5 ms
+  /// between clock reads.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_per_pixel_() {
+    if (++this->wdt_pixel_counter_ == 0)
+      this->feed_wdt_pixel_slow_();
+  }
+  void feed_wdt_pixel_slow_();
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
@@ -794,18 +813,19 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+  uint8_t wdt_pixel_counter_{0};
   bool show_test_card_{false};
 };
 
-class DisplayPage {
+class DisplayPage final {
  public:
   DisplayPage(display_writer_t writer);
   void show();
   void show_next();
   void show_prev();
-  void set_parent(Display *parent);
-  void set_prev(DisplayPage *prev);
-  void set_next(DisplayPage *next);
+  void set_parent(Display *parent) { this->parent_ = parent; }
+  void set_prev(DisplayPage *prev) { this->prev_ = prev; }
+  void set_next(DisplayPage *next) { this->next_ = next; }
   const display_writer_t &get_writer() const;
 
  protected:
@@ -815,7 +835,10 @@ class DisplayPage {
   DisplayPage *next_{nullptr};
 };
 
-template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
+inline void Display::show_next_page() { this->page_->show_next(); }
+inline void Display::show_prev_page() { this->page_->show_prev(); }
+
+template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(DisplayPage *, page)
 
@@ -827,37 +850,7 @@ template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
   }
 };
 
-template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> {
- public:
-  DisplayPageShowNextAction(Display *buffer) : buffer_(buffer) {}
-
-  void play(const Ts &...x) override { this->buffer_->show_next_page(); }
-
-  Display *buffer_;
-};
-
-template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> {
- public:
-  DisplayPageShowPrevAction(Display *buffer) : buffer_(buffer) {}
-
-  void play(const Ts &...x) override { this->buffer_->show_prev_page(); }
-
-  Display *buffer_;
-};
-
-template<typename... Ts> class DisplayIsDisplayingPageCondition : public Condition<Ts...> {
- public:
-  DisplayIsDisplayingPageCondition(Display *parent) : parent_(parent) {}
-
-  void set_page(DisplayPage *page) { this->page_ = page; }
-  bool check(const Ts &...x) override { return this->parent_->get_active_page() == this->page_; }
-
- protected:
-  Display *parent_;
-  DisplayPage *page_;
-};
-
-class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> {
+class DisplayOnPageChangeTrigger final : public Trigger<DisplayPage *, DisplayPage *> {
  public:
   explicit DisplayOnPageChangeTrigger(Display *parent) { parent->add_on_page_change_trigger(this); }
   void process(DisplayPage *from, DisplayPage *to);
@@ -871,5 +864,4 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
 
 const LogString *text_align_to_string(TextAlign textalign);
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

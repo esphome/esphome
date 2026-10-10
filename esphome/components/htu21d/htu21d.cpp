@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace htu21d {
+namespace esphome::htu21d {
 
-static const char *const TAG = "htu21d";
+ESPHOME_LOG_TAG(TAG, "htu21d");
 
 static const uint8_t HTU21D_ADDRESS = 0x40;
 static const uint8_t HTU21D_REGISTER_RESET = 0xFE;
@@ -143,7 +142,4 @@ uint8_t HTU21DComponent::get_heater_level() {
   return raw_heater & 0xF;
 }
 
-float HTU21DComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace htu21d
-}  // namespace esphome
+}  // namespace esphome::htu21d

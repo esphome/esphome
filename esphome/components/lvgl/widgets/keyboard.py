@@ -3,10 +3,11 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ITEMS, CONF_MODE
 from esphome.cpp_types import std_string
 
-from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
-from ..helpers import add_lv_use, lvgl_components_required
+from ..defines import CONF_MAIN, KEYBOARD_MODES, get_widget_map, literal
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets
+from .buttonmatrix import CONF_BUTTONMATRIX
+from .label import CONF_LABEL
 from .textarea import CONF_TEXTAREA, lv_textarea_t
 
 CONF_KEYBOARD = "keyboard"
@@ -41,16 +42,32 @@ class KeyboardType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_KEYBOARD, CONF_TEXTAREA
+        return (
+            CONF_KEYBOARD,
+            CONF_TEXTAREA,
+            CONF_BUTTONMATRIX,
+            CONF_LABEL,
+            "KEY_LISTENER",
+        )
 
     async def to_code(self, w: Widget, config: dict):
-        lvgl_components_required.add("KEY_LISTENER")
-        lvgl_components_required.add(CONF_KEYBOARD)
-        add_lv_use("btnmatrix")
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
-        if ta := await get_widgets(config, CONF_TEXTAREA):
-            await w.set_property(CONF_TEXTAREA, ta[0].obj)
+
+    async def update_to_code(self, w: "Widget", config: dict) -> None:
+        await self.to_code(w, config)
+        if config.get(CONF_TEXTAREA):
+            await w.set_property(
+                CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
+            )
+
+
+async def attach_textareas():
+    for w in get_widget_map().values():
+        if w.type == keyboard_spec and w.config.get(CONF_TEXTAREA):
+            await w.set_property(
+                CONF_TEXTAREA, (await get_widgets(w.config, CONF_TEXTAREA))[0].obj
+            )
 
 
 keyboard_spec = KeyboardType()

@@ -4,10 +4,9 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace monochromatic {
+namespace esphome::monochromatic {
 
-class MonochromaticLightOutput : public light::LightOutput {
+class MonochromaticLightOutput final : public light::LightOutput {
  public:
   void set_output(output::FloatOutput *output) { output_ = output; }
   light::LightTraits get_traits() override {
@@ -25,5 +24,4 @@ class MonochromaticLightOutput : public light::LightOutput {
   output::FloatOutput *output_;
 };
 
-}  // namespace monochromatic
-}  // namespace esphome
+}  // namespace esphome::monochromatic

@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct DraytonData {
   uint16_t address;
@@ -20,9 +19,9 @@ struct DraytonData {
 
 class DraytonProtocol : public RemoteProtocol<DraytonData> {
  public:
-  void encode(RemoteTransmitData *dst, const DraytonData &data) override;
-  optional<DraytonData> decode(RemoteReceiveData src) override;
-  void dump(const DraytonData &data) override;
+  void encode(RemoteTransmitData *dst, const DraytonData &data);
+  optional<DraytonData> decode(RemoteReceiveData src);
+  void dump(const DraytonData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Drayton)
@@ -42,5 +41,4 @@ template<typename... Ts> class DraytonAction : public RemoteTransmitterActionBas
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bl0939 {
+namespace esphome::bl0939 {
 
-static const char *const TAG = "bl0939";
+ESPHOME_LOG_TAG(TAG, "bl0939");
 
 // https://www.belling.com.cn/media/file_object/bel_product/BL0939/datasheet/BL0939_V1.2_cn.pdf
 // (unfortunately chinese, but the protocol can be understood with some translation tool)
@@ -142,5 +141,4 @@ uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 
 
 int32_t BL0939::to_int32_t(sbe24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 
-}  // namespace bl0939
-}  // namespace esphome
+}  // namespace esphome::bl0939

@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "tmp1075.h"
 
-namespace esphome {
-namespace tmp1075 {
+namespace esphome::tmp1075 {
 
-static const char *const TAG = "tmp1075";
+ESPHOME_LOG_TAG(TAG, "tmp1075");
 
 constexpr uint8_t REG_TEMP = 0x0;   // Temperature result
 constexpr uint8_t REG_CFGR = 0x1;   // Configuration
@@ -118,8 +117,8 @@ void TMP1075Sensor::send_alert_limit_high_() {
 }
 
 static uint16_t temp2regvalue(const float temp) {
-  const uint16_t regvalue = temp / 0.0625f;
-  return regvalue << 4;
+  const int16_t regvalue = static_cast<int16_t>(temp / 0.0625f);
+  return static_cast<uint16_t>(regvalue << 4);
 }
 
 static float regvalue2temp(const uint16_t regvalue) {
@@ -127,5 +126,4 @@ static float regvalue2temp(const uint16_t regvalue) {
   return (signed_value >> 4) * 0.0625f;
 }
 
-}  // namespace tmp1075
-}  // namespace esphome
+}  // namespace esphome::tmp1075

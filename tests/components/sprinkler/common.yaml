@@ -31,10 +31,22 @@ esphome:
           id: yard_sprinkler_ctrlr
           valve_number: 0
           run_duration: 600s
+      # Templated values, including both keys of the two-key calls
+      - sprinkler.set_multiplier:
+          id: yard_sprinkler_ctrlr
+          multiplier: !lambda return 1.5f;
+      - sprinkler.queue_valve:
+          id: yard_sprinkler_ctrlr
+          valve_number: !lambda return 1;
+          run_duration: !lambda return 300;
+      - sprinkler.set_valve_run_duration:
+          id: yard_sprinkler_ctrlr
+          valve_number: !lambda return 1;
+          run_duration: !lambda return 120;
 
 switch:
   - platform: template
-    id: switch1
+    id: sprinkler_switch1
     optimistic: true
   - platform: template
     id: switch2
@@ -52,17 +64,17 @@ sprinkler:
     valves:
       - valve_switch: Yard Valve 0
         enable_switch: Enable Yard Valve 0
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
       - valve_switch: Yard Valve 1
         enable_switch: Enable Yard Valve 1
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
       - valve_switch: Yard Valve 2
         enable_switch: Enable Yard Valve 2
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
   - id: garden_sprinkler_ctrlr
@@ -73,11 +85,11 @@ sprinkler:
     valves:
       - valve_switch: Garden Valve 0
         enable_switch: Enable Garden Valve 0
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2
       - valve_switch: Garden Valve 1
         enable_switch: Enable Garden Valve 1
-        pump_switch_id: switch1
+        pump_switch_id: sprinkler_switch1
         run_duration: 10s
         valve_switch_id: switch2

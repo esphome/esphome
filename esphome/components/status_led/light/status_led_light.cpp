@@ -3,10 +3,9 @@
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace status_led {
+namespace esphome::status_led {
 
-static const char *const TAG = "status_led";
+ESPHOME_LOG_TAG(TAG, "status_led");
 
 void StatusLEDLightOutput::loop() {
   uint8_t new_state = App.get_app_state() & STATUS_LED_MASK;
@@ -71,5 +70,4 @@ void StatusLEDLightOutput::output_state_(bool state) {
     this->output_->set_state(state);
 }
 
-}  // namespace status_led
-}  // namespace esphome
+}  // namespace esphome::status_led

@@ -1,15 +1,19 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_THROTTLE
+from esphome.const import CONF_ID, CONF_ON_DATA, CONF_THROTTLE
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@hareeshmu"]
+DOMAIN = "ld2450"
 MULTI_CONF = True
 
 ld2450_ns = cg.esphome_ns.namespace("ld2450")
 LD2450Component = ld2450_ns.class_("LD2450Component", cg.Component, uart.UARTDevice)
+
 
 CONF_LD2450_ID = "ld2450_id"
 
@@ -20,6 +24,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_THROTTLE): cv.invalid(
                 f"{CONF_THROTTLE} has been removed; use per-sensor filters, instead"
             ),
+            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -41,7 +46,13 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_DATA, "add_on_data_callback"),
+)
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

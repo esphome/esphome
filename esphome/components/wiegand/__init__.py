@@ -3,8 +3,10 @@ import esphome.codegen as cg
 from esphome.components import key_provider
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_KEY, CONF_ON_TAG, CONF_TRIGGER_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "wiegand"
 
 AUTO_LOAD = ["key_provider"]
 
@@ -48,10 +50,10 @@ CONFIG_SCHEMA = cv.Schema(
             }
         ),
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     pin = await cg.gpio_pin_expression(config[CONF_D0])

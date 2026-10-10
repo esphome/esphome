@@ -6,10 +6,11 @@
 #include <Wire.h>
 #endif
 
-namespace esphome {
-namespace scd30 {
+namespace esphome::scd30 {
 
-static const char *const TAG = "scd30";
+ESPHOME_LOG_TAG(TAG, "scd30");
+
+static constexpr uint32_t STATUS_CHECK_INTERVAL_ID = 0;
 
 static const uint16_t SCD30_CMD_GET_FIRMWARE_VERSION = 0xd100;
 static const uint16_t SCD30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
@@ -108,7 +109,7 @@ void SCD30Component::setup() {
   }
 
   // check each 500ms if data is ready, and read it in that case
-  this->set_interval("status-check", 500, [this]() {
+  this->set_interval(STATUS_CHECK_INTERVAL_ID, 500, [this]() {
     if (this->is_data_ready_())
       this->update();
   });
@@ -222,7 +223,7 @@ bool SCD30Component::force_recalibration_with_reference(uint16_t co2_reference) 
 }
 
 uint16_t SCD30Component::get_forced_calibration_reference() {
-  uint16_t forced_calibration_reference;
+  uint16_t forced_calibration_reference = 0;
   // Get current CO2 calibration
   if (!this->get_register(SCD30_CMD_FORCED_CALIBRATION, forced_calibration_reference)) {
     ESP_LOGE(TAG, "Unable to read forced calibration reference.");
@@ -230,5 +231,4 @@ uint16_t SCD30Component::get_forced_calibration_reference() {
   return forced_calibration_reference;
 }
 
-}  // namespace scd30
-}  // namespace esphome
+}  // namespace esphome::scd30

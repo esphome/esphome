@@ -5,8 +5,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 class DfrobotSen0395Component;
 
@@ -30,11 +29,9 @@ class Command {
 
 class ReadStateCommand : public Command {
  public:
+  ReadStateCommand() { timeout_ms_ = 500; }
   uint8_t execute(DfrobotSen0395Component *parent) override;
   uint8_t on_message(std::string &message) override;
-
- protected:
-  uint32_t timeout_ms_{500};
 };
 
 class PowerCommand : public Command {
@@ -99,12 +96,12 @@ class ResetSystemCommand : public Command {
 
 class SaveCfgCommand : public Command {
  public:
-  SaveCfgCommand() { cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89"; }
+  SaveCfgCommand() {
+    cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
+    cmd_duration_ms_ = 3000;
+    timeout_ms_ = 3500;
+  }
   uint8_t on_message(std::string &message) override;
-
- protected:
-  uint32_t cmd_duration_ms_{3000};
-  uint32_t timeout_ms_{3500};
 };
 
 class LedModeCommand : public Command {
@@ -152,5 +149,4 @@ class SensitivityCommand : public Command {
   uint8_t sensitivity_;
 };
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

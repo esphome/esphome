@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct NexaData {
   uint32_t device;
@@ -25,9 +24,9 @@ class NexaProtocol : public RemoteProtocol<NexaData> {
   void zero(RemoteTransmitData *dst) const;
   void sync(RemoteTransmitData *dst) const;
 
-  void encode(RemoteTransmitData *dst, const NexaData &data) override;
-  optional<NexaData> decode(RemoteReceiveData src) override;
-  void dump(const NexaData &data) override;
+  void encode(RemoteTransmitData *dst, const NexaData &data);
+  optional<NexaData> decode(RemoteReceiveData src);
+  void dump(const NexaData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Nexa)
@@ -50,5 +49,4 @@ template<typename... Ts> class NexaAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

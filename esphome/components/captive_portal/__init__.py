@@ -1,8 +1,9 @@
 import logging
 
 import esphome.codegen as cg
-from esphome.components import web_server_base
+from esphome.components import web_server_base, wifi
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,6 +14,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -33,6 +35,7 @@ def AUTO_LOAD() -> list[str]:
 
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "captive_portal"
 
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
@@ -53,15 +56,16 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_BK72XX,
             PLATFORM_LN882X,
+            PLATFORM_RP2,
             PLATFORM_RTL87XX,
         ]
     ),
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
-    wifi_conf = full_config.get("wifi")
+    wifi_conf = full_config.get(WIFI_DOMAIN)
 
     if wifi_conf is None:
         # This shouldn't happen due to DEPENDENCIES = ["wifi"], but check anyway
@@ -76,36 +80,36 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     # Register socket needs for DNS server and additional HTTP connections
     # - 1 UDP socket for DNS server
-    # - 3 additional TCP sockets for captive portal detection probes + configuration requests
+    # - 3 TCP sockets for captive portal detection probes + configuration requests
     #   OS captive portal detection makes multiple probe requests that stay in TIME_WAIT.
     #   Need headroom for actual user configuration requests.
     #   LRU purging will reclaim idle sockets to prevent exhaustion from repeated attempts.
+    # The listening socket is registered by web_server_base (shared HTTP server).
     from esphome.components import socket
 
-    socket.consume_sockets(4, "captive_portal")(config)
-
-    return config
+    socket.consume_sockets(3, "captive_portal")(config)
+    socket.consume_sockets(1, "captive_portal", socket.SocketType.UDP)(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.CAPTIVE_PORTAL)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
+    # The portal reads wifi scan results from the web server task; this makes the
+    # wifi component guard them with a lock on multi-threaded platforms.
+    wifi.request_wifi_scan_results_lock()
 
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
 
-    if CORE.using_arduino:
-        if CORE.is_esp8266:
-            cg.add_library("DNSServer", None)
-        if CORE.is_libretiny:
-            cg.add_library("DNSServer", None)
+    if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2):
+        cg.add_library("DNSServer", None)
 
 
 # Only compile the ESP-IDF DNS server when using ESP-IDF framework

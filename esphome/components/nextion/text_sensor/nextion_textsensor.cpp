@@ -2,9 +2,9 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nextion {
-static const char *const TAG = "nextion_textsensor";
+namespace esphome::nextion {
+
+ESPHOME_LOG_TAG(TAG, "nextion_textsensor");
 
 void NextionTextSensor::process_text(const std::string &variable_name, const std::string &text_value) {
   if (!this->nextion_->is_setup())
@@ -45,5 +45,4 @@ void NextionTextSensor::set_state(const std::string &state, bool publish, bool s
   ESP_LOGN(TAG, "Write: %s='%s'", this->variable_name_.c_str(), state.c_str());
 }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

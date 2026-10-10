@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTValveComponent : public mqtt::MQTTComponent {
+class MQTTValveComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTValveComponent(valve::Valve *valve);
 

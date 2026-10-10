@@ -7,13 +7,14 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MILLIMETER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@pkejval"]
 DEPENDENCIES = ["i2c"]
 
 gl_r01_i2c_ns = cg.esphome_ns.namespace("gl_r01_i2c")
 GLR01I2CComponent = gl_r01_i2c_ns.class_(
-    "GLR01I2CComponent", i2c.I2CDevice, cg.PollingComponent
+    "GLR01I2CComponent", sensor.Sensor, i2c.I2CDevice, cg.PollingComponent
 )
 
 CONFIG_SCHEMA = (
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)

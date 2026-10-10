@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct SonyData {
   uint32_t data;
@@ -17,9 +16,9 @@ struct SonyData {
 
 class SonyProtocol : public RemoteProtocol<SonyData> {
  public:
-  void encode(RemoteTransmitData *dst, const SonyData &data) override;
-  optional<SonyData> decode(RemoteReceiveData src) override;
-  void dump(const SonyData &data) override;
+  void encode(RemoteTransmitData *dst, const SonyData &data);
+  optional<SonyData> decode(RemoteReceiveData src);
+  void dump(const SonyData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Sony)
@@ -37,5 +36,4 @@ template<typename... Ts> class SonyAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

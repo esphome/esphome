@@ -1,10 +1,9 @@
 #include "copy_binary_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-static const char *const TAG = "copy.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "copy.binary_sensor");
 
 void CopyBinarySensor::setup() {
   source_->add_on_state_callback([this](bool value) { this->publish_state(value); });
@@ -14,5 +13,4 @@ void CopyBinarySensor::setup() {
 
 void CopyBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Copy Binary Sensor", this); }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

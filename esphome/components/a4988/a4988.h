@@ -4,10 +4,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/stepper/stepper.h"
 
-namespace esphome {
-namespace a4988 {
+namespace esphome::a4988 {
 
-class A4988 : public stepper::Stepper, public Component {
+class A4988 final : public stepper::Stepper, public Component {
  public:
   void set_step_pin(GPIOPin *step_pin) { step_pin_ = step_pin; }
   void set_dir_pin(GPIOPin *dir_pin) { dir_pin_ = dir_pin; }
@@ -25,5 +24,4 @@ class A4988 : public stepper::Stepper, public Component {
   HighFrequencyLoopRequester high_freq_;
 };
 
-}  // namespace a4988
-}  // namespace esphome
+}  // namespace esphome::a4988

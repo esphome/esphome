@@ -15,10 +15,9 @@
 
 #include <vector>
 
-namespace esphome {
-namespace daly_bms {
+namespace esphome::daly_bms {
 
-class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
+class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   DalyBmsComponent() = default;
 
@@ -72,7 +71,6 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void loop() override;
 
-  float get_setup_priority() const override;
   void set_address(uint8_t address) { this->addr_ = address; }
 
  protected:
@@ -89,5 +87,4 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   uint8_t next_request_;
 };
 
-}  // namespace daly_bms
-}  // namespace esphome
+}  // namespace esphome::daly_bms

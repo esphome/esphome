@@ -3,10 +3,16 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#include <cstring>
+
+#ifdef USE_ESP32
+#include <esp_memory_utils.h>
+#endif
 
 namespace esphome::cc1101 {
 
-static const char *const TAG = "cc1101";
+ESPHOME_LOG_TAG(TAG, "cc1101");
+static constexpr size_t TX_FIFO_SIZE = 64;
 
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
@@ -102,8 +108,34 @@ CC1101Component::CC1101Component() {
   memset(this->pa_table_, 0, sizeof(this->pa_table_));
 }
 
+void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) { arg->enable_loop_soon_any_context(); }
+
 void CC1101Component::setup() {
   this->spi_setup();
+
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->setup();
+  }
+
+  this->configure();
+  if (this->is_failed()) {
+    return;
+  }
+
+  // Defer pin mode setup until after all components have completed setup()
+  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
+  if (this->gdo0_pin_ != nullptr) {
+    this->defer([this]() {
+      this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
+      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      }
+    });
+  }
+}
+
+void CC1101Component::configure() {
+  // Manual reset sequence per CC1101 datasheet section 19.1.2
   this->cs_->digital_write(true);
   delayMicroseconds(1);
   this->cs_->digital_write(false);
@@ -126,11 +158,6 @@ void CC1101Component::setup() {
     return;
   }
 
-  // Setup GDO0 pin if configured
-  if (this->gdo0_pin_ != nullptr) {
-    this->gdo0_pin_->setup();
-  }
-
   this->initialized_ = true;
 
   for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
@@ -140,15 +167,10 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
+
   if (!this->enter_rx_()) {
     this->mark_failed();
     return;
-  }
-
-  // Defer pin mode setup until after all components have completed setup()
-  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
-  if (this->gdo0_pin_ != nullptr) {
-    this->defer([this]() { this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT); });
   }
 }
 
@@ -156,10 +178,11 @@ void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float 
   for (auto &listener : this->listeners_) {
     listener->on_packet(packet, freq_offset, rssi, lqi);
   }
-  this->packet_trigger_->trigger(packet, freq_offset, rssi, lqi);
+  this->packet_trigger_.trigger(packet, freq_offset, rssi, lqi);
 }
 
 void CC1101Component::loop() {
+  this->disable_loop();
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
       !this->gdo0_pin_->digital_read()) {
     return;
@@ -236,12 +259,22 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
+  // Read the mode before the PKTCTRL0 write below overwrites it in state_
+  const bool packet_mode = this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
   // Ensure Packet Format is 3 (Async Serial)
   this->write_(Register::PKTCTRL0, 0x32);
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
+    // setup() only attaches the interrupt in packet mode. In async serial mode the pin may be
+    // shared with remote_receiver, and detaching here would remove the receiver's interrupt.
+    if (packet_mode) {
+      this->gdo0_pin_->detach_interrupt();
+    }
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
+  // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can
+  // block TX entry when strobing from RX, and to ensure FS_AUTOCAL calibration
+  this->enter_idle_();
   if (!this->enter_tx_()) {
     ESP_LOGW(TAG, "Failed to enter TX state!");
   }
@@ -252,6 +285,8 @@ void CC1101Component::begin_rx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   }
+  // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
+  this->enter_idle_();
   if (!this->enter_rx_()) {
     ESP_LOGW(TAG, "Failed to enter RX state!");
   }
@@ -259,7 +294,7 @@ void CC1101Component::begin_rx() {
 
 void CC1101Component::reset() {
   this->strobe_(Command::RES);
-  this->setup();
+  this->configure();
 }
 
 void CC1101Component::set_idle() {
@@ -356,18 +391,32 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
   this->disable();
 }
 
-CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
+CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+    return CC1101Error::PARAMS;
+  }
+  const bool variable = this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
+  // In variable length mode the FIFO also holds the length byte
+  if (len + (variable ? 1 : 0) > TX_FIFO_SIZE) {
+    ESP_LOGE(TAG, "Packet of %u bytes does not fit the TX FIFO", static_cast<unsigned>(len));
     return CC1101Error::PARAMS;
   }
 
   // Write packet
   this->enter_idle_();
   this->strobe_(Command::FTX);
-  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
-    this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
+  if (variable) {
+    this->write_(Register::FIFO, static_cast<uint8_t>(len));
   }
-  this->write_(Register::FIFO, packet.data(), packet.size());
+#ifdef USE_ESP32
+  // SPI DMA cannot read flash or unaligned buffers; stage them here so the driver does not allocate a copy
+  alignas(4) uint8_t staged[TX_FIFO_SIZE];
+  if (len != 0 && (!esp_ptr_dma_capable(data) || (reinterpret_cast<uintptr_t>(data) & 3) != 0)) {
+    std::memcpy(staged, data, len);
+    data = staged;
+  }
+#endif
+  this->write_(Register::FIFO, data, len);
 
   // Calibrate PLL
   if (!this->enter_calibrated_(State::FSTXON, Command::FSTXON)) {
@@ -649,6 +698,69 @@ void CC1101Component::set_hyst_level(HystLevel value) {
   }
 }
 
+void CC1101Component::set_foc_bs_cs_gate(bool value) {
+  this->state_.FOC_BS_CS_GATE = value ? 1 : 0;
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_foc_limit(FocLimit value) {
+  this->state_.FOC_LIMIT = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_foc_pre_k(FocPreK value) {
+  this->state_.FOC_PRE_K = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_foc_post_k(FocPostK value) {
+  this->state_.FOC_POST_K = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_bs_limit(BsLimit value) {
+  this->state_.BS_LIMIT = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_pre_ki(BsPreKi value) {
+  this->state_.BS_PRE_KI = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_pre_kp(BsPreKp value) {
+  this->state_.BS_PRE_KP = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_post_ki(BsPostKi value) {
+  this->state_.BS_POST_KI = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_post_kp(BsPostKp value) {
+  this->state_.BS_POST_KP = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
 void CC1101Component::set_packet_mode(bool value) {
   this->state_.PKT_FORMAT =
       static_cast<uint8_t>(value ? PacketFormat::PACKET_FORMAT_FIFO : PacketFormat::PACKET_FORMAT_ASYNC_SERIAL);
@@ -664,6 +776,13 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.GDO0_CFG = 0x0D;
   }
   if (this->initialized_) {
+    if (this->gdo0_pin_ != nullptr) {
+      if (value) {
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      } else {
+        this->gdo0_pin_->detach_interrupt();
+      }
+    }
     this->write_(Register::PKTCTRL0);
     this->write_(Register::PKTCTRL1);
     this->write_(Register::IOCFG0);

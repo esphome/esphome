@@ -3,10 +3,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.dyson";
+ESPHOME_LOG_TAG(TAG, "remote.dyson");
 
 // pulsewidth [µs]
 constexpr uint32_t PW_MARK_US = 780;
@@ -67,5 +66,4 @@ void DysonProtocol::dump(const DysonData &data) {
   ESP_LOGI(TAG, "Dyson: code=0x%x rolling index=%d", data.code, data.index);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

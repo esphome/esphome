@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ade7953_i2c {
+namespace esphome::ade7953_i2c {
 
-static const char *const TAG = "ade7953";
+ESPHOME_LOG_TAG(TAG, "ade7953");
 
 void AdE7953I2c::dump_config() {
   ESP_LOGCONFIG(TAG, "ADE7953_i2c:");
@@ -76,5 +75,4 @@ bool AdE7953I2c::ade_read_32(uint16_t reg, uint32_t *value) {
   return false;
 }
 
-}  // namespace ade7953_i2c
-}  // namespace esphome
+}  // namespace esphome::ade7953_i2c

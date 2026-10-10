@@ -1,19 +1,18 @@
 #include "xiaomi_mue4094rt.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+namespace esphome::xiaomi_mue4094rt {
 
-namespace esphome {
-namespace xiaomi_mue4094rt {
+ESPHOME_LOG_TAG(TAG, "xiaomi_mue4094rt");
 
-static const char *const TAG = "xiaomi_mue4094rt";
+static constexpr uint32_t MOTION_TIMEOUT_ID = 0;
 
 void XiaomiMUE4094RT::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MUE4094RT");
   LOG_BINARY_SENSOR("  ", "Motion", this);
 }
 
-bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMUE4094RT::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -43,7 +42,7 @@ bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     }
     if (res->has_motion.has_value()) {
       this->publish_state(*res->has_motion);
-      this->set_timeout("motion_timeout", timeout_, [this]() { this->publish_state(false); });
+      this->set_timeout(MOTION_TIMEOUT_ID, timeout_, [this]() { this->publish_state(false); });
     }
     success = true;
   }
@@ -51,7 +50,4 @@ bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
   return success;
 }
 
-}  // namespace xiaomi_mue4094rt
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_mue4094rt

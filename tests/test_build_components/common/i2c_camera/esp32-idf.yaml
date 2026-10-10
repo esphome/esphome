@@ -30,6 +30,7 @@ esp32_camera:
   resolution: 640x480
   jpeg_quality: 10
   frame_buffer_location: PSRAM
+  pixel_format: JPEG
   on_image:
     then:
       - lambda: |-

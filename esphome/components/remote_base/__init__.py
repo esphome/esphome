@@ -1,6 +1,11 @@
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -40,10 +45,14 @@ from esphome.const import (
     CONF_ZERO,
 )
 from esphome.core import ID, coroutine
+from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "remote_base"
+
 
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
@@ -90,18 +99,102 @@ REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
 )
 
 
-async def register_listener(var, config):
+# Listener and dumper lists are StaticVectors sized from these counts, so every registration
+# must go through add_listener / add_dumper. Every receiver's list gets the same capacity, so
+# the slots are keyed by receiver and the define is the largest count any one receiver needs.
+LISTENER_COUNT_DEFINE = "REMOTE_BASE_LISTENER_COUNT"
+DUMPER_COUNT_DEFINE = "REMOTE_BASE_DUMPER_COUNT"
+
+
+_request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)
+_request_dumper_slot = cg.slot_counter(DUMPER_COUNT_DEFINE)
+
+
+def add_listener(receiver: MockObj, listener: MockObj) -> None:
+    _request_listener_slot(str(receiver))
+    cg.add(receiver.register_listener(listener))
+
+
+def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
+    _request_dumper_slot(str(receiver))
+    cg.add(receiver.register_dumper(dumper))
+
+
+async def register_listener(var: MockObj, config: ConfigType) -> None:
     receiver = await cg.get_variable(config[CONF_RECEIVER_ID])
-    cg.add(receiver.register_listener(var))
+    add_listener(receiver, var)
 
 
-async def register_transmittable(var, config):
-    transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
+async def attach_receiver(
+    var: MockObj, config: ConfigType, key: str = CONF_RECEIVER_ID
+) -> None:
+    """Link the configured receiver to an entity and register the entity as its listener.
+
+    The C++ set_receiver() no longer registers the listener; the slot for it is counted here.
+    """
+    receiver = await cg.get_variable(config[key])
+    cg.add(var.set_receiver(receiver))
+    add_listener(receiver, var)
+
+
+async def register_transmittable(var, config, key: str = CONF_TRANSMITTER_ID):
+    transmitter_ = await cg.get_variable(config[key])
     cg.add(var.set_transmitter(transmitter_))
 
 
-def register_binary_sensor(name, type, schema):
-    return BINARY_SENSOR_REGISTRY.register(name, type, schema)
+# Registry names that share a protocol source file
+def _protocol_stem(name: str) -> str:
+    if name.startswith("rc_switch"):
+        return "rc_switch"
+    if name == "canalsatld":
+        return "canalsat"
+    return name
+
+
+def protocol_define(name: str) -> str:
+    return f"USE_REMOTE_PROTOCOL_{_protocol_stem(name).upper()}"
+
+
+_PROTOCOL_STEMS = sorted(
+    path.name.removesuffix("_protocol.cpp")
+    for path in Path(__file__).parent.glob("*_protocol.cpp")
+)
+
+
+def request_protocol(name: str) -> None:
+    """Keep a protocol's source file in the build; components using it from C++ must call this."""
+    if _protocol_stem(name) not in _PROTOCOL_STEMS:
+        raise ValueError(
+            f"Unknown remote protocol {name!r}; expected one of {', '.join(_PROTOCOL_STEMS)}"
+        )
+    cg.add_define(protocol_define(name))
+
+
+def _request_protocol_if_in_tree(name: str) -> None:
+    """Registry names from external components have no source file here and need no define."""
+    if _protocol_stem(name) in _PROTOCOL_STEMS:
+        request_protocol(name)
+
+
+# Only the protocol sources a configuration uses are compiled
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {f"{stem}_protocol.cpp": protocol_define(stem) for stem in _PROTOCOL_STEMS}
+)
+
+
+def register_binary_sensor(
+    name: str, type: MockObj, schema: cv.Schema | dict
+) -> Callable[[Callable[[MockObj, ConfigType], Any]], Callable]:
+    registerer = BINARY_SENSOR_REGISTRY.register(name, type, schema)
+
+    def decorator(func: Callable[[MockObj, ConfigType], Any]) -> Callable:
+        async def new_func(var: MockObj, config: ConfigType) -> None:
+            _request_protocol_if_in_tree(name)
+            await coroutine(func)(var, config)
+
+        return registerer(new_func)
+
+    return decorator
 
 
 def register_trigger(name, type, data_type):
@@ -114,6 +207,7 @@ def register_trigger(name, type, data_type):
 
     def decorator(func):
         async def new_func(config):
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
             await coroutine(func)(var, config)
             await automation.build_automation(var, [(data_type, "x")], config)
@@ -131,6 +225,7 @@ def register_dumper(name, type, schema=None):
 
     def decorator(func):
         async def new_func(config, dumper_id):
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(dumper_id)
             await coroutine(func)(var, config)
             return var
@@ -163,11 +258,15 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
     registerer = automation.register_action(
-        f"remote_transmitter.transmit_{name}", type_, validator
+        f"remote_transmitter.transmit_{name}",
+        type_,
+        validator,
+        synchronous=True,
     )
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(action_id, template_arg)
             await register_transmittable(var, config)
             if CONF_REPEAT in config:
@@ -210,7 +309,13 @@ DUMPER_REGISTRY = Registry()
 def validate_dumpers(value):
     if isinstance(value, str) and value.lower() == "all":
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
-    return cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
+    entries = cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
+    # a dumper listed twice would register twice; the receiver holds one secondary dumper
+    return list(
+        {
+            next(k for k in entry if k in DUMPER_REGISTRY): entry for entry in entries
+        }.values()
+    )
 
 
 def validate_triggers(base_schema):
@@ -305,6 +410,50 @@ async def beo4_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
+
+
+# Brennenstuhl
+(
+    BrennenstuhlData,
+    BrennenstuhlBinarySensor,
+    BrennenstuhlTrigger,
+    BrennenstuhlAction,
+    BrennenstuhlDumper,
+) = declare_protocol("Brennenstuhl")
+
+BRENNENSTUHL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.hex_uint32_t,
+    }
+)
+
+
+@register_binary_sensor("brennenstuhl", BrennenstuhlBinarySensor, BRENNENSTUHL_SCHEMA)
+def brennenstuhl_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                BrennenstuhlData,
+                ("code", config[CONF_CODE]),
+            )
+        )
+    )
+
+
+@register_trigger("brennenstuhl", BrennenstuhlTrigger, BrennenstuhlData)
+def brennenstuhl_trigger(var, config):
+    pass
+
+
+@register_dumper("brennenstuhl", BrennenstuhlDumper)
+def brennenstuhl_dumper(var, config):
+    pass
+
+
+@register_action("brennenstuhl", BrennenstuhlAction, BRENNENSTUHL_SCHEMA)
+async def brennenstuhl_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
+    cg.add(var.set_code(template_))
 
 
 # ByronSX
@@ -423,7 +572,7 @@ CANALSATLD_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSAT_SCHEMA)
+@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSATLD_SCHEMA)
 def canalsatld_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -821,7 +970,7 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_encrypted(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
     cg.add(var.set_vlow(template_))
 
 
@@ -868,6 +1017,43 @@ async def nec_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint16)
     cg.add(var.set_command_repeats(template_))
+
+
+# Onkyo RI
+OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, OnkyoRIAction, OnkyoRIDumper = (
+    declare_protocol("OnkyoRI")
+)
+ONKYORI_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_int_range(0, 0xFFF)})
+
+
+@register_binary_sensor("onkyori", OnkyoRIBinarySensor, ONKYORI_SCHEMA)
+def onkyori_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                OnkyoRIData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("onkyori", OnkyoRITrigger, OnkyoRIData)
+def onkyori_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("onkyori", OnkyoRIDumper)
+def onkyori_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+@register_action("onkyori", OnkyoRIAction, ONKYORI_SCHEMA)
+async def onkyori_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
+    cg.add(var.set_data(template_))
 
 
 # Pioneer
@@ -1001,7 +1187,7 @@ def gobox_dumper(var, config):
 
 @register_action("gobox", GoboxAction, GOBOX_SCHEMA)
 async def gobox_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_CODE], args, cg.int_)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint64)
     cg.add(var.set_code(template_))
 
 
@@ -1083,7 +1269,7 @@ def sony_dumper(var, config):
 async def sony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
 
 
@@ -1127,7 +1313,7 @@ def symphony_dumper(var, config):
 async def symphony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
@@ -1141,7 +1327,7 @@ def validate_raw_alternating(value):
         this_negative = val < 0
         if i != 0 and this_negative == last_negative:
             raise cv.Invalid(
-                f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
+                f"Values must alternate between being positive and negative, please see index {i - 1} and {i}",
                 [i],
             )
         last_negative = this_negative
@@ -1390,9 +1576,7 @@ def validate_rc_switch_raw_code(value):
     return value
 
 
-def build_rc_switch_protocol(config):
-    if isinstance(config, int):
-        return rc_switch_protocols[config]
+def build_custom_rc_switch_protocol(config: ConfigType) -> MockObj:
     pl = config[CONF_PULSE_LENGTH]
     return RCSwitchBase(
         config[CONF_SYNC][0] * pl,
@@ -1403,6 +1587,24 @@ def build_rc_switch_protocol(config):
         config[CONF_ONE][1] * pl,
         config[CONF_INVERTED],
     )
+
+
+def rc_switch_protocol_in_flash(config: int | ConfigType) -> MockObj:
+    """Pointer to the protocol in flash: a built-in table entry or a shared custom table."""
+    if isinstance(config, int):
+        return cg.RawExpression(f"&{RC_SWITCH_PROTOCOLS}[{config}]")
+    return cg.shared_progmem_array(
+        "rc_switch_custom_protocol",
+        RCSwitchBase,
+        [build_custom_rc_switch_protocol(config)],
+    )
+
+
+def rc_switch_protocol_value(config: int | ConfigType) -> MockObj:
+    """RAM copy of a constant protocol for the transmit actions, read from its flash table."""
+    if isinstance(config, int):
+        return rc_switch_protocol(config)
+    return rc_switch_protocol_copy(rc_switch_protocol_in_flash(config))
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema(
@@ -1479,7 +1681,9 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
     }
 )
 
-rc_switch_protocols = ns.RC_SWITCH_PROTOCOLS
+rc_switch_protocol = ns.rc_switch_protocol
+rc_switch_protocol_copy = ns.rc_switch_protocol_copy
+RC_SWITCH_PROTOCOLS = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
@@ -1494,7 +1698,7 @@ RCSwitchRawReceiver = ns.class_("RCSwitchRawReceiver", RemoteReceiverBinarySenso
 
 @register_binary_sensor("rc_switch_raw", RCSwitchRawReceiver, RC_SWITCH_RAW_SCHEMA)
 def rc_switch_raw_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_code(config[CONF_CODE]))
 
 
@@ -1505,7 +1709,7 @@ def rc_switch_raw_binary_sensor(var, config):
 )
 async def rc_switch_raw_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
@@ -1515,7 +1719,7 @@ async def rc_switch_raw_action(var, config, args):
     "rc_switch_type_a", RCSwitchRawReceiver, RC_SWITCH_TYPE_A_SCHEMA
 )
 def rc_switch_type_a_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_type_a(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
@@ -1526,21 +1730,21 @@ def rc_switch_type_a_binary_sensor(var, config):
 )
 async def rc_switch_type_a_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
     cg.add(
         var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.std_string))
     )
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
     "rc_switch_type_b", RCSwitchRawReceiver, RC_SWITCH_TYPE_B_SCHEMA
 )
 def rc_switch_type_b_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(
         var.set_type_b(config[CONF_ADDRESS], config[CONF_CHANNEL], config[CONF_STATE])
     )
@@ -1553,19 +1757,19 @@ def rc_switch_type_b_binary_sensor(var, config):
 )
 async def rc_switch_type_b_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
     cg.add(var.set_channel(await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
     "rc_switch_type_c", RCSwitchRawReceiver, RC_SWITCH_TYPE_C_SCHEMA
 )
 def rc_switch_type_c_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(
         var.set_type_c(
             config[CONF_FAMILY],
@@ -1583,7 +1787,7 @@ def rc_switch_type_c_binary_sensor(var, config):
 )
 async def rc_switch_type_c_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(
@@ -1591,7 +1795,7 @@ async def rc_switch_type_c_action(var, config, args):
     )
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.uint8)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1600,7 +1804,7 @@ async def rc_switch_type_c_action(var, config, args):
     RC_SWITCH_TYPE_D_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
 )
 def rc_switch_type_d_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_type_d(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
@@ -1611,12 +1815,12 @@ def rc_switch_type_d_binary_sensor(var, config):
 )
 async def rc_switch_type_d_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_trigger("rc_switch", RCSwitchTrigger, RCSwitchData)
@@ -1894,11 +2098,20 @@ def midea_dumper(var, config):
     pass
 
 
+async def _code_bytes(
+    value: Any, args: TemplateArgsType, set_template: MockObj, set_static: MockObj
+) -> None:
+    """Constant codes share one PROGMEM table pool across the remote protocols."""
+    await automation.templatable_bytes(
+        value, args, set_template, set_static, "remote_base_code"
+    )
+
+
 @register_action("midea", MideaAction, MIDEA_SCHEMA)
 async def midea_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # AEHA
@@ -1950,12 +2163,66 @@ def aeha_dumper(var, config):
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    template_ = await cg.templatable(
-        config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
+    await _code_bytes(
+        config[CONF_DATA], args, var.set_data_template, var.set_data_static
     )
-    cg.add(var.set_data(template_))
     templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
     cg.add(var.set_carrier_frequency(templ))
+
+
+# Hob2Hood
+(
+    Hob2HoodData,
+    Hob2HoodBinarySensor,
+    Hob2HoodTrigger,
+    Hob2HoodAction,
+    Hob2HoodDumper,
+) = declare_protocol("Hob2Hood")
+
+Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
+HOB2HOOD_COMMAND_OPTIONS = {
+    "light_off": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_OFF,
+    "light_on": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_ON,
+    "fan_off": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_OFF,
+    "fan_low": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_LOW,
+    "fan_medium": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MEDIUM,
+    "fan_high": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_HIGH,
+    "fan_max": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MAX,
+}
+
+HOB2HOOD_SCHEMA = cv.Schema(
+    {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS, lower=True)}
+)
+
+
+@register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
+def hob2hood_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                Hob2HoodData,
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
+def hob2hood_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("hob2hood", Hob2HoodDumper)
+def hob2hood_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+@register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
+async def hob2hood_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
+    template_ = await cg.templatable(config[CONF_COMMAND], args, Hob2HoodCommand)
+    cg.add(var.set_command(template_))
 
 
 # Haier
@@ -1965,7 +2232,14 @@ HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_p
 HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
 HAIER_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+        cv.Required(CONF_CODE): cv.All(
+            [cv.hex_uint8_t],
+            cv.Any(
+                cv.Length(min=8, max=8),
+                cv.Length(min=13, max=13),
+                msg="must be a list of length 8 or 13",
+            ),
+        ),
     }
 )
 
@@ -1987,9 +2261,9 @@ def haier_dumper(var, config):
 
 @register_action("haier", HaierAction, HAIER_SCHEMA)
 async def haier_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # ABBWelcome
@@ -2058,12 +2332,12 @@ async def abbwelcome_action(var, config, args):
     )
     cg.add(
         var.set_source_address(
-            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
         var.set_destination_address(
-            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
@@ -2076,7 +2350,8 @@ async def abbwelcome_action(var, config, args):
             await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
         )
     )
-    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    template_ = await cg.templatable(CONF_MESSAGE_ID not in config, args, cg.bool_)
+    cg.add(var.set_auto_message_id(template_))
     if CONF_MESSAGE_ID in config:
         cg.add(
             var.set_message_id(
@@ -2129,9 +2404,9 @@ def mirage_dumper(var, config):
 
 @register_action("mirage", MirageAction, MIRAGE_SCHEMA)
 async def mirage_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # Toto
@@ -2184,3 +2459,9 @@ async def Toto_action(var, config, args):
     cg.add(var.set_rc_code_2(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
+    # Set toto-specific defaults (only if user didn't configure repeat)
+    if CONF_REPEAT not in config:
+        template_ = await cg.templatable(3, args, cg.uint32)
+        cg.add(var.set_send_times(template_))
+        template_ = await cg.templatable(36000, args, cg.uint32)
+        cg.add(var.set_send_wait(template_))

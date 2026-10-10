@@ -8,11 +8,10 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const uint8_t MAX_DATA_LENGTH = 15;
-static const uint8_t DATA_LENGTH_MASK = 0x3f;
+static constexpr uint8_t MAX_DATA_LENGTH = 15;
+static constexpr uint8_t DATA_LENGTH_MASK = 0x3f;
 
 /*
 Message Format:
@@ -192,9 +191,9 @@ class ABBWelcomeData {
 
 class ABBWelcomeProtocol : public RemoteProtocol<ABBWelcomeData> {
  public:
-  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src) override;
-  optional<ABBWelcomeData> decode(RemoteReceiveData src) override;
-  void dump(const ABBWelcomeData &data) override;
+  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src);
+  optional<ABBWelcomeData> decode(RemoteReceiveData src);
+  void dump(const ABBWelcomeData &data);
 
  protected:
   void encode_byte_(RemoteTransmitData *dst, uint8_t data) const;
@@ -272,5 +271,4 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   } data_;
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

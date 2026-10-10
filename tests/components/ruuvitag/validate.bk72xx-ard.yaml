@@ -1,0 +1,38 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here.
+bk72xx_ble_tracker:
+  id: ble_tracker_hub
+
+sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
+  - platform: ruuvitag
+    ble_hub_id: ble_tracker_hub
+    mac_address: FF:56:D3:2F:7D:E8
+    humidity:
+      name: RuuviTag Humidity
+    temperature:
+      name: RuuviTag Temperature
+    pressure:
+      name: RuuviTag Pressure
+    acceleration:
+      name: RuuviTag Acceleration
+    acceleration_x:
+      name: RuuviTag Acceleration X
+    acceleration_y:
+      name: RuuviTag Acceleration Y
+    acceleration_z:
+      name: RuuviTag Acceleration Z
+    battery_voltage:
+      name: RuuviTag Battery Voltage
+    tx_power:
+      name: RuuviTag TX Power
+    movement_counter:
+      name: RuuviTag Movement Counter
+    measurement_sequence_number:
+      name: RuuviTag Measurement Sequence Number
+  # No ble_hub_id: exercises the generated binding real configs use.
+  - platform: ruuvitag
+    mac_address: FF:56:D3:2F:7D:E9
+    temperature:
+      name: BK RuuviTag Implicit Temperature

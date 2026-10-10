@@ -3,15 +3,11 @@
 #include "../nfc_helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
-static const char *const TAG = "nfc.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "nfc.binary_sensor");
 
-void NfcTagBinarySensor::setup() {
-  this->parent_->register_listener(this);
-  this->publish_initial_state(false);
-}
+void NfcTagBinarySensor::setup() { this->publish_initial_state(false); }
 
 void NfcTagBinarySensor::dump_config() {
   std::string match_str = "name";
@@ -40,7 +36,7 @@ void NfcTagBinarySensor::set_tag_name(const std::string &str) {
   this->match_tag_name_ = true;
 }
 
-void NfcTagBinarySensor::set_uid(const std::vector<uint8_t> &uid) { this->uid_ = uid; }
+void NfcTagBinarySensor::set_uid(const NfcTagUid &uid) { this->uid_ = uid; }
 
 bool NfcTagBinarySensor::tag_match_ndef_string(const std::shared_ptr<NdefMessage> &msg) {
   for (const auto &record : msg->get_records()) {
@@ -63,7 +59,7 @@ bool NfcTagBinarySensor::tag_match_tag_name(const std::shared_ptr<NdefMessage> &
   return false;
 }
 
-bool NfcTagBinarySensor::tag_match_uid(const std::vector<uint8_t> &data) {
+bool NfcTagBinarySensor::tag_match_uid(const NfcTagUid &data) {
   if (data.size() != this->uid_.size()) {
     return false;
   }
@@ -112,5 +108,4 @@ void NfcTagBinarySensor::tag_on(NfcTag &tag) {
   }
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

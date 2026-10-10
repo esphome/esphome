@@ -9,8 +9,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace alpha3 {
+namespace esphome::alpha3 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -32,7 +31,7 @@ static const int16_t GENI_RESPONSE_POWER_OFFSET = 12;
 static const int16_t GENI_RESPONSE_MOTOR_POWER_OFFSET = 16;  // not sure
 static const int16_t GENI_RESPONSE_MOTOR_SPEED_OFFSET = 20;
 
-class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponent {
+class Alpha3 final : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   void setup() override;
   void update() override;
@@ -64,7 +63,6 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   void send_request_(uint8_t *request, size_t len);
   bool is_current_response_type_(const uint8_t *response_type);
 };
-}  // namespace alpha3
-}  // namespace esphome
+}  // namespace esphome::alpha3
 
 #endif

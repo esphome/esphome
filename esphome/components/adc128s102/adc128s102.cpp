@@ -1,10 +1,9 @@
 #include "adc128s102.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace adc128s102 {
+namespace esphome::adc128s102 {
 
-static const char *const TAG = "adc128s102";
+ESPHOME_LOG_TAG(TAG, "adc128s102");
 
 float ADC128S102::get_setup_priority() const { return setup_priority::HARDWARE; }
 
@@ -28,5 +27,4 @@ uint16_t ADC128S102::read_data(uint8_t channel) {
   return digital_value;
 }
 
-}  // namespace adc128s102
-}  // namespace esphome
+}  // namespace esphome::adc128s102

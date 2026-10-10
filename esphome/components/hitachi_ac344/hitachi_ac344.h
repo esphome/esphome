@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace hitachi_ac344 {
+namespace esphome::hitachi_ac344 {
 
 const uint16_t HITACHI_AC344_HDR_MARK = 3300;   // ac
 const uint16_t HITACHI_AC344_HDR_SPACE = 1700;  // ac
@@ -76,7 +75,7 @@ const uint16_t HITACHI_AC344_BITS = HITACHI_AC344_STATE_LENGTH * 8;
 #define GETBIT8(a, b) ((a) & ((uint8_t) 1 << (b)))
 #define GETBITS8(data, offset, size) (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
 
-class HitachiClimate : public climate_ir::ClimateIR {
+class HitachiClimate final : public climate_ir::ClimateIR {
  public:
   HitachiClimate()
       : climate_ir::ClimateIR(HITACHI_AC344_TEMP_MIN, HITACHI_AC344_TEMP_MAX, 1.0F, true, true,
@@ -96,7 +95,7 @@ class HitachiClimate : public climate_ir::ClimateIR {
   void set_power_(bool on);
   uint8_t get_mode_();
   void set_mode_(uint8_t mode);
-  void set_temp_(uint8_t celsius, bool set_previous = false);
+  void set_temp_(uint8_t celsius, bool set_previous = true);
   uint8_t get_fan_();
   void set_fan_(uint8_t speed);
   void set_swing_v_toggle_(bool on);
@@ -117,5 +116,4 @@ class HitachiClimate : public climate_ir::ClimateIR {
   void dump_state_(const char action[], uint8_t remote_state[]);
 };
 
-}  // namespace hitachi_ac344
-}  // namespace esphome
+}  // namespace esphome::hitachi_ac344

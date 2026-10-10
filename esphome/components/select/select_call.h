@@ -43,7 +43,7 @@ class SelectCall {
   Select *const parent_;
   optional<size_t> index_;
   SelectOperation operation_{SELECT_OP_NONE};
-  bool cycle_;
+  bool cycle_{false};
 };
 
 }  // namespace esphome::select

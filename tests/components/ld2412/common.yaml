@@ -123,7 +123,7 @@ select:
         - lambda: |-
             id(uart_bus).flush();
             uint32_t new_baud_rate = stoi(x);
-            ESP_LOGD("change_baud_rate", "Changing baud rate from %i to %i",id(uart_bus).get_baud_rate(), new_baud_rate);
+            ESP_LOGD("change_baud_rate", "Changing baud rate from %" PRIu32 " to %" PRIu32, id(uart_bus).get_baud_rate(), new_baud_rate);
             if (id(uart_bus).get_baud_rate() != new_baud_rate) {
               id(uart_bus).set_baud_rate(new_baud_rate);
             #if defined(USE_ESP8266) || defined(USE_ESP32)

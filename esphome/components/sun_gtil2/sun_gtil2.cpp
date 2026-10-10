@@ -1,10 +1,9 @@
 #include "sun_gtil2.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sun_gtil2 {
+namespace esphome::sun_gtil2 {
 
-static const char *const TAG = "sun_gtil2";
+ESPHOME_LOG_TAG(TAG, "sun_gtil2");
 
 static const double NTC_A = 0.0011591051055979914;
 static const double NTC_B = 0.00022878183547845582;
@@ -131,5 +130,4 @@ void SunGTIL2::dump_config() {
 #endif
 }
 
-}  // namespace sun_gtil2
-}  // namespace esphome
+}  // namespace esphome::sun_gtil2

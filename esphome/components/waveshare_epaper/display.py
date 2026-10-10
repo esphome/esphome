@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
 )
+from esphome.types import ConfigType
 
 CONF_DISPLAY_MODE = "display_mode"
 
@@ -191,7 +192,7 @@ DISPLAY_MODES = {
 }
 
 
-def validate_full_update_every_only_types_ac(value):
+def validate_full_update_every_only_types_ac(value: ConfigType) -> ConfigType:
     if CONF_FULL_UPDATE_EVERY not in value:
         return value
     if MODELS[value[CONF_MODEL]][0] == "b":
@@ -206,7 +207,7 @@ def validate_full_update_every_only_types_ac(value):
     return value
 
 
-def validate_reset_pin_required(config):
+def validate_reset_pin_required(config: ConfigType) -> ConfigType:
     if config[CONF_MODEL] in RESET_PIN_REQUIRED_MODELS and CONF_RESET_PIN not in config:
         raise cv.Invalid(
             f"'{CONF_RESET_PIN}' is required for model {config[CONF_MODEL]}"
@@ -254,7 +255,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == "a":
         rhs = WaveshareEPaperTypeA.new(model)
@@ -263,7 +264,7 @@ async def to_code(config):
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)

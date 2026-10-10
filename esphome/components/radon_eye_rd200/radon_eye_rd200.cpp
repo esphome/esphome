@@ -5,10 +5,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace radon_eye_rd200 {
+namespace esphome::radon_eye_rd200 {
 
-static const char *const TAG = "radon_eye_rd200";
+ESPHOME_LOG_TAG(TAG, "radon_eye_rd200");
 
 static const esp32_ble_tracker::ESPBTUUID SERVICE_UUID_V1 =
     esp32_ble_tracker::ESPBTUUID::from_raw("00001523-1212-efde-1523-785feabcd123");
@@ -211,7 +210,6 @@ void RadonEyeRD200::dump_config() {
 
 RadonEyeRD200::RadonEyeRD200() : PollingComponent(10000) {}
 
-}  // namespace radon_eye_rd200
-}  // namespace esphome
+}  // namespace esphome::radon_eye_rd200
 
 #endif  // USE_ESP32

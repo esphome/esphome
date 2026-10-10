@@ -1,10 +1,9 @@
 #include "gree_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gree {
+namespace esphome::gree {
 
-static const char *const TAG = "gree.switch";
+ESPHOME_LOG_TAG(TAG, "gree.switch");
 
 void GreeModeBitSwitch::setup() {
   auto initial = this->get_initial_state_with_restore_mode();
@@ -20,5 +19,4 @@ void GreeModeBitSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace gree
-}  // namespace esphome
+}  // namespace esphome::gree

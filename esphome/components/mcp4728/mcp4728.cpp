@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp4728 {
+namespace esphome::mcp4728 {
 
-static const char *const TAG = "mcp4728";
+ESPHOME_LOG_TAG(TAG, "mcp4728");
 
 void MCP4728Component::setup() {
   auto err = this->write(nullptr, 0);
@@ -109,5 +108,4 @@ void MCP4728Component::select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain)
   this->update_ = true;
 }
 
-}  // namespace mcp4728
-}  // namespace esphome
+}  // namespace esphome::mcp4728

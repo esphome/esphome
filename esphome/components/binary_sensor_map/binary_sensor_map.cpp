@@ -1,10 +1,9 @@
 #include "binary_sensor_map.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace binary_sensor_map {
+namespace esphome::binary_sensor_map {
 
-static const char *const TAG = "binary_sensor_map";
+ESPHOME_LOG_TAG(TAG, "binary_sensor_map");
 
 void BinarySensorMap::dump_config() { LOG_SENSOR("  ", "binary_sensor_map", this); }
 
@@ -113,7 +112,7 @@ float BinarySensorMap::bayesian_predicate_(bool sensor_state, float prior, float
     prob_state_source_false = 1 - prob_given_false;
   }
 
-  return prob_state_source_true / (prior * prob_state_source_true + (1.0 - prior) * prob_state_source_false);
+  return prob_state_source_true / (prior * prob_state_source_true + (1.0f - prior) * prob_state_source_false);
 }
 
 void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float value) {
@@ -138,5 +137,4 @@ void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float pro
   };
   this->channels_.push_back(sensor_channel);
 }
-}  // namespace binary_sensor_map
-}  // namespace esphome
+}  // namespace esphome::binary_sensor_map
