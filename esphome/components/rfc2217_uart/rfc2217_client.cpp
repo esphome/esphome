@@ -74,13 +74,8 @@ void Rfc2217Client::send_settings_() {
     return;
   }
   this->settings_pending_ = false;
-  const uint8_t baud[4] = {
-      static_cast<uint8_t>(this->baud_rate_ >> 24),
-      static_cast<uint8_t>(this->baud_rate_ >> 16),
-      static_cast<uint8_t>(this->baud_rate_ >> 8),
-      static_cast<uint8_t>(this->baud_rate_),
-  };
-  this->send_command_(COM_SET_BAUDRATE, baud, sizeof(baud));
+  const auto baud = decode_value(this->baud_rate_);
+  this->send_command_(COM_SET_BAUDRATE, baud.data(), baud.size());
   this->send_command_(COM_SET_DATASIZE, &this->data_bits_, 1);
   const uint8_t parity = to_rfc_parity(this->parity_);
   this->send_command_(COM_SET_PARITY, &parity, 1);
