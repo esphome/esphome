@@ -25,7 +25,7 @@ class TCA9548AChannel final : public i2c::I2CBus {
  protected:
 #ifdef I2C_PORT_FREQUENCY_COUNT
   /// Switch the upstream bus, flagging the multiplexer when that fails
-  i2c::ErrorCode switch_bus_(i2c::I2CBus *bus, uint32_t frequency);
+  i2c::ErrorCode switch_bus_(uint32_t frequency);
   uint32_t frequency_{0};
 #endif
   uint8_t channel_;

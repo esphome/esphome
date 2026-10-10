@@ -35,7 +35,9 @@ class ZephyrI2CBus final : public InternalI2CBus, public Component {
   uint8_t sda_pin_{};
   uint8_t scl_pin_{};
   uint32_t dev_config_{};
+#ifdef I2C_PORT_FREQUENCY_COUNT
   uint32_t frequency_{};
+#endif
 };
 
 }  // namespace esphome::i2c

@@ -40,20 +40,18 @@ def _root_bus_id(bus_id: ID) -> str:
     return str(bus_id)
 
 
+_FREQUENCY = cv.All(cv.frequency, cv.Range(min=0, min_included=False))
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TCA9548AComponent),
-            cv.Optional(CONF_FREQUENCY): cv.All(
-                cv.frequency, cv.Range(min=0, min_included=False)
-            ),
+            cv.Optional(CONF_FREQUENCY): _FREQUENCY,
             cv.Optional(CONF_CHANNELS, default=[]): cv.ensure_list(
                 {
                     cv.Required(CONF_BUS_ID): cv.declare_id(TCA9548AChannel),
                     cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
-                    cv.Optional(CONF_FREQUENCY): cv.All(
-                        cv.frequency, cv.Range(min=0, min_included=False)
-                    ),
+                    cv.Optional(CONF_FREQUENCY): _FREQUENCY,
                 }
             ),
         }

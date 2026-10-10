@@ -121,17 +121,14 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
 }
 
 static uint32_t speed_config(uint32_t dev_config, uint32_t frequency) {
-  uint32_t speed = I2C_SPEED_STANDARD;
-  if (frequency >= 1000000) {
-    speed = I2C_SPEED_FAST_PLUS;
-  } else if (frequency >= 400000) {
-    speed = I2C_SPEED_FAST;
-  }
+  const uint32_t speed = frequency >= 400000 ? I2C_SPEED_FAST : I2C_SPEED_STANDARD;
   return (dev_config & ~I2C_SPEED_MASK) | I2C_SPEED_SET(speed);
 }
 
 void ZephyrI2CBus::set_frequency(uint32_t frequency) {
+#ifdef I2C_PORT_FREQUENCY_COUNT
   this->frequency_ = frequency;
+#endif
   this->dev_config_ = speed_config(this->dev_config_, frequency);
 }
 

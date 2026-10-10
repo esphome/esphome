@@ -15,23 +15,22 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
   // since a multiplexer tolerates a faster bus but may not answer at that speed.
   const uint32_t mux_frequency = this->parent_->frequency_;
   const uint32_t port_frequency = this->frequency_ != 0 ? this->frequency_ : mux_frequency;
-  const uint32_t select_frequency = mux_frequency != 0 ? mux_frequency : port_frequency;
+  const uint32_t select_frequency = mux_frequency != 0 ? mux_frequency : this->frequency_;
   if (select_frequency != 0) {
     const uint32_t original_frequency = bus->get_frequency();
-    auto err = this->switch_bus_(bus, select_frequency);
-    if (err == i2c::ERROR_OK) {
+    auto err = this->switch_bus_(select_frequency);
+    if (err == i2c::ERROR_OK)
       err = this->parent_->switch_to_channel(this->channel_);
-      if (err == i2c::ERROR_OK) {
-        if (port_frequency == select_frequency || (err = this->switch_bus_(bus, port_frequency)) == i2c::ERROR_OK) {
-          err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
-        }
-        if (port_frequency != select_frequency) {
-          this->switch_bus_(bus, select_frequency);
-        }
-        this->parent_->disable_all_channels();
-      }
+    if (err == i2c::ERROR_OK) {
+      if (port_frequency != select_frequency)
+        err = this->switch_bus_(port_frequency);
+      if (err == i2c::ERROR_OK)
+        err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+      if (port_frequency != select_frequency)
+        this->switch_bus_(select_frequency);
+      this->parent_->disable_all_channels();
     }
-    this->switch_bus_(bus, original_frequency);
+    this->switch_bus_(original_frequency);
     return err;
   }
 #endif
@@ -52,8 +51,8 @@ i2c::ErrorCode TCA9548AChannel::switch_frequency(uint32_t frequency) {
   return this->parent_->bus_->switch_frequency(frequency);
 }
 
-i2c::ErrorCode TCA9548AChannel::switch_bus_(i2c::I2CBus *bus, uint32_t frequency) {
-  const i2c::ErrorCode err = bus->switch_frequency(frequency);
+i2c::ErrorCode TCA9548AChannel::switch_bus_(uint32_t frequency) {
+  const i2c::ErrorCode err = this->switch_frequency(frequency);
   if (err != i2c::ERROR_OK) {
     this->parent_->status_set_error(LOG_STR("Failed to switch the bus frequency"));
   }
