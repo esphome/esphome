@@ -1,12 +1,20 @@
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cstdint>
+
 #include "../common.h"
 
 namespace esphome::bthome_mithermometer::testing {
 
 namespace {
 
-// Frames for SENSOR_ADDRESS (see common.h).
+// Encrypted BTHome v2 frames for SENSOR_ADDRESS, generated with Python `cryptography`
+// AESCCM(tag_length=4) and the bindkey below. Layout: device info (0x41), ciphertext,
+// counter (little-endian), MIC. Each plaintext is a single temperature object (0x02).
+// Bindkey: eef418daf699a0c188f3bfd17e4565d9
+using Frame = std::array<uint8_t, 12>;
+
 // Counter 10, 22.50 C
 constexpr Frame COUNTER_10 = {0x41, 0xB9, 0xBD, 0x25, 0x0A, 0x00, 0x00, 0x00, 0x47, 0x51, 0x79, 0x04};
 // Counter 11, 23.48 C
@@ -19,6 +27,19 @@ constexpr Frame COUNTER_9 = {0x41, 0x17, 0xB6, 0x8D, 0x09, 0x00, 0x00, 0x00, 0xF
 // Counter 100 from another device sharing the bindkey (address SENSOR_ADDRESS + 1), 30.00 C
 constexpr uint64_t OTHER_ADDRESS = SENSOR_ADDRESS + 1;
 constexpr Frame OTHER_COUNTER_100 = {0x41, 0x48, 0xD7, 0xD1, 0x64, 0x00, 0x00, 0x00, 0x09, 0x5B, 0xEC, 0x22};
+
+struct Harness {
+  explicit Harness(bool replay_protection = true) {
+    this->thermometer.set_address(SENSOR_ADDRESS);
+    this->thermometer.set_bindkey(
+        {0xEE, 0xF4, 0x18, 0xDA, 0xF6, 0x99, 0xA0, 0xC1, 0x88, 0xF3, 0xBF, 0xD1, 0x7E, 0x45, 0x65, 0xD9});
+    this->thermometer.set_replay_protection(replay_protection);
+    this->thermometer.set_temperature(&this->temperature);
+  }
+
+  BTHomeMiThermometer thermometer;
+  sensor::Sensor temperature;
+};
 
 }  // namespace
 
