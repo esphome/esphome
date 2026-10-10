@@ -31,11 +31,14 @@ common/
 │   ├── esp32-c3-idf.yaml
 │   ├── esp8266-ard.yaml
 │   └── rp2040-ard.yaml
-├── modbus/           # Modbus (includes uart via packages)
+├── modbus/           # Modbus client (includes uart via packages)
 │   ├── esp32-idf.yaml
 │   ├── esp32-c3-idf.yaml
 │   ├── esp8266-ard.yaml
 │   └── rp2040-ard.yaml
+├── modbus_server/    # Modbus server (includes uart via packages)
+│   ├── esp32-idf.yaml
+│   └── esp8266-ard.yaml
 └── ble/
     ├── esp32-idf.yaml
     ├── esp32-ard.yaml
@@ -45,14 +48,13 @@ common/
 ## How It Works
 
 ### Component Test Structure
-Each component test includes the common bus config:
+Each component test includes the common bus config and its own `common.yaml` through dict-style `packages:`. Always use packages for every include — the grouping scripts only understand dict-style packages, so list-style packages or top-level `<<:` merge keys prevent correct batch grouping. Key the bus package by the bus name and the component's `common.yaml` by the component name:
 
 ```yaml
 # tests/components/bh1750/test.esp32-idf.yaml
 packages:
   i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
-
-<<: !include common.yaml
+  bh1750: !include common.yaml
 ```
 
 The common config provides:

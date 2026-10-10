@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -47,7 +46,7 @@ enum NAU7802CalibrationModes {
   NAU7802_CALIBRATE_GAIN = 0b11,
 };
 
-class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class NAU7802Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void set_samples_per_second(NAU7802SPS sps) { this->sps_ = sps; }
   void set_ldo_voltage(NAU7802LDO ldo) { this->ldo_ = ldo; }
@@ -94,23 +93,6 @@ class NAU7802Sensor : public sensor::Sensor, public PollingComponent, public i2c
   int32_t read_value_(uint8_t start_reg, size_t size);
   bool is_data_ready_();
   void set_calibration_failure_(bool failed);
-};
-
-template<typename... Ts>
-class NAU7802CalbrateExternalOffsetAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_external_offset(); }
-};
-
-template<typename... Ts>
-class NAU7802CalbrateInternalOffsetAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_internal_offset(); }
-};
-
-template<typename... Ts> class NAU7802CalbrateGainAction : public Action<Ts...>, public Parented<NAU7802Sensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->calibrate_gain(); }
 };
 
 }  // namespace esphome::nau7802

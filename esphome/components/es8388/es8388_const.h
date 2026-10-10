@@ -38,6 +38,7 @@ static const uint8_t ES8388_ADCCONTROL14 = 0x16;
 static const uint8_t ES8388_DACCONTROL1 = 0x17;
 static const uint8_t ES8388_DACCONTROL2 = 0x18;
 static const uint8_t ES8388_DACCONTROL3 = 0x19;
+static const uint8_t ES8388_DACCONTROL3_DAC_MUTE = 0x04;  // DACMute, bit 2 of DACCONTROL3
 static const uint8_t ES8388_DACCONTROL4 = 0x1a;
 static const uint8_t ES8388_DACCONTROL5 = 0x1b;
 static const uint8_t ES8388_DACCONTROL6 = 0x1c;

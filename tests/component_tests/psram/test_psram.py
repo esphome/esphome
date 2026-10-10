@@ -12,9 +12,12 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, PlatformFramework
@@ -25,21 +28,26 @@ UNSUPPORTED_PSRAM_VARIANTS = [
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H21,
 ]
 
 SUPPORTED_PSRAM_VARIANTS = [
     VARIANT_ESP32,
     VARIANT_ESP32C5,
+    VARIANT_ESP32H4,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 ]
 SUPPORTED_PSRAM_MODES = {
     VARIANT_ESP32: ["quad"],
     VARIANT_ESP32C5: ["quad"],
+    VARIANT_ESP32H4: ["quad"],
     VARIANT_ESP32P4: ["hex"],
     VARIANT_ESP32S2: ["quad"],
     VARIANT_ESP32S3: ["quad", "octal"],
+    VARIANT_ESP32S31: ["octal"],
 }
 
 
@@ -187,7 +195,7 @@ def _setup_psram_final_validation_test(
             {"mode": "octal"},
             {"variant": "ESP32"},
             True,
-            r"Octal PSRAM is only supported on ESP32-S3",
+            r"Octal PSRAM is not supported on ESP32",
             id="octal_mode_only_esp32s3",
         ),
         pytest.param(

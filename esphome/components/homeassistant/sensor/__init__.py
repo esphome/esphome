@@ -1,8 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.types import ConfigType
 
 from .. import (
     HOME_ASSISTANT_IMPORT_SCHEMA,
+    final_validate_entity_id,
     homeassistant_ns,
     setup_home_assistant_entity,
 )
@@ -17,8 +19,10 @@ CONFIG_SCHEMA = sensor.sensor_schema(HomeassistantSensor, accuracy_decimals=1).e
     HOME_ASSISTANT_IMPORT_SCHEMA
 )
 
+FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     setup_home_assistant_entity(var, config)

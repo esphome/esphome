@@ -7,7 +7,7 @@
 
 namespace esphome::speed {
 
-class SpeedFan : public Component, public fan::Fan {
+class SpeedFan final : public Component, public fan::Fan {
  public:
   SpeedFan(int speed_count) : speed_count_(speed_count) {}
   void setup() override;

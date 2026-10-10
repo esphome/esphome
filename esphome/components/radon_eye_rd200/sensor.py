@@ -9,6 +9,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_BECQUEREL_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["ble_client"]
 
@@ -40,15 +41,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     await ble_client.register_ble_node(var, config)
 
-    if CONF_RADON in config:
-        sens = await sensor.new_sensor(config[CONF_RADON])
-        cg.add(var.set_radon(sens))
-    if CONF_RADON_LONG_TERM in config:
-        sens = await sensor.new_sensor(config[CONF_RADON_LONG_TERM])
-        cg.add(var.set_radon_long_term(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RADON, var.set_radon)
+    await sensors(CONF_RADON_LONG_TERM, var.set_radon_long_term)

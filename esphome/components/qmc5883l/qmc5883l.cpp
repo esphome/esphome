@@ -3,10 +3,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cmath>
+#include <numbers>
 
 namespace esphome::qmc5883l {
 
-static const char *const TAG = "qmc5883l";
+ESPHOME_LOG_TAG(TAG, "qmc5883l");
 
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 
@@ -173,7 +174,7 @@ void QMC5883LComponent::read_sensor_() {
   const float y = int16_t(raw[1]) * mg_per_bit * 0.1f;
   const float z = int16_t(raw[2]) * mg_per_bit * 0.1f;
 
-  float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+  float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
 
   float temp = NAN;
   if (this->temperature_sensor_ != nullptr) {

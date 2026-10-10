@@ -1,7 +1,9 @@
+from collections.abc import Callable
 import importlib
 import pkgutil
+from typing import Any
 
-from esphome import core, pins
+from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
@@ -54,6 +56,18 @@ EPaperBase = epaper_spi_ns.class_(
 )
 Transform = epaper_spi_ns.enum("Transform")
 
+automation.register_apply_action(
+    "epaper_spi.full_update_next",
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
+    automation.ApplyCall("request_full_update()"),
+)
+
+automation.register_apply_condition(
+    "epaper_spi.is_updating",
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
+    "is_updating()",
+)
+
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
     importlib.import_module(f".models.{module_info.name}", package=__package__)
@@ -68,6 +82,23 @@ DIMENSION_SCHEMA = cv.Schema(
 )
 
 TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
+
+
+def _full_update_every_validator(
+    model: models.EpaperModel,
+) -> Callable[[Any], int]:
+    if model.get_default("partial_update"):
+        return cv.int_range(1, 255)
+
+    def validate(value: Any) -> int:
+        value = cv.int_range(1, 255)(value)
+        if value != 1:
+            raise cv.Invalid(
+                f"{model.name} does not support partial update; full_update_every must be 1"
+            )
+        return value
+
+    return validate
 
 
 def model_schema(config):
@@ -96,7 +127,9 @@ def model_schema(config):
                     cv.Required(CONF_MIRROR_Y): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+            cv.Optional(
+                CONF_FULL_UPDATE_EVERY, default=1
+            ): _full_update_every_validator(model),
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
@@ -112,6 +145,7 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            **model.get_config_options(),
         }
     )
 
@@ -131,8 +165,15 @@ def customise_schema(config):
         extra=cv.ALLOW_EXTRA,
     )(config)
     model = MODELS[config[CONF_MODEL]]
+    model.check_requirements()
     config = model_schema(config)(config)
+    config = model.validate_config(config)
     width, height = model.get_dimensions(config)
+    if width % (width_multiple := model.get_default("width_multiple", 1)):
+        raise cv.Invalid(
+            f"{model.name} requires a width that is a multiple of {width_multiple}",
+            path=[CONF_DIMENSIONS],
+        )
     display.add_metadata(
         config[CONF_ID],
         width,
@@ -152,7 +193,7 @@ def customise_schema(config):
 CONFIG_SCHEMA = customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     spi.final_validate_device_schema(
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
@@ -169,7 +210,6 @@ def _final_validate(config):
             config[CONF_SHOW_TEST_CARD] = True
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -198,6 +238,7 @@ async def to_code(config):
     )
 
     await display.register_display(var, config)
+    config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])

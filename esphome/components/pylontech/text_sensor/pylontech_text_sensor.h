@@ -5,7 +5,7 @@
 
 namespace esphome::pylontech {
 
-class PylontechTextSensor : public PylontechListener {
+class PylontechTextSensor final : public PylontechListener {
  public:
   PylontechTextSensor(int8_t bat_num);
   void dump_config() override;

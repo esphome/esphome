@@ -211,7 +211,7 @@ union RegTapDuration {
   uint8_t raw{0x04};
 };
 
-class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
+class MSA3xxComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

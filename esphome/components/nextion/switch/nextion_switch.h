@@ -8,7 +8,7 @@ namespace esphome::nextion {
 
 class NextionSwitch;
 
-class NextionSwitch : public NextionComponent, public switch_::Switch, public PollingComponent {
+class NextionSwitch final : public NextionComponent, public switch_::Switch, public PollingComponent {
  public:
   NextionSwitch(NextionBase *nextion) { this->nextion_ = nextion; }
 

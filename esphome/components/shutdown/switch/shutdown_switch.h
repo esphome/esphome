@@ -5,7 +5,7 @@
 
 namespace esphome::shutdown {
 
-class ShutdownSwitch : public switch_::Switch, public Component {
+class ShutdownSwitch final : public switch_::Switch, public Component {
  public:
   void dump_config() override;
 

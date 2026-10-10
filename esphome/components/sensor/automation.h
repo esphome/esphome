@@ -6,32 +6,7 @@
 
 namespace esphome::sensor {
 
-class SensorStateTrigger : public Trigger<float> {
- public:
-  explicit SensorStateTrigger(Sensor *parent) {
-    parent->add_on_state_callback([this](float value) { this->trigger(value); });
-  }
-};
-
-class SensorRawStateTrigger : public Trigger<float> {
- public:
-  explicit SensorRawStateTrigger(Sensor *parent) {
-    parent->add_on_raw_state_callback([this](float value) { this->trigger(value); });
-  }
-};
-
-template<typename... Ts> class SensorPublishAction : public Action<Ts...> {
- public:
-  SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(float, state)
-
-  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
-
- protected:
-  Sensor *sensor_;
-};
-
-class ValueRangeTrigger : public Trigger<float>, public Component {
+class ValueRangeTrigger final : public Trigger<float>, public Component {
  public:
   explicit ValueRangeTrigger(Sensor *parent) : parent_(parent) {}
 
@@ -83,7 +58,7 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   TemplatableFn<float, float> max_{[](float) -> float { return NAN; }};
 };
 
-template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> {
+template<typename... Ts> class SensorInRangeCondition final : public Condition<Ts...> {
  public:
   SensorInRangeCondition(Sensor *parent) : parent_(parent) {}
 

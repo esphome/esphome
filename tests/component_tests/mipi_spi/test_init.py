@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 from typing import Any
 
 import pytest
@@ -21,6 +22,10 @@ from esphome.components.mipi_spi.display import (
     MODELS,
     dimension_schema,
 )
+
+# Register the external pin schema used by the SPD2010 model's reset pin.
+import esphome.components.pca9554  # noqa: F401
+from esphome.config import validate_config
 from esphome.const import (
     CONF_DC_PIN,
     CONF_DIMENSIONS,
@@ -31,6 +36,18 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
+
+
+def _init_sequence(main_cpp: str, display_id: str = r"\w+") -> str:
+    """Return the shared PROGMEM init sequence table passed to a display, as rendered."""
+    match = re.search(rf"{display_id}->set_init_sequence\((\w+), \d+\);", main_cpp)
+    assert match is not None
+    table = re.search(
+        rf"static constexpr uint8_t {match.group(1)}\[\] PROGMEM = (\{{[^;]*\}});",
+        main_cpp,
+    )
+    assert table is not None
+    return table.group(1)
 
 
 def run_schema_validation(config: ConfigType) -> None:
@@ -136,7 +153,7 @@ def test_dimension_validation(
                 "model": "JC3248W535",
                 "transform": {"mirror_x": False, "mirror_y": True, "swap_xy": True},
             },
-            "Axis swapping not supported by this model",
+            "'swap_xy' is not supported by this model",
             id="axis_swapping_not_supported",
         ),
         pytest.param(
@@ -306,6 +323,50 @@ def test_all_predefined_models(
         run_schema_validation(config)
 
 
+def test_single_bus_no_cs_no_mode_warns(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A single-bus display with no CS pin and no explicit SPI mode warns about MODE3 default."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    run_schema_validation({"model": "ili9488", "dc_pin": 14})
+
+    assert "defaulting to MODE3 due to lack of CS pin" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(
+            {"model": "ili9488", "dc_pin": 14, "cs_pin": 0},
+            id="cs_pin_provided",
+        ),
+        pytest.param(
+            {"model": "ili9488", "dc_pin": 14, "spi_mode": "mode0"},
+            id="spi_mode_provided",
+        ),
+    ],
+)
+def test_single_bus_no_mode_warning_suppressed(
+    config: ConfigType,
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No MODE3 warning when a CS pin or an explicit SPI mode is provided."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    run_schema_validation(config)
+
+    assert "defaulting to MODE3 due to lack of CS pin" not in caplog.text
+
+
 def test_native_generation(
     generate_main: Callable[[str | Path], str],
     component_fixture_path: Callable[[str], Path],
@@ -317,7 +378,8 @@ def test_native_generation(
         "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, 0, 0, true, 1, 1>()"
         in main_cpp
     )
-    assert "set_init_sequence({240, 1, 8, 242" in main_cpp
+    # A 10ms post-reset delay ({10, 255}) is prepended ahead of the model commands.
+    assert _init_sequence(main_cpp).startswith("{10, 255, 240, 1, 8, 242")
     assert "show_test_card();" in main_cpp
     assert "set_write_only(true);" in main_cpp
 
@@ -333,6 +395,214 @@ def test_lvgl_generation(
         "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0, 0, 0, 0, true>();"
         in main_cpp
     )
-    assert "set_init_sequence({1, 0, 10, 255, 177" in main_cpp
+    # A 10ms post-reset delay ({10, 255}) is prepended ahead of the model commands.
+    assert _init_sequence(main_cpp).startswith("{10, 255, 177, 3, 1, 44, 45, 178")
     assert "show_test_card();" not in main_cpp
     assert "set_auto_clear(false);" in main_cpp
+
+
+def test_spd2010_expander_default_generation(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """The SPD2010 default reset pin resolves through a configured PCA9554."""
+    main_cpp = generate_main(component_fixture_path("spd2010.yaml"))
+
+    assert "new(pca9554_pca9554gpiopin_id) pca9554::PCA9554GPIOPin();" in main_cpp
+    assert "pca9554_pca9554gpiopin_id->set_parent(board_expander);" in main_cpp
+    assert "pca9554_pca9554gpiopin_id->set_pin(1);" in main_cpp
+    assert "mipi_spi_mipispi_id->set_reset_pin(pca9554_pca9554gpiopin_id);" in main_cpp
+
+
+def test_spd2010_default_reset_requires_expander() -> None:
+    """A registered pin schema alone cannot satisfy the default expander reference."""
+    result = validate_config(
+        {
+            "esphome": {"name": "missing-expander"},
+            "esp32": {
+                "board": "esp32-s3-devkitc-1",
+                "framework": {"type": "esp-idf"},
+            },
+            "spi": {
+                "type": "quad",
+                "clk_pin": 40,
+                "data_pins": [46, 45, 42, 41],
+            },
+            "display": [
+                {
+                    "platform": "mipi_spi",
+                    "model": "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+                }
+            ],
+        },
+        {},
+    )
+    assert len(result.errors) == 1
+    error = result.errors[0]
+    assert (
+        "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46 requires component 'pca9554' "
+        "to be configured" in str(error)
+    )
+    assert error.path == ["display", 0]
+
+
+def test_spd2010_rejects_invalid_expander_pin() -> None:
+    """The reset pin must exist on the configured PCA9554 variant."""
+    result = validate_config(
+        {
+            "esphome": {"name": "invalid-expander-pin"},
+            "esp32": {
+                "board": "esp32-s3-devkitc-1",
+                "framework": {"type": "esp-idf"},
+            },
+            "i2c": {"sda": 11, "scl": 10},
+            "pca9554": {"id": "board_expander"},
+            "spi": {
+                "type": "quad",
+                "clk_pin": 40,
+                "data_pins": [46, 45, 42, 41],
+            },
+            "display": [
+                {
+                    "platform": "mipi_spi",
+                    "model": "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+                    "reset_pin": {
+                        "pca9554": "board_expander",
+                        "number": 8,
+                    },
+                }
+            ],
+        },
+        {},
+    )
+    assert len(result.errors) == 1
+    error = result.errors[0]
+    assert "Pin number must be in range 0-7" in str(error)
+    assert error.path == ["display", 0]
+
+
+def test_spd2010_rejects_invalid_internal_pin() -> None:
+    """An invalid internal reset pin is still checked by the ESP32 schema."""
+    result = validate_config(
+        {
+            "esphome": {"name": "invalid-internal-pin"},
+            "esp32": {
+                "board": "esp32-s3-devkitc-1",
+                "framework": {"type": "esp-idf"},
+            },
+            "i2c": {"sda": 11, "scl": 10},
+            "pca9554": {"id": "board_expander"},
+            "spi": {
+                "type": "quad",
+                "clk_pin": 40,
+                "data_pins": [46, 45, 42, 41],
+            },
+            "display": [
+                {
+                    "platform": "mipi_spi",
+                    "model": "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+                    "reset_pin": 99,
+                }
+            ],
+        },
+        {},
+    )
+    assert len(result.errors) == 1
+    error = result.errors[0]
+    assert "Invalid pin number: 99" in str(error)
+    assert error.path == ["display", 0, "reset_pin"]
+
+
+# A 10ms delay (flattened to {10, 0xFF}, where 0xFF is the delay marker byte) is
+# always prepended to the init sequence, since both a software and a hardware reset
+# need to settle before further commands. A custom model has no reset_pin default
+# and does not set no_swreset, so when no reset pin is configured the SWRESET command
+# ({1, 0}: command 0x01 with no parameters) is prepended ahead of that delay.
+_SWRESET_YAML = """
+esphome:
+  name: swreset-test
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+spi:
+  clk_pin: 1
+  mosi_pin: 2
+display:
+  - platform: mipi_spi
+    model: custom
+    id: {display_id}
+    dc_pin: 4
+    cs_pin: 8
+    dimensions:
+      width: 320
+      height: 240
+    init_sequence:
+      - [0xA0, 0x01]
+{reset_line}
+"""
+
+
+def test_swreset_prepended_without_reset_pin(
+    generate_main: Callable[[str | Path], str],
+    tmp_path: Path,
+) -> None:
+    """A model with no reset pin (and no no_swreset) gets SWRESET prepended."""
+    yaml_file = tmp_path / "swreset.yaml"
+    yaml_file.write_text(
+        _SWRESET_YAML.format(display_id="swreset_display", reset_line="")
+    )
+
+    main_cpp = generate_main(yaml_file)
+
+    # SWRESET ({1, 0}) followed by a 10ms delay ({10, 255}) is inserted ahead of
+    # the model's own commands.
+    assert _init_sequence(main_cpp, "swreset_display").startswith(
+        "{1, 0, 10, 255, 160, 1, 1,"
+    )
+
+
+def test_swreset_not_prepended_with_reset_pin(
+    generate_main: Callable[[str | Path], str],
+    tmp_path: Path,
+) -> None:
+    """A hardware reset pin performs the reset, so SWRESET must not be prepended.
+
+    The post-reset delay is still required, so the sequence starts with the delay.
+    """
+    yaml_file = tmp_path / "hwreset.yaml"
+    yaml_file.write_text(
+        _SWRESET_YAML.format(
+            display_id="hwreset_display", reset_line="    reset_pin: 5"
+        )
+    )
+
+    main_cpp = generate_main(yaml_file)
+
+    # The delay ({10, 255}) is still present, but no leading SWRESET ({1, 0}).
+    assert _init_sequence(main_cpp, "hwreset_display").startswith(
+        "{10, 255, 160, 1, 1,"
+    )
+
+
+def test_identical_init_sequences_share_one_table(
+    generate_main: Callable[[str | Path], str],
+    tmp_path: Path,
+) -> None:
+    """Two displays with the same init sequence point at one PROGMEM table."""
+    yaml_file = tmp_path / "shared.yaml"
+    display = _SWRESET_YAML.split("display:\n", 1)[1]
+    yaml_file.write_text(
+        _SWRESET_YAML.format(display_id="first", reset_line="    reset_pin: 5")
+        + display.format(display_id="second", reset_line="    reset_pin: 6")
+        .replace("cs_pin: 8", "cs_pin: 9")
+        .replace("dc_pin: 4", "dc_pin: 7")
+    )
+
+    main_cpp = generate_main(yaml_file)
+
+    first = re.search(r"first->set_init_sequence\((\w+), \d+\);", main_cpp)
+    second = re.search(r"second->set_init_sequence\((\w+), \d+\);", main_cpp)
+    assert first is not None and second is not None
+    assert first.group(1) == second.group(1)
+    assert main_cpp.count("mipi_spi_init_sequence[] PROGMEM") == 1

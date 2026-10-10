@@ -3,7 +3,7 @@
 
 namespace esphome::sm300d2 {
 
-static const char *const TAG = "sm300d2";
+ESPHOME_LOG_TAG(TAG, "sm300d2");
 static const uint8_t SM300D2_RESPONSE_LENGTH = 17;
 
 void SM300D2Sensor::update() {
@@ -100,7 +100,6 @@ void SM300D2Sensor::dump_config() {
   LOG_SENSOR("  ", "PM10", this->pm_10_0_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  this->check_uart_settings(9600);
 }
 
 }  // namespace esphome::sm300d2

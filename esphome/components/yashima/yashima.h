@@ -9,7 +9,7 @@
 
 namespace esphome::yashima {
 
-class YashimaClimate : public climate::Climate, public Component {
+class YashimaClimate final : public climate::Climate, public Component {
  public:
   void setup() override;
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {

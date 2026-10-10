@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,10 +13,12 @@ import pytest
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
+    register_exclude_components_cmake_arg,
 )
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE
@@ -28,23 +32,40 @@ def _reset_core(tmp_path: Path) -> None:
     CORE.data.setdefault(KEY_CORE, {})
     CORE.data[KEY_ESP32] = {
         KEY_COMPONENTS: {},
+        KEY_EXCLUDE_COMPONENTS: set(),
         KEY_IDF_VERSION: cv.Version(5, 5, 4),
     }
 
 
-def _write_project_description(tmp_path: Path, components: dict[str, str]) -> None:
+def _write_project_description(
+    tmp_path: Path, components: dict[str, str], idf_path: str = "/idf"
+) -> None:
     """Stub a project_description.json with the given component_name -> dir map."""
     build_dir = tmp_path / "build"
     build_dir.mkdir(exist_ok=True)
     (build_dir / "project_description.json").write_text(
         json.dumps(
             {
+                "idf_path": idf_path,
                 "build_component_info": {
                     name: {"dir": dir_} for name, dir_ in components.items()
-                }
+                },
             }
         )
     )
+
+
+def _render(minimal: bool = False, builtin_components: list[str] | None = None) -> str:
+    """Render the top-level CMakeLists with the standard variant/name patches."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        return get_project_cmakelists(
+            minimal=minimal, builtin_components=builtin_components
+        )
 
 
 def test_get_available_components_returns_none_without_build_path() -> None:
@@ -63,8 +84,11 @@ def test_get_available_components_returns_none_without_project_description(
     assert get_available_components() is None
 
 
-def test_get_available_components_filters_src_managed_and_pio(tmp_path: Path) -> None:
-    """Built-ins are returned; src/, managed_components/, pio_components/ skipped."""
+def test_get_available_components_keeps_only_idf_tree_components(
+    tmp_path: Path,
+) -> None:
+    """Only components under idf_path/components are built-ins: src, managed,
+    converted PIO libs and Arduino component_stubs are all left out."""
     _write_project_description(
         tmp_path,
         {
@@ -72,12 +96,174 @@ def test_get_available_components_filters_src_managed_and_pio(tmp_path: Path) ->
             "esp_lcd": "/idf/components/esp_lcd",
             "espressif__arduino-esp32": f"{tmp_path}/managed_components/arduino",
             "JPEGDEC": f"{tmp_path}/pio_components/arduino/abc/bitbank2/JPEGDEC",
+            "cbor": f"{tmp_path}/component_stubs/cbor",
             "freertos": "/idf/components/freertos",
         },
     )
     from esphome.build_gen.espidf import get_available_components
 
     assert sorted(get_available_components()) == ["esp_lcd", "freertos"]
+
+
+def test_codegen_and_configure_writes_render_the_same_cmakelists(
+    tmp_path: Path,
+) -> None:
+    """write_project() at codegen time (no list) and the configure-time write
+    (discovered list) must agree, or ninja re-runs cmake on every build."""
+    _write_project_description(
+        tmp_path,
+        {
+            "lwip": "/idf/components/lwip",
+            "cbor": f"{tmp_path}/component_stubs/cbor",
+        },
+    )
+    from esphome.build_gen.espidf import get_available_components
+
+    assert _render() == _render(builtin_components=get_available_components())
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS cbor" not in _render()
+
+
+def test_get_available_components_warns_when_nothing_is_under_idf_path(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _write_project_description(tmp_path, {"cbor": f"{tmp_path}/component_stubs/cbor"})
+    from esphome.build_gen.espidf import (
+        get_available_components,
+        has_discovered_components,
+    )
+
+    assert get_available_components() == []
+    assert "No ESP-IDF components found under" in caplog.text
+    # An empty discovery must not count as configured, or it would be latched in.
+    assert not has_discovered_components()
+
+
+def test_get_available_components_ignores_corrupt_or_unexpected_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    from esphome.build_gen.espidf import (
+        get_available_components,
+        has_discovered_components,
+    )
+
+    (build_dir / "project_description.json").write_text("{not json")
+    assert get_available_components() is None
+    assert not has_discovered_components()
+    (build_dir / "project_description.json").write_text('{"build_component_info": {}}')
+    with caplog.at_level(logging.DEBUG, logger="esphome.build_gen.espidf"):
+        assert get_available_components() is None
+    assert "Could not read" in caplog.text
+
+
+def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
+    _write_project_description(tmp_path, {"lwip": "/idf/components/lwip"})
+    from esphome.build_gen.espidf import has_discovered_components
+
+    assert has_discovered_components()
+
+
+@pytest.mark.parametrize("minimal", [False, True])
+def test_get_project_cmakelists_emits_ldgen_override(
+    minimal: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both renders override the ldgen dep walker to drop the app archive,
+    after include(project.cmake) which defines the original."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    content = _render(minimal=minimal)
+    assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
+    # Quoted so spaced elements survive and an empty list stays defined
+    assert 'set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)' in content
+    assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
+    assert 'message(STATUS "ESPHome ldgen override target not found' in content
+    assert 'message(WARNING "ESPHome ldgen override never filtered' in content
+    assert content.index("tools/cmake/project.cmake") < content.index(
+        "function(__ldgen_get_lib_deps_of_target"
+    )
+    # The never-filtered check must run after project() has walked the deps
+    assert content.index("project(test)") < content.index("esphome_ldgen_armed GLOBAL")
+
+
+def test_get_project_cmakelists_ldgen_strict_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_STRICT turns both degradation paths into hard errors so
+    CI fails right away when an IDF bump breaks the override."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    content = _render()
+    assert 'message(FATAL_ERROR "ESPHome ldgen app archive exclusion' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override target not found' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override never filtered' in content
+    assert "@SEVERITY@" not in content
+    assert "@MISSING@" not in content
+
+
+def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen behavior."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
+    content = _render()
+    assert "__ldgen_get_lib_deps_of_target" not in content
+    assert "esphome_ldgen_armed" not in content
+
+
+def test_get_project_cmakelists_size_command_uses_json2() -> None:
+    """The POST_BUILD size command uses the cheap json2 format, with --ng
+    only on the 1.x tool bundled with IDF < 6."""
+    content = _render()
+    assert "-m esp_idf_size --ng --format=json2" in content
+
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = cv.Version(6, 0, 0)
+    content = _render()
+    assert "--ng" not in content
+    assert "--format=json2" in content
+
+
+def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
+    """The filter comes after project(), where the lwip target exists."""
+    from esphome.build_gen.espidf import (
+        LWIP_EMPTY_SOURCES,
+        LWIP_FULL_SOURCES_ENV,
+        lwip_empty_source_gate,
+    )
+
+    content = _render()
+    filter_at = content.index(
+        "set_property(TARGET ${esphome_lwip_lib} PROPERTY SOURCES"
+    )
+    assert filter_at > content.index("project(")
+    assert f"NOT DEFINED ENV{{{LWIP_FULL_SOURCES_ENV}}}" in content
+    for entry in LWIP_EMPTY_SOURCES:
+        assert lwip_empty_source_gate(*entry) in content
+
+
+def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
+    """The map is a link byproduct only when IDF has not declared it itself."""
+    content = _render()
+    assert (
+        "get_source_file_property(esphome_map_declared\n"
+        "    ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map GENERATED)"
+    ) in content
+    assert (
+        "set(esphome_map_byproducts BYPRODUCTS "
+        "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map)"
+    ) in content
+    assert "    ${esphome_map_byproducts}\n    WORKING_DIRECTORY" in content
+    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map\n" not in content
+
+
+def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
+    """A cached list replaces project_description.json and is still filtered
+    by EXCLUDE_COMPONENTS."""
+    with patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": "fatfs;unity"}):
+        content = _render(builtin_components=["lwip", "fatfs", "esp_timer"])
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_timer APPEND" in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS lwip APPEND" in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS fatfs APPEND" not in content
 
 
 def test_get_project_cmakelists_minimal_omits_builtin_components_property(
@@ -88,13 +274,7 @@ def test_get_project_cmakelists_minimal_omits_builtin_components_property(
     first write before the discovery pass refreshes it)."""
     _write_project_description(tmp_path, {"esp_lcd": "/idf/components/esp_lcd"})
 
-    with (
-        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
-        patch.object(CORE, "name", "test"),
-    ):
-        from esphome.build_gen.espidf import get_project_cmakelists
-
-        content = get_project_cmakelists(minimal=True)
+    content = _render(minimal=True)
 
     assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS" not in content
 
@@ -115,13 +295,7 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
         },
     )
 
-    with (
-        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
-        patch.object(CORE, "name", "test"),
-    ):
-        from esphome.build_gen.espidf import get_project_cmakelists
-
-        content = get_project_cmakelists(minimal=False)
+    content = _render()
 
     assert (
         "idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd APPEND)"
@@ -134,6 +308,155 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
     # Excluded by get_available_components filtering.
     assert "espressif__esp-dsp APPEND" not in content
     assert "JPEGDEC APPEND" not in content
+
+
+def test_get_project_cmakelists_emits_cmake_args() -> None:
+    """Args registered via CORE.add_cmake_arg() are emitted as set() lines,
+    on minimal writes too."""
+    CORE.add_cmake_arg("EXECUTABLE_COMPONENT_NAME", "src")
+
+    content = _render(minimal=True)
+
+    assert 'set(EXECUTABLE_COMPONENT_NAME "src")' in content
+
+
+def test_get_project_cmakelists_escapes_backslashes_in_cmake_args() -> None:
+    """Backslashes (the only character escaping applies to; the rest are
+    rejected at registration) are doubled so CMake reads the value back
+    verbatim."""
+    CORE.add_cmake_arg("MY_PATH", r"C:\esp\idf")
+
+    content = _render(minimal=True)
+
+    assert r'set(MY_PATH "C:\\esp\\idf")' in content
+
+
+def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None:
+    """Excluded components are passed to IDF via EXCLUDE_COMPONENTS and are
+    dropped from ESPHOME_PROJECT_BUILTIN_COMPONENTS even when a stale
+    project_description.json still lists them (requiring an excluded
+    component would pull it back into the build)."""
+    _write_project_description(
+        tmp_path,
+        {
+            "esp_lcd": "/idf/components/esp_lcd",
+            "freertos": "/idf/components/freertos",
+            "unity": "/idf/components/unity",
+        },
+    )
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "esp_lcd"}
+    register_exclude_components_cmake_arg()
+
+    content = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "esp_lcd;unity")' in content
+    # Must be set before project() so project.cmake sees it.
+    assert content.index("set(EXCLUDE_COMPONENTS") < content.index("project(test)")
+    assert (
+        "idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS freertos APPEND)"
+        in content
+    )
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS unity" not in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd" not in content
+
+
+def test_get_project_cmakelists_minimal_excludes_only_managed_components(
+    tmp_path: Path,
+) -> None:
+    """The discovery (minimal) write lets built-in components register so
+    the cached list serves every exclusion set; managed ones stay excluded."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "espressif__esp_hosted"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        minimal = _render(minimal=True)
+        full = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted")' in minimal
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted;unity")' in full
+
+
+def test_get_project_cmakelists_minimal_keeps_exclusions_for_custom_idf_path(
+    tmp_path: Path,
+) -> None:
+    """Nothing is cached for a user-supplied IDF_PATH, so its discovery write
+    keeps every exclusion."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
+    register_exclude_components_cmake_arg()
+
+    with (
+        patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path),
+        patch.dict(os.environ, {"IDF_PATH": str(tmp_path)}),
+    ):
+        content = _render(minimal=True)
+
+    assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+
+
+def test_get_project_cmakelists_minimal_drops_exclude_line_when_all_builtin(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        content = _render(minimal=True)
+
+    assert "EXCLUDE_COMPONENTS" not in content
+
+
+def test_get_project_cmakelists_no_exclude_components_line_when_empty() -> None:
+    """No EXCLUDE_COMPONENTS line at all when nothing is excluded."""
+    register_exclude_components_cmake_arg()
+
+    content = _render()
+
+    assert "EXCLUDE_COMPONENTS" not in content
+
+
+def test_include_builtin_idf_component_removes_exclusion() -> None:
+    """include_builtin_idf_component() drops a name from the exclusion set so
+    a component a config actually uses is not passed to EXCLUDE_COMPONENTS."""
+    from esphome.components.esp32 import (
+        exclude_builtin_idf_component,
+        get_excluded_builtin_components,
+        include_builtin_idf_component,
+    )
+
+    exclude_builtin_idf_component("esp_eth")
+    exclude_builtin_idf_component("unity")
+    include_builtin_idf_component("esp_eth")
+
+    assert get_excluded_builtin_components() == ["unity"]
+
+    register_exclude_components_cmake_arg()
+    content = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+    assert "esp_eth" not in content
+
+
+def test_write_project_writes_exclude_components_stamp(tmp_path: Path) -> None:
+    """write_project() snapshots the exclusion set; the toolchain watches the
+    stamp to trigger a discovery reconfigure when the set changes (excluded
+    components never register in project_description.json)."""
+    CORE.build_flags = set()
+    CORE.build_path = tmp_path
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "esp_lcd"}
+
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import write_project
+
+        write_project()
+
+    stamp = tmp_path / "exclude_components.esphomeinternal"
+    assert stamp.read_text() == "esp_lcd;unity"
 
 
 def test_get_component_cmakelists_no_link_flags() -> None:
@@ -182,6 +505,18 @@ def test_get_component_cmakelists_compile_flags_excluded_from_link_opts() -> Non
     assert "-DFOO" not in content.split("target_link_options")[1]
     assert "-Wall" not in content.split("target_link_options")[1]
     assert "-Wl,--gc-sections" in content
+
+
+def test_get_component_cmakelists_globs_alternate_cpp_extensions() -> None:
+    """Both app_sources glob variants include .cc/.cxx/.c++ so vendored sources
+    are compiled, matching the extensions PlatformIO's builder globs by default."""
+    CORE.build_flags = set()
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    for ext in ("cc", "cxx", "c++"):
+        assert content.count(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/*.{ext}"') == 2
+        assert content.count(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.{ext}"') == 2
 
 
 def test_get_project_cmakelists_emits_managed_components_property(
@@ -243,12 +578,35 @@ def test_get_project_cmakelists_no_cpp_standard(tmp_path: Path) -> None:
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
         patch.object(CORE, "name", "test"),
         patch.object(CORE, "cpp_standard", None),
+        patch.object(CORE, "cxx_build_flags", set()),
     ):
         from esphome.build_gen.espidf import get_project_cmakelists
 
         content = get_project_cmakelists(minimal=True)
 
     assert "CXX_COMPILE_OPTIONS" not in content
+
+
+def test_get_project_cmakelists_cxx_build_flags(tmp_path: Path) -> None:
+    """Flags registered via cg.add_cxx_build_flag() are appended to
+    CXX_COMPILE_OPTIONS (C++-only, GCC warns if they reach C compiles)
+    between include(project.cmake) and project()."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "cpp_standard", None),
+        patch.object(CORE, "cxx_build_flags", {"-Wno-volatile"}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    flag_line = 'idf_build_set_property(CXX_COMPILE_OPTIONS "-Wno-volatile" APPEND)'
+    assert flag_line in content
+    include_pos = content.index("tools/cmake/project.cmake")
+    flag_pos = content.index(flag_line)
+    project_pos = content.index("project(test)")
+    assert include_pos < flag_pos < project_pos
 
 
 def test_get_component_cmakelists_no_compile_features() -> None:
@@ -260,3 +618,198 @@ def test_get_component_cmakelists_no_compile_features() -> None:
         content = get_component_cmakelists()
 
     assert "target_compile_features" not in content
+
+
+def _make_pch_project(tmp_path: Path) -> Path:
+    """A build path with the core headers, an sdkconfig and a lock file."""
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
+
+    CORE.build_path = tmp_path
+    for header in PCH_DEFAULT_HEADERS:
+        path = tmp_path / "src" / header
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('#include "esphome/core/defines.h"\n')
+    (tmp_path / "src" / "esphome" / "core" / "defines.h").write_text("#define M 1\n")
+    (tmp_path / "sdkconfig.test").write_text("CONFIG_X=y\n")
+    (tmp_path / "dependencies.lock").write_text("espressif/mdns: 1.12.0\n")
+    return tmp_path
+
+
+def _pch_checksum() -> str:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    with patch.object(CORE, "name", "test"):
+        write_pch_checksum()
+    return CORE.relative_build_path(_PCH_SUM_PATH).read_text()
+
+
+def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_precompile_headers(${COMPONENT_LIB} PRIVATE\n"
+        '    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/'
+        'esphome/core/pch_prefix.h>"\n)'
+    ) in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert "target_precompile_headers" not in get_component_cmakelists()
+
+
+def test_component_cmakelists_pch_gate_on_windows(
+    windows_gcc_rule: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The block carries the rule and records its choice; the knob drops
+    the gate."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        'if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND '
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
+        "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))\n"
+        "  message(STATUS " in content
+    )
+    assert (
+        '  set(ESPHOME_PCH OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)\nelse()\n'
+        in content
+    )
+    assert (
+        '  set(ESPHOME_PCH ON CACHE BOOL "ESPHome precompiled header in use" FORCE)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n'
+        in content
+    )
+    assert "endif()" in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    content = get_component_cmakelists()
+    assert "if(CMAKE_CXX_COMPILER_VERSION" not in content
+    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
+
+
+@pytest.mark.parametrize(("choice", "written"), [("OFF", False), ("ON", True)])
+def test_pch_checksum_follows_the_cmake_choice_on_windows(
+    windows_gcc_rule: None, tmp_path: Path, choice: str, written: bool
+) -> None:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    _make_pch_project(tmp_path)
+    with (
+        patch(
+            "esphome.espidf.toolchain.get_cmake_cache_value", return_value=choice
+        ) as asked,
+        patch.object(CORE, "name", "test"),
+    ):
+        write_pch_checksum()
+    assert asked.call_args.args == ("ESPHOME_PCH",)
+    assert CORE.relative_build_path(_PCH_SUM_PATH).exists() is written
+
+
+@pytest.mark.parametrize(
+    ("file", "content"),
+    [
+        ("src/esphome/core/defines.h", "#define M 2\n"),
+        ("sdkconfig.test", "CONFIG_X=n\n"),
+        ("dependencies.lock", "espressif/mdns: 1.13.0\n"),
+    ],
+)
+def test_pch_checksum_tracks_its_inputs(
+    tmp_path: Path, file: str, content: str
+) -> None:
+    """The checksum stands in for the .gch in ccache, so it has to change
+    with a core header, the sdkconfig and a managed component version."""
+    project = _make_pch_project(tmp_path)
+    first = _pch_checksum()
+    assert len(first.strip()) == 64
+    (project / file).write_text(content)
+    assert _pch_checksum() != first
+
+
+def test_pch_checksum_is_the_same_for_two_devices(tmp_path: Path) -> None:
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        _make_pch_project(tmp_path / name)
+        sums.append(_pch_checksum())
+    assert sums[0] == sums[1]
+
+
+def test_pch_checksum_disabled_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    _make_pch_project(tmp_path)
+    write_pch_checksum()
+    assert not CORE.relative_build_path(_PCH_SUM_PATH).exists()
+
+
+# The macro body as shipped in tools/cmake/build.cmake; byte identical in
+# IDF 5.5.5 and 6.1.0, so one fixture covers both supported versions.
+IDF_BUILD_CMAKE = """\
+some_other_cmake()
+
+macro(__build_process_project_includes)
+    # Include the sdkconfig cmake file, since the following operations require
+    # knowledge of config values.
+    idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+    include(${sdkconfig_cmake})
+
+    # Make each build property available as a read-only variable
+    idf_build_get_property(build_properties __BUILD_PROPERTIES)
+    foreach(build_property ${build_properties})
+        idf_build_get_property(val ${build_property})
+        set(${build_property} "${val}")
+    endforeach()
+
+    idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+
+    # Include each component's project_include.cmake
+    foreach(component_target ${build_component_targets})
+        __component_get_property(dir ${component_target} COMPONENT_DIR)
+        __component_get_property(_name ${component_target} COMPONENT_NAME)
+        set(COMPONENT_NAME ${_name})
+        set(COMPONENT_DIR ${dir})
+        set(COMPONENT_PATH ${dir})  # this is deprecated, users are encouraged to use COMPONENT_DIR;
+                                    # retained for compatibility
+        if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+            include(${COMPONENT_DIR}/project_include.cmake)
+        endif()
+    endforeach()
+endmacro()
+"""
+
+
+def _write_idf_build_cmake(tmp_path: Path, text: str = IDF_BUILD_CMAKE) -> Path:
+    idf = tmp_path / "idf"
+    (idf / "tools" / "cmake").mkdir(parents=True)
+    (idf / "tools" / "cmake" / "build.cmake").write_text(text)
+    return idf
+
+
+def test_normalized_macro_strips_comments_and_whitespace() -> None:
+    from esphome.build_gen.espidf import _normalized_macro
+
+    text = "macro(__build_process_project_includes)\n  a( b )  # tail\n\n  # only\n  c(d)\nendmacro()"
+    assert _normalized_macro(text) == ["a( b )", "c(d)"]
+
+
+def test_normalized_macro_none_without_macro() -> None:
+    from esphome.build_gen.espidf import _normalized_macro
+
+    assert _normalized_macro("nothing here") is None
+
+
+def test_idf_macro_matches_the_shipped_body(tmp_path: Path) -> None:
+    """The override's embedded copy must equal what build.cmake ships."""
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path)) is True
+
+
+def test_idf_macro_mismatch_detected(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    changed = IDF_BUILD_CMAKE.replace(
+        "include(${sdkconfig_cmake})", "include(${sdkconfig_cmake} NEW_ARG)"
+    )
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path, changed)) is False

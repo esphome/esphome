@@ -88,9 +88,17 @@ std::string str_sprintf(const char *fmt, ...) {
 
 // --- Base64 helpers ---
 
-static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                            "abcdefghijklmnopqrstuvwxyz"
-                                            "0123456789+/";
+// Map a 6-bit value (0-63) to its base64 character arithmetically.
+// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
+static inline char base64_char(uint8_t index) {
+  if (index < 26)
+    return 'A' + index;
+  if (index < 52)
+    return 'a' + (index - 26);
+  if (index < 62)
+    return '0' + (index - 52);
+  return index == 62 ? '+' : '/';
+}
 
 // Encode 3 input bytes to 4 base64 characters, append 'count' to ret.
 static inline void base64_encode_triple(const char *char_array_3, int count, std::string &ret) {
@@ -101,7 +109,7 @@ static inline void base64_encode_triple(const char *char_array_3, int count, std
   char_array_4[3] = char_array_3[2] & 0x3f;
 
   for (int j = 0; j < count; j++)
-    ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[j])];
+    ret += base64_char(static_cast<uint8_t>(char_array_4[j]));
 }
 
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
@@ -144,7 +152,7 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
 // --- Hex/binary formatting helpers ---
 
 std::string format_mac_address_pretty(const uint8_t *mac) {
-  char buf[18];
+  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(mac, buf);
   return std::string(buf);
 }
@@ -206,9 +214,9 @@ std::string format_bin(const uint8_t *data, size_t length) {
 // --- MAC address helpers ---
 
 std::string get_mac_address() {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
-  char buf[13];
+  char buf[MAC_ADDRESS_BUFFER_SIZE];
   format_mac_addr_lower_no_sep(mac, buf);
   return std::string(buf);
 }

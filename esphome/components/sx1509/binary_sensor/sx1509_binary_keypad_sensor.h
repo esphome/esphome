@@ -5,7 +5,7 @@
 
 namespace esphome::sx1509 {
 
-class SX1509BinarySensor : public sx1509::SX1509Processor, public binary_sensor::BinarySensor {
+class SX1509BinarySensor final : public sx1509::SX1509Processor, public binary_sensor::BinarySensor {
  public:
   void set_row_col(uint8_t row, uint8_t col) { this->key_ = (1 << (col + 8)) | (1 << row); }
   void process(uint16_t data) override { this->publish_state(static_cast<bool>(data == key_)); }

@@ -8,7 +8,7 @@
 
 namespace esphome::tuya {
 
-class TuyaNumber : public number::Number, public Component {
+class TuyaNumber final : public number::Number, public Component {
  public:
   void setup() override;
   void dump_config() override;

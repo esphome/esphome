@@ -1,15 +1,26 @@
+from typing import Any
+
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    require_mbedtls_ecp,
+    require_mbedtls_tls_extras,
+    require_mbedtls_tls_server,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
+from esphome.components.network import DOMAIN as NETWORK_DOMAIN, add_use_address
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -21,6 +32,8 @@ from esphome.const import (
     CONF_LOG_LEVEL,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PlatformFramework,
 )
@@ -49,6 +62,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@mrene"]
+DOMAIN = "openthread"
 
 AUTO_LOAD = ["network"]
 
@@ -71,7 +85,7 @@ CONF_DEVICE_TYPES = [
 ]
 
 
-def _validate_txpower(value):
+def _validate_txpower(value: Any) -> int | float:
     if CORE.is_esp32:
         variant = get_esp32_variant()
 
@@ -85,7 +99,7 @@ def _validate_txpower(value):
     return value  # Unsupported, fail later with clear error
 
 
-def set_sdkconfig_options(config):
+def set_sdkconfig_options(config: ConfigType) -> None:
     # and expose options for using SPI/UART RCPs
     add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", True)
@@ -99,6 +113,14 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DIAG", False)
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
+
+    # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
+    # setting one under sdkconfig_options keeps TLS in the build automatically.
+    # The crypto platform uses AES-CCM and deterministic ECDSA directly.
+    require_mbedtls_tls_server()
+    require_mbedtls_tls_extras(
+        ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
+    )
 
     if not config.get(CONF_TLV):
         if pan_id := config.get(CONF_PAN_ID):
@@ -175,7 +197,7 @@ def _validate(config: ConfigType) -> ConfigType:
     return config
 
 
-def _require_vfs_select(config):
+def _require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # OpenThread uses esp_vfs_eventfd which requires VFS select support (ESP32 only)
     if CORE.is_esp32:
@@ -183,15 +205,22 @@ def _require_vfs_select(config):
     return config
 
 
-def _validate_platform(config):
+def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.using_zephyr:
         return config
     return only_on_variant(
-        supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]
+        supported=[
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32H2,
+            VARIANT_ESP32H4,
+            VARIANT_ESP32H21,
+            VARIANT_ESP32S31,
+        ]
     )(config)
 
 
-def _validate_tlv_hex(value):
+def _validate_tlv_hex(value: Any) -> str:
     s = cv.string_strict(value)
     if len(s) % 2 != 0:
         raise cv.Invalid("TLV must have an even number of hex characters")
@@ -216,11 +245,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
+            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -230,9 +259,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(_):
+def _final_validate(_: ConfigType) -> None:
     full_config = fv.full_config.get()
-    network_config = full_config.get("network", {})
+    network_config = full_config.get(NETWORK_DOMAIN, {})
     if not network_config.get(CONF_ENABLE_IPV6, False):
         raise cv.Invalid(
             "OpenThread requires IPv6 to be enabled in the network component. "
@@ -262,10 +291,12 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 
 
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
+        # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
+        require_mbedtls_ecp()
 
     cg.add_define("USE_OPENTHREAD")
     if config.get(CONF_FORCE_DATASET):
@@ -277,7 +308,7 @@ async def to_code(config):
     enable_mdns_storage()
 
     ot = cg.new_Pvariable(config[CONF_ID])
-    cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
+    add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
     if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
         cg.add(ot.set_poll_period(poll_period))
@@ -293,9 +324,35 @@ async def to_code(config):
     if CORE.is_esp32:
         set_sdkconfig_options(config)
     elif CORE.using_zephyr:
+        # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
+        include_west_project("mbedtls")
+        include_west_project("openthread")
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+            include_west_project("oberon-psa-crypto")
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
         zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+
+
+# Actions
+POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_POLL_PERIOD,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(OpenThreadComponent),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+        }
+    ),
+)
+
+
+automation.register_apply_action(
+    "openthread.set_poll_period",
+    POLL_PERIOD_ACTION_SCHEMA,
+    automation.ApplyField(CONF_POLL_PERIOD, "apply_poll_period", cg.uint32),
+)

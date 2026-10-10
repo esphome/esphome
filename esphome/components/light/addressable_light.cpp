@@ -5,7 +5,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light.addressable";
+ESPHOME_LOG_TAG(TAG, "light.addressable");
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
 float AddressableLight::get_estimated_current_ma() { return this->estimated_ma_; }

@@ -9,7 +9,7 @@
 
 namespace esphome::pulse_meter {
 
-class PulseMeterSensor : public sensor::Sensor, public Component {
+class PulseMeterSensor final : public sensor::Sensor, public Component {
  public:
   enum InternalFilterMode {
     FILTER_EDGE = 0,

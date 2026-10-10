@@ -77,13 +77,15 @@ template<typename... Ts> class BLECharacteristicSetValueAction final : public Ac
     // Set initial value
     this->parent_->set_value(this->buffer_.value(x...));
     // Set the listener for read events
-    this->parent_->on_read([this, x...](uint16_t id) {
+    // ``mutable`` keeps by-copy captures non-const for triggers passing args by reference
+    // (e.g. climate on_control's ClimateCall&). See #17142.
+    this->parent_->on_read([this, x...](uint16_t id) mutable {
       // Set the value of the characteristic every time it is read
       this->parent_->set_value(this->buffer_.value(x...));
     });
     // Set the listener in the global manager so only one BLECharacteristicSetValueAction is set for each characteristic
     BLECharacteristicSetValueActionManager::get_instance()->set_listener(
-        this->parent_, [this, x...]() { this->parent_->set_value(this->buffer_.value(x...)); });
+        this->parent_, [this, x...]() mutable { this->parent_->set_value(this->buffer_.value(x...)); });
   }
 
  protected:

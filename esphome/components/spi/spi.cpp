@@ -4,7 +4,7 @@
 
 namespace esphome::spi {
 
-const char *const TAG = "spi";
+ESPHOME_LOG_TAG(TAG, "spi");
 
 SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     new SPIDelegateDummy();

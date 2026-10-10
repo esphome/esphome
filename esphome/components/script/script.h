@@ -8,28 +8,19 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::script {
 
 class ScriptLogger {
  protected:
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void esp_logw_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logw_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
   }
-  void esp_logd_(int line, const __FlashStringHelper *format, const char *param) {
+  void esp_logd_(int line, ProgmemStr format, const char *param) {
     esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
   }
-  void esp_log_(int level, int line, const __FlashStringHelper *format, const char *param);
-#else
-  void esp_logw_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_WARN, line, format, param);
-  }
-  void esp_logd_(int line, const char *format, const char *param) {
-    esp_log_(ESPHOME_LOG_LEVEL_DEBUG, line, format, param);
-  }
-  void esp_log_(int level, int line, const char *format, const char *param);
-#endif
+  void esp_log_(int level, int line, ProgmemStr format, const char *param);
 };
 
 /// The abstract base class for all script types.
@@ -142,6 +133,9 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // Use std::make_unique to replace the unique_ptr
       this->var_queue_[write_pos] = std::make_unique<std::tuple<Ts...>>(x...);
       this->num_queued_++;
+      // Enable loop now that there is something to dequeue - don't call loop()
+      // synchronously! Let the event loop call it to avoid reentrancy issues
+      this->enable_loop();
       return;
     }
 
@@ -167,6 +161,15 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       auto tuple_ptr = std::move(this->var_queue_[this->queue_front_]);
       this->queue_front_ = (this->queue_front_ + 1) % queue_capacity;
       this->trigger_tuple_(*tuple_ptr, std::make_index_sequence<sizeof...(Ts)>{});
+    }
+    if (this->num_queued_ == 0 && !this->is_idle()) {
+      // Queue is now empty - disable loop until the next execute() queues an
+      // instance. The inline is_idle() check skips the out-of-line call when
+      // the loop is already disabled (execute() calls loop() synchronously).
+      // This can run before this component's setup() (execute() from on_boot),
+      // which leaves the state machine in LOOP_DONE and skips call_setup();
+      // this class therefore must not rely on a setup() override.
+      this->disable_loop();
     }
   }
 
@@ -216,7 +219,7 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
 
 template<class S, typename... Ts> class ScriptExecuteAction;
 
-template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> : public Action<Ts...> {
+template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> final : public Action<Ts...> {
  public:
   ScriptExecuteAction(Script<As...> *script) : script_(script) {}
 
@@ -251,27 +254,8 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   }
 
   Script<As...> *script_;
-  Args args_;
-};
-
-template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> {
- public:
-  ScriptStopAction(C *script) : script_(script) {}
-
-  void play(const Ts &...x) override { this->script_->stop(); }
-
- protected:
-  C *script_;
-};
-
-template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts...> {
- public:
-  explicit IsRunningCondition(C *parent) : parent_(parent) {}
-
-  bool check(const Ts &...x) override { return this->parent_->is_running(); }
-
- protected:
-  C *parent_;
+  // Empty tuple for scripts without parameters; takes no space then
+  [[no_unique_address]] Args args_;
 };
 
 /** Wait for a script to finish before continuing.
@@ -281,7 +265,7 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  * (e.g., rapid button presses, high-frequency sensor updates), so we use
  * queue-based storage for correctness.
  */
-template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
+template<class C, typename... Ts> class ScriptWaitAction final : public Action<Ts...>, public Component {
  public:
   ScriptWaitAction(C *script) : script_(script) {}
 

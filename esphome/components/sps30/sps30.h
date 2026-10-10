@@ -8,7 +8,7 @@ namespace esphome::sps30 {
 
 /// This class implements support for the Sensirion SPS30 i2c/UART Particulate Matter
 /// PM1.0, PM2.5, PM4, PM10 Air Quality sensors.
-class SPS30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SPS30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { pm_1_0_sensor_ = pm_1_0; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }

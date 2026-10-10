@@ -6,7 +6,7 @@
 
 namespace esphome::opentherm {
 
-class OpenthermSwitch : public switch_::Switch, public Component {
+class OpenthermSwitch final : public switch_::Switch, public Component {
  protected:
   void write_state(bool state) override;
 

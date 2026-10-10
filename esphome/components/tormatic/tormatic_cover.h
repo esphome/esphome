@@ -9,7 +9,7 @@ namespace esphome::tormatic {
 
 using namespace esphome::cover;
 
-class Tormatic : public cover::Cover, public uart::UARTDevice, public PollingComponent {
+class Tormatic final : public cover::Cover, public uart::UARTDevice, public PollingComponent {
  public:
   void setup() override;
   void loop() override;

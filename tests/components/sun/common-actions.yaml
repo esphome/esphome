@@ -1,0 +1,21 @@
+button:
+  - platform: template
+    name: Sun position
+    on_press:
+      - if:
+          condition:
+            sun.is_above_horizon:
+          then:
+            - logger.log: Day
+      - if:
+          condition:
+            sun.is_below_horizon:
+              elevation: -6°
+          then:
+            - logger.log: Night
+      - if:
+          condition:
+            sun.is_above_horizon:
+              elevation: !lambda return 10.0;
+          then:
+            - logger.log: High sun

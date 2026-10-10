@@ -8,7 +8,7 @@ namespace esphome::noblex {
 const uint8_t NOBLEX_TEMP_MIN = 16;  // Celsius
 const uint8_t NOBLEX_TEMP_MAX = 30;  // Celsius
 
-class NoblexClimate : public climate_ir::ClimateIR {
+class NoblexClimate final : public climate_ir::ClimateIR {
  public:
   NoblexClimate()
       : climate_ir::ClimateIR(NOBLEX_TEMP_MIN, NOBLEX_TEMP_MAX, 1.0f, true, true,
