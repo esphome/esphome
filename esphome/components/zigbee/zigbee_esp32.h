@@ -43,6 +43,8 @@ class ZigbeeComponent final : public Component {
   void loop() override;
   void dump_config() override;
 
+  void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
+  void set_keep_alive(uint16_t keep_alive) { this->keep_alive_ = keep_alive; }
   void set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, uint16_t device_id);
@@ -73,6 +75,8 @@ class ZigbeeComponent final : public Component {
   bool is_joined() { return this->joined_; }
 
  protected:
+  bool sleepy_{false};
+  uint16_t keep_alive_{3000};
   struct {
     uint8_t *model;
     uint8_t *manufacturer;
