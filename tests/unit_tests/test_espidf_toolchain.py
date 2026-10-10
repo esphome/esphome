@@ -264,11 +264,7 @@ def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
 
 
 def test_get_idf_env_pops_inherited_idf_target(setup_core: Path) -> None:
-    """An IDF_TARGET from the parent environment must not reach cmake.
-
-    IDF prefers it over the variant's set(IDF_TARGET), so the build would
-    target another chip, and the target check would clean on every run.
-    """
+    """An inherited IDF_TARGET does not reach cmake."""
     toolchain._cache().env.clear()
     with patch.dict(os.environ, {"IDF_PATH": str(setup_core), "IDF_TARGET": "esp32"}):
         env = toolchain._get_idf_env(version="5.5.4")
@@ -1596,8 +1592,7 @@ def _write_target_tree(
     bootloader_toolchain: str | None = None,
     sdkconfig: str | None = None,
 ) -> None:
-    """Write the places IDF records a target: both CMake caches and the
-    expanded sdkconfig.<name>."""
+    """Write the target into the CMake caches and sdkconfig."""
     tools = "/idf/tools/cmake"
     for rel, target, toolchain_target in (
         ("build", main, main),
@@ -1624,8 +1619,7 @@ def _write_target_tree(
         ({"main": "esp32c6", "bootloader": "esp32c6", "sdkconfig": "esp32c6"}, None),
         ({"main": "esp32h2"}, "esp32h2"),
         ({"bootloader": "esp32h2"}, "esp32h2"),
-        # A failed bootloader configure stores the new IDF_TARGET but keeps
-        # the old toolchain file, and the failed main configure drops its cache
+        # Failed bootloader configure: new IDF_TARGET, old toolchain file
         ({"bootloader": "esp32c6", "bootloader_toolchain": "esp32h2"}, "esp32h2"),
         ({"main": "esp32c6", "sdkconfig": "esp32h2"}, "esp32h2"),
         (
@@ -1649,8 +1643,7 @@ def _write_target_tree(
 def test_foreign_idf_target(
     setup_core: Path, tree: dict[str, str], expected: str | None
 ) -> None:
-    """Every place IDF checks the target is read, and only another target
-    counts."""
+    """Another target in any cache or sdkconfig counts."""
     _setup_build(setup_core)
     _write_target_tree(**tree)
     assert toolchain._foreign_idf_target("esp32c6") == expected
@@ -1659,16 +1652,14 @@ def test_foreign_idf_target(
 @pytest.mark.parametrize(
     ("cache", "sdkconfig", "expected"),
     [
-        # A cache without a toolchain file still names its target
         ("IDF_TARGET:STRING=esp32h2\n", None, "esp32h2"),
-        # ESPHome's own sdkconfig before IDF expanded it has no target line
         (None, "CONFIG_FOO=y\n", None),
     ],
 )
 def test_foreign_idf_target_partial_entries(
     setup_core: Path, cache: str | None, sdkconfig: str | None, expected: str | None
 ) -> None:
-    """Missing entries are skipped, the ones present still count."""
+    """Missing entries are skipped."""
     _setup_build(setup_core)
     for rel, content in (
         ("build/CMakeCache.txt", cache),
@@ -1682,8 +1673,7 @@ def test_foreign_idf_target_partial_entries(
 
 
 def test_foreign_idf_target_ignores_unreadable_files(setup_core: Path) -> None:
-    """A damaged cache or sdkconfig is not a target; the configure that
-    follows deals with it as before."""
+    """Unreadable files are ignored."""
     _setup_build(setup_core)
     for rel in ("build/CMakeCache.txt", "sdkconfig.test"):
         path = CORE.relative_build_path(rel)
@@ -1696,8 +1686,7 @@ def test_foreign_idf_target_ignores_unreadable_files(setup_core: Path) -> None:
 def test_clean_foreign_target_tree_cleans_and_resets_sdkconfig(
     setup_core: Path, snapshot: bool
 ) -> None:
-    """A tree for another target is cleaned like idf.py set-target: the build
-    files go and sdkconfig.<name> restarts from ESPHome's own options."""
+    """A foreign tree is cleaned and sdkconfig reset from the snapshot."""
     _setup_build(setup_core)
     CORE.data[KEY_ESP32][KEY_VARIANT] = "ESP32C6"
     _write_target_tree(bootloader="esp32c6", bootloader_toolchain="esp32h2")
@@ -1717,7 +1706,6 @@ def test_clean_foreign_target_tree_cleans_and_resets_sdkconfig(
     if snapshot:
         assert sdkconfig == "CONFIG_IDF_TARGET_ESP32C6=y\n"
     else:
-        # Without ESPHome's options there is nothing better to start from
         assert 'CONFIG_IDF_TARGET="esp32h2"' in sdkconfig
 
 
@@ -1725,7 +1713,7 @@ def test_clean_foreign_target_tree_cleans_and_resets_sdkconfig(
 def test_clean_foreign_target_tree_keeps_matching_tree(
     setup_core: Path, variant: str | None
 ) -> None:
-    """A tree for the current target, or no known variant, is left alone."""
+    """A matching tree or unknown variant is left alone."""
     _setup_build(setup_core)
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
     _write_target_tree(main="esp32c6", bootloader="esp32c6", sdkconfig="esp32c6")
@@ -1744,8 +1732,7 @@ def test_clean_foreign_target_tree_keeps_matching_tree(
 def test_clean_foreign_target_tree_skipped_clean_keeps_sdkconfig(
     setup_core: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With ESPHOME_SKIP_CLEAN_BUILD the tree stays, and so does its
-    sdkconfig: half a reset would only hide what IDF reports next."""
+    """ESPHOME_SKIP_CLEAN_BUILD keeps the tree and sdkconfig."""
     _setup_build(setup_core)
     monkeypatch.setenv("ESPHOME_SKIP_CLEAN_BUILD", "1")
     CORE.data[KEY_ESP32][KEY_VARIANT] = "ESP32C6"
@@ -1763,8 +1750,7 @@ def test_clean_foreign_target_tree_skipped_clean_keeps_sdkconfig(
 
 
 def test_run_compile_cleans_foreign_target_tree_first(setup_core: Path) -> None:
-    """run_compile cleans a tree for another target before it decides on a
-    reconfigure, so the configure starts from scratch."""
+    """run_compile cleans a foreign tree before the reconfigure check."""
     _setup_build(setup_core)
     CORE.data[KEY_ESP32][KEY_VARIANT] = "ESP32C6"
     _write_target_tree(main="esp32h2")

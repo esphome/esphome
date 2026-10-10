@@ -125,7 +125,7 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
         env_cache[version] = os.environ.copy()
         # Do not leak PYTHONPATH into child env
         env_cache[version].pop("PYTHONPATH", None)
-        # The variant selects the target; an inherited IDF_TARGET overrides it
+        # Do not let an inherited IDF_TARGET override the variant
         env_cache[version].pop("IDF_TARGET", None)
 
         # Use provided IDF framework if available
@@ -316,13 +316,7 @@ def tree_skips_bootloader(build_dir: Path) -> bool:
 
 
 def _foreign_idf_target(target: str) -> str | None:
-    """Another IDF target the tree or sdkconfig was configured for, if any.
-
-    Reads the values IDF's own target checks compare: IDF_TARGET and the
-    toolchain file in both CMake caches (a failed configure drops only the
-    main one, and a failed bootloader configure keeps the old toolchain file
-    next to the new IDF_TARGET) and CONFIG_IDF_TARGET in sdkconfig.<name>.
-    """
+    """Return another IDF target recorded in the CMake caches or sdkconfig."""
     build_dir = _build_dir()
     sdkconfig = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     found = []
@@ -344,11 +338,7 @@ def _foreign_idf_target(target: str) -> str | None:
 
 
 def _clean_foreign_target_tree() -> None:
-    """Clean a tree configured for another IDF target, as idf.py set-target.
-
-    IDF refuses to reconfigure a tree or an expanded sdkconfig for another
-    target, so a variant switch in the same build directory needs a clean.
-    """
+    """Clean a build configured for another IDF target, like idf.py set-target."""
     variant = CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT)
     if variant is None:
         return
@@ -362,9 +352,9 @@ def _clean_foreign_target_tree() -> None:
     )
     clean_build(clear_pio_cache=False)
     if _build_dir().is_dir():
-        # Clean skipped (ESPHOME_SKIP_CLEAN_BUILD); leave the tree as it is
+        # ESPHOME_SKIP_CLEAN_BUILD
         return
-    # ESPHome's own options for the current target; IDF expands them again
+    # Restart sdkconfig from ESPHome's options
     internal = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
     if internal.is_file():
         shutil.copyfile(internal, CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
