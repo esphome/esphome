@@ -1,0 +1,31 @@
+# Enables USE_SENSOR for host unit tests; tests attach their own sensor instances.
+sensor:
+  - platform: template
+    id: bench_flow
+    name: "Flow"
+  - platform: template
+    id: bench_temperature
+    name: "Temperature"
+
+# Enables USE_TEXT_SENSOR for host unit tests; tests attach their own text sensor instances.
+text_sensor:
+  - platform: template
+    id: bench_meter_id
+    name: "Meter ID"
+  - platform: template
+    id: bench_software_version
+    name: "Software version"
+
+# MULTI_CONF components only run to_code when the config list is non-empty.
+# A minimal entry here lets tests/components/ufm01/__init__.py emit the optional
+# feature defines; tests construct their own TestableUFM01 instances.
+uart:
+  - id: uart_bus
+    baud_rate: 2400
+    parity: EVEN
+    stop_bits: 1
+    port: /dev/null
+
+ufm01:
+  - id: ufm01_bench
+    uart_id: uart_bus
