@@ -109,7 +109,10 @@ class MipiRgbSpi final : public MipiRgb,
  public:
   MipiRgbSpi(int width, int height) : MipiRgb(width, height) {}
 
-  void set_init_sequence(const std::vector<uint8_t> &init_sequence) { this->init_sequence_ = init_sequence; }
+  void set_init_sequence(const uint8_t *init_sequence, size_t len) {
+    this->init_sequence_ = init_sequence;
+    this->init_sequence_len_ = len;
+  }
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void setup() override;
 
@@ -120,7 +123,9 @@ class MipiRgbSpi final : public MipiRgb,
   void dump_config() override;
 
   GPIOPin *dc_pin_{nullptr};
-  std::vector<uint8_t> init_sequence_;
+  // Shared PROGMEM table
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
 };
 #endif
 

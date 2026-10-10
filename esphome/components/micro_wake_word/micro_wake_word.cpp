@@ -17,7 +17,7 @@
 
 namespace esphome::micro_wake_word {
 
-static const char *const TAG = "micro_wake_word";
+ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
 static const ssize_t DETECTION_QUEUE_LENGTH = 5;
 
@@ -471,14 +471,14 @@ void MicroWakeWord::loop() {
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
                                    this->microphone_source_->get_audio_stream_info().get_sample_rate())) {
-          this->status_momentary_error("frontend_alloc", 1000);
+          this->status_momentary_error(1000);
           return;
         }
 
         if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
                                           (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
-          this->status_momentary_error("task_start", 1000);
+          this->status_momentary_error(1000);
         }
       }
       break;

@@ -6,7 +6,7 @@
 
 namespace esphome::vbus {
 
-static const char *const TAG = "vbus";
+ESPHOME_LOG_TAG(TAG, "vbus");
 
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;

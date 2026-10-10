@@ -5,7 +5,7 @@
 
 namespace esphome::pcd8544 {
 
-static const char *const TAG = "pcd_8544";
+ESPHOME_LOG_TAG(TAG, "pcd_8544");
 
 void PCD8544::setup_pins_() {
   this->spi_setup();

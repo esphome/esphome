@@ -11,7 +11,7 @@
 
 namespace esphome::gcja5 {
 
-static const char *const TAG = "gcja5";
+ESPHOME_LOG_TAG(TAG, "gcja5");
 
 void GCJA5Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
