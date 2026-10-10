@@ -203,7 +203,7 @@ class ImageRGB111(ImageEncoder):
             )
             dithered_image.putalpha(alpha_image)
             return dithered_image
-        return image.point(lambda p: 0 if p < 128 else 255)
+        return image
 
     def add_bit(self, bit):
         if bit:
@@ -216,15 +216,11 @@ class ImageRGB111(ImageEncoder):
     def encode(self, pixel):
         r, g, b, a = pixel
         # Convert to 3-bit color (1 bit per channel)
-        r_bit = r > 127
-        self.add_bit(r_bit)
-        g_bit = g > 127
-        self.add_bit(g_bit)
-        b_bit = b > 127
-        self.add_bit(b_bit)
+        self.add_bit(r > 127)
+        self.add_bit(g > 127)
+        self.add_bit(b > 127)
         if self.transparency == CONF_ALPHA_CHANNEL:
-            a_bit = 1 if a > 127 else 0
-            self.add_bit(a_bit)
+            self.add_bit(1 if a > 127 else 0)
 
 
 class ImageGrayscale(ImageEncoder):

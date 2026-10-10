@@ -45,7 +45,7 @@ class Image : public display::BaseImage {
 #endif
  protected:
   bool get_binary_pixel_(int x, int y) const;
-  Color get_rgb3_pixel_(int x, int y) const;
+  Color get_rgb111_pixel_(int x, int y) const;
   Color get_rgb_pixel_(int x, int y) const;
   Color get_rgb565_pixel_(int x, int y) const;
   Color get_grayscale_pixel_(int x, int y) const;

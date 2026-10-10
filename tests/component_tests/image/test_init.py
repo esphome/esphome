@@ -102,6 +102,16 @@ from esphome.core import CORE
             "File can't be opened as image",
             id="invalid_image_file",
         ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "transparency": "chroma_key",
+            },
+            "Image format 'RGB111' cannot have transparency: chroma_key",
+            id="rgb111_with_chroma_key_transparency",
+        ),
     ],
 )
 def test_file_platform_configuration_errors(
@@ -962,4 +972,65 @@ async def test_rgb565_alpha_animation_layout_per_frame(
     )
     assert all(a == 0x00 for a in frame1_alpha), (
         f"Frame 1 alpha plane should be transparent, got {frame1_alpha}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_rgb111_layout_per_frame(
+    tmp_path: Path,
+    mock_progmem_array: MagicMock,
+) -> None:
+    """RGB111 animations must store each frame as a self-contained
+    block. Make sure that the width stride does not corrupt subsequent frames.
+    """
+    # Build a 2-frame APNG where each frame is a solid color. Frame 0 is fully
+    # opaque red, frame 1 is fully transparent blue.
+    # Pick a width that is *not* a multiple of 8 to ensure that the stride is
+    # not a whole number of bytes.
+    width = 5
+    height = 3
+    frame0 = PILImage.new("RGB", (width, height), (255, 0, 0))
+    frame1 = PILImage.new("RGB", (width, height), (0, 0, 255))
+    apng_path = tmp_path / "anim.png"
+    frame0.save(
+        apng_path,
+        format="PNG",
+        save_all=True,
+        append_images=[frame1],
+        duration=100,
+        loop=0,
+    )
+
+    config = {
+        CONF_FILE: str(apng_path),
+        CONF_TYPE: "RGB111",
+        CONF_TRANSPARENCY: CONF_OPAQUE,
+        CONF_DITHER: "NONE",
+        CONF_INVERT_ALPHA: False,
+        CONF_RAW_DATA_ID: "test_raw_data_id",
+    }
+
+    _, _, _, _, _, frame_count = await write_image(config, all_frames=True)
+    assert frame_count == 2
+
+    # Recover the bytes handed to progmem_array. Signature is (id_, rhs).
+    _, raw_data = mock_progmem_array.call_args.args
+    data = [int(x) for x in raw_data]
+
+    rgb_size = (width * height * 3 + 7) // 8
+    frame_size = rgb_size
+    assert len(data) == frame_size * frame_count, (
+        f"RGB111 animation buffer must be {frame_size} bytes per frame."
+    )
+
+    # Frame 0 is red, frame 1 is blue. RGB111 stores 3 bits per channel and
+    # packs the bits across the frame without row padding, so the per-frame bytes
+    # are not a uniform value even for a solid color.
+    frame0_rgb = data[:frame_size]
+    frame1_rgb = data[frame_size:]
+    assert frame0_rgb == [146, 73, 36, 146, 73, 32], (
+        f"Frame 0 RGB plane should be red, got {frame0_rgb}"
+    )
+    assert frame1_rgb == [36, 146, 73, 36, 146, 72], (
+        f"Frame 1 RGB plane should be blue, got {frame1_rgb}"
     )

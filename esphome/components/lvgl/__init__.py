@@ -297,8 +297,9 @@ def final_validation(config_list):
         path = global_config.get_path_for_id(img.id)[:-1]
         image_conf = global_config.get_config_for_path(path)
         if str(image_conf.get(CONF_TYPE, "")).upper() == "RGB111":
-            raise cv.Invalid(
+            raise cv.FinalExternalInvalid(
                 f"Image '{img}': LVGL does not support RGB111 images, use RGB565 or RGB instead",
+                path + [CONF_TYPE],
             )
     for w in get_focused_widgets():
         path = global_config.get_path_for_id(w)

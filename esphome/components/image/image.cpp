@@ -39,7 +39,7 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
     case IMAGE_TYPE_RGB111: {
       for (int img_x = img_x0; img_x < w; img_x++) {
         for (int img_y = img_y0; img_y < h; img_y++) {
-          auto color = this->get_rgb3_pixel_(img_x, img_y);
+          auto color = this->get_rgb111_pixel_(img_x, img_y);
           if (color.w >= 0x80) {
             display->draw_pixel_at(x + img_x, y + img_y, color);
           }
@@ -103,7 +103,7 @@ Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off
         return color_on;
       return color_off;
     case IMAGE_TYPE_RGB111:
-      return this->get_rgb3_pixel_(x, y);
+      return this->get_rgb111_pixel_(x, y);
     case IMAGE_TYPE_GRAYSCALE:
       return this->get_grayscale_pixel_(x, y);
     case IMAGE_TYPE_RGB565:
@@ -134,7 +134,7 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         break;
 
       case IMAGE_TYPE_RGB111:
-        // Unsuported in LVGL; case added for completeness, but configuration already rejected at configuration time.
+        // Unsupported in LVGL; rejected at configuration time.
         break;
       case IMAGE_TYPE_RGB:
         switch (this->transparency_) {
@@ -168,7 +168,7 @@ bool Image::get_binary_pixel_(int x, int y) const {
   const uint32_t pos = x + y * width_8;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
-Color Image::get_rgb3_pixel_(int x, int y) const {
+Color Image::get_rgb111_pixel_(int x, int y) const {
   const uint32_t bitpos = (y * this->width_ + x) * this->bpp_;
 
   // Helper lambda to read a single bit at a given bit position.
