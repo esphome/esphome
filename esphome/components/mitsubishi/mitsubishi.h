@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/core/helpers.h"
 
 #include <cinttypes>
 
@@ -10,7 +11,7 @@ namespace esphome::mitsubishi {
 const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 // Remotes set to Fahrenheit go up to 88°F, one step past the Celsius range
-const float MITSUBISHI_TEMP_MAX_FAHRENHEIT = 31.11f;
+static constexpr float MITSUBISHI_TEMP_MAX_FAHRENHEIT = fahrenheit_to_celsius(88.0f);
 
 // Fan mode
 enum SetFanMode : uint8_t {

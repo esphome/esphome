@@ -55,13 +55,14 @@ const uint8_t MITSUBISHI_BYTE16 = 0x00;
 
 // Byte 7 codes for 61°F through 88°F. Bit 4 is the half degree bit Mitsubishi uses so every Fahrenheit degree
 // maps to its own code.
-static const uint8_t FAHRENHEIT_CODES[] = {0x00, 0x10, 0x01, 0x11, 0x02, 0x12, 0x03, 0x04, 0x05, 0x15,
-                                           0x06, 0x16, 0x07, 0x17, 0x08, 0x18, 0x09, 0x19, 0x0a, 0x1a,
-                                           0x0b, 0x1b, 0x0c, 0x1c, 0x0d, 0x1d, 0x0e, 0x0f};
-static const uint8_t FAHRENHEIT_MIN = 61;
+static constexpr uint8_t FAHRENHEIT_CODES[] = {0x00, 0x10, 0x01, 0x11, 0x02, 0x12, 0x03, 0x04, 0x05, 0x15,
+                                               0x06, 0x16, 0x07, 0x17, 0x08, 0x18, 0x09, 0x19, 0x0a, 0x1a,
+                                               0x0b, 0x1b, 0x0c, 0x1c, 0x0d, 0x1d, 0x0e, 0x0f};
+static constexpr uint8_t FAHRENHEIT_MIN = 61;
+static constexpr uint8_t MITSUBISHI_HALF_DEGREE = 0x10;
 
 static uint8_t fahrenheit_code(float celsius) {
-  int fahrenheit = (int) roundf(celsius * 1.8f + 32.0f);
+  int fahrenheit = (int) roundf(celsius_to_fahrenheit(celsius));
   size_t index = clamp<int>(fahrenheit - FAHRENHEIT_MIN, 0, sizeof(FAHRENHEIT_CODES) - 1);
   return FAHRENHEIT_CODES[index];
 }
@@ -70,7 +71,7 @@ static uint8_t fahrenheit_code(float celsius) {
 static float fahrenheit_code_to_celsius(uint8_t code) {
   for (size_t i = 0; i < sizeof(FAHRENHEIT_CODES); i++) {
     if (code == FAHRENHEIT_CODES[i]) {
-      return (FAHRENHEIT_MIN + i - 32.0f) / 1.8f;
+      return fahrenheit_to_celsius(FAHRENHEIT_MIN + i);
     }
   }
   return -1.0f;
@@ -136,13 +137,11 @@ void MitsubishiClimate::transmit_state() {
   // Temperature
   if (this->mode == climate::CLIMATE_MODE_DRY) {
     remote_state[7] = 24 - MITSUBISHI_TEMP_MIN;  // Remote sends always 24°C if "Dry" mode is selected
+  } else if (this->fahrenheit_compatibility_) {
+    remote_state[7] = fahrenheit_code(this->target_temperature);
   } else {
-    if (!this->fahrenheit_compatibility_) {
-      remote_state[7] = (uint8_t) roundf(
-          clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
-    } else {
-      remote_state[7] = fahrenheit_code(this->target_temperature);
-    }
+    remote_state[7] = (uint8_t) roundf(
+        clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
   }
 
   // Wide Vane
@@ -327,17 +326,17 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Temp
-  if (!this->fahrenheit_compatibility_) {
-    this->target_temperature = state_frame[7] + MITSUBISHI_TEMP_MIN;
-    if (state_frame[7] & 0x10) {
-      ESP_LOGV(TAG, "Transmitter is in Fahrenheit mode; enable `fahrenheit_compatibility` for proper decoding");
-    }
-  } else {
-    this->target_temperature = fahrenheit_code_to_celsius(state_frame[7]);
-    if (this->target_temperature < 0) {
+  if (this->fahrenheit_compatibility_) {
+    const float celsius = fahrenheit_code_to_celsius(state_frame[7]);
+    if (celsius < 0) {
       ESP_LOGV(TAG, "Invalid temperature code %02x", state_frame[7]);
       return false;
     }
+    this->target_temperature = celsius;
+  } else {
+    // A remote set to Fahrenheit still sets the half degree bit; honor it instead of reading it as 16°C
+    this->target_temperature =
+        MITSUBISHI_TEMP_MIN + (state_frame[7] & 0x0F) + ((state_frame[7] & MITSUBISHI_HALF_DEGREE) ? 0.5f : 0.0f);
   }
 
   // Fan
