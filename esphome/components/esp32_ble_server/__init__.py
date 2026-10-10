@@ -1,4 +1,5 @@
 import encodings
+import struct
 
 from esphome import automation
 import esphome.codegen as cg
@@ -25,8 +26,10 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
+from esphome.types import ConfigType, TemplateArgsType
 
 AUTO_LOAD = ["esp32_ble", "bytebuffer"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
@@ -111,8 +114,6 @@ BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
 )
 bytebuffer_ns = cg.esphome_ns.namespace("bytebuffer")
 Endianness_ns = bytebuffer_ns.namespace("Endian")
-ByteBuffer_ns = bytebuffer_ns.namespace("ByteBuffer")
-ByteBuffer = bytebuffer_ns.class_("ByteBuffer")
 
 
 PROPERTY_MAP = {
@@ -141,6 +142,15 @@ class ValueType:
         return value
 
 
+def float32(value):
+    value = cv.float_(value)
+    try:
+        struct.pack("<f", value)
+    except OverflowError as e:
+        raise cv.Invalid(f"{value} is out of range for a float") from e
+    return value
+
+
 VALUE_TYPES = {
     type_name: ValueType(type_name, validator, length)
     for type_name, validator, length in (
@@ -152,7 +162,7 @@ VALUE_TYPES = {
         ("int16_t", cv.int_range(-32768, 32767), 2),
         ("int32_t", cv.int_range(-2147483648, 2147483647), 4),
         ("int64_t", cv.int_range(-9223372036854775808, 9223372036854775807), 8),
-        ("float", cv.float_, 4),
+        ("float", float32, 4),
         ("double", cv.float_, 8),
         ("string", cv.string_strict, None),  # Length is variable
     )
@@ -495,19 +505,48 @@ def parse_uuid(uuid):
     return ESPBTUUID_ns.from_raw(uuid)
 
 
+_STRUCT_FORMATS = {
+    "uint8_t": "B",
+    "uint16_t": "H",
+    "uint32_t": "I",
+    "uint64_t": "Q",
+    "int8_t": "b",
+    "int16_t": "h",
+    "int32_t": "i",
+    "int64_t": "q",
+    "float": "f",
+    "double": "d",
+}
+
+
+def value_bytes(value_config: ConfigType) -> list[int]:
+    """The bytes of a constant value, as ByteBuffer::wrap packed them at runtime."""
+    value = value_config[CONF_DATA]
+    if isinstance(value, str):
+        return list(value.encode(value_config[CONF_STRING_ENCODING]))
+    if isinstance(value, list):
+        return value
+    order = ">" if value_config[CONF_ENDIANNESS] == "BIG" else "<"
+    return list(struct.pack(order + _STRUCT_FORMATS[value_config[CONF_TYPE]], value))
+
+
 async def parse_value(value_config, args):
     value = value_config[CONF_DATA]
     if isinstance(value, cv.Lambda):
         return await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
+    # An initializer list calls the set_value(std::initializer_list<uint8_t>) overload
+    return cg.ArrayInitializer(*value_bytes(value_config))
 
-    if isinstance(value, str):
-        value = list(value.encode(value_config[CONF_STRING_ENCODING]))
-    if isinstance(value, list):
-        # Generate initializer list {1, 2, 3} instead of std::vector<uint8_t>({1, 2, 3})
-        # This calls the set_value(std::initializer_list<uint8_t>) overload
-        return cg.ArrayInitializer(*value)
-    val = cg.RawExpression(f"{value_config[CONF_TYPE]}({cg.safe_exp(value)})")
-    return ByteBuffer_ns.wrap(val, value_config[CONF_ENDIANNESS])
+
+async def set_value_buffer(
+    var: MockObj, value_config: ConfigType, args: TemplateArgsType
+) -> None:
+    value = value_config[CONF_DATA]
+    if not isinstance(value, cv.Lambda):
+        value = value_bytes(value_config)
+    await automation.templatable_bytes(
+        value, args, var.set_buffer_template, var.set_buffer_static, "ble_server_value"
+    )
 
 
 def calculate_num_handles(service_config):
@@ -662,28 +701,36 @@ async def to_code(config):
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    value = await parse_value(config[CONF_VALUE], args)
-    cg.add(var.set_buffer(value))
+    await set_value_buffer(var, config[CONF_VALUE], args)
     cg.add_define("USE_ESP32_BLE_SERVER_SET_VALUE_ACTION")
     return var
+
+
+def validate_descriptor_value_not_empty(config: ConfigType) -> ConfigType:
+    # An empty constant becomes a nullptr table, which the descriptor would memcpy from
+    if config[CONF_VALUE][CONF_DATA] == "":
+        raise cv.Invalid("Descriptor value must not be empty", path=[CONF_VALUE])
+    return config
 
 
 @automation.register_action(
     "ble_server.descriptor.set_value",
     BLEDescriptorSetValueAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(BLEDescriptor),
-            cv.Required(CONF_VALUE): value_schema(),
-        }
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(BLEDescriptor),
+                cv.Required(CONF_VALUE): value_schema(),
+            }
+        ),
+        validate_descriptor_value_not_empty,
     ),
     synchronous=True,
 )
 async def ble_server_descriptor_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    value = await parse_value(config[CONF_VALUE], args)
-    cg.add(var.set_buffer(value))
+    await set_value_buffer(var, config[CONF_VALUE], args)
     cg.add_define("USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION")
     return var
 
