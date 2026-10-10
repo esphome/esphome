@@ -571,12 +571,12 @@ def claim_exclusive(
             [conf_key],
         )
     used.add(uart_id)
-    # Grouped CI builds share one bus between components, like the pin check above.
+    # Grouped CI builds share buses, like final_validate_device_schema()'s pin check.
     if not CORE.testing_mode:
         for domain, domain_conf in full_config.items():
             if domain != owner and any(
                 subtree_references_uart(domain_conf, uart_id, key)
-                for key in {CONF_UART_ID, conf_key}
+                for key in (CONF_UART_ID, conf_key)
             ):
                 raise cv.Invalid(
                     f"The UART '{uart_id}' is also used by '{domain}'. "
