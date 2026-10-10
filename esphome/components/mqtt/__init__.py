@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import logger, socket
@@ -31,9 +33,11 @@ from esphome.const import (
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
+    CONF_INTERNAL,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MQTT_ID,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -42,6 +46,7 @@ from esphome.const import (
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_PLATFORM,
     CONF_PORT,
     CONF_PUBLISH_NAN_AS_NONE,
     CONF_QOS,
@@ -65,6 +70,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -77,8 +83,16 @@ def AUTO_LOAD():
     return ["json"]
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_MAX_PERSISTED_SUBSCRIPTIONS = "max_persisted_subscriptions"
+
+STORAGE_FLASH = "FLASH"
+STORAGE_RTC = "RTC"
+PERSISTENT_SESSION_STORAGES = (STORAGE_FLASH, STORAGE_RTC)
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -169,6 +183,80 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 }
 
 
+# Worst-case number of topics each MQTT entity component subscribes to in its setup()
+_ENTITY_SUBSCRIPTION_COUNTS = {
+    str(cls): count
+    for cls, count in (
+        (MQTTAlarmControlPanelComponent, 1),
+        (MQTTButtonComponent, 1),
+        # Mode, target temperature (x2), target humidity, preset, fan mode and swing mode
+        (MQTTClimateComponent, 7),
+        # Command, position and tilt
+        (MQTTCoverComponent, 3),
+        (MQTTDateComponent, 1),
+        (MQTTDateTimeComponent, 1),
+        # Command, speed, oscillation and direction
+        (MQTTFanComponent, 4),
+        (MQTTJSONLightComponent, 1),
+        (MQTTLockComponent, 1),
+        (MQTTNumberComponent, 1),
+        (MQTTSelectComponent, 1),
+        (MQTTSwitchComponent, 1),
+        (MQTTTextComponent, 1),
+        (MQTTTimeComponent, 1),
+        (MQTTUpdateComponent, 1),
+        # Command and position
+        (MQTTValveComponent, 2),
+    )
+}
+
+
+def _count_subscriptions(conf: object) -> int:
+    """Count the subscriptions made by the entities found anywhere in a config tree."""
+    if isinstance(conf, list):
+        return sum(_count_subscriptions(item) for item in conf)
+    if not isinstance(conf, dict):
+        return 0
+    count = sum(_count_subscriptions(value) for value in conf.values())
+    if conf.get(CONF_PLATFORM) == "mqtt_subscribe":
+        # Subscribes even when internal
+        return count + 1
+    if (mqtt_id := conf.get(CONF_MQTT_ID)) is None:
+        return count
+    # The MQTT component of an internal entity does nothing, unless a custom topic is set
+    if (
+        conf.get(CONF_INTERNAL, False)
+        and CONF_STATE_TOPIC not in conf
+        and CONF_COMMAND_TOPIC not in conf
+    ):
+        return count
+    return count + _ENTITY_SUBSCRIPTION_COUNTS.get(str(mqtt_id.type), 0)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if config[CONF_CLEAN_SESSION] not in PERSISTENT_SESSION_STORAGES:
+        return config
+    # Subscriptions made by the client itself. Subscriptions made from lambdas cannot be counted.
+    subscription_count = 2 if config[CONF_DISCOVER_IP] else 0
+    subscription_count += len(config.get(CONF_ON_MESSAGE, []))
+    subscription_count += len(config.get(CONF_ON_JSON_MESSAGE, []))
+    subscription_count += _count_subscriptions(full_config.get())
+
+    if CONF_MAX_PERSISTED_SUBSCRIPTIONS not in config:
+        config[CONF_MAX_PERSISTED_SUBSCRIPTIONS] = max(subscription_count, 1)
+    elif config[CONF_MAX_PERSISTED_SUBSCRIPTIONS] < subscription_count:
+        _LOGGER.warning(
+            "The configured %s (%d) is less than the required number of "
+            "subscriptions (%d). Subscriptions that do not fit are sent again "
+            "on every connect. Consider increasing it to at least %d.",
+            CONF_MAX_PERSISTED_SUBSCRIPTIONS,
+            config[CONF_MAX_PERSISTED_SUBSCRIPTIONS],
+            subscription_count,
+            subscription_count,
+        )
+    return config
+
+
 def validate_config(value):
     # Populate default fields
     out = value.copy()
@@ -217,6 +305,22 @@ def validate_config(value):
     return out
 
 
+def validate_clean_session(value):
+    """Validate clean_session configuration.
+
+    Accepts:
+    - True: Clean session
+    - False: Persistent session, all subscriptions are sent again on every connect
+    - FLASH: Persistent session, subscriptions are tracked in flash
+    - RTC: Persistent session, subscriptions are tracked in RTC memory (ESP32 only)
+    """
+    if CORE.is_esp32:
+        return cv.Any(cv.boolean, cv.one_of(*PERSISTENT_SESSION_STORAGES, upper=True))(
+            value
+        )
+    return cv.Any(cv.boolean, cv.one_of(STORAGE_FLASH, upper=True))(value)
+
+
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -233,7 +337,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
-            cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
+            cv.Optional(CONF_CLEAN_SESSION, default=False): validate_clean_session,
+            cv.Optional(CONF_MAX_PERSISTED_SUBSCRIPTIONS): cv.positive_not_null_int,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
@@ -330,6 +435,8 @@ CONFIG_SCHEMA = cv.All(
     _consume_mqtt_sockets,
 )
 
+FINAL_VALIDATE_SCHEMA = _final_validate
+
 
 def exp_mqtt_message(config):
     if config is None:
@@ -371,7 +478,18 @@ async def to_code(config):
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
-    cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
+
+    clean_session = config[CONF_CLEAN_SESSION]
+    cg.add(var.set_clean_session(clean_session is True))
+    if clean_session in PERSISTENT_SESSION_STORAGES:
+        cg.add_define("USE_MQTT_SESSION_PERSISTENCE")
+        cg.add_define(
+            "MQTT_MAX_PERSISTED_SUBSCRIPTIONS",
+            config[CONF_MAX_PERSISTED_SUBSCRIPTIONS],
+        )
+        if clean_session == STORAGE_RTC:
+            cg.add_define("USE_MQTT_SESSION_PERSISTENCE_RTC")
+
     if CONF_CLIENT_ID in config:
         cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
 
