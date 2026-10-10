@@ -40,10 +40,10 @@ def _root_bus_id(bus_id: ID) -> ID:
 
 
 async def _add_frequency(root_bus_id: ID, frequency: int) -> None:
-    """Count the frequency against the root bus; on ESP32 the bus also
+    """Count the frequency against the root bus; the built-in ESP32 bus also
     creates its device handle in setup()."""
     _request_port_frequency_slot(str(root_bus_id))
-    if CORE.is_esp32:
+    if root_bus_id.type is i2c.IDFI2CBus:
         root = await cg.get_variable(root_bus_id)
         cg.add(root.add_frequency(frequency))
 
