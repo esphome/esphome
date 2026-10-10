@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
     CONF_ID,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_PROTOCOL,
     CONF_SERVICE,
@@ -20,6 +21,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+DOMAIN = "mdns"
 
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding
@@ -184,6 +186,28 @@ def enable_mdns_storage() -> None:
     cg.add_define("USE_MDNS_STORE_SERVICES")
 
 
+def request_service_enable_disable() -> bool:
+    """Request MDNSComponent::set_service_enabled() support.
+
+    ESP32 only, not with OpenThread. Returns True when the
+    USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added; guard C++ usage with it.
+
+    Public API for external components. Do not remove.
+    """
+    mdns_config = CORE.config.get(DOMAIN)
+    if (
+        mdns_config is None
+        or mdns_config[CONF_DISABLED]
+        or not CORE.is_esp32
+        or CONF_OPENTHREAD in CORE.config
+    ):
+        return False
+    cg.add_define("USE_MDNS_SUPPORTS_ENABLE_DISABLE")
+    # Services must stay stored so a disabled service can be re-registered
+    enable_mdns_storage()
+    return True
+
+
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED] is True:
@@ -211,7 +235,7 @@ async def to_code(config: ConfigType) -> None:
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.12.0")
+        add_idf_component(name="espressif/mdns", ref="1.14.0")
         # ESPHome only advertises; the browse APIs are unused
         add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
         # The mdns console CLI is never used by ESPHome

@@ -10,7 +10,7 @@
 
 namespace esphome::sprinkler {
 
-static const char *const TAG = "sprinkler";
+ESPHOME_LOG_TAG(TAG, "sprinkler");
 
 void SprinklerControllerNumber::setup() {
   float value;
@@ -322,13 +322,11 @@ optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
 SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this->valve_op_; }
 
 Sprinkler::Sprinkler() : Sprinkler("") {}
-Sprinkler::Sprinkler(const char *name) : name_(name) {
-  // The `name` is stored for dump_config logging
-  this->timer_.init(2);
-  // Timer names only need to be unique within this component instance
-  this->timer_.push_back({"sm", false, 0, 0, [this]() { this->sm_timer_callback_(); }});
-  this->timer_.push_back({"vs", false, 0, 0, [this]() { this->valve_selection_callback_(); }});
-}
+// The `name` is stored for dump_config logging; the scheduler keys each timer by its SprinklerTimerIndex
+Sprinkler::Sprinkler(const char *name)
+    : name_(name),
+      timer_{{{false, 0, 0, [this]() { this->sm_timer_callback_(); }},
+              {false, 0, 0, [this]() { this->valve_selection_callback_(); }}}} {}
 
 void Sprinkler::setup() {
   this->all_valves_off_(true);
@@ -546,11 +544,7 @@ void Sprinkler::set_auto_advance(const bool auto_advance) {
   if (this->auto_adv_sw_->state == auto_advance) {
     return;
   }
-  if (auto_advance) {
-    this->auto_adv_sw_->turn_on();
-  } else {
-    this->auto_adv_sw_->turn_off();
-  }
+  this->auto_adv_sw_->control(auto_advance);
 }
 
 void Sprinkler::set_repeat(optional<uint32_t> repeat) {
@@ -573,11 +567,7 @@ void Sprinkler::set_queue_enable(bool queue_enable) {
   if (this->queue_enable_sw_->state == queue_enable) {
     return;
   }
-  if (queue_enable) {
-    this->queue_enable_sw_->turn_on();
-  } else {
-    this->queue_enable_sw_->turn_off();
-  }
+  this->queue_enable_sw_->control(queue_enable);
 }
 
 void Sprinkler::set_reverse(const bool reverse) {
@@ -587,11 +577,7 @@ void Sprinkler::set_reverse(const bool reverse) {
   if (this->reverse_sw_->state == reverse) {
     return;
   }
-  if (reverse) {
-    this->reverse_sw_->turn_on();
-  } else {
-    this->reverse_sw_->turn_off();
-  }
+  this->reverse_sw_->control(reverse);
 }
 
 void Sprinkler::set_standby(const bool standby) {
@@ -601,11 +587,7 @@ void Sprinkler::set_standby(const bool standby) {
   if (this->standby_sw_->state == standby) {
     return;
   }
-  if (standby) {
-    this->standby_sw_->turn_on();
-  } else {
-    this->standby_sw_->turn_off();
-  }
+  this->standby_sw_->control(standby);
 }
 
 uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
@@ -1526,7 +1508,7 @@ const LogString *Sprinkler::state_as_str_(SprinklerState state) {
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {
-    this->set_timeout(this->timer_[timer_index].name, this->timer_duration_(timer_index),
+    this->set_timeout(static_cast<uint32_t>(timer_index), this->timer_duration_(timer_index),
                       this->timer_cbf_(timer_index));
     this->timer_[timer_index].start_time = millis();
     this->timer_[timer_index].active = true;
@@ -1537,7 +1519,7 @@ void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
 
 bool Sprinkler::cancel_timer_(const SprinklerTimerIndex timer_index) {
   this->timer_[timer_index].active = false;
-  return this->cancel_timeout(this->timer_[timer_index].name);
+  return this->cancel_timeout(static_cast<uint32_t>(timer_index));
 }
 
 bool Sprinkler::timer_active_(const SprinklerTimerIndex timer_index) { return this->timer_[timer_index].active; }

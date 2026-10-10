@@ -13,7 +13,7 @@ static void *lv_alloc_draw_buf(size_t size, bool internal);
 static void *draw_buf_alloc_cb(size_t size, lv_color_format_t color_format) { return lv_alloc_draw_buf(size, false); };
 
 namespace esphome::lvgl {
-static const char *const TAG = "lvgl";
+ESPHOME_LOG_TAG(TAG, "lvgl");
 
 static const size_t MIN_BUFFER_FRAC = 8;     // buffer must be at least 1/8 of the display size
 static const size_t MIN_BUFFER_SIZE = 2048;  // Sensible minimum buffer size
@@ -994,6 +994,7 @@ lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
+  lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
   LV_UNUSED(class_p);
 }
 
@@ -1036,7 +1037,7 @@ void lv_mem_init() {}
 
 void lv_mem_deinit() {}
 
-#if defined(USE_HOST) || defined(USE_RP2) || defined(USE_ESP8266)
+#ifndef USE_ESP32
 void *lv_malloc_core(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {
@@ -1052,7 +1053,7 @@ static void *lv_alloc_draw_buf(size_t size, bool internal) {
   return malloc(size);  // NOLINT
 }
 
-#elif defined(USE_ESP32)
+#else
 static unsigned cap_bits = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;  // NOLINT
 
 static void *lv_alloc_draw_buf(size_t size, bool internal) {

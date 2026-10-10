@@ -101,7 +101,7 @@ int RpiDpiRgb::get_height() {
 }
 
 void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -124,7 +124,7 @@ void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
 
   this->draw_pixels_at(x, y, 1, 1, (const uint8_t *) &pixel, display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, true,
                        0, 0, 0);
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
 void RpiDpiRgb::dump_config() {
