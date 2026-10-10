@@ -141,6 +141,7 @@ UDP_RESEND_MAX = 2.0
 # Acks still asking for the head after later messages arrived; resend it once
 UDP_DUP_ACKS = 2
 UDP_FALLBACK = b"\x00"
+# The UDP format this client speaks; devices decline values they do not know
 UDP_REQUEST = b"\x01"
 # A plain handshake exchange slower than this hid a retransmit (the device's
 # lwIP waits about a second before resending); UDP is used from then on

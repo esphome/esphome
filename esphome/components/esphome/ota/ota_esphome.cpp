@@ -216,6 +216,7 @@ static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
 #ifdef ESPHOME_OTA_UDP
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_UDP = 0x10;
+static constexpr uint8_t UDP_REQUEST_V1 = 0x01;  // espota2.UDP_REQUEST
 #endif
 
 #ifdef USE_OTA_ENCRYPTION
@@ -530,8 +531,8 @@ void ESPHomeOTAComponent::handle_data_() {
       this->log_read_error_(LOG_STR("UDP request"));
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
-    // A reply left all zero keeps the session on TCP
-    if (buf[0] != 0)
+    // 1 is this UDP format; other values are free for later ones, which we decline (a zero reply keeps TCP)
+    if (buf[0] == UDP_REQUEST_V1)
       this->udp_open_(udp_link);
     if (!this->data_write_(udp_link.reply, sizeof(udp_link.reply)))
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
