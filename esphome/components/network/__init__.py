@@ -254,13 +254,12 @@ def final_validate_no_manual_ip_if_ipv6_only(config: ConfigType) -> ConfigType:
     network = fv.full_config.get().get("network", {})
     if network.get(CONF_ENABLE_IPV4, True):
         return config
-    if CONF_MANUAL_IP in config or any(
-        CONF_MANUAL_IP in net for net in config.get(CONF_NETWORKS, [])
-    ):
-        raise cv.Invalid(
-            "manual_ip can't be used with 'network: enable_ipv4: false'",
-            [CONF_MANUAL_IP],
-        )
+    msg = "manual_ip can't be used with 'network: enable_ipv4: false'"
+    if CONF_MANUAL_IP in config:
+        raise cv.Invalid(msg, [CONF_MANUAL_IP])
+    for i, net in enumerate(config.get(CONF_NETWORKS, [])):
+        if CONF_MANUAL_IP in net:
+            raise cv.Invalid(msg, [CONF_NETWORKS, i, CONF_MANUAL_IP])
     return config
 
 

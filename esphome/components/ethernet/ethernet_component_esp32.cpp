@@ -800,7 +800,7 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
-#if defined(USE_NETWORK_IPV6_ONLY) || (USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0))
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
@@ -816,6 +816,9 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
+  if (event->esp_netif != global_eth_component->eth_netif_) {
+    return;  // another interface's address (wifi alongside ethernet)
+  }
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
   // Count the addresses on the interface, not the events: recreating the link-local
   // after a link flap fires another event for the same address.

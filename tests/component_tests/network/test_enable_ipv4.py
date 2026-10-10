@@ -56,18 +56,37 @@ def test_disable_on_esp32(set_core_config: SetCoreConfigCallable) -> None:
 
 
 @pytest.mark.parametrize(
-    "config",
+    ("config", "path"),
     [
-        {CONF_MANUAL_IP: {}},
-        {CONF_NETWORKS: [{CONF_MANUAL_IP: {}}]},
+        ({CONF_MANUAL_IP: {}}, [CONF_MANUAL_IP]),
+        (
+            {CONF_NETWORKS: [{}, {CONF_MANUAL_IP: {}}]},
+            [CONF_NETWORKS, 1, CONF_MANUAL_IP],
+        ),
     ],
 )
-def test_rejects_manual_ip(set_core_config: SetCoreConfigCallable, config) -> None:
+def test_rejects_manual_ip(
+    set_core_config: SetCoreConfigCallable, config, path
+) -> None:
     set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": IPV6_ONLY})
-    with pytest.raises(Invalid, match="manual_ip"):
+    with pytest.raises(Invalid, match="manual_ip") as exc:
         final_validate_no_manual_ip_if_ipv6_only(config)
+    assert exc.value.path == path
 
 
-def test_manual_ip_fine_with_ipv4(set_core_config: SetCoreConfigCallable) -> None:
+@pytest.mark.parametrize("config", [{}, {CONF_NETWORKS: [{}, {}]}])
+def test_no_manual_ip_passes_ipv6_only(
+    set_core_config: SetCoreConfigCallable, config
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": IPV6_ONLY})
+    assert final_validate_no_manual_ip_if_ipv6_only(config) == config
+
+
+@pytest.mark.parametrize(
+    "config", [{CONF_MANUAL_IP: {}}, {CONF_NETWORKS: [{CONF_MANUAL_IP: {}}]}]
+)
+def test_manual_ip_fine_with_ipv4(
+    set_core_config: SetCoreConfigCallable, config
+) -> None:
     set_core_config(PlatformFramework.ESP32_IDF, full_config={"network": {}})
-    final_validate_no_manual_ip_if_ipv6_only({CONF_MANUAL_IP: {}})
+    assert final_validate_no_manual_ip_if_ipv6_only(config) == config

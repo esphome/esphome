@@ -917,8 +917,17 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
+    if (it.esp_netif != s_sta_netif) {
+      return;  // another interface's address (AP netif, or ethernet alongside wifi)
+    }
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
-    this->num_ipv6_addresses_++;
+    // Count the addresses on the interface, not the events: a roam re-creates the
+    // link-local and fires another event for the same address. Never count down
+    // while associated: a roam briefly clears every address before SLAAC re-adds
+    // them, and that must not read as a lost connection. wifi_sta_connect_() resets.
+    struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+    auto count = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, if_ip6s));
+    this->num_ipv6_addresses_ = std::max(this->num_ipv6_addresses_, count);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
