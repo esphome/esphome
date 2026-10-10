@@ -1347,8 +1347,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 1 mirrors ESPHome Desktop on Windows, which bundles ccache and
-        # puts it on PATH; 0 isolates the compiler from ccache.
+        # Both ways the build runs on Windows: ESPHome Desktop bundles
+        # ccache and puts it on PATH, a pip install has none.
         ccache: ["1", "0"]
     env:
       ESPHOME_CCACHE_ENABLE: ${{ matrix.ccache }}
