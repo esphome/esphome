@@ -1,0 +1,25 @@
+fusb302b:
+  id: pd
+  interrupt_pin: ${interrupt_pin}
+  request_voltage: 20
+  contract:
+    name: PD Contract
+  voltage:
+    name: PD Voltage
+  current:
+    name: PD Current
+  on_connect:
+    - logger.log: "Source attached"
+  on_disconnect:
+    - logger.log: "Source removed"
+  on_power_ready:
+    - if:
+        condition:
+          fusb302b.is_connected: pd
+        then:
+          - logger.log: "Power ready"
+  on_error:
+    - fusb302b.request_voltage: 5
+    - fusb302b.request_voltage:
+        id: pd
+        voltage: !lambda "return 9;"
