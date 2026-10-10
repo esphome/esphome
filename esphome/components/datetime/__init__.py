@@ -43,9 +43,6 @@ DateEntity = datetime_ns.class_("DateEntity", DateTimeBase)
 TimeEntity = datetime_ns.class_("TimeEntity", DateTimeBase)
 DateTimeEntity = datetime_ns.class_("DateTimeEntity", DateTimeBase)
 
-DateTimeStateTrigger = datetime_ns.class_(
-    "DateTimeStateTrigger", automation.Trigger.template(cg.ESPTime)
-)
 
 OnTimeTrigger = datetime_ns.class_(
     "OnTimeTrigger", automation.Trigger, cg.Component, cg.Parented.template(TimeEntity)
@@ -75,11 +72,7 @@ def _validate_time_present(config: ConfigType) -> ConfigType:
 _DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     cv.Schema(
         {
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         }
     )
@@ -144,9 +137,16 @@ async def setup_datetime_core_(var: MockObj, config: ConfigType) -> None:
         await mqtt.register_mqtt_component(mqtt_, config)
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
+    # The state callback carries nothing; the automation gets the value as an ESPTime.
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.ESPTime, "x")],
+            conf,
+            params=[],
+            forward=[automation.parent_ref(var).state_as_esptime()],
+        )
 
     if CONF_TIME_ID in config:
         rtc = await cg.get_variable(config[CONF_TIME_ID])

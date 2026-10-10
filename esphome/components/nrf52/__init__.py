@@ -12,6 +12,7 @@ from esphome.build_helpers import pch
 from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
@@ -126,9 +127,35 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
+        sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+        if CORE.testing_mode:
+            sections = _testing_mode_sections(sections)
+        zephyr_add_pm_static(sections)
 
     return config
+
+
+# In testing mode, fake a larger flash to allow linking grouped component
+# tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
+# which an openthread config alone fills; CI images are never flashed.
+NRF52840_FLASH_SIZE = 0x100000
+TESTING_FLASH_SIZE = 0x400000
+
+
+def _testing_mode_sections(sections: list[Section]) -> list[Section]:
+    """Move a bootloader pinned to the end of the real flash to the end of the
+    faked one, so the partition manager still sees a single gap for the app."""
+    return [
+        Section(
+            section.name,
+            section.address + TESTING_FLASH_SIZE - NRF52840_FLASH_SIZE,
+            section.size,
+            section.region,
+        )
+        if section.end_address == NRF52840_FLASH_SIZE
+        else section
+        for section in sections
+    ]
 
 
 _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
@@ -380,6 +407,15 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
+
+    if CORE.testing_mode:
+        zephyr_add_overlay(
+            f"""
+                &flash0 {{
+                    reg = <0x0 {TESTING_FLASH_SIZE:#x}>;
+                }};
+            """
+        )
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)

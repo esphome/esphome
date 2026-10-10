@@ -492,6 +492,9 @@ async def component_to_code(config):
         # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
         cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
 
+    # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
+    cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
+
     # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
     if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:
         cg.add_build_flag("-Wl,--wrap=pvPortMalloc")
