@@ -10,6 +10,15 @@
 #include "esphome/components/noise/noise.h"
 #include "esphome/components/noise/noise_stream.h"
 #include "esphome/core/application.h"
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+#include <unistd.h>
+#include <cstdlib>
+#include <filesystem>
+#include "esphome/core/preferences.h"
+#ifdef USE_HOST
+#include "esphome/components/host/preferences.h"
+#endif
+#endif
 
 namespace esphome::noise::testing {
 
@@ -108,6 +117,7 @@ class StreamProbe : public NoiseStream {
   uint32_t next_wait(uint32_t interval) { return this->next_retry_wait_(interval); }
   /// When the hold set by the last failed handshake runs out.
   uint32_t hold_end() const { return this->started_ms_ + this->hold_ms_; }
+  uint32_t hold() const { return this->hold_ms_; }
 };
 
 #ifdef USE_LOG_LISTENERS
@@ -877,5 +887,209 @@ TEST_F(NoiseStreamTest, AnIdleResponderPreparesTheSpareKey) {
   EXPECT_FALSE(has_spare_ephemeral());
 }
 #endif
+
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+// make_psk(1), make_psk(2) and make_psk(3) in base64
+static const std::string KEY_B64 = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
+static const std::string OTHER_KEY_B64 = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE=";
+static const std::string THIRD_KEY_B64 = "AwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISI=";
+static constexpr uint32_t KEY_HASH = 0x5EED0001;
+
+/// Streams whose key is set at runtime, saved in host preferences of a fresh directory.
+class NoiseStreamKeyTest : public NoiseStreamTest {
+ protected:
+  void SetUp() override {
+    NoiseStreamTest::SetUp();
+#ifdef USE_HOST
+    static bool prefs_ready = false;
+    if (!prefs_ready) {
+      // The host backend reads its file once, so no key saved by an earlier run is found
+      std::string dir = (std::filesystem::temp_directory_path() / "noise-stream-key-XXXXXX").string();
+      ASSERT_NE(mkdtemp(dir.data()), nullptr);
+      setenv("ESPHOME_PREFDIR", dir.c_str(), 1);
+      host::setup_preferences();
+      prefs_ready = true;
+    }
+#endif
+    global_preferences->reset();
+  }
+  void TearDown() override {
+    global_preferences->reset();
+    NoiseStreamTest::TearDown();
+  }
+};
+
+TEST_F(NoiseStreamKeyTest, WithoutAKeyNoHandshakeStarts) {
+  StreamProbe client(KEY_HASH, true);
+  EXPECT_FALSE(client.load_key());
+  NoiseStream server(this->key_.data(), false);
+  this->pump_(client, server);
+  EXPECT_FALSE(client.ready());
+  EXPECT_FALSE(server.ready());
+  // Closed before a byte went out: no handshake with the all-zeros key
+  EXPECT_FALSE(this->client_link_.connected());
+  EXPECT_TRUE(this->client_link_.sent_.empty());
+
+  // A keyless responder closes too
+  this->client_link_.reconnect();
+  NoiseStream keyed(this->key_.data(), true);
+  StreamProbe responder(KEY_HASH + 1, false);
+  EXPECT_FALSE(responder.load_key());
+  this->pump_(keyed, responder);
+  EXPECT_FALSE(responder.ready());
+  EXPECT_FALSE(this->server_link_.connected());
+  EXPECT_TRUE(this->server_link_.sent_.empty());
+}
+
+TEST_F(NoiseStreamKeyTest, ASavedKeyIsLoadedAfterARestart) {
+  {
+    NoiseStream before(KEY_HASH, true);
+    ASSERT_FALSE(before.load_key());
+    EXPECT_TRUE(before.set_key(this->client_link_, KEY_B64));
+  }
+  NoiseStream client(KEY_HASH, true);
+  ASSERT_TRUE(client.load_key());
+  NoiseStream server(this->key_.data(), false);
+  this->client_link_.reconnect();
+  this->pump_(client, server);
+  EXPECT_TRUE(client.ready());
+  EXPECT_TRUE(server.ready());
+  // Each stream has its own record
+  NoiseStream other(KEY_HASH + 1, true);
+  EXPECT_FALSE(other.load_key());
+}
+
+TEST_F(NoiseStreamKeyTest, OnlyAValidKeyIsSaved) {
+  NoiseStream stream(KEY_HASH, true);
+  ASSERT_FALSE(stream.load_key());
+  for (const std::string &bad : {std::string("AAECAw=="), std::string("not base64"), std::string(),
+                                 // 33 bytes: refused, not cut to 32
+                                 std::string("AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAh"),
+                                 std::string("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")}) {
+    EXPECT_FALSE(stream.set_key(this->client_link_, bad)) << bad;
+    // A refused key leaves the link alone
+    EXPECT_TRUE(this->client_link_.connected()) << bad;
+  }
+  NoiseStream reloaded(KEY_HASH, true);
+  EXPECT_FALSE(reloaded.load_key());
+  // The unpadded form and trailing junk decode to the same key, as the api accepts them
+  EXPECT_TRUE(stream.set_key(this->client_link_, KEY_B64.substr(0, 43) + "\n"));
+}
+
+TEST_F(NoiseStreamKeyTest, TheApiAndOtaKeysAreRefused) {
+  NoiseStream stream(KEY_HASH, true);
+  ASSERT_FALSE(stream.load_key());
+  NoiseContext api;
+  stream.set_api_context(api);
+  // An api without a key holds nothing to compare
+  EXPECT_TRUE(stream.set_key(this->client_link_, THIRD_KEY_B64));
+  this->client_link_.reconnect();
+  // Now the api has a key, as one set at runtime
+  api.set_psk(this->key_.data());
+  stream.set_ota_key(this->other_key_.data());
+  EXPECT_FALSE(stream.set_key(this->client_link_, KEY_B64));
+  EXPECT_FALSE(stream.set_key(this->client_link_, OTHER_KEY_B64));
+  EXPECT_TRUE(this->client_link_.connected());
+  NoiseStream reloaded(KEY_HASH, true);
+  ASSERT_TRUE(reloaded.load_key());
+  // The saved key is still the third one: it talks to a server holding it
+  psk_t third = make_psk(3);
+  NoiseStream server(third.data(), false);
+  this->pump_(reloaded, server);
+  EXPECT_TRUE(reloaded.ready());
+}
+
+TEST_F(NoiseStreamKeyTest, ASavedApiOrOtaKeyIsNotUsed) {
+  {
+    NoiseStream before(KEY_HASH, true);
+    ASSERT_FALSE(before.load_key());
+    ASSERT_TRUE(before.set_key(this->client_link_, KEY_B64));
+  }
+  // Since the key was saved, the api got it at runtime or an update made it an ota key
+  NoiseContext api;
+  api.set_psk(this->key_.data());
+  NoiseStream with_api(KEY_HASH, true);
+  with_api.set_api_context(api);
+#ifdef USE_LOG_LISTENERS
+  captured_log().clear();
+#endif
+  EXPECT_FALSE(with_api.load_key());
+  EXPECT_FALSE(with_api.has_key());
+#ifdef USE_LOG_LISTENERS
+  EXPECT_NE(captured_log().find("Saved key equals the api or ota key"), std::string::npos) << captured_log();
+#endif
+  NoiseStream with_ota(KEY_HASH, true);
+  with_ota.set_ota_key(this->key_.data());
+  EXPECT_FALSE(with_ota.load_key());
+  // No session starts on it, and a new key is taken
+  NoiseStream server(this->key_.data(), false);
+  this->client_link_.reconnect();
+  this->pump_(with_ota, server);
+  EXPECT_FALSE(with_ota.ready());
+  this->client_link_.reconnect();
+  EXPECT_TRUE(with_ota.set_key(this->client_link_, THIRD_KEY_B64));
+  EXPECT_TRUE(with_ota.has_key());
+}
+
+TEST_F(NoiseStreamKeyTest, AKeyBeforeSetupIsRefused) {
+  NoiseStream stream(KEY_HASH, true);
+#ifdef USE_LOG_LISTENERS
+  captured_log().clear();
+#endif
+  // As from on_boot at the default priority, before the owner's setup()
+  EXPECT_FALSE(stream.set_key(this->client_link_, KEY_B64));
+  EXPECT_TRUE(this->client_link_.connected());
+#ifdef USE_LOG_LISTENERS
+  EXPECT_NE(captured_log().find("Encryption key set before setup; in on_boot use a priority below 200"),
+            std::string::npos)
+      << captured_log();
+#endif
+  EXPECT_FALSE(stream.load_key());
+  EXPECT_TRUE(stream.set_key(this->client_link_, KEY_B64));
+  EXPECT_TRUE(stream.has_key());
+}
+
+TEST_F(NoiseStreamKeyTest, ANewKeyEndsTheSessionAndTheHold) {
+  StreamProbe client(KEY_HASH, true);
+  StreamProbe server(KEY_HASH + 1, false);
+  ASSERT_FALSE(client.load_key());
+  ASSERT_FALSE(server.load_key());
+  ASSERT_TRUE(client.set_key(this->client_link_, KEY_B64));
+  ASSERT_TRUE(server.set_key(this->server_link_, KEY_B64));
+  this->client_link_.reconnect();
+  this->pump_(client, server);
+  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(server.ready());
+
+  // The same key again changes nothing
+  EXPECT_FALSE(client.set_key(this->client_link_, KEY_B64));
+  EXPECT_TRUE(client.ready());
+  EXPECT_TRUE(this->client_link_.connected());
+
+  // A new key on one end closes its link at once; the old session is gone
+  EXPECT_TRUE(client.set_key(this->client_link_, OTHER_KEY_B64));
+  EXPECT_FALSE(this->client_link_.connected());
+  EXPECT_FALSE(client.ready());
+  uint8_t byte;
+  EXPECT_EQ(server.read(this->server_link_, &byte, 1), -1);
+  EXPECT_FALSE(server.up(this->server_link_));
+  // Until the other end has the key, handshakes fail and the client holds off
+  for (int i = 0; i < 2; i++) {
+    this->client_link_.reconnect();
+    this->pump_(client, server);
+    EXPECT_FALSE(client.ready());
+  }
+  EXPECT_GT(client.hold(), 0u);
+  // The new key on the server; the client's next key starts without a hold
+  EXPECT_TRUE(server.set_key(this->server_link_, OTHER_KEY_B64));
+  EXPECT_TRUE(client.set_key(this->client_link_, THIRD_KEY_B64));
+  EXPECT_EQ(client.hold(), 0u);
+  EXPECT_TRUE(server.set_key(this->server_link_, THIRD_KEY_B64));
+  this->client_link_.reconnect();
+  this->pump_(client, server);
+  EXPECT_TRUE(client.ready());
+  EXPECT_TRUE(server.ready());
+}
+#endif  // USE_NOISE_STREAM_RUNTIME_KEY
 
 }  // namespace esphome::noise::testing

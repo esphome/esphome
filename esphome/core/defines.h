@@ -294,6 +294,7 @@
 #define USE_NOISE
 #define USE_NOISE_SPARE_EPHEMERAL
 #define USE_NOISE_STREAM
+#define USE_NOISE_STREAM_RUNTIME_KEY
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT

@@ -36,6 +36,7 @@ CONF_DISCONNECTS = "disconnects"
 
 tcp_uart_ns = cg.esphome_ns.namespace("tcp_uart")
 TcpUart = tcp_uart_ns.class_("TcpUart", uart.UARTComponent, cg.Component)
+noise.register_set_key_action(DOMAIN, TcpUart)
 
 
 BASE_SCHEMA = cv.Schema(
@@ -118,7 +119,7 @@ async def to_code(config: ConfigType) -> None:
     if (encryption := config.get(CONF_ENCRYPTION)) is not None:
         # The TCP client starts the handshake
         stream = noise.new_stream(
-            config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client"
+            config[CONF_ID], encryption.get(CONF_KEY), config[CONF_ROLE] == "client"
         )
         cg.add(var.set_noise_stream(stream))
     binary_sensors = binary_sensor.sub_binary_sensors(config)

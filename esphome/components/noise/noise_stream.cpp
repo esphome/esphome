@@ -45,6 +45,12 @@ void NoiseStream::reset() {
 }
 
 const LogString *NoiseStream::start_() {
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  // Without a key the handshake would use the all-zeros key, which anyone holds
+  if (!this->ctx_.has_psk()) {
+    return LOG_STR("No encryption key");
+  }
+#endif
   uint8_t prologue[PROLOGUE_LEN];
   progmem_memcpy(prologue, PROLOGUE, PROLOGUE_LEN);
   int err = this->initiator_ ? this->handshake_.init_initiator(this->ctx_, prologue, PROLOGUE_LEN)
@@ -225,6 +231,86 @@ void NoiseStream::log_failure_(const LogString *error) {
   }
   ESP_LOGW(this->tag_, "%s", LOG_STR_ARG(error));
 }
+
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+bool NoiseStream::load_key() {
+  if (this->ctx_.has_psk()) {
+    return true;
+  }
+  this->pref_ = global_preferences->make_preference<psk_t>(this->key_hash_, true);
+  this->loaded_ = true;
+  psk_t saved;
+  // A missing record, or the reserved all-zeros key, is no key
+  if (!this->pref_.load(&saved) || NoiseContext::is_all_zeros(saved)) {
+    ESP_LOGW(this->tag_, "No encryption key, the link stays closed until one is set");
+    return false;
+  }
+  // The api or ota may have got this key since it was saved
+  if (this->key_in_use_(saved)) {
+    ESP_LOGW(this->tag_, "Saved key equals the api or ota key; the link stays closed until a new key is set");
+    return false;
+  }
+  this->key_ = saved;
+  this->ctx_.set_psk(this->key_.data());
+  return true;
+}
+
+bool NoiseStream::save_key_(const std::string &key) {
+  if (!this->loaded_) {
+    // An on_boot action at or above the owner's setup priority runs before load_key()
+    ESP_LOGW(this->tag_, "Encryption key set before setup; in on_boot use a priority below 200");
+    return false;
+  }
+  // One byte more than a key, so a longer key is refused instead of cut
+  uint8_t raw[sizeof(psk_t) + 1];
+  psk_t psk;
+  if (base64_decode(reinterpret_cast<const uint8_t *>(key.data()), key.size(), raw, sizeof(raw)) != psk.size()) {
+    ESP_LOGW(this->tag_, "Invalid encryption key length");
+    return false;
+  }
+  std::memcpy(psk.data(), raw, psk.size());
+  if (NoiseContext::is_all_zeros(psk)) {
+    ESP_LOGW(this->tag_, "Rejecting all-zero encryption key");
+    return false;
+  }
+  if (this->key_in_use_(psk)) {
+    ESP_LOGW(this->tag_, "Rejecting the api or ota encryption key; the peer device holds this key");
+    return false;
+  }
+  if (this->ctx_.has_psk() && psk == this->key_) {
+    ESP_LOGD(this->tag_, "Encryption key unchanged");
+    return false;
+  }
+  if (!this->pref_.save(&psk) || !global_preferences->sync()) {
+    ESP_LOGW(this->tag_, "Failed to save encryption key");
+    return false;
+  }
+  this->key_ = psk;
+  this->ctx_.set_psk(this->key_.data());
+  // Failed handshakes under the old key do not delay the new one
+  this->reset();
+  this->hold_ms_ = 0;
+  this->backoff_ms_ = 0;
+  ESP_LOGI(this->tag_, "Encryption key saved");
+  return true;
+}
+
+bool NoiseStream::key_in_use_(const psk_t &psk) const {
+  psk_t other;
+  if (this->api_ctx_ != nullptr) {
+    // All zeros while the api has no key, which psk never is
+    this->api_ctx_->load_psk(other);
+    if (other == psk) {
+      return true;
+    }
+  }
+  if (this->ota_key_ != nullptr) {
+    progmem_memcpy(other.data(), this->ota_key_, other.size());
+    return other == psk;
+  }
+  return false;
+}
+#endif  // USE_NOISE_STREAM_RUNTIME_KEY
 
 }  // namespace esphome::noise
 

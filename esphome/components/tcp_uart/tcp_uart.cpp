@@ -17,6 +17,12 @@ void TcpUart::setup() {
 #ifdef USE_NOISE_STREAM
   if (this->noise_ != nullptr) {
     this->noise_->set_log_tag(TAG);
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+    // Without a key the link stays closed: a client does not dial, a server does not listen
+    if (!this->noise_->load_key()) {
+      this->disable_loop();
+    }
+#endif
   }
 #endif
 #ifdef USE_SOCKET_TCP_LISTENER
@@ -45,7 +51,12 @@ void TcpUart::dump_config() {
   }
 #ifdef USE_NOISE_STREAM
   if (this->noise_ != nullptr) {
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+    ESP_LOGCONFIG(TAG, "  Encryption: Noise%s",
+                  this->noise_->has_key() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(", key: none"));
+#else
     ESP_LOGCONFIG(TAG, "  Encryption: Noise");
+#endif
   }
 #endif
 #ifdef USE_SOCKET_TCP_LISTENER

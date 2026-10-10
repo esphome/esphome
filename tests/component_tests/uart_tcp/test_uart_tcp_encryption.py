@@ -1,5 +1,8 @@
 """Tests for the uart_tcp encryption key."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
 from esphome import config_validation as cv
@@ -40,9 +43,13 @@ def _validate(
     return uart_tcp.FINAL_VALIDATE_SCHEMA(config)
 
 
-def test_encryption_needs_a_key(set_core_config: SetCoreConfigCallable) -> None:
-    with pytest.raises(cv.Invalid, match="required key not provided"):
-        _validate(set_core_config, {CONF_ENCRYPTION: {}}, None)
+@pytest.mark.parametrize("block", [None, {}], ids=["bare", "empty"])
+def test_encryption_without_a_key_is_accepted(
+    set_core_config: SetCoreConfigCallable, block: ConfigType | None
+) -> None:
+    # The key is then set at runtime
+    config = _validate(set_core_config, {CONF_ENCRYPTION: block}, LINK_KEY)
+    assert config[CONF_ENCRYPTION] == {}
 
 
 def test_encryption_needs_a_reconnect_interval_of_one_loop_pass(
@@ -63,6 +70,9 @@ def test_only_an_encrypted_bridge_loads_noise() -> None:
     # A single entry is not a list before validation
     CORE.raw_config = {uart_tcp.DOMAIN: encrypted}
     assert "noise" in uart_tcp.AUTO_LOAD()
+    # A bare block, whose key is set at runtime
+    CORE.raw_config = {uart_tcp.DOMAIN: [{**plain, CONF_ENCRYPTION: None}]}
+    assert "noise" in uart_tcp.AUTO_LOAD()
     # Tooling asks without a config
     CORE.raw_config = None
     assert "noise" in uart_tcp.AUTO_LOAD()
@@ -81,3 +91,11 @@ def test_api_key_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
     ) as err:
         _validate(set_core_config, {CONF_ENCRYPTION: {CONF_KEY: LINK_KEY}}, LINK_KEY)
     assert err.value.path == [CONF_ENCRYPTION, CONF_KEY]
+
+
+def test_the_runtime_key_action(generate_main: Callable[[Path], str]) -> None:
+    main_cpp = generate_main(Path(__file__).parent / "test_runtime_key.yaml")
+    assert "::bridge->set_encryption_key(key);" in main_cpp
+    # The key set at runtime must differ from the api key, which the ota takes too
+    assert "bridge_noise->set_api_context(" in main_cpp
+    assert "set_ota_key(" not in main_cpp

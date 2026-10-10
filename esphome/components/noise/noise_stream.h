@@ -9,12 +9,18 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+#include "esphome/core/preferences.h"
+#endif
 
 #include <sys/types.h>
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+#include <string>
+#endif
 
 namespace esphome::noise {
 
@@ -25,12 +31,36 @@ namespace esphome::noise {
 class NoiseStream {
  public:
   NoiseStream(const uint8_t *psk, bool initiator) : initiator_(initiator) { this->ctx_.set_psk(psk); }
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  /// No key from yaml: set_key() saves one under key_hash, and no session starts without it.
+  NoiseStream(uint32_t key_hash, bool initiator) : key_hash_(key_hash), initiator_(initiator) {}
+#endif
   NoiseStream(const NoiseStream &) = delete;
   NoiseStream &operator=(const NoiseStream &) = delete;
 
   /// tag names the owner's log lines.
   void set_log_tag(const char *tag) { this->tag_ = tag; }
   bool ready() const { return this->state_ == State::STATE_READY; }
+
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  /// Keys a runtime key must differ from, because the peer device holds it: the api's, also one it gets at
+  /// runtime, and the ota key from yaml in flash.
+  void set_api_context(const NoiseContext &api) { this->api_ctx_ = &api; }
+  void set_ota_key(const uint8_t *key) { this->ota_key_ = key; }
+  /// True when there is a key, from yaml or saved earlier; a saved api or ota key does not count. Call once from
+  /// setup(), after set_log_tag(); set_key() refuses keys until then.
+  bool load_key();
+  bool has_key() const { return this->ctx_.has_psk(); }
+  /// Save a base64 key and close the link, so the next session uses it. False when the key is refused, unchanged or
+  /// not saved; the link then stays as it is.
+  template<typename Link> bool set_key(Link &link, const std::string &key) {
+    if (!this->save_key_(key)) {
+      return false;
+    }
+    link.close();
+    return true;
+  }
+#endif
 
   /// True once the session is secure and both Hellos are through. Runs the handshake while the link is up and
   /// closes the link when it fails or stalls; a down link resets the session. Call it every loop.
@@ -302,6 +332,10 @@ class NoiseStream {
   size_t take_plain_(uint8_t *buf, size_t len);
   bool seal_frame_(uint8_t *frame, size_t len);
   void log_failure_(const LogString *error);
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  bool save_key_(const std::string &key);
+  bool key_in_use_(const psk_t &psk) const;
+#endif
 
   NoiseContext ctx_;
   NoiseResponderHandshake handshake_;
@@ -314,6 +348,12 @@ class NoiseStream {
   uint32_t hold_ms_{0};
   // Backoff for the next failed handshake; 0 starts at the link's interval.
   uint32_t backoff_ms_{0};
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  ESPPreferenceObject pref_;
+  const NoiseContext *api_ctx_{nullptr};
+  const uint8_t *ota_key_{nullptr};
+  uint32_t key_hash_{0};
+#endif
   // rx_ holds the frame being read, then its plaintext at [plain_off_, plain_end_).
   uint16_t rx_have_{0};
   uint16_t rx_need_{0};
@@ -323,6 +363,12 @@ class NoiseStream {
   uint16_t open_len_{0};
   State state_{State::STATE_IDLE};
   bool initiator_;
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  // load_key() made pref_; it is never made later, as esp8266 places flash records in creation order.
+  bool loaded_{false};
+  // The runtime key ctx_ points at once there is one.
+  psk_t key_{};
+#endif
   uint8_t rx_[RX_SIZE]{};
 };
 

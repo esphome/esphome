@@ -1,4 +1,4 @@
-"""Tests for the noise stream helpers: the link key schema, the checks and codegen."""
+"""Tests for the noise stream helpers: the key, interval and set key action checks and codegen."""
 
 from __future__ import annotations
 
@@ -15,11 +15,15 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_ID,
     CONF_KEY,
+    CONF_ON_BOOT,
     CONF_OTA,
     CONF_PLATFORM,
+    CONF_PRIORITY,
+    CONF_THEN,
     PlatformFramework,
 )
 from esphome.core import CORE, ID
+from esphome.helpers import fnv1_hash
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -43,14 +47,13 @@ def _link(key: str) -> ConfigType:
     return {CONF_ID: ID("link"), CONF_ENCRYPTION: {CONF_KEY: key}}
 
 
-def test_the_link_key_is_required() -> None:
-    with pytest.raises(cv.Invalid, match="required key not provided"):
-        noise.STREAM_ENCRYPTION_SCHEMA({})
+def test_the_link_key_may_be_left_out() -> None:
+    # It is then set at runtime
+    assert noise.STREAM_ENCRYPTION_SCHEMA(None) == {}
     assert noise.STREAM_ENCRYPTION_SCHEMA({CONF_KEY: LINK_KEY})[CONF_KEY] == LINK_KEY
     with pytest.raises(cv.Invalid, match="all-zeros key is reserved") as err:
         noise.STREAM_ENCRYPTION_SCHEMA({CONF_KEY: ZERO_KEY})
-    # The key cannot be left out, so the error does not suggest it
-    assert "omit" not in str(err.value)
+    assert "omit the key" in str(err.value)
 
 
 def test_only_an_encrypted_entry_loads_noise() -> None:
@@ -156,3 +159,80 @@ def test_new_stream_compiles_the_stream(
     assert "USE_NOISE_STREAM" in defines
     assert ("USE_NOISE_SPARE_EPHEMERAL" in defines) is spare
     assert str(stream) == "link_noise"
+
+
+def _set_key_action(entry_id: str, priority: float = 100.0) -> ConfigType:
+    # The action as it sits in a validated config, deep inside an automation
+    action = {"my_link.set_encryption_key": {CONF_ID: ID(entry_id), CONF_KEY: LINK_KEY}}
+    boot = {CONF_PRIORITY: priority, CONF_THEN: [action]}
+    return {CONF_ESPHOME: {CONF_ON_BOOT: [boot]}}
+
+
+def test_the_set_key_action_needs_a_runtime_key(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    runtime = {CONF_ID: ID("link"), CONF_ENCRYPTION: {}}
+    assert _check(set_core_config, runtime, _set_key_action("link")) == runtime
+    for entry in ({CONF_ID: ID("link")}, _link(LINK_KEY)):
+        with pytest.raises(
+            cv.Invalid,
+            match=r"'my_link.set_encryption_key' needs 'encryption:' without a 'key' "
+            r"on 'link'",
+        ):
+            _check(set_core_config, entry, _set_key_action("link"))
+    # An action on another entry is that entry's business
+    _check(set_core_config, _link(LINK_KEY), _set_key_action("other"))
+
+
+def test_an_on_boot_action_runs_after_the_key_is_loaded(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    runtime = {CONF_ID: ID("link"), CONF_ENCRYPTION: {}}
+    with pytest.raises(
+        cv.Invalid,
+        match=r"'my_link.set_encryption_key' in 'on_boot' needs a 'priority' below 200",
+    ):
+        _check(set_core_config, runtime, _set_key_action("link", 600.0))
+    assert _check(set_core_config, runtime, _set_key_action("link", 100.0)) == runtime
+
+
+def test_an_api_action_without_api_encryption_warns(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    runtime = {CONF_ID: ID("link"), CONF_ENCRYPTION: {}}
+    action = {"my_link.set_encryption_key": {CONF_ID: ID("link"), CONF_KEY: LINK_KEY}}
+    api_action = {"actions": [{"then": [action]}]}
+    _check(set_core_config, runtime, {CONF_API: api_action})
+    assert "crosses the network in plain text" in caplog.text
+    # An api with encryption, provisioned or not, and an action outside the api do not warn
+    caplog.clear()
+    _check(set_core_config, runtime, {CONF_API: {**api_action, CONF_ENCRYPTION: {}}})
+    _check(set_core_config, runtime, {**_set_key_action("link"), CONF_API: {}})
+    assert "plain text" not in caplog.text
+
+
+def test_new_stream_without_a_key_takes_it_at_runtime(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    stream = noise.new_stream(ID("link", is_declaration=True), None, True)
+    defines = {define.name for define in CORE.defines}
+    assert {"USE_NOISE_STREAM", "USE_NOISE_STREAM_RUNTIME_KEY"} <= defines
+    assert str(stream) == "link_noise"
+    # The preference hash is per entry
+    key_hash = fnv1_hash("noise_stream_key:link")
+    assert f"noise::NoiseStream({key_hash}UL, true)" in CORE.cpp_main_section
+    # Without api and ota there is no key to keep apart
+    CORE.config = {}
+    CORE.flush_tasks()
+    assert "set_api_context" not in CORE.cpp_main_section
+    assert "set_ota_key" not in CORE.cpp_main_section
+
+
+def test_a_key_in_yaml_compiles_no_runtime_key(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    noise.new_stream(ID("link", is_declaration=True), LINK_KEY, True)
+    defines = {define.name for define in CORE.defines}
+    assert "USE_NOISE_STREAM_RUNTIME_KEY" not in defines

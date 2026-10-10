@@ -1,0 +1,30 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+# The key comes from Home Assistant, or back to a fixed one
+api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
+  actions:
+    - action: set_uart_tcp_key
+      variables:
+        key: string
+      then:
+        - uart_tcp.set_encryption_key:
+            id: runtime_key_bridge
+            key: !lambda return key;
+    - action: reset_uart_tcp_key
+      then:
+        - uart_tcp.set_encryption_key:
+            id: runtime_key_bridge
+            key: "dWFydF90Y3Agbm9pc2UgY29tcGlsZSB0ZXN0IGtleSE="
+
+uart_tcp:
+  - id: runtime_key_bridge
+    uart_id: uart_bus
+    role: server
+    port: 6639
+    encryption:
+    connected:
+      name: UART TCP Runtime Key Connected

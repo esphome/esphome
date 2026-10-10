@@ -31,6 +31,14 @@ class TcpUart : public uart::UARTComponent, public Component {
 #ifdef USE_NOISE_STREAM
   void set_noise_stream(noise::NoiseStream *stream) { this->noise_ = stream; }
 #endif
+#ifdef USE_NOISE_STREAM_RUNTIME_KEY
+  /// Save a base64 key for `encryption:` without a key in yaml; the link reconnects with it.
+  void set_encryption_key(const std::string &key) {
+    if (this->noise_ != nullptr && this->noise_->set_key(this->link_, key)) {
+      this->enable_loop();
+    }
+  }
+#endif
 #ifdef USE_SENSOR
   void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
 #endif
