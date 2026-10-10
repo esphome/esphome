@@ -290,6 +290,13 @@ def test_sdkconfig_cpu_frequency_is_honored(
         pytest.param(
             VARIANT_ESP32C3,
             None,
+            {"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160": "yes"},
+            "must be y or n",
+            id="choice-option-not-y-or-n",
+        ),
+        pytest.param(
+            VARIANT_ESP32C3,
+            None,
             {
                 "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160": "y",
                 "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240": "y",

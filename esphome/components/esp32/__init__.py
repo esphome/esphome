@@ -551,7 +551,8 @@ assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
 
-_SDKCONFIG_CPU_FREQUENCY_PREFIX = "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_"
+_SDKCONFIG_CPU_FREQUENCY_OPTION = "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ"
+_SDKCONFIG_CPU_FREQUENCY_PREFIX = f"{_SDKCONFIG_CPU_FREQUENCY_OPTION}_"
 # Older IDF versions named the CPU frequency options after the chip
 _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS = frozenset(
     {VARIANT_ESP32, VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3}
@@ -563,7 +564,7 @@ def _get_sdkconfig_cpu_frequencies(
 ) -> tuple[set[int], set[int]]:
     """Return the CPU frequencies in MHz that sdkconfig_options selects and disables."""
     # (integer option, choice option prefix) pairs that can carry a frequency
-    keys = [(_SDKCONFIG_CPU_FREQUENCY_PREFIX[:-1], _SDKCONFIG_CPU_FREQUENCY_PREFIX)]
+    keys = [(_SDKCONFIG_CPU_FREQUENCY_OPTION, _SDKCONFIG_CPU_FREQUENCY_PREFIX)]
     if variant in _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS:
         keys.append(
             (
@@ -590,6 +591,11 @@ def _get_sdkconfig_cpu_frequencies(
                 selected.add(int(mhz))
             elif value.lower() == "n":
                 disabled.add(int(mhz))
+            else:
+                raise cv.Invalid(
+                    f"{name} must be y or n",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                )
     return selected, disabled
 
 
