@@ -7,29 +7,30 @@ ESPHOME_LOG_TAG(TAG, "tca9548a");
 
 i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                             uint8_t *read_buffer, size_t read_count) {
-  // The multiplexer itself is addressed at the bus frequency; only the
-  // transaction behind the selected port runs at the port frequency.
-  auto err = this->parent_->switch_to_channel(this->channel_);
-  if (err != i2c::ERROR_OK)
-    return err;
-
   i2c::I2CBus *bus = this->parent_->bus_;
 #ifdef I2C_PORT_FREQUENCY_COUNT
+  // The port frequency covers the multiplexer select and deselect as well: a
+  // multiplexer tolerates a faster bus but may not answer at that speed.
   if (this->frequency_ != 0) {
     const uint32_t original_frequency = bus->get_frequency();
     if (bus->switch_frequency(this->frequency_) != i2c::ERROR_OK) {
       this->parent_->status_set_error(LOG_STR("Failed to set port frequency"));
-      this->parent_->disable_all_channels();
       return i2c::ERROR_UNKNOWN;
     }
-    err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+    auto err = this->parent_->switch_to_channel(this->channel_);
+    if (err == i2c::ERROR_OK) {
+      err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+      this->parent_->disable_all_channels();
+    }
     if (bus->switch_frequency(original_frequency) != i2c::ERROR_OK) {
       this->parent_->status_set_error(LOG_STR("Failed to restore bus frequency"));
     }
-    this->parent_->disable_all_channels();
     return err;
   }
 #endif
+  auto err = this->parent_->switch_to_channel(this->channel_);
+  if (err != i2c::ERROR_OK)
+    return err;
   err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
   this->parent_->disable_all_channels();
   return err;
@@ -38,7 +39,8 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
 #ifdef I2C_PORT_FREQUENCY_COUNT
 // Both act on the shared upstream bus: a multiplexer behind this port
 // switches it, and restores whatever it ran at before. When ports at both
-// levels set a frequency, the outer port's is the one the transfer uses.
+// levels set a frequency, the outer port's is the one the transfer uses,
+// and the inner port's covers the outer multiplexer's select.
 i2c::ErrorCode TCA9548AChannel::switch_frequency(uint32_t frequency) {
   return this->parent_->bus_->switch_frequency(frequency);
 }
