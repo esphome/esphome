@@ -249,7 +249,7 @@ void BMI270Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[gyro_range_]);
   if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
     ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",
-                  this->magnetometer_ready_ ? "ready" : "NOT DETECTED");
+                  this->magnetometer_ready_ ? LOG_STR_LITERAL("ready") : LOG_STR_LITERAL("NOT DETECTED"));
   }
   MotionComponent::dump_config();
 }
