@@ -105,6 +105,8 @@ def _nrf52_files(tmp_path: Path, *built: str) -> list[str]:
             ["zephyr/merged.hex", "zephyr/app_update.bin"],
         ),
         (["zephyr/merged.hex"], ["zephyr/merged.hex"]),
+        # The dongle's Open DFU bootloader has no UF2 family, so its DFU package rides beside the HEX
+        (["zephyr/merged.hex", "firmware.zip"], ["zephyr/merged.hex", "firmware.zip"]),
         ([], ["zephyr/zephyr.hex"]),
     ],
 )
