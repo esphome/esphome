@@ -3,6 +3,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+ESPHOME_LOG_TAG(TAG, "image");
+
 namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
@@ -135,6 +137,7 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
 
       case IMAGE_TYPE_RGB111:
         // Unsupported in LVGL; rejected at configuration time.
+        ESP_LOGE(TAG, "RGB111 images are not supported in LVGL.");
         break;
       case IMAGE_TYPE_RGB:
         switch (this->transparency_) {
