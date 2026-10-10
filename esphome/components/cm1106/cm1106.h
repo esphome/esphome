@@ -25,23 +25,22 @@ class CM1106Component final : public PollingComponent, public uart::UARTDevice {
   void abc_disable() { this->abc_set_(false); }
 
   void set_co2_sensor(sensor::Sensor *co2_sensor) { this->co2_sensor_ = co2_sensor; }
-  void set_abc_enabled(bool abc_enabled) {
-    this->abc_boot_logic_ = abc_enabled ? CM1106_ABC_ENABLED : CM1106_ABC_DISABLED;
+  void set_abc(bool enabled, uint8_t cycle_days, uint16_t baseline_ppm) {
+    this->abc_boot_logic_ = enabled ? CM1106_ABC_ENABLED : CM1106_ABC_DISABLED;
+    this->abc_cycle_ = cycle_days;
+    this->abc_baseline_ = baseline_ppm;
   }
-  void set_abc_cycle(uint8_t cycle) { this->abc_cycle_ = cycle; }
-  void set_abc_baseline(uint16_t baseline) { this->abc_baseline_ = baseline; }
 
  protected:
-  sensor::Sensor *co2_sensor_{nullptr};
-
   bool cm1106_write_command_(const uint8_t *command, size_t command_len, uint8_t *response, size_t response_len);
-
-  CM1106ABCLogic abc_boot_logic_{CM1106_ABC_NONE};
-  uint8_t abc_cycle_{15};       // calibration cycle in days
-  uint16_t abc_baseline_{400};  // baseline in ppm
-
- private:
+  /// Sends a command and checks the sensor's four byte acknowledgement, updating the warning status.
+  bool send_command_expect_ack_(const uint8_t *command, size_t command_len, const uint8_t *ack);
   void abc_set_(bool enabled);
+
+  sensor::Sensor *co2_sensor_{nullptr};
+  CM1106ABCLogic abc_boot_logic_{CM1106_ABC_NONE};
+  uint8_t abc_cycle_{15};
+  uint16_t abc_baseline_{400};
 };
 
 }  // namespace esphome::cm1106

@@ -20,27 +20,16 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@andrewjswan"]
 
-
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
 
 
-def _validate_abc(value):
-    """Validate the automatic_baseline_calibration option.
-
-    Accepts ``false`` (disable ABC), ``true`` (enable with defaults) or a dict
-    customizing the calibration cycle (days, 1-90, default 15) and baseline
-    (ppm, minimum 400, default 400).
-    """
-    if isinstance(value, str):
-        value = cv.boolean(value)
-    if isinstance(value, bool):
-        return value
-    return cv.Schema(
-        {
-            cv.Optional(CONF_CYCLE, default=15): cv.int_range(min=1, max=90),
-            cv.Optional(CONF_BASELINE, default=400): cv.int_range(min=400, max=10000),
-        }
-    )(value)
+# true enables ABC with these defaults, false disables it, a mapping enables it with custom values
+_ABC_SETTINGS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_CYCLE, default=15): cv.int_range(min=1, max=90),
+        cv.Optional(CONF_BASELINE, default=400): cv.int_range(min=400, max=10000),
+    }
+)
 
 
 cm1106_ns = cg.esphome_ns.namespace("cm1106")
@@ -60,7 +49,9 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): _validate_abc,
+            cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.Any(
+                cv.boolean, _ABC_SETTINGS_SCHEMA
+            ),
         },
     )
     .extend(cv.polling_component_schema("60s"))
@@ -84,17 +75,10 @@ async def to_code(config: ConfigType) -> None:
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)
 
-    if (
-        automatic_baseline_calibration := config.get(
-            CONF_AUTOMATIC_BASELINE_CALIBRATION
-        )
-    ) is not None:
-        if isinstance(automatic_baseline_calibration, dict):
-            cg.add(var.set_abc_enabled(True))
-            cg.add(var.set_abc_cycle(automatic_baseline_calibration[CONF_CYCLE]))
-            cg.add(var.set_abc_baseline(automatic_baseline_calibration[CONF_BASELINE]))
-        else:
-            cg.add(var.set_abc_enabled(automatic_baseline_calibration))
+    if (abc := config.get(CONF_AUTOMATIC_BASELINE_CALIBRATION)) is not None:
+        enabled = abc if isinstance(abc, bool) else True
+        settings = _ABC_SETTINGS_SCHEMA({}) if isinstance(abc, bool) else abc
+        cg.add(var.set_abc(enabled, settings[CONF_CYCLE], settings[CONF_BASELINE]))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(

@@ -58,22 +58,17 @@ void CM1106Component::update() {
     return;
   }
 
-  this->status_clear_warning();
-
   const uint16_t ppm = response[3] << 8 | response[4];
   const uint8_t status = response[5];
-
-  // status should be empty for success
-  if (status) {
-    const bool preheating = status & 0x1;
-    if (preheating) {
-      ESP_LOGW(TAG, "Preheating; CO₂=%uppm", ppm);
-      this->status_set_warning();
-      return;
-    } else {
-      ESP_LOGW(TAG, "Status: %02X", status);
-    }
+  if (status & 0x1) {
+    ESP_LOGW(TAG, "Preheating; CO₂=%uppm", ppm);
+    this->status_set_warning();
+    return;
   }
+  if (status) {
+    ESP_LOGW(TAG, "Status: %02X", status);
+  }
+  this->status_clear_warning();
 
   ESP_LOGD(TAG, "CO₂=%uppm DF4=%02X", ppm, response[6]);
   if (this->co2_sensor_ != nullptr)
@@ -85,23 +80,9 @@ void CM1106Component::calibrate_zero(uint16_t ppm) {
   memcpy(cmd, C_M1106_CMD_SET_CO2_CALIB, sizeof(cmd));
   cmd[3] = ppm >> 8;
   cmd[4] = ppm & 0xFF;
-  uint8_t response[4] = {0};
-
-  if (!this->cm1106_write_command_(cmd, sizeof(cmd), response, sizeof(response))) {
-    ESP_LOGW(TAG, "Calibrate to zero failed");
-    this->status_set_warning();
-    return;
+  if (this->send_command_expect_ack_(cmd, sizeof(cmd), C_M1106_CMD_SET_CO2_CALIB_RESPONSE)) {
+    ESP_LOGD(TAG, "Successfully calibrated sensor to %uppm", ppm);
   }
-
-  // check if correct response received
-  if (memcmp(response, C_M1106_CMD_SET_CO2_CALIB_RESPONSE, sizeof(response)) != 0) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
-    this->status_set_warning();
-    return;
-  }
-
-  this->status_clear_warning();
-  ESP_LOGD(TAG, "Successfully calibrated sensor to %uppm", ppm);
 }
 
 void CM1106Component::abc_set_(bool enabled) {
@@ -112,24 +93,27 @@ void CM1106Component::abc_set_(bool enabled) {
   cmd[5] = this->abc_cycle_;
   cmd[6] = this->abc_baseline_ >> 8;
   cmd[7] = this->abc_baseline_ & 0xFF;
-  uint8_t response[4] = {0};
-
-  if (!this->cm1106_write_command_(cmd, sizeof(cmd), response, sizeof(response))) {
-    ESP_LOGW(TAG, "ABC command failed");
-    this->status_set_warning();
-    return;
+  if (this->send_command_expect_ack_(cmd, sizeof(cmd), C_M1106_CMD_SET_ABC_STATUS_RESPONSE)) {
+    ESP_LOGD(TAG, "Successfully set ABC status");
   }
+}
 
-  // check if correct response received
-  if (memcmp(response, C_M1106_CMD_SET_ABC_STATUS_RESPONSE, sizeof(response)) != 0) {
+bool CM1106Component::send_command_expect_ack_(const uint8_t *command, size_t command_len, const uint8_t *ack) {
+  uint8_t response[4] = {0};
+  if (!this->cm1106_write_command_(command, command_len, response, sizeof(response))) {
+    ESP_LOGW(TAG, "Command %02X failed", command[2]);
+    this->status_set_warning();
+    return false;
+  }
+  if (memcmp(response, ack, sizeof(response)) != 0) {
     ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
     this->status_set_warning();
-    return;
+    return false;
   }
-
   this->status_clear_warning();
-  ESP_LOGD(TAG, "Successfully set ABC status");
+  return true;
 }
+
 bool CM1106Component::cm1106_write_command_(const uint8_t *command, size_t command_len, uint8_t *response,
                                             size_t response_len) {
   // Empty RX Buffer
@@ -149,10 +133,11 @@ void CM1106Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CM1106:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   if (this->abc_boot_logic_ != CM1106_ABC_NONE) {
-    ESP_LOGCONFIG(TAG, "  Automatic baseline calibration on boot: %s",
-                  ONOFF(this->abc_boot_logic_ == CM1106_ABC_ENABLED));
-    ESP_LOGCONFIG(TAG, "  ABC calibration cycle: %u days", this->abc_cycle_);
-    ESP_LOGCONFIG(TAG, "  ABC baseline: %uppm", this->abc_baseline_);
+    ESP_LOGCONFIG(TAG,
+                  "  Automatic baseline calibration on boot: %s\n"
+                  "  ABC calibration cycle: %u days\n"
+                  "  ABC baseline: %uppm",
+                  ONOFF(this->abc_boot_logic_ == CM1106_ABC_ENABLED), this->abc_cycle_, this->abc_baseline_);
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
