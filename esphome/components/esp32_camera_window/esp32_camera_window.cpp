@@ -8,7 +8,7 @@
 
 namespace esphome::esp32_camera_window {
 
-static const char *const TAG = "esp32_camera_window";
+ESPHOME_LOG_TAG(TAG, "esp32_camera_window");
 
 // Registers of the OV2640 that hold the crop its image pipeline works on. A register number
 // carries its bank in bit 8, and all of these are in the DSP bank, bank 0.
