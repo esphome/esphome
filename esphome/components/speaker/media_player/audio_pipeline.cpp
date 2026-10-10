@@ -79,6 +79,7 @@ void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
 esp_err_t AudioPipeline::stop() {
   this->pending_url_ = false;
   this->pending_file_ = false;
+  this->waiting_for_start_condition_ = false;
   xEventGroupSetBits(this->event_group_, EventGroupBits::PIPELINE_COMMAND_STOP);
 
   return ESP_OK;
@@ -165,9 +166,14 @@ AudioPipelineState AudioPipeline::process_state() {
         // Report playback as active so on_play/on_announcement can release a shared resource.
         // No reader or decoder task may start until the condition is true.
         if (!this->read_task_.is_created() && !this->decode_task_.is_created()) {
-          return AudioPipelineState::PLAYING;
+          if (!this->waiting_for_start_condition_) {
+            ESP_LOGD(TAG, "Waiting for playback start condition");
+            this->waiting_for_start_condition_ = true;
+          }
+          return this->pause_state_ ? AudioPipelineState::PAUSED : AudioPipelineState::PLAYING;
         }
       } else {
+        this->waiting_for_start_condition_ = false;
         // Only start if there is no pending stop command
         if (!this->read_task_.is_created() || !this->decode_task_.is_created()) {
           // At least one task isn't running

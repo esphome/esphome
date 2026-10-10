@@ -82,12 +82,8 @@ class SpeakerMediaPlayer final : public Component,
   void set_media_format(const media_player::MediaPlayerSupportedFormat &media_format) {
     this->media_format_ = media_format;
   }
-  void set_announcement_start_condition(std::function<bool()> condition) {
-    this->announcement_start_condition_ = std::move(condition);
-  }
-  void set_media_start_condition(std::function<bool()> condition) {
-    this->media_start_condition_ = std::move(condition);
-  }
+  void set_announcement_start_condition(bool (*condition)()) { this->announcement_start_condition_ = condition; }
+  void set_media_start_condition(bool (*condition)()) { this->media_start_condition_ = condition; }
 
   Trigger<> *get_mute_trigger() { return &this->mute_trigger_; }
   Trigger<> *get_unmute_trigger() { return &this->unmute_trigger_; }
@@ -129,7 +125,7 @@ class SpeakerMediaPlayer final : public Component,
   Speaker *announcement_speaker_{nullptr};
 
   optional<media_player::MediaPlayerSupportedFormat> media_format_;
-  std::function<bool()> media_start_condition_;
+  bool (*media_start_condition_)(){nullptr};
   AudioPipelineState media_pipeline_state_{AudioPipelineState::STOPPED};
   bool media_repeat_one_{false};
   // Set when the media pipeline reports an error, consumed when it stops, so the failed item is dropped
@@ -137,7 +133,7 @@ class SpeakerMediaPlayer final : public Component,
   uint32_t media_playlist_delay_ms_{0};
 
   optional<media_player::MediaPlayerSupportedFormat> announcement_format_;
-  std::function<bool()> announcement_start_condition_;
+  bool (*announcement_start_condition_)(){nullptr};
   AudioPipelineState announcement_pipeline_state_{AudioPipelineState::STOPPED};
   bool announcement_repeat_one_{false};
   // Set when the announcement pipeline reports an error, consumed when it stops, so the failed item is dropped

@@ -89,7 +89,7 @@ void SpeakerMediaPlayer::setup() {
     ESP_LOGE(TAG, "Failed to create announcement pipeline");
     this->mark_failed();
   } else if (this->announcement_start_condition_) {
-    this->announcement_pipeline_->set_start_condition(std::move(this->announcement_start_condition_));
+    this->announcement_pipeline_->set_start_condition(this->announcement_start_condition_);
   }
 
   if (!this->single_pipeline_()) {
@@ -100,7 +100,7 @@ void SpeakerMediaPlayer::setup() {
       ESP_LOGE(TAG, "Failed to create media pipeline");
       this->mark_failed();
     } else if (this->media_start_condition_) {
-      this->media_pipeline_->set_start_condition(std::move(this->media_start_condition_));
+      this->media_pipeline_->set_start_condition(this->media_start_condition_);
     }
   }
 
