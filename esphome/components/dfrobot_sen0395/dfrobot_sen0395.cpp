@@ -5,7 +5,7 @@
 
 namespace esphome::dfrobot_sen0395 {
 
-static const char *const TAG = "dfrobot_sen0395";
+ESPHOME_LOG_TAG(TAG, "dfrobot_sen0395");
 const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 

@@ -6,7 +6,7 @@
 
 namespace esphome::he60r {
 
-static const char *const TAG = "he60r.cover";
+ESPHOME_LOG_TAG(TAG, "he60r.cover");
 static const uint8_t QUERY_BYTE = 0x38;
 static const uint8_t TOGGLE_BYTE = 0x30;
 

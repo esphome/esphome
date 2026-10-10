@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.symphony";
+ESPHOME_LOG_TAG(TAG, "remote.symphony");
 
 // Reference implementation and timing details:
 // IRremoteESP8266 ir_Symphony.cpp
