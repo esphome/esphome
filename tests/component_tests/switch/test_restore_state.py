@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from esphome.components import switch
+from esphome.components.libretiny.const import FAMILY_BK7231T, KEY_FAMILY, KEY_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.core import CORE
@@ -151,3 +152,9 @@ def test_platform_default_restore_mode_applies_only_when_nothing_is_set() -> Non
     assert _validate({}, default_restore_mode="DISABLED")["restore_mode"] == "DISABLED"
     configured = _validate({"restore_state": "KEEP"}, default_restore_mode="DISABLED")
     assert "restore_mode" not in configured
+
+
+def test_rtc_accepted_on_bk7231t(set_core_config: SetCoreConfigCallable) -> None:
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: FAMILY_BK7231T}
+    _validate({"restore_state": {"state": "KEEP", "storage": "rtc"}})
