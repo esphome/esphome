@@ -7,6 +7,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "ssd1327_base"
 
 ssd1327_base_ns = cg.esphome_ns.namespace("ssd1327_base")
 SSD1327 = ssd1327_base_ns.class_("SSD1327", cg.PollingComponent, display.DisplayBuffer)

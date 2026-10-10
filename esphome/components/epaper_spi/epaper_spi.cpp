@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static const char *const TAG = "epaper_spi";
+ESPHOME_LOG_TAG(TAG, "epaper_spi");
 static constexpr size_t EPAPER_MAX_CMD_LOG_BYTES = 128;
 
 static constexpr const char *const EPAPER_STATE_STRINGS[] = {

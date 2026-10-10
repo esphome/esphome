@@ -5358,7 +5358,7 @@ def _setup_build_info_test(
     return build_info_path, firmware_path
 
 
-def test_compile_program_warns_and_ignores_skip_bootloader_elsewhere(
+def test_compile_program_quietly_ignores_skip_bootloader_elsewhere(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A full build is always safe; orchestrators cannot see YAML overrides."""
@@ -5372,11 +5372,13 @@ def test_compile_program_warns_and_ignores_skip_bootloader_elsewhere(
             side_effect=EsphomeError("stop here"),
         ),
         pytest.raises(EsphomeError, match="stop here"),
-        caplog.at_level("INFO"),
+        caplog.at_level("DEBUG"),
     ):
         compile_program(MockArgs(), config)
 
-    assert "--skip-bootloader ignored" in caplog.text
+    assert [
+        r.levelno for r in caplog.records if "--skip-bootloader ignored" in r.message
+    ] == [logging.DEBUG]
     assert CORE.skip_bootloader is False
 
 
@@ -6701,6 +6703,45 @@ def test_check_permissions_unreadable_port() -> None:
         pytest.raises(EsphomeError, match="read or write permission"),
     ):
         check_permissions("/dev/ttyUSB99")
+
+
+@pytest.mark.parametrize(
+    ("is_macos", "machine", "warned", "warns"),
+    [
+        pytest.param(True, "x86_64", False, True, id="intel_mac"),
+        pytest.param(True, "x86_64", True, False, id="intel_mac_child"),
+        pytest.param(True, "arm64", False, False, id="apple_silicon"),
+        pytest.param(False, "x86_64", False, False, id="linux_x86_64"),
+    ],
+)
+def test_warn_if_intel_macos(
+    is_macos: bool,
+    machine: str,
+    warned: bool,
+    warns: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only Intel Python on macOS gets the warning, and only once per invocation."""
+    monkeypatch.setattr(main, "IS_MACOS", is_macos)
+    monkeypatch.setattr(main.platform, "machine", lambda: machine)
+    if warned:
+        monkeypatch.setenv(main._INTEL_MACOS_WARNED_ENV, "1")
+    else:
+        monkeypatch.delenv(main._INTEL_MACOS_WARNED_ENV, raising=False)
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_intel_macos()
+
+    assert (main._INTEL_MACOS_REMOVAL in caplog.text) is warns
+
+
+def test_run_multiple_configs_marks_children_warned(tmp_path: Path) -> None:
+    """Multi-config children get the env marker so they skip the Intel warning."""
+    with patch.object(main, "run_external_process", return_value=0) as mock_run:
+        main.run_multiple_configs([tmp_path / "a.yaml"], lambda f: ["esphome", str(f)])
+
+    assert mock_run.call_args.kwargs["env"][main._INTEL_MACOS_WARNED_ENV] == "1"
 
 
 def _make_checkout(root: Path) -> Path:

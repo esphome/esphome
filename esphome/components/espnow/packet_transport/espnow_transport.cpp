@@ -7,7 +7,7 @@
 
 namespace esphome::espnow {
 
-static const char *const TAG = "espnow.transport";
+ESPHOME_LOG_TAG(TAG, "espnow.transport");
 
 bool ESPNowTransport::should_send() { return this->parent_ != nullptr && !this->parent_->is_failed(); }
 

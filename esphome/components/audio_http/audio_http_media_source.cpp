@@ -11,7 +11,7 @@
 
 namespace esphome::audio_http {
 
-static const char *const TAG = "audio_http_media_source";
+ESPHOME_LOG_TAG(TAG, "audio_http_media_source");
 
 // Decoder task / buffer tuning. Kept here as constants so the header stays free of magic numbers.
 static constexpr size_t DEFAULT_TRANSFER_BUFFER_SIZE = 8 * 1024;  // Staging buffer between HTTP reader and decoder
@@ -33,6 +33,9 @@ void AudioHTTPMediaSource::dump_config() {
                 "  Persistent Ring Buffer: %s\n"
                 "  Decoder Task Stack in PSRAM: %s",
                 this->buffer_size_, YESNO(this->persistent_ring_buffer_), YESNO(this->decoder_task_stack_in_psram_));
+#ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
+  ESP_LOGCONFIG(TAG, "  Custom CA Certificate: %s", YESNO(this->http_ca_certificate_ != nullptr));
+#endif
 }
 
 void AudioHTTPMediaSource::setup() {
@@ -52,6 +55,12 @@ void AudioHTTPMediaSource::setup() {
   config.reader_stack_size = READER_TASK_STACK_SIZE;
   config.decoder_stack_size = DECODER_TASK_STACK_SIZE;
   config.decoder_stack_in_psram = this->decoder_task_stack_in_psram_;
+#ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
+  // micro-decoder verifies HTTPS against this PEM only, skipping the built-in certificate bundle.
+  if (this->http_ca_certificate_ != nullptr) {
+    config.http_ca_certificate = this->http_ca_certificate_;
+  }
+#endif
 
   this->decoder_ = std::make_unique<micro_decoder::DecoderSource>(config);
   if (this->decoder_ == nullptr) {
