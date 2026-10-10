@@ -217,21 +217,23 @@ ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
   }
   // The driver applies each device handle's own timing, so one handle per
   // frequency is created once and switched after that.
+  i2c_master_dev_handle_t dev = nullptr;
   for (const auto &device : this->devices_) {
     if (device.frequency == frequency) {
-      this->dev_ = device.dev;
-      this->frequency_ = frequency;
-      return ERROR_OK;
+      dev = device.dev;
+      break;
     }
   }
-  if (this->devices_.size() == this->devices_.capacity()) {
-    return ERROR_UNKNOWN;
-  }
-  i2c_master_dev_handle_t dev = this->add_device_(frequency);
   if (dev == nullptr) {
-    return ERROR_UNKNOWN;
+    if (this->devices_.size() == MAX_FREQUENCY_DEVICES) {
+      return ERROR_UNKNOWN;
+    }
+    dev = this->add_device_(frequency);
+    if (dev == nullptr) {
+      return ERROR_UNKNOWN;
+    }
+    this->devices_.push_back({frequency, dev});
   }
-  this->devices_.push_back({frequency, dev});
   this->dev_ = dev;
   this->frequency_ = frequency;
   return ERROR_OK;
