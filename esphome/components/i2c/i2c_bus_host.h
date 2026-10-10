@@ -25,10 +25,7 @@ class HostI2CBus final : public I2CBus, public Component {
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
 #ifdef I2C_PORT_FREQUENCY_COUNT
   // The kernel driver owns the clock
-  ErrorCode switch_frequency(uint32_t frequency) override {
-    this->frequency_ = frequency;
-    return ERROR_OK;
-  }
+  ErrorCode switch_frequency(uint32_t /*frequency*/) override { return ERROR_UNKNOWN; }
   uint32_t get_frequency() const override { return this->frequency_; }
 #endif
 

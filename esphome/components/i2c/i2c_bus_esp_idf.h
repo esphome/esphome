@@ -36,6 +36,8 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
   int get_port() const override { return this->port_; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
 #ifdef I2C_PORT_FREQUENCY_COUNT
+  /// Register a frequency used on the bus so setup() creates its device handle
+  void add_frequency(uint32_t frequency);
   ErrorCode switch_frequency(uint32_t frequency) override;
   uint32_t get_frequency() const override { return this->frequency_; }
 #endif
@@ -48,7 +50,7 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
  protected:
   i2c_master_dev_handle_t dev_{};
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  // One handle per frequency used on the bus, counted at code generation
+  // One handle per frequency used on the bus, registered at code generation
   struct FrequencyDevice {
     uint32_t frequency;
     i2c_master_dev_handle_t dev;

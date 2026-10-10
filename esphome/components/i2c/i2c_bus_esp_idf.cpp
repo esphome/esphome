@@ -73,7 +73,14 @@ void IDFI2CBus::setup() {
     return;
   }
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  this->devices_.push_back({this->frequency_, this->dev_});
+  this->add_frequency(this->frequency_);
+  for (auto &device : this->devices_) {
+    device.dev = device.frequency == this->frequency_ ? this->dev_ : this->add_device_(device.frequency);
+    if (device.dev == nullptr) {
+      this->mark_failed();
+      return;
+    }
+  }
 #endif
 
   this->initialized_ = true;
@@ -210,6 +217,15 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
 }
 
 #ifdef I2C_PORT_FREQUENCY_COUNT
+void IDFI2CBus::add_frequency(uint32_t frequency) {
+  for (const auto &device : this->devices_) {
+    if (device.frequency == frequency) {
+      return;
+    }
+  }
+  this->devices_.push_back({frequency, nullptr});
+}
+
 ErrorCode IDFI2CBus::switch_frequency(uint32_t frequency) {
   if (this->frequency_ == frequency) {
     return ERROR_OK;
@@ -218,27 +234,15 @@ ErrorCode IDFI2CBus::switch_frequency(uint32_t frequency) {
     this->frequency_ = frequency;
     return ERROR_OK;
   }
-  // One handle per frequency, created once and switched after that
-  i2c_master_dev_handle_t dev = nullptr;
+  // Every handle exists since setup(); a frequency nobody registered has none
   for (const auto &device : this->devices_) {
     if (device.frequency == frequency) {
-      dev = device.dev;
-      break;
+      this->dev_ = device.dev;
+      this->frequency_ = frequency;
+      return ERROR_OK;
     }
   }
-  if (dev == nullptr) {
-    if (this->devices_.size() == I2C_PORT_FREQUENCY_COUNT + 1) {
-      return ERROR_UNKNOWN;
-    }
-    dev = this->add_device_(frequency);
-    if (dev == nullptr) {
-      return ERROR_UNKNOWN;
-    }
-    this->devices_.push_back({frequency, dev});
-  }
-  this->dev_ = dev;
-  this->frequency_ = frequency;
-  return ERROR_OK;
+  return ERROR_UNKNOWN;
 }
 #endif
 
