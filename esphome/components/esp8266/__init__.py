@@ -53,6 +53,7 @@ from .const import (
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
+    THROW_STUBS_HEADER,
     enable_serial,
     enable_serial1,
     esp8266_ns,
@@ -70,6 +71,7 @@ CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
 _SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp8266"
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
@@ -111,22 +113,60 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.ARDUINO)
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
-_resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.PLATFORMIO)
+_resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.ARDUINO)
+
+
+# Known boards keyed by spelling with case and "-" / "_" folded away
+_FOLDED_BOARDS = {board.lower().replace("-", "_"): board for board in BOARDS}
+
+
+def _resolve_board(config: ConfigType) -> ConfigType:
+    """Fix a misspelled board, else build an unknown one with PlatformIO."""
+    board = config[CONF_BOARD]
+    if board in BOARDS:
+        return config
+    if canonical := _FOLDED_BOARDS.get(board.lower().replace("-", "_")):
+        _LOGGER.warning(
+            "Board '%s' is not a known ESP8266 board; using '%s'", board, canonical
+        )
+        return {**config, CONF_BOARD: canonical}
+    if CORE.toolchain is None and CONF_TOOLCHAIN not in config:
+        return {**config, CONF_TOOLCHAIN: Toolchain.PLATFORMIO}
+    return config
+
+
+def _warn_platformio_toolchain(config: ConfigType) -> ConfigType:
+    # Remove before 2027.4.0
+    if not CORE.using_toolchain_platformio:
+        return config
+    if config[CONF_BOARD] not in BOARDS:
+        _LOGGER.warning(
+            "Board '%s' is not supported by the native 'arduino' toolchain, so it "
+            "builds with the deprecated 'platformio' toolchain, which will be "
+            "removed in ESPHome 2027.4.0",
+            config[CONF_BOARD],
+        )
+    else:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for ESP8266 is deprecated and will be "
+            "removed in ESPHome 2027.4.0; the native 'arduino' toolchain is the "
+            "default."
+        )
+    return config
 
 
 def _validate_native_toolchain(config: ConfigType) -> ConfigType:
     """Constraints of the native (non-PlatformIO) Arduino toolchain."""
     if not CORE.using_toolchain_arduino:
         return config
-    from esphome.arduino8266.framework import MIN_FRAMEWORK_VERSION
+    from esphome.arduino8266.framework import framework_release
 
     conf = config[CONF_FRAMEWORK]
     version = cv.Version.parse(conf[CONF_VERSION])
-    if version < MIN_FRAMEWORK_VERSION:
-        raise cv.Invalid(
-            "'toolchain: arduino' requires framework version "
-            f"{MIN_FRAMEWORK_VERSION} or newer"
-        )
+    try:
+        framework_release(version)
+    except EsphomeError as err:
+        raise cv.Invalid(str(err), path=[CONF_FRAMEWORK, CONF_VERSION]) from err
     # platform_version is a PlatformIO concept; drop it, warning when a
     # custom pin is discarded
     if (
@@ -137,6 +177,8 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
             "'platform_version' is ignored by 'toolchain: arduino'; the native "
             "toolchain downloads the framework and compiler directly"
         )
+    # The native path fetches its own build; source may only be the
+    # PlatformIO default the schema filled in
     if conf[CONF_SOURCE] != _format_framework_arduino_version(version):
         raise cv.Invalid(
             "'toolchain: arduino' does not support a custom framework source; "
@@ -174,16 +216,27 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     ]
 
 
+def _framework_package_version(ver: cv.Version) -> str:
+    """Map an Arduino core version to its PlatformIO registry package version
+    (3.1.2 -> 3.30102.0; the leading 3 is the package major)."""
+    if ver.major > 3:
+        raise EsphomeError(
+            f"Arduino core {ver} is not supported yet; "
+            "the newest known core series is 3.x"
+        )
+    if ver.major < 3:
+        raise EsphomeError(
+            f"Arduino core {ver} is not supported; ESPHome requires core 3.x"
+        )
+    return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+
+
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # format the given arduino (https://github.com/esp8266/Arduino/releases) version to
     # a PIO platformio/framework-arduinoespressif8266 value
     # List of package versions: https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
-    # Same encoding the native toolchain uses for its package download, so a
-    # custom-source check against this value cannot drift from what it fetches.
-    from esphome.arduino8266.framework import framework_package_version
-
     try:
-        return f"~{framework_package_version(ver)}"
+        return f"~{_framework_package_version(ver)}"
     except EsphomeError as err:
         # Anchor the 4.x rejection to the framework version line instead of
         # aborting with a bare traceback-level error
@@ -194,7 +247,8 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 #  * New framework historically have had some regressions, especially for WiFi.
 #    The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
-#  * For all constants below, update platformio.ini (in this repo)
+#  * For all constants below, update platformio.ini (in this repo) and
+#    FRAMEWORK_RELEASES in esphome/arduino8266/framework.py
 
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
@@ -305,7 +359,9 @@ CONFIG_SCHEMA = cv.All(
             ): _validate_toolchain,
         }
     ),
+    _resolve_board,
     _resolve_toolchain,
+    _warn_platformio_toolchain,
     _validate_native_toolchain,
     set_core_data,
 )
@@ -314,8 +370,8 @@ CONFIG_SCHEMA = cv.All(
 def check_rosetta() -> None:
     """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
 
-    There is no native arm64 build of the xtensa-lx106 toolchain; on Apple
-    Silicon it runs under Rosetta 2, which macOS updates can remove.
+    PlatformIO's xtensa-lx106 toolchain has no arm64 build; on Apple Silicon
+    it runs under Rosetta 2, which macOS updates can remove.
     """
     if not IS_MACOS or platform.machine() != "arm64":
         return
@@ -330,9 +386,10 @@ def check_rosetta() -> None:
         return  # arch(1) unavailable; let the build proceed
     if result.returncode != 0:
         raise EsphomeError(
-            "ESP8266 builds on Apple Silicon Macs use an Intel (x86_64) "
-            "compiler that requires Rosetta 2, which is not installed on "
-            "this system. Install it with:\n"
+            "ESP8266 builds with PlatformIO on Apple Silicon Macs use an Intel "
+            "(x86_64) compiler that requires Rosetta 2, which is not installed "
+            "on this system. Either set 'toolchain: arduino' under 'esp8266:', "
+            "which needs no Rosetta, or install it with:\n"
             "  softwareupdate --install-rosetta --agree-to-license"
         )
 
@@ -387,6 +444,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
     cg.add_build_flag("-Wno-nonnull-compare")
+    # .rodata is linked into RAM on ESP8266; keep switch lookup tables (CSWTCH) out of it
+    cg.add_build_flag("-fno-tree-switch-conversion")
     if use_platformio:
         cg.add_platformio_option("framework", "arduino")
         cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
@@ -422,11 +481,9 @@ async def to_code(config: ConfigType) -> None:
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
-    # See throw_stubs.h. Unconditional: the native build generator reads
-    # the same option, keeping one source of truth.
-    cg.add_platformio_option(
-        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
-    )
+    # See throw_stubs.h. The native build generator reads this option, also
+    # passes it to the core and libraries, and drops it with exceptions on.
+    cg.add_platformio_option("build_src_flags", f"-include {THROW_STUBS_HEADER}")
 
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing

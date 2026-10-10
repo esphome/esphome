@@ -25,8 +25,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    lt_component = await cg.get_variable(config[CONF_LIBRETINY])
+    hub = await cg.get_variable(config[CONF_LIBRETINY])
 
-    if CONF_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_VERSION])
-        cg.add(lt_component.set_version_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_VERSION, hub.set_version_sensor)

@@ -7,7 +7,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.magiquest";
+ESPHOME_LOG_TAG(TAG, "remote.magiquest");
 
 static constexpr uint32_t MAGIQUEST_UNIT = 288;  // us
 // Half a unit is the widest window that still tells a one unit mark or space from a two unit one.
