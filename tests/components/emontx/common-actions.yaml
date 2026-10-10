@@ -5,3 +5,21 @@ button:
       - emontx.send_command:
           id: test_emontx
           command: !lambda return "l";
+  - platform: template
+    name: Pause emontx
+    on_press:
+      - if:
+          condition:
+            emontx.is_paused: test_emontx
+          then:
+            - emontx.resume: test_emontx
+          else:
+            - emontx.pause: test_emontx
+  - platform: template
+    name: Pause emontx explicit id
+    on_press:
+      - emontx.pause:
+          id: test_emontx
+      - delay: 1s
+      - emontx.resume:
+          id: test_emontx

@@ -8,6 +8,7 @@
 #include "esphome/components/json/json_util.h"
 
 #include <array>
+#include <atomic>
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -41,6 +42,32 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void send_command(const char *command);
   void send_command(const std::string &command) { this->send_command(command.c_str()); }
 
+  /**
+   * Suspend or resume UART processing.
+   *
+   * When paused, loop() returns immediately without consuming any bytes from
+   * the UART buffer, and send_command() is suppressed. This lets another
+   * component (e.g. serial_proxy, or a firmware updater) take exclusive
+   * ownership of a shared UART bus while it is active. Exposed to YAML as the
+   * emontx.pause / emontx.resume actions and the emontx.is_paused condition.
+   *
+   * Backed by an atomic flag (not Component::disable_loop()/enable_loop())
+   * because a firmware updater flashing the emonTx over this same UART must
+   * be able to resume parsing from a background FreeRTOS task once flashing
+   * completes, not just the main loop task.
+   * disable_loop()/enable_loop() mutate Application::looping_components_,
+   * which is only safe to touch from the main loop task; this flag is safe
+   * to flip from any task.
+   *
+   * Once loop() has seen the pause, resuming discards the partial line held
+   * at pause time and everything up to the next newline, since the other
+   * component may have consumed bytes mid-line; only complete lines reach
+   * on_data and the JSON parser.
+   */
+  void set_paused(bool paused) { this->paused_.store(paused, std::memory_order_relaxed); }
+
+  bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
+
 #ifdef USE_SENSOR
   void init_sensors(size_t count) { this->sensors_.init(count); }
   void register_sensor(const char *tag_name, sensor::Sensor *sensor);
@@ -56,6 +83,9 @@ class EmonTx final : public Component, public uart::UARTDevice {
   LazyCallbackManager<void(StringRef)> data_callbacks_;
   uint16_t buffer_pos_{0};
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
+  std::atomic<bool> paused_{false};
+  bool was_paused_{false};
+  bool skip_to_newline_{false};
 };
 
 }  // namespace esphome::emontx
