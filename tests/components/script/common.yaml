@@ -66,8 +66,7 @@ script:
     then:
       - delay: 1s
       - if:
-          condition:
-            lambda: return true;
+          lambda: return true;
           then:
             - script.stop
       - script.stop:

@@ -36,10 +36,11 @@ from esphome.automation import (
     register_simple_condition,
     string_ref_literal,
     templatable_bytes,
+    validate_action,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_AUTOMATION_ID, CONF_ID, CONF_THEN
+from esphome.const import CONF_AUTOMATION_ID, CONF_CONDITION, CONF_ID, CONF_THEN
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
 from esphome.util import Registry, RegistryEntry
@@ -1372,3 +1373,28 @@ async def test_build_callback_automation_forwarder(mock_cg: MockCodegen) -> None
     assert str(mock_cg.add.call_args.args[0]) == (
         f"parent->add_cb(TriggerForwarder<bool>{{{NEW_OBJ}}})"
     )
+
+
+def test_if_accepts_bare_condition() -> None:
+    """A single condition directly under `if:` is the same as `condition: {...}`."""
+    bare = validate_action({"if": {"or": [], CONF_THEN: [{"delay": "1s"}]}})
+    wrapped = validate_action(
+        {"if": {CONF_CONDITION: {"or": []}, CONF_THEN: [{"delay": "1s"}]}}
+    )
+    assert bare["if"][CONF_CONDITION] == wrapped["if"][CONF_CONDITION]
+    assert "or" not in bare["if"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param({"or": [], "and": [], CONF_THEN: []}, id="two_bare"),
+        pytest.param(
+            {"or": [], CONF_CONDITION: {"and": []}, CONF_THEN: []},
+            id="bare_and_wrapped",
+        ),
+    ],
+)
+def test_if_rejects_ambiguous_bare_condition(value: dict[str, object]) -> None:
+    with pytest.raises(cv.Invalid, match="Only one condition"):
+        validate_action({"if": value})

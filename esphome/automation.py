@@ -813,10 +813,31 @@ async def delay_action_to_code(
     return var
 
 
+def _wrap_bare_if_condition(value: Any) -> Any:
+    """Allow a single condition directly under `if:` in place of `condition: {...}`."""
+    if not isinstance(value, dict):
+        return value
+    bare = [key for key in value if key in CONDITION_REGISTRY]
+    if not bare:
+        return value
+    if len(bare) > 1 or any(
+        key in value for key in (CONF_CONDITION, CONF_ANY, CONF_ALL)
+    ):
+        raise cv.Invalid(
+            f"Only one condition may be given directly under 'if', found {', '.join(bare)}. "
+            f"Use '{CONF_CONDITION}', '{CONF_ALL}' or '{CONF_ANY}' to combine conditions"
+        )
+    key = bare[0]
+    result = {k: v for k, v in value.items() if k != key}
+    result[CONF_CONDITION] = {key: value[key]}
+    return result
+
+
 @register_action(
     "if",
     IfAction,
     cv.All(
+        _wrap_bare_if_condition,
         {
             cv.Exclusive(
                 CONF_CONDITION, CONF_CONDITION
