@@ -23,7 +23,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 /// Check if a pin number matches one of the default UART0 GPIO pins.
 /// These pins may have residual IOMUX state from the ROM bootloader that
@@ -238,6 +238,10 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+#ifdef USE_GPIO_HOLD
+  // Release held pins so the UART peripheral can drive them
+  this->set_pins_hold_(false);
+#endif
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // Register ISR callback to wake the main loop when UART data arrives.
@@ -514,7 +518,20 @@ void IDFUARTComponent::on_shutdown() {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
   }
+#ifdef USE_GPIO_HOLD
+  // Hold the pins again so they keep their state through the reset
+  this->set_pins_hold_(true);
+#endif
 }
+
+#ifdef USE_GPIO_HOLD
+void IDFUARTComponent::set_pins_hold_(bool hold) {
+  for (auto *pin : {this->tx_pin_, this->rx_pin_, this->flow_control_pin_}) {
+    if (pin != nullptr)
+      pin->set_hold(hold);
+  }
+}
+#endif
 
 }  // namespace esphome::uart
 #endif  // USE_ESP32
