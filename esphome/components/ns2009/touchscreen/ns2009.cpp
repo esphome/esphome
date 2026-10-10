@@ -8,52 +8,14 @@ namespace esphome::ns2009 {
 
 ESPHOME_LOG_TAG(TAG, "ns2009");
 
-static constexpr uint8_t PRIMARY_ADDRESS = 0x48;
-static constexpr uint8_t SECONDARY_ADDRESS = 0x49;
 static constexpr uint8_t GET_X = 0xC0;
 static constexpr uint8_t GET_Y = 0xD0;
 static constexpr uint8_t GET_Z = 0xE2;
 
 void NS2009Component::setup() {
-  auto data_z = this->read_byte(GET_Z);
-
-  if (!data_z.has_value()) {
-    ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", LOG_STR_LITERAL("configured"), this->address_,
-             LOG_STR_LITERAL("not "));
-    auto configured_address = this->address_;
-
-    if (this->address_ != PRIMARY_ADDRESS) {
-      this->address_ = PRIMARY_ADDRESS;
-      data_z = this->read_byte(GET_Z);
-
-      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", LOG_STR_LITERAL("primary"), this->address_,
-               data_z.has_value() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("not "));
-    }
-
-    if (this->address_ != SECONDARY_ADDRESS && !data_z.has_value()) {
-      this->address_ = SECONDARY_ADDRESS;
-      data_z = this->read_byte(GET_Z);
-
-      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", LOG_STR_LITERAL("secondary"), this->address_,
-               data_z.has_value() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("not "));
-    }
-
-    if (data_z.has_value() && this->address_ != configured_address) {
-      this->detected_address_ = this->address_;
-      this->address_ = configured_address;
-      ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config",
-               this->detected_address_, configured_address);
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return;
-    }
-
-    if (!data_z.has_value()) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return;
-    }
+  if (!this->read_byte(GET_Z).has_value()) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
-
-  ESP_LOGD(TAG, "successfully connected with address 0x%02x", this->address_);
 }
 
 void NS2009Component::update_touches() {
@@ -91,11 +53,6 @@ void NS2009Component::update_touches() {
 void NS2009Component::dump_config() {
   ESP_LOGCONFIG(TAG, "NS2009 Touchscreen:");
   LOG_I2C_DEVICE(this);
-
-  if (this->detected_address_) {
-    ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config", this->detected_address_,
-             this->address_);
-  }
 }
 
 }  // namespace esphome::ns2009

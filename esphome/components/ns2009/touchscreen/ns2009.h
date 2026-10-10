@@ -10,10 +10,6 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
   /// Set the threshold for the touch detection.
   void set_threshold(uint8_t threshold) { this->threshold_ = threshold; }
 
-  /// @brief Initialize the NS2009 touchscreen.
-  ///
-  /// This function checks the configured I2C address.
-  /// If that fails, it also checks the primary/secondary I2C addresses 0x48/0x49.
   void setup() override;
   void dump_config() override;
 
@@ -22,8 +18,6 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
 
   /// @brief The threshold at which a touch is registered.
   uint8_t threshold_{40};
-  /// The address the chip answered on when it differs from the configured one
-  uint8_t detected_address_{0};
 };
 
 }  // namespace esphome::ns2009
