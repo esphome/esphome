@@ -10,41 +10,41 @@
 namespace esphome::bmi270 {
 
 //  Register map
-static const uint8_t BMI270_REG_CHIP_ID = 0x00;
-static const uint8_t BMI270_REG_ERR_REG = 0x02;
-static const uint8_t BMI270_REG_STATUS = 0x03;
-static const uint8_t BMI270_REG_DATA_8 = 0x0C;   // ACC_X LSB
-static const uint8_t BMI270_REG_DATA_14 = 0x12;  // GYR_X LSB
-static const uint8_t BMI270_REG_TEMP_0 = 0x22;
-static const uint8_t BMI270_REG_TEMP_MSB = 0x23;  // temperature (2 bytes big-endian ish)
+static constexpr uint8_t BMI270_REG_CHIP_ID = 0x00;
+static constexpr uint8_t BMI270_REG_ERR_REG = 0x02;
+static constexpr uint8_t BMI270_REG_STATUS = 0x03;
+static constexpr uint8_t BMI270_REG_DATA_8 = 0x0C;   // ACC_X LSB
+static constexpr uint8_t BMI270_REG_DATA_14 = 0x12;  // GYR_X LSB
+static constexpr uint8_t BMI270_REG_TEMP_0 = 0x22;
+static constexpr uint8_t BMI270_REG_TEMP_MSB = 0x23;  // temperature (2 bytes big-endian ish)
 
 static constexpr uint8_t REG_READ_LEN =
     BMI270_REG_TEMP_MSB - BMI270_REG_DATA_8 +
     1;  // 0x23 - 0x0C + 1 = 0x18 bytes total for accel(6) + gyro(6) + temp(2) + padding(4)
 
-static const uint8_t BMI270_REG_PWR_CONF = 0x7C;
-static const uint8_t BMI270_REG_PWR_CTRL = 0x7D;
-static const uint8_t BMI270_REG_INIT_CTRL = 0x59;
-static const uint8_t BMI270_REG_INIT_DATA = 0x5E;
-static const uint8_t BMI270_REG_INIT_ADDR_0 = 0x5B;
-static const uint8_t BMI270_REG_INTERNAL_STATUS = 0x21;
-static const uint8_t BMI270_REG_ACC_CONF = 0x40;
-static const uint8_t BMI270_REG_ACC_RANGE = 0x41;
-static const uint8_t BMI270_REG_GYR_CONF = 0x42;
-static const uint8_t BMI270_REG_GYR_RANGE = 0x43;
+static constexpr uint8_t BMI270_REG_PWR_CONF = 0x7C;
+static constexpr uint8_t BMI270_REG_PWR_CTRL = 0x7D;
+static constexpr uint8_t BMI270_REG_INIT_CTRL = 0x59;
+static constexpr uint8_t BMI270_REG_INIT_DATA = 0x5E;
+static constexpr uint8_t BMI270_REG_INIT_ADDR_0 = 0x5B;
+static constexpr uint8_t BMI270_REG_INTERNAL_STATUS = 0x21;
+static constexpr uint8_t BMI270_REG_ACC_CONF = 0x40;
+static constexpr uint8_t BMI270_REG_ACC_RANGE = 0x41;
+static constexpr uint8_t BMI270_REG_GYR_CONF = 0x42;
+static constexpr uint8_t BMI270_REG_GYR_RANGE = 0x43;
 
-static const uint8_t BMI270_CHIP_ID_VALUE = 0x24;
+static constexpr uint8_t BMI270_CHIP_ID_VALUE = 0x24;
 
 //  Auxiliary (secondary I2C master) interface registers.
 //  Used to optionally drive a BMM150 magnetometer wired to the BMI270's AUX pins
 //  instead of the main I2C bus - the BMM150 has no address of its own on that bus.
-static const uint8_t BMI270_REG_AUX_X_LSB = 0x04;  // start of aux data: X,Y,Z,R (8 bytes)
-static const uint8_t BMI270_REG_AUX_DEV_ID = 0x4B;
-static const uint8_t BMI270_REG_AUX_IF_CONF = 0x4C;
-static const uint8_t BMI270_REG_AUX_RD_ADDR = 0x4D;
-static const uint8_t BMI270_REG_AUX_WR_ADDR = 0x4E;
-static const uint8_t BMI270_REG_AUX_WR_DATA = 0x4F;
-static const uint8_t BMI270_REG_IF_CONF = 0x6B;
+static constexpr uint8_t BMI270_REG_AUX_X_LSB = 0x04;  // start of aux data: X,Y,Z,R (8 bytes)
+static constexpr uint8_t BMI270_REG_AUX_DEV_ID = 0x4B;
+static constexpr uint8_t BMI270_REG_AUX_IF_CONF = 0x4C;
+static constexpr uint8_t BMI270_REG_AUX_RD_ADDR = 0x4D;
+static constexpr uint8_t BMI270_REG_AUX_WR_ADDR = 0x4E;
+static constexpr uint8_t BMI270_REG_AUX_WR_DATA = 0x4F;
+static constexpr uint8_t BMI270_REG_IF_CONF = 0x6B;
 
 //  Accelerometer range options
 enum BMI270AccelRange : uint8_t {

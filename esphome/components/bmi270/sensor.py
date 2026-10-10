@@ -30,11 +30,11 @@ BMM150Data = bmi270_ns.namespace("bmm150").class_("BMM150Data")
 _MAGNETIC_FIELDS = (CONF_MAGNETIC_FIELD_X, CONF_MAGNETIC_FIELD_Y, CONF_MAGNETIC_FIELD_Z)
 
 
-def _parent_schema():
+def _parent_schema() -> cv.Schema:
     return cv.Schema({cv.GenerateID(CONF_BMI270_ID): cv.use_id(BMI270Component)})
 
 
-def _temperature_sensor_schema():
+def _temperature_sensor_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
         icon=ICON_THERMOMETER,
@@ -44,7 +44,7 @@ def _temperature_sensor_schema():
     ).extend(_parent_schema())
 
 
-def _magnetic_field_sensor_schema():
+def _magnetic_field_sensor_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_MICROTESLA,
         icon=ICON_MAGNET,
