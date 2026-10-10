@@ -107,25 +107,28 @@ void TMC22XXStepper::setup() {
 }
 
 void TMC22XXStepper::dump_config() {
-  uint8_t irun = this->read_field(IRUN).value_or(0);
-  uint8_t ihold = this->read_field(IHOLD).value_or(0);
   ESP_LOGCONFIG(TAG,
                 "  Address: %u\n"
-                "  IC version: 0x%02X\n"
-                "  Microsteps: %u",
-                this->address_, this->version_, this->get_microsteps());
-  if (this->analog_current_scale_) {
-    ESP_LOGCONFIG(TAG,
-                  "  Run current scale: %u\n"
-                  "  Hold current scale: %u\n"
-                  "  Current scaled by VREF",
-                  irun, ihold);
-  } else {
-    ESP_LOGCONFIG(TAG,
-                  "  Run current: %.2f A\n"
-                  "  Hold current: %.2f A\n"
-                  "  Max current: %.2f A",
-                  this->scale_to_current(irun), this->scale_to_current(ihold), this->scale_to_current(31));
+                "  IC version: 0x%02X",
+                this->address_, this->version_);
+  // Register reads on a failed driver would only wait for the UART timeout
+  if (!this->is_failed()) {
+    uint8_t irun = this->read_field(IRUN).value_or(0);
+    uint8_t ihold = this->read_field(IHOLD).value_or(0);
+    ESP_LOGCONFIG(TAG, "  Microsteps: %u", this->get_microsteps());
+    if (this->analog_current_scale_) {
+      ESP_LOGCONFIG(TAG,
+                    "  Run current scale: %u\n"
+                    "  Hold current scale: %u\n"
+                    "  Current scaled by VREF",
+                    irun, ihold);
+    } else {
+      ESP_LOGCONFIG(TAG,
+                    "  Run current: %.2f A\n"
+                    "  Hold current: %.2f A\n"
+                    "  Max current: %.2f A",
+                    this->scale_to_current(irun), this->scale_to_current(ihold), this->scale_to_current(31));
+    }
   }
   LOG_PIN("  ENN Pin: ", this->enn_pin_);
   LOG_PIN("  STEP Pin: ", this->step_pin_);
@@ -138,6 +141,8 @@ void TMC22XXStepper::dump_config() {
 }
 
 void TMC22XXStepper::loop() {
+  if (this->index_pin_ != nullptr)
+    this->add_index_pulses_();
   if (this->has_reached_target()) {
     this->high_freq_.stop();
   } else {
@@ -153,15 +158,13 @@ void TMC22XXStepper::loop() {
   }
 }
 
-void TMC22XXStepper::loop_serial_() {
-  int32_t pulses;
-  {
-    InterruptLock lock;
-    pulses = this->index_store_.pulses;
-    this->index_store_.pulses = 0;
-  }
-  this->current_position += pulses;
+void TMC22XXStepper::add_index_pulses_() {
+  InterruptLock lock;
+  this->current_position += this->index_store_.pulses;
+  this->index_store_.pulses = 0;
+}
 
+void TMC22XXStepper::loop_serial_() {
   int32_t remaining = this->target_position - this->current_position;
   int8_t direction = (remaining > 0) - (remaining < 0);
   // Ran past the target, restart the ramp from standstill in the other direction
@@ -202,10 +205,16 @@ void TMC22XXStepper::on_shutdown() {
 
 void TMC22XXStepper::set_enabled(bool enabled) {
   if (!enabled) {
-    // Stop at the current position, so the motor does not run off again when re-enabled
-    this->target_position = this->current_position;
     if (this->get_vactual_() != 0)
       this->write_field(VACTUAL, 0);
+    if (this->index_pin_ != nullptr) {
+      // Count the pulses up to the stop, so the position is current before the target is set
+      this->add_index_pulses_();
+      this->index_store_.direction = 0;
+      this->direction_ = 0;
+    }
+    // Stop at the current position, so the motor does not run off again when re-enabled
+    this->target_position = this->current_position;
   }
   if (this->enn_pin_ != nullptr) {
     this->enn_pin_->digital_write(!enabled);

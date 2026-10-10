@@ -129,6 +129,7 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   float full_scale_current_();
   int32_t get_vactual_() const { return static_cast<int32_t>(extract_field(this->vactual_reg_, VACTUAL)); }
   int32_t speed_to_vactual_(float speed) const;
+  void add_index_pulses_();
   void loop_serial_();
   void loop_step_dir_();
 
