@@ -44,7 +44,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import ID, coroutine
+from esphome.core import coroutine
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, TemplateArgsType
@@ -2358,17 +2358,14 @@ async def abbwelcome_action(var, config, args):
                 await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)
             )
         )
-    if CONF_DATA in config:
-        data_ = config[CONF_DATA]
-        if cg.is_template(data_):
-            template_ = await cg.templatable(
-                data_, args, cg.std_vector.template(cg.uint8)
-            )
-            cg.add(var.set_data_template(template_))
-        else:
-            arr_id = ID(f"{var.base}_data", is_declaration=True, type=cg.uint8)
-            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data_))
-            cg.add(var.set_data_static(arr, len(data_)))
+    # TemplatableBytes starts in lambda mode with no function, so a transmit without data sets an empty payload
+    await automation.templatable_bytes(
+        config.get(CONF_DATA, []),
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "abbwelcome_data",
+    )
 
 
 # Mirage
