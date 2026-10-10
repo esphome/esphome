@@ -4,7 +4,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.aeha";
+ESPHOME_LOG_TAG(TAG, "remote.aeha");
 
 static constexpr uint16_t BITWISE = 425;
 static constexpr uint16_t HEADER_HIGH_US = BITWISE * 8;

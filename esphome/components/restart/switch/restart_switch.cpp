@@ -5,7 +5,7 @@
 
 namespace esphome::restart {
 
-static const char *const TAG = "restart";
+ESPHOME_LOG_TAG(TAG, "restart");
 
 void RestartSwitch::write_state(bool state) {
   // Acknowledge

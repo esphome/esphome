@@ -275,6 +275,28 @@ button:
     name: "Template Button"
     on_press:
       - logger.log: Button Pressed
+  - platform: template
+    name: "Climate Custom Modes Lambdas"
+    on_press:
+      - lambda: |-
+          // How external components and configs read and set climate custom modes
+          auto traits = id(template_climate_custom_modes).get_traits();
+          const auto &fan_modes = traits.get_supported_custom_fan_modes();
+          for (const auto *mode : fan_modes)
+            ESP_LOGD("test", "%s", mode);
+          for (const auto &preset : traits.get_supported_custom_presets())
+            ESP_LOGD("test", "%s", preset);
+          for (const char *mode : traits.get_supported_custom_fan_modes())
+            ESP_LOGD("test", "%s", mode);
+          std::vector<const char *> presets{"eco_plus", "max"};
+          id(template_climate_custom_modes).set_supported_custom_presets(presets);
+          id(template_climate_custom_modes).set_supported_custom_presets({"eco_plus"});
+          id(template_climate_custom_modes).set_supported_custom_fan_modes({});
+          std::vector<const char *> new_fan_modes{"turbo", "silent"};
+          id(template_climate_custom_modes).set_supported_custom_fan_modes(new_fan_modes);
+          static const char *const MODES[] = {"turbo", "silent"};
+          id(template_climate_custom_modes).set_supported_custom_fan_modes(MODES);
+          id(template_climate_custom_modes).set_supported_custom_presets(MODES);
 
 cover:
   - platform: template

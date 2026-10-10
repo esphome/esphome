@@ -4,7 +4,7 @@
 
 namespace esphome::mcp3008 {
 
-static const char *const TAG = "mcp3008.sensor";
+ESPHOME_LOG_TAG(TAG, "mcp3008.sensor");
 
 void MCP3008Sensor::dump_config() {
   ESP_LOGCONFIG(TAG,

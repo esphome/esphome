@@ -5,6 +5,8 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
+DOMAIN = "tmp102"
+
 tmp102_ns = cg.esphome_ns.namespace("tmp102")
 TMP102Component = tmp102_ns.class_(
     "TMP102Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor

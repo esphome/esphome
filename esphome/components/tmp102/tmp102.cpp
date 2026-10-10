@@ -1,11 +1,14 @@
 #include "tmp102.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 #include <cmath>
 
 namespace esphome::tmp102 {
 
-static const char *const TAG = "tmp102";
+ESPHOME_LOG_TAG(TAG, "tmp102");
+
+static constexpr uint32_t READ_TEMP_TIMEOUT_ID = 0;
 
 static const uint8_t TMP102_REGISTER_TEMPERATURE = 0x00;
 static const uint8_t TMP102_REGISTER_CONFIGURATION = 0x01;
@@ -118,7 +121,7 @@ void TMP102Component::update() {
       return;
     }
     // Conversion takes up to 35 ms; wait 40 ms then re-point and read
-    this->set_timeout("read_temp", TMP102_ONESHOT_DELAY_MS, [this]() {
+    this->set_timeout(READ_TEMP_TIMEOUT_ID, TMP102_ONESHOT_DELAY_MS, [this]() {
       this->read_temperature_();
       this->conversion_pending_ = false;
     });

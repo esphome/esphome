@@ -11,7 +11,9 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from .. import (
+    CODEC_FLAC,
     CODEC_OPUS,
+    CODEC_PCM,
     CODECS,
     CONF_CODECS,
     CONF_DECODE_MEMORY,
@@ -56,6 +58,11 @@ def _resolve_codecs(config: ConfigType) -> ConfigType:
     if CODEC_OPUS in codecs and sample_rate != OPUS_SAMPLE_RATE:
         raise cv.Invalid(
             f"Codec '{CODEC_OPUS}' requires a {CONF_SAMPLE_RATE} of {OPUS_SAMPLE_RATE}",
+            path=[CONF_CODECS],
+        )
+    if CODEC_FLAC not in codecs and CODEC_PCM not in codecs:
+        raise cv.Invalid(
+            f"Codecs must include '{CODEC_FLAC}' or '{CODEC_PCM}'",
             path=[CONF_CODECS],
         )
     return config

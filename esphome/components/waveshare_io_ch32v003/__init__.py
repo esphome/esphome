@@ -14,6 +14,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
+DOMAIN = "waveshare_io_ch32v003"
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
