@@ -1,0 +1,28 @@
+virtual_uart:
+  - id: loop_a
+    baud_rate: 9600
+    data_bits: 7
+    stop_bits: 2
+    on_tx:
+      - lambda: id(loop_b).inject(data.data(), data.size());
+  - id: loop_b
+    baud_rate: 19200
+    parity: EVEN
+    rx_buffer_size: 64
+    debug:
+
+interval:
+  - interval: 10s
+    then:
+      - virtual_uart.inject_rx:
+          id: loop_a
+          data: [0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A]
+      - virtual_uart.inject_rx:
+          id: loop_a
+          data: "hello"
+      - virtual_uart.inject_rx:
+          id: loop_b
+          data: !lambda return {0x01, 0x02};
+      - uart.write:
+          id: loop_a
+          data: [0x01, 0x02]
