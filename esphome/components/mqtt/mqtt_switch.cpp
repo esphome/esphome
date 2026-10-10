@@ -29,7 +29,7 @@ void MQTTSwitchComponent::setup() {
       case PARSE_NONE:
       default:
         ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
-        this->status_momentary_warning("state", 5000);
+        this->status_momentary_warning(5000);
         break;
     }
   });

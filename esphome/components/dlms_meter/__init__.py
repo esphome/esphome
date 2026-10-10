@@ -3,9 +3,6 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, uart
-from esphome.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
-from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
-from esphome.components.text_sensor import DOMAIN as TEXT_SENSOR_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -15,6 +12,7 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
@@ -30,19 +28,17 @@ CONF_SKIP_CRC = "skip_crc"
 CONF_DEFAULT_OBIS = "default_obis"
 CONF_PROVIDER = "provider"
 
+DLMS_PARSER_VERSION = "2.2.0"
+
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
     "DlmsMeterComponent", cg.Component, uart.UARTDevice
 )
+CustomPattern = dlms_meter_component_ns.struct("CustomPattern")
+ObisId = cg.global_ns.namespace("dlms_parser").class_("ObisId")
 
 
-def obis_code(value: Any) -> str:
-    # Normalize the OBIS code to the strict A.B.C.D.E.F format
-    bytes_list = parse_obis_code_bytes(value)
-    return ".".join(str(b) for b in bytes_list)
-
-
-def parse_obis_code_bytes(value: Any) -> list[int]:
+def obis_string_to_byte_list(value: Any) -> list[int]:
     value = cv.string(value)
     normalized = re.sub(r"[\-\:\*]", ".", value)
     parts = normalized.split(".")
@@ -60,15 +56,33 @@ def parse_obis_code_bytes(value: Any) -> list[int]:
     return bytes_list
 
 
+def to_obis_id_struct(value: list[int]) -> cg.Expression:
+    return ObisId(*value)
+
+
+_request_sensor_slot = cg.slot_counter("DLMS_MAX_SENSORS")
+_request_text_sensor_slot = cg.slot_counter("DLMS_MAX_TEXT_SENSORS")
+_request_binary_sensor_slot = cg.slot_counter("DLMS_MAX_BINARY_SENSORS")
+
+
+def register_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
+    _request_sensor_slot(str(hub))
+    cg.add(hub.register_sensor(to_obis_id_struct(obis), var))
+
+
+def register_text_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
+    _request_text_sensor_slot(str(hub))
+    cg.add(hub.register_text_sensor(to_obis_id_struct(obis), var))
+
+
+def register_binary_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
+    _request_binary_sensor_slot(str(hub))
+    cg.add(hub.register_binary_sensor(to_obis_id_struct(obis), var))
+
+
 def custom_pattern_dict(value: Any) -> ConfigType:
     if isinstance(value, str):
         return {CONF_PATTERN: value}
-    return value
-
-
-def validate_custom_pattern(value: ConfigType) -> ConfigType:
-    if CONF_DEFAULT_OBIS in value and CONF_NAME not in value:
-        raise cv.Invalid(f"'{CONF_DEFAULT_OBIS}' requires '{CONF_NAME}' to be set")
     return value
 
 
@@ -77,12 +91,13 @@ CUSTOM_PATTERN_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_PATTERN): cv.string,
-            cv.Optional(CONF_NAME): cv.string,
+            cv.Optional(CONF_NAME, default="CUSTOM"): cv.string,
             cv.Optional(CONF_PRIORITY, default=0): cv.int_,
-            cv.Optional(CONF_DEFAULT_OBIS): parse_obis_code_bytes,
+            cv.Optional(
+                CONF_DEFAULT_OBIS, default="0.0.0.0.0.0"
+            ): obis_string_to_byte_list,
         }
     ),
-    validate_custom_pattern,
 )
 
 CONFIG_SCHEMA = (
@@ -120,74 +135,30 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_
 
 
 async def to_code(config: ConfigType) -> None:
-    dec_key_expr = cg.RawExpression("std::nullopt")
-    if dec_key := config.get(CONF_DECRYPTION_KEY):
-        key_bytes = [str(int(dec_key[i : i + 2], 16)) for i in range(0, 32, 2)]
-        dec_key_expr = cg.RawExpression(
-            f"std::array<uint8_t, 16>{{{', '.join(key_bytes)}}}"
+    custom_patterns = [
+        cg.StructInitializer(
+            CustomPattern,
+            (CONF_PATTERN, pattern[CONF_PATTERN]),
+            (CONF_NAME, pattern[CONF_NAME]),
+            (CONF_PRIORITY, pattern[CONF_PRIORITY]),
+            (CONF_DEFAULT_OBIS, to_obis_id_struct(pattern[CONF_DEFAULT_OBIS])),
         )
-
-    auth_key_expr = cg.RawExpression("std::nullopt")
-    if auth_key := config.get(CONF_AUTH_KEY):
-        key_bytes = [str(int(auth_key[i : i + 2], 16)) for i in range(0, 32, 2)]
-        auth_key_expr = cg.RawExpression(
-            f"std::array<uint8_t, 16>{{{', '.join(key_bytes)}}}"
-        )
-
-    patterns = []
-    if custom_patterns := config.get(CONF_CUSTOM_PATTERNS):
-        for p in custom_patterns:
-            name_expr = cg.RawExpression("std::nullopt")
-            if name_val := p.get(CONF_NAME):
-                name_expr = name_val
-
-            if obis_vals := p.get(CONF_DEFAULT_OBIS):
-                obis_expr = cg.RawExpression(
-                    f"std::array<uint8_t, 6>{{{obis_vals[0]}, {obis_vals[1]}, {obis_vals[2]}, {obis_vals[3]}, {obis_vals[4]}, {obis_vals[5]}}}"
-                )
-            else:
-                obis_expr = cg.RawExpression("std::nullopt")
-
-            patterns.append(
-                cg.ArrayInitializer(
-                    p[CONF_PATTERN],
-                    name_expr,
-                    p[CONF_PRIORITY],
-                    obis_expr,
-                )
-            )
-
-    patterns_expr = (
-        cg.ArrayInitializer(*patterns) if patterns else cg.RawExpression("{}")
-    )
+        for pattern in config.get(CONF_CUSTOM_PATTERNS, [])
+    ]
 
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_RECEIVE_TIMEOUT],
         config[CONF_SKIP_CRC],
-        dec_key_expr,
-        auth_key_expr,
-        patterns_expr,
+        config.get(CONF_DECRYPTION_KEY, cg.nullptr),
+        config.get(CONF_AUTH_KEY, cg.nullptr),
+        cg.ArrayInitializer(*custom_patterns, multiline=True),
     )
-
-    hub_id = config[CONF_ID].id
-
-    for domain, define in (
-        (SENSOR_DOMAIN, "DLMS_MAX_SENSORS"),
-        (TEXT_SENSOR_DOMAIN, "DLMS_MAX_TEXT_SENSORS"),
-        (BINARY_SENSOR_DOMAIN, "DLMS_MAX_BINARY_SENSORS"),
-    ):
-        count = sum(
-            1
-            for conf in CORE.config.get(domain, [])
-            if conf.get("platform") == DOMAIN and conf[CONF_DLMS_METER_ID].id == hub_id
-        )
-        cg.add_define(define, count)
 
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
     if CORE.is_esp32:
-        esp32.add_idf_component(name="esphome/dlms_parser", ref="1.1.0")
+        esp32.add_idf_component(name="esphome/dlms_parser", ref=DLMS_PARSER_VERSION)
     else:
-        cg.add_library("esphome/dlms_parser", "1.1.0")
+        cg.add_library("esphome/dlms_parser", DLMS_PARSER_VERSION)
