@@ -24,11 +24,14 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome import espota2
+from esphome.core import EsphomeError
 
 PSK = base64.b64encode(bytes(range(32))).decode()
 OTHER_PSK = base64.b64encode(bytes(range(1, 33))).decode()
 
 MAGIC = bytes(espota2.MAGIC_BYTES)
+# One resolved loopback address, as resolve_ip_address returns it
+RESOLVED = [(2, 1, 0, "", ("127.0.0.1", 1))]
 
 
 def _recv_exact(sock: socket.socket, amount: int) -> bytes:
@@ -82,6 +85,7 @@ class FakeEncryptedDevice(threading.Thread):
         self.require_noise = require_noise
         self.prologue_features_override = prologue_features_override
         self.received: bytes | None = None
+        self.probes = 0  # clients that left right after the handshake
         self.error: Exception | None = None
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.bind(("127.0.0.1", 0))
@@ -195,7 +199,12 @@ class FakeEncryptedDevice(threading.Thread):
     ) -> None:
         """The post-handshake exchange, identical over both transports."""
         send_byte(espota2.RESPONSE_AUTH_OK)
-        recv_unit(1)  # ota type
+        try:
+            recv_unit(1)  # ota type
+        except ConnectionError:
+            # A key probe leaves here, like the firmware it is patterned on
+            self.probes += 1
+            return
         size = int.from_bytes(recv_unit(4), "big")
         send_byte(espota2.RESPONSE_UPDATE_PREPARE_OK)
         md5_hex = recv_unit(32)
@@ -250,6 +259,7 @@ def _run_ota(
     noise_psk: str,
     plaintext_fallback: bool = True,
     old_noise_psk: str | None = None,
+    **kwargs: Any,
 ) -> int:
     """Drive the retry loop, which is where the fallback and the old key reconnect."""
     path = tmp_path / "firmware.bin"
@@ -263,8 +273,29 @@ def _run_ota(
         noise_psk=noise_psk,
         plaintext_fallback=plaintext_fallback,
         old_noise_psk=old_noise_psk,
+        **kwargs,
     )
     return rc
+
+
+def test_on_connect_runs_once_per_connection(tmp_path: Path) -> None:
+    """The old_key reconnect reports again; a refused connect never does."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(psk=OTHER_PSK, connections=2)
+    on_connect = Mock()
+    with patch("time.sleep"):
+        rc = _run_ota(
+            device,
+            b"firmware",
+            tmp_path,
+            PSK,
+            plaintext_fallback=False,
+            old_noise_psk=OTHER_PSK,
+            on_connect=on_connect,
+        )
+    device.join_and_check()
+    assert rc == 0
+    assert on_connect.call_count == 2
 
 
 THIRD_PSK = base64.b64encode(bytes(range(2, 34))).decode()
@@ -666,6 +697,101 @@ def test_non_key_reject_reason_is_a_device_error(
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
+def test_probe_ota_key_accepts_the_running_key() -> None:
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice()
+    device.start()
+    assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+    device.join_and_check()
+    assert device.probes == 1
+    assert device.received is None
+
+
+@pytest.mark.parametrize(
+    "device_kwargs",
+    [{"psk": OTHER_PSK}, {"offer_noise": False, "require_noise": False}],
+    ids=["wrong_key", "no_offer"],
+)
+def test_probe_ota_key_gives_up_at_the_deadline(
+    device_kwargs: dict[str, Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(connections=2, **device_kwargs)
+    device.start()
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        assert (
+            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=0.5) is False
+        )
+    device.join_and_check()
+    assert any("did not accept the key" in r.message for r in caplog.records)
+    assert device.received is None
+
+
+def test_probe_ota_key_fails_fast_on_a_definitive_answer() -> None:
+    """A device in steady state that rejects the key gives its final answer
+    on the first attempt; the precheck does not wait out the deadline."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(psk=OTHER_PSK)
+    device.start()
+    with patch("time.sleep") as sleep:
+        assert (
+            espota2.probe_ota_key(
+                "127.0.0.1", device.port, PSK, timeout=30, retry_rejected=False
+            )
+            is False
+        )
+    device.join_and_check()
+    sleep.assert_not_called()
+
+
+def test_probe_ota_key_retries_after_a_transport_fault() -> None:
+    """The device may still be rebooting right after the upload."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(connections=2, drop_handshakes=1)
+    device.start()
+    with patch("time.sleep"):
+        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+    device.join_and_check()
+    assert device.probes == 1
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"side_effect": EsphomeError("no such host")}, {"return_value": []}],
+    ids=["error", "empty"],
+)
+def test_probe_ota_key_resolution_failure(
+    kwargs: dict[str, Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    """A name that never resolves is retried until the deadline, then reported."""
+    pytest.importorskip("aioesphomeapi.noise")
+    with (
+        patch("esphome.espota2.resolve_ip_address", **kwargs) as resolve,
+        patch("time.sleep"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=0.2) is False
+    assert resolve.call_count > 1
+    assert any("did not accept the key" in r.message for r in caplog.records)
+
+
+def test_probe_ota_key_resolves_again_after_a_reboot() -> None:
+    """The lookup fails while the device reboots, then the probe goes on."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice()
+    device.start()
+    real = espota2.resolve_ip_address
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            side_effect=[EsphomeError("not yet"), real("127.0.0.1", device.port)],
+        ),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+    device.join_and_check()
+
+
 def test_bare_block_refuses_a_device_that_cannot_encrypt(
     caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:
@@ -679,3 +805,210 @@ def test_bare_block_refuses_a_device_that_cannot_encrypt(
     assert device.received != b"firmware"
     assert any("refusing to send the image" in r.message for r in caplog.records)
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
+
+
+def test_probe_ota_key_recomputes_the_budget_after_connect() -> None:
+    """A slow connect leaves less for the handshake than the budget had."""
+    clock = [0.0]
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=RESOLVED,
+        ),
+        patch("socket.socket") as sock_cls,
+        patch("time.sleep"),
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+    ):
+        sock = sock_cls.return_value
+        sock.connect.side_effect = lambda _sa: clock.__setitem__(0, clock[0] + 0.4)
+        sock.recv.return_value = b""
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+    connect_timeout, handshake_timeout = (
+        c.args[0] for c in sock.settimeout.call_args_list[:2]
+    )
+    assert connect_timeout == 0.5
+    assert handshake_timeout == pytest.approx(0.1)
+
+
+def test_probe_ota_key_tries_every_address_before_a_final_no() -> None:
+    """With retry_rejected off a rejection is final only once every resolved
+    address has answered; a stale cached IP must not veto the real device."""
+    session = Mock()
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[
+                (2, 1, 0, "", ("10.0.0.1", 1)),
+                (2, 1, 0, "", ("10.0.0.2", 1)),
+            ],
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[espota2.OTAKeyRejected("no"), (session, 2, 0, True)],
+        ) as negotiate,
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep") as sleep,
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    assert negotiate.call_count == 2
+    sleep.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "answer", [espota2.RESPONSE_REQUEST_AUTH, espota2.RESPONSE_REQUEST_SHA256_AUTH]
+)
+def test_probe_ota_key_takes_a_password_challenge_as_proof(answer: int) -> None:
+    """A device with a password as well as encryption answers the handshake
+    with a challenge; it arrives encrypted, so the key was accepted."""
+    session = Mock()
+    session.recv.return_value = bytes([answer])
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=RESOLVED,
+        ),
+        patch("socket.socket"),
+        patch("esphome.espota2._negotiate_session", return_value=(session, 2, 0, True)),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is True
+
+
+def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
+    """One address rejecting does not stand in for another that only failed
+    to connect so far."""
+    session = Mock()
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[
+                (2, 1, 0, "", ("10.0.0.1", 1)),
+                (2, 1, 0, "", ("10.0.0.2", 1)),
+            ],
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[
+                espota2.OTAKeyRejected("no"),
+                OSError("refused"),
+                espota2.OTAKeyRejected("no"),
+                (session, 2, 0, True),
+            ],
+        ) as negotiate,
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    assert negotiate.call_count == 4
+
+
+def test_probe_ota_key_reports_a_local_fault_as_its_own() -> None:
+    """A malformed key never reads as the device refusing it."""
+    pytest.importorskip("aioesphomeapi.noise")
+    with (
+        patch("esphome.espota2.resolve_ip_address") as resolve,
+        pytest.raises(espota2.OTAError, match="Invalid OTA encryption key"),
+    ):
+        espota2.probe_ota_key("h", 1, "not-base64!!!", timeout=30)
+    resolve.assert_not_called()
+
+
+def test_probe_ota_key_takes_another_device_answer_as_final() -> None:
+    """An unsupported protocol version does not change with a retry."""
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=RESOLVED,
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=espota2.OTAError("unsupported OTA version 9"),
+        ) as negotiate,
+        patch("time.sleep") as sleep,
+    ):
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+            is False
+        )
+    negotiate.assert_called_once()
+    sleep.assert_not_called()
+
+
+def test_probe_ota_key_retries_a_device_error_while_it_reboots() -> None:
+    """After an upload the device may answer oddly until it is back."""
+    session = Mock()
+    with (
+        patch("esphome.espota2.resolve_ip_address", return_value=RESOLVED),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[espota2.OTAError("busy"), (session, 2, 0, True)],
+        ) as negotiate,
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is True
+    assert negotiate.call_count == 2
+
+
+def test_probe_ota_key_deadline_spans_the_whole_negotiation() -> None:
+    """Each read re-arms the timeout from what is left, so a slow peer
+    cannot stretch the probe one full timeout per read."""
+    clock = [0.0]
+    sock = Mock()
+
+    def slow_recv(_amount: int) -> bytes:
+        clock[0] += 0.3
+        return b"\x00\x02"
+
+    sock.recv.side_effect = slow_recv
+    with patch("time.monotonic", side_effect=lambda: clock[0]):
+        wrapped = espota2._DeadlineSocket(sock, 0.5)
+        wrapped.sendall(b"x")
+        assert wrapped.recv(2) == b"\x00\x02"
+        assert wrapped.recv(2) == b"\x00\x02"
+        with pytest.raises(TimeoutError):
+            wrapped.recv(1)
+    timeouts = [c.args[0] for c in sock.settimeout.call_args_list]
+    assert timeouts == [0.5, 0.5, pytest.approx(0.2)]
+
+
+def test_probe_ota_key_stops_when_connect_used_the_budget() -> None:
+    """No handshake timeout is granted past the deadline."""
+    clock = [0.0]
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=RESOLVED,
+        ),
+        patch("socket.socket") as sock_cls,
+        patch("time.sleep") as sleep,
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+    ):
+        sock = sock_cls.return_value
+        sock.connect.side_effect = lambda _sa: clock.__setitem__(0, clock[0] + 1.0)
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+    assert [c.args[0] for c in sock.settimeout.call_args_list] == [0.5]
+    sock.sendall.assert_not_called()
+    sleep.assert_not_called()
+
+
+def test_probe_ota_key_never_waits_past_its_deadline() -> None:
+    """Connect and handshake timeouts and the retry sleep are all capped by
+    what is left of the budget."""
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=RESOLVED,
+        ),
+        patch("socket.socket") as sock_cls,
+        patch("time.sleep") as sleep,
+    ):
+        sock = sock_cls.return_value
+        sock.connect.side_effect = OSError("refused")
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+    timeouts = [c.args[0] for c in sock.settimeout.call_args_list]
+    assert all(t <= 0.5 for t in timeouts)
+    assert all(c.args[0] <= 0.5 for c in sleep.call_args_list)

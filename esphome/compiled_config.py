@@ -33,9 +33,35 @@ _CACHE_VERSION = 1
 _LAMBDA_KEY = "__esphome_lambda__"
 
 
+_CACHE_SUFFIX = ".validated.json"
+
+
 def compiled_config_path(config_filename: str) -> Path:
     """Path to the cached validated config alongside the storage sidecar."""
-    return CORE.data_dir / "storage" / f"{config_filename}.validated.json"
+    return CORE.data_dir / "storage" / f"{config_filename}{_CACHE_SUFFIX}"
+
+
+def invalidate_compiled_config() -> None:
+    """Drop every cache in the storage dir after a change to a file the
+    mtime check cannot see, such as secrets.yaml or an include; other
+    configurations may share that file."""
+    storage = compiled_config_path(CORE.config_filename).parent
+    try:
+        caches = [p for p in storage.iterdir() if p.name.endswith(_CACHE_SUFFIX)]
+    except FileNotFoundError:
+        return
+    except OSError as err:
+        raise EsphomeError(
+            f"Could not list the validated config caches in {storage}: {err}"
+        ) from err
+    for path in caches:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as err:
+            # A stale cache would present the old key on the next upload
+            raise EsphomeError(
+                f"Could not remove the validated config cache {path}: {err}"
+            ) from err
 
 
 def save_compiled_config(config: ConfigType) -> None:
