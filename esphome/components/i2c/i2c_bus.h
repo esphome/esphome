@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::i2c {
