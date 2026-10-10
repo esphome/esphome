@@ -6,7 +6,7 @@
 
 namespace esphome::rtttl {
 
-static const char *const TAG = "rtttl";
+ESPHOME_LOG_TAG(TAG, "rtttl");
 
 static constexpr uint8_t SONG_NAME_LENGTH_LIMIT = 64;
 static constexpr uint8_t SEMITONES_IN_OCTAVE = 12;

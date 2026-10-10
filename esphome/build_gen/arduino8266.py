@@ -54,6 +54,7 @@ from esphome.components.esp8266.const import (
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_SCANF_FLOAT,
+    THROW_STUBS_HEADER,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
@@ -1056,7 +1057,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     cxx = (toolchain_tool(paths.toolchain, "g++"),)
     lines = [
         *tool_lines((toolchain_tool(paths.toolchain, "gcc"),), cxx, ccache),
-        *compile_rule_lines(),
+        *compile_rule_lines(ccache),
         *ar_rule_lines(toolchain_tool(paths.toolchain, "ar")),
         *pch_rule_lines(),
         "rule link",
@@ -1065,10 +1066,10 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
-        # --flash_size deliberately stays board-derived, as under
-        # PlatformIO (which reads upload.maximum_size, not the ldscript).
+        # --flash_size follows PlatformIO: ldscript filename first, then
+        # upload.maximum_size, so the header always matches the layout.
         # -W: the framework's own elf2bin.py trips SyntaxWarning on 3.12+.
-        f"  command = $python -W ignore::SyntaxWarning {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
+        f"  command = $python -W ignore::SyntaxWarning {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_elf2bin_flash_size(board, flash_ld_name)} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
         "  command = $python $buildtool copy $in $out",
@@ -1087,32 +1088,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if "USE_ESP8266_WAVEFORM_STUBS" in flag_defines:
         core_exclude |= _CORE_EXCLUDE_WAVEFORM
 
-    archives = []
-    # variant_dir existence was already enforced with the include dirs
-    variant_sources = collect_sources(variant_dir)
-    if variant_sources:
-        objs = compile_edges(lines, variant_sources, variant_dir, "variant")
-        lines.append(f"build libFrameworkArduinoVariant.a: ar {' '.join(objs)}")
-        archives.append("libFrameworkArduinoVariant.a")
-
-    core_objs = compile_edges(
-        lines, collect_sources(core_dir, core_exclude), core_dir, "core"
-    )
-    if not core_objs:
-        # An empty archive would link into a wall of undefined references
-        # (app_entry, the exception vectors) far from the cause
-        raise EsphomeError(
-            f"{_INCOMPLETE_INSTALL}: no core sources in {core_dir}; {_CLEAN_HINT}"
-        )
-    lines.append(f"build libFrameworkArduino.a: ar {' '.join(core_objs)}")
-    archives.append("libFrameworkArduino.a")
-
-    lib_archives, direct_objs = library_edges(lines, libraries)
-    archives += lib_archives
-
-    # One source of truth with the PlatformIO path: esp8266/__init__ pins
-    # build_src_flags (the throw_stubs force-include); -include paths
-    # resolve against the source root
+    # esp8266/__init__ pins build_src_flags (the throw_stubs force-include), as on
+    # the PlatformIO path; -include paths resolve against the source root
     src_other: list[str] = []
     src_includes: list[str] = []
     src_it = iter(
@@ -1131,7 +1108,45 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             src_includes.append(tok[len("-include") :])
         else:
             src_other.append(_shell_token(tok))
+    # The throw stubs abort: none anywhere with exceptions on, else the core and
+    # libraries get them too (src keeps them after its pch include)
+    if config.exceptions:
+        src_includes = [h for h in src_includes if h != THROW_STUBS_HEADER]
     include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
+    framework_flags = ""
+    if THROW_STUBS_HEADER in src_includes:
+        stubs_flag = include_flags[src_includes.index(THROW_STUBS_HEADER)]
+        lines.append(f"frameworkflags = {stubs_flag}")
+        framework_flags = "$frameworkflags"
+    archives = []
+    # variant_dir existence was already enforced with the include dirs
+    variant_sources = collect_sources(variant_dir)
+    if variant_sources:
+        objs = compile_edges(
+            lines, variant_sources, variant_dir, "variant", flags=framework_flags
+        )
+        lines.append(f"build libFrameworkArduinoVariant.a: ar {' '.join(objs)}")
+        archives.append("libFrameworkArduinoVariant.a")
+
+    core_objs = compile_edges(
+        lines,
+        collect_sources(core_dir, core_exclude),
+        core_dir,
+        "core",
+        flags=framework_flags,
+    )
+    if not core_objs:
+        # An empty archive would link into a wall of undefined references
+        # (app_entry, the exception vectors) far from the cause
+        raise EsphomeError(
+            f"{_INCOMPLETE_INSTALL}: no core sources in {core_dir}; {_CLEAN_HINT}"
+        )
+    lines.append(f"build libFrameworkArduino.a: ar {' '.join(core_objs)}")
+    archives.append("libFrameworkArduino.a")
+
+    lib_archives, direct_objs = library_edges(lines, libraries, framework_flags)
+    archives += lib_archives
+
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
@@ -1189,3 +1204,28 @@ def _flash_size_str(flash_size: int) -> str:
     """Flash size argument for elf2bin (e.g. ``4M``, ``512K``)."""
     mb = 1024 * 1024
     return f"{flash_size // mb}M" if flash_size >= mb else f"{flash_size // 1024}K"
+
+
+# Same pattern PlatformIO's _get_flash_size applies to the ldscript path
+_LD_FLASH_SIZE_RE = re.compile(r"\.flash\.(\d+[mk]).*\.ld")
+# The framework elf2bin.py's --flash_size choices
+_ELF2BIN_FLASH_SIZES = frozenset({"256K", "512K", "1M", "2M", "4M", "8M", "16M"})
+
+
+def _elf2bin_flash_size(board: str, flash_ld_name: str) -> str:
+    """Image-header flash size as PlatformIO derives it: ldscript filename,
+    else board_upload.maximum_size, else the board table. The SDK clamps the
+    chip to the header size at boot, so a header smaller than the linked
+    layout breaks OTA writes on the running device."""
+    if match := _LD_FLASH_SIZE_RE.search(flash_ld_name):
+        token = match.group(1)
+        base = 1024 if token[-1] == "k" else 1024 * 1024
+        return _flash_size_str(int(token[:-1]) * base)
+    if max_size := _pio_option("board_upload.maximum_size", ""):
+        if (
+            not max_size.isdigit()
+            or (size := _flash_size_str(int(max_size))) not in _ELF2BIN_FLASH_SIZES
+        ):
+            raise EsphomeError(f"Invalid board_upload.maximum_size value {max_size!r}")
+        return size
+    return _flash_size_str(BOARDS[board][KEY_FLASH_SIZE])

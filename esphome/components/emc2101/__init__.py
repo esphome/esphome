@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_INVERTED, CONF_RESOLUTION
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ellull"]
+DOMAIN = "emc2101"
 
 DEPENDENCIES = ["i2c"]
 

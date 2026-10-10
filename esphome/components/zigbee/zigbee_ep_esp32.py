@@ -78,11 +78,69 @@ ANALOG_INPUT_EP = {
     ],
 }
 
+ANALOG_OUTPUT_EP = {
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "ANALOG_OUTPUT",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x55,
+                    CONF_TYPE: "SINGLE",
+                    CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                    CONNECT: True,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x51,
+                    CONF_TYPE: "BOOL",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x6F,
+                    CONF_TYPE: "MAP8",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x1C,
+                    CONF_TYPE: "STRING",
+                },
+            ],
+        },
+    ],
+}
+
 BINARY_INPUT_EP = {
     DEVICE_TYPE: "SIMPLE_SENSOR",
     CONF_CLUSTERS: [
         {
             CONF_ID: "BINARY_INPUT",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x55,
+                    CONF_TYPE: "BOOL",
+                    CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                    CONNECT: True,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x51,
+                    CONF_TYPE: "BOOL",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x6F,
+                    CONF_TYPE: "MAP8",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x1C,
+                    CONF_TYPE: "STRING",
+                },
+            ],
+        },
+    ],
+}
+
+BINARY_OUTPUT_EP = {
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "BINARY_OUTPUT",
             ROLE: "SERVER",
             CONF_ATTRIBUTES: [
                 {
@@ -293,6 +351,26 @@ BINARY_SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x2,
                         CONF_TYPE: "MAP8",
                         CONF_VALUE: 0b00000001,  # hardcode PIR for now as ultrasonic or physical contact is unlikely
+                    },
+                ],
+            },
+        ],
+    },
+}
+
+SWITCH_EP_CONFIGS: dict[str, dict[str, Any]] = {
+    "on_off": {
+        DEVICE_TYPE: "ON_OFF_OUTPUT",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "BOOL",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONNECT: True,
                     },
                 ],
             },

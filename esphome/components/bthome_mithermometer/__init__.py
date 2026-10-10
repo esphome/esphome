@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@nagyrobi"]
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "bthome_mithermometer"
 
 CONF_REPLAY_PROTECTION = "replay_protection"
 
