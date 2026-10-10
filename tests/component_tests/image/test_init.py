@@ -1024,7 +1024,7 @@ async def test_rgb111_layout_per_frame(
     )
 
     # Frame 0 is red, frame 1 is blue. RGB111 stores 1 bit per channel and
-    # packs the bits across the frame with only paddingat the end, so the
+    # packs the bits across the frame with only padding at the end, so the
     # per-frame bytes are not a uniform value even for a solid color.
     frame0_rgb = data[:frame_size]
     frame1_rgb = data[frame_size:]
@@ -1085,8 +1085,8 @@ async def test_rgb111alpha_layout_per_frame(
     )
 
     # Frame 0 is red, frame 1 is blue. RGB111 stores 1 bit per color channel
-    # plus an alpha bit, emitted MSB-first per pixel, and the row ends are then
-    # padded to the next byte boundary. That gives a repeated 0x99 pattern for
+    # plus an alpha bit, emitted MSB-first per pixel. The last byte in each frame
+    # is padded. That gives a repeated 0x99 pattern for
     # red (1001 bits per pixel) and 0x22 for blue (0010 bits per pixel).
     frame0_rgb = data[:frame_size]
     frame1_rgb = data[frame_size:]
