@@ -187,8 +187,7 @@ Color Image::get_rgb111_pixel_(int x, int y) const {
     a = get_bit(bitpos + 3) ? 0xFF : 0x00;
   }
 
-  auto color = Color(r, g, b, a);
-  return color;
+  return Color(r, g, b, a);
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
