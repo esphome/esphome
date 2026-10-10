@@ -99,6 +99,29 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       }
       break;
     }
+    case image::IMAGE_TYPE_RGB111: {
+      // Helper lambda to set a single bit at a given bit position.
+      auto set_bit = [this](uint32_t pos, bool value) {
+        const uint32_t byte_idx = pos / 8u;
+        const uint32_t bit_offset = pos % 8u;
+        if (value) {
+          this->buffer_[byte_idx] |= (0x80 >> bit_offset);
+        } else {
+          this->buffer_[byte_idx] &= ~(0x80 >> bit_offset);
+        }
+      };
+
+      const uint32_t pos = (y * this->buffer_width_ + x) * this->bpp_;
+
+      set_bit(pos + 0, (color.r >= 0x80));
+      set_bit(pos + 1, (color.g >= 0x80));
+      set_bit(pos + 2, (color.b >= 0x80));
+      if (this->has_transparency()) {
+        set_bit(pos + 3, color.w >= 0x80);
+      }
+
+      break;
+    }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
       auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);

@@ -177,6 +177,54 @@ class ImageBinary(ImageEncoder):
             self.index += 1
 
 
+class ImageRGB111(ImageEncoder):
+    allow_config = {CONF_OPAQUE, CONF_ALPHA_CHANNEL}
+
+    def __init__(self, width, height, transparency, dither, invert_alpha):
+        bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
+        super().__init__(
+            (width * bpp + 7) // 8, height, transparency, dither, invert_alpha
+        )
+        self.bitno = 0
+
+    def convert(self, image, path):
+        if is_alpha_only(image):
+            image = image.split()[-1]
+        image = image.convert("RGBA")
+        if self.dither == Image.Dither.FLOYDSTEINBERG:
+            palette_data = [255 * int(x) for i in range(8) for x in f"{i:03b}"]
+            palette_img = Image.new("P", (1, 1))
+            palette_img.putpalette(palette_data)
+            alpha_image = image.getchannel("A")
+            dithered_image = (
+                image.convert("RGB")
+                .quantize(palette=palette_img, dither=Image.Dither.FLOYDSTEINBERG)
+                .convert("RGBA")
+            )
+            dithered_image.putalpha(alpha_image)
+            return dithered_image
+        return image
+
+    def add_bit(self, bit):
+        if bit:
+            self.data[self.index] |= 0x80 >> (self.bitno % 8)
+        self.bitno += 1
+        if self.bitno == 8:
+            self.bitno = 0
+            self.index += 1
+
+    def encode(self, pixel):
+        r, g, b, a = pixel
+        if self.invert_alpha:
+            a ^= 0xFF
+        # Convert to 3-bit color (1 bit per channel)
+        self.add_bit(r > 127)
+        self.add_bit(g > 127)
+        self.add_bit(b > 127)
+        if self.transparency == CONF_ALPHA_CHANNEL:
+            self.add_bit(1 if a > 127 else 0)
+
+
 class ImageGrayscale(ImageEncoder):
     allow_config = {CONF_ALPHA_CHANNEL, CONF_CHROMA_KEY, CONF_INVERT_ALPHA, CONF_OPAQUE}
 
@@ -315,6 +363,7 @@ class ReplaceWith:
 IMAGE_TYPE = {
     "BINARY": ImageBinary,
     "GRAYSCALE": ImageGrayscale,
+    "RGB111": ImageRGB111,
     "RGB565": ImageRGB565,
     "RGB": ImageRGB,
     "TRANSPARENT_BINARY": ReplaceWith("'type: BINARY' and 'transparency: chroma_key'"),
