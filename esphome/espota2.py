@@ -746,7 +746,8 @@ class UdpChannel:
         if self._last_error is None or err.errno != self._last_error.errno:
             _LOGGER.debug("UDP socket error: %s", err)
         self._last_error = err
-        if isinstance(err, ConnectionRefusedError):
+        # Windows reports the ICMP port unreachable as a reset
+        if isinstance(err, (ConnectionRefusedError, ConnectionResetError)):
             self._refusals += 1
             if self._refusals >= UDP_REFUSALS:
                 raise OTANetworkError(f"device closed its UDP port: {err}")

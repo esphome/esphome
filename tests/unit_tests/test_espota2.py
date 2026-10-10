@@ -1744,7 +1744,7 @@ def test_udp_channel_reports_socket_errors() -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect(addr)
     channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
-    channel.settimeout(60.0)
+    channel.settimeout(10.0)
     with pytest.raises(espota2.OTANetworkError, match="closed its UDP port"):
         channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
     # A probe that is refused falls back instead
@@ -1774,6 +1774,10 @@ def test_udp_channel_ack_resets_refusals() -> None:
     for _ in range(espota2.UDP_REFUSALS * 2):
         channel._socket_error(ConnectionRefusedError(61, "refused"))
         channel._handle_ack(ack)
+    # Windows' form of the same refusal counts too
+    with pytest.raises(espota2.OTANetworkError, match="closed its UDP port"):
+        for _ in range(espota2.UDP_REFUSALS):
+            channel._socket_error(ConnectionResetError(10054, "forcibly closed"))
 
 
 def _udp_handshake() -> list[bytes]:
