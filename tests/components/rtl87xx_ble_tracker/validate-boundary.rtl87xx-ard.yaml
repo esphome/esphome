@@ -1,0 +1,6 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+packages:
+  rtl87xx_ble_tracker: !include common-boundary.yaml
