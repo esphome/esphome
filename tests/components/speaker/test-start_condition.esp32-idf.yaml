@@ -1,17 +1,8 @@
-esphome:
-  name: speaker-start-condition-test
-
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
 
 wifi:
   ap:
-
-i2s_audio:
-  i2s_bclk_pin: GPIO26
-  i2s_lrclk_pin: GPIO25
 
 speaker:
   - platform: i2s_audio
