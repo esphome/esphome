@@ -269,18 +269,25 @@ esp_err_t AudioPipeline::allocate_communications_() {
 }
 
 esp_err_t AudioPipeline::start_tasks_() {
+#if CONFIG_FREERTOS_UNICORE
+  const BaseType_t task_core_id = tskNO_AFFINITY;
+#else
+  // Keep the CPU-heavy audio pipeline off the core running the main loop.
+  const BaseType_t task_core_id = xPortGetCoreID() == 0 ? 1 : 0;
+#endif
+
   if (!this->read_task_.is_created()) {
     // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
     // in PSRAM. As a workaround, always allocate the read task in internal memory.
     if (!this->read_task_.create(read_task, (this->base_name_ + "_read").c_str(), READ_TASK_STACK_SIZE, (void *) this,
-                                 this->priority_, false)) {
+                                 this->priority_, false, task_core_id)) {
       return ESP_ERR_NO_MEM;
     }
   }
 
   if (!this->decode_task_.is_created()) {
     if (!this->decode_task_.create(decode_task, (this->base_name_ + "_decode").c_str(), DECODE_TASK_STACK_SIZE,
-                                   (void *) this, this->priority_, this->task_stack_in_psram_)) {
+                                   (void *) this, this->priority_ + 1, this->task_stack_in_psram_, task_core_id)) {
       return ESP_ERR_NO_MEM;
     }
   }
