@@ -8,6 +8,8 @@ namespace esphome::ct_clamp {
 
 ESPHOME_LOG_TAG(TAG, "ct_clamp");
 
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
+
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
   ESP_LOGCONFIG(TAG, "  Sample Duration: %.2fs", this->sample_duration_ / 1e3f);
@@ -21,7 +23,7 @@ void CTClampSensor::update() {
   this->high_freq_.start();
 
   // Set timeout for ending sampling phase
-  this->set_timeout("read", this->sample_duration_, [this]() {
+  this->set_timeout(READ_TIMEOUT_ID, this->sample_duration_, [this]() {
     this->is_sampling_ = false;
     this->high_freq_.stop();
 
