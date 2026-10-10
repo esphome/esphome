@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esp32_ble_tracker:
+
+sensor:
+  - platform: template
+    name: Parsed
+    lambda: |-
+      float value = 0;
+      sscanf("1.5", "%f", &value);
+      return value;
