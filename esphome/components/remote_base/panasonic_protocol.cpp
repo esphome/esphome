@@ -16,9 +16,9 @@ void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &dat
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
   dst->set_carrier_frequency(data.carrier_frequency);
   ESP_LOGD(TAG,
-           "Encode Panasonic: address=%04" PRIX16 ", address2=%02" PRIX8 ", command=%" PRIX32
+           "Encode Panasonic: address=%04" PRIX16 ", address_2=%02" PRIX8 ", command=%" PRIX32
            ", nbits=%d, carrier_frequency=%d",
-           data.address, data.address2, data.command, data.nbits, data.carrier_frequency);
+           data.address, data.address_2, data.command, data.nbits, data.carrier_frequency);
 
   uint32_t mask;
   for (mask = 1UL << 15; mask != 0; mask >>= 1) {
@@ -31,7 +31,7 @@ void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &dat
 
   if (data.nbits == 56) {
     for (mask = 1UL << 7; mask != 0; mask >>= 1) {
-      if (data.address2 & mask) {
+      if (data.address_2 & mask) {
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
       } else {
         dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
@@ -49,7 +49,7 @@ void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &dat
   dst->mark(BIT_HIGH_US);
 }
 optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {
-  PanasonicData out{.address = 0, .address2 = 0, .command = 0, .nbits = 48, .carrier_frequency = 35000};
+  PanasonicData out{.address = 0, .address_2 = 0, .command = 0, .nbits = 48, .carrier_frequency = 35000};
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
@@ -73,9 +73,9 @@ optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {
   if (out.nbits == 56) {
     for (mask = 1UL << 7; mask != 0; mask >>= 1) {
       if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
-        out.address2 |= mask;
+        out.address_2 |= mask;
       } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-        out.address2 &= ~mask;
+        out.address_2 &= ~mask;
       } else {
         return {};
       }
@@ -98,8 +98,8 @@ void PanasonicProtocol::dump(const PanasonicData &data) {
   if (data.nbits == 48) {
     ESP_LOGI(TAG, "Received Panasonic: address=%04" PRIX16 ", command=%" PRIX32, data.address, data.command);
   } else {
-    ESP_LOGI(TAG, "Received Panasonic: address=%04" PRIX16 ", address2=%02" PRIX8 ", command=%" PRIX32 ", nbits=%d ",
-             data.address, data.address2, data.command, data.nbits);
+    ESP_LOGI(TAG, "Received Panasonic: address=%04" PRIX16 ", address_2=%02" PRIX8 ", command=%" PRIX32 ", nbits=%d ",
+             data.address, data.address_2, data.command, data.nbits);
   }
 }
 
