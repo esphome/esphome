@@ -11,7 +11,7 @@ struct RacPt1411hwruFanSpeed {
   uint8_t code2;
 };
 
-static const char *const TAG = "toshiba.climate";
+ESPHOME_LOG_TAG(TAG, "toshiba.climate");
 // Timings for IR bits/data
 const uint16_t TOSHIBA_HEADER_MARK = 4380;
 const uint16_t TOSHIBA_HEADER_SPACE = 4370;

@@ -20,9 +20,8 @@ namespace esphome::udp {
 static const size_t MAX_PACKET_SIZE = 508;
 class UDPComponent final : public Component {
  public:
-  void set_addresses(std::initializer_list<const char *> addresses) { this->addresses_ = addresses; }
-  /// Prevent accidental use of std::string which would dangle
-  void set_addresses(std::initializer_list<std::string> addresses) = delete;
+  /// nullptr-terminated table of addresses; must outlive the component.
+  void set_addresses(const char *const *addresses) { this->addresses_ = addresses; }
   void set_listen_address(const char *listen_addr) { this->listen_address_ = network::IPAddress(listen_addr); }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
@@ -52,7 +51,7 @@ class UDPComponent final : public Component {
   std::vector<IPAddress> ipaddrs_{};
   WiFiUDP udp_client_{};
 #endif
-  FixedVector<const char *> addresses_{};
+  const char *const *addresses_{nullptr};
 
   optional<network::IPAddress> listen_address_{};
 };

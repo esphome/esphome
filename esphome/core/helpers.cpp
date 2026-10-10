@@ -8,7 +8,6 @@
 
 #include <strings.h>
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -29,7 +28,7 @@ std::string progmem_string(ProgmemStr str) {
 }
 #endif
 
-static const char *const TAG = "helpers";
+ESPHOME_LOG_TAG(TAG, "helpers");
 
 __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
                                                             size_t elem_size) {
@@ -262,7 +261,6 @@ bool str_contains_ignore_case_p(const char *haystack, PGM_P needle) {
 }
 #endif  // USE_ESP8266
 
-// str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
     return buffer;
@@ -274,8 +272,6 @@ char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   buffer[i] = '\0';
   return buffer;
 }
-
-// str_sanitize, str_snprintf, str_sprintf moved to alloc_helpers.cpp
 
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len) {
@@ -309,8 +305,6 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   }
   return chars;
 }
-
-// format_mac_address_pretty moved to alloc_helpers.cpp
 
 // Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase.
 // When separator is set, it is written unconditionally after each byte and the last
@@ -429,8 +423,6 @@ const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool s
   return buf.data();
 }
 
-// format_hex (std::string returning overloads) moved to alloc_helpers.cpp
-
 char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
   return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
 }
@@ -466,8 +458,6 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *dat
   return buffer;
 }
 
-// format_hex_pretty (all std::string returning overloads) moved to alloc_helpers.cpp
-
 char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
   if (buffer_size == 0) {
     return buffer;
@@ -488,8 +478,6 @@ char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_
   buffer[bytes_to_format * 8] = '\0';
   return buffer;
 }
-
-// format_bin moved to alloc_helpers.cpp
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("on")) == 0)
@@ -537,8 +525,6 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
     accuracy_decimals = 0;
   }
 }
-
-// value_accuracy_to_string moved to alloc_helpers.cpp
 
 // Fast float-to-string for accuracy_decimals 0-3 (covers virtually all sensor usage).
 // Avoids snprintf("%.*f") which pulls in heavy float formatting machinery.
@@ -621,15 +607,11 @@ int8_t step_to_accuracy_decimals(float step) {
   return decimals;
 }
 
-// Map a base64/base64url character to its 6-bit value (0-63) arithmetically.
-// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
-// Supports both standard base64 (+/) and base64url (-_) alphabets.
-// NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
-// This is safe because is_base64() is ALWAYS checked before calling this function,
-// preventing invalid characters from ever reaching here. The base64_decode function
-// stops processing at the first invalid character due to the is_base64() check in its
-// while loop condition, making this edge case harmless in practice.
-static inline uint8_t base64_find_char(char c) {
+static constexpr uint8_t INVALID_BASE64_CHAR = 0xFF;
+
+// 6-bit value of a base64 or base64url char, or INVALID_BASE64_CHAR.
+// No lookup table: .rodata lives in DRAM on ESP8266.
+static constexpr uint8_t base64_char_value(uint8_t c) {
   if (c >= 'A' && c <= 'Z')
     return c - 'A';
   if (c >= 'a' && c <= 'z')
@@ -641,74 +623,35 @@ static inline uint8_t base64_find_char(char c) {
     return 62;
   if (c == '/' || c == '_')
     return 63;
-  return 0;
+  return INVALID_BASE64_CHAR;
 }
-
-// Check if character is valid base64 or base64url
-static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/') || (c == '-') || (c == '_')); }
-
-// base64_encode (both overloads) moved to alloc_helpers.cpp
 
 size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
   return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
 }
 
-// Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated.
-static inline bool base64_decode_quad(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
-  for (int i = 0; i < 4; i++)
-    char_array_4[i] = base64_find_char(char_array_4[i]);
-
-  uint8_t char_array_3[3];
-  char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-  char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-  char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-  bool truncated = false;
-  for (int j = 0; j < count; j++) {
-    if (out < buf_len) {
-      buf[out++] = char_array_3[j];
-    } else {
-      truncated = true;
-    }
-  }
-  return truncated;
-}
-
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
-  size_t in_len = encoded_len;
-  int i = 0;
-  size_t in = 0;
   size_t out = 0;
-  uint8_t char_array_4[4];
-  bool truncated = false;
-
-  // SAFETY: The loop condition checks is_base64() before processing each character.
-  // This ensures base64_find_char() is only called on valid base64 characters,
-  // preventing the edge case where invalid chars would return 0 (same as 'A').
-  while (in_len-- && (encoded_data[in] != '=') && is_base64(encoded_data[in])) {
-    char_array_4[i++] = encoded_data[in];
-    in++;
-    if (i == 4) {
-      truncated |= base64_decode_quad(char_array_4, 3, buf, buf_len, out);
-      i = 0;
+  uint32_t accum = 0;
+  uint32_t bits = 0;
+  // Stops at '=' or any non-alphabet char; leftover bits of a partial group are dropped.
+  for (size_t in = 0; in < encoded_len; in++) {
+    uint8_t value = base64_char_value(encoded_data[in]);
+    if (value == INVALID_BASE64_CHAR)
+      break;
+    accum = (accum << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      if (out == buf_len) {
+        ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+        return out;
+      }
+      buf[out++] = static_cast<uint8_t>(accum >> bits);
     }
   }
-
-  if (i) {
-    for (int j = i; j < 4; j++)
-      char_array_4[j] = 0;
-
-    truncated |= base64_decode_quad(char_array_4, i - 1, buf, buf_len, out);
-  }
-
-  if (truncated) {
-    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
-  }
-
   return out;
 }
-
-// base64_decode (vector-returning overload) moved to alloc_helpers.cpp
 
 /// Decode base64/base64url string directly into vector of little-endian int32 values
 /// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
@@ -829,8 +772,6 @@ void HighFrequencyLoopRequester::stop() {
   num_requests--;
   this->started_ = false;
 }
-
-// get_mac_address, get_mac_address_pretty moved to alloc_helpers.cpp
 
 void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {
   uint8_t mac[MAC_ADDRESS_SIZE];
