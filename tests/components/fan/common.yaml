@@ -87,6 +87,25 @@ button:
   # Exercise fan.turn_on with various field combinations so the
   # register_apply_action codegen paths get build coverage.
   - platform: template
+    name: "Fan Preset Modes Lambdas"
+    on_press:
+      - lambda: |-
+          // How external components and configs read and set fan preset modes
+          auto traits = id(test_fan).get_traits();
+          const auto &modes = traits.supported_preset_modes();
+          for (const auto &mode : modes)
+            ESP_LOGD("test", "%s", mode);
+          for (const char *mode : traits.supported_preset_modes())
+            ESP_LOGD("test", "%s", mode);
+          if (modes.size() > 1) {
+            const auto *it = std::find(modes.begin(), modes.end(), modes[1]);
+            ESP_LOGD("test", "index %d", (int) (it - modes.begin()));
+          }
+          std::vector<const char *> runtime_modes{"Eco", "Turbo"};
+          id(test_fan).set_supported_preset_modes(runtime_modes);
+          id(test_fan).set_supported_preset_modes({"Eco"});
+          id(test_fan).set_supported_preset_modes({});
+  - platform: template
     name: "Fan Speed Only"
     on_press:
       - fan.turn_on:

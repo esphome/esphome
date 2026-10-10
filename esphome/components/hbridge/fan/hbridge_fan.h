@@ -18,6 +18,8 @@ class HBridgeFan final : public Component, public fan::Fan {
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use set_supported_preset_modes() instead. Removed in 2027.5.0", "2026.11.0")
   void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
 
   void setup() override;
