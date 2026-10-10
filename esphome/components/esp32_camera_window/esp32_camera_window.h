@@ -18,10 +18,12 @@ namespace esphome::esp32_camera_window {
 /// nothing else in the configuration changes; the window is filled with the part of the picture
 /// that it covers.
 ///
-/// A window needs a sensor that reads out the part of the picture it is pointed at through the
-/// registers set_res_raw() writes. The OV2640, OV3660 and OV5640 are read out that way; every other
-/// sensor the driver knows, such as the OV7725 and the SC sensors, is read out in a way of its own,
-/// so a window is reported as unsupported and every call to set_window() fails on it.
+/// The OV2640, OV3660 and OV5640 scale the part of the picture a window covers back up to the frame,
+/// so a window on them also zooms. The SC101IOT and SC030IOT read a window out as it is and cannot
+/// scale it, so a window on them has to be the size of the frame and only moves which part of the
+/// sensor the frame shows. Every other sensor the driver knows, such as the OV7725, is read out
+/// through registers of its own that do not take a window, so a window is reported as unsupported
+/// and every call to set_window() fails on it.
 ///
 /// The OV2640 can only be told to crop in whole four-pixel steps of its readout, so a window on it
 /// is rounded down to one.
@@ -52,6 +54,10 @@ class Esp32CameraWindow : public Component {
   /// A window that reaches past the frame is clamped to it, and so is its size. The frame size
   /// the camera publishes is left as it is. Returns false when no sensor is available, when the
   /// sensor cannot take a window, or when it rejects the settings.
+  ///
+  /// The SC101IOT and SC030IOT read a window out as it is and cannot scale it, so the size of a
+  /// window on them has to be the frame size and the offsets are counted from the corner of the
+  /// whole readout of the sensor.
   bool set_window(int offset_x, int offset_y, int width, int height);
 
   /// Read out the whole sensor again, without changing the frame size.

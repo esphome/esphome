@@ -41,6 +41,23 @@ static constexpr int OV_REG_MASK = 0xFFFF;
 // handing out frames of the old one.
 static constexpr uint32_t WINDOW_SETTLE_MS = 50;
 
+// Registers that hold the readout window of the SC101IOT and SC030IOT. Both sensors page their
+// register file, so a register number carries the page it lives in and set_reg() writes that page
+// for them. Each axis of a window has a start and an end, whose high bits share the third register
+// of the group.
+static constexpr int SC_REG_H_START = 0x0170;  // H start, H end, high bits of both
+static constexpr int SC_REG_V_START = 0x0173;  // V start, V end, high bits of both
+static constexpr int SC_REG_GROUP = 3;         // start, end and high bits of both
+// The readout an SC window is placed in, and the high bits the sensor takes per edge of a window.
+// Its two sensors pack a different number of them, which is all that sets their registers apart.
+struct ScWindowFormat {
+  int area_width;
+  int area_height;
+  int edge_bits;
+};
+static constexpr ScWindowFormat SC101IOT_FORMAT{1280, 720, 4};
+static constexpr ScWindowFormat SC030IOT_FORMAT{640, 480, 2};
+
 /// A pair of x and y values as a sensor register holds them.
 struct SensorPair {
   int x{0};
@@ -235,6 +252,42 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   return true;
 }
 
+/// Writes the start and the end of one axis of an SC window, reporting whether the sensor took them.
+static bool write_sc_axis(sensor_t *sensor, int reg, int start, int end, int edge_bits) {
+  const int mask = (1 << edge_bits) - 1;
+  // The high bits of both edges share the third register of the group.
+  const int values[SC_REG_GROUP] = {start & 0xFF, end & 0xFF, ((start >> 8) & mask) | (((end >> 8) & mask) << 4)};
+  for (int offset = 0; offset < SC_REG_GROUP; offset++) {
+    const int ret = sensor->set_reg(sensor, reg + offset, 0xFF, values[offset]);
+    if (ret != 0) {
+      ESP_LOGE(TAG, "Writing register 0x%04X failed with %d", reg + offset, ret);
+      return false;
+    }
+  }
+  return true;
+}
+
+/// Reads out a window on an SC101IOT or SC030IOT.
+///
+/// These sensors read the window out as it is, so the frame keeps the size it is published with
+/// only while the window is that size; the window then moves which part of the sensor the frame
+/// shows. A window on them is counted from the corner of the whole readout of the sensor, because
+/// that is where their window registers count from.
+static bool set_sc_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, const ScWindowFormat &format) {
+  const int offset_x = std::clamp(window.offset_x, 0, format.area_width - window.width);
+  const int offset_y = std::clamp(window.offset_y, 0, format.area_height - window.height);
+
+  if (!write_sc_axis(sensor, SC_REG_H_START, offset_x, offset_x + window.width, format.edge_bits) ||
+      !write_sc_axis(sensor, SC_REG_V_START, offset_y, offset_y + window.height, format.edge_bits))
+    return false;
+
+  vTaskDelay(WINDOW_SETTLE_MS / portTICK_PERIOD_MS);
+  ESP_LOGI(TAG, "Window at %d,%d of %dx%d reads out %d,%d to %d,%d of the %dx%d sensor", window.offset_x,
+           window.offset_y, window.width, window.height, offset_x, offset_y, offset_x + window.width - 1,
+           offset_y + window.height - 1, format.area_width, format.area_height);
+  return true;
+}
+
 float Esp32CameraWindow::get_setup_priority() const {
   // The sensor is only there once the camera has run its own setup().
   return setup_priority::PROCESSOR;
@@ -349,6 +402,20 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
     case OV3660_PID:
     case OV5640_PID:
       return set_ov_window(sensor, window, frame.width, frame.height);
+    case SC101IOT_PID:
+    case SC030IOT_PID: {
+      // These sensors read a window out as it is, so a window of another size would be read out
+      // at that size and no longer fill the frame the camera is set to.
+      if (window.width != frame.width || window.height != frame.height) {
+        ESP_LOGE(TAG,
+                 "%s reads out a window as it is and cannot scale it, so a window has to be the size of "
+                 "the %dx%d frame; %dx%d was asked for",
+                 sensor_name_(sensor), frame.width, frame.height, window.width, window.height);
+        return false;
+      }
+      const ScWindowFormat &format = sensor->id.PID == SC101IOT_PID ? SC101IOT_FORMAT : SC030IOT_FORMAT;
+      return set_sc_window(sensor, window, format);
+    }
     default:
       ESP_LOGE(TAG, "%s does not support windows", sensor_name_(sensor));
       return false;
@@ -357,12 +424,15 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
 
 bool Esp32CameraWindow::is_window_supported_(sensor_t *sensor) {
   // The OV2640 crops inside the readout it is already doing, and the OV3660 and OV5640 accept any
-  // part of the sensor as their readout. Every other sensor the driver knows is read out through a
+  // part of the sensor as their readout. The SC101IOT and SC030IOT take a window over their whole
+  // readout, of the size of the frame. Every other sensor the driver knows is read out through a
   // different set of registers, so it cannot be asked for a window.
   switch (sensor->id.PID) {
     case OV2640_PID:
     case OV3660_PID:
     case OV5640_PID:
+    case SC101IOT_PID:
+    case SC030IOT_PID:
       return true;
     default:
       return false;
