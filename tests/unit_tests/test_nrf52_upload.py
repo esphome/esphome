@@ -2,7 +2,7 @@
 
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -356,3 +356,127 @@ class TestUploadProgramSerialDfu:
             mock_run.return_value = False
             with pytest.raises(EsphomeError, match="serial DFU upload failed"):
                 upload_program(config={}, args=None, host=host)
+
+
+# ---------------------------------------------------------------------------
+# BLE OTA upload path
+# ---------------------------------------------------------------------------
+
+BLE_MAC = "AA:BB:CC:DD:EE:FF"
+
+
+class TestUploadProgramBle:
+    """The BLE path picks the transport from the OTA service the device offers."""
+
+    def _run(
+        self,
+        services: set[str],
+        tmp_path: Path,
+        bootloader: str = BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    ) -> tuple[AsyncMock, AsyncMock, AsyncMock, AsyncMock]:
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(bootloader=bootloader, build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+
+        with (
+            patch(
+                "esphome.components.adafruit_ble.dfu.list_services",
+                new=AsyncMock(return_value=services),
+            ) as mock_services,
+            patch(
+                "esphome.components.adafruit_ble.dfu.dfu_upload", new=AsyncMock()
+            ) as mock_dfu,
+            patch(
+                "esphome.components.adafruit_ble.dfu.request_dfu_mode", new=AsyncMock()
+            ) as mock_trigger,
+            patch(
+                "esphome.components.adafruit_ble.dfu.find_dfu_bootloader",
+                new=AsyncMock(return_value="AA:BB:CC:DD:EE:01"),
+            ) as mock_find,
+            patch(
+                "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
+            ) as mock_smp,
+        ):
+            assert upload_program(config={}, args=None, host=BLE_MAC) is True
+        mock_services.assert_awaited_once_with(BLE_MAC)
+        return mock_dfu, mock_trigger, mock_find, mock_smp
+
+    def test_adfruit_dfu_service_uploads_directly(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """A bootloader already in DFU mode receives the package straight away."""
+        mock_dfu, mock_trigger, _, mock_smp = self._run(
+            {"00001530-1212-efde-1523-785feabcd123"}, tmp_path
+        )
+
+        mock_dfu.assert_awaited_once()
+        assert mock_dfu.call_args[0][1].name == "firmware.zip"
+        mock_trigger.assert_not_awaited()
+        mock_smp.assert_not_awaited()
+
+    def test_mcumgr_service_uploads_over_smp(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The MCUboot application advertises the MCUmgr SMP service."""
+        mock_dfu, _, _, mock_smp = self._run(
+            {"8d53dc1d-1db7-4cd3-868b-8a527460aa84"}, tmp_path, bootloader="mcuboot"
+        )
+
+        mock_smp.assert_awaited_once_with(BLE_MAC)
+        mock_dfu.assert_not_awaited()
+
+    def test_trigger_service_reboots_into_dfu_first(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The Adafruit application is asked to reboot before the upload."""
+        mock_dfu, mock_trigger, mock_find, _ = self._run(
+            {"e5b10001-9c3a-4f5d-8a1b-2c3d4e5f6071"}, tmp_path
+        )
+
+        mock_trigger.assert_awaited_once_with(BLE_MAC)
+        mock_find.assert_awaited_once_with([BLE_MAC])
+        assert mock_dfu.call_args[0][0] == "AA:BB:CC:DD:EE:01"
+
+    def test_mcumgr_name_scan_uses_smp_discovery(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """`--device BLE` on an MCUboot build resolves the address via the SMP scan."""
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(bootloader="mcuboot", build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+
+        with (
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                new=AsyncMock(return_value=BLE_MAC),
+            ) as mock_scan,
+            patch(
+                "esphome.components.adafruit_ble.dfu.list_services",
+                new=AsyncMock(return_value={"8d53dc1d-1db7-4cd3-868b-8a527460aa84"}),
+            ),
+            patch(
+                "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
+            ) as mock_smp,
+        ):
+            assert upload_program(config={}, args=None, host="BLE") is True
+
+        mock_scan.assert_awaited_once_with(CORE.name)
+        mock_smp.assert_awaited_once_with(BLE_MAC)
+
+    def test_unknown_service_raises(self, setup_core: Path, tmp_path: Path) -> None:
+        """A device without a known OTA service must not be flashed."""
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+
+        with (
+            patch(
+                "esphome.components.adafruit_ble.dfu.list_services",
+                new=AsyncMock(return_value=set()),
+            ),
+            pytest.raises(EsphomeError, match="does not offer an OTA service"),
+        ):
+            upload_program(config={}, args=None, host=BLE_MAC)

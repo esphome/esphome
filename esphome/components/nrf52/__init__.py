@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_OTA,
+    CONF_PLATFORM,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
     CONF_TOOLCHAIN,
@@ -90,6 +91,9 @@ AUTO_LOAD = ["zephyr", "preferences"]
 DOMAIN = "nrf52"
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
+
+# OTA platform that hands the update over to the Adafruit nRF52 bootloader
+ADAFRUIT_BLE_OTA_PLATFORM = "adafruit_ble"
 
 # Default framework versions per toolchain. The sdk-nrf one also keys the CI
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
@@ -351,6 +355,34 @@ def _final_validate(config):
                 )
             # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+        elif _uses_adafruit_ble_ota(full_config):
+            if _ota_rollback_requested_by_user():
+                raise cv.Invalid(
+                    f"'{CONF_ENABLE_OTA_ROLLBACK}' cannot be enabled with the "
+                    f"'{ADAFRUIT_BLE_OTA_PLATFORM}' OTA platform: the Adafruit bootloader "
+                    "does not support image rollback"
+                )
+            # Rollback confirms a freshly flashed image through MCUboot's trailer,
+            # which the Adafruit bootloader does not have.
+            advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+
+
+def _uses_adafruit_ble_ota(full_config: ConfigType) -> bool:
+    ota_config = full_config.get(CONF_OTA, [])
+    if not isinstance(ota_config, list):
+        return False
+    return any(
+        ota_conf.get(CONF_PLATFORM) == ADAFRUIT_BLE_OTA_PLATFORM
+        for ota_conf in ota_config
+    )
+
+
+def _ota_rollback_requested_by_user() -> bool:
+    """Whether 'enable_ota_rollback: true' is written in the configuration."""
+    nrf52_config = (CORE.raw_config or {}).get(DOMAIN) or {}
+    framework = nrf52_config.get(CONF_FRAMEWORK) or {}
+    advanced = framework.get(CONF_ADVANCED) or {}
+    return bool(advanced.get(CONF_ENABLE_OTA_ROLLBACK, False))
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -550,7 +582,7 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
             },
             {
                 "title": "DFU package",
-                "description": "For flashing via adafruit-nrfutil using USB CDC.",
+                "description": "For flashing via adafruit-nrfutil using USB CDC or BLE.",
                 "file": DFU_PATH,
                 "download": f"dfu-{storage_json.name}.zip",
             },
@@ -731,24 +763,92 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
-    # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_mac_address
-    from .ota import smpmgr_scan, smpmgr_upload
-
-    if host == "BLE":
-        mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
-
-    if is_mac_address(host):
-        mcumgr_device = host
-
     if mcumgr_device:
-        firmware = Path(
-            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
-        ).resolve()
-        asyncio.run(smpmgr_upload(mcumgr_device, firmware))
-        return True  # Handled: mcumgr OTA upload
+        # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
+        asyncio.run(_smpmgr_upload(mcumgr_device))
+        return True  # Handled: mcumgr serial upload
+
+    # Deferred imports: bleak and friends are heavy, only load for BLE paths
+    from .ble_logger import is_mac_address
+
+    if host == "BLE" or is_mac_address(host):
+        asyncio.run(_upload_over_ble(host))
+        return True  # Handled: BLE OTA upload
 
     return False  # Not handled: let caller try default upload methods
+
+
+async def _smpmgr_upload(device: str) -> None:
+    """Upload the MCUboot application image over the MCUmgr SMP protocol."""
+    from .ota import smpmgr_upload
+
+    firmware = Path(
+        CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+    ).resolve()
+    await smpmgr_upload(device, firmware)
+
+
+def _check_ota_bootloader(adafruit: bool) -> None:
+    """Warn when the OTA service found on the device does not match the build."""
+    bootloader = zephyr_data()[KEY_BOOTLOADER]
+    # Every Adafruit bootloader variant is named adafruit*
+    if bootloader.startswith(BOOTLOADER_ADAFRUIT) != adafruit:
+        _LOGGER.warning(
+            "The device offers %s OTA, but the firmware was built with "
+            "'bootloader: %s'",
+            "Adafruit" if adafruit else "MCUboot",
+            bootloader,
+        )
+
+
+async def _upload_over_ble(host: str) -> None:
+    """Detect which OTA protocol a BLE device speaks and upload over it.
+
+    The application exposes either the MCUmgr SMP service (MCUboot) or the DFU
+    trigger service (Adafruit bootloader) in its GATT table; the Adafruit
+    bootloader itself only advertises its DFU service while it is in DFU mode.
+    """
+    from esphome.components.adafruit_ble import dfu
+
+    from .ble_logger import logger_scan
+    from .ota import SMP_SERVICE_UUID, smpmgr_scan
+
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+
+    if host == "BLE":
+        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            # MCUboot: only devices offering MCUmgr are considered
+            address = await smpmgr_scan(CORE.name)
+        else:
+            device = await logger_scan(CORE.name)
+            if device is None:
+                raise EsphomeError(
+                    f"Bluetooth LE device {CORE.name} was not found; pass its MAC "
+                    "address instead"
+                )
+            address = device.address
+    else:
+        address = host
+
+    services = await dfu.list_services(address)
+
+    if dfu.DFU_SERVICE_UUID in services:
+        # The Adafruit bootloader is already in DFU mode
+        _check_ota_bootloader(True)
+        await dfu.dfu_upload(address, build_dir / "firmware.zip")
+    elif SMP_SERVICE_UUID.lower() in services:
+        _check_ota_bootloader(False)
+        await _smpmgr_upload(address)
+    elif dfu.TRIGGER_SERVICE_UUID in services:
+        _check_ota_bootloader(True)
+        await dfu.request_dfu_mode(address)
+        bootloader_address = await dfu.find_dfu_bootloader([address])
+        await dfu.dfu_upload(bootloader_address, build_dir / "firmware.zip")
+    else:
+        raise EsphomeError(
+            f"{address} does not offer an OTA service. Put the device into DFU mode "
+            "and try again."
+        )
 
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:

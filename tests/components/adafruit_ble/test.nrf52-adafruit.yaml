@@ -1,0 +1,7 @@
+zephyr_ble_server:
+
+ota:
+  - platform: adafruit_ble
+    on_begin:
+      then:
+        - logger.log: "OTA start"
