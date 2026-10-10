@@ -16,16 +16,18 @@ jobs:
     # No GITHUB_TOKEN permissions: the reusable workflow mints an ESPHome
     # GitHub App token so the labels, comments and closures come from
     # esphome[bot] instead of github-actions[bot].
-    uses: esphome/workflows/.github/workflows/stale.yml@cc3e76de337dc59bc1cba8da58d963cd23b873f1  # main
+    uses: esphome/workflows/.github/workflows/stale.yml@d97e8f27a4bd02d4d106462b3b2ea2e529af8088  # stale-merge-conflicts
     secrets:
       ESPHOME_GITHUB_APP_PRIVATE_KEY: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
     with:
       # Live only on dev: a workflow_dispatch from any other branch is a dry run
       dry-run: ${{ github.ref != 'refs/heads/dev' }}
       days-before-stale: 90
+      days-before-stale-conflicting: 30
       days-before-close: 7
       stale-label: stale
       exempt-label: not-stale
+      conflict-label: needs-rebase
       ignored-users: esphbot,codecov-commenter
       stale-pr-message: >
         There hasn't been any activity on this pull request recently. This
@@ -35,6 +37,15 @@ jobs:
         If you are the author of this PR, please leave a comment if you want
         to keep it open. Also, please merge the latest dev branch into your
         branch to ensure that it's up to date with the latest changes.
+
+        Thank you for your contribution!
+      stale-conflicting-pr-message: >
+        This pull request has merge conflicts and there hasn't been any
+        activity on it for 30 days. It has been marked as stale and will be
+        closed if the conflicts are not resolved within 7 days.
+
+        Please merge the latest dev branch into your branch. Once the pull
+        request is mergeable again the stale label is removed.
 
         Thank you for your contribution!
       stale-issue-message: >
