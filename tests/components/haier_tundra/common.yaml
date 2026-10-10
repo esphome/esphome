@@ -7,11 +7,11 @@ climate:
 switch:
   - platform: haier_tundra
     haier_tundra_id: my_haier_ac
-    quiet:
+    quiet_mode:
       name: "Quiet Mode"
-    turbo:
+    turbo_mode:
       name: "Turbo Mode"
-    health:
+    health_mode:
       name: "Health Mode"
 
 button:
