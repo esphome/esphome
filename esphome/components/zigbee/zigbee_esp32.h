@@ -20,7 +20,6 @@
 namespace esphome::zigbee {
 
 /* Zigbee configuration */
-static const uint16_t ED_KEEP_ALIVE = 3000; /* 3000 millisecond */
 static const uint8_t MAX_CHILDREN = 10;
 static const uint32_t EZB_PRIMARY_CHANNEL_MASK = 0x07FFF800U; /* channels 11-26 */
 static constexpr uint8_t MAX_ZB_QUEUE_SIZE = 32;
@@ -44,7 +43,7 @@ class ZigbeeComponent final : public Component {
   void dump_config() override;
 
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
-  void set_keep_alive(uint16_t keep_alive) { this->keep_alive_ = keep_alive; }
+  void set_keep_alive(uint32_t keep_alive) { this->keep_alive_ = keep_alive; }
   void set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, uint16_t device_id);
@@ -76,7 +75,7 @@ class ZigbeeComponent final : public Component {
 
  protected:
   bool sleepy_{false};
-  uint16_t keep_alive_{3000};
+  uint32_t keep_alive_{3000};
   struct {
     uint8_t *model;
     uint8_t *manufacturer;
