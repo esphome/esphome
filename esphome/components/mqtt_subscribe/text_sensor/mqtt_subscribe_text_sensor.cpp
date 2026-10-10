@@ -7,7 +7,7 @@
 
 namespace esphome::mqtt_subscribe {
 
-static const char *const TAG = "mqtt_subscribe.text_sensor";
+ESPHOME_LOG_TAG(TAG, "mqtt_subscribe.text_sensor");
 
 void MQTTSubscribeTextSensor::setup() {
   this->parent_->subscribe(

@@ -5,9 +5,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome.build_helpers import pch
 from esphome.components import nrf52
 from esphome.components.nrf52 import framework
-from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.nrf52.toolchain import get_elf_path
+from esphome.components.zephyr.const import KEY_BOARD, KEY_SYSBUILD
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE, EsphomeError
@@ -55,8 +57,6 @@ def test_cmake_lists_pch_block_disabled(tmp_path: Path) -> None:
 def test_the_zephyr_compiler_decides_on_windows(
     windows_gcc_rule: None, version: tuple[int, ...], on: bool
 ) -> None:
-    from esphome.build_helpers import pch
-
     # platformdirs would pick its Windows backend from the patched sys.platform
     with (
         patch.object(nrf52, "toolchain_tool", lambda name: Path(f"/sdk/{name}.exe")),
@@ -66,8 +66,16 @@ def test_the_zephyr_compiler_decides_on_windows(
     assert asked.call_args.args[0] == (Path("/sdk/g++.exe"),)
 
 
-def _write_checksum(tmp_path: Path, app: str, conf: str = "CONFIG_X=y\n") -> Path:
+def _write_checksum(
+    tmp_path: Path,
+    app: str,
+    conf: str = "CONFIG_X=y\n",
+    configured: bool = True,
+    sysbuild: bool = False,
+    version: cv.Version | None = None,
+) -> Path:
     """Write the checksum for a build dir whose app image sits in ``app``."""
+    version = version or cv.Version(2, 9, 2)
     CORE.build_path = tmp_path
     header = tmp_path / "src" / "esphome" / "core" / "pch_prefix.h"
     header.parent.mkdir(parents=True, exist_ok=True)
@@ -77,21 +85,41 @@ def _write_checksum(tmp_path: Path, app: str, conf: str = "CONFIG_X=y\n") -> Pat
     (source_dir / "prj.conf").write_text(conf)
     (source_dir / "CMakeLists.txt").write_text("not part of the checksum\n")
     build_dir = tmp_path / ".pioenvs" / "livingroom"
-    (build_dir / app).mkdir(parents=True, exist_ok=True)
-    (build_dir / app / "CMakeCache.txt").write_text("")
+    if configured:
+        (build_dir / app).mkdir(parents=True, exist_ok=True)
+        (build_dir / app / "CMakeCache.txt").write_text("")
     with (
-        patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: "2.9.2"}}),
-        patch.object(nrf52, "zephyr_data", return_value={KEY_BOARD: "board"}),
+        patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: version}}),
+        patch.object(
+            nrf52,
+            "zephyr_data",
+            return_value={KEY_BOARD: "board", KEY_SYSBUILD: sysbuild},
+        ),
     ):
         nrf52._write_pch_checksum(build_dir, source_dir)
     return build_dir / app / SUM
 
 
-@pytest.mark.parametrize("app", ["zephyr", "."])
-def test_pch_checksum_is_written_next_to_the_gch(tmp_path: Path, app: str) -> None:
-    """Sysbuild nests the app image; without it the build dir is the app."""
-    sum_path = _write_checksum(tmp_path, app)
+@pytest.mark.parametrize(
+    ("app", "version"), [("zephyr", cv.Version(2, 9, 2)), (".", cv.Version(2, 9, 1))]
+)
+def test_pch_checksum_is_written_next_to_the_gch(
+    tmp_path: Path, app: str, version: cv.Version
+) -> None:
+    """The SDK version decides the layout, like get_elf_path."""
+    sum_path = _write_checksum(tmp_path, app, version=version)
     assert len(sum_path.read_text().strip()) == 64
+
+
+def test_pch_checksum_tracks_the_kconfig_side_inputs(tmp_path: Path) -> None:
+    """West projects and the sysbuild flag reach autoconf without a .conf
+    line; the sum must move with them or stale objects get served."""
+    first = _write_checksum(tmp_path, "zephyr").read_text()
+    with patch.object(nrf52, "wanted_west_projects", return_value={"extra"}):
+        second = _write_checksum(tmp_path, "zephyr").read_text()
+    assert first != second
+    third = _write_checksum(tmp_path, "zephyr", sysbuild=True).read_text()
+    assert first != third
 
 
 def test_pch_checksum_tracks_the_zephyr_configuration(tmp_path: Path) -> None:
@@ -99,11 +127,23 @@ def test_pch_checksum_tracks_the_zephyr_configuration(tmp_path: Path) -> None:
     assert _write_checksum(tmp_path, "zephyr", "CONFIG_X=n\n").read_text() != first
 
 
-def test_pch_checksum_waits_for_the_first_configure(tmp_path: Path) -> None:
-    CORE.build_path = tmp_path
-    build_dir = tmp_path / ".pioenvs" / "livingroom"
-    nrf52._write_pch_checksum(build_dir, tmp_path / "zephyr")
-    assert not build_dir.exists()
+@pytest.mark.parametrize("version", [cv.Version(2, 9, 2), cv.Version(2, 9, 1)])
+def test_pch_checksum_lands_where_the_build_writes_the_image(
+    tmp_path: Path, version: cv.Version
+) -> None:
+    """One layout rule: the sum must sit in get_elf_path's app dir, or a
+    layout drift silently costs the first build's sharing."""
+    app = "zephyr" if version >= cv.Version(2, 9, 2) else "."
+    sum_path = _write_checksum(tmp_path, app, version=version)
+    CORE.name = "livingroom"
+    with patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: version}}):
+        expected = get_elf_path().parent.parent / SUM
+    assert sum_path.resolve() == expected.resolve()
+
+
+def test_pch_checksum_written_before_the_first_configure(tmp_path: Path) -> None:
+    """The first build's compiles hash the sum in place of the .gch."""
+    assert _write_checksum(tmp_path, "zephyr", configured=False).is_file()
 
 
 def _fake_build_env(ccache: str | None) -> dict[str, str]:
@@ -130,6 +170,7 @@ def run_cmd(tmp_path: Path) -> Mock:
     CORE.name = "livingroom"
     CORE.toolchain = Toolchain.SDK_NRF
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 2, 0)}
+    (tmp_path / "build" / "zephyr").mkdir(parents=True)
     with (
         patch.dict("os.environ", {}, clear=True),
         patch.object(nrf52, "check_and_install"),

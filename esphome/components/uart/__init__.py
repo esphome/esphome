@@ -402,7 +402,9 @@ async def to_code(config):
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
-    cg.add(var.set_parity(config[CONF_PARITY]))
+    # Skip the setter when the config matches the C++ initializer (UART_CONFIG_PARITY_NONE).
+    if (parity := config[CONF_PARITY]) != "NONE":
+        cg.add(var.set_parity(parity))
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
@@ -487,7 +489,8 @@ def final_validate_device_schema(
         return value
 
     def validate_stop_bits(value):
-        if value != stop_bits:
+        # usb_uart channels store stop bits as strings ("1", "1.5", "2").
+        if float(value) != stop_bits:
             raise cv.Invalid(
                 f"Component {name} requires {stop_bits} stop bits for the uart referenced by {uart_bus}"
             )
@@ -528,6 +531,25 @@ def final_validate_device_schema(
         {cv.Required(uart_bus): fv.id_declaration_match_schema(validate_hub)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+def subtree_references_uart(
+    node: object, uart_id: str, conf_key: str = CONF_UART_ID
+) -> bool:
+    """Return True if any dict in the subtree has a conf_key entry naming this bus.
+
+    For the final validation of a component that needs a UART for itself. Bare
+    `id:` references (a uart.write action) and lambdas are not found.
+    """
+    if isinstance(node, dict):
+        return any(
+            (key == conf_key and str(value) == uart_id)
+            or subtree_references_uart(value, uart_id, conf_key)
+            for key, value in node.items()
+        )
+    if isinstance(node, list):
+        return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
+    return False
 
 
 async def register_uart_device(var, config):

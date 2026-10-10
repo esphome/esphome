@@ -30,7 +30,7 @@ namespace esphome::socket {
 // On RP2040, it acquires cyw43_arch_lwip_begin/end. On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
-static const char *const TAG = "socket";
+ESPHOME_LOG_TAG(TAG, "socket");
 
 #ifdef USE_ESP8266
 // optimistic_yield() rate limit in microseconds of CONT time; cheap when hot.

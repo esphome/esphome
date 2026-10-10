@@ -4,7 +4,7 @@
 
 namespace esphome::atm90e32 {
 
-static const char *const TAG = "atm90e32.button";
+ESPHOME_LOG_TAG(TAG, "atm90e32.button");
 
 void ATM90E32GainCalibrationButton::press_action() {
   if (this->parent_ == nullptr) {

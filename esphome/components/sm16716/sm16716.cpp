@@ -3,7 +3,7 @@
 
 namespace esphome::sm16716 {
 
-static const char *const TAG = "sm16716";
+ESPHOME_LOG_TAG(TAG, "sm16716");
 
 void SM16716::setup() {
   this->data_pin_->setup();
