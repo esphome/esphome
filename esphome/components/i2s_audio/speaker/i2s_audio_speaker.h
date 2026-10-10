@@ -12,7 +12,6 @@
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
@@ -198,13 +197,6 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   gpio_num_t dout_pin_;
   i2s_chan_handle_t tx_handle_{nullptr};
-};
-
-class I2SAudioSpeakerAudioEndTrigger : public Trigger<> {
- public:
-  explicit I2SAudioSpeakerAudioEndTrigger(I2SAudioSpeakerBase *parent) {
-    parent->add_on_audio_end_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::i2s_audio
