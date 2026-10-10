@@ -37,3 +37,6 @@ def test_nrf_bootloader_reserves_factory_region() -> None:
     bootloader = registered["open_bootloader"]
     assert bootloader.end_address == 0x100000
     assert registered["settings_storage"].end_address <= bootloader.address
+    # The MBR page stays reserved so the application is linked from 0x1000, where the bootloader chains to
+    assert registered["mbr"].address == 0x0
+    assert registered["mbr"].end_address == 0x1000
