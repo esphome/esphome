@@ -4,7 +4,7 @@
 
 namespace esphome::mitsubishi {
 
-static const char *const TAG = "mitsubishi.climate";
+ESPHOME_LOG_TAG(TAG, "mitsubishi.climate");
 
 // IR frame size for Mitsubishi climate
 static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;

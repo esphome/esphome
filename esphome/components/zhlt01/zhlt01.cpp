@@ -3,7 +3,7 @@
 
 namespace esphome::zhlt01 {
 
-static const char *const TAG = "zhlt01.climate";
+ESPHOME_LOG_TAG(TAG, "zhlt01.climate");
 
 void ZHLT01Climate::transmit_state() {
   uint8_t ir_message[12] = {0};
