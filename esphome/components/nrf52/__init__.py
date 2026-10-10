@@ -604,6 +604,10 @@ def _upload_using_platformio(
     return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
+# USB vendor and product id the nRF52840 Dongle enumerates with while its Open DFU bootloader runs
+OPEN_DFU_USB_ID = (0x1915, 0x521F)
+
+
 def _reset_into_bootloader(host: str) -> None:
     """Send the 1200 bps touch that resets an Adafruit bootloader into DFU mode."""
     import time as _time
@@ -627,6 +631,30 @@ def _reset_into_bootloader(host: str) -> None:
         _LOGGER.warning(
             "Device did not leave %s within 5 s; it may not have entered bootloader mode",
             host,
+        )
+
+    # Wait for DFU port to reappear
+    deadline = _time.monotonic() + 10
+    while _time.monotonic() < deadline:
+        _time.sleep(0.1)
+        if host in {p.device for p in _list_ports.comports()}:
+            break
+    else:
+        raise EsphomeError(
+            f"DFU port {host!r} did not reappear within 10 s. "
+            "Check that the device entered DFU mode."
+        )
+
+
+def _require_open_dfu_port(host: str) -> None:
+    """Check that the port belongs to the Open DFU bootloader, which has no auto-entry."""
+    import serial.tools.list_ports as _list_ports
+
+    port = next((p for p in _list_ports.comports() if p.device == host), None)
+    if port is None or (port.vid, port.pid) != OPEN_DFU_USB_ID:
+        raise EsphomeError(
+            f"{host} is not the Open DFU bootloader. Enter bootloader mode first "
+            "(hold SW1 while plugging the device in)."
         )
 
 
@@ -664,27 +692,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     raise EsphomeError("Firmware not found. Please compile first.")
                 import time as _time
 
-                import serial.tools.list_ports as _list_ports
-
-                # The Open DFU bootloader has no auto-entry: the user holds SW1 while plugging in
-                if bootloader != BOOTLOADER_NRF:
-                    _reset_into_bootloader(host)
-
-                # Wait for the DFU port
-                deadline = _time.monotonic() + 10
-                while _time.monotonic() < deadline:
-                    if host in {p.device for p in _list_ports.comports()}:
-                        break
-                    _time.sleep(0.1)
+                if bootloader == BOOTLOADER_NRF:
+                    _require_open_dfu_port(host)
                 else:
-                    hint = (
-                        "Enter bootloader mode first (hold SW1 while plugging the device in)."
-                        if bootloader == BOOTLOADER_NRF
-                        else "Check that the device entered DFU mode."
-                    )
-                    raise EsphomeError(
-                        f"DFU port {host!r} was not available within 10 s. {hint}"
-                    )
+                    _reset_into_bootloader(host)
 
                 # Wait for udev to finish setting up device permissions
                 deadline = _time.monotonic() + 5
