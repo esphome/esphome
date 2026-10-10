@@ -1,6 +1,7 @@
 #ifdef USE_LIBRETINY
 
 #include "gpio_arduino.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::libretiny {
@@ -37,7 +38,7 @@ ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ArduinoInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = (PinStatus) 255;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
