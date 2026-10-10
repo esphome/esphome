@@ -269,6 +269,8 @@ ssize_t ESPHomeOTAComponent::noise_read_data_(uint8_t *buf, size_t capacity) {
 /// Blocking write of a short response (at most NOISE_MAX_RESPONSE bytes) as one encrypted frame.
 bool ESPHomeOTAComponent::noise_write_(const uint8_t *data, size_t len) {
   uint8_t frame[noise::FRAME_HEADER_SIZE + NOISE_MAX_RESPONSE + noise::MAC_SIZE];
+  if (len > NOISE_MAX_RESPONSE)
+    return false;
   memcpy(frame + noise::FRAME_HEADER_SIZE, data, len);
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);

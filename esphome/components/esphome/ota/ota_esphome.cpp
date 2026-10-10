@@ -954,6 +954,9 @@ void ESPHomeOTAComponent::send_chunk_acks_(DataTransfer &xfer) {
 }
 
 void ESPHomeOTAComponent::cleanup_connection_() {
+#ifdef ESPHOME_OTA_UDP
+  this->udp_ = nullptr;  // the link itself lives on handle_data_'s stack
+#endif
   // Already gone once a UDP session committed
   if (this->client_ != nullptr)
     this->client_->close();

@@ -110,8 +110,10 @@ EXTRA_UPLOAD_ATTEMPTS = 4
 # the likely cause, so keep trying like an API reconnect would
 EXTRA_UPLOAD_ATTEMPTS_REACHED = 8
 UPLOAD_RETRY_DELAY = 5.0
-# Connect and handshake waits; as patient as an API connect on a lossy link, and
-# matching the device's OTA_SOCKET_TIMEOUT_HANDSHAKE
+# A SYN getting through is the cheap step; an unreachable address still fails fast
+CONNECT_TIMEOUT = 20.0
+# Handshake waits; as patient as an API connect on a lossy link, and matching the
+# device's OTA_SOCKET_TIMEOUT_HANDSHAKE
 SETUP_TIMEOUT = 60.0
 # Data phase timeout; must stay longer than the device's OTA_SOCKET_TIMEOUT_DATA
 # (105 s) so a stalled session is gone before a retry, and long enough for lwIP
@@ -1048,9 +1050,8 @@ def perform_ota(
 
     _LOGGER.info("Handshake complete")
 
-    sock.settimeout(DATA_PHASE_TIMEOUT)
-
     udp: UdpChannel | None = None
+    # Still under SETUP_TIMEOUT, which the device's commit wait is sized for
     if extended_proto and features & SERVER_FEATURE_SUPPORTS_UDP:
         udp = _start_udp(
             sock, tcp_sock, _link_lossy(tcp_sock, slowest_exchange, prefer_udp)
@@ -1062,120 +1063,126 @@ def perform_ota(
             else:
                 sock = udp
 
-    if extended_proto:
-        send_check(sock, ota_type, "ota type")
-
-    upload_size = len(upload_contents)
-    # The device erases flash between receiving the size and acking the
-    # prepare, so this window shows the erase cost (near zero when the
-    # device erases lazily during the upload)
-    prepare_start = time.perf_counter()
-    send_check(sock, upload_size.to_bytes(SIZE_FIELD_BYTES, "big"), "binary size")
-    if deflate:
-        # Own frame: an encrypted session carries one field per frame
-        send_check(sock, file_size.to_bytes(SIZE_FIELD_BYTES, "big"), "image size")
-    receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
-    prepare_duration = time.perf_counter() - prepare_start
-    _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
-
-    # The device hashes what it writes: the inflated image, else the received bytes
-    upload_md5 = hashlib.md5(file_contents if deflate else upload_contents).hexdigest()
-    _LOGGER.debug("MD5 of upload is %s", upload_md5)
-
-    send_check(sock, upload_md5, "file checksum")
-    receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
-
-    # Disable nodelay for transfer
-    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
-    # Limit send buffer (usually around 100kB) in order to have progress bar
-    # show the actual progress
-
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
-    start_time = time.perf_counter()
-
-    offset = 0
-    progress = ProgressBar("Uploading")
+    sock.settimeout(DATA_PHASE_TIMEOUT)
     try:
-        while True:
-            chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
-            if not chunk:
-                break
-            offset += len(chunk)
+        if extended_proto:
+            send_check(sock, ota_type, "ota type")
 
-            try:
-                sock.sendall(chunk)
-            except OSError as err:
-                # A send failure can hide an error byte the device reported
-                # just before dropping the connection; surface that as the
-                # real, non-retryable cause when it is available
+        upload_size = len(upload_contents)
+        # The device erases flash between receiving the size and acking the
+        # prepare, so this window shows the erase cost (near zero when the
+        # device erases lazily during the upload)
+        prepare_start = time.perf_counter()
+        send_check(sock, upload_size.to_bytes(SIZE_FIELD_BYTES, "big"), "binary size")
+        if deflate:
+            # Own frame: an encrypted session carries one field per frame
+            send_check(sock, file_size.to_bytes(SIZE_FIELD_BYTES, "big"), "image size")
+        receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
+        prepare_duration = time.perf_counter() - prepare_start
+        _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
+
+        # The device hashes what it writes: the inflated image, else the received bytes
+        upload_md5 = hashlib.md5(
+            file_contents if deflate else upload_contents
+        ).hexdigest()
+        _LOGGER.debug("MD5 of upload is %s", upload_md5)
+
+        send_check(sock, upload_md5, "file checksum")
+        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
+
+        # Disable nodelay for transfer
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
+        # Limit send buffer (usually around 100kB) in order to have progress bar
+        # show the actual progress
+
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
+        start_time = time.perf_counter()
+
+        offset = 0
+        progress = ProgressBar("Uploading")
+        try:
+            while True:
+                chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
+                if not chunk:
+                    break
+                offset += len(chunk)
+
                 try:
-                    sock.settimeout(1.0)
-                    check_error(recv_decode(sock, 1), None)
-                except (OSError, OTANetworkError) as probe_err:
-                    _LOGGER.debug(
-                        "No device error behind the send failure: %s", probe_err
-                    )
-                raise OTANetworkError(f"sending data: {err}") from err
+                    sock.sendall(chunk)
+                except OSError as err:
+                    # A send failure can hide an error byte the device reported
+                    # just before dropping the connection; surface that as the
+                    # real, non-retryable cause when it is available
+                    try:
+                        sock.settimeout(1.0)
+                        check_error(recv_decode(sock, 1), None)
+                    except (OSError, OTANetworkError) as probe_err:
+                        _LOGGER.debug(
+                            "No device error behind the send failure: %s", probe_err
+                        )
+                    raise OTANetworkError(f"sending data: {err}") from err
 
-            # The UDP channel acks every message itself
-            if version >= OTA_VERSION_2_0 and udp is None:
-                try:
-                    receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
-                except OTANetworkError as err:
-                    if offset < upload_size:
-                        raise
-                    # The device already had the complete image when this ack
-                    # was lost, so it may be committing; do not retry
-                    raise _committed_error(err) from err
+                # The UDP channel acks every message itself
+                if version >= OTA_VERSION_2_0 and udp is None:
+                    try:
+                        receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
+                    except OTANetworkError as err:
+                        if offset < upload_size:
+                            raise
+                        # The device already had the complete image when this ack
+                        # was lost, so it may be committing; do not retry
+                        raise _committed_error(err) from err
 
-            progress.update(offset / upload_size)
-    except OTAError:
-        # Terminate the progress bar line before the error is logged
+                progress.update(offset / upload_size)
+        except OTAError:
+            # Terminate the progress bar line before the error is logged
+            progress.done()
+            raise
         progress.done()
-        raise
-    progress.done()
 
-    # Enable nodelay for last checks
-    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    duration = time.perf_counter() - start_time
+        # Enable nodelay for last checks
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        duration = time.perf_counter() - start_time
 
-    _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
+        _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
 
-    # Once the device has the complete image it commits the update and
-    # reboots on its own; the exact commit point is not observable from
-    # here, so treat everything past the data phase as non-retryable. A
-    # re-upload could flash a device that already updated successfully.
-    commit_start = time.perf_counter()
-    try:
-        receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
-        receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
-    except OTANetworkError as err:
-        raise _committed_error(err) from err
-    commit_duration = time.perf_counter() - commit_start
+        # Once the device has the complete image it commits the update and
+        # reboots on its own; the exact commit point is not observable from
+        # here, so treat everything past the data phase as non-retryable. A
+        # re-upload could flash a device that already updated successfully.
+        commit_start = time.perf_counter()
+        try:
+            receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
+            receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
+        except OTANetworkError as err:
+            raise _committed_error(err) from err
+        commit_duration = time.perf_counter() - commit_start
 
-    # Sum of the named windows so the breakdown is self consistent; connect,
-    # handshake, auth, and the one MD5 round trip are not included
-    _LOGGER.info(
-        "Update took %.2f seconds (prepare %.2f, upload %.2f, commit %.2f)",
-        prepare_duration + duration + commit_duration,
-        prepare_duration,
-        duration,
-        commit_duration,
-    )
+        # Sum of the named windows so the breakdown is self consistent; connect,
+        # handshake, auth, and the one MD5 round trip are not included
+        _LOGGER.info(
+            "Update took %.2f seconds (prepare %.2f, upload %.2f, commit %.2f)",
+            prepare_duration + duration + commit_duration,
+            prepare_duration,
+            duration,
+            commit_duration,
+        )
 
-    try:
-        send_check(sock, RESPONSE_OK, "end acknowledgement")
-    except OTANetworkError as err:
-        # The device treats a missing end acknowledgement as non-fatal and is
-        # already rebooting into the new firmware, so the update succeeded
-        _LOGGER.warning("Failed sending end acknowledgement: %s", err)
-        _LOGGER.info("OTA successful (end acknowledgement not delivered)")
-    else:
-        _LOGGER.info("OTA successful")
-    if udp is not None:
-        # Nothing waits for this; just give the end acknowledgement a chance
-        udp.flush(2.0)
-        udp.close()
+        try:
+            send_check(sock, RESPONSE_OK, "end acknowledgement")
+        except OTANetworkError as err:
+            # The device treats a missing end acknowledgement as non-fatal and is
+            # already rebooting into the new firmware, so the update succeeded
+            _LOGGER.warning("Failed sending end acknowledgement: %s", err)
+            _LOGGER.info("OTA successful (end acknowledgement not delivered)")
+        else:
+            _LOGGER.info("OTA successful")
+        if udp is not None:
+            # Nothing waits for this; just give the end acknowledgement a chance
+            udp.flush(2.0)
+    finally:
+        if udp is not None:
+            udp.close()
 
     # Do not connect logs until it is fully on
     time.sleep(1)
@@ -1245,18 +1252,18 @@ def run_ota_impl_(
         reached_device = False
         _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
         sock = socket.socket(af, socktype)
-        sock.settimeout(SETUP_TIMEOUT)
+        sock.settimeout(CONNECT_TIMEOUT)
         try:
             sock.connect(sa)
         except OSError as err:
             sock.close()
             _LOGGER.warning("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
             last_error = f"connecting to {sa[0]} failed: {err}"
-            prefer_udp = True
             attempt += 1
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
+        sock.settimeout(SETUP_TIMEOUT)
         reached_device = True
         total_attempts = max(total_attempts, len(res) + EXTRA_UPLOAD_ATTEMPTS_REACHED)
         with contextlib.closing(sock), Path(filename).open("rb") as file_handle:

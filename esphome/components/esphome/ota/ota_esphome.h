@@ -116,7 +116,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // Caller holds the lwIP lock (or runs in the receive callback)
   static void udp_send_ack(UdpLink &link, uint16_t prompted_by);
 #endif
-  // The data phase reads TCP or, once committed, the UDP stream
+  // Data phase only (udp_ shares storage with the handshake's connect time): TCP or, once committed, the UDP stream
   inline ssize_t transport_read_(uint8_t *buf, size_t len) {
 #ifdef ESPHOME_OTA_UDP
     if (this->udp_ != nullptr)
@@ -266,6 +266,10 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     uint32_t client_connect_time_{0};  // handshake states
     UdpLink *udp_;                     // data phase (never both), points into handle_data_'s stack
   };
+  static_assert(sizeof(UdpLink *) == sizeof(uint32_t), "clearing client_connect_time_ must clear udp_");
+#ifdef USE_OTA_ENCRYPTION
+  static_assert(sizeof(UdpLink::reply) <= NOISE_MAX_RESPONSE, "the token goes out through noise_write_");
+#endif
 #else
   uint32_t client_connect_time_{0};
 #endif
