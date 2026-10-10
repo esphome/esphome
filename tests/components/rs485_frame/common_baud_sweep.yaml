@@ -1,0 +1,11 @@
+# Adds discovery.baud_sweep: to hub5 (declared in common.yaml) via !extend -- pulled in only
+# by the compiled test files for platforms where baud_sweep is valid (ESP32/ESP8266; runtime
+# UART reconfiguration is not implemented on other platforms, and the schema rejects
+# baud_sweep: there at config-validate time). Exercises the runtime baud/data-bits sweep
+# codegen path (configure_discovery_baud_sweep()).
+rs485_frame:
+  - id: !extend rs485_frame_hub5
+    discovery:
+      baud_sweep: [9600, 19200, 38400]
+      data_bits_sweep: [7, 8]
+      dwell: 8s

@@ -1,0 +1,5 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
+  baud_sweep: !include common_baud_sweep.yaml
+
+<<: !include common.yaml

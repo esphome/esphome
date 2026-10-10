@@ -1,0 +1,53 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  command_format:
+    preamble: [0x00, 0x83, 0x01]
+    value_element_bytes: 4
+    postamble: [0x00]
+  response_fields:
+    led_mask:
+      frame_type: [0x01, 0x02]
+      offset: 2
+      length: 4
+      endian: little
+  response_monitor:
+    # masked_int signature alt with neither mask: nor bit: -- must fall through to
+    # _resolve_bit_to_mask's default-mask branch (HexInt(0xFFFFFFFF)), not raise.
+    - name: lights_confirm
+      trigger:
+        button_name: "Lights"
+      window: 200ms
+      signature:
+        - field: led_mask
+          type: masked_int
+          value: 0x00010000
+
+button:
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Lights"
+    value: 0x00010000

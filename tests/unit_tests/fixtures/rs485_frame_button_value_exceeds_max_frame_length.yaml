@@ -1,0 +1,40 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  max_frame_length: 6
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  command_format:
+    preamble: [0x00, 0x83, 0x01]
+    value_element_bytes: 4
+    postamble: [0x00]
+
+button:
+  # preamble (3) + one 4-byte value + postamble (1) = 8 bytes, exceeding the hub's
+  # max_frame_length: 6 -- queue_command_values would drop this at runtime every time it
+  # is pressed. Must be rejected at config-validate time instead.
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Too Long"
+    value: 0x00010000
