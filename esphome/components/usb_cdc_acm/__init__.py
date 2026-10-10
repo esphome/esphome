@@ -15,6 +15,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["tinyusb"]
+DOMAIN = "usb_cdc_acm"
 
 CONF_INTERFACES = "interfaces"
 

@@ -13,6 +13,7 @@ namespace esphome {
 
 /// Host: wakes select() via UDP loopback socket. Defined in wake_host.cpp.
 void wake_loop_threadsafe();
+void wake_scheduler_threadsafe();
 
 /// Register a socket file descriptor with the host select() loop. Not
 /// thread-safe — main loop only. Returns false if fd is invalid or
