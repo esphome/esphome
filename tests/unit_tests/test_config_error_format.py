@@ -3,9 +3,19 @@
 from pathlib import Path
 
 import pytest
+import voluptuous as vol
+import yaml
 
 from esphome import config_validation as cv
-from esphome.config import Config, _print_line_message, read_config
+from esphome.config import (
+    Config,
+    InvalidYAMLError,
+    _print_line_errors,
+    _print_line_load_error,
+    _print_line_message,
+    _print_marked_yaml_error,
+    read_config,
+)
 from esphome.const import ErrorFormat
 from esphome.core import CORE
 from esphome.voluptuous_schema import ExtraKeysInvalid, KeyInvalid
@@ -243,3 +253,60 @@ def test_exception_as_error_message(
             "could not convert string to float: ''."
         )
     ]
+
+
+def _mark(line: int, column: int) -> yaml.Mark:
+    return yaml.Mark("a.yaml", 0, line, column, None, None)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (
+            yaml.MarkedYAMLError(
+                problem="bad value", problem_mark=_mark(2, 1), note="a hint"
+            ),
+            ["a.yaml:3:2: error: bad value", "a.yaml:3:2: note: a hint"],
+        ),
+        # No problem or context: the whole error text is used, note included
+        (
+            yaml.MarkedYAMLError(problem_mark=_mark(2, 1), note="a hint"),
+            [
+                'a.yaml:3:2: error: in "a.yaml", line 3, column 2',
+                "a.yaml:3:2: note: a hint",
+            ],
+        ),
+    ],
+)
+def test_marked_yaml_error_note(
+    capsys: pytest.CaptureFixture[str],
+    error: yaml.MarkedYAMLError,
+    expected: list[str],
+) -> None:
+    _print_marked_yaml_error(error)
+    assert capsys.readouterr().out.splitlines() == expected
+
+
+def test_error_without_range_gives_config_path(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    CORE.config_path = Path("main.yaml")
+    res = Config()
+    res.add_error(vol.Invalid("bad value", ["sensor", 0, "name"]))
+    _print_line_errors(res)
+    assert capsys.readouterr().out.splitlines() == [
+        "main.yaml: error: bad value.",
+        "main.yaml: note: In: sensor->0->name",
+    ]
+
+
+def test_load_error_with_unprintable_cause(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class Unprintable(Exception):
+        def __str__(self) -> str:
+            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    CORE.config_path = Path("main.yaml")
+    _print_line_load_error(InvalidYAMLError(Unprintable()))
+    assert capsys.readouterr().out.splitlines() == ["main.yaml: error: Unprintable()"]

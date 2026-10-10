@@ -242,3 +242,25 @@ button:
     )
     assert validation_error["range"]["start_line"] == 6
     assert validation_error["range"]["start_col"] == 8
+
+
+def test_error_kept_when_range_lookup_fails():
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch.object(vscode, "get_invalid_range", side_effect=RuntimeError("boom")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                # read_file x.yaml
+                _file_response("""esphome:
+  name: test1
+host:
+logger:
+  levl: DEBUG
+"""),
+            ]
+        )
+
+    error = json.loads(output_lines[-1])
+    (validation_error,) = error["validation_errors"]
+    assert validation_error["range"] is None
+    assert "extra keys not allowed" in validation_error["message"]

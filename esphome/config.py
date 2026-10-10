@@ -1511,6 +1511,7 @@ class InvalidYAMLError(EsphomeError):
         message = f"Invalid YAML syntax:\n\n{base}"
         super().__init__(message)
         self.base_exc = base_exc
+        self.base_message = base
 
 
 def _load_config(
@@ -1591,10 +1592,16 @@ def _print_marked_yaml_error(err: yaml.MarkedYAMLError) -> None:
     # Errors raised as MarkedYAMLError(message, mark) put the message in context
     mark = err.problem_mark or err.context_mark
     location = DocumentLocation.from_mark(mark) if mark is not None else None
-    _print_line_message(_format_location(location), "error", err.problem or err.context)
+    if not (message := err.problem or err.context):
+        # str() includes the note, so it is not printed separately
+        _print_line_message(_format_location(location), "error", str(err))
+        return
+    _print_line_message(_format_location(location), "error", message)
     if err.problem and err.context and err.context_mark is not None:
         context_location = DocumentLocation.from_mark(err.context_mark)
         _print_line_message(_format_location(context_location), "note", err.context)
+    if err.note:
+        _print_line_message(_format_location(location), "note", err.note)
 
 
 def _print_line_errors(res: Config) -> None:
@@ -1612,6 +1619,10 @@ def _print_line_errors(res: Config) -> None:
             _print_line_message(location, "error", humanize_error(res, err.detail))
         else:
             _print_line_message(location, "error", _format_vol_invalid(err, res))
+        if doc_range is None and err.path:
+            # No source position, so give the config path to help find it
+            path = "->".join(str(item) for item in err.path)
+            _print_line_message(location, "note", f"In: {path}")
 
 
 def _print_line_load_error(err: EsphomeError) -> None:
@@ -1619,7 +1630,7 @@ def _print_line_load_error(err: EsphomeError) -> None:
         _print_marked_yaml_error(yaml_err)
     else:
         # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
-        message = err.base_exc if isinstance(err, InvalidYAMLError) else err
+        message = err.base_message if isinstance(err, InvalidYAMLError) else err
         _print_line_message(_format_location(None), "error", message)
 
 

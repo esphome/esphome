@@ -152,5 +152,6 @@ def read_config(args):
                     range_ = get_invalid_range(res, err)
                     vs.add_validation_error(range_, _format_vol_invalid(err, res))
                 except Exception:  # noqa: BLE001  # pylint: disable=broad-except
-                    continue
+                    # Report the error without a range rather than drop it
+                    vs.add_validation_error(None, str(err))
         print(vs.dump())
