@@ -19,14 +19,9 @@ namespace esphome::rfc2217_uart {
 
 /// [RFC 2217] SET-PARITY value of a UART parity.
 inline uint8_t to_rfc_parity(uart::UARTParityOptions parity) {
-  switch (parity) {
-    case uart::UART_CONFIG_PARITY_ODD:
-      return PARITY_ODD;
-    case uart::UART_CONFIG_PARITY_EVEN:
-      return PARITY_EVEN;
-    default:
-      return PARITY_NONE;
-  }
+  return parity == uart::UART_CONFIG_PARITY_ODD    ? PARITY_ODD
+         : parity == uart::UART_CONFIG_PARITY_EVEN ? PARITY_EVEN
+                                                   : PARITY_NONE;
 }
 
 /// Telnet with the COM-PORT option on a tcp_uart: option negotiation, escaping and RFC 2217 flow control.
@@ -102,20 +97,28 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
     if (this->tcp_->is_connected() != this->link_was_up_) {
       this->link_edge_();
     }
-    if (!this->link_was_up_) {
-      if (this->ending_) {
-        this->end_session_();
-      }
+    if (!this->link_was_up_ && !this->ending_) {
       return;
     }
-    if (this->tcp_->available() != 0) {
-      this->read_link_();
+    // Commands after the payload that follows a batch wait in the link until the batch is answered.
+    if (this->answering_() && this->to_serial_len_ != this->fence_) {
+      this->read_plain_();
+    } else if (this->tcp_->available() != 0) {
+      this->read_tcp_();
     }
     if (this->to_serial_len_ != 0) {
       this->write_serial_();
     }
     if (this->answering_()) {
       this->apply_line_();
+    }
+    if (!this->link_was_up_) {
+      // [RFC 2217] A new session starts on the configured line, not on the last client's.
+      if (this->tcp_->available() == 0 && this->to_serial_len_ == 0 && !this->answering_() && this->tx_idle_()) {
+        this->ending_ = false;
+        this->set_line_(this->configured_);
+      }
+      return;
     }
     if (this->flow_due_(this->to_serial_len_, TO_SERIAL_SIZE)) {
       this->update_flow_();
@@ -135,10 +138,7 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
     uart::UARTParityOptions parity;
     uint8_t data_bits;
     uint8_t stop_bits;
-    bool operator==(const Line &other) const {
-      return this->baud_rate == other.baud_rate && this->data_bits == other.data_bits && this->parity == other.parity &&
-             this->stop_bits == other.stop_bits;
-    }
+    bool operator==(const Line &other) const = default;
   };
 
   /// Loads the line the setters hold into the UART; false where it cannot change at runtime.
@@ -153,10 +153,7 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
   }
   /// Applies the SET-* commands that arrived together in one reload and answers each with the value in use.
   void apply_line_();
-  void read_link_();
-  /// After the peer closed: writes the rest of its payload, then puts the configured line back.
-  void end_session_();
-  bool answer_(uint8_t code, uint8_t value);
+  bool answer_(uint8_t code, uint8_t value) { return this->send_command_(code, &value, 1); }
   /// Nothing waits in the UART's TX FIFO, which a reload empties.
   bool tx_idle_();
   void write_serial_();
@@ -168,7 +165,6 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
   void on_link(bool up) override;
 
   static constexpr size_t TO_SERIAL_SIZE = 256;
-  static constexpr size_t DISCARD_CHUNK = 32;
 
   // Loop start time of the last write to the UART; sizes the next paced write.
   uint32_t last_write_ms_{0};

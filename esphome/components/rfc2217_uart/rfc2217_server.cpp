@@ -31,7 +31,7 @@ void Rfc2217Server::dump_config() {
 
 void Rfc2217Server::on_link(bool up) {
   if (!up) {
-    // The payload the client sent before it closed still goes out; end_session_() then restores the line.
+    // The payload the client sent before it closed still goes out; loop() then restores the line.
     this->ending_ = this->configured_.baud_rate != 0;
     return;
   }
@@ -45,33 +45,6 @@ void Rfc2217Server::on_link(bool up) {
   }
   // The driver kept whatever arrived while the link was down.
   this->discard_serial_();
-}
-
-void Rfc2217Server::read_link_() {
-  // Commands after the payload that follows a batch wait in the link until the batch is answered.
-  if (this->answering_() && this->to_serial_len_ != this->fence_) {
-    this->read_plain_();
-  } else {
-    this->read_tcp_();
-  }
-}
-
-void Rfc2217Server::end_session_() {
-  if (this->tcp_->available() != 0) {
-    this->read_link_();
-  }
-  if (this->to_serial_len_ != 0) {
-    this->write_serial_();
-  }
-  if (this->answering_()) {
-    this->apply_line_();
-  }
-  if (this->tcp_->available() != 0 || this->to_serial_len_ != 0 || this->answering_() || !this->tx_idle_()) {
-    return;
-  }
-  // [RFC 2217] A new session starts on the configured line, not on the last client's.
-  this->ending_ = false;
-  this->set_line_(this->configured_);
 }
 
 void Rfc2217Server::deliver(const uint8_t *data, size_t len) {
@@ -111,7 +84,7 @@ void Rfc2217Server::read_serial_() {
 
 void Rfc2217Server::discard_serial_() {
   // Drain exactly what is buffered; later bytes are live.
-  uint8_t dump[DISCARD_CHUNK];
+  uint8_t dump[READ_CHUNK];
   size_t left = this->available();
   while (left != 0) {
     const size_t n = std::min(left, sizeof(dump));
@@ -193,19 +166,16 @@ void Rfc2217Server::apply_line_() {
   }
   // Answers that find no room stay due for the next pass.
   const Line now = this->line_();
-  const uint8_t baud[4] = {static_cast<uint8_t>(now.baud_rate >> 24), static_cast<uint8_t>(now.baud_rate >> 16),
-                           static_cast<uint8_t>(now.baud_rate >> 8), static_cast<uint8_t>(now.baud_rate)};
+  const auto baud = decode_value(now.baud_rate);
   const uint8_t values[4] = {0, now.data_bits, to_rfc_parity(now.parity), now.stop_bits};
   for (uint8_t i = 0; i < 4; i++) {
     const uint8_t code = COM_SET_BAUDRATE + i;
     while (this->answers_due_[i] != 0 &&
-           (i == 0 ? this->send_command_(code, baud, sizeof(baud)) : this->answer_(code, values[i]))) {
+           (i == 0 ? this->send_command_(code, baud.data(), baud.size()) : this->answer_(code, values[i]))) {
       this->answers_due_[i]--;
     }
   }
 }
-
-bool Rfc2217Server::answer_(uint8_t code, uint8_t value) { return this->send_command_(code, &value, 1); }
 
 void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
   // [RFC 2217] Every command is answered with the value in use, which may differ from the one asked for.

@@ -2,12 +2,6 @@
 
 namespace esphome::rfc2217_uart {
 
-void TelnetDecoder::reset() {
-  this->state_ = State::STATE_DATA;
-  this->sub_len_ = 0;
-  this->sub_overflow_ = false;
-}
-
 TelnetDecoder::Event TelnetDecoder::after_iac_(uint8_t byte) {
   switch (byte) {
     case TELNET_IAC:
@@ -77,16 +71,11 @@ TelnetDecoder::Event TelnetDecoder::feed(uint8_t byte) {
 size_t telnet_escape(const uint8_t *src, size_t len, uint8_t *dst, size_t room, size_t *used) {
   size_t in = 0;
   size_t out = 0;
-  while (in < len) {
-    size_t need = src[in] == TELNET_IAC ? 2 : 1;
-    if (out + need > room) {
-      break;
-    }
+  for (; in < len && out + (src[in] == TELNET_IAC ? 2 : 1) <= room; in++) {
     dst[out++] = src[in];
-    if (need == 2) {
+    if (src[in] == TELNET_IAC) {
       dst[out++] = TELNET_IAC;
     }
-    in++;
   }
   *used = in;
   return out;

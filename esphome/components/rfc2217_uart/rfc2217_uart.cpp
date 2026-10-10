@@ -17,27 +17,19 @@ void Rfc2217Base::link_edge_() {
   // The decoder and the options stay for the bytes the peer sent before it closed.
   if (up) {
     this->decoder_.reset();
-    for (size_t i = 0; i < 2; i++) {
-      this->us_[i] = OptionState::OPTION_STATE_NO;
-      this->him_[i] = OptionState::OPTION_STATE_NO;
-    }
+    this->us_[BINARY] = OptionState::OPTION_STATE_WANT_YES;
+    this->him_[BINARY] = OptionState::OPTION_STATE_WANT_YES;
+    // [RFC 2217] The client offers COM-PORT and the server accepts it; either may start.
+    this->us_[COM_PORT] = this->server_ ? OptionState::OPTION_STATE_NO : OptionState::OPTION_STATE_WANT_YES;
+    this->him_[COM_PORT] = this->server_ ? OptionState::OPTION_STATE_WANT_YES : OptionState::OPTION_STATE_NO;
   }
   this->on_link(up);
   if (!up) {
     return;
   }
-  this->us_[BINARY] = OptionState::OPTION_STATE_WANT_YES;
-  this->him_[BINARY] = OptionState::OPTION_STATE_WANT_YES;
   this->send_option_(TELNET_WILL, OPTION_BINARY);
   this->send_option_(TELNET_DO, OPTION_BINARY);
-  // [RFC 2217] The client offers COM-PORT and the server accepts it; either may start.
-  if (this->server_) {
-    this->him_[COM_PORT] = OptionState::OPTION_STATE_WANT_YES;
-    this->send_option_(TELNET_DO, OPTION_COM_PORT);
-  } else {
-    this->us_[COM_PORT] = OptionState::OPTION_STATE_WANT_YES;
-    this->send_option_(TELNET_WILL, OPTION_COM_PORT);
-  }
+  this->send_option_(this->server_ ? TELNET_DO : TELNET_WILL, OPTION_COM_PORT);
 }
 
 void Rfc2217Base::write_tcp_(const uint8_t *data, size_t len) {
