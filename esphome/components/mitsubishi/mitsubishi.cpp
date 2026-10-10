@@ -26,6 +26,7 @@ const uint8_t MITSUBISHI_WIDE_VANE_SWING = 0xC0;
 
 const uint8_t MITSUBISHI_FAN_AUTO = 0x00;
 
+const uint8_t MITSUBISHI_VERTICAL_VANE_MASK = 0x38;  // Bits 3,4,5
 const uint8_t MITSUBISHI_VERTICAL_VANE_SWING = 0x38;
 
 // const uint8_t MITSUBISHI_AUTO = 0x80;
@@ -175,17 +176,11 @@ void MitsubishiClimate::transmit_state() {
     case climate::CLIMATE_SWING_VERTICAL:
     case climate::CLIMATE_SWING_BOTH:
       remote_state[9] = remote_state[9] | MITSUBISHI_VERTICAL_VANE_SWING | MITSUBISHI_OTHERWISE;  // Vane Swing
-      if (this->vertical_vanes_ > 1) {
-        remote_state[16] = remote_state[16] | MITSUBISHI_VERTICAL_VANE_SWING;
-      }
       break;
     case climate::CLIMATE_SWING_OFF:
     default:
       remote_state[9] = remote_state[9] | this->default_vertical_direction_ |
                         MITSUBISHI_OTHERWISE;  // Off--> vertical default position
-      if (this->vertical_vanes_ > 1) {
-        remote_state[16] = remote_state[16] | this->default_vertical_direction_;
-      }
       break;
   }
 
@@ -209,6 +204,11 @@ void MitsubishiClimate::transmit_state() {
     case climate::CLIMATE_PRESET_NONE:
     default:
       break;
+  }
+
+  if (this->vertical_vanes_ > 1) {
+    // Heads with two vertical vanes carry the left vane in byte 16; it follows the right one, presets included
+    remote_state[16] = remote_state[9] & MITSUBISHI_VERTICAL_VANE_MASK;
   }
 
   // Checksum
@@ -275,7 +275,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     if ((pos == 0 && byte != MITSUBISHI_BYTE00) || (pos == 1 && byte != MITSUBISHI_BYTE01) ||
         (pos == 2 && byte != MITSUBISHI_BYTE02) || (pos == 3 && byte != MITSUBISHI_BYTE03) ||
         (pos == 4 && byte != MITSUBISHI_BYTE04) || (pos == 13 && byte != MITSUBISHI_BYTE13) ||
-        (pos == 16 && (byte & ~MITSUBISHI_VERTICAL_VANE_SWING) != 0)) {
+        (pos == 16 && (byte & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0)) {
       ESP_LOGV(TAG, "Bytes 0,1,2,3,4,13 or 16 fail - invalid value");
       return false;
     }
@@ -339,7 +339,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Vertical Vane
   // On dual vane heads, the left vane is in [16] and right vane is in [9]. Left is ignored here because
   // the swing_mode enum doesn't convey that level of detail.
-  uint8_t vertical_vane = state_frame[9] & 0x38;  // Bits 3,4,5
+  uint8_t vertical_vane = state_frame[9] & MITSUBISHI_VERTICAL_VANE_MASK;
   switch (vertical_vane) {
     case MITSUBISHI_VERTICAL_VANE_SWING:
       if (this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL) {
