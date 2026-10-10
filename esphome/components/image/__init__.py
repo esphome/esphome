@@ -186,13 +186,32 @@ class ImageRGB111(ImageEncoder):
             (width * bpp + 7) // 8, height, transparency, dither, invert_alpha
         )
         self.bitno = 0
+        self.custom_palette = None
+
+    def set_palette(self, palette_colors: list[int]) -> None:
+        """Set a custom palette for FloydSteinberg dithering.
+
+        :param palette_colors: List of RGB color values as 24-bit integers (0xRRGGBB)
+        """
+        self.custom_palette = palette_colors
 
     def convert(self, image, path):
         if is_alpha_only(image):
             image = image.split()[-1]
         image = image.convert("RGBA")
         if self.dither == Image.Dither.FLOYDSTEINBERG:
-            palette_data = [255 * int(x) for i in range(8) for x in f"{i:03b}"]
+            # Use custom palette if provided, otherwise use default 8-color palette
+            if self.custom_palette is not None:
+                palette_data = []
+                for color in self.custom_palette:
+                    r = (color >> 16) & 0xFF
+                    g = (color >> 8) & 0xFF
+                    b = color & 0xFF
+                    palette_data.extend([r, g, b])
+            else:
+                # Default 8-color palette (3-bit color: 1 bit per channel)
+                palette_data = [255 * int(x) for i in range(8) for x in f"{i:03b}"]
+
             palette_img = Image.new("P", (1, 1))
             palette_img.putpalette(palette_data)
             alpha_image = image.getchannel("A")
