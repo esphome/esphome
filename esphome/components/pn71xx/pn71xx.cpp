@@ -10,7 +10,7 @@
 
 namespace esphome::pn71xx {
 
-static const char *const TAG = "pn71xx";
+ESPHOME_LOG_TAG(TAG, "pn71xx");
 
 // Builds a message with a URI record and, optionally, the Home Assistant Android app record
 static std::unique_ptr<nfc::NdefMessage> build_uri_message(const std::string &uri,

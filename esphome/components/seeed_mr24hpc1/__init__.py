@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["uart"]
 # is the code owner of the relevant code base
 CODEOWNERS = ["@limengdu"]
+DOMAIN = "seeed_mr24hpc1"
 # The current component or platform can be configured or defined multiple times in the same configuration file.
 MULTI_CONF = True
 

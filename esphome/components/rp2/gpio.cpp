@@ -1,12 +1,13 @@
 #ifdef USE_RP2
 
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace rp2 {
 
-static const char *const TAG = "rp2";
+ESPHOME_LOG_TAG(TAG, "rp2");
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   flags =
@@ -40,7 +41,7 @@ ISRInternalGPIOPin RP2GPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void RP2GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void RP2GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = LOW;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
