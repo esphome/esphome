@@ -4,7 +4,7 @@
 
 namespace esphome::pipsolar {
 
-static const char *const TAG = "pipsolar";
+ESPHOME_LOG_TAG(TAG, "pipsolar");
 
 void Pipsolar::setup() {
   this->state_ = STATE_IDLE;

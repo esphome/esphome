@@ -160,6 +160,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 ]
+DOMAIN = "number"
 IS_PLATFORM_COMPONENT = True
 
 number_ns = cg.esphome_ns.namespace("number")

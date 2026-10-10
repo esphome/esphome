@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
+
 _ESP32C3_SPI_PSRAM_PINS = {
     12: "SPIHD",
     13: "SPIWP",
@@ -28,12 +30,7 @@ def esp32_c3_validate_gpio_pin(value: int) -> int:
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-C3s and is already used by the SPI/PSRAM interface (function: {_ESP32C3_SPI_PSRAM_PINS[value]})"
         )
-    if value in _ESP32C3_USB_JTAG_PINS:
-        _LOGGER.warning(
-            "GPIO%d is used by the USB-Serial-JTAG interface."
-            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
-            value,
-        )
+    check_usb_jtag_pin(value, _ESP32C3_USB_JTAG_PINS, _LOGGER)
 
     return value
 
@@ -49,6 +46,7 @@ def esp32_c3_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
+    check_usb_jtag_hold(value, _ESP32C3_USB_JTAG_PINS, _LOGGER)
 
     check_strapping_pin(value, _ESP32C3_STRAPPING_PINS, _LOGGER)
     return value

@@ -1,6 +1,7 @@
 """Constants used by esphome components."""
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "const"
 
 BYTE_ORDER_LITTLE = "little_endian"
 BYTE_ORDER_BIG = "big_endian"
@@ -26,6 +27,7 @@ CONF_ENABLE_OTA_DOWNGRADE_PROTECTION = "enable_ota_downgrade_protection"
 CONF_ENABLED = "enabled"
 CONF_GYROSCOPE_ODR = "gyroscope_odr"
 CONF_GYROSCOPE_RANGE = "gyroscope_range"
+CONF_HOLD_STATE = "hold_state"
 CONF_HOST = "host"
 CONF_HUMIDITY_SOURCE = "humidity_source"
 CONF_IAQ = "iaq"
