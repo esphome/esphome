@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "script"
 script_ns = cg.esphome_ns.namespace("script")
 Script = script_ns.class_("Script", automation.Trigger.template())
 ScriptExecuteAction = script_ns.class_("ScriptExecuteAction", automation.Action)
@@ -15,7 +16,6 @@ RestartScript = script_ns.class_("RestartScript", Script)
 QueueingScript = script_ns.class_("QueueingScript", Script, cg.Component)
 ParallelScript = script_ns.class_("ParallelScript", Script)
 
-CONF_SCRIPT = "script"
 CONF_SINGLE = "single"
 CONF_QUEUED = "queued"
 CONF_PARALLEL = "parallel"
@@ -35,7 +35,7 @@ PARAMETER_TYPE_TRANSLATIONS = {
 
 
 def get_script(script_id):
-    scripts = CORE.config.get(CONF_SCRIPT, {})
+    scripts = CORE.config.get(DOMAIN, {})
     for script in scripts:
         if script.get(CONF_ID, None) == script_id:
             return script

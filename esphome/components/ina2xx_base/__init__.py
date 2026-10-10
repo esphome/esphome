@@ -34,6 +34,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
+DOMAIN = "ina2xx_base"
 
 CONF_ADC_AVERAGING = "adc_averaging"
 CONF_ADC_RANGE = "adc_range"
@@ -225,38 +226,13 @@ async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_adc_time_shunt_voltage(adc_time_config))
         cg.add(var.set_adc_time_die_temperature(adc_time_config))
 
-    if conf := config.get(CONF_SHUNT_VOLTAGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_shunt_voltage_sensor(sens))
-
-    if conf := config.get(CONF_BUS_VOLTAGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_bus_voltage_sensor(sens))
-
-    if conf := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_die_temperature_sensor(sens))
-
-    if conf := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-
-    if conf := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-
-    if conf := config.get(CONF_ENERGY):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor_wh(sens))
-
-    if conf := config.get(CONF_ENERGY_JOULES):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor_j(sens))
-
-    if conf := config.get(CONF_CHARGE):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_charge_sensor_ah(sens))
-
-    if conf := config.get(CONF_CHARGE_COULOMBS):
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_charge_sensor_c(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor)
+    await sensors(CONF_BUS_VOLTAGE, var.set_bus_voltage_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_die_temperature_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor_wh)
+    await sensors(CONF_ENERGY_JOULES, var.set_energy_sensor_j)
+    await sensors(CONF_CHARGE, var.set_charge_sensor_ah)
+    await sensors(CONF_CHARGE_COULOMBS, var.set_charge_sensor_c)

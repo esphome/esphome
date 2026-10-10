@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER, CONF_SCL, CONF_SDA
 from esphome.pins import check_strapping_pin
 
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
+
 # https://github.com/espressif/esp-idf/blob/master/components/esp_hal_i2c/esp32c5/include/hal/i2c_ll.h
 _ESP32C5_I2C_LP_PINS = {"SDA": 2, "SCL": 3}
 
@@ -20,6 +22,8 @@ _ESP32C5_SPI_PSRAM_PINS = {
 
 _ESP32C5_STRAPPING_PINS = {2, 7, 27, 28}
 
+_ESP32C5_USB_JTAG_PINS = {13, 14}
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -31,6 +35,7 @@ def esp32_c5_validate_gpio_pin(value: int) -> int:
             f"This pin cannot be used on ESP32-C5s and is already used by the SPI/PSRAM interface (function: {_ESP32C5_SPI_PSRAM_PINS[value]})"
         )
 
+    check_usb_jtag_pin(value, _ESP32C5_USB_JTAG_PINS, _LOGGER)
     return value
 
 
@@ -44,6 +49,8 @@ def esp32_c5_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
+
+    check_usb_jtag_hold(value, _ESP32C5_USB_JTAG_PINS, _LOGGER)
 
     check_strapping_pin(value, _ESP32C5_STRAPPING_PINS, _LOGGER)
     return value

@@ -3,15 +3,18 @@
 from collections.abc import Callable
 import logging
 from pathlib import Path
+import re
 
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4
 
-# Importing xl9535 registers its pin schema with pins.PIN_SCHEMA_REGISTRY so that
-# models (e.g. SEEED-RETERMINAL-D1001) that reference xl9535-backed pins in their
-# defaults can be validated by the mipi_dsi CONFIG_SCHEMA in this test.
+# Importing the I/O expanders registers their pin schemas with
+# pins.PIN_SCHEMA_REGISTRY so that models whose defaults reference expander-backed
+# pins (e.g. SEEED-RETERMINAL-D1001 uses xl9535, the M5Stack Tab5 models use
+# pi4ioe5v6408) can be validated by the mipi_dsi CONFIG_SCHEMA in this test.
+import esphome.components.pi4ioe5v6408  # noqa: F401
 import esphome.components.xl9535  # noqa: F401
 from esphome.const import (
     CONF_DIMENSIONS,
@@ -201,7 +204,12 @@ def test_code_generation(
         "new(p4_nano) mipi_dsi::MipiDsi(800, 1280, display::COLOR_BITNESS_565, 16);"
         in main_cpp
     )
-    assert "set_init_sequence({224, 1, 0, 225, 1, 147, 226, 1," in main_cpp
+    seq = re.search(r"p4_nano->set_init_sequence\((\w+), \d+\);", main_cpp)
+    assert seq is not None
+    assert (
+        f"static constexpr uint8_t {seq.group(1)}[] PROGMEM = "
+        "{224, 1, 0, 225, 1, 147, 226, 1," in main_cpp
+    )
     assert "p4_nano->set_lane_bit_rate(1500.0f);" in main_cpp
     assert "p4_nano->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);" in main_cpp
     assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" not in main_cpp

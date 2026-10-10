@@ -8,6 +8,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
@@ -47,6 +48,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json", "web_server_base"]
+DOMAIN = "web_server"
 
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"
@@ -238,11 +240,11 @@ WEBSERVER_SORTING_SCHEMA = cv.Schema(
             {
                 cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
                 cv.Optional(CONF_SORTING_WEIGHT): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.float_,
                 ),
                 cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
-                    cv.requires_component("web_server"),
+                    cv.requires_component(DOMAIN),
                     cv.use_id(cg.int_),
                 ),
             }
@@ -363,12 +365,14 @@ def add_resource_as_progmem(
     content_encoded = content.encode("utf-8")
     if compress:
         content_encoded = gzip.compress(content_encoded)
-    content_encoded_size = len(content_encoded)
-    bytes_as_int = ", ".join(str(x) for x in content_encoded)
-    uint8_t = f"constexpr uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
-    size_t = f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
-    cg.add_global(cg.RawExpression(uint8_t))
-    cg.add_global(cg.RawExpression(size_t))
+    cg.extern_progmem_array(
+        f"ESPHOME_WEBSERVER_{resource_name}", cg.uint8, list(content_encoded)
+    )
+    cg.add_global(
+        cg.RawExpression(
+            f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {len(content_encoded)}"
+        )
+    )
 
 
 @coroutine_with_priority(CoroPriority.WEB)
@@ -387,6 +391,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", port)
+    if CORE.is_esp32:
+        # The ESP-IDF event source builds state documents in a stack arena
+        enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
@@ -409,7 +416,16 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
-        cg.add(var.set_allowed_origins(allowed_origins))
+        # Shared flash table ended by nullptr, so the server stores only a pointer.
+        cg.add(
+            var.set_allowed_origins(
+                cg.shared_progmem_array(
+                    "web_server_allowed_origins",
+                    cg.const_char_ptr,
+                    [*allowed_origins, cg.nullptr],
+                )
+            )
+        )
     if (auth := config.get(CONF_AUTH)) is not None:
         cg.add_define("USE_WEBSERVER_AUTH")
         # The scheme is fixed at build time so the unused Basic/Digest code path is compiled
@@ -458,7 +474,7 @@ def FILTER_SOURCE_FILES() -> list[str]:
     files_to_filter: list[str] = []
 
     # web_server_v1.cpp is only needed when version is 1
-    config = CORE.config.get("web_server", {})
+    config = CORE.config.get(DOMAIN, {})
     if config.get(CONF_VERSION, 2) != 1:
         files_to_filter.append("web_server_v1.cpp")
 

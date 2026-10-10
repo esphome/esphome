@@ -1,10 +1,11 @@
 #include "mitsubishi.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mitsubishi {
 
-static const char *const TAG = "mitsubishi.climate";
+ESPHOME_LOG_TAG(TAG, "mitsubishi.climate");
 
 // IR frame size for Mitsubishi climate
 static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;
@@ -52,6 +53,33 @@ const uint8_t MITSUBISHI_BYTE03 = 0x01;
 const uint8_t MITSUBISHI_BYTE04 = 0x00;
 const uint8_t MITSUBISHI_BYTE13 = 0x00;
 const uint8_t MITSUBISHI_BYTE16 = 0x00;
+
+// Byte 7 codes for 61°F through 88°F. Bit 4 is the half degree bit Mitsubishi uses so every Fahrenheit degree
+// maps to its own code.
+static const uint8_t FAHRENHEIT_CODES[] PROGMEM = {0x00, 0x10, 0x01, 0x11, 0x02, 0x12, 0x03, 0x04, 0x05, 0x15,
+                                                   0x06, 0x16, 0x07, 0x17, 0x08, 0x18, 0x09, 0x19, 0x0a, 0x1a,
+                                                   0x0b, 0x1b, 0x0c, 0x1c, 0x0d, 0x1d, 0x0e, 0x0f};
+static constexpr uint8_t FAHRENHEIT_MIN = 61;
+static constexpr uint8_t MITSUBISHI_HALF_DEGREE = 0x10;
+
+static uint8_t fahrenheit_code(float celsius) {
+  int fahrenheit = (int) roundf(celsius_to_fahrenheit(celsius));
+  size_t index = clamp<int>(fahrenheit - FAHRENHEIT_MIN, 0, sizeof(FAHRENHEIT_CODES) - 1);
+  return progmem_read_byte(&FAHRENHEIT_CODES[index]);
+}
+
+// In Fahrenheit mode a code from the table decodes to the exact Fahrenheit value. Any other code, and every code in
+// Celsius mode, is a whole degree plus the half degree bit, which a remote set to Fahrenheit also sets.
+static float decode_temperature(uint8_t code, bool fahrenheit) {
+  if (fahrenheit) {
+    for (size_t i = 0; i < sizeof(FAHRENHEIT_CODES); i++) {
+      if (code == progmem_read_byte(&FAHRENHEIT_CODES[i])) {
+        return fahrenheit_to_celsius(FAHRENHEIT_MIN + i);
+      }
+    }
+  }
+  return MITSUBISHI_TEMP_MIN + (code & 0x0F) + ((code & MITSUBISHI_HALF_DEGREE) ? 0.5f : 0.0f);
+}
 
 void MitsubishiClimate::transmit_state() {
   // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
@@ -113,6 +141,8 @@ void MitsubishiClimate::transmit_state() {
   // Temperature
   if (this->mode == climate::CLIMATE_MODE_DRY) {
     remote_state[7] = 24 - MITSUBISHI_TEMP_MIN;  // Remote sends always 24°C if "Dry" mode is selected
+  } else if (this->fahrenheit_compatibility_) {
+    remote_state[7] = fahrenheit_code(this->target_temperature);
   } else {
     remote_state[7] = (uint8_t) roundf(
         clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
@@ -300,7 +330,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Temp
-  this->target_temperature = state_frame[7] + MITSUBISHI_TEMP_MIN;
+  this->target_temperature = decode_temperature(state_frame[7], this->fahrenheit_compatibility_);
 
   // Fan
   uint8_t fan = state_frame[9] & 0x07;  //(Bit 0,1,2 = Speed)

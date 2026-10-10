@@ -5,7 +5,7 @@
 
 namespace esphome::fastled_base {
 
-static const char *const TAG = "fastled";
+ESPHOME_LOG_TAG(TAG, "fastled");
 
 void FastLEDLightOutput::setup() {
   this->controller_->init();

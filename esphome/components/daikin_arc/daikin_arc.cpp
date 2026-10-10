@@ -7,7 +7,7 @@
 
 namespace esphome::daikin_arc {
 
-static const char *const TAG = "daikin.climate";
+ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 void DaikinArcClimate::setup() {
   climate_ir::ClimateIR::setup();

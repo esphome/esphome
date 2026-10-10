@@ -7,7 +7,7 @@
 
 namespace esphome::bmp581_spi {
 
-static const char *const TAG = "bmp581_spi";
+ESPHOME_LOG_TAG(TAG, "bmp581_spi");
 
 // OR (|) register with BMP_SPI_READ for read
 inline constexpr uint8_t BMP_SPI_READ = 0x80;
