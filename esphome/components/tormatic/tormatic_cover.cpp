@@ -1,5 +1,5 @@
 #include <cinttypes>
-#include <vector>
+#include <array>
 
 #include "tormatic_cover.h"
 
@@ -36,6 +36,13 @@ cover::CoverTraits Tormatic::get_traits() {
 
 void Tormatic::dump_config() {
   LOG_COVER("", "Tormatic Cover", this);
+#ifdef USE_SWITCH
+  if (this->light_switch_ != nullptr) {
+    LOG_SWITCH("", "Tormatic Light Switch", this->light_switch_);
+  }
+#endif
+  this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
+
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",
@@ -47,10 +54,23 @@ void Tormatic::dump_config() {
   }
 }
 
-void Tormatic::update() { this->request_gate_status_(); }
+void Tormatic::update() {
+  const uint32_t now = millis();
+
+  // Poll light status at most every x seconds, but only when the gate is idle.
+  // Sending light status requests while the gate is moving can confuse the
+  // gate firmware and cause it to stop unexpectedly.
+  static constexpr uint32_t LIGHT_POLL_INTERVAL_MS = 5000;
+  if (this->current_operation == COVER_OPERATION_IDLE && now - this->last_light_poll_time_ >= LIGHT_POLL_INTERVAL_MS) {
+    this->last_light_poll_time_ = now;
+    this->request_light_status_();
+    return;
+  }
+  this->request_gate_status_();
+}
 
 void Tormatic::loop() {
-  auto o_status = this->read_gate_status_();
+  auto o_status = this->read_status_response_();
   if (o_status) {
     auto status = o_status.value();
 
@@ -64,6 +84,7 @@ void Tormatic::loop() {
 
 void Tormatic::control(const cover::CoverCall &call) {
   if (call.get_stop()) {
+    this->target_position_.reset();
     this->send_gate_command_(PAUSED);
     return;
   }
@@ -109,7 +130,7 @@ void Tormatic::recalibrate_duration_(GateStatus s) {
 
   // Record the start time of a state transition if the gate was in the fully
   // open or closed position before the command.
-  if ((old == CLOSED && s == OPENING) || (old == OPENED && s == CLOSING)) {
+  if (this->position_known_ && ((old == CLOSED && s == OPENING) || (old == OPENED && s == CLOSING))) {
     ESP_LOGD(TAG, "Gate started moving from fully open or closed state");
     this->direction_start_time_ = now;
     return;
@@ -149,9 +170,17 @@ void Tormatic::handle_gate_status_(GateStatus s) {
       this->send_gate_command_(PAUSED);
 
       this->position = COVER_OPEN;
+      this->position_known_ = true;
       break;
     case CLOSED:
       this->position = COVER_CLOSED;
+      this->position_known_ = true;
+      break;
+    case VENTILATING:
+      this->position = COVER_OPEN;
+      this->position_known_ = false;
+      this->target_position_.reset();
+      this->direction_start_time_ = 0;
       break;
     default:
       break;
@@ -171,7 +200,7 @@ void Tormatic::handle_gate_status_(GateStatus s) {
 // Recompute the gate's position and publish the results while
 // the gate is moving. No-op when the gate is idle.
 void Tormatic::recompute_position_() {
-  if (this->current_operation == COVER_OPERATION_IDLE) {
+  if (this->current_operation == COVER_OPERATION_IDLE || !this->position_known_) {
     return;
   }
 
@@ -199,18 +228,25 @@ void Tormatic::recompute_position_() {
 
 // Start moving the gate in the direction of the target position.
 void Tormatic::control_position_(float target) {
-  if (target == this->position) {
+  if (this->position_known_ && target == this->position && this->current_operation == COVER_OPERATION_IDLE) {
     return;
   }
 
   if (target == COVER_OPEN) {
+    this->target_position_.reset();
     ESP_LOGI(TAG, "Fully opening gate");
     this->send_gate_command_(OPENED);
     return;
   }
   if (target == COVER_CLOSED) {
+    this->target_position_.reset();
     ESP_LOGI(TAG, "Fully closing gate");
     this->send_gate_command_(CLOSED);
+    return;
+  }
+
+  if (!this->position_known_) {
+    ESP_LOGW(TAG, "Position unknown after ventilation; fully open or close the gate before setting a partial position");
     return;
   }
 
@@ -254,9 +290,9 @@ void Tormatic::stop_at_target_() {
   this->target_position_.reset();
 }
 
-// Read a GateStatus from the unit. The unit only sends messages in response to
-// status requests or commands, so a message needs to be sent first.
-optional<GateStatus> Tormatic::read_gate_status_() {
+// Read a status response from the unit. Handles both gate and light status
+// based on pending_status_type_. Returns a GateStatus only for gate responses.
+optional<GateStatus> Tormatic::read_status_response_() {
   if (!this->pending_hdr_) {
     if (this->available() < sizeof(MessageHeader)) {
       return {};
@@ -286,6 +322,14 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     return {};
   }
 
+  std::array<uint8_t, sizeof(CommandRequestReply)> payload{};
+  if (hdr.payload_size() > 0) {
+    if (!this->read_array(payload.data(), hdr.payload_size())) {
+      this->pending_hdr_.reset();
+      return {};
+    }
+  }
+
   this->pending_hdr_.reset();
 
   switch (hdr.type) {
@@ -293,16 +337,29 @@ optional<GateStatus> Tormatic::read_gate_status_() {
       if (hdr.payload_size() != sizeof(StatusReply)) {
         ESP_LOGE(TAG, "Header specifies payload size %" PRIu32 " but size of StatusReply is %zu", hdr.payload_size(),
                  sizeof(StatusReply));
-        this->drain_rx_(hdr.payload_size());
         return {};
       }
 
-      auto o_status = this->read_data_<StatusReply>();
-      if (!o_status) {
+      StatusReply reply;
+      memcpy(&reply, payload.data(), sizeof(reply));
+      reply.byteswap();
+
+      if (this->pending_light_seq_ == hdr.seq) {
+        this->pending_light_seq_.reset();
+#ifdef USE_SWITCH
+        if (this->light_switch_ != nullptr) {
+          this->light_switch_->publish_state(reply.trailer != 0);
+        }
+#endif
         return {};
       }
 
-      return o_status->state;
+      if (this->pending_gate_seq_ == hdr.seq) {
+        this->pending_gate_seq_.reset();
+        return reply.state;
+      }
+      ESP_LOGV(TAG, "Ignoring unmatched status sequence %u", hdr.seq);
+      return {};
     }
 
     case COMMAND:
@@ -314,16 +371,18 @@ optional<GateStatus> Tormatic::read_gate_status_() {
       break;
 
     default:
-      // Unknown message type, drain the remaining amount of bytes specified in
-      // the header.
-      ESP_LOGE(TAG, "Reading remaining %" PRIu32 " payload bytes of unknown type 0x%x", hdr.payload_size(), hdr.type);
+      ESP_LOGE(TAG, "Ignoring unknown message type 0x%x", hdr.type);
       break;
   }
 
-  // Drain any unhandled payload bytes described by the message header, if any.
-  this->drain_rx_(hdr.payload_size());
-
   return {};
+}
+
+// Send a message to the unit requesting the light's status.
+void Tormatic::request_light_status_() {
+  StatusRequest req(LIGHT);
+  this->send_message_(STATUS, req);
+  this->pending_light_seq_ = this->seq_tx_;
 }
 
 // Send a message to the unit requesting the gate's status.
@@ -331,17 +390,37 @@ void Tormatic::request_gate_status_() {
   ESP_LOGV(TAG, "Requesting gate status");
   StatusRequest req(GATE);
   this->send_message_(STATUS, req);
+  this->pending_gate_seq_ = this->seq_tx_;
 }
 
 // Send a message to the unit issuing a command.
 void Tormatic::send_gate_command_(GateStatus s) {
   ESP_LOGI(TAG, "Sending gate command %s", gate_status_to_str(s));
+  if (s == VENTILATING) {
+    this->target_position_.reset();
+    this->position_known_ = false;
+    this->direction_start_time_ = 0;
+  }
   CommandRequestReply req(s);
+  this->send_message_(COMMAND, req);
+}
+
+// Send a light on/off command to the unit.
+void Tormatic::send_light_command(bool state) {
+  auto ls = state ? LIGHT_ON : LIGHT_OFF;
+  ESP_LOGI(TAG, "Sending light command %s", state ? LOG_STR_LITERAL("On") : LOG_STR_LITERAL("Off"));
+  LightCommandRequestReply req(ls);
   this->send_message_(COMMAND, req);
 }
 
 template<typename T> void Tormatic::send_message_(MessageType t, T req) {
   MessageHeader hdr(t, ++this->seq_tx_, sizeof(req));
+  if (this->pending_gate_seq_ == hdr.seq) {
+    this->pending_gate_seq_.reset();
+  }
+  if (this->pending_light_seq_ == hdr.seq) {
+    this->pending_light_seq_.reset();
+  }
 
   auto out = serialize(hdr);
   auto reqv = serialize(req);
