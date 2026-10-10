@@ -103,6 +103,11 @@ on_nexa:
     - logger.log:
         format: "on_nexa: %lu %u %u %u %u"
         args: ["long(x.device)", "x.group", "x.state", "x.channel", "x.level"]
+on_onkyori:
+  then:
+    - logger.log:
+        format: "on_onkyori: 0x%03X"
+        args: ["x.data"]
 on_panasonic:
   then:
     - logger.log:
