@@ -57,3 +57,6 @@ speaker:
     i2s_audio_id: i2s_audio_bus
     dac_type: external
     i2s_dout_pin: ${i2s_dout_pin}
+    on_hard_stop:
+      - logger.log: "Mute while I2S clocks are still running"
+      - delay: 20ms

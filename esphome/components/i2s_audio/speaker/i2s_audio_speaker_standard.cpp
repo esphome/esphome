@@ -203,6 +203,7 @@ void I2SAudioSpeaker::run_speaker_task() {
 
       if (event_group_bits & SpeakerEventGroupBits::COMMAND_STOP) {
         xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_STOP);
+        xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_HARD_STOPPED);
         ESP_LOGV(TAG, "Exiting: COMMAND_STOP received");
         break;
       }
