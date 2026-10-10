@@ -4,7 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cinttypes>
 #include <cstring>
 
 namespace esphome::samsung {
@@ -20,9 +19,8 @@ static constexpr uint32_t ZERO_SPACE_US = 500;
 static constexpr uint32_t SECTION_SPACE_US = 2000;
 
 static constexpr uint8_t EXTENDED_LENGTH = 3 * SAMSUNG_AC_SECTION_LENGTH;
-static constexpr uint8_t MAX_SECTIONS = 3;
 
-// State of a powered-on unit in auto mode, from IRremoteESP8266; the checksums are refilled on send
+// A powered-on unit at 24 °C, cool mode, fan auto, swing off (from IRremoteESP8266); checksums are refilled on send
 static const uint8_t RESET_STATE[SAMSUNG_AC_STATE_LENGTH] PROGMEM = {0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
                                                                      0x01, 0xE2, 0xFE, 0x71, 0x80, 0x11, 0xF0};
 // Middle section of a power on/off frame: an all-zero timer block
