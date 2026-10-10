@@ -113,6 +113,10 @@ static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
 static const char *const IMAGE_FORMAT_NAMES[] = {"JPEG", "PNG"};
 #endif
 
+SendspinHub *global_sendspin_hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+SendspinHub::SendspinHub() { global_sendspin_hub = this; }
+
 void SendspinHub::setup() {
   auto config = this->build_client_config_();
   this->client_ = std::make_unique<sendspin::SendspinClient>(std::move(config));
@@ -154,16 +158,15 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-  this->client_->set_unpaired_access_enabled(this->default_unpaired_access_);
-
-#ifndef USE_SENDSPIN_SWITCH
-  this->enabled_ = true;
-#endif
+  // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
+  if (this->unpaired_access_.has_value()) {
+    this->client_->set_unpaired_access_enabled(*this->unpaired_access_);
+  }
 }
 
 void SendspinHub::loop() {
-  if (this->enabled_.has_value() && this->enabled_.value() != this->client_->is_started() &&
-      !this->status_has_error()) {
+  if (this->enabled_.has_value() && this->unpaired_access_.has_value() &&
+      this->enabled_.value() != this->client_->is_started() && !this->status_has_error()) {
     if (!this->enabled_.value()) {
       this->client_->stop();
     } else if (!this->client_->start()) {
@@ -222,7 +225,7 @@ void SendspinHub::dump_config() {
 #endif
 }
 
-// THREAD CONTEXT: Main loop (invoked from Sendspin components)
+// THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)
 void SendspinHub::set_enabled(bool enabled) {
   if (this->status_has_error()) {
     ESP_LOGE(TAG, "Cannot %s: Sendspin failed to start, reboot to retry",
@@ -230,6 +233,23 @@ void SendspinHub::set_enabled(bool enabled) {
     return;
   }
   this->enabled_ = enabled;
+}
+
+// THREAD CONTEXT: Main loop
+std::optional<std::string> SendspinHub::get_pairing_token() const {
+  if (this->client_ == nullptr) {
+    return std::nullopt;
+  }
+  return this->client_->pairing_token();
+}
+
+// THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)
+void SendspinHub::set_unpaired_access_enabled(bool enabled) {
+  this->unpaired_access_ = enabled;
+  // Before setup() there is no client yet; setup() applies the stored value.
+  if (this->client_ != nullptr) {
+    this->client_->set_unpaired_access_enabled(enabled);
+  }
 }
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE

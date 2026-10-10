@@ -62,6 +62,11 @@ inline constexpr float CHILD = HUB - 1.0f;
 /// Pairing-record slots, handed to the client as max_pairing_records.
 inline constexpr size_t SENDSPIN_RECORD_SLOTS = sendspin::SendspinClientConfig::DEFAULT_MAX_PAIRING_RECORDS;
 
+/// Feature flags reported to API clients in DeviceCapabilitiesResponse.
+enum SendspinFeature : uint32_t {
+  SENDSPIN_FEATURE_PAIRING_TOKEN = 1 << 0,
+};
+
 /// @brief Thin adapter over sendspin::SendspinClient.
 ///
 /// The hub owns a SendspinClient instance and bridges its listener/provider interfaces to ESPHome's CallbackManager for
@@ -91,6 +96,8 @@ class SendspinHub final : public Component,
                           public sendspin::SendspinNetworkProvider,
                           public sendspin::SendspinPersistenceProvider {
  public:
+  SendspinHub();
+
   float get_setup_priority() const override { return sendspin_priority::HUB; }
   void setup() override;
   void loop() override;
@@ -168,15 +175,28 @@ class SendspinHub final : public Component,
   /// stop.
   ///
   /// Applied from the hub's loop(). Stopping blocks until the client is fully stopped; the roles' clear callbacks
-  /// fire from inside that call. With a sendspin switch configured the client stays stopped until the switch has
-  /// called this once. Must be called from the main loop thread.
+  /// fire from inside that call. The client stays stopped until this has been called once, by codegen or by the
+  /// enabled switch. Must be called from the main loop thread.
   void set_enabled(bool enabled);
 
-  /// Turns unpaired (Sentinel) access on or off from setup(); see SendspinClient::set_unpaired_access_enabled().
-  void set_default_unpaired_access(bool enabled) { this->default_unpaired_access_ = enabled; }
+  /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
+  /// access switch, before its first start. May be called before setup(). Main loop only.
+  void set_unpaired_access_enabled(bool enabled);
 
   /// @brief Returns whether the Sendspin client is running.
   bool is_client_running() const { return this->client_ != nullptr && this->client_->is_started(); }
+
+  /// @brief Returns whether the client has been turned off with set_enabled().
+  bool is_disabled() const { return this->enabled_.has_value() && !this->enabled_.value(); }
+
+  /// @brief Returns the SendspinFeature flags reported to API clients.
+  uint32_t get_feature_flags() const { return SENDSPIN_FEATURE_PAIRING_TOKEN; }
+
+  /// @brief Returns the pairing token a Sendspin server uses to pair with this device.
+  ///
+  /// The token is a long-lived secret, so this component never logs it. Returns std::nullopt until the client has
+  /// started once; it stays available after the client stops. Main loop only.
+  std::optional<std::string> get_pairing_token() const;
 
   /// @brief Sets the device information reported to the server in the `client/hello` message.
   ///
@@ -382,14 +402,14 @@ class SendspinHub final : public Component,
 
   const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
   bool pairing_code_display_supported_{false};
-  bool default_unpaired_access_{true};
   bool task_stack_in_psram_{false};
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   bool mdns_advertised_{false};  // Last state requested from mdns
 #endif
 
-  // Requested client state, applied from loop(). Empty until the switch restores its state.
+  // Requested client state, applied from loop(). The client does not start until both are set.
   std::optional<bool> enabled_;
+  std::optional<bool> unpaired_access_;
 
   // Device information sent in the `client/hello` message. Defaults apply when neither the
   // sendspin configuration nor the project information supplies a value.
@@ -422,6 +442,8 @@ class SendspinPollingChild : public PollingComponent, public Parented<SendspinHu
  public:
   float get_setup_priority() const override { return sendspin_priority::CHILD; }
 };
+
+extern SendspinHub *global_sendspin_hub;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::sendspin_
 

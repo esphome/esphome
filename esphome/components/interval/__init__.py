@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_INTERVAL, CONF_STARTUP_DELAY
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "interval"
 interval_ns = cg.esphome_ns.namespace("interval")
 IntervalTrigger = interval_ns.class_(
     "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent

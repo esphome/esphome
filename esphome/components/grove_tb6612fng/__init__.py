@@ -13,6 +13,7 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 CODEOWNERS = ["@max246"]
+DOMAIN = "grove_tb6612fng"
 
 MULTI_CONF = True
 

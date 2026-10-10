@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@spbrogan", "@Fabian-Schmidt"]
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "mopeka_ble"
 
 CONF_SHOW_SENSORS_WITHOUT_SYNC = "show_sensors_without_sync"
 
