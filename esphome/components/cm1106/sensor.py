@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, uart
+from esphome.components.const import CONF_AUTOMATIC_BASELINE_CALIBRATION
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BASELINE,
@@ -19,8 +20,6 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@andrewjswan"]
-
-CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
 
 
 # true enables ABC with these defaults, false disables it, a mapping enables it with custom values
