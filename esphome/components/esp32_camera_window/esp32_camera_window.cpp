@@ -308,9 +308,10 @@ void Esp32CameraWindow::setup() {
     return;
   }
 
-  if (this->initial_window_.enabled)
+  if (this->initial_window_.enabled) {
     this->set_window(this->initial_window_.offset_x, this->initial_window_.offset_y, this->initial_window_.width,
                      this->initial_window_.height);
+  }
 }
 
 void Esp32CameraWindow::dump_config() {
