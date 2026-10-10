@@ -22,11 +22,15 @@ class HostI2CBus final : public I2CBus, public Component {
   void set_device(const std::string &device) { this->device_ = device; }
   void set_scan(bool scan) { this->scan_ = scan; }
 
-  ErrorCode set_frequency(uint32_t frequency) override {
+  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  // The kernel driver owns the clock; the value is only reported back
+  ErrorCode switch_frequency(uint32_t frequency) override {
     this->frequency_ = frequency;
     return ERROR_OK;
   }
   uint32_t get_frequency() const override { return this->frequency_; }
+#endif
 
   const std::string &get_device() const { return this->device_; }
 

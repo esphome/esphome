@@ -16,15 +16,17 @@ class TCA9548AChannel final : public i2c::I2CBus {
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
                              size_t read_count) override;
 
-  i2c::ErrorCode set_frequency(uint32_t frequency) override {
-    this->frequency_ = frequency;
-    return i2c::ERROR_OK;
-  }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
+  i2c::ErrorCode switch_frequency(uint32_t frequency) override;
   uint32_t get_frequency() const override;
+#endif
 
  protected:
   uint8_t channel_;
+#ifdef I2C_PORT_FREQUENCY_COUNT
   uint32_t frequency_{0};
+#endif
   TCA9548AComponent *parent_;
 };
 

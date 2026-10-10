@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_CHANNELS, CONF_FREQUENCY, CONF_ID
+from esphome.const import (
+    CONF_CHANNEL,
+    CONF_CHANNELS,
+    CONF_FREQUENCY,
+    CONF_I2C_ID,
+    CONF_ID,
+)
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@andreashergert1984"]
@@ -16,6 +22,10 @@ TCA9548AChannel = tca9548a_ns.class_("TCA9548AChannel", i2c.I2CBus)
 MULTI_CONF = True
 
 CONF_BUS_ID = "bus_id"
+# Sizes the upstream bus's frequency table; a port frequency is only compiled
+# in when one is configured
+_request_port_frequency_slot = cg.slot_counter("I2C_PORT_FREQUENCY_COUNT")
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -46,4 +56,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(chan.set_parent(var))
         cg.add(chan.set_channel(conf[CONF_CHANNEL]))
         if (frequency := conf.get(CONF_FREQUENCY)) is not None:
+            _request_port_frequency_slot(str(config[CONF_I2C_ID]))
             cg.add(chan.set_frequency(int(frequency)))

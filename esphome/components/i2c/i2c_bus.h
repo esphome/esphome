@@ -53,13 +53,15 @@ class I2CBus {
     return this->write_readv(address, buffer, len, nullptr, 0);
   }
 
-  /// @brief Set the I2C bus frequency.
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  /// @brief Switch the bus to another frequency for the transactions that follow; a
+  /// multiplexer port with its own frequency uses this around each of its transactions.
   /// @return an i2c::ErrorCode
-  virtual ErrorCode set_frequency(uint32_t frequency) = 0;
+  virtual ErrorCode switch_frequency(uint32_t frequency) = 0;
 
-  /// @brief Returns the I2C bus frequency.
-  /// @return the current frequency of the I2C bus
+  /// @brief Returns the frequency the bus currently runs at.
   virtual uint32_t get_frequency() const = 0;
+#endif
 
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair

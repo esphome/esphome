@@ -9,9 +9,6 @@
 
 namespace esphome::i2c {
 
-// The bus frequency plus the distinct port frequencies of attached multiplexers
-static constexpr size_t MAX_FREQUENCY_DEVICES = 4;
-
 enum RecoveryCode {
   RECOVERY_FAILED_SCL_LOW,
   RECOVERY_FAILED_SDA_LOW,
@@ -37,8 +34,11 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
 #endif
 
   int get_port() const override { return this->port_; }
-  ErrorCode set_frequency(uint32_t frequency) override;
+  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  ErrorCode switch_frequency(uint32_t frequency) override;
   uint32_t get_frequency() const override { return this->frequency_; }
+#endif
 
  private:
   void recover_();
@@ -47,12 +47,15 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
 
  protected:
   i2c_master_dev_handle_t dev_{};
-  // One handle per frequency used on the bus; the first is the configured one
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  // One handle per frequency used on the bus: the configured one plus the
+  // multiplexer port frequencies, counted at code generation
   struct FrequencyDevice {
     uint32_t frequency;
     i2c_master_dev_handle_t dev;
   };
-  StaticVector<FrequencyDevice, MAX_FREQUENCY_DEVICES> devices_;
+  StaticVector<FrequencyDevice, I2C_PORT_FREQUENCY_COUNT + 1> devices_;
+#endif
   i2c_master_bus_handle_t bus_{};
   i2c_port_t port_{};
   uint8_t sda_pin_{};

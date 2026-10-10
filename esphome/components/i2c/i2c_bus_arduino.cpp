@@ -154,7 +154,8 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
   return ERROR_UNKNOWN;
 }
 
-ErrorCode ArduinoI2CBus::set_frequency(uint32_t frequency) {
+#ifdef I2C_PORT_FREQUENCY_COUNT
+ErrorCode ArduinoI2CBus::switch_frequency(uint32_t frequency) {
   if (this->frequency_ == frequency) {
     return ERROR_OK;
   }
@@ -164,6 +165,7 @@ ErrorCode ArduinoI2CBus::set_frequency(uint32_t frequency) {
   }
   return ERROR_OK;
 }
+#endif
 
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf

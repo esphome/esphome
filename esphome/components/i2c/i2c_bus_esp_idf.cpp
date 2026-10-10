@@ -72,7 +72,9 @@ void IDFI2CBus::setup() {
     this->mark_failed();
     return;
   }
+#ifdef I2C_PORT_FREQUENCY_COUNT
   this->devices_.push_back({this->frequency_, this->dev_});
+#endif
 
   this->initialized_ = true;
 
@@ -207,7 +209,8 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
   return ERROR_OK;
 }
 
-ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
+#ifdef I2C_PORT_FREQUENCY_COUNT
+ErrorCode IDFI2CBus::switch_frequency(uint32_t frequency) {
   if (this->frequency_ == frequency) {
     return ERROR_OK;
   }
@@ -225,7 +228,7 @@ ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
     }
   }
   if (dev == nullptr) {
-    if (this->devices_.size() == MAX_FREQUENCY_DEVICES) {
+    if (this->devices_.size() == I2C_PORT_FREQUENCY_COUNT + 1) {
       return ERROR_UNKNOWN;
     }
     dev = this->add_device_(frequency);
@@ -238,6 +241,7 @@ ErrorCode IDFI2CBus::set_frequency(uint32_t frequency) {
   this->frequency_ = frequency;
   return ERROR_OK;
 }
+#endif
 
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf

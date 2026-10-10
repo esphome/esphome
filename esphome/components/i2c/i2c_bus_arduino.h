@@ -28,8 +28,11 @@ class ArduinoI2CBus final : public InternalI2CBus, public Component {
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
   int get_port() const override { return 0; }
-  ErrorCode set_frequency(uint32_t frequency) override;
+  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  ErrorCode switch_frequency(uint32_t frequency) override;
   uint32_t get_frequency() const override { return this->frequency_; }
+#endif
 
  private:
   void recover_();

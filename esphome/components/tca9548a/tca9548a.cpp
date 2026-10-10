@@ -14,35 +14,37 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
     return err;
 
   i2c::I2CBus *bus = this->parent_->bus_;
-  if (this->frequency_ == 0) {
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  if (this->frequency_ != 0) {
+    const uint32_t original_frequency = bus->get_frequency();
+    if (bus->switch_frequency(this->frequency_) != i2c::ERROR_OK) {
+      this->parent_->status_set_error(LOG_STR("Failed to set port frequency"));
+      this->parent_->disable_all_channels();
+      return i2c::ERROR_UNKNOWN;
+    }
     err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+    if (bus->switch_frequency(original_frequency) != i2c::ERROR_OK) {
+      this->parent_->status_set_error(LOG_STR("Failed to restore bus frequency"));
+    }
     this->parent_->disable_all_channels();
     return err;
   }
-
-  const uint32_t original_frequency = bus->get_frequency();
-  err = bus->set_frequency(this->frequency_);
-  if (err != i2c::ERROR_OK) {
-    this->parent_->status_set_error(LOG_STR("Failed to set port frequency"));
-    this->parent_->disable_all_channels();
-    return err;
-  }
-
+#endif
   err = bus->write_readv(address, write_buffer, write_count, read_buffer, read_count);
-
-  if (bus->set_frequency(original_frequency) != i2c::ERROR_OK) {
-    this->parent_->status_set_error(LOG_STR("Failed to restore bus frequency"));
-  } else {
-    this->parent_->status_clear_error();
-  }
   this->parent_->disable_all_channels();
-
   return err;
+}
+
+#ifdef I2C_PORT_FREQUENCY_COUNT
+i2c::ErrorCode TCA9548AChannel::switch_frequency(uint32_t frequency) {
+  // A multiplexer behind this port switches the shared upstream bus
+  return this->parent_->bus_->switch_frequency(frequency);
 }
 
 uint32_t TCA9548AChannel::get_frequency() const {
   return this->frequency_ != 0 ? this->frequency_ : this->parent_->bus_->get_frequency();
 }
+#endif
 
 void TCA9548AComponent::setup() {
   uint8_t status = 0;

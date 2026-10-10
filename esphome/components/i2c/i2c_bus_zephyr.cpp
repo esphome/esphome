@@ -120,12 +120,27 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
   return ERROR_OK;
 }
 
-ErrorCode ZephyrI2CBus::set_frequency(uint32_t frequency) {
+static uint32_t speed_config(uint32_t dev_config, uint32_t frequency) {
+  uint32_t speed = I2C_SPEED_STANDARD;
+  if (frequency >= 1000000) {
+    speed = I2C_SPEED_FAST_PLUS;
+  } else if (frequency >= 400000) {
+    speed = I2C_SPEED_FAST;
+  }
+  return (dev_config & ~I2C_SPEED_MASK) | I2C_SPEED_SET(speed);
+}
+
+void ZephyrI2CBus::set_frequency(uint32_t frequency) {
+  this->frequency_ = frequency;
+  this->dev_config_ = speed_config(this->dev_config_, frequency);
+}
+
+#ifdef I2C_PORT_FREQUENCY_COUNT
+ErrorCode ZephyrI2CBus::switch_frequency(uint32_t frequency) {
   if (this->frequency_ == frequency) {
     return ERROR_OK;
   }
-  uint32_t dev_config = this->dev_config_ & ~I2C_SPEED_MASK;
-  dev_config |= I2C_SPEED_SET(frequency >= 400000 ? I2C_SPEED_FAST : I2C_SPEED_STANDARD);
+  const uint32_t dev_config = speed_config(this->dev_config_, frequency);
   // Until ready, setup() applies dev_config_
   if (this->is_ready() && i2c_configure(this->i2c_dev_, dev_config) < 0) {
     return ERROR_UNKNOWN;
@@ -134,6 +149,7 @@ ErrorCode ZephyrI2CBus::set_frequency(uint32_t frequency) {
   this->frequency_ = frequency;
   return ERROR_OK;
 }
+#endif
 
 }  // namespace esphome::i2c
 
