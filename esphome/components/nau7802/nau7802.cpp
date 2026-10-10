@@ -125,7 +125,7 @@ void NAU7802Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, LOG_STR_ARG(this->get_log_name()));
     return;
   }
   // Note these may differ from the values on the device if calbration has been run
@@ -307,7 +307,7 @@ void NAU7802Sensor::update() {
   // Get the most recent sample to publish
   int32_t result = this->read_value_(ADCO_B2_REG, 3);
 
-  ESP_LOGD(TAG, "'%s': Got value %" PRId32, this->name_.c_str(), result);
+  ESP_LOGD(TAG, "'%s': Got value %" PRId32, LOG_STR_ARG(this->get_log_name()), result);
   this->publish_state(result);
 }
 

@@ -31,7 +31,7 @@ void HomeassistantNumber::min_retrieved_(StringRef min) {
     ESP_LOGE(TAG, "'%s': Can't convert 'min' value '%s' to number!", this->entity_id_, min.c_str());
     return;
   }
-  ESP_LOGD(TAG, "'%s': Min retrieved: %s", get_name().c_str(), min.c_str());
+  ESP_LOGD(TAG, "'%s': Min retrieved: %s", LOG_STR_ARG(this->get_log_name()), min.c_str());
   this->traits.set_min_value(min_value.value());
 }
 
@@ -41,7 +41,7 @@ void HomeassistantNumber::max_retrieved_(StringRef max) {
     ESP_LOGE(TAG, "'%s': Can't convert 'max' value '%s' to number!", this->entity_id_, max.c_str());
     return;
   }
-  ESP_LOGD(TAG, "'%s': Max retrieved: %s", get_name().c_str(), max.c_str());
+  ESP_LOGD(TAG, "'%s': Max retrieved: %s", LOG_STR_ARG(this->get_log_name()), max.c_str());
   this->traits.set_max_value(max_value.value());
 }
 
@@ -51,7 +51,7 @@ void HomeassistantNumber::step_retrieved_(StringRef step) {
     ESP_LOGE(TAG, "'%s': Can't convert 'step' value '%s' to number!", this->entity_id_, step.c_str());
     return;
   }
-  ESP_LOGD(TAG, "'%s': Step Retrieved %s", get_name().c_str(), step.c_str());
+  ESP_LOGD(TAG, "'%s': Step Retrieved %s", LOG_STR_ARG(this->get_log_name()), step.c_str());
   this->traits.set_step(step_value.value());
 }
 
@@ -82,7 +82,7 @@ void HomeassistantNumber::control(float value) {
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 #endif

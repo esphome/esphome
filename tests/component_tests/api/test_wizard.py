@@ -719,7 +719,8 @@ def blob_in(main_cpp: str) -> bytes:
 def entity_hash(main_cpp: str, variable: str) -> int:
     """The key the generated code passes to configure_entity_, which ListEntities then sends."""
     match = re.search(
-        rf'App\.register_switch\({variable}, "[^"]*", (\d+)UL, \d+\)', main_cpp
+        rf'App\.register_switch\({variable}, ESPHOME_PSTR\("[^"]*"\), (\d+)UL, \d+\)',
+        main_cpp,
     )
     assert match is not None, variable
     return int(match.group(1))

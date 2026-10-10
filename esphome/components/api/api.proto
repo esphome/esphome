@@ -539,7 +539,7 @@ message ListEntitiesBinarySensorResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string device_class = 5 [(max_data_length) = 47];
@@ -573,7 +573,7 @@ message ListEntitiesCoverResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   bool assumed_state = 5;
@@ -657,7 +657,7 @@ message ListEntitiesFanResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   bool supports_oscillation = 5;
@@ -745,7 +745,7 @@ message ListEntitiesLightResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   repeated ColorMode supported_color_modes = 12 [(container_pointer_no_template) = "light::ColorModeMask"];
@@ -850,7 +850,7 @@ message ListEntitiesSensorResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -891,7 +891,7 @@ message ListEntitiesSwitchResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -936,7 +936,7 @@ message ListEntitiesTextSensorResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -1207,7 +1207,7 @@ message ListEntitiesCameraResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
   bool disabled_by_default = 5;
   string icon = 6 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -1299,7 +1299,7 @@ message ListEntitiesClimateResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   bool supports_current_temperature = 5; // Deprecated: use feature_flags
@@ -1414,7 +1414,7 @@ message ListEntitiesWaterHeaterResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 5;
   EntityCategory entity_category = 6;
@@ -1494,7 +1494,7 @@ message ListEntitiesNumberResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -1543,7 +1543,7 @@ message ListEntitiesSelectResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -1587,7 +1587,7 @@ message ListEntitiesSirenResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -1652,7 +1652,7 @@ message ListEntitiesLockResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -1701,7 +1701,7 @@ message ListEntitiesButtonResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -1768,7 +1768,7 @@ message ListEntitiesMediaPlayerResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -2360,7 +2360,7 @@ message ListEntitiesAlarmControlPanelResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
@@ -2407,7 +2407,7 @@ message ListEntitiesTextResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
@@ -2455,7 +2455,7 @@ message ListEntitiesDateResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -2502,7 +2502,7 @@ message ListEntitiesTimeResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -2549,7 +2549,7 @@ message ListEntitiesEventResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -2580,7 +2580,7 @@ message ListEntitiesValveResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -2635,7 +2635,7 @@ message ListEntitiesDateTimeResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -2678,7 +2678,7 @@ message ListEntitiesUpdateResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -2778,7 +2778,7 @@ message ListEntitiesInfraredResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 5;
   EntityCategory entity_category = 6;
@@ -2847,7 +2847,7 @@ message ListEntitiesRadioFrequencyResponse {
 
   string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3 [(max_data_length) = 120, (force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true, (progmem) = true];
   string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 5;
   EntityCategory entity_category = 6;

@@ -20,21 +20,21 @@ void MCP9808Sensor::setup() {
   uint16_t manu = 0;
   if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu) || manu != MCP9808_MANUF_ID) {
     this->mark_failed();
-    ESP_LOGE(TAG, "Incorrect manufacturer ID (%X) for '%s'", manu, this->name_.c_str());
+    ESP_LOGE(TAG, "Incorrect manufacturer ID (%X) for '%s'", manu, LOG_STR_ARG(this->get_log_name()));
     return;
   }
   uint16_t dev_id = 0;
   if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id) || dev_id != MCP9808_DEV_ID) {
     this->mark_failed();
-    ESP_LOGE(TAG, "Incorrect device ID (%X) for '%s'", dev_id, this->name_.c_str());
+    ESP_LOGE(TAG, "Incorrect device ID (%X) for '%s'", dev_id, LOG_STR_ARG(this->get_log_name()));
     return;
   }
 }
 void MCP9808Sensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "%s:", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "%s:", LOG_STR_ARG(this->get_log_name()));
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->name_.c_str());
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, LOG_STR_ARG(this->get_log_name()));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this);
@@ -68,7 +68,7 @@ void MCP9808Sensor::update() {
     return;
   }
 
-  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->name_.c_str(), temp);
+  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", LOG_STR_ARG(this->get_log_name()), temp);
   this->publish_state(temp);
   this->status_clear_warning();
 }

@@ -12,8 +12,9 @@ namespace esphome::api {
 
 #ifdef USE_ESP8266
 // Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
-void DumpBuffer::append_p_esp8266(const char *str) {
-  size_t len = strlen_P(str);
+void DumpBuffer::append_p_esp8266(const char *str) { this->append_p_esp8266(str, strlen_P(str)); }
+
+void DumpBuffer::append_p_esp8266(const char *str, size_t len) {
   size_t space = CAPACITY - 1 - pos_;
   if (len > space)
     len = space;
@@ -133,6 +134,13 @@ static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, co
   len = std::min(len, sizeof(data_buf));
   progmem_memcpy(data_buf, data, len);
   dump_bytes_field(out, field_name, data_buf, len, indent);
+}
+
+// Helper for string fields in flash
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
+                                      int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append_p(value.progmem_ptr(), value.size()).append("'\n");
 }
 #pragma GCC diagnostic pop
 
@@ -1182,7 +1190,7 @@ const char *ListEntitiesBinarySensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesBinarySensorResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
   dump_field(out, ESPHOME_PSTR("is_status_binary_sensor"), this->is_status_binary_sensor);
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
@@ -1211,7 +1219,7 @@ const char *ListEntitiesCoverResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesCoverResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
   dump_field(out, ESPHOME_PSTR("supports_position"), this->supports_position);
   dump_field(out, ESPHOME_PSTR("supports_tilt"), this->supports_tilt);
@@ -1257,7 +1265,7 @@ const char *ListEntitiesFanResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesFanResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("supports_oscillation"), this->supports_oscillation);
   dump_field(out, ESPHOME_PSTR("supports_speed"), this->supports_speed);
   dump_field(out, ESPHOME_PSTR("supports_direction"), this->supports_direction);
@@ -1312,7 +1320,7 @@ const char *ListEntitiesLightResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesLightResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   for (const auto &it : *this->supported_color_modes) {
     dump_field(out, ESPHOME_PSTR("supported_color_modes"), static_cast<enums::ColorMode>(it), 4);
   }
@@ -1391,7 +1399,7 @@ const char *ListEntitiesSensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSensorResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -1423,7 +1431,7 @@ const char *ListEntitiesSwitchResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSwitchResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -1461,7 +1469,7 @@ const char *ListEntitiesTextSensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTextSensorResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -1692,7 +1700,7 @@ const char *ListEntitiesCameraResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesCameraResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
@@ -1725,7 +1733,7 @@ const char *ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesClimateResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("supports_current_temperature"), this->supports_current_temperature);
   dump_field(out, ESPHOME_PSTR("supports_two_point_target_temperature"), this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
@@ -1823,7 +1831,7 @@ const char *ListEntitiesWaterHeaterResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesWaterHeaterResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -1877,7 +1885,7 @@ const char *ListEntitiesNumberResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesNumberResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -1919,7 +1927,7 @@ const char *ListEntitiesSelectResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSelectResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -1958,7 +1966,7 @@ const char *ListEntitiesSirenResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSirenResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2005,7 +2013,7 @@ const char *ListEntitiesLockResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesLockResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2046,7 +2054,7 @@ const char *ListEntitiesButtonResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesButtonResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2081,7 +2089,7 @@ const char *ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesMediaPlayerResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2471,7 +2479,7 @@ const char *ListEntitiesAlarmControlPanelResponse::dump_to(DumpBuffer &out) cons
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesAlarmControlPanelResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2510,7 +2518,7 @@ const char *ListEntitiesTextResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTextResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2550,7 +2558,7 @@ const char *ListEntitiesDateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesDateResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2590,7 +2598,7 @@ const char *ListEntitiesTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTimeResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2630,7 +2638,7 @@ const char *ListEntitiesEventResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesEventResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2660,7 +2668,7 @@ const char *ListEntitiesValveResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesValveResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2702,7 +2710,7 @@ const char *ListEntitiesDateTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesDateTimeResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2738,7 +2746,7 @@ const char *ListEntitiesUpdateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesUpdateResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2801,7 +2809,7 @@ const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesInfraredResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
@@ -2859,7 +2867,7 @@ const char *ListEntitiesRadioFrequencyResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesRadioFrequencyResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif

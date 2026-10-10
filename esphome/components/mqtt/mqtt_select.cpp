@@ -24,7 +24,7 @@ void MQTTSelectComponent::setup() {
 }
 
 void MQTTSelectComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Select '%s':", this->select_->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "MQTT Select '%s':", LOG_STR_ARG(this->select_->get_log_name()));
   LOG_MQTT_COMPONENT(true, false);
 }
 

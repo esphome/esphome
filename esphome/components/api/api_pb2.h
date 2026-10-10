@@ -399,7 +399,7 @@ class InfoResponseProtoMessage : public ProtoMessage {
  public:
   StringRef object_id{};
   uint32_t key{0};
-  StringRef name{};
+  ProgmemStringRef name{};
   bool disabled_by_default{false};
 #ifdef USE_ENTITY_ICON
   StringRef icon{nullptr, 0};  // null until set, encode only

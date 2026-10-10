@@ -2445,6 +2445,7 @@ def _validate_no_slash(value):
 # This ensures web server URL IDs fit in a 280-byte buffer:
 # domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
 # Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
+# Keep in sync with ESPHOME_ENTITY_NAME_MAX_LEN in esphome/core/entity_base.h
 NAME_MAX_LENGTH = 120
 
 

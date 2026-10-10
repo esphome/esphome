@@ -211,7 +211,7 @@ void BedJetClimate::control(const ClimateCall &call) {
     } else if (fan_mode == CLIMATE_FAN_HIGH) {
       result = this->parent_->set_fan_speed(75);
     } else {
-      ESP_LOGW(TAG, "[%s] Unsupported fan mode: %s", this->get_name().c_str(),
+      ESP_LOGW(TAG, "[%s] Unsupported fan mode: %s", LOG_STR_ARG(this->get_log_name()),
                LOG_STR_ARG(climate_fan_mode_to_string(fan_mode)));
       return;
     }
@@ -223,7 +223,7 @@ void BedJetClimate::control(const ClimateCall &call) {
     auto fan_mode = call.get_custom_fan_mode();
     auto fan_index = bedjet_fan_speed_to_step(fan_mode.c_str());
     if (fan_index <= 19) {
-      ESP_LOGV(TAG, "[%s] Converted fan mode %.*s to bedjet fan step %d", this->get_name().c_str(),
+      ESP_LOGV(TAG, "[%s] Converted fan mode %.*s to bedjet fan step %d", LOG_STR_ARG(this->get_log_name()),
                (int) fan_mode.size(), fan_mode.c_str(), fan_index);
       bool result = this->parent_->set_fan_index(fan_index);
       if (result) {
@@ -236,7 +236,7 @@ void BedJetClimate::control(const ClimateCall &call) {
 void BedJetClimate::on_bedjet_state(bool is_ready) {}
 
 void BedJetClimate::on_status(const BedjetStatusPacket *data) {
-  ESP_LOGV(TAG, "[%s] Handling on_status with data=%p", this->get_name().c_str(), (void *) data);
+  ESP_LOGV(TAG, "[%s] Handling on_status with data=%p", LOG_STR_ARG(this->get_log_name()), (void *) data);
 
   auto converted_temp = bedjet_temp_to_c(data->target_temp_step);
   if (converted_temp > 0)
@@ -310,11 +310,11 @@ void BedJetClimate::on_status(const BedjetStatusPacket *data) {
       break;
 
     default:
-      ESP_LOGW(TAG, "[%s] Unexpected mode: 0x%02X", this->get_name().c_str(), data->mode);
+      ESP_LOGW(TAG, "[%s] Unexpected mode: 0x%02X", LOG_STR_ARG(this->get_log_name()), data->mode);
       break;
   }
 
-  ESP_LOGV(TAG, "[%s] After on_status, new mode=%s", this->get_name().c_str(),
+  ESP_LOGV(TAG, "[%s] After on_status, new mode=%s", LOG_STR_ARG(this->get_log_name()),
            LOG_STR_ARG(climate_mode_to_string(this->mode)));
   // FIXME: compare new state to previous state.
   this->publish_state();
@@ -351,11 +351,11 @@ bool BedJetClimate::update_status_() {
 }
 
 void BedJetClimate::update() {
-  ESP_LOGD(TAG, "[%s] update()", this->get_name().c_str());
+  ESP_LOGD(TAG, "[%s] update()", LOG_STR_ARG(this->get_log_name()));
   // TODO: if the hub component is already polling, do we also need to include polling?
   //  We're already going to get on_status() at the hub's polling interval.
   auto result = this->update_status_();
-  ESP_LOGD(TAG, "[%s] update_status result=%s", this->get_name().c_str(), result ? "true" : "false");
+  ESP_LOGD(TAG, "[%s] update_status result=%s", LOG_STR_ARG(this->get_log_name()), result ? "true" : "false");
 }
 
 }  // namespace esphome::bedjet

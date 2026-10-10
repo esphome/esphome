@@ -11,7 +11,7 @@ void Infrared::dump_config() {
                 "Infrared '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->get_supports_transmitter()),
+                LOG_STR_ARG(this->get_log_name()), YESNO(this->get_supports_transmitter()),
                 YESNO(this->get_supports_receiver()));
 }
 

@@ -195,7 +195,7 @@ float BL0940::update_temp_(sensor::Sensor *sensor, uint16_le_t temperature) cons
   if (sensor != nullptr) {
     if (sensor->has_state() && std::abs(converted_temp - sensor->get_state()) > max_temperature_diff_) {
       ESP_LOGD(TAG, "Invalid temperature change. Sensor: '%s', Old temperature: %f, New temperature: %f",
-               sensor->get_name().c_str(), sensor->get_state(), converted_temp);
+               LOG_STR_ARG(sensor->get_log_name()), sensor->get_state(), converted_temp);
       return 0.0f;
     }
     sensor->publish_state(converted_temp);
