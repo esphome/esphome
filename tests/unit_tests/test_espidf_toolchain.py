@@ -1656,6 +1656,31 @@ def test_foreign_idf_target(
     assert toolchain._foreign_idf_target("esp32c6") == expected
 
 
+@pytest.mark.parametrize(
+    ("cache", "sdkconfig", "expected"),
+    [
+        # A cache without a toolchain file still names its target
+        ("IDF_TARGET:STRING=esp32h2\n", None, "esp32h2"),
+        # ESPHome's own sdkconfig before IDF expanded it has no target line
+        (None, "CONFIG_FOO=y\n", None),
+    ],
+)
+def test_foreign_idf_target_partial_entries(
+    setup_core: Path, cache: str | None, sdkconfig: str | None, expected: str | None
+) -> None:
+    """Missing entries are skipped, the ones present still count."""
+    _setup_build(setup_core)
+    for rel, content in (
+        ("build/CMakeCache.txt", cache),
+        ("sdkconfig.test", sdkconfig),
+    ):
+        if content is not None:
+            path = CORE.relative_build_path(rel)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+    assert toolchain._foreign_idf_target("esp32c6") == expected
+
+
 def test_foreign_idf_target_ignores_unreadable_files(setup_core: Path) -> None:
     """A damaged cache or sdkconfig is not a target; the configure that
     follows deals with it as before."""
