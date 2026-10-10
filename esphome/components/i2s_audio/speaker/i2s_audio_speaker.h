@@ -34,7 +34,7 @@ enum SpeakerEventGroupBits : uint32_t {
   TASK_RUNNING = (1 << 11),
   TASK_STOPPING = (1 << 12),
   TASK_STOPPED = (1 << 13),
-  TASK_HARD_STOPPED = (1 << 14),
+  TASK_AUDIO_ENDED = (1 << 14),
 
   ERR_ESP_NO_MEM = (1 << 19),
 
@@ -57,8 +57,8 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
   void set_timeout(uint32_t ms) { this->timeout_ = ms; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = (gpio_num_t) pin; }
-  template<typename F> void add_on_hard_stop_callback(F &&callback) {
-    this->hard_stop_callback_.add(std::forward<F>(callback));
+  template<typename F> void add_on_audio_end_callback(F &&callback) {
+    this->audio_end_callback_.add(std::forward<F>(callback));
   }
 
   /// @brief Get the I2S TX channel handle
@@ -170,9 +170,9 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
-  LazyCallbackManager<void()> hard_stop_callback_{};
-  uint32_t hard_stop_started_ms_{0};
-  bool hard_stop_waiting_{false};
+  LazyCallbackManager<void()> audio_end_callback_{};
+  uint32_t audio_end_started_ms_{0};
+  bool audio_end_waiting_{false};
 
   // Lockstepped DMA buffer queues: i2s_event is outgoing, write_records is incoming
   QueueHandle_t i2s_event_queue_{nullptr};
@@ -200,10 +200,10 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   i2s_chan_handle_t tx_handle_{nullptr};
 };
 
-class I2SAudioSpeakerHardStopTrigger : public Trigger<> {
+class I2SAudioSpeakerAudioEndTrigger : public Trigger<> {
  public:
-  explicit I2SAudioSpeakerHardStopTrigger(I2SAudioSpeakerBase *parent) {
-    parent->add_on_hard_stop_callback([this]() { this->trigger(); });
+  explicit I2SAudioSpeakerAudioEndTrigger(I2SAudioSpeakerBase *parent) {
+    parent->add_on_audio_end_callback([this]() { this->trigger(); });
   }
 };
 
