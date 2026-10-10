@@ -1366,6 +1366,7 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Install ccache
+        if: matrix.ccache == '1'
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP "ccache"
@@ -1436,7 +1437,9 @@ jobs:
           exit $p.ExitCode
 
       - name: Show ccache statistics
-        if: matrix.ccache == '1'
+        # Also after a failed or killed compile: the counters say whether
+        # ccache was ever reached
+        if: always() && matrix.ccache == '1'
         shell: pwsh
         # The build keeps its store under the esphome tools cache
         run: |
