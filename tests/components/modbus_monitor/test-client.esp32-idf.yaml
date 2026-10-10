@@ -1,0 +1,9 @@
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
+
+modbus_monitor:
+  - modbus_id: modbus_bus
+    on_request:
+      - logger.log:
+          format: "Sent to %u"
+          args: [address]

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -13,6 +14,7 @@
 #include <vector>
 #include <deque>
 #include <optional>
+#include <utility>
 
 namespace esphome::modbus {
 
@@ -58,6 +60,20 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual bool tx_blocked();
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+#ifdef MODBUS_ON_REQUEST_COUNT
+  /// Called with the address and the request PDU (function code first) of every request: each frame a server hub
+  /// parses as a request, each one a client hub sends, broadcasts included. The PDU is only valid during the call.
+  template<typename F> void add_on_request_callback(F &&callback) {
+    this->request_callback_.add(std::forward<F>(callback));
+  }
+#endif
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  /// Called with the address, the request PDU and the response PDU of every response: each one a client hub gets for
+  /// its request, and each one a server hub sees from another device. The PDUs are only valid during the call.
+  template<typename F> void add_on_response_callback(F &&callback) {
+    this->response_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
  protected:
   void receive_bytes_();
@@ -86,6 +102,13 @@ class Modbus : public uart::UARTDevice, public Component {
   GPIOPin *flow_control_pin_{nullptr};
 
   std::vector<uint8_t> rx_buffer_;
+#ifdef MODBUS_ON_REQUEST_COUNT
+  StaticCallbackManager<MODBUS_ON_REQUEST_COUNT, void(uint8_t, std::span<const uint8_t>)> request_callback_;
+#endif
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  StaticCallbackManager<MODBUS_ON_RESPONSE_COUNT, void(uint8_t, std::span<const uint8_t>, std::span<const uint8_t>)>
+      response_callback_;
+#endif
 };
 
 class ModbusClientDevice;
@@ -365,6 +388,11 @@ class ModbusServerHub : public Modbus {
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  // The request to another device, for on_response with its reply.
+  uint8_t peer_request_len_{0};
+  uint8_t peer_request_[MAX_PDU_SIZE];
+#endif
   std::vector<ModbusServerDevice *> devices_;
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
@@ -392,6 +420,8 @@ class ModbusServerHub : public Modbus {
 /// - Callbacks are delivered only from within loop().
 /// - At most one callback is ever issued between calls to sweep_():
 ///     sweep_ -> parse (response OR error) OR timeout (no_response) -> sweep_ -> send (sent) -> sweep_ (next loop)
+///   The hub's own on_request callbacks run in the send step right after on_sent, and its on_response callbacks in
+///   the parse step just before the device's on_response/on_error; they are not device callbacks.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;

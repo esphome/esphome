@@ -71,7 +71,7 @@ ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 
 # Lambda argument types for the reply handlers: the device address the send targeted, and the
 # request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
-_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+_PDU_SPAN = modbus.PDU_SPAN
 
 # The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit
 # (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.
@@ -113,16 +113,7 @@ def _packed_bit_bytes(bits: int) -> int:
     return (bits + 7) // 8
 
 
-def _synchronous_handler(value: ConfigType) -> ConfigType:
-    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
-    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in modbus_client "
-            "handlers: the request/response data is only valid while the handler runs. Copy what you "
-            "need into globals first, then defer in a separate script or automation."
-        )
-    return value
+_synchronous_handler = modbus.synchronous_handler("modbus_client")
 
 
 def _handler_schema() -> cv.All:

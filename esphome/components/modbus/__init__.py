@@ -4,7 +4,7 @@ from collections.abc import Callable
 import logging
 from typing import Any, Literal, NamedTuple
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ROLE
@@ -169,6 +169,57 @@ def reject_broadcast_options_for_unicast(
         return config
 
     return validator
+
+
+def synchronous_handler(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
+    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
+
+    def validator(value: ConfigType) -> ConfigType:
+        if automation.has_non_synchronous_actions(value):
+            raise cv.Invalid(
+                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in {component} "
+                "handlers: the request/response data is only valid while the handler runs. Copy what you "
+                "need into globals first, then defer in a separate script or automation."
+            )
+        return value
+
+    return validator
+
+
+# A PDU handed to an automation undecoded, as a span that dies when the handler returns.
+PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+
+# Each hub holds the on_request callbacks of the blocks attached to it. The count is the most on any one hub.
+_request_on_request_slot = cg.slot_counter("MODBUS_ON_REQUEST_COUNT")
+
+
+async def register_on_request_automation(hub: MockObj, config: ConfigType) -> None:
+    """Run an automation for every request the hub reads (server) or sends (client).
+
+    The callback storage on the hubs is compiled in only when an automation is attached.
+    """
+    _request_on_request_slot(str(hub))
+    await automation.build_callback_automation(
+        hub,
+        "add_on_request_callback",
+        [(cg.uint8, "address"), (PDU_SPAN, "request")],
+        config,
+    )
+
+
+_request_on_response_slot = cg.slot_counter("MODBUS_ON_RESPONSE_COUNT")
+
+
+async def register_on_response_automation(hub: MockObj, config: ConfigType) -> None:
+    """Run an automation for every response the hub gets (client) or sees from another device (server)."""
+    _request_on_response_slot(str(hub))
+    await automation.build_callback_automation(
+        hub,
+        "add_on_response_callback",
+        [(cg.uint8, "address"), (PDU_SPAN, "request"), (PDU_SPAN, "response")],
+        config,
+    )
 
 
 def reject_inapplicable_command_options(
