@@ -11,6 +11,7 @@ import logging
 import math
 import os
 from pathlib import Path
+import re
 from typing import Any
 import uuid
 
@@ -46,6 +47,12 @@ _LOGGER = logging.getLogger(__name__)
 SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
+# Every !secret name the loader resolved; _SECRET_VALUES is keyed by value, so
+# names sharing a value collide there.
+_LOADED_SECRET_NAMES: set[str] = set()
+# Set while a secret_values_registered context is active; the dumper records
+# every emitted `!secret` name into it.
+_EMITTED_SECRET_NAMES: set[str] | None = None
 # Not thread-safe — config processing is single-threaded today.
 _load_listeners: list[Callable[[Path], None]] = []
 
@@ -438,6 +445,16 @@ def _load_include_candidates(
             _expanded_paths=expanded_paths,
             _keepalive=keepalive,
         )
+
+
+# `!secret key`, quoted or not, also inside flow collections. A text scan, not a
+# YAML parse, so it can also match comments; that errs toward more secrets.
+_SECRET_REFERENCE_RE = re.compile(r"""!secret\s+['"]?([^\s'",\]}]+)""")
+
+
+def find_secret_references(text: str) -> set[str]:
+    """Return the ``!secret <key>`` names referenced in a YAML document text."""
+    return {match.group(1) for match in _SECRET_REFERENCE_RE.finditer(text)}
 
 
 def force_load_include_files(
@@ -842,6 +859,7 @@ class ESPHomeLoaderMixin:
             )
         val = secrets[node.value]
         _SECRET_VALUES[str(val)] = node.value
+        _LOADED_SECRET_NAMES.add(node.value)
         return val
 
     @_add_data_ref
@@ -1014,6 +1032,7 @@ def load_yaml(
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+        _LOADED_SECRET_NAMES.clear()
     return _load_yaml_internal(fname, track_document_range=track_document_range)
 
 
@@ -1119,6 +1138,38 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
+def registered_secret_names() -> set[str]:
+    """Names of all ``!secret`` keys the loader has seen since the last clear."""
+    return set(_LOADED_SECRET_NAMES)
+
+
+@contextmanager
+def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
+    """Make :func:`dump` write these values as ``!secret <name>`` while active.
+
+    Real secrets already registered win. Yields the set of ``!secret`` names the
+    dumper emits. A wrapped value (``!extend``, ``!remove``, ``!include``) loses its
+    tag rather than leaking.
+    """
+    global _EMITTED_SECRET_NAMES  # noqa: PLW0603
+    added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
+    _SECRET_VALUES.update(added)
+    outer = _EMITTED_SECRET_NAMES
+    emitted: set[str] = set()
+    _EMITTED_SECRET_NAMES = emitted
+    try:
+        yield emitted
+    finally:
+        _EMITTED_SECRET_NAMES = outer
+        if outer is not None:
+            outer |= emitted
+        # Only drop mappings this context still owns; a real !secret loaded
+        # meanwhile may have registered the same value under its own name.
+        for value, name in added.items():
+            if _SECRET_VALUES.get(value) == name:
+                del _SECRET_VALUES[value]
+
+
 def dump(
     dict_,
     show_secrets=False,
@@ -1136,6 +1187,7 @@ def dump(
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+        _LOADED_SECRET_NAMES.clear()
 
     # Per-call subclass so the flags don't leak across calls.
     # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
@@ -1333,7 +1385,10 @@ class ESPHomeDumper(yaml.SafeDumper):
         return node
 
     def represent_secret(self, value):
-        return self.represent_scalar(tag="!secret", value=_SECRET_VALUES[str(value)])
+        name = _SECRET_VALUES[str(value)]
+        if _EMITTED_SECRET_NAMES is not None:
+            _EMITTED_SECRET_NAMES.add(name)
+        return self.represent_scalar(tag="!secret", value=name)
 
     def represent_stringify(self, value):
         if is_secret(value):
@@ -1413,14 +1468,33 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.value)
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
+    def _represent_tagged_secret(self, tag: str, value: Any) -> yaml.ScalarNode:
+        # Writing the secret beats leaking the value, but the tag is lost, so
+        # the dumped config no longer means the same thing when loaded back.
+        _LOGGER.warning(
+            "%s value matches secret '%s'; written as !secret, dropping the %s tag",
+            tag,
+            _SECRET_VALUES[str(value)],
+            tag,
+        )
+        return self.represent_secret(value)
+
     def represent_extend(self, value):
+        # Consult is_secret like the other scalar representers so a payload
+        # equal to a registered secret is never written out in cleartext.
+        if is_secret(value.value):
+            return self._represent_tagged_secret("!extend", value.value)
         return self.represent_scalar(tag="!extend", value=value.value)
 
     def represent_remove(self, value):
+        if is_secret(value.value):
+            return self._represent_tagged_secret("!remove", value.value)
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
         if value.vars or value.condition is not None:
+            # The mapping values route through the regular representers,
+            # which already consult is_secret.
             mapping = {"file": value.file}
             if value.vars:
                 mapping["vars"] = value.vars
@@ -1429,6 +1503,8 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )
+        if is_secret(value.file):
+            return self._represent_tagged_secret("!include", value.file)
         return self.represent_scalar(tag="!include", value=value.file)
 
     def represent_id(self, value):
