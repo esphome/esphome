@@ -63,9 +63,9 @@ CONFLICTS_WITH = ["openthread"]
 
 
 def _check_report_deprecation(value: str) -> str:
-    if str(value).lower() in ("coordinator", "enable"):
+    if str(value).lower() in ("coordinator"):
         _LOGGER.warning(
-            "Report options 'coordinator' and 'enable' are deprecated and will be removed in a future release. Use 'default' instead."
+            "Report option 'coordinator' is deprecated and will be removed in a future release. Use 'default' instead."
         )
     return value
 

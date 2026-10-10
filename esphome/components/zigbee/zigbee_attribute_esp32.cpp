@@ -62,6 +62,9 @@ void ZigbeeAttribute::report_(bool has_lock) {
 }
 
 void ZigbeeAttribute::set_report(ZigbeeReportT report) {
+  if (report == ZigbeeReportT::ZIGBEE_REPORT_DEFAULT || report == ZigbeeReportT::ZIGBEE_REPORT_COORDINATOR) {
+    return;
+  }
   this->report_enabled = true;
   if (report == ZigbeeReportT::ZIGBEE_REPORT_FORCE) {
     this->force_report_ = true;
@@ -71,6 +74,14 @@ void ZigbeeAttribute::set_report(ZigbeeReportT report) {
       this->enable_loop();
     }
   });
+}
+
+void ZigbeeAttribute::report() {
+  if (!this->report_enabled) {
+    return;
+  }
+  this->report_requested_ = true;
+  this->enable_loop();
 }
 
 void ZigbeeAttribute::loop() {
