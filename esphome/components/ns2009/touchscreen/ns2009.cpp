@@ -20,7 +20,7 @@ void NS2009Component::setup() {
 void NS2009Component::update_touches() {
   auto data_z = this->read_byte(GET_Z);
   if (!data_z.has_value()) {
-    ESP_LOGW(TAG, "failed to read %s position, skipping update", LOG_STR_LITERAL("Z"));
+    ESP_LOGW(TAG, "failed to read %s, skipping update", LOG_STR_LITERAL("pressure"));
     this->skip_update_ = true;
     return;
   }
@@ -31,7 +31,7 @@ void NS2009Component::update_touches() {
 
   auto data_x = this->read_bytes<2>(GET_X);
   if (!data_x.has_value()) {
-    ESP_LOGW(TAG, "failed to read %s position, skipping update", LOG_STR_LITERAL("X"));
+    ESP_LOGW(TAG, "failed to read %s, skipping update", LOG_STR_LITERAL("X position"));
     this->skip_update_ = true;
     return;
   }
@@ -39,7 +39,7 @@ void NS2009Component::update_touches() {
 
   auto data_y = this->read_bytes<2>(GET_Y);
   if (!data_y.has_value()) {
-    ESP_LOGW(TAG, "failed to read %s position, skipping update", LOG_STR_LITERAL("Y"));
+    ESP_LOGW(TAG, "failed to read %s, skipping update", LOG_STR_LITERAL("Y position"));
     this->skip_update_ = true;
     return;
   }
@@ -50,7 +50,10 @@ void NS2009Component::update_touches() {
 }
 
 void NS2009Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "NS2009 Touchscreen:");
+  ESP_LOGCONFIG(TAG,
+                "NS2009 Touchscreen:\n"
+                "  Threshold: %u",
+                this->threshold_);
   LOG_I2C_DEVICE(this);
 }
 
