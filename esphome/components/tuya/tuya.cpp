@@ -482,7 +482,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     // Run through listeners
     for (auto &listener : this->listeners_) {
       if (listener.datapoint_id == datapoint.id)
-        listener.on_datapoint(datapoint);
+        listener.on_datapoint.call(datapoint);
     }
   }
 }
@@ -796,18 +796,25 @@ void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datap
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_DELIVER, .payload = buffer});
 }
 
-void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func) {
-  auto listener = TuyaDatapointListener{
+void Tuya::register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func) {
+  this->listeners_.push_back(TuyaDatapointListener{
       .datapoint_id = datapoint_id,
       .on_datapoint = func,
-  };
-  this->listeners_.push_back(listener);
+  });
 
   // Run through existing datapoints
   for (auto &datapoint : this->datapoints_) {
     if (datapoint.id == datapoint_id)
-      func(datapoint);
+      func.call(datapoint);
   }
+}
+
+const TuyaDatapoint &TuyaDatapoint::expect_type(TuyaDatapointType expected) const {
+  if (this->type != expected) {
+    ESP_LOGW(TAG, "Tuya sensor %u expected datapoint type %#02hhX but got %#02hhX", this->id,
+             static_cast<uint8_t>(expected), static_cast<uint8_t>(this->type));
+  }
+  return *this;
 }
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }
