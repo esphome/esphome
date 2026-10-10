@@ -56,10 +56,7 @@ void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &dat
 optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   src.set_tolerance(MAGIQUEST_TOLERANCE, TOLERANCE_MODE_TIME);
 
-  MagiQuestData data{
-      .magnitude = 0,
-      .wand_id = 0,
-  };
+  MagiQuestData data{};
 
   // 8 bit header, always zero
   for (uint8_t i = 0; i < 8; i++) {
@@ -79,17 +76,16 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
 
   // 9 bit magnitude, then 8 bit checksum
   uint32_t magnitude_and_checksum = 0;
-  for (uint32_t mask = 1 << 16; mask; mask >>= 1) {
-    if (mask == 1) {
-      // The last bit has no trailing space. A wrong or missing mark here is caught by the checksum.
-      if (src.expect_mark(MAGIQUEST_ONE_MARK)) {
-        magnitude_and_checksum |= mask;
-      }
-    } else if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
+  for (uint32_t mask = 1 << 16; mask > 1; mask >>= 1) {
+    if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
       magnitude_and_checksum |= mask;
     } else if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
       return {};
     }
+  }
+  // The last bit has no trailing space. A wrong or missing mark here is caught by the checksum.
+  if (src.expect_mark(MAGIQUEST_ONE_MARK)) {
+    magnitude_and_checksum |= 1;
   }
 
   if (!checksum_is_valid(data.wand_id, magnitude_and_checksum)) {
