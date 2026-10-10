@@ -149,7 +149,7 @@ void I2SAudioSpeakerBase::loop() {
       if (const esp_err_t err = this->start_i2s_driver(this->audio_stream_info_); err != ESP_OK) {
         if (err != ESP_ERR_NOT_FINISHED) {
           ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-          this->status_momentary_error("driver-failure", 1000);
+          this->status_momentary_error(1000);
         }
         break;
       }
@@ -163,7 +163,7 @@ void I2SAudioSpeakerBase::loop() {
 
       if (this->speaker_task_handle_ == nullptr) {
         ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-        this->status_momentary_error("task-failure", 1000);
+        this->status_momentary_error(1000);
         this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
