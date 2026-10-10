@@ -9,7 +9,7 @@
 namespace esphome::host {
 namespace fs = std::filesystem;
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 void HostPreferences::setup_() {
   if (this->setup_complete_)

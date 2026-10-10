@@ -24,7 +24,7 @@ static const uint32_t MIXER_AUTO_STOP_DEBOUNCE_MS = 200;
 
 static const size_t TASK_STACK_SIZE = 4096;
 
-static const char *const TAG = "speaker_mixer";
+ESPHOME_LOG_TAG(TAG, "speaker_mixer");
 
 // Event bits for SourceSpeaker command processing
 enum SourceSpeakerEventBits : uint32_t {
@@ -359,7 +359,7 @@ void MixerSpeaker::loop() {
         xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_START);
       } else {
         ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
-        this->status_momentary_error("failure", 1000);
+        this->status_momentary_error(1000);
         return;
       }
     }

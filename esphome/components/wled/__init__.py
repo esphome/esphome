@@ -6,6 +6,8 @@ from esphome.const import CONF_NAME, CONF_PORT
 from esphome.core import CORE, ID
 from esphome.types import ConfigType
 
+DOMAIN = "wled"
+
 wled_ns = cg.esphome_ns.namespace("wled")
 WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
 

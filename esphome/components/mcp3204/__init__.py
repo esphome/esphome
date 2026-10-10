@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_REFERENCE_VOLTAGE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
+DOMAIN = "mcp3204"
 MULTI_CONF = True
 CODEOWNERS = ["@rsumner"]
 
