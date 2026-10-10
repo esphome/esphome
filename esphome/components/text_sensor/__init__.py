@@ -39,6 +39,7 @@ DEVICE_CLASSES = [
 ]
 
 
+DOMAIN = "text_sensor"
 IS_PLATFORM_COMPONENT = True
 
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")

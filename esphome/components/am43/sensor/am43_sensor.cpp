@@ -6,7 +6,7 @@
 
 namespace esphome::am43 {
 
-static const char *const TAG = "am43";
+ESPHOME_LOG_TAG(TAG, "am43");
 
 void Am43::dump_config() {
   ESP_LOGCONFIG(TAG, "AM43");

@@ -8,7 +8,7 @@
 
 namespace esphome::weikai {
 
-static const char *const TAG = "weikai";
+ESPHOME_LOG_TAG(TAG, "weikai");
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call

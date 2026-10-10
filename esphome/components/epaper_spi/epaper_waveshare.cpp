@@ -2,7 +2,7 @@
 
 namespace esphome::epaper_spi {
 
-static const char *const TAG = "epaper_spi.waveshare";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.waveshare");
 
 bool EpaperWaveshare::initialise(bool partial) {
   EPaperBase::initialise(partial);

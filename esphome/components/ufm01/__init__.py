@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ljungqvist"]
+DOMAIN = "ufm01"
 
 MULTI_CONF = True
 
