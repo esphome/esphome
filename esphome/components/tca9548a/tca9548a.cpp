@@ -25,10 +25,10 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
 #ifdef I2C_PORT_FREQUENCY_COUNT
 // The multiplexer's own frequency, else the slower of the bus and the port
 uint32_t TCA9548AChannel::select_frequency_() const {
-  const uint32_t mux_frequency = this->parent_->frequency_;
-  if (mux_frequency != 0 || this->frequency_ == 0) {
-    return mux_frequency;
-  }
+  if (this->parent_->frequency_ != 0)
+    return this->parent_->frequency_;
+  if (this->frequency_ == 0)
+    return 0;
   // A bus that does not report its frequency gets the port's, and fails the switch
   const uint32_t bus_frequency = this->parent_->bus_->get_frequency();
   return bus_frequency != 0 ? std::min(this->frequency_, bus_frequency) : this->frequency_;
