@@ -53,10 +53,9 @@ BOOTLOADER_CONFIG = {
         Section("SoftDevice", 0x0, 0x27000, "flash_primary"),
         Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
     ],
-    # The application fills 0x1000-0xD8000 between these
+    # The partition manager places the application and settings between these
     BOOTLOADER_NRF: [
         Section("mbr", 0x0, 0x1000, "flash_primary"),
-        Section("settings_storage", 0xD8000, 0x8000, "flash_primary"),
         Section("open_bootloader", 0xE0000, 0x20000, "flash_primary"),
     ],
 }

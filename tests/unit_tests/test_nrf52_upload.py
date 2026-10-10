@@ -220,20 +220,32 @@ class TestUploadProgramSerialPlatformio:
 # ---------------------------------------------------------------------------
 
 
+def _prepare_serial_dfu(
+    tmp_path: Path, bootloader: str = BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
+) -> tuple[dict, Path]:
+    """Set up CORE for a serial DFU upload with a built firmware.zip; returns (paths, dfu_package)."""
+    _setup_nrf52_core(bootloader=bootloader, build_path=tmp_path / "build")
+    CORE.config_path = tmp_path / "test.yaml"
+    dfu_package = CORE.relative_pioenvs_path(CORE.name) / "firmware.zip"
+    dfu_package.parent.mkdir(parents=True, exist_ok=True)
+    dfu_package.touch()
+    return _make_paths(tmp_path), dfu_package
+
+
 def _enter_serial_dfu_patches(
     stack: ExitStack,
     host: str,
     tmp_path: Path,
     paths: dict,
-    vid: int | None = None,
-    pid: int | None = None,
-    port_always_present: bool = False,
+    usb_id: tuple[int, int] | None = None,
 ) -> MagicMock:
     """Enter all context managers needed for the serial DFU happy path.
 
     Returns the mock for ``run_command_ok`` so callers can inspect calls.
     comports() returns [] on the first call (port disappeared) and a list
-    containing the host on every subsequent call (port reappeared).  Patches
+    containing the host on every subsequent call (port reappeared). With
+    ``usb_id`` set, the port is present with that vid/pid on every call, as it
+    is for a bootloader that is entered by hand. Patches
     are applied directly on the real pyserial module attributes so they are
     visible to the deferred ``import serial[.tools.list_ports] as _x``
     statements inside upload_program.
@@ -245,13 +257,13 @@ def _enter_serial_dfu_patches(
 
     _comports_calls = [0]
 
-    def _comports():
+    def _comports(**_kwargs):
         _comports_calls[0] += 1
-        if _comports_calls[0] == 1 and not port_always_present:
+        if _comports_calls[0] == 1 and usb_id is None:
             return []  # port disappeared → disappear loop breaks
-        return [
-            MagicMock(device=host, vid=vid, pid=pid)
-        ]  # port back → reappear loop breaks
+        # port back → reappear loop breaks
+        vid, pid = usb_id or (None, None)
+        return [MagicMock(device=host, vid=vid, pid=pid)]
 
     stack.enter_context(
         patch("esphome.upload_targets.get_port_type", return_value=PortType.SERIAL)
@@ -324,13 +336,7 @@ class TestUploadProgramSerialDfu:
         """Nordicsemi DFU command must include pkg path, port, and --singlebank."""
         from esphome.components.nrf52 import upload_program
 
-        _setup_nrf52_core(build_path=tmp_path / "build")
-        CORE.config_path = tmp_path / "test.yaml"
-        paths = _make_paths(tmp_path)
-        build_dir = CORE.relative_pioenvs_path(CORE.name)
-        dfu_package = build_dir / "firmware.zip"
-        dfu_package.parent.mkdir(parents=True, exist_ok=True)
-        dfu_package.touch()
+        paths, dfu_package = _prepare_serial_dfu(tmp_path)
 
         host = "/dev/ttyACM0"
         with ExitStack() as stack:
@@ -349,14 +355,6 @@ class TestUploadProgramSerialDfu:
         assert host in cmd
         assert "--singlebank" in cmd
 
-    def _prepare_open_dfu(self, tmp_path: Path) -> tuple[dict, Path]:
-        _setup_nrf52_core(bootloader=BOOTLOADER_NRF, build_path=tmp_path / "build")
-        CORE.config_path = tmp_path / "test.yaml"
-        dfu_package = CORE.relative_pioenvs_path(CORE.name) / "firmware.zip"
-        dfu_package.parent.mkdir(parents=True, exist_ok=True)
-        dfu_package.touch()
-        return _make_paths(tmp_path), dfu_package
-
     def test_open_dfu_bootloader_skips_the_touch(
         self, setup_core: Path, tmp_path: Path
     ) -> None:
@@ -365,11 +363,11 @@ class TestUploadProgramSerialDfu:
 
         from esphome.components.nrf52 import OPEN_DFU_USB_ID, upload_program
 
-        paths, dfu_package = self._prepare_open_dfu(tmp_path)
+        paths, dfu_package = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
         host = "/dev/ttyACM0"
         with ExitStack() as stack:
             mock_run = _enter_serial_dfu_patches(
-                stack, host, tmp_path, paths, *OPEN_DFU_USB_ID, port_always_present=True
+                stack, host, tmp_path, paths, usb_id=OPEN_DFU_USB_ID
             )
             assert upload_program(config={}, args=None, host=host) is True
             assert not serial.Serial.mock_calls  # pylint: disable=no-member
@@ -382,11 +380,11 @@ class TestUploadProgramSerialDfu:
         """A port that is not the bootloader fails with the SW1 hint instead of running DFU."""
         from esphome.components.nrf52 import upload_program
 
-        paths, _ = self._prepare_open_dfu(tmp_path)
+        paths, _ = _prepare_serial_dfu(tmp_path, BOOTLOADER_NRF)
         host = "/dev/ttyACM0"
         with ExitStack() as stack:
             mock_run = _enter_serial_dfu_patches(
-                stack, host, tmp_path, paths, 0x2FE3, 0x0100, port_always_present=True
+                stack, host, tmp_path, paths, usb_id=(0x2FE3, 0x0100)
             )
             with pytest.raises(EsphomeError, match="hold SW1"):
                 upload_program(config={}, args=None, host=host)
@@ -396,13 +394,7 @@ class TestUploadProgramSerialDfu:
         """A failed nordicsemi DFU must raise EsphomeError."""
         from esphome.components.nrf52 import upload_program
 
-        _setup_nrf52_core(build_path=tmp_path / "build")
-        CORE.config_path = tmp_path / "test.yaml"
-        paths = _make_paths(tmp_path)
-        build_dir = CORE.relative_pioenvs_path(CORE.name)
-        dfu_package = build_dir / "firmware.zip"
-        dfu_package.parent.mkdir(parents=True, exist_ok=True)
-        dfu_package.touch()
+        paths, _ = _prepare_serial_dfu(tmp_path)
 
         host = "/dev/ttyACM0"
         with ExitStack() as stack:

@@ -9,7 +9,7 @@ from esphome.components.nrf52 import (
 )
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.nrf52.const import BOOTLOADER_NRF
-from esphome.components.zephyr.const import KEY_BOOTLOADER, KEY_PM_STATIC, KEY_ZEPHYR
+from esphome.components.zephyr.const import KEY_PM_STATIC, KEY_ZEPHYR
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, Toolchain
@@ -33,41 +33,34 @@ def test_dongle_rejects_foreign_bootloader() -> None:
         _detect_bootloader({"board": "nrf52840dongle", "bootloader": "mcuboot"})
 
 
-def test_nrf_bootloader_reserves_factory_region() -> None:
-    """The factory Open DFU bootloader stays at the top of flash and nothing else is placed on it."""
+def _dongle_core_data() -> None:
     CORE.data[KEY_CORE] = {}
     set_core_data({"board": "nrf52840dongle", "bootloader": BOOTLOADER_NRF})
+
+
+def test_nrf_bootloader_reserves_factory_region() -> None:
+    """The MBR page and the Open DFU bootloader are registered as static partitions around the app."""
+    _dongle_core_data()
     registered = {s.name: s for s in CORE.data[KEY_ZEPHYR][KEY_PM_STATIC]}
     assert {s.name for s in BOOTLOADER_CONFIG[BOOTLOADER_NRF]} <= set(registered)
-    bootloader = registered["open_bootloader"]
-    assert bootloader.end_address == 0x100000
-    assert registered["settings_storage"].end_address <= bootloader.address
-    # The MBR page stays reserved so the application is linked from 0x1000, where the bootloader chains to
     assert registered["mbr"].address == 0x0
-    assert registered["mbr"].end_address == 0x1000
+    assert registered["open_bootloader"].end_address == 0x100000
 
 
 def test_nrf_bootloader_rejects_mcumgr_ota() -> None:
-    """The factory Open DFU bootloader has no second image slot, so OTA is refused at validation."""
-    CORE.data[KEY_CORE] = {}
-    set_core_data({"board": "nrf52840dongle", "bootloader": BOOTLOADER_NRF})
-    assert CORE.data[KEY_ZEPHYR][KEY_BOOTLOADER] == BOOTLOADER_NRF
+    """OTA with mcumgr places its slot against a SoftDevice, which this layout has none of."""
+    _dongle_core_data()
     with pytest.raises(cv.Invalid, match="does not support OTA"):
         _validate_bootloader({})
 
 
-@pytest.mark.parametrize(
-    ("toolchain", "accepted"),
-    [(Toolchain.SDK_NRF, True), (Toolchain.PLATFORMIO, False)],
-)
-def test_nrf_bootloader_needs_the_sdk_nrf_toolchain(
-    toolchain: Toolchain, accepted: bool
-) -> None:
-    """The PlatformIO upload path has no Open DFU port check, so the bootloader is sdk-nrf only."""
-    CORE.toolchain = toolchain
-    config = {"bootloader": BOOTLOADER_NRF}
-    if accepted:
-        _validate_open_dfu_toolchain(config)
-    else:
-        with pytest.raises(cv.Invalid, match="sdk-nrf"):
-            _validate_open_dfu_toolchain(config)
+def test_nrf_bootloader_accepts_the_sdk_nrf_toolchain() -> None:
+    CORE.toolchain = Toolchain.SDK_NRF
+    _validate_open_dfu_toolchain({"bootloader": BOOTLOADER_NRF})
+
+
+def test_nrf_bootloader_rejects_the_platformio_toolchain() -> None:
+    """The deprecated PlatformIO upload path assumes a touch-reset bootloader."""
+    CORE.toolchain = Toolchain.PLATFORMIO
+    with pytest.raises(cv.Invalid, match="sdk-nrf"):
+        _validate_open_dfu_toolchain({"bootloader": BOOTLOADER_NRF})

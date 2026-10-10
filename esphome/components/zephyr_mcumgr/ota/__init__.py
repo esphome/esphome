@@ -1,7 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.nrf52.const import BOOTLOADER_NRF
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
@@ -103,8 +102,10 @@ def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         return
-    # The factory Open DFU bootloader has no second image slot to download into
-    if bootloader == BOOTLOADER_NRF or bootloader not in BOOTLOADER_CONFIG:
+    # The image slot is placed between the SoftDevice and the Adafruit bootloader (see to_code), so
+    # OTA needs a layout that has both
+    sections = BOOTLOADER_CONFIG.get(bootloader, [])
+    if not any("SoftDevice" in section.name for section in sections):
         raise cv.Invalid(f"{bootloader} does not support OTA")
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):

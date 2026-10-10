@@ -144,15 +144,8 @@ TESTING_FLASH_SIZE = 0x400000
 
 
 def _testing_mode_sections(sections: list[Section]) -> list[Section]:
-    """Move the block of sections pinned to the end of the real flash to the end
-    of the faked one, so the partition manager still sees a single gap for the app."""
-    moved: list[Section] = []
-    boundary = NRF52840_FLASH_SIZE
-    for section in sorted(sections, key=lambda s: s.address, reverse=True):
-        if section.end_address != boundary:
-            break
-        boundary = section.address
-        moved.append(section)
+    """Move a bootloader pinned to the end of the real flash to the end of the
+    faked one, so the partition manager still sees a single gap for the app."""
     return [
         Section(
             section.name,
@@ -160,7 +153,7 @@ def _testing_mode_sections(sections: list[Section]) -> list[Section]:
             section.size,
             section.region,
         )
-        if section in moved
+        if section.end_address == NRF52840_FLASH_SIZE
         else section
         for section in sections
     ]
@@ -322,7 +315,8 @@ def _validate_mcumgr(config):
 
 
 def _validate_open_dfu_toolchain(config: ConfigType) -> None:
-    # Only the sdk-nrf upload path knows how to talk to the factory Open DFU bootloader
+    # The deprecated PlatformIO toolchain configures every non-mcuboot upload for a touch-reset
+    # bootloader, which the factory Open DFU bootloader is not
     if config[KEY_BOOTLOADER] == BOOTLOADER_NRF and CORE.using_toolchain_platformio:
         raise cv.Invalid(
             f"'{BOOTLOADER_NRF}' bootloader requires 'toolchain: {Toolchain.SDK_NRF}'"
@@ -662,11 +656,28 @@ def _reset_into_bootloader(host: str) -> None:
         )
 
 
+def _wait_for_port_permissions(host: str) -> None:
+    """Give udev a moment to set up the re-enumerated port before using it."""
+    import time as _time
+
+    from esphome.__main__ import check_permissions
+
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline:
+        try:
+            check_permissions(host)
+            return
+        except EsphomeError:
+            _time.sleep(0.05)
+    check_permissions(host)  # raises with helpful message
+
+
 def _require_open_dfu_port(host: str) -> None:
     """Check that the port belongs to the Open DFU bootloader, which has no auto-entry."""
     import serial.tools.list_ports as _list_ports
 
-    port = next((p for p in _list_ports.comports() if p.device == host), None)
+    ports = _list_ports.comports(include_links=True)
+    port = next((p for p in ports if p.device == host), None)
     if port is None or (port.vid, port.pid) != OPEN_DFU_USB_ID:
         raise EsphomeError(
             f"{host} is not the Open DFU bootloader. Enter bootloader mode first "
@@ -692,11 +703,11 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
-        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        bootloader = zephyr_data()[KEY_BOOTLOADER]
+        if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         else:
             if not CORE.using_toolchain_platformio:
-                bootloader = zephyr_data()[KEY_BOOTLOADER]
                 if bootloader not in SERIAL_DFU_BOOTLOADERS:
                     raise EsphomeError("Not implemented yet")
                 check_and_install()
@@ -706,23 +717,11 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 dfu_package = build_dir / "firmware.zip"
                 if not dfu_package.is_file():
                     raise EsphomeError("Firmware not found. Please compile first.")
-                import time as _time
-
                 if bootloader == BOOTLOADER_NRF:
                     _require_open_dfu_port(host)
                 else:
                     _reset_into_bootloader(host)
-
-                # Wait for udev to finish setting up device permissions
-                deadline = _time.monotonic() + 5
-                while _time.monotonic() < deadline:
-                    try:
-                        check_permissions(host)
-                        break
-                    except EsphomeError:
-                        _time.sleep(0.05)
-                else:
-                    check_permissions(host)  # raises with helpful message
+                    _wait_for_port_permissions(host)
 
                 python = str(paths["python_executable"])
                 if not run_command_ok(
@@ -1159,6 +1158,6 @@ def run_compile(args, config: ConfigType) -> bool:
             genpkg_cmd += ["--dev-type", dev_type, "--sd-req", sd_req]
         genpkg_cmd += ["--application", str(hex_file), str(dfu_package)]
         if not run_command_ok(genpkg_cmd, env=env, stream_output=True):
-            raise EsphomeError("Failed to create adafruit DFU package")
+            raise EsphomeError("Failed to create the DFU package")
 
     return True
