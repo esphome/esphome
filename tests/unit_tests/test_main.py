@@ -1548,6 +1548,7 @@ class MockArgs:
     partition_table: bool = False
     bootloader: bool = False
     states: bool | None = None
+    device: list[str] | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -5357,6 +5358,30 @@ def _setup_build_info_test(
     return build_info_path, firmware_path
 
 
+def test_compile_program_quietly_ignores_skip_bootloader_elsewhere(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A full build is always safe; orchestrators cannot see YAML overrides."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.skip_bootloader = True
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    with (
+        patch(
+            "esphome.components.esp8266.check_rosetta",
+            side_effect=EsphomeError("stop here"),
+        ),
+        pytest.raises(EsphomeError, match="stop here"),
+        caplog.at_level("DEBUG"),
+    ):
+        compile_program(MockArgs(), config)
+
+    assert [
+        r.levelno for r in caplog.records if "--skip-bootloader ignored" in r.message
+    ] == [logging.DEBUG]
+    assert CORE.skip_bootloader is False
+
+
 def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
     """Test that compile_program runs the Rosetta preflight for ESP8266 targets."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
@@ -6680,6 +6705,45 @@ def test_check_permissions_unreadable_port() -> None:
         check_permissions("/dev/ttyUSB99")
 
 
+@pytest.mark.parametrize(
+    ("is_macos", "machine", "warned", "warns"),
+    [
+        pytest.param(True, "x86_64", False, True, id="intel_mac"),
+        pytest.param(True, "x86_64", True, False, id="intel_mac_child"),
+        pytest.param(True, "arm64", False, False, id="apple_silicon"),
+        pytest.param(False, "x86_64", False, False, id="linux_x86_64"),
+    ],
+)
+def test_warn_if_intel_macos(
+    is_macos: bool,
+    machine: str,
+    warned: bool,
+    warns: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only Intel Python on macOS gets the warning, and only once per invocation."""
+    monkeypatch.setattr(main, "IS_MACOS", is_macos)
+    monkeypatch.setattr(main.platform, "machine", lambda: machine)
+    if warned:
+        monkeypatch.setenv(main._INTEL_MACOS_WARNED_ENV, "1")
+    else:
+        monkeypatch.delenv(main._INTEL_MACOS_WARNED_ENV, raising=False)
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_intel_macos()
+
+    assert (main._INTEL_MACOS_REMOVAL in caplog.text) is warns
+
+
+def test_run_multiple_configs_marks_children_warned(tmp_path: Path) -> None:
+    """Multi-config children get the env marker so they skip the Intel warning."""
+    with patch.object(main, "run_external_process", return_value=0) as mock_run:
+        main.run_multiple_configs([tmp_path / "a.yaml"], lambda f: ["esphome", str(f)])
+
+    assert mock_run.call_args.kwargs["env"][main._INTEL_MACOS_WARNED_ENV] == "1"
+
+
 def _make_checkout(root: Path) -> Path:
     """Create a directory that looks like an esphome checkout."""
     (root / "esphome").mkdir(parents=True)
@@ -6844,6 +6908,70 @@ def test_upload_using_esptool_arduino_toolchain(
     firmware_offset_idx = cmd_list.index("write-flash") + 4
     assert cmd_list[firmware_offset_idx] == "0x0"
     assert cmd_list[firmware_offset_idx + 1] == str(factory)
+
+
+def test_upload_using_esptool_skip_bootloader_tree_names_the_flag(
+    tmp_path: Path,
+) -> None:
+    """A serial flash needs the factory image the skip flag did not build."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+
+def test_command_run_rejects_serial_device_with_skip_bootloader(
+    tmp_path: Path,
+) -> None:
+    """The compile could never be flashed over serial; fail before it runs."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.skip_bootloader = True
+    CORE.toolchain = Toolchain.ESP_IDF
+    args = MockArgs(device=["/dev/ttyUSB0"])
+    with patch("esphome.__main__.write_cpp") as mock_write:
+        assert command_run(args, {}) == 1
+    mock_write.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """OTA --bootloader on a skip tree errors before picking the binary."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    mock_get_port_type.return_value = "NETWORK"
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(bootloader=True)
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -7071,6 +7199,23 @@ def test_compile_program_espidf_idedata_success_is_silent(
     ):
         assert compile_program(MagicMock(), {}) == 0
     assert "idedata" not in caplog.text
+
+
+def test_compile_program_espidf_failed_factory_bin_fails_the_build() -> None:
+    """A compile whose factory image could not be produced must not exit 0."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin", return_value=False),
+        patch("esphome.espidf.toolchain.create_ota_bin") as mock_ota,
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 1
+    mock_ota.assert_not_called()
 
 
 def test_compile_program_espidf_idedata_none_warns(

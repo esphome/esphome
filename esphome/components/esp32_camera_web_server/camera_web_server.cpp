@@ -16,7 +16,7 @@ namespace esphome::esp32_camera_web_server {
 static const uint32_t IMAGE_REQUEST_TIMEOUT = 5000;
 // How often streaming_handler_ reports its throughput.
 static const uint32_t STREAM_STATS_INTERVAL = 5000;
-static const char *const TAG = "esp32_camera_web_server";
+ESPHOME_LOG_TAG(TAG, "esp32_camera_web_server");
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 #define CONTENT_TYPE "image/jpeg"

@@ -33,6 +33,7 @@ DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor"]
 
 CODEOWNERS = ["@coogle", "@ximex"]
+DOMAIN = "gps"
 
 gps_ns = cg.esphome_ns.namespace("gps")
 GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)

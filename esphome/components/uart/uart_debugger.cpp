@@ -8,7 +8,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart_debug";
+ESPHOME_LOG_TAG(TAG, "uart_debug");
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte) {

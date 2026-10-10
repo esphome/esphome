@@ -22,6 +22,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@vincentscode", "@latonita"]
+DOMAIN = "ens160_base"
 
 ens160_ns = cg.esphome_ns.namespace("ens160_base")
 

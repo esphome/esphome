@@ -3,6 +3,7 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.uart import DOMAIN as UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -16,6 +17,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@PolarGoose"]
+DOMAIN = "dsmr"
 
 MULTI_CONF = True
 
@@ -91,7 +93,7 @@ async def to_code(config: ConfigType) -> None:
 def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
-    for uart_conf in full_config["uart"]:
+    for uart_conf in full_config[UART_DOMAIN]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
             rx_buffer_size = uart_conf[CONF_RX_BUFFER_SIZE]
             if rx_buffer_size < 1500:
