@@ -97,6 +97,6 @@ async def to_code(config: ConfigType) -> None:
     data = MockObj("data")
     value_lambda = await cg.process_lambda(
         var.publish_state(getattr(data, axis)),
-        [(BMM150Data.operator("ref"), str(data))],
+        [(BMM150Data.operator("const").operator("ref"), str(data))],
     )
     cg.add(parent.add_magnetometer_listener(value_lambda))

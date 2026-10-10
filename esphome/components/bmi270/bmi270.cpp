@@ -335,7 +335,7 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   }
 
   if (read_mag) {
-    BMM150Data mag_data = bmm150_convert(this->mag_trim_, mag_raw);
+    const BMM150Data mag_data = bmm150_convert(this->mag_trim_, mag_raw);
     this->magnetometer_callback_.call(mag_data);
   }
   return true;

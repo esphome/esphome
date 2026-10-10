@@ -70,7 +70,7 @@ static constexpr uint8_t BMI270_PWR_CTRL_IMU =
     BMI270_PWR_CTRL_ACC_EN | BMI270_PWR_CTRL_GYR_EN | BMI270_PWR_CTRL_TEMP_EN;
 static constexpr uint8_t BMI270_AUX_IF_CONF_MANUAL_EN = 0x80;
 static constexpr uint8_t BMI270_AUX_IF_CONF_FCU_WRITE_EN = 0x40;
-static constexpr uint8_t BMI270_AUX_IF_CONF_MAN_RD_BURST_8 = 0x0C;  // bits 5:2 = 3
+static constexpr uint8_t BMI270_AUX_IF_CONF_MAN_RD_BURST_8 = 0x0C;  // bits 3:2 = 3
 static constexpr uint8_t BMI270_AUX_IF_CONF_RD_BURST_8 = 0x03;      // bits 1:0 = 3
 
 // AUX_X_LSB..AUX_R_MSB (8 bytes) sit directly before the accel data, so one burst can read both.
@@ -170,7 +170,7 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   bmm150::BMM150Trim mag_trim_{};
 
   LazyCallbackManager<void(float)> temperature_callback_{};
-  LazyCallbackManager<void(bmm150::BMM150Data &)> magnetometer_callback_{};
+  LazyCallbackManager<void(const bmm150::BMM150Data &)> magnetometer_callback_{};
 };
 
 }  // namespace esphome::bmi270

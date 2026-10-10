@@ -86,6 +86,7 @@ motion:
     #                               400HZ | 800HZ | 1600HZ | 3200HZ
     gyroscope_odr: 200HZ
     aux_device: BMM150
+    aux_address: 0x10
     axis_map:
       x: y
       y: x
