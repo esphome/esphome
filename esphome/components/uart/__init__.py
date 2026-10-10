@@ -54,6 +54,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
 _LOGGER = getLogger(__name__)
@@ -550,6 +551,49 @@ def subtree_references_uart(
     if isinstance(node, list):
         return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
     return False
+
+
+def claim_exclusive(
+    config: ConfigType, owner: str, conf_key: str = CONF_UART_ID
+) -> None:
+    """Claim the UART in config[conf_key] for owner alone; call it from final validation.
+
+    Fails on a second owner entry for that UART, on another domain that names it by
+    uart_id or conf_key (skipped in testing mode) and on a dummy_receiver in its debug.
+    """
+    full_config = fv.full_config.get()
+    uart_id = str(config[conf_key])
+    used = full_config.data.setdefault(owner, {}).setdefault(conf_key, set())
+    if uart_id in used:
+        raise cv.Invalid(
+            f"The UART '{uart_id}' is already used by another '{owner}' entry. "
+            f"Each {owner} needs its own UART.",
+            [conf_key],
+        )
+    used.add(uart_id)
+    # Grouped CI builds share one bus between components, like the pin check above.
+    if not CORE.testing_mode:
+        for domain, domain_conf in full_config.items():
+            if domain != owner and any(
+                subtree_references_uart(domain_conf, uart_id, key)
+                for key in {CONF_UART_ID, conf_key}
+            ):
+                raise cv.Invalid(
+                    f"The UART '{uart_id}' is also used by '{domain}'. "
+                    f"{owner} requires exclusive use of that UART.",
+                    [conf_key],
+                )
+
+    def reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
+        debug = uart_conf.get(CONF_DEBUG)
+        if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
+            raise cv.Invalid(
+                f"dummy_receiver reads this UART and drops the bytes {owner} should forward.",
+                [CONF_DEBUG, CONF_DUMMY_RECEIVER],
+            )
+        return uart_conf
+
+    fv.id_declaration_match_schema(reject_dummy_receiver)(config[conf_key])
 
 
 async def register_uart_device(var, config):
