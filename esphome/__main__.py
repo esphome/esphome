@@ -51,6 +51,7 @@ from esphome.const import (
     KEY_ESP32,
     KEY_VARIANT,
     SECRETS_FILES,
+    ErrorFormat,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -2267,6 +2268,19 @@ def parse_args(argv):
         ),
     )
 
+    options_parser.add_argument(
+        "--error-format",
+        type=ErrorFormat,
+        default=os.getenv("ESPHOME_ERROR_FORMAT", ErrorFormat.YAML.value),
+        choices=list(ErrorFormat),
+        metavar="{" + ",".join(f.value for f in ErrorFormat) + "}",
+        help=(
+            "How configuration errors are shown. 'yaml' shows them inside the "
+            "failing YAML; 'line' prints one 'file:line:column: error: message' "
+            "line per error."
+        ),
+    )
+
     parser = argparse.ArgumentParser(
         description=f"ESPHome {const.__version__}", parents=[options_parser]
     )
@@ -2645,6 +2659,7 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
     CORE.testing_mode = args.testing_mode
+    CORE.error_format = args.error_format
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(

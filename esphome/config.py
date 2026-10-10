@@ -12,6 +12,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
+import yaml
 
 from esphome import core, loader, pins, yaml_util
 from esphome.components.substitutions import do_substitution_pass
@@ -26,8 +27,9 @@ from esphome.const import (
     CONF_PACKAGES,
     CONF_PLATFORM,
     CONF_SUBSTITUTIONS,
+    ErrorFormat,
 )
-from esphome.core import CORE, DocumentRange, EsphomeError
+from esphome.core import CORE, DocumentLocation, DocumentRange, EsphomeError
 
 # `esphome.core.config` is imported lazily at its two use sites below.
 # It pulls in `esphome.automation` and `esphome.config_validation`, which
@@ -1555,6 +1557,60 @@ def load_config(
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
 
+def get_invalid_range(res: Config, invalid: vol.Invalid) -> DocumentRange | None:
+    """Return the source range of the YAML that caused *invalid*."""
+    return res.get_deepest_document_range_for_path(
+        invalid.path, invalid.error_message == "extra keys not allowed"
+    )
+
+
+def _format_location(location: DocumentLocation | None) -> str:
+    """Return a 1-based `file:line:column`, or the main config file if unknown."""
+    if location is None:
+        return str(CORE.config_path)
+    return f"{location.document}:{location.line + 1}:{location.column + 1}"
+
+
+def _find_marked_yaml_error(err: BaseException) -> yaml.MarkedYAMLError | None:
+    cause: BaseException | None = err
+    while cause is not None and not isinstance(cause, yaml.MarkedYAMLError):
+        cause = cause.__cause__
+    return cause
+
+
+def _print_marked_yaml_error(err: yaml.MarkedYAMLError) -> None:
+    # Errors raised as MarkedYAMLError(message, mark) put the message in context
+    mark = err.problem_mark or err.context_mark
+    location = DocumentLocation.from_mark(mark) if mark is not None else None
+    safe_print(f"{_format_location(location)}: error: {err.problem or err.context}")
+    if err.problem and err.context and err.context_mark is not None:
+        context_location = DocumentLocation.from_mark(err.context_mark)
+        safe_print(f"{_format_location(context_location)}: note: {err.context}")
+
+
+def _print_line_errors(res: Config) -> None:
+    for err in res.errors:
+        doc_range = get_invalid_range(res, err)
+        location = _format_location(
+            doc_range.start_mark if doc_range is not None else None
+        )
+        # A YAML error in an included file is wrapped in a validation error
+        if (yaml_err := _find_marked_yaml_error(err)) is not None:
+            _print_marked_yaml_error(yaml_err)
+            safe_print(f"{location}: note: included from here")
+        else:
+            safe_print(f"{location}: error: {_format_vol_invalid(err, res)}")
+
+
+def _print_line_load_error(err: EsphomeError) -> None:
+    if (yaml_err := _find_marked_yaml_error(err)) is not None:
+        _print_marked_yaml_error(yaml_err)
+    else:
+        # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
+        message = err.base_exc if isinstance(err, InvalidYAMLError) else err
+        safe_print(f"{_format_location(None)}: error: {message}")
+
+
 def line_info(config, path, highlight=True):
     """Display line config source."""
     if not highlight:
@@ -1703,7 +1759,13 @@ def read_config(
             snapshot_user_config=snapshot_user_config,
         )
     except EsphomeError as err:
-        _LOGGER.error("Error while reading config: %s", err)
+        if CORE.error_format == ErrorFormat.LINE:
+            _print_line_load_error(err)
+        else:
+            _LOGGER.error("Error while reading config: %s", err)
+        return None
+    if res.errors and CORE.error_format == ErrorFormat.LINE:
+        _print_line_errors(res)
         return None
     if res.errors:
         if not CORE.verbose:

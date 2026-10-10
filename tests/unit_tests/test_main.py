@@ -115,6 +115,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    ErrorFormat,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
@@ -6460,6 +6461,31 @@ def test_parse_args_logs_states() -> None:
     """Test that --states is parsed for the logs command."""
     args = parse_args(["esphome", "logs", "--states", "device.yaml"])
     assert args.states is True
+
+
+@pytest.mark.parametrize(
+    ("argv", "env_value", "expected"),
+    [
+        ([], None, ErrorFormat.YAML),
+        (["--error-format", "line"], None, ErrorFormat.LINE),
+        ([], "line", ErrorFormat.LINE),
+        (["--error-format", "yaml"], "line", ErrorFormat.YAML),
+    ],
+)
+def test_parse_args_error_format(
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    env_value: str | None,
+    expected: ErrorFormat,
+) -> None:
+    """--error-format overrides ESPHOME_ERROR_FORMAT, which overrides the default."""
+    if env_value is None:
+        monkeypatch.delenv("ESPHOME_ERROR_FORMAT", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_ERROR_FORMAT", env_value)
+
+    args = parse_args(["esphome", *argv, "config", "device.yaml"])
+    assert args.error_format is expected
 
 
 @pytest.mark.parametrize("command", ["logs", "run"])
