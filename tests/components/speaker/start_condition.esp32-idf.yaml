@@ -1,0 +1,37 @@
+esphome:
+  name: speaker-start-condition-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+i2s_audio:
+  i2s_bclk_pin: GPIO26
+  i2s_lrclk_pin: GPIO25
+
+speaker:
+  - platform: i2s_audio
+    id: physical_speaker
+    dac_type: external
+    i2s_dout_pin: GPIO22
+  - platform: mixer
+    output_speaker: physical_speaker
+    source_speakers:
+      - id: announcement_speaker
+      - id: media_speaker
+
+media_player:
+  - platform: speaker
+    id: player
+    announcement_pipeline:
+      speaker: announcement_speaker
+      format: MP3
+      start_condition: !lambda 'return true;'
+    media_pipeline:
+      speaker: media_speaker
+      format: MP3
+      start_condition: !lambda 'return true;'

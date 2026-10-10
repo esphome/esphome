@@ -77,6 +77,10 @@ void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
 }
 
 esp_err_t AudioPipeline::stop() {
+  if (this->waiting_for_start_condition_) {
+    // No tasks were started. A paused wait must not remain PAUSED after STOP.
+    this->set_pause_state(false);
+  }
   this->pending_url_ = false;
   this->pending_file_ = false;
   this->waiting_for_start_condition_ = false;
