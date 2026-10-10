@@ -8,6 +8,8 @@ tcp_uart:
     port: 502
     reconnect_interval: 10s
     timeout: 30s
+    encryption:
+      key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
     connected:
       name: TCP UART Connected
     disconnects:
