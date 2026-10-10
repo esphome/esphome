@@ -293,6 +293,19 @@ uint32_t ZWaveProxyCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_STORE_YAML
+uint8_t *StoreYamlCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const StoreYamlCapabilities *>(self);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.supported);
+  return pos;
+}
+uint32_t StoreYamlCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const StoreYamlCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_bool(1, msg.supported);
+  return size;
+}
+#endif
 #ifdef USE_API_WIZARD
 uint8_t *WizardCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const WizardCapabilities *>(self);
@@ -341,6 +354,9 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__res
 #ifdef USE_SENDSPIN
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.sendspin);
 #endif
+#ifdef USE_STORE_YAML
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.store_yaml);
+#endif
   return pos;
 }
 uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
@@ -365,6 +381,9 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_SENDSPIN
   size += ProtoSize::calc_message(1, msg.sendspin.calculate_size());
+#endif
+#ifdef USE_STORE_YAML
+  size += ProtoSize::calc_message(1, msg.store_yaml.calculate_size());
 #endif
   return size;
 }
@@ -4261,6 +4280,26 @@ uint32_t SendspinPairingTokenResponse::calc_size_msg(const void *self) {
   uint32_t size = 0;
   size += msg.status ? 2 : 0;
   size += !msg.token.empty() ? 2 + msg.token.size() : 0;
+  return size;
+}
+#endif
+#ifdef USE_STORE_YAML
+uint8_t *GetYamlResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const GetYamlResponse *>(self);
+  pos = ProtoEncode::encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
+  pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
+  pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, msg.done ? 0x01 : 0x00);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.total_size);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.encoding);
+  return pos;
+}
+uint32_t GetYamlResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const GetYamlResponse *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_length_force(1, msg.data_len);
+  size += ProtoSize::calc_bool_force(1);
+  size += ProtoSize::calc_uint32(1, msg.total_size);
+  size += !msg.encoding.empty() ? 2 + msg.encoding.size() : 0;
   return size;
 }
 #endif

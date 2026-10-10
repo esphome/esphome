@@ -83,6 +83,7 @@ service APIConnection {
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 
   rpc sendspin_pairing_token(SendspinPairingTokenRequest) returns (SendspinPairingTokenResponse) {}
+  rpc get_yaml(GetYamlRequest) returns (void) {}
 }
 
 
@@ -395,6 +396,12 @@ message ZWaveProxyCapabilities {
   uint32 home_id = 2;
 }
 
+message StoreYamlCapabilities {
+  // Whether this firmware embeds its YAML configuration for recovery via
+  // `get_yaml`, so clients can skip the request instead of waiting for a timeout
+  bool supported = 1;
+}
+
 message WizardCapabilities {
   // True when the device has a wizard configured, so DeviceWizardRequest will be answered
   bool configured = 1;
@@ -416,6 +423,7 @@ message DeviceCapabilitiesResponse {
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
+  StoreYamlCapabilities store_yaml = 7 [(field_ifdef) = "USE_STORE_YAML"];
 }
 
 // ==================== DEVICE WIZARD ====================
@@ -3107,4 +3115,28 @@ message SendspinPairingTokenResponse {
   SendspinPairingTokenStatus status = 1;
   // The pairing token (Sendspin pairing.md "Pairing Token"). Set only when status is OK.
   string token = 2 [(max_data_length) = 127];
+}
+
+// ==================== STORE YAML ====================
+// Streams the compressed user YAML embedded in firmware; the client decompresses.
+// A GetYamlRequest during an active transfer is ignored; reconnect to restart.
+message GetYamlRequest {
+  option (id) = 161;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_STORE_YAML";
+  option (no_delay) = true;
+}
+
+message GetYamlResponse {
+  option (id) = 162;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_STORE_YAML";
+
+  // The blob is in flash, and the device sends it from there
+  bytes data = 1 [(force) = true, (pointer_to_buffer) = true, (progmem) = true];
+  bool done = 2 [(force) = true];
+  // Sent on the first chunk only — the client is expected to cache it.
+  // (firmware bandwidth/flash is expensive; the client has gigabytes.)
+  uint32 total_size = 3;
+  string encoding = 4 [(max_data_length) = 8];
 }
