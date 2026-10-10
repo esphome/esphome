@@ -108,12 +108,13 @@ void I2SAudioSpeakerBase::loop() {
     if ((event_group_bits & SpeakerEventGroupBits::TASK_AUDIO_ENDED) && !this->audio_end_waiting_ &&
         !this->audio_end_callback_.empty()) {
       this->audio_end_callback_.call();
-      this->audio_end_started_ms_ = millis();
+      this->audio_end_started_ms_ = App.get_loop_component_start_time();
       this->audio_end_waiting_ = true;
     }
     // Keep BCLK/LRCK running while the codec mutes. Delayed automation actions
     // can run during this hold; no delay blocks the main loop.
-    if (this->audio_end_waiting_ && millis() - this->audio_end_started_ms_ < AUDIO_END_MUTE_HOLD_MS) {
+    if (this->audio_end_waiting_ &&
+        App.get_loop_component_start_time() - this->audio_end_started_ms_ < AUDIO_END_MUTE_HOLD_MS) {
       return;
     }
     this->audio_end_waiting_ = false;
