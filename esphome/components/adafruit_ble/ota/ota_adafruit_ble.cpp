@@ -29,6 +29,7 @@ static ssize_t dfu_trigger_write(struct bt_conn *conn, const struct bt_gatt_attr
     return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
   }
   ESP_LOGI(TAG, "DFU mode requested, restarting into the bootloader");
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
   NRF_POWER->GPREGRET = DFU_GPREGRET_OTA;
   arch_feed_wdt();
   App.reboot();
