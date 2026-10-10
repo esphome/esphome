@@ -33,9 +33,7 @@ esphome:
               - script.is_running: my_script_restart
             then:
               - logger.log: second choice
-          - if:
-              lambda: return true;
-            then:
+          - then:
               - logger.log: default choice
 
 script:

@@ -41,18 +41,22 @@ async def test_script_on_stop_and_choose(
         _, services = await client.list_entities_services()
         service: dict[str, UserService] = {s.name: s for s in services}
 
-        # choose runs only the first choice whose condition is true, then continues
-        for value, label in ((5, "small"), (50, "medium"), (500, "large")):
+        # choose runs only the first choice whose condition is true, or the default
+        # choice if none is, then continues
+        for value, label in (
+            (5, "small"),
+            (50, "medium"),
+            (500, "large"),
+            (5000, "default"),
+        ):
             done = expect(f"CHOOSE done {value}")
             await client.execute_service(service["run_choose"], {"value": value})
             await asyncio.wait_for(done, timeout=5.0)
             assert count(f"CHOOSE {label} {value}") == 1
-        done = expect("CHOOSE done 5000")
-        await client.execute_service(service["run_choose"], {"value": 5000})
-        await asyncio.wait_for(done, timeout=5.0)
         assert count("CHOOSE small") == 1
         assert count("CHOOSE medium") == 1
         assert count("CHOOSE large") == 1
+        assert count("CHOOSE default") == 1
 
         # A bare script.stop inside a script stops that script and fires on_stop
         stopped = expect("SELF on_stop")

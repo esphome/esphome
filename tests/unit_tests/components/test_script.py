@@ -69,6 +69,13 @@ def test_script_stop_without_id_outside_script_is_invalid() -> None:
         pytest.param([], id="empty"),
         pytest.param([{CONF_THEN: [{"delay": "1s"}]}], id="missing_if"),
         pytest.param([{"if": {"and": []}}], id="missing_then"),
+        pytest.param(
+            [
+                {CONF_THEN: [{"delay": "1s"}]},
+                {"if": {"and": []}, CONF_THEN: [{"delay": "2s"}]},
+            ],
+            id="default_not_last",
+        ),
     ],
 )
 def test_choose_invalid(value: Any) -> None:
@@ -90,3 +97,16 @@ def test_choose_valid() -> None:
     assert len(choices) == 2
     assert "and" in choices[1]["if"]
     assert all(automation.CONF_CHOICE_ID in choice for choice in choices)
+
+
+def test_choose_default_choice() -> None:
+    result = automation.validate_action(
+        {
+            "choose": [
+                {"if": {"or": []}, CONF_THEN: [{"delay": "1s"}]},
+                {CONF_THEN: [{"delay": "2s"}]},
+            ]
+        }
+    )
+
+    assert "if" not in result["choose"][1]

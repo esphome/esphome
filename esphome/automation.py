@@ -873,6 +873,18 @@ async def if_action_to_code(
     return var
 
 
+def _validate_choose_default(choices: list[ConfigType]) -> list[ConfigType]:
+    """A choice without `if` is the default; it must be last and not the only choice."""
+    for index, choice in enumerate(choices[:-1]):
+        if CONF_IF not in choice:
+            raise cv.Invalid(
+                "Only the last choice may leave out 'if'", path=[index, CONF_IF]
+            )
+    if CONF_IF not in choices[-1] and len(choices) == 1:
+        raise cv.Invalid("At least one choice must have 'if'", path=[0, CONF_IF])
+    return choices
+
+
 @register_action(
     CONF_CHOOSE,
     IfAction,
@@ -881,12 +893,13 @@ async def if_action_to_code(
             cv.Schema(
                 {
                     cv.GenerateID(CONF_CHOICE_ID): cv.declare_id(IfAction),
-                    cv.Required(CONF_IF): validate_potentially_and_condition,
+                    cv.Optional(CONF_IF): validate_potentially_and_condition,
                     cv.Required(CONF_THEN): validate_action_list,
                 }
             )
         ),
         cv.Length(min=1),
+        _validate_choose_default,
     ),
     synchronous=True,
 )
@@ -896,20 +909,27 @@ async def choose_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    # Built as a chain of if/else actions: each choice's else branch holds the next choice.
+    # Built as a chain of if/else actions: each choice's else branch holds the next choice,
+    # and the last choice's else branch holds the default actions, if any.
+    else_actions: list[MockObj] = []
+    if CONF_IF not in config[-1]:
+        else_actions = await build_action_list(
+            config[-1][CONF_THEN], template_arg, args
+        )
+        config = config[:-1]
     var: MockObj | None = None
     for index in reversed(range(len(config))):
         choice = config[index]
-        has_else = var is not None
+        has_else = bool(else_actions)
         if_template_arg = cg.TemplateArguments(has_else, *template_arg)
         condition = await build_condition(choice[CONF_IF], template_arg, args)
         choice_id = action_id if index == 0 else choice[CONF_CHOICE_ID]
-        new_var = cg.new_Pvariable(choice_id, if_template_arg, condition)
+        var = cg.new_Pvariable(choice_id, if_template_arg, condition)
         actions = await build_action_list(choice[CONF_THEN], template_arg, args)
-        cg.add(new_var.add_then(actions))
+        cg.add(var.add_then(actions))
         if has_else:
-            cg.add(new_var.add_else([var]))
-        var = new_var
+            cg.add(var.add_else(else_actions))
+        else_actions = [var]
     return var
 
 

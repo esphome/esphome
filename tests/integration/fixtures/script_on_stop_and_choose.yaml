@@ -30,6 +30,10 @@ api:
                 - logger.log:
                     format: "CHOOSE large %d"
                     args: [value]
+            - then:
+                - logger.log:
+                    format: "CHOOSE default %d"
+                    args: [value]
         - logger.log:
             format: "CHOOSE done %d"
             args: [value]
