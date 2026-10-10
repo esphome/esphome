@@ -20,34 +20,34 @@ void NS2009Component::setup() {
 
 void NS2009Component::update_touches() {
   auto data_z = this->read_byte(GET_Z);
-  if (data_z.has_value()) {
-    uint8_t z = *data_z;
-
-    if (z > this->threshold_) {
-      auto data_x = this->read_bytes<2>(GET_X);
-      if (!data_x.has_value()) {
-        ESP_LOGW(TAG, "failed to read %s position, skipping update", "X");
-        this->skip_update_ = true;
-        return;
-      }
-      uint16_t x = encode_uint16((*data_x)[0], (*data_x)[1]) >> 4;  // 12 bit followed by 4 0's
-
-      auto data_y = this->read_bytes<2>(GET_Y);
-      if (!data_y.has_value()) {
-        ESP_LOGW(TAG, "failed to read %s position, skipping update", "Y");
-        this->skip_update_ = true;
-        return;
-      }
-      uint16_t y = encode_uint16((*data_y)[0], (*data_y)[1]) >> 4;  // 12 bit followed by 4 0's
-
-      ESP_LOGV(TAG, "X %4d   Y %4d   Z %3d", x, y, z);
-      this->add_raw_touch_position_(0, x, y, z);
-    }
-  } else {
-    ESP_LOGW(TAG, "failed to read %s position, skipping update", "Z");
+  if (!data_z.has_value()) {
+    ESP_LOGW(TAG, "failed to read %s position, skipping update", LOG_STR_LITERAL("Z"));
     this->skip_update_ = true;
     return;
   }
+  uint8_t z = *data_z;
+  if (z <= this->threshold_) {
+    return;
+  }
+
+  auto data_x = this->read_bytes<2>(GET_X);
+  if (!data_x.has_value()) {
+    ESP_LOGW(TAG, "failed to read %s position, skipping update", LOG_STR_LITERAL("X"));
+    this->skip_update_ = true;
+    return;
+  }
+  uint16_t x = encode_uint16((*data_x)[0], (*data_x)[1]) >> 4;  // 12 bit followed by 4 0's
+
+  auto data_y = this->read_bytes<2>(GET_Y);
+  if (!data_y.has_value()) {
+    ESP_LOGW(TAG, "failed to read %s position, skipping update", LOG_STR_LITERAL("Y"));
+    this->skip_update_ = true;
+    return;
+  }
+  uint16_t y = encode_uint16((*data_y)[0], (*data_y)[1]) >> 4;  // 12 bit followed by 4 0's
+
+  ESP_LOGV(TAG, "X %4d   Y %4d   Z %3d", x, y, z);
+  this->add_raw_touch_position_(0, x, y, z);
 }
 
 void NS2009Component::dump_config() {
