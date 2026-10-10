@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor, time
+from esphome.components.time import DOMAIN as TIME_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -44,7 +45,8 @@ CONFIG_SCHEMA = cv.typed_schema(
             cv.Schema(
                 {
                     cv.GenerateID(CONF_TIME_ID): cv.All(
-                        cv.requires_component("time"), cv.use_id(time.RealTimeClock)
+                        cv.requires_component(TIME_DOMAIN),
+                        cv.use_id(time.RealTimeClock),
                     ),
                 }
             )
