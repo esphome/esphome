@@ -8,7 +8,6 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
-from esphome.components.captive_portal import DOMAIN as CAPTIVE_PORTAL_DOMAIN
 from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
@@ -375,12 +374,19 @@ def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
     return config[CONF_VERSION] != 1 and wifi_is_ap_only(wifi_config)
 
 
+def _captive_portal_configured(full_config: ConfigType) -> bool:
+    # Imported here: captive_portal pulls in wifi, which sensor (through web_server) must not
+    from esphome.components.captive_portal import DOMAIN as CAPTIVE_PORTAL_DOMAIN
+
+    return CAPTIVE_PORTAL_DOMAIN in full_config
+
+
 def serve_captive(config: ConfigType, full_config: ConfigType) -> bool:
     """Serve the embedded interface as a captive portal while the AP is up, unless captive_portal
     owns that role. Port 80 only: the OS probes and the DHCP portal URI never use another port."""
     wifi_config = full_config.get(CONF_WIFI)
     return (
-        CAPTIVE_PORTAL_DOMAIN not in full_config
+        not _captive_portal_configured(full_config)
         and config[CONF_PORT] == 80
         and wifi_config is not None
         and CONF_AP in wifi_config
@@ -418,7 +424,7 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
         and config[CONF_PORT] != 80
         and wifi_config is not None
         and CONF_AP in wifi_config
-        and CAPTIVE_PORTAL_DOMAIN not in full_config
+        and not _captive_portal_configured(full_config)
     ):
         ap_ip = "192.168.4.1"
         if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
