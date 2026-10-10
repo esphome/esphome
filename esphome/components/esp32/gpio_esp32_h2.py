@@ -1,10 +1,11 @@
 import logging
 from typing import Any
 
-from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
+
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
 
 _ESP32H2_SPI_FLASH_PINS = {6, 7, 15, 16, 17, 18, 19, 20, 21}
 
@@ -25,12 +26,7 @@ def esp32_h2_validate_gpio_pin(value: int) -> int:
             "See https://docs.espressif.com/projects/esp-idf/en/latest/esp32h2/api-reference/peripherals/gpio.html",
             value,
         )
-    if value in _ESP32H2_USB_JTAG_PINS:
-        _LOGGER.warning(
-            "GPIO%d is used by the USB-Serial-JTAG interface."
-            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
-            value,
-        )
+    check_usb_jtag_pin(value, _ESP32H2_USB_JTAG_PINS, _LOGGER)
 
     return value
 
@@ -45,10 +41,6 @@ def esp32_h2_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
-    if value.get(CONF_HOLD_STATE) and num in _ESP32H2_USB_JTAG_PINS:
-        _LOGGER.warning(
-            "GPIO%d cannot hold at low level during wakeup from deep sleep.",
-            num,
-        )
+    check_usb_jtag_hold(value, _ESP32H2_USB_JTAG_PINS, _LOGGER)
     check_strapping_pin(value, _ESP32H2_STRAPPING_PINS, _LOGGER)
     return value

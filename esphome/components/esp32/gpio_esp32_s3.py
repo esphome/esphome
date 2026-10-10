@@ -1,7 +1,6 @@
 import logging
 from typing import Any
 
-from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
@@ -12,6 +11,8 @@ from esphome.const import (
 )
 from esphome.pins import PIN_SCHEMA_REGISTRY, check_strapping_pin
 from esphome.types import ConfigType
+
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
 
 _ESP32S3_SPI_PSRAM_PINS = {
     26: "SPICS1",
@@ -54,12 +55,7 @@ def esp32_s3_validate_gpio_pin(value: int) -> int:
         # These pins are not exposed in GPIO mux (reason unknown)
         # but they're missing from IO_MUX list in datasheet
         raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32-S3s.")
-    if value in _ESP32S3_USB_JTAG_PINS:
-        _LOGGER.warning(
-            "GPIO%d is used by the USB-Serial-JTAG interface."
-            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
-            value,
-        )
+    check_usb_jtag_pin(value, _ESP32S3_USB_JTAG_PINS, _LOGGER)
 
     return value
 
@@ -74,11 +70,7 @@ def esp32_s3_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
-    if value.get(CONF_HOLD_STATE) and num in _ESP32S3_USB_JTAG_PINS:
-        _LOGGER.warning(
-            "GPIO%d cannot hold at low level during wakeup from deep sleep.",
-            num,
-        )
+    check_usb_jtag_hold(value, _ESP32S3_USB_JTAG_PINS, _LOGGER)
 
     check_strapping_pin(value, _ESP32S3_STRAPPING_PINS, _LOGGER)
     return value
