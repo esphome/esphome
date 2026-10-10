@@ -7,10 +7,11 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
 )
-from esphome.components.espnow import _validate_variant
+from esphome.components.espnow import CONFIG_SCHEMA, _validate_variant
 import esphome.config_validation as cv
 from esphome.const import (
     KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -64,3 +65,33 @@ def test_esp8266_skips_variant_check(monkeypatch) -> None:
     """The ESP8266 has one Wi-Fi radio and no variants, so the check does not run."""
     config = {"id": "espnow"}
     assert _run(monkeypatch, "", {}, config, platform=PLATFORM_ESP8266) is config
+
+
+def _esp8266_arduino(monkeypatch) -> None:
+    monkeypatch.setitem(
+        CORE.data,
+        KEY_CORE,
+        {KEY_TARGET_PLATFORM: PLATFORM_ESP8266, KEY_TARGET_FRAMEWORK: "arduino"},
+    )
+
+
+def test_esp8266_accepts_the_v1_payload_size(monkeypatch) -> None:
+    _esp8266_arduino(monkeypatch)
+    assert (
+        CONFIG_SCHEMA({"channel": 1, "max_payload_size": 250})["max_payload_size"]
+        == 250
+    )
+
+
+def test_esp8266_rejects_v2_payload_sizes(monkeypatch) -> None:
+    """The NONOS SDK only speaks ESP-NOW v1, so larger frames are refused at validation."""
+    _esp8266_arduino(monkeypatch)
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({"channel": 1, "max_payload_size": 251})
+
+
+def test_esp8266_rejects_on_broadcast(monkeypatch) -> None:
+    """The NONOS SDK does not report a destination address, so broadcasts cannot be told apart."""
+    _esp8266_arduino(monkeypatch)
+    with pytest.raises(cv.Invalid, match="only available on"):
+        CONFIG_SCHEMA({"channel": 1, "on_broadcast": []})

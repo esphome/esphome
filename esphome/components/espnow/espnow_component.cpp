@@ -43,7 +43,7 @@ static const LogString *espnow_error_to_str(esp_err_t error) {
     case ESP_ERR_ESPNOW_INTERNAL:
       return LOG_STR("Internal Error");
     case ESP_ERR_ESPNOW_NO_MEM:
-      return LOG_STR("Our of memory");
+      return LOG_STR("Out of memory");
     case ESP_ERR_ESPNOW_NOT_FOUND:
       return LOG_STR("Peer not found");
     case ESP_ERR_ESPNOW_IF:
@@ -171,9 +171,10 @@ void ESPNowComponent::on_wifi_connect_state(StringRef ssid, std::span<const uint
   this->get_wifi_channel();
   if (this->wifi_channel_ != old_channel) {
     ESP_LOGI(TAG, "WiFi channel changed from %d to %d", old_channel, this->wifi_channel_);
-    if (this->state_ == ESPNOW_STATE_ENABLED) {
-      platform::rebind_peers();
-    }
+  }
+  // Peers added while the station was scanning were bound to the channel of that moment, so rebind on every connect
+  if (this->state_ == ESPNOW_STATE_ENABLED) {
+    platform::rebind_peers();
   }
 }
 #endif
