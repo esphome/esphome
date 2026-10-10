@@ -30,7 +30,7 @@ from esphome.const import (
     CONF_VERSION,
 )
 from esphome.core import CORE, ID
-from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
 import esphome.final_validate as fv
 
 
@@ -215,6 +215,77 @@ def test_encryption_schema_allow_plaintext_upload() -> None:
         encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True})
 
 
+def test_encryption_old_key_schema() -> None:
+    """old_key is validated like key and is an ota only option."""
+    conf = _encryption_schema({CONF_KEY: API_KEY, CONF_OLD_KEY: OTHER_KEY})
+    assert conf[CONF_OLD_KEY] == OTHER_KEY
+    with pytest.raises(cv.Invalid, match="base64"):
+        _encryption_schema({CONF_OLD_KEY: "short"})
+    with pytest.raises(cv.Invalid):
+        encryption_schema({CONF_OLD_KEY: OTHER_KEY})
+
+
+def test_encryption_old_key_keeps_inherited_key() -> None:
+    """A bare block with old_key inherits the api key as the current one."""
+    full_conf = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: API_KEY}},
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_OLD_KEY: OTHER_KEY}})
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        ota_esphome_final_validate({})
+        updated = fv.full_config.get()
+        assert updated[CONF_OTA][0][CONF_ENCRYPTION][CONF_KEY] == API_KEY
+        assert updated[CONF_OTA][0][CONF_ENCRYPTION][CONF_OLD_KEY] == OTHER_KEY
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_encryption_old_key_mismatch_between_merged_configs_rejected() -> None:
+    """Same-port blocks that pin different old keys raise like differing keys."""
+    full_conf = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: API_KEY}},
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_OLD_KEY: OTHER_KEY}}),
+            _make_ota_config(
+                port=3232,
+                **{
+                    CONF_ENCRYPTION: {
+                        CONF_OLD_KEY: "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
+                    }
+                },
+            ),
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with pytest.raises(cv.Invalid, match="old_key is inconsistent"):
+            ota_esphome_final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_encryption_old_key_equal_to_key_rejected() -> None:
+    """An old_key that matches key is a leftover from a finished rotation."""
+    full_conf = {
+        CONF_API: {},
+        CONF_OTA: [
+            _make_ota_config(
+                port=3232,
+                **{CONF_ENCRYPTION: {CONF_KEY: API_KEY, CONF_OLD_KEY: API_KEY}},
+            )
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with pytest.raises(cv.Invalid, match="'old_key' is the same as 'key'"):
+            ota_esphome_final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
 def test_encryption_key_mismatch_between_merged_configs_rejected() -> None:
     """Same-port configs with different encryption keys raise."""
     full_conf = {
@@ -225,7 +296,7 @@ def test_encryption_key_mismatch_between_merged_configs_rejected() -> None:
     }
     token = fv.full_config.set(full_conf)
     try:
-        with pytest.raises(cv.Invalid, match="encryption is inconsistent"):
+        with pytest.raises(cv.Invalid, match="encryption key is inconsistent"):
             ota_esphome_final_validate({})
     finally:
         fv.full_config.reset(token)
