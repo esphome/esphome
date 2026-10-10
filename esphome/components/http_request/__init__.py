@@ -30,6 +30,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
+DOMAIN = "http_request"
 
 http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)

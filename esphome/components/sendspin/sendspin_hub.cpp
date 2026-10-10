@@ -113,6 +113,10 @@ static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
 static const char *const IMAGE_FORMAT_NAMES[] = {"JPEG", "PNG"};
 #endif
 
+SendspinHub *global_sendspin_hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+SendspinHub::SendspinHub() { global_sendspin_hub = this; }
+
 void SendspinHub::setup() {
   auto config = this->build_client_config_();
   this->client_ = std::make_unique<sendspin::SendspinClient>(std::move(config));
@@ -229,6 +233,14 @@ void SendspinHub::set_enabled(bool enabled) {
     return;
   }
   this->enabled_ = enabled;
+}
+
+// THREAD CONTEXT: Main loop
+std::optional<std::string> SendspinHub::get_pairing_token() const {
+  if (this->client_ == nullptr) {
+    return std::nullopt;
+  }
+  return this->client_->pairing_token();
 }
 
 // THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)

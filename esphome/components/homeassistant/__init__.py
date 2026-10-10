@@ -8,6 +8,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter", "@esphome/core"]
+DOMAIN = "homeassistant"
 homeassistant_ns = cg.esphome_ns.namespace("homeassistant")
 
 

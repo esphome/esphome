@@ -1,0 +1,44 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+logger:
+
+binary_sensor:
+  - platform: template
+    id: single_and
+    on_press:
+      - if:
+          condition:
+            - lambda: return true;
+          then:
+            - logger.log: single and
+  - platform: template
+    id: single_or
+    on_press:
+      - if:
+          any:
+            - lambda: return true;
+          then:
+            - logger.log: single or
+  - platform: template
+    id: double_and
+    on_press:
+      - if:
+          condition:
+            - lambda: return true;
+            - lambda: return false;
+          then:
+            - logger.log: double and
+  - platform: template
+    id: single_xor
+    on_press:
+      - if:
+          condition:
+            xor:
+              - lambda: return true;
+          then:
+            - logger.log: single xor
