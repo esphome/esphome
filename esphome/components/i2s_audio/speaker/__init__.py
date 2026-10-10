@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
     CONF_TIMEOUT,
-    CONF_TRIGGER_ID,
 )
 from esphome.types import ConfigType
 
@@ -47,9 +46,6 @@ CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_SPDIF_MODE = "spdif_mode"
 CONF_ON_AUDIO_END = "on_audio_end"
-I2SAudioSpeakerAudioEndTrigger = i2s_audio_ns.class_(
-    "I2SAudioSpeakerAudioEndTrigger", automation.Trigger.template()
-)
 
 I2SAudioSpeakerBase = i2s_audio_ns.class_(
     "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
@@ -178,9 +174,7 @@ BASE_SCHEMA = (
                 cv.positive_time_period_milliseconds,
                 cv.one_of(CONF_NEVER, lower=True),
             ),
-            cv.Optional(CONF_ON_AUDIO_END): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(I2SAudioSpeakerAudioEndTrigger)}
-            ),
+            cv.Optional(CONF_ON_AUDIO_END): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -274,8 +268,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
 
     for conf in config.get(CONF_ON_AUDIO_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_audio_end_callback", [], conf
+        )
 
 
 # The SPDIF encoder and speaker are fully #ifdef'd on USE_I2S_AUDIO_SPDIF_MODE,
