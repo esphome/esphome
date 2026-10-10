@@ -15,7 +15,10 @@ struct AEHAData {
 
 class AEHAProtocol : public RemoteProtocol<AEHAData> {
  public:
-  void encode(RemoteTransmitData *dst, const AEHAData &data);
+  void encode(RemoteTransmitData *dst, const AEHAData &data) {
+    this->encode(dst, data.address, data.data.data(), data.data.size());
+  }
+  void encode(RemoteTransmitData *dst, uint16_t address, const uint8_t *data, size_t size);
   optional<AEHAData> decode(RemoteReceiveData src);
   void dump(const AEHAData &data);
 
