@@ -1,4 +1,6 @@
 #include "tca9548a.h"
+
+#include <algorithm>
 #include "esphome/core/log.h"
 
 namespace esphome::tca9548a {
@@ -21,10 +23,13 @@ i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *writ
 }
 
 #ifdef I2C_PORT_FREQUENCY_COUNT
-// A multiplexer may not answer at the bus frequency, so it is addressed at its own
+// The multiplexer's own frequency, else the slower of the bus and the port
 uint32_t TCA9548AChannel::select_frequency_() const {
   const uint32_t mux_frequency = this->parent_->frequency_;
-  return mux_frequency != 0 ? mux_frequency : this->frequency_;
+  if (mux_frequency != 0 || this->frequency_ == 0) {
+    return mux_frequency;
+  }
+  return std::min(this->frequency_, this->parent_->bus_->get_frequency());
 }
 
 // The port frequency, else the multiplexer's
@@ -93,16 +98,19 @@ void TCA9548AComponent::setup() {
 #endif
   const i2c::ErrorCode err = this->read(&status, 1);
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  if (this->frequency_ != 0 && this->bus_->switch_frequency(original_frequency) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Failed to switch the bus frequency"));
-    return;
-  }
+  const bool restored = this->frequency_ == 0 || this->bus_->switch_frequency(original_frequency) == i2c::ERROR_OK;
 #endif
   if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "TCA9548A failed");
     this->mark_failed();
     return;
   }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  if (!restored) {
+    this->mark_failed(LOG_STR("Failed to switch the bus frequency"));
+    return;
+  }
+#endif
   ESP_LOGD(TAG, "Channels currently open: %d", status);
 }
 void TCA9548AComponent::dump_config() {
