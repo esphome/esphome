@@ -3,7 +3,7 @@
 
 namespace esphome::smt100 {
 
-static const char *const TAG = "smt100";
+ESPHOME_LOG_TAG(TAG, "smt100");
 
 void SMT100Component::update() {
   ESP_LOGV(TAG, "Sending measurement request");

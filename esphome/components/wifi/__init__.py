@@ -12,6 +12,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_mbedtls_tls,
     require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
@@ -60,7 +61,6 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
-    CONF_WIFI,
     PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
@@ -80,6 +80,7 @@ from . import wpa2_eap
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
+DOMAIN = "wifi"
 
 NO_WIFI_VARIANTS = [
     const.VARIANT_ESP32H2,
@@ -514,7 +515,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2="light",
                 bk72xx="none",
                 rtl87xx="none",
-                ln882x="light",
+                ln882x="none",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -669,6 +670,10 @@ async def to_code(config):
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
             cg.add(var.set_ap_timeout(ap_timeout))
         cg.add_define("USE_WIFI_AP")
+        # The LN882H radio cannot run the AP and STA together; the fallback AP
+        # takes turns with the networks instead.
+        if CORE.is_ln882x:
+            cg.add_define("USE_WIFI_AP_EXCLUSIVE")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
@@ -679,10 +684,10 @@ async def to_code(config):
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
         if has_eap:
-            # wpa_supplicant's EAP client negotiates with whatever the RADIUS
-            # server offers, and a failed handshake leaves the device off the
-            # network, so keep every mbedTLS client feature the esp32 platform
-            # would otherwise trim.
+            # The supplicant's Kconfig select cannot override the IDF 5 TLS
+            # role choice; the EAP client talks to mbedTLS directly (no
+            # esp-tls) and needs every trimmed extra.
+            require_mbedtls_tls()
             require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
@@ -733,6 +738,10 @@ async def to_code(config):
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
+
+    # LN882x: hand the SDK the BSSID LibreTiny 1.13 drops (see wifi_component_libretiny.cpp); remove once fixed upstream.
+    if CORE.is_ln882x:
+        cg.add_build_flag("-Wl,--wrap=wifi_sta_connect")
 
     # post_connect_roaming defaults to true in C++ - disable if user disabled it
     # or if 802.11k/v is enabled (driver handles roaming natively)
@@ -1079,7 +1088,7 @@ def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
     values still appear. Empty list means no placeholders were found.
     """
     placeholders: list[str] = []
-    wifi_conf = config.get(CONF_WIFI)
+    wifi_conf = config.get(DOMAIN)
     if not wifi_conf:
         return placeholders
 

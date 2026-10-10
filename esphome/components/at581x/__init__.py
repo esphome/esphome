@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@X-Ryl669"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "at581x"
 MULTI_CONF = True
 
 

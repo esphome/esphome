@@ -26,12 +26,6 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/time_conversion.h"
 
-// Backward compatibility re-export of heap-allocating helpers.
-// These functions have moved to alloc_helpers.h. External components should
-// update their includes to use #include "esphome/core/alloc_helpers.h" directly.
-// This re-export will be removed in 2026.11.0.
-#include "esphome/core/alloc_helpers.h"
-
 #ifdef USE_ESP8266
 #include <Esp.h>
 #include <pgmspace.h>
@@ -129,22 +123,81 @@ template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); 
 /// @name Container utilities
 ///@{
 
-/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory)
-/// Avoids copying data from flash to RAM by keeping a pointer to the flash data.
-/// Similar to std::span but with minimal overhead for embedded systems.
-
-template<typename T> class ConstVector {
+/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory).
+/// Iterators are raw pointers like FixedVector. With Owning = true it can also hold a heap copy it
+/// owns (see the specialization below); the default view never frees and has no extra cost.
+template<typename T, bool Owning = false> class ConstVector {
  public:
+  using value_type = T;
+
+  constexpr ConstVector() = default;
   constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
 
-  const constexpr T &operator[](size_t i) const { return data_[i]; }
-  constexpr size_t size() const { return size_; }
-  constexpr bool empty() const { return size_ == 0; }
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size_; }
+  const T *data() const { return this->data_; }
+  constexpr size_t size() const { return this->size_; }
+  constexpr bool empty() const { return this->size_ == 0; }
+  const constexpr T &operator[](size_t i) const { return this->data_[i]; }
+  const T &at(size_t i) const { return this->data_[i]; }
 
  protected:
-  const T *data_;
-  size_t size_;
+  const T *data_{nullptr};
+  size_t size_{0};
 };
+
+/// Owning variant: a codegen table that outlives it, or a heap copy of a runtime list it owns.
+/// Ownership is the top bit of the size; it is not copyable, so a copy can never outlive the owner.
+/// Elements must be whole words so ESP8266 can read a codegen table from flash.
+template<typename T> class ConstVector<T, true> {
+  static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
+                "ConstVector elements must be whole words so ESP8266 can read them from flash");
+
+ public:
+  using value_type = T;
+
+  constexpr ConstVector() = default;
+  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+  ConstVector(const ConstVector &) = delete;
+  ConstVector &operator=(const ConstVector &) = delete;
+  ~ConstVector() { this->release_(); }
+
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size(); }
+  const T *data() const { return this->data_; }
+  size_t size() const { return this->size_ & ~OWNED_BIT; }
+  bool empty() const { return this->size() == 0; }
+  const T &operator[](size_t index) const { return this->data_[index]; }
+  const T &at(size_t index) const { return this->data_[index]; }
+
+  /// Codegen only: call before any runtime copy; it does not free a previous owned copy
+  /// (generated setup() runs before any lambda or automation can call set_options).
+  void assign_static(const T *data, size_t size) {
+    this->data_ = data;
+    this->size_ = size;
+  }
+  /// Copies the list into a heap array this owns, freeing a previous owned copy.
+  void assign_copy(const T *data, size_t size) {
+    auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    std::copy(data, data + size, table);
+    this->release_();
+    this->data_ = table;
+    this->size_ = size | OWNED_BIT;
+  }
+
+ protected:
+  static constexpr size_t OWNED_BIT = size_t{1} << (sizeof(size_t) * 8 - 1);
+
+  void release_() {
+    if (this->size_ & OWNED_BIT)
+      delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+
+  const T *data_{nullptr};
+  size_t size_{0};  // top bit set when data_ is an owned heap copy
+};
+static_assert(sizeof(ConstVector<const char *, true>) == 2 * sizeof(void *),
+              "ConstVector must stay a pointer and a size");
 
 /// Small buffer optimization - stores data inline when small, heap-allocates for large data
 /// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
@@ -1046,13 +1099,8 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
 }
 #endif  // USE_ESP8266
 
-// str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
-
-// str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
-
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
-// str_snake_case moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
 constexpr char to_sanitized_char(char c) {
@@ -1075,8 +1123,6 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
   return str_sanitize_to(buffer, N, str);
 }
 
-// str_sanitize moved to alloc_helpers.h - remove this comment before 2026.11.0
-
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
@@ -1090,8 +1136,6 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
   }
   return hash;
 }
-
-// str_snprintf, str_sprintf moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 #ifdef USE_ESP8266
 // ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
@@ -1546,32 +1590,6 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
 }
 
-// format_mac_address_pretty, format_hex (all overloads) moved to alloc_helpers.h
-// Remove this comment and the template overloads below before 2026.11.0
-
-/// Format an unsigned integer in lowercased hex, starting with the most significant byte.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
-  val = convert_big_endian(val);
-  return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
-}
-/// Format the std::array \p data in lowercased hex.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
-  return format_hex(data.data(), data.size());
-}
-
-// format_hex_pretty (all overloads) moved to alloc_helpers.h
-// Remove this comment and the template overload below before 2026.11.0
-
-/// Format an unsigned integer in pretty-printed, human-readable hex format.
-/// @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
-  val = convert_big_endian(val);
-  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
-}
-
 /// Calculate buffer size needed for format_bin_to: "01234567...\0" = bytes * 8 + 1
 constexpr size_t format_bin_size(size_t byte_count) { return byte_count * 8 + 1; }
 
@@ -1625,15 +1643,6 @@ inline char *format_bin_to(char (&buffer)[N], T val) {
   return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
-// format_bin moved to alloc_helpers.h - remove this comment and template overload before 2026.11.0
-
-/// Format an unsigned integer in binary, starting with the most significant byte.
-/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
-  val = convert_big_endian(val);
-  return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
-}
-
 /// Return values for parse_on_off().
 enum ParseOnOffState : uint8_t {
   PARSE_NONE = 0,
@@ -1643,8 +1652,6 @@ enum ParseOnOffState : uint8_t {
 };
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
-
-// value_accuracy_to_string moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
 static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
@@ -1658,8 +1665,6 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
-// base64_encode (both overloads), base64_decode (vector overload) moved to alloc_helpers.h
-// Remove this comment before 2026.11.0
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
@@ -2117,8 +2122,6 @@ class HighFrequencyLoopRequester {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
-
-// get_mac_address, get_mac_address_pretty moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
 /// Assumes buffer length is MAC_ADDRESS_BUFFER_SIZE (12 digits for hexadecimal representation followed by null

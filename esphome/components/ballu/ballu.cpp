@@ -3,7 +3,7 @@
 
 namespace esphome::ballu {
 
-static const char *const TAG = "ballu.climate";
+ESPHOME_LOG_TAG(TAG, "ballu.climate");
 
 const uint16_t BALLU_HEADER_MARK = 9000;
 const uint16_t BALLU_HEADER_SPACE = 4500;

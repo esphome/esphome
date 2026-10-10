@@ -6,7 +6,7 @@
 
 namespace esphome::select {
 
-static const char *const TAG = "select";
+ESPHOME_LOG_TAG(TAG, "select");
 
 void Select::publish_state(const char *state) {
   auto index = this->index_of(state);
