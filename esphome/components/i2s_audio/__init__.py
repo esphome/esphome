@@ -196,7 +196,8 @@ def i2s_audio_component_schema(
 
 
 async def register_i2s_audio_component(var: MockObj, config: ConfigType) -> None:
-    await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
+    parent = await cg.get_variable(config[CONF_I2S_AUDIO_ID])
+    await cg.register_parented(var, parent)
     cg.add(var.set_i2s_role(I2S_ROLE_OPTIONS[config[CONF_I2S_MODE]]))
     slot_mode = config[CONF_CHANNEL]
     if slot_mode != CONF_STEREO:
@@ -212,7 +213,6 @@ async def register_i2s_audio_component(var: MockObj, config: ConfigType) -> None
     cg.add(var.set_mclk_multiple(I2S_MCLK_MULTIPLE[config[CONF_MCLK_MULTIPLE]]))
 
     if str(config[CONF_I2S_AUDIO_ID]) in _get_data().full_duplex_buses:
-        parent = await cg.get_variable(config[CONF_I2S_AUDIO_ID])
         if config[CONF_ID].type.inherits_from(I2SAudioIn):
             cg.add(parent.set_audio_in(var))
         else:

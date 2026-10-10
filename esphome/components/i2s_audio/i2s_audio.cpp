@@ -17,12 +17,8 @@ void I2SAudioComponent::setup() {
   i2s_chan_config_t chan_cfg{};
   i2s_std_config_t tx_cfg{};
   i2s_std_config_t rx_cfg{};
-  if (!this->audio_out_->build_full_duplex_config(chan_cfg, tx_cfg) ||
-      !this->audio_in_->build_full_duplex_config(rx_cfg)) {
-    ESP_LOGE(TAG, "Microphone or speaker does not support full duplex");
-    this->mark_failed();
-    return;
-  }
+  this->audio_out_->build_full_duplex_config(chan_cfg, tx_cfg);
+  this->audio_in_->build_full_duplex_config(rx_cfg);
 
   esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, &this->rx_handle_);
   if (err == ESP_OK) {
@@ -46,16 +42,18 @@ void I2SAudioComponent::setup() {
   }
 }
 
-i2s_chan_handle_t I2SAudioComponent::acquire_rx_channel() {
-  if (this->rx_handle_ == nullptr)
+i2s_chan_handle_t I2SAudioComponent::acquire_(bool &in_use, i2s_chan_handle_t handle) {
+  if (handle == nullptr)
     return nullptr;
-  this->rx_in_use_ = true;
+  in_use = true;
   if (!this->update_rx_channel_()) {
-    this->rx_in_use_ = false;
+    in_use = false;
     return nullptr;
   }
-  return this->rx_handle_;
+  return handle;
 }
+
+i2s_chan_handle_t I2SAudioComponent::acquire_rx_channel() { return this->acquire_(this->rx_in_use_, this->rx_handle_); }
 
 void I2SAudioComponent::release_rx_channel() {
   this->rx_in_use_ = false;
@@ -64,14 +62,9 @@ void I2SAudioComponent::release_rx_channel() {
 
 i2s_chan_handle_t I2SAudioComponent::acquire_tx_channel() {
   // Speakers sharing the bus take turns; a second one must not get the channel while the first is playing
-  if (this->tx_handle_ == nullptr || this->tx_in_use_)
+  if (this->tx_in_use_)
     return nullptr;
-  this->tx_in_use_ = true;
-  if (!this->update_rx_channel_()) {
-    this->tx_in_use_ = false;
-    return nullptr;
-  }
-  return this->tx_handle_;
+  return this->acquire_(this->tx_in_use_, this->tx_handle_);
 }
 
 void I2SAudioComponent::release_tx_channel() {

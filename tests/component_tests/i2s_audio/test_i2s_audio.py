@@ -40,18 +40,7 @@ def _full_config(
 def test_full_duplex_generates_code(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """Both devices are registered with the bus and the full duplex code is enabled."""
-    main_cpp = generate_main("tests/component_tests/i2s_audio/test_full_duplex.yaml")
-
-    assert "duplex_bus->set_audio_in(duplex_mic);" in main_cpp
-    assert "duplex_bus->set_audio_out(duplex_speaker);" in main_cpp
-    assert "USE_I2S_AUDIO_FULL_DUPLEX" in {define.name for define in CORE.defines}
-
-
-def test_full_duplex_generates_code_for_multiple_speakers(
-    generate_main: Callable[[str | Path], str],
-) -> None:
-    """Every speaker on the bus is registered; they share one TX configuration and take turns using it."""
+    """The microphone and every speaker are registered with the bus and the full duplex code is enabled."""
     main_cpp = generate_main(
         "tests/component_tests/i2s_audio/test_full_duplex_multiple_speakers.yaml"
     )
@@ -59,19 +48,29 @@ def test_full_duplex_generates_code_for_multiple_speakers(
     assert "duplex_bus->set_audio_in(duplex_mic);" in main_cpp
     assert "duplex_bus->set_audio_out(duplex_speaker_a);" in main_cpp
     assert "duplex_bus->set_audio_out(duplex_speaker_b);" in main_cpp
+    assert "USE_I2S_AUDIO_FULL_DUPLEX" in {define.name for define in CORE.defines}
 
 
-def test_full_duplex_accepts_matching_devices() -> None:
-    """A microphone and speaker with the same clock settings are accepted."""
-    _validate_full_duplex(
-        _full_config([_device(pdm=False)], [_device(spdif_mode=False)]), BUS_ID
-    )
+_OTHER_BUS = _device(i2s_audio_id=ID("other_bus", is_declaration=False))
 
 
-def test_full_duplex_ignores_devices_on_other_buses() -> None:
-    """Devices on another bus do not count towards the full duplex pair."""
-    other = _device(i2s_audio_id=ID("other_bus", is_declaration=False))
-    _validate_full_duplex(_full_config([_device(), other], [_device(), other]), BUS_ID)
+@pytest.mark.parametrize(
+    ("microphones", "speakers"),
+    [
+        pytest.param([_device(pdm=False)], [_device(spdif_mode=False)], id="matching"),
+        pytest.param(
+            [_device(), _OTHER_BUS], [_device(), _OTHER_BUS], id="other-bus-ignored"
+        ),
+        pytest.param(
+            [_device()], [_device(), _device(), _device()], id="several-speakers"
+        ),
+    ],
+)
+def test_full_duplex_accepts(
+    microphones: list[dict[str, Any]], speakers: list[dict[str, Any]]
+) -> None:
+    """Devices with the same clock and TX settings share the bus; other buses do not count."""
+    _validate_full_duplex(_full_config(microphones, speakers), BUS_ID)
 
 
 @pytest.mark.parametrize(
@@ -90,18 +89,19 @@ def test_full_duplex_requires_one_microphone_and_a_speaker(
         _validate_full_duplex(_full_config(microphones, speakers), BUS_ID)
 
 
-def test_full_duplex_rejects_pdm_microphone() -> None:
-    """PDM receive mode cannot share the standard mode clocks."""
-    with pytest.raises(cv.Invalid, match="PDM microphone"):
-        _validate_full_duplex(_full_config([_device(pdm=True)], [_device()]), BUS_ID)
-
-
-def test_full_duplex_rejects_spdif_speaker() -> None:
-    """An SPDIF speaker cannot share the bus."""
-    with pytest.raises(cv.Invalid, match="SPDIF speaker"):
-        _validate_full_duplex(
-            _full_config([_device()], [_device(spdif_mode=True)]), BUS_ID
-        )
+@pytest.mark.parametrize(
+    ("microphone", "speaker", "error_match"),
+    [
+        pytest.param(_device(pdm=True), _device(), "PDM microphone", id="pdm"),
+        pytest.param(_device(), _device(spdif_mode=True), "SPDIF speaker", id="spdif"),
+    ],
+)
+def test_full_duplex_rejects_unsupported_devices(
+    microphone: dict[str, Any], speaker: dict[str, Any], error_match: str
+) -> None:
+    """PDM receive and SPDIF output cannot share the standard mode clocks."""
+    with pytest.raises(cv.Invalid, match=error_match):
+        _validate_full_duplex(_full_config([microphone], [speaker]), BUS_ID)
 
 
 @pytest.mark.parametrize(
@@ -120,13 +120,6 @@ def test_full_duplex_rejects_mismatched_clock_settings(key: str, value: Any) -> 
         _validate_full_duplex(
             _full_config([_device()], [_device(**{key: value})]), BUS_ID
         )
-
-
-def test_full_duplex_accepts_multiple_matching_speakers() -> None:
-    """Speakers that share the TX configuration can take turns on the bus."""
-    _validate_full_duplex(
-        _full_config([_device()], [_device(), _device(), _device()]), BUS_ID
-    )
 
 
 @pytest.mark.parametrize(

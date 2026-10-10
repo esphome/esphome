@@ -21,7 +21,7 @@ class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
   void set_i2s_comm_fmt(I2SCommFmt fmt) { this->i2s_comm_fmt_ = fmt; }
 
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
-  bool build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) override;
+  void build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) override;
 #endif
 
  protected:

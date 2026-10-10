@@ -94,15 +94,6 @@ void I2SAudioMicrophone::start() {
   xSemaphoreTake(this->active_listeners_semaphore_, 0);
 }
 
-i2s_clock_src_t I2SAudioMicrophone::get_clock_source_() const {
-#ifdef I2S_CLK_SRC_APLL
-  if (this->use_apll_) {
-    return I2S_CLK_SRC_APLL;
-  }
-#endif
-  return I2S_CLK_SRC_DEFAULT;
-}
-
 void I2SAudioMicrophone::build_std_config_(i2s_std_config_t &std_cfg) const {
   i2s_std_slot_config_t std_slot_cfg =
       I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
@@ -125,13 +116,7 @@ void I2SAudioMicrophone::build_std_config_(i2s_std_config_t &std_cfg) const {
 }
 
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
-bool I2SAudioMicrophone::build_full_duplex_config(i2s_std_config_t &std_cfg) {
-  if (this->pdm_) {
-    return false;
-  }
-  this->build_std_config_(std_cfg);
-  return true;
-}
+void I2SAudioMicrophone::build_full_duplex_config(i2s_std_config_t &std_cfg) { this->build_std_config_(std_cfg); }
 #endif
 
 bool I2SAudioMicrophone::start_driver_() {

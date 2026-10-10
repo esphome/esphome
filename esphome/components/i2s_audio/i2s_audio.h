@@ -23,6 +23,15 @@ class I2SAudioBase : public Parented<I2SAudioComponent> {
   void set_mclk_multiple(i2s_mclk_multiple_t mclk_multiple) { this->mclk_multiple_ = mclk_multiple; }
 
  protected:
+  i2s_clock_src_t get_clock_source_() const {
+#ifdef I2S_CLK_SRC_APLL
+    if (this->use_apll_) {
+      return I2S_CLK_SRC_APLL;
+    }
+#endif
+    return I2S_CLK_SRC_DEFAULT;
+  }
+
   i2s_role_t i2s_role_{};
   i2s_slot_mode_t slot_mode_;
   i2s_std_slot_mask_t std_slot_mask_;
@@ -36,8 +45,7 @@ class I2SAudioIn : public I2SAudioBase {
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
  public:
   /// @brief Builds the RX configuration the parent uses to set up a full duplex channel pair.
-  /// @return false if this input cannot share a full duplex bus
-  virtual bool build_full_duplex_config(i2s_std_config_t &std_cfg) = 0;
+  virtual void build_full_duplex_config(i2s_std_config_t &std_cfg) = 0;
 #endif
 };
 
@@ -45,9 +53,9 @@ class I2SAudioOut : public I2SAudioBase {
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
  public:
   /// @brief Builds the TX configuration the parent uses to set up a full duplex channel pair. The channel
-  /// configuration (DMA layout, role, interrupt priority) is shared by both channels.
-  /// @return false if this output cannot share a full duplex bus
-  virtual bool build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) { return false; }
+  /// configuration (DMA layout, role, interrupt priority) is shared by both channels. Validation only puts
+  /// standard speakers on a full duplex bus, so the SPDIF speaker never gets here.
+  virtual void build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) {}
 #endif
 };
 
@@ -109,6 +117,8 @@ class I2SAudioComponent final : public Component {
   Mutex lock_;
 
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  /// @brief Marks one side active and brings the shared clocks up; undoes the mark if that fails.
+  i2s_chan_handle_t acquire_(bool &in_use, i2s_chan_handle_t handle);
   /// @brief Enables the RX channel while either side is active, since it drives the shared clocks.
   bool update_rx_channel_();
 

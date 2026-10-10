@@ -457,9 +457,8 @@ audio::AudioStreamInfo I2SAudioSpeaker::full_duplex_stream_info_() const {
                                 this->slot_mode_ == I2S_SLOT_MODE_STEREO ? 2 : 1, this->sample_rate_);
 }
 
-bool I2SAudioSpeaker::build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) {
+void I2SAudioSpeaker::build_full_duplex_config(i2s_chan_config_t &chan_cfg, i2s_std_config_t &std_cfg) {
   this->build_i2s_config_(this->full_duplex_stream_info_(), chan_cfg, std_cfg);
-  return true;
 }
 #endif  // USE_I2S_AUDIO_FULL_DUPLEX
 
@@ -467,14 +466,6 @@ void I2SAudioSpeaker::build_i2s_config_(const audio::AudioStreamInfo &output_str
                                         i2s_std_config_t &std_cfg) const {
   // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
   uint32_t dma_buffer_length = dma_buffer_frames(output_stream_info);
-
-  i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
-
-#if SOC_CLK_APLL_SUPPORTED
-  if (this->use_apll_) {
-    clk_src = i2s_clock_src_t::I2S_CLK_SRC_APLL;
-  }
-#endif  // SOC_CLK_APLL_SUPPORTED
 
   // Log DMA configuration for debugging
   ESP_LOGV(TAG, "I2S DMA config: %zu buffers x %lu frames", (size_t) DMA_BUFFERS_COUNT,
@@ -492,7 +483,7 @@ void I2SAudioSpeaker::build_i2s_config_(const audio::AudioStreamInfo &output_str
   // Build standard I2S clock/slot/gpio configuration
   i2s_std_clk_config_t clk_cfg = {
       .sample_rate_hz = output_stream_info.get_sample_rate(),
-      .clk_src = clk_src,
+      .clk_src = this->get_clock_source_(),
       .mclk_multiple = this->mclk_multiple_,
   };
 
