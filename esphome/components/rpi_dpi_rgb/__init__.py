@@ -1,4 +1,5 @@
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "rpi_dpi_rgb"
 
 DEPRECATED_COMPONENT = """
 The 'rpi_dpi_rgb' component is deprecated and no new models will be added to it.

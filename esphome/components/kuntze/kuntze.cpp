@@ -3,7 +3,7 @@
 
 namespace esphome::kuntze {
 
-static const char *const TAG = "kuntze";
+ESPHOME_LOG_TAG(TAG, "kuntze");
 
 static constexpr uint16_t REGISTER_PH = 4136;
 static constexpr uint16_t REGISTER_TEMPERATURE = 4160;

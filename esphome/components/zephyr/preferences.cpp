@@ -10,7 +10,7 @@
 
 namespace esphome::zephyr {
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 bool ZephyrPreferenceBackend::save(const uint8_t *data, size_t len) {
   this->data.resize(len);

@@ -5,6 +5,8 @@
 
 namespace esphome::light {
 
+inline constexpr StringRef EFFECT_NONE_REF = StringRef::from_lit("None");
+
 class LightState;
 
 class LightEffect {

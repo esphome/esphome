@@ -4,7 +4,7 @@
 
 namespace esphome::m5stack_8angle {
 
-static const char *const TAG = "m5stack_8angle.light";
+ESPHOME_LOG_TAG(TAG, "m5stack_8angle.light");
 
 void M5Stack8AngleLightOutput::setup() {
   RAMAllocator<uint8_t> allocator;
