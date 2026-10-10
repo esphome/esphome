@@ -4,7 +4,7 @@
 
 namespace esphome::dfplayer {
 
-static const char *const TAG = "dfplayer";
+ESPHOME_LOG_TAG(TAG, "dfplayer");
 
 void DFPlayer::next() {
   this->ack_set_is_playing_ = true;
@@ -100,6 +100,13 @@ void DFPlayer::random() {
   this->ack_set_is_playing_ = true;
   ESP_LOGD(TAG, "Playing random file");
   this->send_cmd_(0x18);
+}
+
+void DFPlayer::set_current_track_repeat(bool enable) {
+  uint16_t arg = enable ? 0x00 : 0x01;
+  ESP_LOGD(TAG, "Setting current track repeat to %s",
+           enable ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
+  this->send_cmd_(0x19, arg);
 }
 
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {

@@ -1,6 +1,19 @@
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
 
+psram:
+  mode: octal
+
+esphome:
+  on_boot:
+    then:
+      - epaper_spi.full_update_next: epaper_partial
+      - if:
+          condition:
+            epaper_spi.is_updating: epaper_partial
+          then:
+            - component.update: epaper_partial
+
 display:
   - platform: epaper_spi
     spi_id: spi_bus
@@ -85,11 +98,23 @@ display:
     busy_pin: 37
     enable_pin: 39
   - platform: epaper_spi
+    id: epaper_partial
     model: seeed-ee04-mono-4.26
     full_update_every: 10
     # Override pins to avoid conflict with other display configs
     busy_pin: 43
     dc_pin: 42
+
+  # Seeed reTerminal Sticky, four-level grayscale (800x480, SSD1677)
+  # dc_pin/reset_pin overridden to avoid conflict with other display configs
+  # full_update_every is not supported by this model, so left at its default of 1
+  - platform: epaper_spi
+    model: seeed-reterminal-sticky-gray4
+    dc_pin: 45
+    reset_pin: 9
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color(170, 170, 170));
+      it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
 
   # WeAct 2.13" 3-color e-paper (122x250, SSD1680)
   - platform: epaper_spi
@@ -157,6 +182,24 @@ display:
   - platform: epaper_spi
     spi_id: spi_bus
     model: goodisplay-gdey042t81-4.2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # Waveshare 1.54" V2 mono e-paper (200x200, SSD1681)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-1.54in-v2
+    full_update_every: 30
     cs_pin:
       allow_other_uses: true
       number: GPIO5

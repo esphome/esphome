@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server.descriptor";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server.descriptor");
 
 static RAMAllocator<uint8_t> descriptor_allocator{};  // NOLINT
 

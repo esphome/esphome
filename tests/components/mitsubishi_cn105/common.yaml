@@ -37,4 +37,4 @@ esphome:
       - mitsubishi_cn105.vane.control:
           id: ac
           vertical:
-            direction: !lambda return esphome::mitsubishi_cn105::VERTICAL_VANE_MODE_SWING;
+            direction: !lambda return VERTICAL_VANE_MODE_SWING;

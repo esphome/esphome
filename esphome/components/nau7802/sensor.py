@@ -4,8 +4,6 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_GAIN, CONF_ID, ICON_SCALE, STATE_CLASS_MEASUREMENT
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@cujomalainey"]
@@ -19,19 +17,6 @@ CONF_SAMPLES_PER_SECOND = "samples_per_second"
 nau7802_ns = cg.esphome_ns.namespace("nau7802")
 NAU7802Sensor = nau7802_ns.class_(
     "NAU7802Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
-)
-NAU7802CalbrateExternalOffsetAction = nau7802_ns.class_(
-    "NAU7802CalbrateExternalOffsetAction",
-    automation.Action,
-    cg.Parented.template(NAU7802Sensor),
-)
-NAU7802CalbrateInternalOffsetAction = nau7802_ns.class_(
-    "NAU7802CalbrateInternalOffsetAction",
-    automation.Action,
-    cg.Parented.template(NAU7802Sensor),
-)
-NAU7802CalbrateGainAction = nau7802_ns.class_(
-    "NAU7802CalbrateGainAction", automation.Action, cg.Parented.template(NAU7802Sensor)
 )
 
 NAU7802Gain = nau7802_ns.enum("NAU7802Gain")
@@ -116,30 +101,11 @@ NAU7802_CALIBRATE_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "nau7802.calibrate_internal_offset",
-    NAU7802CalbrateInternalOffsetAction,
-    NAU7802_CALIBRATE_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "nau7802.calibrate_external_offset",
-    NAU7802CalbrateExternalOffsetAction,
-    NAU7802_CALIBRATE_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "nau7802.calibrate_gain",
-    NAU7802CalbrateGainAction,
-    NAU7802_CALIBRATE_SCHEMA,
-    synchronous=True,
-)
-async def nau7802_calibrate_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("nau7802.calibrate_internal_offset", "calibrate_internal_offset()"),
+    ("nau7802.calibrate_external_offset", "calibrate_external_offset()"),
+    ("nau7802.calibrate_gain", "calibrate_gain()"),
+):
+    automation.register_apply_action(
+        _name, NAU7802_CALIBRATE_SCHEMA, automation.ApplyCall(_call)
+    )

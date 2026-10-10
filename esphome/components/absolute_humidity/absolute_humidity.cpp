@@ -3,7 +3,7 @@
 
 namespace esphome::absolute_humidity {
 
-static const char *const TAG{"absolute_humidity.sensor"};
+ESPHOME_LOG_TAG(TAG, "absolute_humidity.sensor");
 
 void AbsoluteHumidityComponent::setup() {
   this->temperature_sensor_->add_on_state_callback([this](float state) {

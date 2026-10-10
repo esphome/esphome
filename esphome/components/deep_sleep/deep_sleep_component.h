@@ -121,8 +121,6 @@ class Ext1WakeTrigger : public Trigger<>, public Component {
 
 template<typename... Ts> class EnterDeepSleepAction;
 
-template<typename... Ts> class PreventDeepSleepAction;
-
 /** This component allows setting up the node to go into deep sleep mode to conserve battery.
  *
  * To set this component up, first set *when* the deep sleep should trigger using set_run_cycles
@@ -189,6 +187,11 @@ class DeepSleepComponent final : public Component {
   void deep_sleep_();
   void schedule_sleep_();
   bool should_teardown_();
+
+  void defer_sleep_() {
+    this->next_enter_deep_sleep_ = true;
+    this->enable_loop();
+  }
 
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pin_item) const;
@@ -291,17 +294,6 @@ template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...>
 
   time::RealTimeClock *time_;
 #endif
-};
-
-template<typename... Ts>
-class PreventDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->prevent_deep_sleep(); }
-};
-
-template<typename... Ts> class AllowDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
 }  // namespace esphome::deep_sleep
