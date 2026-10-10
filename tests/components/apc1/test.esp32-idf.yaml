@@ -1,0 +1,7 @@
+substitutions:
+  set_pin: GPIO32
+  reset_pin: GPIO14
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  apc1: !include common.yaml
