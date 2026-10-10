@@ -647,7 +647,7 @@ def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:
 
 
 @contextmanager
-def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
+def _cache_env(tmp_path: Path) -> Iterator[Path]:
     """Patch everything the cache key derives from onto a temp IDF tree and
     yield that tree's path."""
     idf_path = tmp_path / "idf"
@@ -655,7 +655,6 @@ def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
     with (
         patch.object(toolchain, "_get_idf_path", return_value=idf_path),
         patch.dict(CORE.data, {KEY_ESP32: {KEY_VARIANT: "ESP32"}}),
-        patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": excluded}),
     ):
         yield idf_path
 
@@ -663,7 +662,7 @@ def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
 def test_component_cache_round_trip(setup_core: Path, tmp_path: Path) -> None:
     """A saved list is read back until it is dropped."""
     _setup_build(setup_core)
-    with _cache_env(tmp_path, "fatfs") as idf_path:
+    with _cache_env(tmp_path) as idf_path:
         for name in ("lwip", "esp_timer"):
             (idf_path / "components" / name).mkdir()
         assert toolchain.load_cached_builtin_components() is None
@@ -673,25 +672,28 @@ def test_component_cache_round_trip(setup_core: Path, tmp_path: Path) -> None:
         assert toolchain.load_cached_builtin_components() is None
 
 
-def test_component_cache_misses_on_key_change_or_missing_component(
+def test_component_cache_is_per_target_and_drops_missing_component(
     setup_core: Path, tmp_path: Path
 ) -> None:
-    """A different exclusion set uses another entry, an entry naming a
+    """One entry per target serves every exclusion set, an entry naming a
     component that no longer exists is ignored, and a custom IDF_PATH is
     never cached."""
     _setup_build(setup_core)
-    with _cache_env(tmp_path, "fatfs") as idf_path:
+    with _cache_env(tmp_path) as idf_path:
         (idf_path / "components" / "lwip").mkdir()
         toolchain.save_cached_builtin_components(["lwip"])
         path = toolchain._builtin_component_cache_path()
         assert path.parent == idf_path / ".esphome_component_lists"
-        assert path.name.startswith("esp32-")
+        assert path.name == "esp32.json"
         assert toolchain.load_cached_builtin_components() == ["lwip"]
         with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
             assert toolchain.load_cached_builtin_components() is None
-    with _cache_env(tmp_path, "fatfs;unity"):
-        assert toolchain.load_cached_builtin_components() is None
-    with _cache_env(tmp_path, "fatfs") as idf_path:
+    with (
+        _cache_env(tmp_path),
+        patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": "fatfs;unity"}),
+    ):
+        assert toolchain.load_cached_builtin_components() == ["lwip"]
+    with _cache_env(tmp_path) as idf_path:
         path.write_text(json.dumps(["lwip", "gone"]))
         assert toolchain.load_cached_builtin_components() is None
         # A plain file with the right name is not a component directory.
@@ -703,7 +705,7 @@ def test_component_cache_save_skips_empty_list_or_custom_idf_path(
     setup_core: Path, tmp_path: Path
 ) -> None:
     _setup_build(setup_core)
-    with _cache_env(tmp_path, "") as idf_path:
+    with _cache_env(tmp_path) as idf_path:
         toolchain.save_cached_builtin_components([])
         with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
             toolchain.save_cached_builtin_components(["lwip"])
@@ -715,7 +717,7 @@ def test_component_cache_write_failure_is_logged(
 ) -> None:
     _setup_build(setup_core)
     with (
-        _cache_env(tmp_path, ""),
+        _cache_env(tmp_path),
         patch.object(toolchain, "write_file", side_effect=EsphomeError("disk full")),
     ):
         toolchain.save_cached_builtin_components(["lwip"])
@@ -725,7 +727,7 @@ def test_component_cache_write_failure_is_logged(
 
 def test_component_cache_ignores_corrupt_file(setup_core: Path, tmp_path: Path) -> None:
     _setup_build(setup_core)
-    with _cache_env(tmp_path, ""):
+    with _cache_env(tmp_path):
         path = toolchain._builtin_component_cache_path()
         path.parent.mkdir(parents=True)
         path.write_text("{not json")

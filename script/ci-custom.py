@@ -1071,9 +1071,6 @@ HEAP_ALLOCATING_HELPERS = {
         # The definitions themselves
         "esphome/core/alloc_helpers.h",
         "esphome/core/alloc_helpers.cpp",
-        # Backward compatibility re-exports (remove before 2026.11.0)
-        "esphome/core/helpers.h",
-        "esphome/core/helpers.cpp",
         # Vendored third-party library
         "esphome/components/http_request/httplib.h",
     ],
@@ -1126,7 +1123,6 @@ def lint_no_sprintf(fname, match):
         # Vendored library
         "esphome/components/http_request/httplib.h",
         # Deprecated helpers that return std::string
-        "esphome/core/helpers.cpp",
         "esphome/core/alloc_helpers.cpp",
         # The using declaration itself
         "esphome/core/helpers.h",
