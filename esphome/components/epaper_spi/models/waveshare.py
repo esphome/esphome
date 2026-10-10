@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components.mipi import flatten_sequence
 from esphome.core import ID
+from esphome.types import ConfigType
 
 from ..display import CONF_INIT_SEQUENCE_ID
 from . import EpaperModel
@@ -37,7 +38,7 @@ class WaveshareModel(EpaperModel):
             len(data),
         )
 
-    def get_constructor_args(self, config) -> tuple:
+    def get_constructor_args(self, config: ConfigType) -> tuple:
         return (
             *self._array_arg(config, "_lut", self.lut),
             *self._array_arg(config, "_lut_partial", self.lut_partial),
