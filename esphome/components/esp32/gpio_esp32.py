@@ -54,6 +54,7 @@ def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     is_output = mode[CONF_OUTPUT]
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
+    is_hold = value.get(CONF_HOLD_STATE)
 
     if is_input:
         # All ESP32 pins support input mode
@@ -71,12 +72,12 @@ def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
         raise cv.Invalid(
             f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
         )
-    if value.get(CONF_HOLD_STATE) and 34 <= num <= 39:
+    if is_hold and 34 <= num <= 39:
         raise cv.Invalid(
             f"GPIO{num} (34-39) is input-only and cannot be held.",
             [CONF_HOLD_STATE],
         )
-    if value.get(CONF_HOLD_STATE) and num == 20:
+    if is_hold and num == 20:
         # Not in the digital hold mask and not an RTC pad, so the driver cannot hold it
         raise cv.Invalid("GPIO20 has no hold function.", [CONF_HOLD_STATE])
 

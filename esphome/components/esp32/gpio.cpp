@@ -62,10 +62,8 @@ struct ISRPinArg {
 #ifdef USE_GPIO_HOLD
 // Re-latch a held pad onto the values just written to its registers.
 static inline void refresh_hold(const ESP32InternalGPIOPin &pin) {
-  if (!pin.get_hold())
-    return;
-  gpio_hold_dis(pin.get_pin_num());
-  gpio_hold_en(pin.get_pin_num());
+  pin.set_hold(false);
+  pin.set_hold(true);
 }
 
 static inline void IRAM_ATTR isr_refresh_hold(const ISRPinArg *arg) {

@@ -2,8 +2,8 @@
 
 #ifdef USE_ESP32
 #include "esphome/core/gpio_pin.h"
-#include <driver/gpio.h>
 #include <esp_system.h>
+#include <driver/gpio.h>
 
 namespace esphome::esp32 {
 

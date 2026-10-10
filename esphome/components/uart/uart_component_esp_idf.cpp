@@ -240,10 +240,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 #ifdef USE_GPIO_HOLD
   // Release held pins so the UART peripheral can drive them
-  for (auto *pin : {this->tx_pin_, this->rx_pin_, this->flow_control_pin_}) {
-    if (pin != nullptr)
-      pin->set_hold(false);
-  }
+  this->set_pins_hold_(false);
 #endif
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
@@ -523,12 +520,18 @@ void IDFUARTComponent::on_shutdown() {
   }
 #ifdef USE_GPIO_HOLD
   // Hold the pins again so they keep their state through the reset
-  for (auto *pin : {this->tx_pin_, this->rx_pin_, this->flow_control_pin_}) {
-    if (pin != nullptr)
-      pin->set_hold(true);
-  }
+  this->set_pins_hold_(true);
 #endif
 }
+
+#ifdef USE_GPIO_HOLD
+void IDFUARTComponent::set_pins_hold_(bool hold) {
+  for (auto *pin : {this->tx_pin_, this->rx_pin_, this->flow_control_pin_}) {
+    if (pin != nullptr)
+      pin->set_hold(hold);
+  }
+}
+#endif
 
 }  // namespace esphome::uart
 #endif  // USE_ESP32
