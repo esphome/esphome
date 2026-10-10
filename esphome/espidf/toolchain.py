@@ -351,8 +351,7 @@ def _clean_foreign_target_tree() -> None:
         "IDF target changed from %s to %s, cleaning build files...", old, target
     )
     clean_build(clear_pio_cache=False)
-    if _build_dir().is_dir():
-        # ESPHOME_SKIP_CLEAN_BUILD
+    if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         return
     # Restart sdkconfig from ESPHome's options
     internal = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")

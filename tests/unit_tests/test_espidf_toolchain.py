@@ -1729,21 +1729,22 @@ def test_clean_foreign_target_tree_keeps_matching_tree(
     assert sdkconfig.read_text() == before
 
 
+@pytest.mark.parametrize("main", ["esp32h2", None])
 def test_clean_foreign_target_tree_skipped_clean_keeps_sdkconfig(
-    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch, main: str | None
 ) -> None:
     """ESPHOME_SKIP_CLEAN_BUILD keeps the tree and sdkconfig."""
     _setup_build(setup_core)
     monkeypatch.setenv("ESPHOME_SKIP_CLEAN_BUILD", "1")
     CORE.data[KEY_ESP32][KEY_VARIANT] = "ESP32C6"
-    _write_target_tree(main="esp32h2", sdkconfig="esp32h2")
+    _write_target_tree(main=main, sdkconfig="esp32h2")
     CORE.relative_build_path("sdkconfig.test.esphomeinternal").write_text(
         "CONFIG_IDF_TARGET_ESP32C6=y\n"
     )
 
     toolchain._clean_foreign_target_tree()
 
-    assert CORE.relative_build_path("build/CMakeCache.txt").is_file()
+    assert CORE.relative_build_path("build/CMakeCache.txt").is_file() == bool(main)
     assert 'CONFIG_IDF_TARGET="esp32h2"' in (
         CORE.relative_build_path("sdkconfig.test").read_text()
     )
