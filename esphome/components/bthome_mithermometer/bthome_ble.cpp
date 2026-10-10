@@ -350,17 +350,6 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
       ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", device.address_str_to(addr_buf));
       return false;
     }
-    // Only checked after the MIC has authenticated the frame. The counter is
-    // little-endian and sits right before the MIC.
-    if (this->replay_protection_) {
-      const size_t ctr = data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
-      const size_t mic = data.size() - BTHOME_MIC_SIZE;
-      const uint32_t counter = encode_uint32(data[ctr + 3], data[ctr + 2], data[ctr + 1], data[ctr]);
-      if (!this->check_replay_counter_(counter,
-                                       encode_uint32(data[mic], data[mic + 1], data[mic + 2], data[mic + 3]))) {
-        return false;
-      }
-    }
     payload = decrypted_payload.data();
     payload_size = decrypted_payload.size();
   } else {
@@ -385,6 +374,18 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
   if (source_address != this->address_) {
     ESP_LOGVV(TAG, "BTHome frame from unexpected device %s", format_mac_address(addr_buf, source_address));
     return false;
+  }
+
+  // Only checked once the MIC has authenticated the frame and the source address
+  // matches, so frames from other devices never touch the replay state. The
+  // counter is little-endian and sits right before the MIC.
+  if (is_encrypted && this->replay_protection_) {
+    const size_t ctr = data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+    const size_t mic = data.size() - BTHOME_MIC_SIZE;
+    const uint32_t counter = encode_uint32(data[ctr + 3], data[ctr + 2], data[ctr + 1], data[ctr]);
+    if (!this->check_replay_counter_(counter, encode_uint32(data[mic], data[mic + 1], data[mic + 2], data[mic + 3]))) {
+      return false;
+    }
   }
 
   if (payload_size == 0) {
