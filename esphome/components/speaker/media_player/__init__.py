@@ -46,6 +46,7 @@ CONF_ON_MUTE = "on_mute"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_STREAM = "stream"
+CONF_START_CONDITION = "start_condition"
 
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
@@ -108,6 +109,7 @@ PIPELINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_FORMAT, default="FLAC"): cv.enum(audio.AUDIO_FILE_TYPE_ENUM),
         cv.Optional(CONF_SAMPLE_RATE): cv.int_range(min=1),
         cv.Optional(CONF_NUM_CHANNELS): cv.int_range(1, 2),
+        cv.Optional(CONF_START_CONDITION): cv.returning_lambda,
     }
 )
 
@@ -189,6 +191,12 @@ async def to_code(config):
     announcement_pipeline_config = config[CONF_ANNOUNCEMENT_PIPELINE]
     spkr = await cg.get_variable(announcement_pipeline_config[CONF_SPEAKER])
     cg.add(var.set_announcement_speaker(spkr))
+    if start_condition := announcement_pipeline_config.get(CONF_START_CONDITION):
+        cg.add(
+            var.set_announcement_start_condition(
+                await cg.process_lambda(start_condition, [], return_type=cg.bool_)
+            )
+        )
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
@@ -201,6 +209,12 @@ async def to_code(config):
     if media_pipeline_config := config.get(CONF_MEDIA_PIPELINE):
         spkr = await cg.get_variable(media_pipeline_config[CONF_SPEAKER])
         cg.add(var.set_media_speaker(spkr))
+        if start_condition := media_pipeline_config.get(CONF_START_CONDITION):
+            cg.add(
+                var.set_media_start_condition(
+                    await cg.process_lambda(start_condition, [], return_type=cg.bool_)
+                )
+            )
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(
