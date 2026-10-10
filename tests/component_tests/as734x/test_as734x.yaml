@@ -1,0 +1,171 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2c:
+  - id: i2c_as734x
+    sda: 21
+    scl: 22
+
+sensor:
+  - platform: as734x
+    id: chip_41
+    type: AS7341
+    i2c_id: i2c_as734x
+    saturation_level:
+      id: chip_41_sat
+      name: chip_41 saturation
+    counts:
+      f1:
+        id: chip_41_f1
+        name: chip_41 f1
+      f2:
+        id: chip_41_f2
+        name: chip_41 f2
+      f3:
+        id: chip_41_f3
+        name: chip_41 f3
+      f4:
+        id: chip_41_f4
+        name: chip_41 f4
+      f5:
+        id: chip_41_f5
+        name: chip_41 f5
+      f6:
+        id: chip_41_f6
+        name: chip_41 f6
+      f7:
+        id: chip_41_f7
+        name: chip_41 f7
+      f8:
+        id: chip_41_f8
+        name: chip_41 f8
+      nir:
+        id: chip_41_nir
+        name: chip_41 nir
+      clear:
+        id: chip_41_clear
+        name: chip_41 clear
+    basic_counts:
+      f1:
+        id: chip_41_bc_f1
+        name: chip_41 bc f1
+      f2:
+        id: chip_41_bc_f2
+        name: chip_41 bc f2
+      f3:
+        id: chip_41_bc_f3
+        name: chip_41 bc f3
+      f4:
+        id: chip_41_bc_f4
+        name: chip_41 bc f4
+      f5:
+        id: chip_41_bc_f5
+        name: chip_41 bc f5
+      f6:
+        id: chip_41_bc_f6
+        name: chip_41 bc f6
+      f7:
+        id: chip_41_bc_f7
+        name: chip_41 bc f7
+      f8:
+        id: chip_41_bc_f8
+        name: chip_41 bc f8
+      nir:
+        id: chip_41_bc_nir
+        name: chip_41 bc nir
+      clear:
+        id: chip_41_bc_clear
+        name: chip_41 bc clear
+  - platform: as734x
+    id: chip_43
+    type: AS7343
+    i2c_id: i2c_as734x
+    saturation_level:
+      id: chip_43_sat
+      name: chip_43 saturation
+    counts:
+      f1:
+        id: chip_43_f1
+        name: chip_43 f1
+      f2:
+        id: chip_43_f2
+        name: chip_43 f2
+      fz:
+        id: chip_43_fz
+        name: chip_43 fz
+      f3:
+        id: chip_43_f3
+        name: chip_43 f3
+      f4:
+        id: chip_43_f4
+        name: chip_43 f4
+      fy:
+        id: chip_43_fy
+        name: chip_43 fy
+      f5:
+        id: chip_43_f5
+        name: chip_43 f5
+      fxl:
+        id: chip_43_fxl
+        name: chip_43 fxl
+      f6:
+        id: chip_43_f6
+        name: chip_43 f6
+      f7:
+        id: chip_43_f7
+        name: chip_43 f7
+      f8:
+        id: chip_43_f8
+        name: chip_43 f8
+      nir:
+        id: chip_43_nir
+        name: chip_43 nir
+      clear:
+        id: chip_43_clear
+        name: chip_43 clear
+    basic_counts:
+      f1:
+        id: chip_43_bc_f1
+        name: chip_43 bc f1
+      f2:
+        id: chip_43_bc_f2
+        name: chip_43 bc f2
+      fz:
+        id: chip_43_bc_fz
+        name: chip_43 bc fz
+      f3:
+        id: chip_43_bc_f3
+        name: chip_43 bc f3
+      f4:
+        id: chip_43_bc_f4
+        name: chip_43 bc f4
+      fy:
+        id: chip_43_bc_fy
+        name: chip_43 bc fy
+      f5:
+        id: chip_43_bc_f5
+        name: chip_43 bc f5
+      fxl:
+        id: chip_43_bc_fxl
+        name: chip_43 bc fxl
+      f6:
+        id: chip_43_bc_f6
+        name: chip_43 bc f6
+      f7:
+        id: chip_43_bc_f7
+        name: chip_43 bc f7
+      f8:
+        id: chip_43_bc_f8
+        name: chip_43 bc f8
+      nir:
+        id: chip_43_bc_nir
+        name: chip_43 bc nir
+      clear:
+        id: chip_43_bc_clear
+        name: chip_43 bc clear
