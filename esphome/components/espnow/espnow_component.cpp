@@ -347,6 +347,8 @@ uint8_t ESPNowComponent::get_wifi_channel() {
   return this->wifi_channel_;
 }
 
+// Same analyzer false positive as above: the send pool is sized to the send queue's capacity
+// NOLINTBEGIN(clang-analyzer-unix.Malloc)
 esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
                                 send_callback_t callback) {
   if (this->state_ != ESPNOW_STATE_ENABLED) {
@@ -386,6 +388,7 @@ esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payl
   this->enable_loop_soon_any_context();
   return ESP_OK;
 }
+// NOLINTEND(clang-analyzer-unix.Malloc)
 
 void ESPNowComponent::send_() {
   ESPNowSendPacket *packet = this->send_packet_queue_.pop();
