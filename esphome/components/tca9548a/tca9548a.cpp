@@ -93,8 +93,9 @@ void TCA9548AComponent::setup() {
 #endif
   const i2c::ErrorCode err = this->read(&status, 1);
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  if (this->frequency_ != 0) {
-    this->bus_->switch_frequency(original_frequency);
+  if (this->frequency_ != 0 && this->bus_->switch_frequency(original_frequency) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR("Failed to switch the bus frequency"));
+    return;
   }
 #endif
   if (err != i2c::ERROR_OK) {

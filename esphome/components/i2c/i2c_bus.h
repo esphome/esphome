@@ -55,11 +55,12 @@ class I2CBus {
   }
 
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  /// @brief Switch the bus frequency for the transactions that follow
-  virtual ErrorCode switch_frequency(uint32_t frequency) = 0;
+  /// @brief Switch the bus frequency for the transactions that follow; an external bus
+  /// that does not override this reports an error and keeps its frequency
+  virtual ErrorCode switch_frequency(uint32_t frequency) { return ERROR_UNKNOWN; }
 
   /// @brief The frequency the bus runs at
-  virtual uint32_t get_frequency() const = 0;
+  virtual uint32_t get_frequency() const { return 0; }
 #endif
 
  protected:
