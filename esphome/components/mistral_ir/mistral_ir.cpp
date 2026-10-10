@@ -43,10 +43,15 @@ static const FanCode FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_HIGH, 0xA4, 0xA0},
 };
 
+template<typename T> static T load_entry(const T &slot) {
+  T entry;
+  progmem_memcpy(&entry, &slot, sizeof(T));
+  return entry;
+}
+
 template<typename T, size_t N, typename Pred> static optional<T> find_entry(const T (&table)[N], Pred pred) {
   for (const T &slot : table) {
-    T entry;
-    progmem_memcpy(&entry, &slot, sizeof(T));
+    T entry = load_entry(slot);
     if (pred(entry))
       return entry;
   }
@@ -72,18 +77,17 @@ static bool is_valid_frame(const uint8_t *frame) {
 void MistralIR::transmit_state() {
   const auto mode = find_entry(MODES, [this](const ModeCode &m) { return m.mode == this->mode; });
   const climate::ClimateFanMode fan_mode = this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO);
-  auto fan = find_entry(FANS, [fan_mode](const FanCode &f) { return f.fan == fan_mode; });
-  if (!fan.has_value())
-    fan = find_entry(FANS, [](const FanCode &f) { return f.fan == climate::CLIMATE_FAN_AUTO; });
+  const FanCode fan =
+      find_entry(FANS, [fan_mode](const FanCode &f) { return f.fan == fan_mode; }).value_or(load_entry(FANS[0]));
   const uint8_t temp = static_cast<uint8_t>(clamp<float>(this->target_temperature, MISTRAL_TEMP_MIN, MISTRAL_TEMP_MAX));
 
   uint8_t frame[MISTRAL_FRAME_SIZE];
   progmem_memcpy(frame, FRAME_TEMPLATE, sizeof(frame));
-  frame[1] = fan->byte1;
+  frame[1] = fan.byte1;
   frame[3] = this->mode == climate::CLIMATE_MODE_OFF ? 0x00 : MISTRAL_POWER_ON;
   frame[4] = mode.has_value() ? mode->code : MISTRAL_MODE_AUTO;
   frame[5] = reverse_bits(static_cast<uint8_t>(MISTRAL_TEMP_OFFSET - temp));
-  frame[6] = fan->byte6;
+  frame[6] = fan.byte6;
   frame[11] = compute_checksum(frame);
 
   auto transmit = this->transmitter_->transmit();
