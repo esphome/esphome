@@ -1078,20 +1078,21 @@ async def test_rgb111alpha_layout_per_frame(
     _, raw_data = mock_progmem_array.call_args.args
     data = [int(x) for x in raw_data]
 
-    rgb_size = (width * height * 4 + 7) // 8
-    frame_size = rgb_size
+    row_stride = (width * 4 + 7) // 8
+    frame_size = row_stride * height
     assert len(data) == frame_size * frame_count, (
-        f"RGB111 animation buffer must be {frame_size} bytes per frame."
+        f"RGB111 animation buffer must be {frame_size} bytes per frame, not {len(data) / 2}"
     )
 
-    # Frame 0 is red, frame 1 is blue. RGB111 stores 3 bits per channel and
-    # packs the bits across the frame without row padding, so the per-frame bytes
-    # are not a uniform value even for a solid color.
+    # Frame 0 is red, frame 1 is blue. RGB111 stores 1 bit per color channel
+    # plus an alpha bit, emitted MSB-first per pixel, and the row ends are then
+    # padded to the next byte boundary. That gives a repeated 0x99 pattern for
+    # red (1001 bits per pixel) and 0x22 for blue (0010 bits per pixel).
     frame0_rgb = data[:frame_size]
     frame1_rgb = data[frame_size:]
-    assert frame0_rgb == [0x88, 0x88, 0x88, 0x88, 0x88, 0x88], (
+    assert frame0_rgb == [0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x90, 0x00], (
         f"Frame 0 RGB plane should be red, got {frame0_rgb}"
     )
-    assert frame1_rgb == [0x22, 0x22, 0x22, 0x22, 0x22, 0x22], (
+    assert frame1_rgb == [0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x20, 0x00], (
         f"Frame 1 RGB plane should be blue, got {frame1_rgb}"
     )
