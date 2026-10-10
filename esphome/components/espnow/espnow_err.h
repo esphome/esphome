@@ -6,16 +6,13 @@
 
 namespace esphome::espnow {
 
-static const espnow_err_t ESPNOW_ERR_BASE = 0x7000;
-static const espnow_err_t ESPNOW_ERR_FAILED = (ESPNOW_ERR_BASE + 1);
-static const espnow_err_t ESPNOW_ERR_OWN_ADDRESS = (ESPNOW_ERR_BASE + 2);
-static const espnow_err_t ESPNOW_ERR_DATA_SIZE = (ESPNOW_ERR_BASE + 3);
-static const espnow_err_t ESPNOW_ERR_PEER_NOT_SET = (ESPNOW_ERR_BASE + 4);
-static const espnow_err_t ESPNOW_ERR_PEER_NOT_PAIRED = (ESPNOW_ERR_BASE + 5);
-static const espnow_err_t ESPNOW_ERR_NOT_INIT = (ESPNOW_ERR_BASE + 6);
-static const espnow_err_t ESPNOW_ERR_NO_MEM = (ESPNOW_ERR_BASE + 7);
-static const espnow_err_t ESPNOW_ERR_INVALID_MAC = (ESPNOW_ERR_BASE + 8);
+static constexpr esp_err_t ESP_ERR_ESPNOW_CMP_BASE = (ESP_ERR_ESPNOW_BASE + 20);
+static constexpr esp_err_t ESP_ERR_ESPNOW_FAILED = (ESP_ERR_ESPNOW_CMP_BASE + 1);
+static constexpr esp_err_t ESP_ERR_ESPNOW_OWN_ADDRESS = (ESP_ERR_ESPNOW_CMP_BASE + 2);
+static constexpr esp_err_t ESP_ERR_ESPNOW_DATA_SIZE = (ESP_ERR_ESPNOW_CMP_BASE + 3);
+static constexpr esp_err_t ESP_ERR_ESPNOW_PEER_NOT_SET = (ESP_ERR_ESPNOW_CMP_BASE + 4);
+static constexpr esp_err_t ESP_ERR_ESPNOW_PEER_NOT_PAIRED = (ESP_ERR_ESPNOW_CMP_BASE + 5);
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32 || ESP8266
+#endif  // USE_ESP32 || USE_ESP8266

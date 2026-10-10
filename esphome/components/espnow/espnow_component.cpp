@@ -7,22 +7,11 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstring>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#if defined(USE_ESP32)
-#include <esp_event.h>
-#include <esp_mac.h>
-#include <esp_netif.h>
-#include <esp_now.h>
-#include <esp_random.h>
-#include <esp_wifi.h>
-#endif
-
-#include <cstring>
-#include <memory>
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
@@ -34,148 +23,96 @@ ESPHOME_LOG_TAG(TAG, "espnow");
 
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-static const LogString *espnow_send_status_to_str(espnow_send_status_t status) {
-  switch (status) {
-    case ESP_NOW_SEND_SUCCESS:
-      return LOG_STR("Send Success (ACK)");
-    case ESP_NOW_SEND_FAIL:
-      return LOG_STR("Send Failed (No ACK/Peer Unreachable)");
-    default:
-      return LOG_STR("Send Unknown");
-  }
-}
-#endif
-
-static const LogString *espnow_error_to_str(espnow_err_t error) {
+static const LogString *espnow_error_to_str(esp_err_t error) {
   switch (error) {
-    case ESPNOW_ERR_FAILED:
+    case ESP_ERR_ESPNOW_FAILED:
       return LOG_STR("ESPNow is in fail mode");
-    case ESPNOW_ERR_OWN_ADDRESS:
-      return LOG_STR("Message to yourself");
-    case ESPNOW_ERR_DATA_SIZE:
-      return LOG_STR("Data size too large");
-    case ESPNOW_ERR_PEER_NOT_SET:
+    case ESP_ERR_ESPNOW_OWN_ADDRESS:
+      return LOG_STR("Message to your self");
+    case ESP_ERR_ESPNOW_DATA_SIZE:
+      return LOG_STR("Data size to large");
+    case ESP_ERR_ESPNOW_PEER_NOT_SET:
       return LOG_STR("Peer address not set");
-    case ESPNOW_ERR_PEER_NOT_PAIRED:
+    case ESP_ERR_ESPNOW_PEER_NOT_PAIRED:
       return LOG_STR("Peer address not paired");
-    case ESPNOW_ERR_NOT_INIT:
+    case ESP_ERR_ESPNOW_NOT_INIT:
       return LOG_STR("Not init");
-    case ESPNOW_ERR_NO_MEM:
-      return LOG_STR("Out of memory");
-    case ESPNOW_OK:
-      return LOG_STR("OK");
     case ESP_ERR_ESPNOW_ARG:
       return LOG_STR("Invalid argument");
     case ESP_ERR_ESPNOW_INTERNAL:
       return LOG_STR("Internal Error");
+    case ESP_ERR_ESPNOW_NO_MEM:
+      return LOG_STR("Our of memory");
     case ESP_ERR_ESPNOW_NOT_FOUND:
       return LOG_STR("Peer not found");
     case ESP_ERR_ESPNOW_IF:
       return LOG_STR("Interface does not match");
+    case ESP_OK:
+      return LOG_STR("OK");
     case ESP_NOW_SEND_FAIL:
+    case ESP_FAIL:
       return LOG_STR("Failed");
     default:
       return LOG_STR("Unknown Error");
   }
 }
 
-#if defined(USE_ESP8266)
-void on_send_report(uint8_t *mac_addr, uint8_t status) {
-#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
-void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status) {
-#else
-void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status) {
-#endif
-  ESPNowComponent *esp_now = global_esp_now;
-  if (esp_now == nullptr) {
-    return;
-  }
-
+void ESPNowComponent::send_reported(const uint8_t *mac_addr, esp_now_send_status_t status) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-#if defined(USE_ESP8266)
   format_mac_addr_upper(mac_addr, peer_buf);
-#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
-  format_mac_addr_upper(info->des_addr, peer_buf);
-#else
-  format_mac_addr_upper(mac_addr, peer_buf);
-#endif
   ESP_LOGVV(TAG, "Send callback peer=%s status=%d (%s) ch=%u", peer_buf, status,
-            LOG_STR_ARG(espnow_send_status_to_str(status)), esp_now->wifi_channel_);
+            LOG_STR_ARG(espnow_error_to_str(status)), this->wifi_channel_);
 #endif
 
   // Allocate an event from the pool
-  ESPNowPacket *packet = esp_now->receive_packet_pool_.allocate();
+  ESPNowPacket *packet = this->receive_packet_pool_.allocate();
   if (packet == nullptr) {
     // No events available - queue is full or we're out of memory
-    global_esp_now->receive_packet_queue_.increment_dropped_count();
-    global_esp_now->enable_loop_soon_any_context();
+    this->receive_packet_queue_.increment_dropped_count();
+    this->enable_loop_soon_any_context();
     return;
   }
 
-  // Load new packet data (replaces previous packet)
-#if defined(USE_ESP8266)
   packet->load_sent_data(mac_addr, status);
-#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
-  packet->load_sent_data(info->des_addr, status);
-#else
-  packet->load_sent_data(mac_addr, status);
-#endif
 
-  // Push the packet to the queue
-  esp_now->receive_packet_queue_.push(packet);
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
+  this->receive_packet_queue_.push(packet);
 
   // Re-enable and wake the main loop to process the ESP-NOW send event
-  global_esp_now->enable_loop_soon_any_context();
+  this->enable_loop_soon_any_context();
 }
 
-#if defined(USE_ESP8266)
-void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size) {
-#else
-void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
-#endif
-  ESPNowComponent *esp_now = global_esp_now;
-  if (esp_now == nullptr) {
-    return;
-  }
-
+void ESPNowComponent::packet_received(const uint8_t *src_addr, const uint8_t *des_addr, const uint8_t *data, int size,
+                                      int8_t rssi, uint32_t timestamp) {
   // Drop oversized frames before copying. ESP-NOW v2 peers (IDF >= 5.4 builds a
   // v2 stack with no opt-out) can send up to ESP_NOW_MAX_DATA_LEN_V2 (1470 B),
   // but the receive buffer only fits frames up to ``max_payload_size``; copying a
   // larger frame would overflow packet_.receive.data.
-  if (static_cast<int>(size) < 0 || static_cast<size_t>(size) > ESPNOW_MAX_DATA_LEN) {
-    esp_now->receive_packet_queue_.increment_dropped_count();
-    esp_now->enable_loop_soon_any_context();
+  if (size < 0 || static_cast<size_t>(size) > ESPNOW_MAX_DATA_LEN) {
+    this->receive_packet_queue_.increment_dropped_count();
+    this->enable_loop_soon_any_context();
     return;
   }
 
   // Allocate an event from the pool
-  ESPNowPacket *packet = esp_now->receive_packet_pool_.allocate();
+  ESPNowPacket *packet = this->receive_packet_pool_.allocate();
   if (packet == nullptr) {
     // No events available - queue is full or we're out of memory
-    esp_now->receive_packet_queue_.increment_dropped_count();
-    esp_now->enable_loop_soon_any_context();
+    this->receive_packet_queue_.increment_dropped_count();
+    this->enable_loop_soon_any_context();
     return;
   }
 
-  // Load new packet data (replaces previous packet)
-#if defined(USE_ESP8266)
-  // The ESP8266 SDK does not report the destination address
-  packet->load_received_data(mac_addr, data, size, nullptr);
-#else
-  packet->load_received_data(info, data, size);
-#endif
+  packet->load_received_data(src_addr, des_addr, data, size, rssi, timestamp);
 
-  // Push the packet to the queue
-  esp_now->receive_packet_queue_.push(packet);
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
+  this->receive_packet_queue_.push(packet);
 
   // Re-enable and wake the main loop to process the ESP-NOW receive event
-  esp_now->enable_loop_soon_any_context();
+  this->enable_loop_soon_any_context();
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
@@ -183,24 +120,23 @@ ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 void ESPNowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "espnow:");
   // Only report driver details once enabled; with enable_on_boot: false the
-  // Wi-Fi driver is not initialized yet and esp_now_get_version() would crash,
+  // Wi-Fi driver is not initialized yet and the version call would crash,
   // and after a failed enable_() the values would be meaningless.
   if (this->state_ != ESPNOW_STATE_ENABLED) {
     // OFF here means enable_() failed; the core logs the FAILED marker separately
     ESP_LOGCONFIG(TAG, "  %s", this->is_disabled() ? LOG_STR_LITERAL("Disabled") : LOG_STR_LITERAL("Not enabled"));
     return;
   }
-  uint32_t version = 0;
-#if !defined(USE_ESP8266)
-  esp_now_get_version(&version);
-#endif
   char own_addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(this->own_address_, own_addr_buf);
   ESP_LOGCONFIG(TAG,
                 "  Own address: %s\n"
-                "  Version: v%" PRIu32 "\n"
                 "  Wi-Fi channel: %d",
-                own_addr_buf, version, this->wifi_channel_);
+                own_addr_buf, this->wifi_channel_);
+  uint32_t version = platform::get_version();
+  if (version != 0) {
+    ESP_LOGCONFIG(TAG, "  Version: v%" PRIu32, version);
+  }
 #ifdef USE_WIFI
   ESP_LOGCONFIG(TAG, "  Wi-Fi enabled: %s", YESNO(this->is_wifi_enabled()));
 #endif
@@ -236,14 +172,7 @@ void ESPNowComponent::on_wifi_connect_state(StringRef ssid, std::span<const uint
   this->get_wifi_channel();
   if (this->wifi_channel_ != old_channel) {
     ESP_LOGI(TAG, "WiFi channel changed from %d to %d", old_channel, this->wifi_channel_);
-#if defined(USE_ESP8266)
-    // The ESP8266 SDK stores the channel a peer was added on, so re-add them on the new one
-    auto peers = this->peers_;
-    for (const auto &peer : peers) {
-      this->del_peer(peer.address);
-      this->add_peer(peer.address);
-    }
-#endif
+    this->apply_peer_channel_();
   }
 }
 #endif
@@ -260,58 +189,19 @@ void ESPNowComponent::enable() {
 
 void ESPNowComponent::enable_() {
   if (!this->is_wifi_enabled()) {
-#if defined(USE_ESP8266)
-    espnow_esp8266::init_wifi_station();
-#else
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_disconnect());
-#endif
-
+    platform::init_radio();
     this->apply_wifi_channel();
   }
   this->get_wifi_channel();
 
-  espnow_err_t err = esp_now_init();
-  if (err != ESPNOW_OK) {
-    ESP_LOGE(TAG, "esp_now_init failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
+  esp_err_t err = platform::init();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Init failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
     this->mark_failed();
     return;
   }
 
-#if defined(USE_ESP8266)
-  err = espnow_esp8266::set_self_role();
-  if (err != ESPNOW_OK) {
-    ESP_LOGE(TAG, "esp_now_set_self_role failed: %d", err);
-    this->mark_failed();
-    return;
-  }
-#endif
-
-  err = esp_now_register_recv_cb(on_data_received);
-  if (err != ESPNOW_OK) {
-    ESP_LOGE(TAG, "esp_now_register_recv_cb failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
-    this->mark_failed();
-    return;
-  }
-
-  err = esp_now_register_send_cb(on_send_report);
-  if (err != ESPNOW_OK) {
-    ESP_LOGE(TAG, "esp_now_register_send_cb failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
-    this->mark_failed();
-    return;
-  }
-
-#if defined(USE_ESP8266)
-  espnow_esp8266::read_mac(this->own_address_);
-#else
-  esp_wifi_get_mac(WIFI_IF_STA, this->own_address_);
-#endif
+  platform::read_mac(this->own_address_);
 
   this->state_ = ESPNOW_STATE_ENABLED;
 
@@ -327,12 +217,9 @@ void ESPNowComponent::disable() {
   ESP_LOGD(TAG, "Disabling");
   this->state_ = ESPNOW_STATE_DISABLED;
 
-  esp_now_unregister_recv_cb();
-  esp_now_unregister_send_cb();
-
-  espnow_err_t err = esp_now_deinit();
-  if (err != ESPNOW_OK) {
-    ESP_LOGE(TAG, "esp_now_deinit failed! 0x%x", err);
+  esp_err_t err = platform::deinit();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Deinit failed: %s", LOG_STR_ARG(espnow_error_to_str(err)));
   }
 }
 
@@ -350,13 +237,16 @@ void ESPNowComponent::apply_wifi_channel() {
   }
 
   ESP_LOGI(TAG, "Channel set to %d.", this->wifi_channel_);
-#if defined(USE_ESP8266)
-  espnow_esp8266::apply_wifi_channel(this->wifi_channel_);
-#else
-  esp_wifi_set_promiscuous(true);
-  esp_wifi_set_channel(this->wifi_channel_, WIFI_SECOND_CHAN_NONE);
-  esp_wifi_set_promiscuous(false);
-#endif
+  platform::set_channel(this->wifi_channel_);
+  if (this->state_ == ESPNOW_STATE_ENABLED) {
+    this->apply_peer_channel_();
+  }
+}
+
+void ESPNowComponent::apply_peer_channel_() {
+  for (const auto &peer : this->peers_) {
+    platform::set_peer_channel(peer.address, this->wifi_channel_);
+  }
 }
 
 void ESPNowComponent::loop() {
@@ -366,7 +256,7 @@ void ESPNowComponent::loop() {
     switch (packet->type_) {
       case ESPNowPacket::RECEIVED: {
         const ESPNowRecvInfo info = packet->get_receive_info();
-        if (!espnow_is_peer_exist(info.src_addr)) {
+        if (!platform::peer_exists(info.src_addr)) {
           bool handled = false;
           for (auto *handler : this->unknown_peer_handlers_) {
             if (handler->on_unknown_peer(info, packet->packet_.receive.data, packet->packet_.receive.size)) {
@@ -379,7 +269,7 @@ void ESPNowComponent::loop() {
           }
         }
         // Intentionally left as if instead of else in case the peer is added above
-        if (espnow_is_peer_exist(info.src_addr)) {
+        if (platform::peer_exists(info.src_addr)) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
           char src_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
           char dst_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -392,35 +282,24 @@ void ESPNowComponent::loop() {
                    format_hex_pretty_to(hex_buf, packet->packet_.receive.data,
                                         std::min<uint16_t>(packet->packet_.receive.size, ESP_NOW_MAX_DATA_LEN)));
 #endif
-#if defined(USE_ESP8266)
-          // The SDK does not report the destination address, so unicast handlers get first claim on every
-          // packet and broadcast handlers see whatever they leave unhandled
+          // Without a destination address, unicast handlers get first claim on every packet and broadcast
+          // handlers see what they leave unhandled
+          const bool is_broadcast = memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0;
           bool handled = false;
-          for (auto *handler : this->receive_handlers_) {
-            if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size)) {
-              handled = true;
-              break;
-            }
-          }
-          if (!handled) {
-            for (auto *handler : this->broadcast_handlers_) {
-              if (handler->on_broadcast(info, packet->packet_.receive.data, packet->packet_.receive.size))
-                break;
-            }
-          }
-#else
-          if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
-            for (auto *handler : this->broadcast_handlers_) {
-              if (handler->on_broadcast(info, packet->packet_.receive.data, packet->packet_.receive.size))
-                break;  // If a handler returns true, stop processing further handlers
-            }
-          } else {
+          if (!ESPNOW_DESTINATION_KNOWN || !is_broadcast) {
             for (auto *handler : this->receive_handlers_) {
-              if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size))
+              if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size)) {
+                handled = true;
+                break;  // If a handler returns true, stop processing further handlers
+              }
+            }
+          }
+          if (!handled && (!ESPNOW_DESTINATION_KNOWN || is_broadcast)) {
+            for (auto *handler : this->broadcast_handlers_) {
+              if (handler->on_broadcast(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           }
-#endif
         }
         break;
       }
@@ -428,7 +307,7 @@ void ESPNowComponent::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(packet->packet_.sent.address, addr_buf);
-        ESP_LOGVV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_send_status_to_str(packet->packet_.sent.status)));
+        ESP_LOGVV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
           if (this->current_send_packet_->callback_ != nullptr) {
@@ -475,40 +354,35 @@ void ESPNowComponent::loop() {
 }
 
 uint8_t ESPNowComponent::get_wifi_channel() {
-#if defined(USE_ESP8266)
-  this->wifi_channel_ = espnow_esp8266::get_wifi_channel();
-#else
-  wifi_second_chan_t dummy;
-  esp_wifi_get_channel(&this->wifi_channel_, &dummy);
-#endif
+  this->wifi_channel_ = platform::get_channel();
   return this->wifi_channel_;
 }
 
-espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
-                                   const send_callback_t &callback) {
+esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
+                                const send_callback_t &callback) {
   if (this->state_ != ESPNOW_STATE_ENABLED) {
-    return ESPNOW_ERR_NOT_INIT;
+    return ESP_ERR_ESPNOW_NOT_INIT;
   } else if (this->is_failed()) {
-    return ESPNOW_ERR_FAILED;
+    return ESP_ERR_ESPNOW_FAILED;
   } else if (peer_address == nullptr) {
-    return ESPNOW_ERR_PEER_NOT_SET;
+    return ESP_ERR_ESPNOW_PEER_NOT_SET;
   } else if (memcmp(peer_address, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
-    return ESPNOW_ERR_OWN_ADDRESS;
+    return ESP_ERR_ESPNOW_OWN_ADDRESS;
   } else if (size > ESPNOW_MAX_DATA_LEN) {
-    return ESPNOW_ERR_DATA_SIZE;
-  } else if (!espnow_is_peer_exist(peer_address)) {
+    return ESP_ERR_ESPNOW_DATA_SIZE;
+  } else if (!platform::peer_exists(peer_address)) {
     if (memcmp(peer_address, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0 || this->auto_add_peer_) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer_address, peer_buf);
       ESP_LOGVV(TAG, "Peer %s not in table, adding dynamically (auto_add=%s)", peer_buf, YESNO(this->auto_add_peer_));
 #endif
-      espnow_err_t err = this->add_peer(peer_address);
-      if (err != ESPNOW_OK) {
+      esp_err_t err = this->add_peer(peer_address);
+      if (err != ESP_OK) {
         return err;
       }
     } else {
-      return ESPNOW_ERR_PEER_NOT_PAIRED;
+      return ESP_ERR_ESPNOW_PEER_NOT_PAIRED;
     }
   }
   // Allocate a packet from the pool
@@ -517,7 +391,7 @@ espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *p
     this->send_packet_queue_.increment_dropped_count();
     ESP_LOGE(TAG, "Failed to allocate send packet from pool");
     this->status_momentary_warning();
-    return ESPNOW_ERR_NO_MEM;
+    return ESP_ERR_ESPNOW_NO_MEM;
   }
   // Load the packet data
   packet->load_data(peer_address, payload, size, callback);
@@ -526,7 +400,7 @@ espnow_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *p
   // Loop may be disabled while idle; re-enable it to send the packet
   // (any-context variant so callers off the main loop are safe too)
   this->enable_loop_soon_any_context();
-  return ESPNOW_OK;
+  return ESP_OK;
 }
 
 void ESPNowComponent::send_() {
@@ -539,12 +413,12 @@ void ESPNowComponent::send_() {
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(packet->address_, addr_buf);
   ESP_LOGVV(TAG, "Sending packet to %s size=%u ch=%u peer_exists=%s", addr_buf, packet->size_, this->wifi_channel_,
-            YESNO(espnow_is_peer_exist(packet->address_)));
+            YESNO(platform::peer_exists(packet->address_)));
 #endif
 
   this->current_send_packet_ = packet;
-  espnow_err_t err = esp_now_send(packet->address_, packet->data_, packet->size_);
-  if (err != ESPNOW_OK) {
+  esp_err_t err = platform::send(packet->address_, packet->data_, packet->size_);
+  if (err != ESP_OK) {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(packet->address_, addr_buf);
     ESP_LOGE(TAG, "Failed to send packet to %s - %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(err)));
@@ -558,28 +432,19 @@ void ESPNowComponent::send_() {
   }
 }
 
-espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
+esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
   if (this->state_ != ESPNOW_STATE_ENABLED || this->is_failed()) {
-    return ESPNOW_ERR_NOT_INIT;
+    return ESP_ERR_ESPNOW_NOT_INIT;
   }
 
   if (memcmp(peer, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
     this->status_momentary_warning();
-    return ESPNOW_ERR_INVALID_MAC;
+    return ESP_ERR_INVALID_MAC;
   }
 
-  if (!espnow_is_peer_exist(peer)) {
-#if defined(USE_ESP8266)
-    espnow_err_t err = espnow_esp8266::add_peer(peer);
-#else
-    esp_now_peer_info_t peer_info = {};
-    memset(&peer_info, 0, sizeof(esp_now_peer_info_t));
-    peer_info.ifidx = WIFI_IF_STA;
-    memcpy(peer_info.peer_addr, peer, ESP_NOW_ETH_ALEN);
-    espnow_err_t err = esp_now_add_peer(&peer_info);
-#endif
-
-    if (err != ESPNOW_OK) {
+  if (!platform::peer_exists(peer)) {
+    esp_err_t err = platform::add_peer(peer);
+    if (err != ESP_OK) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer, peer_buf);
       ESP_LOGE(TAG, "Failed to add peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
@@ -606,20 +471,16 @@ espnow_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     this->peers_.push_back(new_peer);
   }
 
-  return ESPNOW_OK;
+  return ESP_OK;
 }
 
-espnow_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
+esp_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
   if (this->state_ != ESPNOW_STATE_ENABLED || this->is_failed()) {
-    return ESPNOW_ERR_NOT_INIT;
+    return ESP_ERR_ESPNOW_NOT_INIT;
   }
-  if (espnow_is_peer_exist(peer)) {
-#if defined(USE_ESP8266)
-    espnow_err_t err = espnow_esp8266::del_peer(peer);
-#else
-    espnow_err_t err = esp_now_del_peer(peer);
-#endif
-    if (err != ESPNOW_OK) {
+  if (platform::peer_exists(peer)) {
+    esp_err_t err = platform::del_peer(peer);
+    if (err != ESP_OK) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer, peer_buf);
       ESP_LOGE(TAG, "Failed to delete peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
@@ -633,9 +494,9 @@ espnow_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
       break;
     }
   }
-  return ESPNOW_OK;
+  return ESP_OK;
 }
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32 || ESP8266
+#endif  // USE_ESP32 || USE_ESP8266

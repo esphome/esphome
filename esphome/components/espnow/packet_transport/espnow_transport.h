@@ -38,4 +38,4 @@ class ESPNowTransport final : public packet_transport::PacketTransport,
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32 || ESP8266
+#endif  // USE_ESP32 || USE_ESP8266

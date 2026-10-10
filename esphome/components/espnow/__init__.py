@@ -29,7 +29,8 @@ CODEOWNERS = ["@jesserockz"]
 
 
 def AUTO_LOAD() -> list[str]:
-    # network backs wake_loop_threadsafe on the ESP32; on the ESP8266 it would pull in mdns, which needs wifi
+    # network initialises esp_netif and the default event loop on the ESP32. The ESP8266 needs neither, and
+    # loading it there would pull in mdns, which requires wifi
     return ["network"] if CORE.is_esp32 else []
 
 

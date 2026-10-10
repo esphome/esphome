@@ -48,8 +48,8 @@ void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {
   }
 
   // Send to configured peer address
-  this->parent_->send(this->peer_address_.data(), buf.data(), buf.size(), [](espnow_err_t err) {
-    if (err != ESPNOW_OK) {
+  this->parent_->send(this->peer_address_.data(), buf.data(), buf.size(), [](esp_err_t err) {
+    if (err != ESP_OK) {
       ESP_LOGW(TAG, "Send failed: %d", err);
     }
   });
@@ -87,4 +87,4 @@ bool ESPNowTransport::on_broadcast(const ESPNowRecvInfo &info, const uint8_t *da
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32 || ESP8266
+#endif  // USE_ESP32 || USE_ESP8266

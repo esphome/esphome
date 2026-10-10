@@ -38,8 +38,8 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
 
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    send_callback_t send_callback = [this, x...](espnow_err_t status) {
-      if (status == ESPNOW_OK) {
+    send_callback_t send_callback = [this, x...](esp_err_t status) {
+      if (status == ESP_OK) {
         if (!this->sent_.empty()) {
           this->sent_.play(x...);
         } else if (this->flags_.wait_for_sent) {
@@ -58,11 +58,11 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
       }
     };
     peer_address_t address = this->address_.value(x...);
-    espnow_err_t err = ESPNOW_OK;
+    esp_err_t err = ESP_OK;
     this->data_.visit(
         [&](const uint8_t *data, size_t len) { err = this->parent_->send(address.data(), data, len, send_callback); },
         x...);
-    if (err != ESPNOW_OK) {
+    if (err != ESP_OK) {
       send_callback(err);
     } else if (!this->flags_.wait_for_sent) {
       this->play_next_(x...);

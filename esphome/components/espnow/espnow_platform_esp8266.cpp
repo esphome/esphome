@@ -1,39 +1,82 @@
 #include "espnow_platform.h"
 
-#if defined(USE_ESP8266)
+#ifdef USE_ESP8266
 
-extern "C" {
-#include <user_interface.h>
+#include "espnow_component.h"
+
+namespace esphome::espnow::platform {
+
+// The SDK reports 0 for success and a non-zero value for any failure
+static esp_err_t sdk_result(int result) { return result == 0 ? ESP_OK : ESP_FAIL; }
+
+static void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size) {
+  if (global_esp_now != nullptr) {
+    // The SDK reports neither the destination address nor the signal strength
+    global_esp_now->packet_received(mac_addr, nullptr, data, size, 0, 0);
+  }
 }
 
-namespace esphome::espnow::espnow_esp8266 {
+static void on_send_report(uint8_t *mac_addr, uint8_t status) {
+  if (global_esp_now != nullptr) {
+    global_esp_now->send_reported(mac_addr, status == 0 ? ESP_NOW_SEND_SUCCESS : ESP_NOW_SEND_FAIL);
+  }
+}
 
-void setup_network_stack() {}
-
-void init_wifi_station() {
+void init_radio() {
   wifi_set_opmode_current(STATION_MODE);
   wifi_set_sleep_type(NONE_SLEEP_T);
   wifi_station_disconnect();
 }
 
-espnow_err_t set_self_role() { return esp_now_set_self_role(ESP_NOW_ROLE_COMBO); }
-
-void read_mac(uint8_t *own_address) { wifi_get_macaddr(STATION_IF, own_address); }
-
-void apply_wifi_channel(uint8_t wifi_channel) {
+void set_channel(uint8_t channel) {
   wifi_promiscuous_enable(true);
-  wifi_set_channel(wifi_channel);
+  wifi_set_channel(channel);
   wifi_promiscuous_enable(false);
 }
 
-uint8_t get_wifi_channel() { return wifi_get_channel(); }
+uint8_t get_channel() { return wifi_get_channel(); }
 
-espnow_err_t add_peer(const uint8_t *peer) {
-  return esp_now_add_peer(const_cast<uint8_t *>(peer), ESP_NOW_ROLE_COMBO, 0, nullptr, 0);
+void read_mac(uint8_t *mac) { wifi_get_macaddr(STATION_IF, mac); }
+
+esp_err_t init() {
+  int result = esp_now_init();
+  if (result == 0) {
+    result = esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+  }
+  if (result == 0) {
+    result = esp_now_register_recv_cb(on_data_received);
+  }
+  if (result == 0) {
+    result = esp_now_register_send_cb(on_send_report);
+  }
+  return sdk_result(result);
 }
 
-espnow_err_t del_peer(const uint8_t *peer) { return esp_now_del_peer(const_cast<uint8_t *>(peer)); }
+esp_err_t deinit() {
+  esp_now_unregister_recv_cb();
+  esp_now_unregister_send_cb();
+  return sdk_result(esp_now_deinit());
+}
 
-}  // namespace esphome::espnow::espnow_esp8266
+uint32_t get_version() { return 0; }
+
+// The SDK returns 1 when the peer exists, 0 when it does not and a negative value on error
+bool peer_exists(const uint8_t *mac) { return esp_now_is_peer_exist(const_cast<uint8_t *>(mac)) > 0; }
+
+esp_err_t add_peer(const uint8_t *mac) {
+  return sdk_result(esp_now_add_peer(const_cast<uint8_t *>(mac), ESP_NOW_ROLE_COMBO, wifi_get_channel(), nullptr, 0));
+}
+
+esp_err_t del_peer(const uint8_t *mac) { return sdk_result(esp_now_del_peer(const_cast<uint8_t *>(mac))); }
+
+void set_peer_channel(const uint8_t *mac, uint8_t channel) {
+  esp_now_set_peer_channel(const_cast<uint8_t *>(mac), channel);
+}
+
+esp_err_t send(const uint8_t *mac, const uint8_t *data, uint16_t size) {
+  return sdk_result(esp_now_send(const_cast<uint8_t *>(mac), const_cast<uint8_t *>(data), size));
+}
+
+}  // namespace esphome::espnow::platform
 
 #endif  // USE_ESP8266

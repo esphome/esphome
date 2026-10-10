@@ -6,46 +6,32 @@
 
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
-#include "espnow_types.h"
-#include "espnow_packet.h"
-
-#ifdef USE_ESP8266
-#include "esp8266_queue.h"
-#include "esp8266_event_pool.h"
-#else
-#include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
-#endif
+#include "esphome/core/lock_free_queue.h"
+#include "espnow_packet.h"
+#include "espnow_types.h"
 
 #if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 
-#if !defined(USE_ESP8266)
-#include <esp_idf_version.h>
-#include <esp_mac.h>
-#endif
-
 #include <array>
 #include <map>
 #include <memory>
-#include <new>
 #include <string>
 #include <vector>
 
 namespace esphome::espnow {
 
+// Maximum size of the ESPNow event queues - must be a power of 2 for the lock-free queue.
+// The ESP8266 has far less heap and only one send is ever in flight, so it gets half the depth.
 #ifdef USE_ESP8266
-template<class T, uint8_t SIZE> using PacketQueue = ESP8266Queue<T, SIZE>;
-template<class T, uint8_t SIZE> using PacketPool = ESP8266EventPool<T, SIZE>;
+static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 8;
+static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 8;
 #else
-template<class T, uint8_t SIZE> using PacketQueue = LockFreeQueue<T, SIZE>;
-template<class T, uint8_t SIZE> using PacketPool = EventPool<T, SIZE>;
-#endif
-
-// Maximum size of the ESPNow event queue (must be a power of 2).
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
 static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
+#endif
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
@@ -129,12 +115,12 @@ class ESPNowComponent final : public Component {
     this->peers_.push_back(peer);
   }
   // Add a peer with the esp_now api and add to the internal list if doesnt exist already
-  espnow_err_t add_peer(const uint8_t *peer);
+  esp_err_t add_peer(const uint8_t *peer);
   // Remove a peer with the esp_now api and remove from the internal list if exists
-  espnow_err_t del_peer(const uint8_t *peer);
+  esp_err_t del_peer(const uint8_t *peer);
   // Action entry points; distinct names because add_peer(peer_address_t) only fills the boot-time list
-  espnow_err_t add_peer_from_action(const peer_address_t &address) { return this->add_peer(address.data()); }
-  espnow_err_t del_peer_from_action(const peer_address_t &address) { return this->del_peer(address.data()); }
+  esp_err_t add_peer_from_action(const peer_address_t &address) { return this->add_peer(address.data()); }
+  esp_err_t del_peer_from_action(const peer_address_t &address) { return this->del_peer(address.data()); }
 
   void set_wifi_channel(uint8_t channel) { this->wifi_channel_ = channel; }
   void apply_wifi_channel();
@@ -168,12 +154,12 @@ class ESPNowComponent final : public Component {
   /// @param payload Data payload to send
   /// @param callback Callback to call when the send operation is complete
   /// @return ESP_OK on success, or an error code on failure
-  espnow_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload,
-                    const send_callback_t &callback = nullptr) {
+  esp_err_t send(const uint8_t *peer_address, const std::vector<uint8_t> &payload,
+                 const send_callback_t &callback = nullptr) {
     return this->send(peer_address, payload.data(), payload.size(), callback);
   }
-  espnow_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
-                    const send_callback_t &callback = nullptr);
+  esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
+                 const send_callback_t &callback = nullptr);
 
   void register_receive_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {
@@ -181,21 +167,17 @@ class ESPNowComponent final : public Component {
   }
   void register_broadcast_handler(ESPNowBroadcastHandler *handler) { this->broadcast_handlers_.push_back(handler); }
 
- protected:
-#if defined(USE_ESP8266)
-  friend void on_data_received(uint8_t *mac_addr, uint8_t *data, uint8_t size);
-  friend void on_send_report(uint8_t *mac_addr, uint8_t status);
-#else
-  friend void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size);
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
-  friend void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status);
-#else
-  friend void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status);
-#endif
-#endif
+  // Entry points for the radio driver callbacks in espnow_platform_*.cpp; they run outside the main loop and
+  // only queue the event. des_addr is nullptr when the SDK does not report it.
+  void packet_received(const uint8_t *src_addr, const uint8_t *des_addr, const uint8_t *data, int size, int8_t rssi,
+                       uint32_t timestamp);
+  void send_reported(const uint8_t *mac_addr, esp_now_send_status_t status);
 
+ protected:
   void enable_();
   void send_();
+  // Move every registered peer to the current channel where the SDK binds peers to one
+  void apply_peer_channel_();
 
   std::vector<ESPNowUnknownPeerHandler *> unknown_peer_handlers_;
   std::vector<ESPNowReceivedPacketHandler *> receive_handlers_;
@@ -204,15 +186,15 @@ class ESPNowComponent final : public Component {
   std::vector<ESPNowPeer> peers_{};
 
   uint8_t own_address_[ESP_NOW_ETH_ALEN]{0};
-  PacketQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
+  LockFreeQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
   // Pool sized to queue capacity (SIZE-1) because the ring buffer holds N-1 elements.
   // This guarantees allocate() returns nullptr before push() can fail, preventing
   // a pool slot leak.
-  PacketPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE - 1> receive_packet_pool_{};
+  EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE - 1> receive_packet_pool_{};
 
-  PacketQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
+  LockFreeQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
   // Pool sized to queue capacity (SIZE-1) — see receive_packet_pool_ comment.
-  PacketPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE - 1> send_packet_pool_{};
+  EventPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE - 1> send_packet_pool_{};
   ESPNowSendPacket *current_send_packet_{nullptr};  // Currently sending packet, nullptr if none
 
   uint8_t wifi_channel_{0};
