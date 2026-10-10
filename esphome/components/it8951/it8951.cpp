@@ -351,6 +351,12 @@ void IT8951Display::on_safe_shutdown() {
   this->spi_cmd_(TCON_SLEEP);
 }
 
+void IT8951Display::on_powerdown() {
+  for (auto *pin : this->enable_pins_) {
+    pin->digital_write(false);
+  }
+}
+
 // --- Init op enqueuers -------------------------------------------------------
 
 void IT8951Display::enqueue_init_reset_() {

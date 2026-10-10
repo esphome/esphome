@@ -177,6 +177,13 @@ file does, and it is the authority when they disagree. The most useful starting 
         Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
         `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
         https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Scheduler ids:** name a timer only when it must be cancelled or replaced, and use a
+        `static constexpr uint32_t` id, never a string. Ids are per component instance and cannot clash with other
+        components, so number them from 0 and keep all of a component's ids together in one place.
+        ```cpp
+        static constexpr uint32_t READ_TIMEOUT_ID = 0;
+        this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
+        ```
     *   **Don't override a default with the same value:** if a base class method already returns what you
         want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
         component that wants `DATA` should simply leave it alone.
@@ -388,6 +395,25 @@ file does, and it is the authority when they disagree. The most useful starting 
                     var, "add_on_state_callback", [], conf, forwarder=forwarder
                 )
         ```
+
+        When the callback's parameters differ from the automation's arguments, or the trigger should only
+        fire for some values, pass `params`, `forward` and `when`; the helper then generates a capture-less
+        lambda (stored inline, nothing allocated). Name the parent with `automation.parent_ref(var)` and build
+        `forward` from `MockObj` calls, not f-strings of C++:
+        ```python
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
+        )
+        ```
+        `build_parent_callback_automation`, `build_trigger_callback`, `build_callback_automations` and
+        `build_trigger_automations` cover the other shapes; see their docstrings in `esphome/automation.py`.
 
         **C++ -- no trigger class needed.** The callback registration method must be templatized to accept both `std::function` and lightweight forwarder structs (which avoid heap allocation):
         ```cpp
