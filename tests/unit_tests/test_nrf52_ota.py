@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from esphome.components.nrf52 import ble_logger, ota
+from esphome.components.nrf52 import ble_logger, ota, show_logs
 from esphome.core import EsphomeError
 
 MAC = "AA:BB:CC:DD:EE:FF"
@@ -90,3 +90,32 @@ def test_upload_transport(monkeypatch, device: str, transport: str) -> None:
 
     asyncio.run(ota._smpmgr_upload(device, Path("firmware.bin")))  # pylint: disable=protected-access
     assert captured == {"transport": transport, "address": device}
+
+
+@pytest.mark.parametrize(
+    ("device", "connected_to"),
+    [("BLE", UUID), (MAC, MAC), (UUID, UUID), ("my-device.local", None)],
+)
+def test_show_logs_routing(monkeypatch, device: str, connected_to: str | None) -> None:
+    """A scanned device, a MAC or a UUID is handed to the BLE logger; anything else falls through."""
+    scan = AsyncMock(return_value=SimpleNamespace(address=UUID))
+    connect = AsyncMock(return_value=0)
+    monkeypatch.setattr(ble_logger, "logger_scan", scan)
+    monkeypatch.setattr(ble_logger, "logger_connect", connect)
+
+    handled = show_logs(config={}, args=None, devices=[device])
+
+    assert handled is (connected_to is not None)
+    if connected_to is None:
+        connect.assert_not_called()
+    else:
+        connect.assert_awaited_once_with(connected_to)
+
+
+def test_show_logs_returns_when_the_scan_finds_nothing(monkeypatch) -> None:
+    monkeypatch.setattr(ble_logger, "logger_scan", AsyncMock(return_value=None))
+    connect = AsyncMock()
+    monkeypatch.setattr(ble_logger, "logger_connect", connect)
+
+    assert show_logs(config={}, args=None, devices=["BLE"]) is True
+    connect.assert_not_called()
