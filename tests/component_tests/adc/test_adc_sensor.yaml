@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+rp2:
+  board: rpipicow
+
+sensor:
+  - platform: adc
+    pin: TEMPERATURE
+    name: Deprecated ADC Temperature
+    id: adc_temperature
+
+  - platform: adc
+    pin: 26
+    name: ADC Voltage
+    id: adc_voltage

@@ -45,8 +45,7 @@ static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
 // Helper function to format MAC address with stack allocation
 // Returns pointer to UNKNOWN_MAC constant or formatted buffer
-// Buffer must be exactly 18 bytes (17 for "XX:XX:XX:XX:XX:XX" + null terminator)
-inline const char *format_mac_str(const uint8_t *mac_address, std::span<char, 18> buffer) {
+inline const char *format_mac_str(const uint8_t *mac_address, std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer) {
   if (mac_address_is_valid(mac_address)) {
     format_mac_addr_upper(mac_address, buffer.data());
     return buffer.data();

@@ -1,8 +1,11 @@
-import logging
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, uart
+from esphome.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
+from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
+from esphome.components.text_sensor import DOMAIN as TEXT_SENSOR_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -12,11 +15,11 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
 )
 from esphome.core import CORE
-
-_LOGGER = logging.getLogger(__name__)
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "dlms_meter"
 
 CONF_DLMS_METER_ID = "dlms_meter_id"
 CONF_DECRYPTION_KEY = "decryption_key"
@@ -33,13 +36,13 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
 )
 
 
-def obis_code(value):
+def obis_code(value: Any) -> str:
     # Normalize the OBIS code to the strict A.B.C.D.E.F format
     bytes_list = parse_obis_code_bytes(value)
     return ".".join(str(b) for b in bytes_list)
 
 
-def parse_obis_code_bytes(value):
+def parse_obis_code_bytes(value: Any) -> list[int]:
     value = cv.string(value)
     normalized = re.sub(r"[\-\:\*]", ".", value)
     parts = normalized.split(".")
@@ -57,66 +60,16 @@ def parse_obis_code_bytes(value):
     return bytes_list
 
 
-def custom_pattern_dict(value):
+def custom_pattern_dict(value: Any) -> ConfigType:
     if isinstance(value, str):
         return {CONF_PATTERN: value}
     return value
 
 
-def validate_custom_pattern(value):
+def validate_custom_pattern(value: ConfigType) -> ConfigType:
     if CONF_DEFAULT_OBIS in value and CONF_NAME not in value:
         raise cv.Invalid(f"'{CONF_DEFAULT_OBIS}' requires '{CONF_NAME}' to be set")
     return value
-
-
-def validate_provider_deprecation(config):
-    if CONF_PROVIDER in config:
-        provider = str(config[CONF_PROVIDER]).lower()
-        if provider == "netznoe":
-            _LOGGER.warning(
-                "The 'provider: netznoe' option is deprecated and will be removed in 2026.11.0. "
-                "The required custom patterns have been added automatically for this release, but you must update your configuration.\n"
-                "Please remove the 'provider' key and explicitly replace it with the following:\n\n"
-                "custom_patterns:\n"
-                '  - pattern: "L, TSTR"\n'
-                '    name: "MeterID"\n'
-                '    default_obis: "0.0.96.1.0.255"\n'
-                '  - pattern: "F, TDTM"\n'
-                '    name: "DateTime"\n'
-                '    default_obis: "0.0.1.0.0.255"\n'
-            )
-            patterns = config.get(CONF_CUSTOM_PATTERNS, [])
-
-            # Ensure "L, TSTR" for MeterID is present
-            if not any(p.get(CONF_PATTERN) == "L, TSTR" for p in patterns):
-                patterns.append(
-                    {
-                        CONF_PATTERN: "L, TSTR",
-                        CONF_NAME: "MeterID",
-                        CONF_DEFAULT_OBIS: [0, 0, 96, 1, 0, 255],
-                        CONF_PRIORITY: 0,
-                    }
-                )
-
-            # Ensure "F, TDTM" for DateTime is present
-            if not any(p.get(CONF_PATTERN) == "F, TDTM" for p in patterns):
-                patterns.append(
-                    {
-                        CONF_PATTERN: "F, TDTM",
-                        CONF_NAME: "DateTime",
-                        CONF_DEFAULT_OBIS: [0, 0, 1, 0, 0, 255],
-                        CONF_PRIORITY: 0,
-                    }
-                )
-
-            config[CONF_CUSTOM_PATTERNS] = patterns
-        else:
-            _LOGGER.warning(
-                "The 'provider' option is deprecated and will be removed in 2026.11.0. "
-                "The dlms_parser library now handles quirks dynamically. "
-                "Please remove this option from your configuration."
-            )
-    return config
 
 
 CUSTOM_PATTERN_SCHEMA = cv.All(
@@ -132,7 +85,7 @@ CUSTOM_PATTERN_SCHEMA = cv.All(
     validate_custom_pattern,
 )
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DlmsMeterComponent),
@@ -140,21 +93,33 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AUTH_KEY): cv.bind_key(name="Authentication key"),
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
-            cv.Optional(CONF_PROVIDER): cv.string,
+            # Removed in 2026.11.0 - kept to provide helpful error message
+            # Remove before 2027.5.0
+            cv.Optional(CONF_PROVIDER): cv.invalid(
+                "The 'provider' option has been removed in ESPHome 2026.11.0.\n"
+                "For 'provider: netznoe', replace it with:\n\n"
+                "custom_patterns:\n"
+                '  - pattern: "L, TSTR"\n'
+                '    name: "MeterID"\n'
+                '    default_obis: "0.0.96.1.0.255"\n'
+                '  - pattern: "F, TDTM"\n'
+                '    name: "DateTime"\n'
+                '    default_obis: "0.0.1.0.0.255"\n\n'
+                "For any other provider, remove the option"
+            ),
             cv.Optional(
                 CONF_RECEIVE_TIMEOUT, default="1000ms"
             ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
-    validate_provider_deprecation,
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_rx=True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     dec_key_expr = cg.RawExpression("std::nullopt")
     if dec_key := config.get(CONF_DECRYPTION_KEY):
         key_bytes = [str(int(dec_key[i : i + 2], 16)) for i in range(0, 32, 2)]
@@ -187,7 +152,7 @@ async def to_code(config):
                 cg.ArrayInitializer(
                     p[CONF_PATTERN],
                     name_expr,
-                    p.get(CONF_PRIORITY, 0),
+                    p[CONF_PRIORITY],
                     obis_expr,
                 )
             )
@@ -207,43 +172,17 @@ async def to_code(config):
 
     hub_id = config[CONF_ID].id
 
-    sensor_count = 0
-    for sens_conf in CORE.config.get("sensor", []):
-        if (
-            sens_conf.get("platform") == "dlms_meter"
-            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
-        ):
-            if CONF_OBIS_CODE in sens_conf:
-                sensor_count += 1
-            else:
-                from .sensor import NUMERIC_KEYS
-
-                sensor_count += sum(1 for key in NUMERIC_KEYS if key in sens_conf)
-
-    text_sensor_count = 0
-    for sens_conf in CORE.config.get("text_sensor", []):
-        if (
-            sens_conf.get("platform") == "dlms_meter"
-            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
-        ):
-            if CONF_OBIS_CODE in sens_conf:
-                text_sensor_count += 1
-            else:
-                from .text_sensor import TEXT_KEYS
-
-                text_sensor_count += sum(1 for key in TEXT_KEYS if key in sens_conf)
-
-    binary_sensor_count = 0
-    for sens_conf in CORE.config.get("binary_sensor", []):
-        if (
-            sens_conf.get("platform") == "dlms_meter"
-            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
-        ):
-            binary_sensor_count += 1
-
-    cg.add_define("DLMS_MAX_SENSORS", sensor_count)
-    cg.add_define("DLMS_MAX_TEXT_SENSORS", text_sensor_count)
-    cg.add_define("DLMS_MAX_BINARY_SENSORS", binary_sensor_count)
+    for domain, define in (
+        (SENSOR_DOMAIN, "DLMS_MAX_SENSORS"),
+        (TEXT_SENSOR_DOMAIN, "DLMS_MAX_TEXT_SENSORS"),
+        (BINARY_SENSOR_DOMAIN, "DLMS_MAX_BINARY_SENSORS"),
+    ):
+        count = sum(
+            1
+            for conf in CORE.config.get(domain, [])
+            if conf.get("platform") == DOMAIN and conf[CONF_DLMS_METER_ID].id == hub_id
+        )
+        cg.add_define(define, count)
 
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

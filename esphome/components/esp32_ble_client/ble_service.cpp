@@ -8,7 +8,7 @@
 
 namespace esphome::esp32_ble_client {
 
-static const char *const TAG = "esp32_ble_client";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_client");
 
 BLECharacteristic *BLEService::get_characteristic(espbt::ESPBTUUID uuid) {
   if (!this->parsed)

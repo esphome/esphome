@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, st7567_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 
@@ -23,7 +24,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await st7567_base.setup_st7567(var, config)
     await i2c.register_i2c_device(var, config)

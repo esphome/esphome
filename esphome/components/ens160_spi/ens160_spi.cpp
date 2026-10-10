@@ -6,7 +6,7 @@
 
 namespace esphome::ens160_spi {
 
-static const char *const TAG = "ens160_spi.sensor";
+ESPHOME_LOG_TAG(TAG, "ens160_spi.sensor");
 
 inline uint8_t reg_read(uint8_t reg) { return (reg << 1) | 0x01; }
 

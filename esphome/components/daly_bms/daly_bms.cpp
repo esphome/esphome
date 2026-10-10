@@ -6,7 +6,7 @@
 
 namespace esphome::daly_bms {
 
-static const char *const TAG = "daly_bms";
+ESPHOME_LOG_TAG(TAG, "daly_bms");
 
 static const uint8_t DALY_FRAME_SIZE = 13;
 static const uint8_t DALY_TEMPERATURE_OFFSET = 40;
@@ -22,10 +22,7 @@ static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() { this->next_request_ = 1; }
 
-void DalyBmsComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Daly BMS:");
-  this->check_uart_settings(9600);
-}
+void DalyBmsComponent::dump_config() { ESP_LOGCONFIG(TAG, "Daly BMS:"); }
 
 void DalyBmsComponent::update() {
   this->trigger_next_ = true;

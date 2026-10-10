@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TIME_ID, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
+DOMAIN = "tuya"
 
 CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
 

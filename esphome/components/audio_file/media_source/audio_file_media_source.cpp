@@ -11,7 +11,7 @@
 
 namespace esphome::audio_file {
 
-static const char *const TAG = "audio_file_media_source";
+ESPHOME_LOG_TAG(TAG, "audio_file_media_source");
 
 static constexpr uint32_t AUDIO_WRITE_TIMEOUT_MS = 50;
 static constexpr size_t DECODER_TASK_STACK_SIZE = 5120;

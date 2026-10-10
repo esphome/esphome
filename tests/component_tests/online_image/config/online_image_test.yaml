@@ -23,6 +23,9 @@ spi:
   mosi_pin: 6
   clk_pin: 7
 
+psram:
+  mode: quad
+
 display:
   - platform: mipi_spi
     id: lcd_display
