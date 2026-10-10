@@ -6,6 +6,8 @@ substitutions:
   rst_pin: GPIO6
   busy_pin: GPIO8
   dio1_pin: GPIO7
+  rx_enable_pin: GPIO9
+  tx_enable_pin: GPIO10
 
 packages:
   spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
