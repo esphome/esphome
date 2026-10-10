@@ -5,23 +5,35 @@
 
 #include <cinttypes>
 #include <cmath>
-#include <cstring>
 
 namespace esphome::apc1 {
 
-static const char *const TAG = "apc1";
+ESPHOME_LOG_TAG(TAG, "apc1");
 
 static constexpr uint8_t APC1_MEASUREMENT_OFFSET_AQI = 58;
 static constexpr uint8_t APC1_MEASUREMENT_OFFSET_ERROR_CODE = 61;
 
 static constexpr uint8_t APC1_DEVICE_INFO_OFFSET_MODULE = 4;
-static constexpr uint8_t APC1_DEVICE_INFO_MODULE_LEN = 6;
 static constexpr uint8_t APC1_DEVICE_INFO_OFFSET_SERIAL = 10;
-static constexpr uint8_t APC1_DEVICE_INFO_SERIAL_LEN = 8;
 static constexpr uint8_t APC1_DEVICE_INFO_OFFSET_FW = 19;
 
-static constexpr uint8_t APC1_COMMAND_RESPONSE_OFFSET_CMD = 4;
-static constexpr uint8_t APC1_COMMAND_RESPONSE_OFFSET_DATA = 5;
+// Give a freshly powered sensor time to boot before the first retry
+static constexpr uint32_t APC1_COLD_BOOT_INIT_DELAY_MS = 2000;
+// Re-send the init commands at most this often while no frames arrive
+static constexpr uint32_t APC1_INIT_RETRY_INTERVAL_MS = 10000;
+// Active mode streams a frame every second; this long without one means the sensor stopped
+static constexpr uint32_t APC1_NO_DATA_TIMEOUT_MS = 15000;
+// Drop a partial frame when the bytes stop mid-way
+static constexpr uint32_t APC1_RX_IDLE_TIMEOUT_MS = 200;
+
+// Frames and commands end with the 16-bit sum of every byte before it
+static uint16_t apc1_checksum(const uint8_t *data, size_t len) {
+  uint16_t sum = 0;
+  for (size_t i = 0; i < len; i++) {
+    sum += data[i];
+  }
+  return sum;
+}
 
 void APC1Component::setup() {
   if (this->set_pin_ != nullptr) {
@@ -37,7 +49,7 @@ void APC1Component::setup() {
   this->initialize_device_();
 
   // Schedule delayed initialization to catch sensors during cold power-on bootup
-  this->set_timeout(2000, [this]() { this->initialize_device_(); });
+  this->set_timeout(APC1_COLD_BOOT_INIT_DELAY_MS, [this]() { this->initialize_device_(); });
 }
 
 void APC1Component::initialize_device_() {
@@ -83,17 +95,18 @@ void APC1Component::loop() {
   // If in active mode and not idle, retry periodically if no valid data received
   if (this->active_mode_ && !this->idle_) {
     if (this->last_valid_frame_ == 0) {
-      if (now - this->last_init_attempt_ >= 10000) {
+      if (now - this->last_init_attempt_ >= APC1_INIT_RETRY_INTERVAL_MS) {
         ESP_LOGD(TAG, "Waiting for APC1 sensor to respond, sending init commands...");
         this->initialize_device_();
       }
-    } else if (now - this->last_valid_frame_ > 15000 && now - this->last_init_attempt_ >= 10000) {
+    } else if (now - this->last_valid_frame_ > APC1_NO_DATA_TIMEOUT_MS &&
+               now - this->last_init_attempt_ >= APC1_INIT_RETRY_INTERVAL_MS) {
       ESP_LOGW(TAG, "No data received from APC1 for %" PRIu32 " ms, re-initializing...", now - this->last_valid_frame_);
       this->initialize_device_();
     }
   }
 
-  if (this->rx_index_ > 0 && now - this->last_transmission_ > 200) {
+  if (this->rx_index_ > 0 && now - this->last_transmission_ > APC1_RX_IDLE_TIMEOUT_MS) {
     ESP_LOGV(TAG, "Timed out waiting for data, resetting buffer");
     this->rx_index_ = 0;
   }
@@ -113,20 +126,14 @@ void APC1Component::loop() {
     if (this->rx_index_ == 1) {
       if (byte == APC1_HEADER_2) {
         this->rx_buffer_[this->rx_index_++] = byte;
-      } else if (byte == APC1_HEADER_1) {
-        this->rx_index_ = 1;
-      } else {
+      } else if (byte != APC1_HEADER_1) {
         this->rx_index_ = 0;
       }
       continue;
     }
 
-    if (this->rx_index_ < this->rx_buffer_.size()) {
-      this->rx_buffer_[this->rx_index_++] = byte;
-    } else {
-      this->rx_index_ = 0;
-      continue;
-    }
+    // The length check below rejects any frame that would not fit, so this never overruns
+    this->rx_buffer_[this->rx_index_++] = byte;
 
     // Once the frame header (2 magic bytes + 2 length bytes) is received, calculate total frame length
     if (this->rx_index_ >= APC1_FRAME_HEADER_SIZE) {
@@ -149,10 +156,7 @@ void APC1Component::loop() {
 
 void APC1Component::parse_frame_(uint16_t total_len) {
   uint16_t expected_checksum = encode_uint16(this->rx_buffer_[total_len - 2], this->rx_buffer_[total_len - 1]);
-  uint16_t calculated_checksum = 0;
-  for (size_t i = 0; i < total_len - 2; i++) {
-    calculated_checksum += this->rx_buffer_[i];
-  }
+  uint16_t calculated_checksum = apc1_checksum(this->rx_buffer_.data(), total_len - 2);
   if (expected_checksum != calculated_checksum) {
     ESP_LOGW(TAG, "APC1 checksum mismatch: calculated 0x%04X != expected 0x%04X", calculated_checksum,
              expected_checksum);
@@ -164,7 +168,7 @@ void APC1Component::parse_frame_(uint16_t total_len) {
   } else if (total_len == APC1_FRAME_SIZE_DEVICE_INFO) {
     this->parse_device_info_frame_();
   } else if (total_len == APC1_FRAME_SIZE_COMMAND_RESPONSE) {
-    this->parse_command_response_frame_();
+    ESP_LOGD(TAG, "APC1 command response: cmd=0x%02X, data=0x%02X", this->rx_buffer_[4], this->rx_buffer_[5]);
   } else {
     ESP_LOGD(TAG, "Received frame of unknown length %u", total_len);
   }
@@ -177,25 +181,22 @@ void APC1Component::parse_measurement_frame_() {
   uint8_t error_code = this->rx_buffer_[APC1_MEASUREMENT_OFFSET_ERROR_CODE];
   if (error_code != this->last_error_code_) {
     if (error_code != 0) {
-      struct ErrorBit {
-        uint8_t mask;
-        const LogString *message;
+      // One message per error bit, bit 0 first
+      static const LogString *const ERROR_BITS[] = {
+          LOG_STR("Fan restart error (too many restarts)"),
+          LOG_STR("Fan speed low"),
+          LOG_STR("Photodiode fault"),
+          LOG_STR("Fan stopped / startup error"),
+          LOG_STR("Laser fault"),
+          LOG_STR("VOC sensor fault"),
+          LOG_STR("RHT sensor fault"),
       };
-      static const ErrorBit ERROR_BITS[] = {
-          {0x01, LOG_STR("Fan restart error (too many restarts)")},
-          {0x02, LOG_STR("Fan speed low")},
-          {0x04, LOG_STR("Photodiode fault")},
-          {0x08, LOG_STR("Fan stopped / startup error")},
-          {0x10, LOG_STR("Laser fault")},
-          {0x20, LOG_STR("VOC sensor fault")},
-          {0x40, LOG_STR("RHT sensor fault")},
-      };
-      for (const auto &bit : ERROR_BITS) {
-        if (error_code & bit.mask) {
-          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(bit.message));
+      for (uint8_t bit = 0; bit < sizeof(ERROR_BITS) / sizeof(ERROR_BITS[0]); bit++) {
+        if (error_code & (1 << bit)) {
+          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ERROR_BITS[bit]));
         }
       }
-      this->status_set_warning("Sensor reported hardware error");
+      this->status_set_warning(LOG_STR("Sensor reported hardware error"));
     } else {
       ESP_LOGI(TAG, "APC1: Hardware error cleared");
       this->status_clear_warning();
@@ -220,23 +221,30 @@ void APC1Component::parse_measurement_frame_() {
   // Measurement payload data (bytes 4-57): big-endian sensor readings.
   // The values below feed the debug summary, so they are always decoded; every
   // other reading is only decoded when its sensor is configured.
-  uint16_t pm_1_0 = encode_uint16(this->rx_buffer_[10], this->rx_buffer_[11]);
-  uint16_t pm_2_5 = encode_uint16(this->rx_buffer_[12], this->rx_buffer_[13]);
-  uint16_t pm_10_0 = encode_uint16(this->rx_buffer_[14], this->rx_buffer_[15]);
-  uint16_t tvoc = encode_uint16(this->rx_buffer_[28], this->rx_buffer_[29]);
-  uint16_t eco2 = encode_uint16(this->rx_buffer_[30], this->rx_buffer_[31]);
-  float temp_comp = static_cast<int16_t>(encode_uint16(this->rx_buffer_[34], this->rx_buffer_[35])) / 10.0f;
-  float hum_comp = encode_uint16(this->rx_buffer_[36], this->rx_buffer_[37]) / 10.0f;
+  const auto u16 = [this](uint8_t offset) {
+    return encode_uint16(this->rx_buffer_[offset], this->rx_buffer_[offset + 1]);
+  };
+  const auto u32 = [this](uint8_t offset) {
+    return encode_uint32(this->rx_buffer_[offset], this->rx_buffer_[offset + 1], this->rx_buffer_[offset + 2],
+                         this->rx_buffer_[offset + 3]);
+  };
+  uint16_t pm_1_0 = u16(10);
+  uint16_t pm_2_5 = u16(12);
+  uint16_t pm_10_0 = u16(14);
+  uint16_t tvoc = u16(28);
+  uint16_t eco2 = u16(30);
+  float temp_comp = static_cast<int16_t>(u16(34)) / 10.0f;
+  float hum_comp = u16(36) / 10.0f;
 
   ESP_LOGD(TAG, "APC1: PM1.0: %u, PM2.5: %u, PM10: %u, TVOC: %u, eCO2: %u, AQI: %u, Temp: %.1f°C, Hum: %.1f%%", pm_1_0,
            pm_2_5, pm_10_0, tvoc, eco2, aqi, temp_comp, hum_comp);
 
   if (this->pm_1_0_std_sensor_ != nullptr)
-    this->pm_1_0_std_sensor_->publish_state(encode_uint16(this->rx_buffer_[4], this->rx_buffer_[5]));
+    this->pm_1_0_std_sensor_->publish_state(u16(4));
   if (this->pm_2_5_std_sensor_ != nullptr)
-    this->pm_2_5_std_sensor_->publish_state(encode_uint16(this->rx_buffer_[6], this->rx_buffer_[7]));
+    this->pm_2_5_std_sensor_->publish_state(u16(6));
   if (this->pm_10_0_std_sensor_ != nullptr)
-    this->pm_10_0_std_sensor_->publish_state(encode_uint16(this->rx_buffer_[8], this->rx_buffer_[9]));
+    this->pm_10_0_std_sensor_->publish_state(u16(8));
 
   if (this->pm_1_0_sensor_ != nullptr)
     this->pm_1_0_sensor_->publish_state(pm_1_0);
@@ -246,17 +254,17 @@ void APC1Component::parse_measurement_frame_() {
     this->pm_10_0_sensor_->publish_state(pm_10_0);
 
   if (this->pm_0_3um_sensor_ != nullptr)
-    this->pm_0_3um_sensor_->publish_state(encode_uint16(this->rx_buffer_[16], this->rx_buffer_[17]));
+    this->pm_0_3um_sensor_->publish_state(u16(16));
   if (this->pm_0_5um_sensor_ != nullptr)
-    this->pm_0_5um_sensor_->publish_state(encode_uint16(this->rx_buffer_[18], this->rx_buffer_[19]));
+    this->pm_0_5um_sensor_->publish_state(u16(18));
   if (this->pm_1_0um_sensor_ != nullptr)
-    this->pm_1_0um_sensor_->publish_state(encode_uint16(this->rx_buffer_[20], this->rx_buffer_[21]));
+    this->pm_1_0um_sensor_->publish_state(u16(20));
   if (this->pm_2_5um_sensor_ != nullptr)
-    this->pm_2_5um_sensor_->publish_state(encode_uint16(this->rx_buffer_[22], this->rx_buffer_[23]));
+    this->pm_2_5um_sensor_->publish_state(u16(22));
   if (this->pm_5_0um_sensor_ != nullptr)
-    this->pm_5_0um_sensor_->publish_state(encode_uint16(this->rx_buffer_[24], this->rx_buffer_[25]));
+    this->pm_5_0um_sensor_->publish_state(u16(24));
   if (this->pm_10_0um_sensor_ != nullptr)
-    this->pm_10_0um_sensor_->publish_state(encode_uint16(this->rx_buffer_[26], this->rx_buffer_[27]));
+    this->pm_10_0um_sensor_->publish_state(u16(26));
 
   if (this->tvoc_sensor_ != nullptr)
     this->tvoc_sensor_->publish_state(tvoc);
@@ -271,53 +279,41 @@ void APC1Component::parse_measurement_frame_() {
     this->humidity_sensor_->publish_state(hum_comp);
 
   if (this->raw_temperature_sensor_ != nullptr) {
-    this->raw_temperature_sensor_->publish_state(
-        static_cast<int16_t>(encode_uint16(this->rx_buffer_[38], this->rx_buffer_[39])) / 10.0f);
+    this->raw_temperature_sensor_->publish_state(static_cast<int16_t>(u16(38)) / 10.0f);
   }
   if (this->raw_humidity_sensor_ != nullptr)
-    this->raw_humidity_sensor_->publish_state(encode_uint16(this->rx_buffer_[40], this->rx_buffer_[41]) / 10.0f);
+    this->raw_humidity_sensor_->publish_state(u16(40) / 10.0f);
 
   if (this->rs0_sensor_ != nullptr) {
-    this->rs0_sensor_->publish_state(
-        encode_uint32(this->rx_buffer_[42], this->rx_buffer_[43], this->rx_buffer_[44], this->rx_buffer_[45]));
+    this->rs0_sensor_->publish_state(u32(42));
   }
   if (this->rs2_sensor_ != nullptr) {
-    this->rs2_sensor_->publish_state(
-        encode_uint32(this->rx_buffer_[50], this->rx_buffer_[51], this->rx_buffer_[52], this->rx_buffer_[53]));
+    this->rs2_sensor_->publish_state(u32(50));
   }
   if (this->rs3_sensor_ != nullptr) {
-    this->rs3_sensor_->publish_state(
-        encode_uint32(this->rx_buffer_[54], this->rx_buffer_[55], this->rx_buffer_[56], this->rx_buffer_[57]));
+    this->rs3_sensor_->publish_state(u32(54));
   }
-  if (this->error_code_sensor_ != nullptr)
-    this->error_code_sensor_->publish_state(error_code);
 }
 
 void APC1Component::parse_device_info_frame_() {
-  std::array<char, APC1_DEVICE_INFO_MODULE_LEN + 1> module_name{};
-  std::memcpy(module_name.data(), this->rx_buffer_.data() + APC1_DEVICE_INFO_OFFSET_MODULE,
-              APC1_DEVICE_INFO_MODULE_LEN);
-
-  uint64_t serial_number = 0;
-  for (size_t i = APC1_DEVICE_INFO_OFFSET_SERIAL; i < APC1_DEVICE_INFO_OFFSET_SERIAL + APC1_DEVICE_INFO_SERIAL_LEN;
-       i++) {
-    serial_number = (serial_number << 8) | this->rx_buffer_[i];
-  }
-
+  const uint8_t *serial = this->rx_buffer_.data() + APC1_DEVICE_INFO_OFFSET_SERIAL;
   uint16_t fw_version =
       encode_uint16(this->rx_buffer_[APC1_DEVICE_INFO_OFFSET_FW], this->rx_buffer_[APC1_DEVICE_INFO_OFFSET_FW + 1]);
-  ESP_LOGI(TAG, "APC1: Module: %s, Serial: %08" PRIX32 "%08" PRIX32 ", Firmware: 0x%04X (%u)", module_name.data(),
-           static_cast<uint32_t>(serial_number >> 32), static_cast<uint32_t>(serial_number & 0xFFFFFFFF), fw_version,
-           fw_version);
+  ESP_LOGI(TAG, "APC1: Module: %.6s, Serial: %08" PRIX32 "%08" PRIX32 ", Firmware: 0x%04X (%u)",
+           reinterpret_cast<const char *>(this->rx_buffer_.data() + APC1_DEVICE_INFO_OFFSET_MODULE),
+           encode_uint32(serial[0], serial[1], serial[2], serial[3]),
+           encode_uint32(serial[4], serial[5], serial[6], serial[7]), fw_version, fw_version);
 }
 
-void APC1Component::parse_command_response_frame_() {
-  uint8_t cmd = this->rx_buffer_[APC1_COMMAND_RESPONSE_OFFSET_CMD];
-  uint8_t data = this->rx_buffer_[APC1_COMMAND_RESPONSE_OFFSET_DATA];
-  ESP_LOGD(TAG, "APC1 command response: cmd=0x%02X, data=0x%02X", cmd, data);
+void APC1Component::arm_watchdog_() {
+  this->last_valid_frame_ = App.get_loop_component_start_time();
+  this->last_init_attempt_ = this->last_valid_frame_;
 }
 
 void APC1Component::set_active_mode() {
+  if (!this->active_mode_) {
+    this->arm_watchdog_();
+  }
   this->active_mode_ = true;
   this->send_command_(APC1Command::APC1_COMMAND_MEASUREMENT_MODE, APC1_MEASUREMENT_MODE_ACTIVE);
 }
@@ -338,8 +334,7 @@ void APC1Component::set_idle_mode() {
 
 void APC1Component::set_measurement_mode() {
   this->idle_ = false;
-  this->last_valid_frame_ = App.get_loop_component_start_time();
-  this->last_init_attempt_ = this->last_valid_frame_;
+  this->arm_watchdog_();
   this->send_command_(APC1Command::APC1_COMMAND_OPERATION_MODE, APC1_OPERATING_MODE_STANDARD);
 }
 
@@ -353,10 +348,7 @@ void APC1Component::send_command_(APC1Command cmd, uint16_t data) {
       0,
       0,
   };
-  uint16_t checksum = 0;
-  for (size_t i = 0; i < 5; i++) {
-    checksum += buf[i];
-  }
+  uint16_t checksum = apc1_checksum(buf.data(), 5);
   buf[5] = static_cast<uint8_t>((checksum >> 8) & 0xFF);
   buf[6] = static_cast<uint8_t>(checksum & 0xFF);
   this->write_array(buf);

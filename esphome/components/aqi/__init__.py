@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components.const import CONF_AQI  # noqa: F401
 
 CODEOWNERS = ["@jasstrong", "@ximex", "@freekode"]
 DOMAIN = "aqi"

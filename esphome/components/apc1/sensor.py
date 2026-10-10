@@ -62,88 +62,57 @@ apc1_ns = cg.esphome_ns.namespace("apc1")
 APC1Component = apc1_ns.class_("APC1Component", uart.UARTDevice, cg.Component)
 
 
+def _pm_mass_schema(device_class: str) -> cv.Schema:
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+        icon=ICON_CHEMICAL_WEAPON,
+        accuracy_decimals=0,
+        device_class=device_class,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+
+
+_PM_COUNT_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_COUNT_DECILITRE,
+    icon=ICON_CHEMICAL_WEAPON,
+    accuracy_decimals=0,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_TEMPERATURE_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_CELSIUS,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_TEMPERATURE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_HUMIDITY_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_PERCENT,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_HUMIDITY,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_RESISTANCE_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_OHM,
+    icon=ICON_OMEGA,
+    accuracy_decimals=0,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APC1Component),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_0_3UM): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNT_DECILITRE,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_0_5UM): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNT_DECILITRE,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_1_0UM): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNT_DECILITRE,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_2_5UM): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNT_DECILITRE,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_5_0UM): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNT_DECILITRE,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_10_0UM): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNT_DECILITRE,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_PM_1_0): _pm_mass_schema(DEVICE_CLASS_PM1),
+            cv.Optional(CONF_PM_2_5): _pm_mass_schema(DEVICE_CLASS_PM25),
+            cv.Optional(CONF_PM_10_0): _pm_mass_schema(DEVICE_CLASS_PM10),
+            cv.Optional(CONF_PM_1_0_STD): _pm_mass_schema(DEVICE_CLASS_PM1),
+            cv.Optional(CONF_PM_2_5_STD): _pm_mass_schema(DEVICE_CLASS_PM25),
+            cv.Optional(CONF_PM_10_0_STD): _pm_mass_schema(DEVICE_CLASS_PM10),
+            cv.Optional(CONF_PM_0_3UM): _PM_COUNT_SCHEMA,
+            cv.Optional(CONF_PM_0_5UM): _PM_COUNT_SCHEMA,
+            cv.Optional(CONF_PM_1_0UM): _PM_COUNT_SCHEMA,
+            cv.Optional(CONF_PM_2_5UM): _PM_COUNT_SCHEMA,
+            cv.Optional(CONF_PM_5_0UM): _PM_COUNT_SCHEMA,
+            cv.Optional(CONF_PM_10_0UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
@@ -164,48 +133,13 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_RAW_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_RAW_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_RS0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
-                icon=ICON_OMEGA,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_RS2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
-                icon=ICON_OMEGA,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_RS3): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
-                icon=ICON_OMEGA,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_TEMPERATURE): _TEMPERATURE_SCHEMA,
+            cv.Optional(CONF_HUMIDITY): _HUMIDITY_SCHEMA,
+            cv.Optional(CONF_RAW_TEMPERATURE): _TEMPERATURE_SCHEMA,
+            cv.Optional(CONF_RAW_HUMIDITY): _HUMIDITY_SCHEMA,
+            cv.Optional(CONF_RS0): _RESISTANCE_SCHEMA,
+            cv.Optional(CONF_RS2): _RESISTANCE_SCHEMA,
+            cv.Optional(CONF_RS3): _RESISTANCE_SCHEMA,
             cv.Optional(CONF_ERROR_CODE): sensor.sensor_schema(
                 icon="mdi:alert-circle-outline",
                 accuracy_decimals=0,
@@ -229,42 +163,36 @@ def final_validate(config: ConfigType) -> None:
 
 FINAL_VALIDATE_SCHEMA = final_validate
 
-SENSORS = [
-    (CONF_PM_1_0, "set_pm_1_0_sensor"),
-    (CONF_PM_2_5, "set_pm_2_5_sensor"),
-    (CONF_PM_10_0, "set_pm_10_0_sensor"),
-    (CONF_PM_1_0_STD, "set_pm_1_0_std_sensor"),
-    (CONF_PM_2_5_STD, "set_pm_2_5_std_sensor"),
-    (CONF_PM_10_0_STD, "set_pm_10_0_std_sensor"),
-    (CONF_PM_0_3UM, "set_pm_0_3um_sensor"),
-    (CONF_PM_0_5UM, "set_pm_0_5um_sensor"),
-    (CONF_PM_1_0UM, "set_pm_1_0um_sensor"),
-    (CONF_PM_2_5UM, "set_pm_2_5um_sensor"),
-    (CONF_PM_5_0UM, "set_pm_5_0um_sensor"),
-    (CONF_PM_10_0UM, "set_pm_10_0um_sensor"),
-    (CONF_TVOC, "set_tvoc_sensor"),
-    (CONF_ECO2, "set_eco2_sensor"),
-    (CONF_AQI, "set_aqi_sensor"),
-    (CONF_TEMPERATURE, "set_temperature_sensor"),
-    (CONF_HUMIDITY, "set_humidity_sensor"),
-    (CONF_RAW_TEMPERATURE, "set_raw_temperature_sensor"),
-    (CONF_RAW_HUMIDITY, "set_raw_humidity_sensor"),
-    (CONF_RS0, "set_rs0_sensor"),
-    (CONF_RS2, "set_rs2_sensor"),
-    (CONF_RS3, "set_rs3_sensor"),
-    (CONF_ERROR_CODE, "set_error_code_sensor"),
-]
-
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for conf_key, setter in SENSORS:
-        if (sensor_config := config.get(conf_key)) is not None:
-            sens = await sensor.new_sensor(sensor_config)
-            cg.add(getattr(var, setter)(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
+    await sensors(CONF_PM_1_0_STD, var.set_pm_1_0_std_sensor)
+    await sensors(CONF_PM_2_5_STD, var.set_pm_2_5_std_sensor)
+    await sensors(CONF_PM_10_0_STD, var.set_pm_10_0_std_sensor)
+    await sensors(CONF_PM_0_3UM, var.set_pm_0_3um_sensor)
+    await sensors(CONF_PM_0_5UM, var.set_pm_0_5um_sensor)
+    await sensors(CONF_PM_1_0UM, var.set_pm_1_0um_sensor)
+    await sensors(CONF_PM_2_5UM, var.set_pm_2_5um_sensor)
+    await sensors(CONF_PM_5_0UM, var.set_pm_5_0um_sensor)
+    await sensors(CONF_PM_10_0UM, var.set_pm_10_0um_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_ECO2, var.set_eco2_sensor)
+    await sensors(CONF_AQI, var.set_aqi_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_RAW_TEMPERATURE, var.set_raw_temperature_sensor)
+    await sensors(CONF_RAW_HUMIDITY, var.set_raw_humidity_sensor)
+    await sensors(CONF_RS0, var.set_rs0_sensor)
+    await sensors(CONF_RS2, var.set_rs2_sensor)
+    await sensors(CONF_RS3, var.set_rs3_sensor)
+    await sensors(CONF_ERROR_CODE, var.set_error_code_sensor)
 
     if (set_pin_config := config.get(CONF_SET_PIN)) is not None:
         set_pin = await cg.gpio_pin_expression(set_pin_config)

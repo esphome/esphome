@@ -16,7 +16,6 @@ static constexpr uint8_t APC1_FRAME_SIZE_MEASUREMENT = 64;
 static constexpr uint8_t APC1_FRAME_SIZE_DEVICE_INFO = 23;
 static constexpr uint8_t APC1_FRAME_SIZE_COMMAND_RESPONSE = 8;
 static constexpr uint8_t APC1_COMMAND_FRAME_SIZE = 7;
-static constexpr size_t APC1_BUFFER_SIZE = APC1_FRAME_SIZE_MEASUREMENT;
 
 enum class APC1Command : uint8_t {
   APC1_COMMAND_MEASUREMENT_MODE = 0xE1,
@@ -78,17 +77,18 @@ class APC1Component final : public uart::UARTDevice, public Component {
  protected:
   void send_command_(APC1Command cmd, uint16_t data);
   void initialize_device_();
+  /// Restarts the no-data watchdog so a mode change gets the same grace period as a cold boot
+  void arm_watchdog_();
   void parse_frame_(uint16_t total_len);
   void parse_measurement_frame_();
   void parse_device_info_frame_();
-  void parse_command_response_frame_();
 
   GPIOPin *set_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   uint32_t last_transmission_{0};
   uint32_t last_valid_frame_{0};
   uint32_t last_init_attempt_{0};
-  std::array<uint8_t, APC1_BUFFER_SIZE> rx_buffer_{};
+  std::array<uint8_t, APC1_FRAME_SIZE_MEASUREMENT> rx_buffer_{};
   uint8_t rx_index_{0};
   uint8_t last_error_code_{0xFF};
   bool active_mode_{true};
