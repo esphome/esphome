@@ -439,7 +439,7 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Subscribe failed for topic='%s'. Will retry", topic);
-    this->status_momentary_warning("subscribe", 1000);
+    this->status_momentary_warning(1000);
   }
   return ret != 0;
 }
@@ -499,7 +499,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());
-    this->status_momentary_warning("unsubscribe", 1000);
+    this->status_momentary_warning(1000);
   }
 
   auto it = subscriptions_.begin();
@@ -553,7 +553,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
       ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
-      this->status_momentary_warning("publish", 1000);
+      this->status_momentary_warning(1000);
     }
   }
   return ret != 0;

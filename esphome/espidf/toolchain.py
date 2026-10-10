@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 import fnmatch
-import hashlib
 import json
 import logging
 import os
@@ -516,23 +515,21 @@ def _sync_component_mirror() -> None:
 
 
 def _builtin_component_cache_path() -> Path | None:
-    """Cache file for this build's built-in component list.
+    """Cache file for this target's built-in component list.
 
     The file lives inside the extracted framework directory so it is
     discarded together with that exact checkout (re-extract, source
-    override, clean-all); the target and the EXCLUDE_COMPONENTS set name it.
-    The sdkconfig is not part of the key: IDF components register regardless
-    of CONFIG_* options and only gate their sources on them. A checkout
-    supplied through IDF_PATH is not managed by ESPHome and is never cached.
+    override, clean-all). The discovery configure registers every built-in
+    component, so the list serves any EXCLUDE_COMPONENTS set (the project
+    write drops the excluded names) and any sdkconfig (IDF components
+    register regardless of CONFIG_* options and only gate their sources on
+    them). A checkout supplied through IDF_PATH is not managed by ESPHome
+    and is never cached.
     """
     if not _esphome_manages_idf():
         return None
     target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
-    excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
-    excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
-    return (
-        _get_idf_path() / ".esphome_component_lists" / f"{target}-{excluded_key}.json"
-    )
+    return _get_idf_path() / ".esphome_component_lists" / f"{target}.json"
 
 
 def load_cached_builtin_components() -> list[str] | None:
@@ -635,10 +632,9 @@ def has_outdated_files():
       already deletes ``dependencies.lock`` on a change but that signal
       gets lost as soon as the lock is missing.
     - ``exclude_components.esphomeinternal`` -- the resolved
-      EXCLUDE_COMPONENTS set. Excluded components never register in
-      ``project_description.json``, so re-including one needs a fresh
-      discovery pass before it can appear in the builtin-components
-      property that ``src`` REQUIRES.
+      EXCLUDE_COMPONENTS set. The builtin-components property that
+      ``src`` REQUIRES drops excluded names, so re-including one needs a
+      reconfigure to rebuild that property from the discovery list.
 
     We deliberately don't watch:
     - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
@@ -803,8 +799,7 @@ def run_compile(config, verbose: bool) -> int:
 
     Uses two-phase configure to auto-discover available components:
     1. If no previous build, configure with minimal REQUIRES to discover
-       components (skipped when a cached list for this IDF/target/exclusion
-       set exists)
+       components (skipped when a cached list for this IDF/target exists)
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
