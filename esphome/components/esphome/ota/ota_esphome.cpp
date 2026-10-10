@@ -649,11 +649,17 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge Update end OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_UPDATE_END_OK);
 
-  // Read ACK
-  if (!this->data_readall_(buf, 1) || buf[0] != ota::OTA_RESPONSE_OK) {
-    this->log_read_error_(LOG_STR("ack"));
-    // do not go to error, this is not fatal
-  }
+#ifdef ESPHOME_OTA_UDP
+  // UDP never reports a close: wait only until the client has our responses, not for its final ack
+  if (this->udp_ != nullptr) {
+    this->udp_linger_();
+  } else
+#endif
+    // Read ACK
+    if (!this->data_readall_(buf, 1) || buf[0] != ota::OTA_RESPONSE_OK) {
+      this->log_read_error_(LOG_STR("ack"));
+      // do not go to error, this is not fatal
+    }
 
   this->cleanup_connection_();
   delay(10);
@@ -789,7 +795,12 @@ void ESPHomeOTAComponent::log_start_(const LogString *phase) {
 #ifdef ESPHOME_OTA_UDP
   if (this->client_ == nullptr) {
     // A committed UDP session has already dropped TCP
+#ifdef ESPHOME_OTA_UDP_LWIP
     ipaddr_ntoa_r(&this->udp_->peer_ip, peername, sizeof(peername));
+#else
+    socket::format_sockaddr_to(reinterpret_cast<const struct sockaddr *>(&this->udp_->peer), this->udp_->peer_len,
+                               peername);
+#endif
   } else
 #endif
   {

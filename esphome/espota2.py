@@ -619,6 +619,8 @@ class UdpChannel:
         self._last_ping = 0.0
         self._last_progress = time.monotonic()
         self._sends = 0
+        # Last socket error, e.g. refused once the device's socket is gone
+        self._last_error: OSError | None = None
 
     def settimeout(self, timeout: float) -> None:
         self._timeout = timeout
@@ -651,9 +653,13 @@ class UdpChannel:
                 _UdpMessage(self._next_seq, data[offset : offset + UDP_MAX_PAYLOAD])
             )
             self._next_seq = (self._next_seq + 1) & 0xFFFF
-        # Return once everything is at least in flight
-        while len(self._queue) > UDP_WINDOW:
+        # Return once everything is at least in flight, or the device spoke (an error)
+        while len(self._queue) > UDP_WINDOW and not self._rx:
             self._pump()
+
+    def pending(self) -> bool:
+        """Whether the device sent bytes nobody has read yet."""
+        return bool(self._rx)
 
     def recv(self, amount: int) -> bytes:
         while not self._rx:
@@ -683,14 +689,19 @@ class UdpChannel:
             + (self._device_bytes & 0xFFFF).to_bytes(2, "big")
         )
         self._sends += 1
-        with contextlib.suppress(OSError):
-            # A full buffer or ICMP error is just more loss
+        try:
             self._sock.send(header + payload)
+        except OSError as err:
+            # A full buffer or ICMP error is just more loss, but worth reporting
+            self._socket_error(err)
 
     def _pump(self) -> None:
         now = time.monotonic()
         if now - self._last_progress > self._timeout:
-            raise OTANetworkError(f"no progress over UDP for {self._timeout:.0f}s")
+            reason = f" (last error: {self._last_error})" if self._last_error else ""
+            raise OTANetworkError(
+                f"no progress over UDP for {self._timeout:.0f}s{reason}"
+            )
         rto = self._rto()
         wake = now + rto
         # At least the head, which doubles as the probe while the device is busy
@@ -720,9 +731,15 @@ class UdpChannel:
             wait = 0
             try:
                 data = self._sock.recv(2048)
-            except OSError:
+            except OSError as err:
+                self._socket_error(err)
                 continue
             self._handle_ack(data)
+
+    def _socket_error(self, err: OSError) -> None:
+        if self._last_error is None or err.errno != self._last_error.errno:
+            _LOGGER.debug("UDP socket error: %s", err)
+        self._last_error = err
 
     def _sample_rtt(self, sample: float) -> None:
         # RFC 6298 smoothing
@@ -1122,7 +1139,10 @@ def perform_ota(
                         )
                     raise OTANetworkError(f"sending data: {err}") from err
 
-                # The UDP channel acks every message itself
+                # The UDP channel acks every message itself, so anything the device
+                # sends mid upload is an error code
+                if udp is not None and udp.pending() and offset < upload_size:
+                    receive_exactly(sock, 1, "data", [])
                 if version >= OTA_VERSION_2_0 and udp is None:
                     try:
                         receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
@@ -1178,7 +1198,8 @@ def perform_ota(
         else:
             _LOGGER.info("OTA successful")
         if udp is not None:
-            # Nothing waits for this; just give the end acknowledgement a chance
+            # Our end acknowledgement also tells the device we have its
+            # responses, ending its wait before it reboots
             udp.flush(2.0)
     finally:
         if udp is not None:

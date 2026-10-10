@@ -1628,20 +1628,20 @@ class _LossyUdpDevice:
                 self.next_seq = (self.next_seq + 1) & 0xFFFF
             if self.random.random() < self.loss:
                 continue
-            held = sum(
+            window = sum(
                 1 << k
                 for k in range(1, espota2.UDP_WINDOW)
                 if (self.next_seq + k) & 0xFFFF in self.slots
             )
             # Consumes at once, so every slot it does not hold is free
-            held |= (espota2.UDP_WINDOW - len(self.slots)) << 4
+            window |= (espota2.UDP_WINDOW - len(self.slots)) << 4
             self.sock.sendto(
                 bytes([espota2.UDP_MSG_ACK])
                 + self.token
                 + self.next_seq.to_bytes(2, "big")
                 + seq.to_bytes(2, "big")
                 + (self.out_base & 0xFFFF).to_bytes(2, "big")
-                + bytes([held])
+                + bytes([window])
                 + bytes(self.out),
                 peer,
             )
@@ -1668,16 +1668,6 @@ def test_udp_channel_delivers_in_order(loss: float) -> None:
     assert b"".join(device.received) == data
     assert all(len(m) <= espota2.UDP_MAX_PAYLOAD for m in device.received)
     assert device.committed
-
-
-def test_udp_channel_times_out_without_progress() -> None:
-    """A dead link still fails, after the no-progress timeout."""
-    with _LossyUdpDevice(b"\x01\x01\x01\x01", 1.0) as device:
-        channel = _udp_client(device)
-        channel.settimeout(0.3)
-        with pytest.raises(espota2.OTANetworkError, match="no progress over UDP"):
-            channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
-        channel.close()
 
 
 def test_start_udp_falls_back_when_blocked(mock_socket: Mock) -> None:
@@ -1743,3 +1733,21 @@ def test_tcp_retransmits(platform: str, info: bytes, expected: int | None) -> No
     sock.getsockopt.return_value = info
     with patch("sys.platform", platform):
         assert espota2._tcp_retransmits(sock) == expected
+
+
+def test_udp_channel_reports_socket_errors() -> None:
+    """A dead link still fails after the no-progress timeout, naming the socket
+    error behind it."""
+    gone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    gone.bind(("127.0.0.1", 0))
+    addr = gone.getsockname()
+    gone.close()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect(addr)
+    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+    channel.settimeout(0.5)
+    with pytest.raises(
+        espota2.OTANetworkError, match="no progress over UDP.*last error"
+    ):
+        channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
+    channel.close()

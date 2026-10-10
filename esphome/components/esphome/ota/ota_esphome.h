@@ -15,18 +15,23 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/hash_base.h"
 
-// The UDP data phase answers datagrams from lwIP's receive callback, so it needs the raw lwIP API from the main
-// loop: single threaded (ESP8266), locked (RP2040, ESP32 with core locking) or LibreTiny (declines without core
-// locking)
+// UDP data phase: raw lwIP needs a main loop lock (or a single thread); the host polls a socket instead
 #ifdef USE_ESP32
 #include <sdkconfig.h>
 #endif
 #if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || \
     (defined(USE_ESP32) && defined(CONFIG_LWIP_TCPIP_CORE_LOCKING))
 #define ESPHOME_OTA_UDP
+#define ESPHOME_OTA_UDP_LWIP
 #include "lwip/ip_addr.h"
 #include "lwip/pbuf.h"
 #include "lwip/udp.h"
+#if defined(USE_LIBRETINY) && !LWIP_TCPIP_CORE_LOCKING
+#undef ESPHOME_OTA_UDP
+#undef ESPHOME_OTA_UDP_LWIP
+#endif
+#elif defined(USE_HOST)
+#define ESPHOME_OTA_UDP
 #endif
 
 namespace esphome {
@@ -85,20 +90,31 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   static constexpr size_t UDP_OUT_SIZE = 64;  // our unacked responses: at most three encrypted ones
   // Messages the device keeps unread: like TCP's 4 segment window, so no more memory than TCP holds
   static constexpr uint8_t UDP_WINDOW = 4;
+#ifdef ESPHOME_OTA_UDP_LWIP
+  using UdpSlot = struct pbuf *;
+#else
+  using UdpSlot = struct OtaUdpDatagram *;
+#endif
   // Lives on handle_data_'s stack; the receive callback shares it under the lwIP lock
   struct UdpLink {
     ~UdpLink();
-    void release();  // closes the pcb and frees what is queued
+    void release();  // closes the socket and frees what is queued
+#ifdef ESPHOME_OTA_UDP_LWIP
     struct udp_pcb *pcb{nullptr};
     ip_addr_t peer_ip;
+#else
+    std::unique_ptr<socket::Socket> sock;
+    struct sockaddr_storage peer;  // the TCP peer; its port is replaced by peer_port
+    socklen_t peer_len{0};
+#endif
     uint16_t peer_port{0};  // learned from the client's datagrams
     // The session token, our answer to the client: top bit clear, so never an error code; all zero declines
     uint8_t reply[4]{};
-    struct pbuf *queue[UDP_WINDOW]{};  // slot seq % UDP_WINDOW for seq in [consumed, consumed + UDP_WINDOW)
-    uint16_t received{0};              // every seq before it is here
-    uint16_t consumed{0};              // the message being read
-    uint16_t read_offset{0};           // payload bytes of it already read
-    uint16_t out_base{0};              // stream offset of out[0]
+    UdpSlot queue[UDP_WINDOW]{};  // slot seq % UDP_WINDOW for seq in [consumed, consumed + UDP_WINDOW)
+    uint16_t received{0};         // every seq before it is here
+    uint16_t consumed{0};         // the message being read
+    uint16_t read_offset{0};      // payload bytes of it already read
+    uint16_t out_base{0};         // stream offset of out[0]
     uint8_t out_len{0};
     bool committed{false};  // the client heard us over UDP
     uint8_t out[UDP_OUT_SIZE];
@@ -112,9 +128,16 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   bool udp_send_(const uint8_t *data, size_t len);
   // In a UDP session, keeps answering until the client has our responses (an error code), briefly
   void udp_linger_();
-  static void udp_recv_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, uint16_t port);
+  // A datagram from the client's IP; caller holds the lwIP lock (or runs in the receive callback)
+  static void udp_on_datagram(UdpLink &link, UdpSlot p, uint16_t port);
   // Caller holds the lwIP lock (or runs in the receive callback)
   static void udp_send_ack(UdpLink &link, uint16_t prompted_by);
+#ifdef ESPHOME_OTA_UDP_LWIP
+  static void udp_recv_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, uint16_t port);
+  void udp_poll_() {}
+#else
+  void udp_poll_();  // hands what the socket received to udp_on_datagram
+#endif
 #endif
   // Data phase only (udp_ shares storage with the handshake's connect time): TCP or, once committed, the UDP stream
   inline ssize_t transport_read_(uint8_t *buf, size_t len) {
@@ -261,17 +284,20 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   std::unique_ptr<socket::Socket> client_;
   ota::OTABackendPtr backend_;
 
-#ifdef ESPHOME_OTA_UDP
+#ifdef ESPHOME_OTA_UDP_LWIP
   union {
     uint32_t client_connect_time_{0};  // handshake states
     UdpLink *udp_;                     // data phase (never both), points into handle_data_'s stack
   };
   static_assert(sizeof(UdpLink *) == sizeof(uint32_t), "clearing client_connect_time_ must clear udp_");
-#ifdef USE_OTA_ENCRYPTION
-  static_assert(sizeof(UdpLink::reply) <= NOISE_MAX_RESPONSE, "the token goes out through noise_write_");
-#endif
 #else
   uint32_t client_connect_time_{0};
+#ifdef ESPHOME_OTA_UDP
+  UdpLink *udp_{nullptr};  // data phase, points into handle_data_'s stack
+#endif
+#endif
+#if defined(ESPHOME_OTA_UDP) && defined(USE_OTA_ENCRYPTION)
+  static_assert(sizeof(UdpLink::reply) <= NOISE_MAX_RESPONSE, "the token goes out through noise_write_");
 #endif
   static constexpr size_t HANDSHAKE_BUF_SIZE = 5;
   // Buffer size for OTA data transfer. The upload client derives its maximum

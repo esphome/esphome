@@ -6,14 +6,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef ESPHOME_OTA_UDP_LWIP
 #include "lwip/inet.h"
-#include "lwip/pbuf.h"
-#include "lwip/udp.h"
 #ifdef USE_LIBRETINY
 #include "lwip/tcpip.h"
 #endif
+#endif
 
 #include <cstring>
+#include <memory>
 
 /*
  * UDP data phase: the same byte stream as TCP, cut into numbered datagrams.
@@ -38,22 +39,43 @@ static constexpr size_t UDP_ACK_HEADER_SIZE = 12;
 static constexpr uint32_t UDP_COMMIT_TIMEOUT = 70000;
 // Like the TCP socket's SO_RCVTIMEO in handle_data_, so readall_ treats both alike
 static constexpr uint32_t UDP_READ_WAIT_MS = 2000;
+// How often the commit wait looks at the UDP link between reads of the TCP fallback byte
+static constexpr uint32_t UDP_COMMIT_POLL_MS = 100;
 static constexpr uint32_t UDP_LINGER_MS = 3000;
 
+#ifdef ESPHOME_OTA_UDP_LWIP
 #ifdef USE_LIBRETINY
-// LibreTiny's LwIPLock is a no-op; take the core lock directly (udp_open_ declines without one)
+// LibreTiny's LwIPLock is a no-op; take the core lock directly (the header drops UDP without one)
 struct UdpLock {
-#if LWIP_TCPIP_CORE_LOCKING
   UdpLock() { LOCK_TCPIP_CORE(); }
   ~UdpLock() { UNLOCK_TCPIP_CORE(); }
-#else
-  // Empty bodies, not = default, so clang-tidy does not flag the guards as unused
-  UdpLock() {}
-  ~UdpLock() {}
-#endif
 };
 #else
 using UdpLock = LwIPLock;
+#endif
+static uint16_t slot_len(struct pbuf *p) { return p->tot_len; }
+static uint16_t slot_copy(struct pbuf *p, void *dst, uint16_t len, uint16_t offset) {
+  return pbuf_copy_partial(p, dst, len, offset);
+}
+static void slot_free(struct pbuf *p) { pbuf_free(p); }
+#else
+// The host has no lwIP thread: the OTA loop drains the socket itself. Empty bodies, not = default, so clang-tidy
+// does not flag the guards as unused
+struct UdpLock {
+  UdpLock() {}
+  ~UdpLock() {}
+};
+struct OtaUdpDatagram {
+  uint16_t len;
+  uint8_t data[1500];
+};
+static uint16_t slot_len(OtaUdpDatagram *p) { return p->len; }
+static uint16_t slot_copy(OtaUdpDatagram *p, void *dst, uint16_t len, uint16_t offset) {
+  const uint16_t n = std::min<uint16_t>(len, p->len - offset);
+  memcpy(dst, p->data + offset, n);
+  return n;
+}
+static void slot_free(OtaUdpDatagram *p) { delete p; }
 #endif
 
 static void put_u16(uint8_t *at, uint16_t value) {
@@ -65,22 +87,30 @@ ESPHomeOTAComponent::UdpLink::~UdpLink() { this->release(); }
 
 void ESPHomeOTAComponent::UdpLink::release() {
   UdpLock lock;
+#ifdef ESPHOME_OTA_UDP_LWIP
   if (this->pcb != nullptr)
     udp_remove(this->pcb);
   this->pcb = nullptr;
-  for (auto *&p : this->queue) {
+#else
+  this->sock = nullptr;
+#endif
+  for (auto &p : this->queue) {
     if (p != nullptr)
-      pbuf_free(p);
+      slot_free(p);
     p = nullptr;
   }
 }
 
 void ESPHomeOTAComponent::udp_send_ack(UdpLink &link, uint16_t prompted_by) {
   const uint16_t len = UDP_ACK_HEADER_SIZE + link.out_len;
+#ifdef ESPHOME_OTA_UDP_LWIP
   struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, len, PBUF_RAM);
   if (p == nullptr)
     return;  // Like a lost ACK: the client asks again
   auto *ack = static_cast<uint8_t *>(p->payload);
+#else
+  uint8_t ack[UDP_ACK_HEADER_SIZE + UDP_OUT_SIZE];
+#endif
   ack[0] = UDP_MSG_ACK;
   memcpy(ack + 1, link.reply, 4);
   put_u16(ack + 5, link.received);
@@ -93,18 +123,25 @@ void ESPHomeOTAComponent::udp_send_ack(UdpLink &link, uint16_t prompted_by) {
   }
   ack[11] = window;
   memcpy(ack + UDP_ACK_HEADER_SIZE, link.out, link.out_len);
+  // Best effort: a lost ACK is repeated for the client's next datagram
+#ifdef ESPHOME_OTA_UDP_LWIP
   udp_sendto(link.pcb, p, &link.peer_ip, link.peer_port);
   pbuf_free(p);
+#else
+  struct sockaddr_storage to = link.peer;
+  if (to.ss_family == AF_INET6) {
+    reinterpret_cast<sockaddr_in6 *>(&to)->sin6_port = htons(link.peer_port);
+  } else {
+    reinterpret_cast<sockaddr_in *>(&to)->sin_port = htons(link.peer_port);
+  }
+  link.sock->sendto(ack, len, 0, reinterpret_cast<const struct sockaddr *>(&to), link.peer_len);
+#endif
 }
 
-// lwIP context: the tcpip thread (ESP32, LibreTiny), SYS (ESP8266) or an IRQ (RP2040)
-void ESPHomeOTAComponent::udp_recv_cb(void *arg, struct udp_pcb * /*pcb*/, struct pbuf *p, const ip_addr_t *addr,
-                                      uint16_t port) {
-  auto &link = *static_cast<UdpLink *>(arg);
+void ESPHomeOTAComponent::udp_on_datagram(UdpLink &link, UdpSlot p, uint16_t port) {
   uint8_t hdr[UDP_HEADER_SIZE];
-  if (!ip_addr_cmp(addr, &link.peer_ip) || pbuf_copy_partial(p, hdr, UDP_HEADER_SIZE, 0) != UDP_HEADER_SIZE ||
-      memcmp(hdr + 1, link.reply, 4) != 0) {
-    pbuf_free(p);
+  if (slot_copy(p, hdr, UDP_HEADER_SIZE, 0) != UDP_HEADER_SIZE || memcmp(hdr + 1, link.reply, 4) != 0) {
+    slot_free(p);
     return;
   }
   // The token proves the sender; answer the port it arrived from, which NAT may have rewritten
@@ -118,27 +155,72 @@ void ESPHomeOTAComponent::udp_recv_cb(void *arg, struct udp_pcb * /*pcb*/, struc
     link.out_base += acked;
   }
   const uint16_t seq = encode_uint16(hdr[5], hdr[6]);
-  struct pbuf *&slot = link.queue[seq % UDP_WINDOW];
-  if ((hdr[0] & ~UDP_FLAG_COMMITTED) == UDP_MSG_DATA && p->tot_len > UDP_HEADER_SIZE &&
+  UdpSlot &slot = link.queue[seq % UDP_WINDOW];
+  if ((hdr[0] & ~UDP_FLAG_COMMITTED) == UDP_MSG_DATA && slot_len(p) > UDP_HEADER_SIZE &&
       static_cast<uint16_t>(seq - link.consumed) < UDP_WINDOW && slot == nullptr) {
     slot = p;
     while (static_cast<uint16_t>(link.received - link.consumed) < UDP_WINDOW &&
            link.queue[link.received % UDP_WINDOW] != nullptr)
       link.received++;
   } else {
-    pbuf_free(p);
+    slot_free(p);
   }
   udp_send_ack(link, seq);
 }
 
-void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
-#if defined(USE_LIBRETINY) && !LWIP_TCPIP_CORE_LOCKING
-  // No safe way to call lwIP from the main loop: decline
+#ifdef ESPHOME_OTA_UDP_LWIP
+// lwIP context: the tcpip thread (ESP32, LibreTiny), SYS (ESP8266) or an IRQ (RP2040)
+void ESPHomeOTAComponent::udp_recv_cb(void *arg, struct udp_pcb * /*pcb*/, struct pbuf *p, const ip_addr_t *addr,
+                                      uint16_t port) {
+  auto &link = *static_cast<UdpLink *>(arg);
+  if (!ip_addr_cmp(addr, &link.peer_ip)) {
+    pbuf_free(p);
+    return;
+  }
+  udp_on_datagram(link, p, port);
+}
 #else
+static bool same_ip(const struct sockaddr_storage &a, const struct sockaddr_storage &b) {
+  uint32_t ipv4_a, ipv4_b;
+  const bool v4_a = socket::sockaddr_to_ipv4(reinterpret_cast<const struct sockaddr *>(&a), &ipv4_a);
+  const bool v4_b = socket::sockaddr_to_ipv4(reinterpret_cast<const struct sockaddr *>(&b), &ipv4_b);
+  if (v4_a || v4_b)
+    return v4_a && v4_b && ipv4_a == ipv4_b;
+  return a.ss_family == AF_INET6 && b.ss_family == AF_INET6 &&
+         memcmp(&reinterpret_cast<const sockaddr_in6 *>(&a)->sin6_addr,
+                &reinterpret_cast<const sockaddr_in6 *>(&b)->sin6_addr, sizeof(in6_addr)) == 0;
+}
+
+void ESPHomeOTAComponent::udp_poll_() {
+  UdpLink &link = *this->udp_;
+  for (;;) {
+    uint8_t buf[sizeof(OtaUdpDatagram::data)];
+    struct sockaddr_storage from;
+    socklen_t from_len = sizeof(from);
+    const ssize_t len = link.sock->recvfrom(buf, sizeof(buf), reinterpret_cast<struct sockaddr *>(&from), &from_len);
+    if (len < 0)
+      return;
+    if (!same_ip(from, link.peer))
+      continue;
+    auto *datagram = new OtaUdpDatagram;  // NOLINT(cppcoreguidelines-owning-memory)
+    datagram->len = len;
+    memcpy(datagram->data, buf, len);
+    const uint16_t port = from.ss_family == AF_INET6 ? ntohs(reinterpret_cast<sockaddr_in6 *>(&from)->sin6_port)
+                                                     : ntohs(reinterpret_cast<sockaddr_in *>(&from)->sin_port);
+    udp_on_datagram(link, datagram, port);
+  }
+}
+#endif
+
+void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
   struct sockaddr_storage peer;
   socklen_t peer_len = sizeof(peer);
   if (this->client_->getpeername(reinterpret_cast<struct sockaddr *>(&peer), &peer_len) != 0)
     return;
+  uint8_t token[4];
+  if (!random_bytes(token, sizeof(token)))
+    return;
+#ifdef ESPHOME_OTA_UDP_LWIP
   uint32_t ipv4;
   if (socket::sockaddr_to_ipv4(reinterpret_cast<const struct sockaddr *>(&peer), &ipv4)) {
     ip_addr_set_ip4_u32(&link.peer_ip, ipv4);
@@ -150,9 +232,6 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
     return;
 #endif
   }
-  uint8_t token[4];
-  if (!random_bytes(token, sizeof(token)))
-    return;
   UdpLock lock;
 #if LWIP_IPV6
   link.pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
@@ -160,19 +239,40 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
   link.pcb = udp_new();
 #endif
   // On failure the reply stays all zero and ~UdpLink removes the pcb
-  if (link.pcb == nullptr || udp_bind(link.pcb, IP_ANY_TYPE, this->port_) != ERR_OK)
+  if (link.pcb == nullptr || udp_bind(link.pcb, IP_ANY_TYPE, this->port_) != ERR_OK) {
+    ESP_LOGW(TAG, "UDP unavailable, using TCP");
     return;
+  }
+  udp_recv(link.pcb, udp_recv_cb, &link);
+#else
+  link.peer = peer;
+  link.peer_len = peer_len;
+  // Same domain as the listener, so the peer address from getpeername fits
+  link.sock = socket::socket_ip(SOCK_DGRAM, IPPROTO_UDP);
+  struct sockaddr_storage local;
+  const socklen_t local_len =
+      socket::set_sockaddr_any(reinterpret_cast<struct sockaddr *>(&local), sizeof(local), this->port_);
+  if (link.sock == nullptr || local_len == 0 ||
+      link.sock->bind(reinterpret_cast<struct sockaddr *>(&local), local_len) != 0 ||
+      link.sock->setblocking(false) != 0) {
+    ESP_LOGW(TAG, "UDP unavailable, using TCP");
+    return;
+  }
+#endif
   // Below the error codes (0x80 and up) the client checks the first byte against, and never all zero
   token[0] = (token[0] & 0x7F) | 0x01;
   memcpy(link.reply, token, sizeof(token));
-  udp_recv(link.pcb, udp_recv_cb, &link);
-#endif
 }
 
 bool ESPHomeOTAComponent::udp_start_() {
-  // TCP now only carries a fallback byte; its blocking reads time out every couple of seconds to look again
+  // TCP now only carries a fallback byte; short read timeouts let the UDP link be checked in between
+  struct timeval tv {
+    0, UDP_COMMIT_POLL_MS * 1000
+  };
+  this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
   const uint32_t start = millis();
   while (millis() - start < UDP_COMMIT_TIMEOUT) {
+    this->udp_poll_();
     bool committed;
     {
       UdpLock lock;
@@ -190,6 +290,8 @@ bool ESPHomeOTAComponent::udp_start_() {
     if (read == 1) {
       this->udp_->release();
       this->udp_ = nullptr;
+      tv = {UDP_READ_WAIT_MS / 1000, 0};
+      this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
       return true;
     }
     if (read == 0 || !this->would_block_(errno))
@@ -204,7 +306,8 @@ ssize_t ESPHomeOTAComponent::udp_read_(uint8_t *buf, size_t len) {
   const uint32_t start = millis();
   size_t got = 0;
   for (;;) {
-    struct pbuf *p;
+    this->udp_poll_();
+    UdpSlot p;
     {
       UdpLock lock;
       p = link.consumed != link.received ? link.queue[link.consumed % UDP_WINDOW] : nullptr;
@@ -219,12 +322,12 @@ ssize_t ESPHomeOTAComponent::udp_read_(uint8_t *buf, size_t len) {
     }
     // The callback never touches the slot being read, so the copy runs without the lock
     const uint16_t offset = UDP_HEADER_SIZE + link.read_offset;
-    const uint16_t n = pbuf_copy_partial(p, buf + got, std::min<size_t>(len - got, p->tot_len - offset), offset);
+    const uint16_t n = slot_copy(p, buf + got, std::min<size_t>(len - got, slot_len(p) - offset), offset);
     got += n;
     link.read_offset += n;
-    if (UDP_HEADER_SIZE + link.read_offset >= p->tot_len) {
+    if (UDP_HEADER_SIZE + link.read_offset >= slot_len(p)) {
       UdpLock lock;
-      pbuf_free(p);
+      slot_free(p);
       link.queue[link.consumed % UDP_WINDOW] = nullptr;
       // A full window just opened: tell the client, which is holding back
       const bool was_full = static_cast<uint16_t>(link.received - link.consumed) == UDP_WINDOW;
@@ -257,6 +360,7 @@ void ESPHomeOTAComponent::udp_linger_() {
     return;
   const uint32_t start = millis();
   while (millis() - start < UDP_LINGER_MS) {
+    this->udp_poll_();
     {
       UdpLock lock;
       if (this->udp_->out_len == 0)
