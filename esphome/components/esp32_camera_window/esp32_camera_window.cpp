@@ -252,11 +252,14 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   return true;
 }
 
-/// Writes the start and the end of one axis of an SC window, reporting whether the sensor took them.
-static bool write_sc_axis(sensor_t *sensor, int reg, int start, int end, int edge_bits) {
+/// Writes the first and the last edge of one axis of an SC window, reporting whether the sensor took them.
+///
+/// The edges are not named `start` and `end`: the register constants (`SC_REG_H_START`) contain the word
+/// `START`, which makes clang-tidy's readability-suspicious-call-argument read a register as a swapped edge.
+static bool write_sc_axis(sensor_t *sensor, int reg, int first, int last, int edge_bits) {
   const int mask = (1 << edge_bits) - 1;
   // The high bits of both edges share the third register of the group.
-  const int values[SC_REG_GROUP] = {start & 0xFF, end & 0xFF, ((start >> 8) & mask) | (((end >> 8) & mask) << 4)};
+  const int values[SC_REG_GROUP] = {first & 0xFF, last & 0xFF, ((first >> 8) & mask) | (((last >> 8) & mask) << 4)};
   for (int offset = 0; offset < SC_REG_GROUP; offset++) {
     const int ret = sensor->set_reg(sensor, reg + offset, 0xFF, values[offset]);
     if (ret != 0) {
