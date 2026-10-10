@@ -209,6 +209,21 @@ class ImageRGB111(BitPackedEncoder):
     ):
         bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
         super().__init__(bpp, width, height, transparency, dither, invert_alpha)
+        self.custom_palette = _RGB111_PALETTE
+
+    def set_palette(self, palette_colors: list[int]) -> None:
+        """Set a custom palette for FloydSteinberg dithering.
+
+        :param palette_colors: List of RGB color values as 24-bit integers (0xRRGGBB)
+        """
+        palette = []
+        for color in palette_colors:
+            r = (color >> 16) & 0xFF
+            g = (color >> 8) & 0xFF
+            b = color & 0xFF
+            palette.extend([r, g, b])
+        self.custom_palette = Image.new("P", (1,1))
+        self.custom_palette.putpalette(palette)
 
     def convert(self, image: Image, path: str):
         image = image.convert("RGBA")
@@ -216,7 +231,7 @@ class ImageRGB111(BitPackedEncoder):
             return image
         alpha = image.getchannel("A")
         image = image.convert("RGB").quantize(
-            palette=_RGB111_PALETTE, dither=Image.Dither.FLOYDSTEINBERG
+            palette=self.custom_palette, dither=Image.Dither.FLOYDSTEINBERG
         )
         image = image.convert("RGB")
         image.putalpha(alpha)
