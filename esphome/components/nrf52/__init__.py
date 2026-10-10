@@ -144,8 +144,15 @@ TESTING_FLASH_SIZE = 0x400000
 
 
 def _testing_mode_sections(sections: list[Section]) -> list[Section]:
-    """Move a bootloader pinned to the end of the real flash to the end of the
-    faked one, so the partition manager still sees a single gap for the app."""
+    """Move the block of sections pinned to the end of the real flash to the end
+    of the faked one, so the partition manager still sees a single gap for the app."""
+    moved: list[Section] = []
+    boundary = NRF52840_FLASH_SIZE
+    for section in sorted(sections, key=lambda s: s.address, reverse=True):
+        if section.end_address != boundary:
+            break
+        boundary = section.address
+        moved.append(section)
     return [
         Section(
             section.name,
@@ -153,7 +160,7 @@ def _testing_mode_sections(sections: list[Section]) -> list[Section]:
             section.size,
             section.region,
         )
-        if section.end_address == NRF52840_FLASH_SIZE
+        if section in moved
         else section
         for section in sections
     ]

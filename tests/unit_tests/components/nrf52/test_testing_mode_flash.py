@@ -2,7 +2,10 @@
 
 from esphome.components import nrf52
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
+from esphome.components.nrf52.const import (
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    BOOTLOADER_NRF,
+)
 from esphome.components.zephyr import Section
 
 
@@ -28,3 +31,12 @@ def test_testing_mode_sections_leave_unpinned_sections() -> None:
     section = Section("other", 0x50000, 0x1000, "flash_primary")
 
     assert nrf52._testing_mode_sections([section]) == [section]
+
+
+def test_testing_mode_sections_move_the_whole_top_of_flash_block() -> None:
+    """Sections stacked directly below the bootloader move with it, leaving one gap for the app."""
+    sections = nrf52._testing_mode_sections(BOOTLOADER_CONFIG[BOOTLOADER_NRF])
+    by_name = {s.name: s for s in sections}
+    assert by_name["mbr"].address == 0x0
+    assert by_name["open_bootloader"].end_address == nrf52.TESTING_FLASH_SIZE
+    assert by_name["settings_storage"].end_address == by_name["open_bootloader"].address
