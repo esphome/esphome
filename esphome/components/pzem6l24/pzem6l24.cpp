@@ -8,7 +8,7 @@
 
 namespace esphome::pzem6l24 {
 
-static const char *const TAG = "pzem6l24";
+ESPHOME_LOG_TAG(TAG, "pzem6l24");
 
 // -----------------------------------------------------------------------
 // Register map (input registers, starting address 0x0000):

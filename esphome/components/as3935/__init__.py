@@ -17,6 +17,7 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+DOMAIN = "as3935"
 MULTI_CONF = True
 
 CONF_AS3935_ID = "as3935_id"

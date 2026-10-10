@@ -8,7 +8,7 @@
 
 namespace esphome::text_sensor {
 
-static const char *const TAG = "text_sensor.filter";
+ESPHOME_LOG_TAG(TAG, "text_sensor.filter");
 
 // Filter
 void Filter::input(std::string value) {
