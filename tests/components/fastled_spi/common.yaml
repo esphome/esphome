@@ -53,7 +53,7 @@ light:
           name: Test For Custom Lambda Effect
           lambda: |-
             if (initial_run) {
-              it[0] = current_color;
+              it.buffer()[0] = current_color;
             }
       - automation:
           name: Custom Effect

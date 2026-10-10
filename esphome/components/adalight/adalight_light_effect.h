@@ -23,7 +23,7 @@ class AdalightLightEffect : public light::AddressableLightEffect, public uart::U
     CONSUMED,
   };
 
-  unsigned int get_frame_size_(int led_count) const;
+  size_t get_frame_size_(size_t led_count) const;
   void reset_frame_(light::AddressableLight &it);
   void blank_all_leds_(light::AddressableLight &it);
   Frame parse_frame_(light::AddressableLight &it);
