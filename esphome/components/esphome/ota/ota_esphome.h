@@ -25,8 +25,8 @@
     (defined(USE_ESP32) && defined(CONFIG_LWIP_TCPIP_CORE_LOCKING))
 #define ESPHOME_OTA_UDP
 #include "lwip/ip_addr.h"
-struct pbuf;
-struct udp_pcb;
+#include "lwip/pbuf.h"
+#include "lwip/udp.h"
 #endif
 
 namespace esphome {
@@ -112,9 +112,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   bool udp_send_(const uint8_t *data, size_t len);
   // In a UDP session, keeps answering until the client has our responses (an error code), briefly
   void udp_linger_();
-  static void udp_recv_cb_(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, uint16_t port);
+  static void udp_recv_cb(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, uint16_t port);
   // Caller holds the lwIP lock (or runs in the receive callback)
-  static void udp_send_ack_(UdpLink &link, uint16_t prompted_by);
+  static void udp_send_ack(UdpLink &link, uint16_t prompted_by);
 #endif
   // The data phase reads TCP or, once committed, the UDP stream
   inline ssize_t transport_read_(uint8_t *buf, size_t len) {

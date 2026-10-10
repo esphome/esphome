@@ -71,7 +71,7 @@ void ESPHomeOTAComponent::UdpLink::release() {
   }
 }
 
-void ESPHomeOTAComponent::udp_send_ack_(UdpLink &link, uint16_t prompted_by) {
+void ESPHomeOTAComponent::udp_send_ack(UdpLink &link, uint16_t prompted_by) {
   const uint16_t len = UDP_ACK_HEADER_SIZE + link.out_len;
   struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, len, PBUF_RAM);
   if (p == nullptr)
@@ -94,8 +94,8 @@ void ESPHomeOTAComponent::udp_send_ack_(UdpLink &link, uint16_t prompted_by) {
 }
 
 // lwIP context: the tcpip thread (ESP32, LibreTiny), SYS (ESP8266) or an IRQ (RP2040)
-void ESPHomeOTAComponent::udp_recv_cb_(void *arg, struct udp_pcb * /*pcb*/, struct pbuf *p, const ip_addr_t *addr,
-                                       uint16_t port) {
+void ESPHomeOTAComponent::udp_recv_cb(void *arg, struct udp_pcb * /*pcb*/, struct pbuf *p, const ip_addr_t *addr,
+                                      uint16_t port) {
   auto &link = *static_cast<UdpLink *>(arg);
   uint8_t hdr[UDP_HEADER_SIZE];
   if (!ip_addr_cmp(addr, &link.peer_ip) || pbuf_copy_partial(p, hdr, UDP_HEADER_SIZE, 0) != UDP_HEADER_SIZE ||
@@ -124,7 +124,7 @@ void ESPHomeOTAComponent::udp_recv_cb_(void *arg, struct udp_pcb * /*pcb*/, stru
   } else {
     pbuf_free(p);
   }
-  udp_send_ack_(link, seq);
+  udp_send_ack(link, seq);
 }
 
 void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
@@ -161,7 +161,7 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
   // Below the error codes (0x80 and up) the client checks the first byte against, and never all zero
   token[0] = (token[0] & 0x7F) | 0x01;
   memcpy(link.reply, token, sizeof(token));
-  udp_recv(link.pcb, udp_recv_cb_, &link);
+  udp_recv(link.pcb, udp_recv_cb, &link);
 #endif
 }
 
@@ -227,7 +227,7 @@ ssize_t ESPHomeOTAComponent::udp_read_(uint8_t *buf, size_t len) {
       link.consumed++;
       link.read_offset = 0;
       if (was_full)
-        udp_send_ack_(link, link.received - 1);
+        udp_send_ack(link, link.received - 1);
     }
     if (got == len)
       return got;
@@ -244,7 +244,7 @@ bool ESPHomeOTAComponent::udp_send_(const uint8_t *data, size_t len) {
   memcpy(link.out + link.out_len, data, len);
   link.out_len += len;
   // Prompted by nothing new, so the client takes no round trip sample from it
-  udp_send_ack_(link, link.received - 1);
+  udp_send_ack(link, link.received - 1);
   return true;
 }
 
