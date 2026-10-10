@@ -687,7 +687,7 @@ class WiFiComponent final : public Component {
  protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
-  /// End the captive portal and turn the AP off.
+  /// End the portals and turn the AP off.
   void disable_ap_();
 #ifdef USE_WIFI_AP_EXCLUSIVE
   /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
@@ -806,6 +806,10 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_dns_ip_(int num);
 
   bool is_captive_portal_active_();
+  /// captive_portal or the web_server AP mode is serving a user on the access point
+  bool is_ap_portal_active_();
+  void start_ap_portal_();
+  void end_ap_portal_();
   bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
