@@ -6,6 +6,8 @@ namespace esphome::bme680 {
 
 ESPHOME_LOG_TAG(TAG, "bme680.sensor");
 
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
+
 static const uint8_t BME680_REGISTER_COEFF1 = 0x89;
 static const uint8_t BME680_REGISTER_COEFF2 = 0xE1;
 
@@ -242,7 +244,7 @@ void BME680Component::update() {
     return;
   }
 
-  this->set_timeout("data", this->calc_meas_duration_(), [this]() { this->read_data_(); });
+  this->set_timeout(DATA_TIMEOUT_ID, this->calc_meas_duration_(), [this]() { this->read_data_(); });
 }
 
 uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
