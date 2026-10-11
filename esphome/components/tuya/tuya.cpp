@@ -638,10 +638,10 @@ void Tuya::check_force_time_sync_() {
   if (!now.is_valid() || now.minute == this->last_force_time_sync_minute_)
     return;
   this->last_force_time_sync_minute_ = now.minute;
-  this->send_local_time_();
+  this->send_local_time_(true);
 }
 
-void Tuya::send_local_time_() {
+void Tuya::send_local_time_(bool periodic) {
   std::vector<uint8_t> payload;
   ESPTime now = this->time_id_->now();
   if (now.is_valid()) {
@@ -656,7 +656,12 @@ void Tuya::send_local_time_() {
     if (day_of_week == 0) {
       day_of_week = 7;
     }
-    ESP_LOGD(TAG, "Sending local time");
+    // The forced send repeats every minute, so it stays out of the debug log
+    if (periodic) {
+      ESP_LOGV(TAG, "Sending local time");
+    } else {
+      ESP_LOGD(TAG, "Sending local time");
+    }
     payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second, day_of_week};
   } else {
     // By spec we need to notify MCU that the time was not obtained if this is a response to a query

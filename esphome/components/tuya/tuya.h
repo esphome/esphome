@@ -147,7 +147,7 @@ class Tuya final : public Component, public uart::UARTDevice {
 #ifdef USE_TIME
   void register_local_time_sync_callback_();
   void check_force_time_sync_();
-  void send_local_time_();
+  void send_local_time_(bool periodic = false);
   void send_gmt_time_();
   time::RealTimeClock *time_id_{nullptr};
   bool force_time_sync_{false};
