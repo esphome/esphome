@@ -13,6 +13,24 @@ static const uint8_t INA3221_REGISTER_CHANNEL2_SHUNT_VOLTAGE = 0x03;
 static const uint8_t INA3221_REGISTER_CHANNEL2_BUS_VOLTAGE = 0x04;
 static const uint8_t INA3221_REGISTER_CHANNEL3_SHUNT_VOLTAGE = 0x05;
 static const uint8_t INA3221_REGISTER_CHANNEL3_BUS_VOLTAGE = 0x06;
+#ifdef USE_INA3221_ALERT_LIMITS
+static constexpr uint8_t INA3221_REGISTER_CHANNEL1_CRITICAL_ALERT = 0x07;
+static constexpr uint8_t INA3221_REGISTER_CHANNEL1_WARNING_ALERT = 0x0A;
+#endif
+#ifdef USE_INA3221_SUMMATION
+static constexpr uint8_t INA3221_REGISTER_SHUNT_VOLTAGE_SUM = 0x0D;
+static constexpr uint8_t INA3221_REGISTER_MASK_ENABLE = 0x0F;
+#endif
+
+// Configuration register: bit 15 resets the chip, bits 14..12 enable channels 1..3 (the same bit
+// positions select channels for summation in the mask/enable register) and bits 2..0 set the mode.
+// Code generation fills in the averaging and conversion time fields.
+static constexpr uint16_t INA3221_CONFIG_RESET = 0x8000;
+static constexpr uint16_t INA3221_CONFIG_CHANNEL1_ENABLE = 0x4000;
+static constexpr uint16_t INA3221_CONFIG_CHANNEL_MASK = 0x7000;
+static constexpr uint16_t INA3221_CONFIG_MODE_MASK = 0x0007;
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 // Addresses:
 // A0 = GND -> 0x40
@@ -21,37 +39,38 @@ static const uint8_t INA3221_REGISTER_CHANNEL3_BUS_VOLTAGE = 0x06;
 // A0 = SCL -> 0x43
 
 void INA3221Component::setup() {
-  // Config Register
-  // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
-  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, 0x8000)) {
+  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, INA3221_CONFIG_RESET)) {
     this->mark_failed();
     return;
   }
   delay(1);
 
-  uint16_t config = 0;
-  // 0b0xxx000000000000 << 12 Channel Enables (1 -> ON)
-  if (this->channels_[0].exists()) {
-    config |= 0b0100000000000000;
-  }
-  if (this->channels_[1].exists()) {
-    config |= 0b0010000000000000;
-  }
-  if (this->channels_[2].exists()) {
-    config |= 0b0001000000000000;
-  }
-  // 0b0000xxx000000000 << 9 Averaging Mode (0 -> 1 sample, 111 -> 1024 samples)
-  config |= 0b0000000000000000;
-  // 0b0000000xxx000000 << 6 Bus Voltage Conversion time (100 -> 1.1ms, 111 -> 8.244 ms)
-  config |= 0b0000000111000000;
-  // 0b0000000000xxx000 << 3 Shunt Voltage Conversion time (same as above)
-  config |= 0b0000000000111000;
-  // 0b0000000000000xxx << 0 Operating mode (111 -> Shunt and bus, continuous)
-  config |= 0b0000000000000111;
-  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, config)) {
+  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, this->config_)) {
     this->mark_failed();
     return;
   }
+
+#ifdef USE_INA3221_ALERT_LIMITS
+  for (uint8_t i = 0; i < 3; i++) {
+    const INA3221Channel &channel = this->channels_[i];
+    if ((channel.critical_limit_ != 0 &&
+         !this->write_byte_16(INA3221_REGISTER_CHANNEL1_CRITICAL_ALERT + i, channel.critical_limit_)) ||
+        (channel.warning_limit_ != 0 &&
+         !this->write_byte_16(INA3221_REGISTER_CHANNEL1_WARNING_ALERT + i, channel.warning_limit_))) {
+      this->mark_failed();
+      return;
+    }
+  }
+#endif
+
+#ifdef USE_INA3221_SUMMATION
+  // Sum the shunt voltages of every enabled channel
+  if (this->sum_shunt_voltage_sensor_ != nullptr &&
+      !this->write_byte_16(INA3221_REGISTER_MASK_ENABLE, this->config_ & INA3221_CONFIG_CHANNEL_MASK)) {
+    this->mark_failed();
+    return;
+  }
+#endif
 }
 
 void INA3221Component::dump_config() {
@@ -61,6 +80,10 @@ void INA3221Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Config register: 0x%04X", this->config_);
+  if (this->single_shot_wait_ms_ != 0) {
+    ESP_LOGCONFIG(TAG, "  Single-shot conversion: %u ms", this->single_shot_wait_ms_);
+  }
 
   LOG_SENSOR("  ", "Bus Voltage #1", this->channels_[0].bus_voltage_sensor_);
   LOG_SENSOR("  ", "Shunt Voltage #1", this->channels_[0].shunt_voltage_sensor_);
@@ -74,6 +97,11 @@ void INA3221Component::dump_config() {
   LOG_SENSOR("  ", "Shunt Voltage #3", this->channels_[2].shunt_voltage_sensor_);
   LOG_SENSOR("  ", "Current #3", this->channels_[2].current_sensor_);
   LOG_SENSOR("  ", "Power #3", this->channels_[2].power_sensor_);
+#ifdef USE_INA3221_SUMMATION
+  LOG_SENSOR("  ", "Sum Shunt Voltage", this->sum_shunt_voltage_sensor_);
+  LOG_SENSOR("  ", "Sum Current", this->sum_current_sensor_);
+  LOG_SENSOR("  ", "Sum Power", this->sum_power_sensor_);
+#endif
 }
 
 inline uint8_t ina3221_bus_voltage_register(int channel) { return 0x02 + channel * 2; }
@@ -81,11 +109,36 @@ inline uint8_t ina3221_bus_voltage_register(int channel) { return 0x02 + channel
 inline uint8_t ina3221_shunt_voltage_register(int channel) { return 0x01 + channel * 2; }
 
 void INA3221Component::update() {
+  if (this->single_shot_wait_ms_ == 0) {
+    this->read_data_();
+    return;
+  }
+  // In single-shot mode, writing the configuration register starts one conversion of every channel
+  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, this->config_)) {
+    this->status_set_warning();
+    return;
+  }
+  this->set_timeout(READ_TIMEOUT_ID, this->single_shot_wait_ms_, [this]() { this->read_data_(); });
+}
+
+void INA3221Component::read_data_() {
+#ifdef USE_INA3221_SUMMATION
+  // The software sums need every enabled channel's readings, not only the ones with their own sensors
+  const bool sum_all = this->sum_current_sensor_ != nullptr || this->sum_power_sensor_ != nullptr;
+  float total_current_a = 0.0f;
+  float total_power_w = 0.0f;
+#else
+  constexpr bool sum_all = false;
+#endif
+
   for (int i = 0; i < 3; i++) {
+    if ((this->config_ & (INA3221_CONFIG_CHANNEL1_ENABLE >> i)) == 0) {
+      continue;
+    }
     INA3221Channel &channel = this->channels_[i];
     float bus_voltage_v = NAN, current_a = NAN;
     uint16_t raw;
-    if (channel.should_measure_bus_voltage()) {
+    if (sum_all || channel.should_measure_bus_voltage()) {
       if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw)) {
         this->status_set_warning();
         return;
@@ -94,7 +147,7 @@ void INA3221Component::update() {
       if (channel.bus_voltage_sensor_ != nullptr)
         channel.bus_voltage_sensor_->publish_state(bus_voltage_v);
     }
-    if (channel.should_measure_shunt_voltage()) {
+    if (sum_all || channel.should_measure_shunt_voltage()) {
       if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw)) {
         this->status_set_warning();
         return;
@@ -109,17 +162,42 @@ void INA3221Component::update() {
     if (channel.power_sensor_ != nullptr) {
       channel.power_sensor_->publish_state(bus_voltage_v * current_a);
     }
+#ifdef USE_INA3221_SUMMATION
+    if (sum_all) {
+      total_current_a += current_a;
+      total_power_w += bus_voltage_v * current_a;
+    }
+#endif
   }
+
+#ifdef USE_INA3221_SUMMATION
+  if (this->sum_shunt_voltage_sensor_ != nullptr) {
+    uint16_t raw;
+    if (!this->read_byte_16(INA3221_REGISTER_SHUNT_VOLTAGE_SUM, &raw)) {
+      this->status_set_warning();
+      return;
+    }
+    // 40 uV per step, held in bits 15..1
+    this->sum_shunt_voltage_sensor_->publish_state(int16_t(raw) * 40.0f / 2.0f / 1000000.0f);
+  }
+  if (this->sum_current_sensor_ != nullptr) {
+    this->sum_current_sensor_->publish_state(total_current_a);
+  }
+  if (this->sum_power_sensor_ != nullptr) {
+    this->sum_power_sensor_->publish_state(total_power_w);
+  }
+#endif
+}
+
+void INA3221Component::on_powerdown() {
+  // Mode 0 powers the chip down; setup() resets it on the next boot
+  this->write_byte_16(INA3221_REGISTER_CONFIG, static_cast<uint16_t>(this->config_ & ~INA3221_CONFIG_MODE_MASK));
 }
 
 void INA3221Component::set_shunt_resistance(int channel, float resistance_ohm) {
   this->channels_[channel].shunt_resistance_ = resistance_ohm;
 }
 
-bool INA3221Component::INA3221Channel::exists() {
-  return this->bus_voltage_sensor_ != nullptr || this->shunt_voltage_sensor_ != nullptr ||
-         this->current_sensor_ != nullptr || this->power_sensor_ != nullptr;
-}
 bool INA3221Component::INA3221Channel::should_measure_shunt_voltage() {
   return this->shunt_voltage_sensor_ != nullptr || this->current_sensor_ != nullptr || this->power_sensor_ != nullptr;
 }
