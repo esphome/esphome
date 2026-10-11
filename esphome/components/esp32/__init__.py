@@ -551,9 +551,88 @@ assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
 
+_SDKCONFIG_CPU_FREQUENCY_OPTION = "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ"
+_SDKCONFIG_CPU_FREQUENCY_PREFIX = f"{_SDKCONFIG_CPU_FREQUENCY_OPTION}_"
+# Older IDF versions named the CPU frequency options after the chip
+_LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS = frozenset(
+    {VARIANT_ESP32, VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3}
+)
+
+
+def _get_sdkconfig_cpu_frequencies(
+    sdkconfig_options: dict[str, str], variant: str
+) -> tuple[set[int], set[int]]:
+    """Return the CPU frequencies in MHz that sdkconfig_options selects and disables."""
+    # (integer option, choice option prefix) pairs that can carry a frequency
+    keys = [(_SDKCONFIG_CPU_FREQUENCY_OPTION, _SDKCONFIG_CPU_FREQUENCY_PREFIX)]
+    if variant in _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS:
+        keys.append(
+            (
+                f"CONFIG_{variant}_DEFAULT_CPU_FREQ_MHZ",
+                f"CONFIG_{variant}_DEFAULT_CPU_FREQ_",
+            )
+        )
+    selected: set[int] = set()
+    disabled: set[int] = set()
+    for integer_key, choice_prefix in keys:
+        if (value := sdkconfig_options.get(integer_key)) is not None:
+            try:
+                selected.add(int(value))
+            except ValueError as err:
+                raise cv.Invalid(
+                    f"{integer_key} must be an integer MHz value",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                ) from err
+        for name, value in sdkconfig_options.items():
+            mhz = name.removeprefix(choice_prefix)
+            if mhz == name or not mhz.isdigit():
+                continue
+            if value.lower() == "y":
+                selected.add(int(mhz))
+            elif value.lower() == "n":
+                disabled.add(int(mhz))
+            else:
+                raise cv.Invalid(
+                    f"{name} must be y or n",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                )
+    return selected, disabled
+
+
 def set_core_data(config):
-    cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
+    cpu_frequency = config.get(CONF_CPU_FREQUENCY)
     variant = config[CONF_VARIANT]
+    sdkconfig_path = [CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS]
+    selected, disabled = _get_sdkconfig_cpu_frequencies(
+        config[CONF_FRAMEWORK][CONF_SDKCONFIG_OPTIONS], variant
+    )
+    if len(selected) > 1:
+        conflicting = ", ".join(f"{mhz}MHz" for mhz in sorted(selected))
+        raise cv.Invalid(
+            f"sdkconfig_options contains conflicting CPU frequencies ({conflicting})",
+            path=sdkconfig_path,
+        )
+    sdkconfig_cpu_frequency = f"{selected.pop()}MHZ" if selected else None
+    if cpu_frequency is None and sdkconfig_cpu_frequency is not None:
+        if sdkconfig_cpu_frequency not in CPU_FREQUENCIES[variant]:
+            raise cv.Invalid(
+                f"sdkconfig_options selects {sdkconfig_cpu_frequency}, which {variant} does not support",
+                path=sdkconfig_path,
+            )
+        _LOGGER.warning(
+            "sdkconfig_options contains a CPU frequency setting; using %s. "
+            "Set 'esp32.cpu_frequency' to configure it directly.",
+            sdkconfig_cpu_frequency,
+        )
+        cpu_frequency = sdkconfig_cpu_frequency
+    elif (
+        sdkconfig_cpu_frequency is not None and sdkconfig_cpu_frequency != cpu_frequency
+    ):
+        raise cv.Invalid(
+            f"esp32.cpu_frequency ({cpu_frequency}) conflicts with sdkconfig_options "
+            f"({sdkconfig_cpu_frequency})",
+            path=sdkconfig_path,
+        )
     # if not specified in config, default to the maximum supported frequency
     # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
@@ -562,12 +641,17 @@ def set_core_data(config):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
-        config[CONF_CPU_FREQUENCY] = cpu_frequency
     elif cpu_frequency not in CPU_FREQUENCIES[variant]:
         raise cv.Invalid(
             f"Invalid CPU frequency '{cpu_frequency}' for {config[CONF_VARIANT]}",
             path=[CONF_CPU_FREQUENCY],
         )
+    if int(cpu_frequency[:-3]) in disabled:
+        raise cv.Invalid(
+            f"sdkconfig_options disables the selected CPU frequency ({cpu_frequency})",
+            path=sdkconfig_path,
+        )
+    config[CONF_CPU_FREQUENCY] = cpu_frequency
 
     if variant == VARIANT_ESP32P4 and cpu_frequency == "400MHZ":
         _LOGGER.warning(
@@ -3138,7 +3222,7 @@ async def to_code(config):
 
     # Set default CPU frequency
     add_idf_sdkconfig_option(
-        f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{config[CONF_CPU_FREQUENCY][:-3]}", True
+        f"{_SDKCONFIG_CPU_FREQUENCY_PREFIX}{config[CONF_CPU_FREQUENCY][:-3]}", True
     )
 
     # Apply LWIP optimization settings
