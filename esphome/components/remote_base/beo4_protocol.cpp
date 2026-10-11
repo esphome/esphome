@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.beo4";
+ESPHOME_LOG_TAG(TAG, "remote.beo4");
 
 // beo4 pulse width, high=carrier_pulse low=data_pulse
 constexpr uint16_t PW_CARR_US = 200;     // carrier pulse length

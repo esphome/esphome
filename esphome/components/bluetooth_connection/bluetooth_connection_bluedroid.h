@@ -31,6 +31,9 @@ class BluetoothConnection;
 // void disconnect() cannot overload with an int-returning twin.
 class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public Component {
  public:
+  // User provided, not "= default": `new(p) BluedroidGattClient()` would zero-fill .bss that is already zero.
+  BluedroidGattClient() {}
+
   static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
 
   // Lifecycle of one connection attempt's service search.
@@ -56,6 +59,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
   void disconnect() override;
+  void ble_before_disabled_event_handler() override;
   bool wants_parsed_advertisements() override { return false; }
   void on_scan_end() override {}
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
@@ -96,6 +100,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int handle_search_cmpl_(esp_gatt_status_t status);
   void deliver_pending_search_();
   void unconditional_disconnect_();
+  void cancel_pending_open_();
   void set_idle_();
   void set_disconnecting_();
   esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
@@ -129,6 +134,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   bool seen_mtu_ : 1 {false};
   // The MTU request was refused at CONNECT_EVT; OPEN_EVT reports instead.
   bool mtu_failed_ : 1 {false};
+  // esp_ble_gattc_cancel_open() was accepted; CANCEL_OPEN_EVT or OPEN_EVT ends
+  // the attempt, so the scheduled teardown can no longer be cancelled.
+  bool cancel_open_sent_ : 1 {false};
   // Search issued at OPEN_EVT overlaps the MTU exchange; discover_services()
   // completes from it. Reset by set_idle_().
   static_assert(static_cast<uint8_t>(SearchState::REPORT_PENDING) < (1 << 4), "search_state_ bitfield too narrow");

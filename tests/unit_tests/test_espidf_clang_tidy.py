@@ -1,14 +1,30 @@
 """Tests for esphome.espidf.clang_tidy tidy-project generation."""
 
+# pylint: disable=protected-access
+
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+import yaml
 
+from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+import esphome.config_validation as cv
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+from esphome.core import CORE
 from esphome.espidf import clang_tidy
-from esphome.espidf.clang_tidy import _Settings, _setup_core, _write_tidy_project
+from esphome.espidf.clang_tidy import (
+    _arduino_excluded_stubs,
+    _convert_pio_libs,
+    _esphome_manifest_deps,
+    _Settings,
+    _setup_core,
+    _write_tidy_project,
+)
+import esphome.espidf.component as espidf_component
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -99,3 +115,230 @@ def test_idedata_from_tidy_project_missing_tu_raises(tmp_path) -> None:
     compile_commands.write_text(json.dumps([]))
     with pytest.raises(RuntimeError, match="tidy.cpp not found"):
         clang_tidy._idedata_from_tidy_project(compile_commands)
+
+
+@pytest.mark.parametrize(
+    ("reconfigure_rcs", "error"),
+    [
+        ((1,), "ESP-IDF CMake configure \\(discovery\\) failed"),
+        ((0, 1), "ESP-IDF CMake configure failed"),
+        ((0, 0), None),
+    ],
+    ids=["discovery", "full", "ok"],
+)
+def test_generate_compile_commands_configures_twice(
+    tmp_path: Path, reconfigure_rcs: tuple[int, ...], error: str | None
+) -> None:
+    """Discovery configure, then a configure requiring what it found."""
+    with (
+        patch.object(clang_tidy, "_setup_core"),
+        patch.object(clang_tidy, "_convert_pio_libs", return_value={}),
+        patch.object(clang_tidy, "_write_tidy_project") as mock_write,
+        patch("esphome.espidf.toolchain.run_reconfigure", side_effect=reconfigure_rcs),
+        patch(
+            "esphome.build_gen.espidf.get_available_components",
+            return_value=["lwip", "esp_timer"],
+        ),
+    ):
+        if error:
+            with pytest.raises(RuntimeError, match=error):
+                clang_tidy._generate_compile_commands(
+                    tmp_path, _settings(), tmp_path / "platformio.ini"
+                )
+            return
+        result = clang_tidy._generate_compile_commands(
+            tmp_path, _settings(), tmp_path / "platformio.ini"
+        )
+    assert result == tmp_path / "build" / "compile_commands.json"
+    assert mock_write.call_args_list[1].args[1] == ["esp_timer", "lwip"]
+
+
+def test_generate_compile_commands_hands_converted_libs_to_arduino_stubs(
+    tmp_path: Path,
+) -> None:
+    """On Arduino the stub generator sees the converted libraries, so a stub
+    sharing a converted library's directory name can point at it instead."""
+    converted = {"esphome/libsodium": {"override_path": str(tmp_path / "libsodium")}}
+    stubs = {"espressif/libsodium": {"version": "*", "override_path": "x"}}
+    with (
+        patch.object(clang_tidy, "_setup_core"),
+        patch.object(clang_tidy, "_convert_pio_libs", return_value=converted),
+        patch.object(
+            clang_tidy, "_arduino_excluded_stubs", return_value=stubs
+        ) as mock_stubs,
+        patch.object(clang_tidy, "_write_tidy_project") as mock_write,
+        patch("esphome.espidf.toolchain.run_reconfigure", return_value=0),
+        patch("esphome.build_gen.espidf.get_available_components", return_value=[]),
+    ):
+        clang_tidy._generate_compile_commands(
+            tmp_path, _settings(target_framework="arduino"), tmp_path / "platformio.ini"
+        )
+
+    mock_stubs.assert_called_once_with(tmp_path, converted)
+    extra_deps = mock_write.call_args_list[0].args[2]
+    assert extra_deps["esphome/libsodium"] == converted["esphome/libsodium"]
+    assert extra_deps["espressif/libsodium"] == stubs["espressif/libsodium"]
+
+
+def test_esphome_manifest_deps_reads_repo_manifest() -> None:
+    """Top-level dependency names, independent of the per-dependency rules."""
+    manifest = yaml.safe_load(
+        (REPO_ROOT / "esphome" / "idf_component.yml").read_text(encoding="utf-8")
+    )
+
+    deps = _esphome_manifest_deps()
+
+    assert isinstance(deps, set)
+    assert "esphome/noise-c" in deps
+    assert "esphome/libsodium" in deps
+    # Cross-check against a fresh parse instead of hardcoding the manifest's
+    # whole key list, so this doesn't need updating whenever a dependency is
+    # added or removed.
+    assert deps == set(manifest["dependencies"])
+
+
+def test_convert_pio_libs_arduino_framework_passes_empty_managed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Below IDF 6.0 the manifest gates noise-c/libsodium off on Arduino, so they
+    still go through the converter."""
+    _set_idf_version(cv.Version(5, 5, 5))
+    monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
+
+    captured: dict[str, set[str] | None] = {}
+
+    # A converted library the batch resolves, so the loop wiring its
+    # override_path into the returned deps mapping is exercised for real too.
+    converted = SimpleNamespace(
+        get_sanitized_name=lambda: "esphome/other-lib",
+        path=tmp_path / "other-lib",
+    )
+
+    def fake_generate_idf_components(libraries, managed=None):
+        captured["managed"] = managed
+        return [converted]
+
+    monkeypatch.setattr(
+        espidf_component, "generate_idf_components", fake_generate_idf_components
+    )
+
+    result = _convert_pio_libs(tmp_path / "platformio.ini", "arduino")
+
+    assert captured["managed"] == set()
+    assert result == {
+        "esphome/other-lib": {"override_path": str(tmp_path / "other-lib")}
+    }
+
+
+def test_convert_pio_libs_arduino_idf_6_passes_manifest_deps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """From IDF 6.0 the manifest enables them on Arduino too, so the converter
+    must skip them."""
+    _set_idf_version(cv.Version(6, 0, 0))
+    monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
+
+    captured: dict[str, set[str] | None] = {}
+
+    def fake_generate_idf_components(libraries, managed=None):
+        captured["managed"] = managed
+        return []
+
+    monkeypatch.setattr(
+        espidf_component, "generate_idf_components", fake_generate_idf_components
+    )
+
+    assert _convert_pio_libs(tmp_path / "platformio.ini", "arduino") == {}
+    assert captured["managed"] == _esphome_manifest_deps()
+
+
+def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Manifest-provided components are passed as ``managed`` so the converter
+    skips them."""
+    _set_idf_version(cv.Version(5, 5, 5), "espidf")
+    monkeypatch.setattr(clang_tidy, "_parse_lib_deps", lambda ini, framework: [])
+
+    captured: dict[str, set[str] | None] = {}
+
+    def fake_generate_idf_components(libraries, managed=None):
+        captured["managed"] = managed
+        return []
+
+    monkeypatch.setattr(
+        espidf_component, "generate_idf_components", fake_generate_idf_components
+    )
+
+    result = _convert_pio_libs(tmp_path / "platformio.ini", "espidf")
+
+    assert captured["managed"] == _esphome_manifest_deps()
+    assert "esphome/noise-c" in captured["managed"]
+    assert result == {}
+
+
+def _set_idf_version(version: cv.Version, framework: str = "arduino") -> None:
+    CORE.reset()
+    CORE.data[KEY_ESP32] = {KEY_IDF_VERSION: version}
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: framework,
+    }
+
+
+def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
+    tmp_path: Path,
+) -> None:
+    """A component ESPHome's own manifest declares (espressif/lan867x for ethernet)
+    is not stubbed; one only arduino-esp32 bundles still is."""
+    _set_idf_version(cv.Version(5, 5, 4))
+
+    deps = _arduino_excluded_stubs(tmp_path)
+
+    # lan867x is a real ESPHome dependency (esphome/idf_component.yml), so it
+    # must be excluded from the stub set.
+    assert "espressif/lan867x" not in deps
+    # espressif/libsodium (arduino-esp32's bundled copy) is a different
+    # package from ESPHome's own esphome/libsodium, so below IDF 6.0, where
+    # arduino-esp32 still declares it, it is stubbed.
+    assert "espressif/libsodium" in deps
+    stub_info = deps["espressif/libsodium"]
+    assert stub_info["version"] == "*"
+    stub_path = Path(stub_info["override_path"])
+    assert (stub_path / "CMakeLists.txt").is_file()
+
+
+def test_arduino_excluded_stubs_points_libsodium_at_converted_library(
+    tmp_path: Path,
+) -> None:
+    """Below IDF 6.0 the converted esphome/libsodium shares its directory name
+    with the espressif/libsodium stub; IDF would keep whichever registers last,
+    so the stub entry points at the converted library instead (#20102)."""
+    _set_idf_version(cv.Version(5, 5, 4))
+    converted_path = str(tmp_path / "pio" / "esphome" / "libsodium")
+    converted = {"esphome/libsodium": {"override_path": converted_path}}
+
+    deps = _arduino_excluded_stubs(tmp_path, converted)
+
+    assert deps["espressif/libsodium"] == {
+        "version": "*",
+        "override_path": converted_path,
+    }
+    assert not (tmp_path / "component_stubs" / "libsodium").exists()
+    # Stubs without a converted namesake are unaffected.
+    assert (tmp_path / "component_stubs" / "cbor" / "CMakeLists.txt").is_file()
+
+
+def test_arduino_excluded_stubs_skips_libsodium_from_idf_6(tmp_path: Path) -> None:
+    """From IDF 6.0 arduino-esp32 drops espressif/libsodium; a stub would clash
+    with esphome/libsodium."""
+    _set_idf_version(cv.Version(6, 0, 0))
+
+    deps = _arduino_excluded_stubs(tmp_path)
+
+    assert "espressif/libsodium" not in deps
+    # Other arduino-bundled components are still stubbed.
+    assert "espressif/cbor" in deps
