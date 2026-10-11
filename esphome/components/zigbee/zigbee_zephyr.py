@@ -24,6 +24,7 @@ from .const import (
     BACNET_UNITS,
     CONF_POWER_SOURCE,
     CONF_ROUTER,
+    CONF_SLEEPY,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -35,7 +36,6 @@ from .const import (
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
-    CONF_SLEEPY,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     CONF_ZIGBEE_NUMBER,
