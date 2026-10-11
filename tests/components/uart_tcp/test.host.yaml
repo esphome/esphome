@@ -1,0 +1,14 @@
+uart:
+  - id: uart_bus
+    baud_rate: 9600
+    port: /dev/ttyS0
+
+uart_tcp:
+  - id: bridge
+    uart_id: uart_bus
+    host: 127.0.0.1
+    port: 44502
+    connected:
+      name: UART TCP Connected
+    disconnects:
+      name: UART TCP Disconnects
