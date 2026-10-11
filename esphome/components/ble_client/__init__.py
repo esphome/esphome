@@ -22,6 +22,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+DOMAIN = "ble_client"
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 CONF_ON_NOTIFY = "on_notify"
@@ -207,26 +208,20 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.disconnect",
     BLEDisconnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_disconnect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.connect",
     BLEConnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_connect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
@@ -328,15 +323,12 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.remove_bond",
     BLERemoveBondAction,
     BLE_REMOVE_BOND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def remove_bond_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 async def to_code(config):

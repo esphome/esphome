@@ -4,7 +4,7 @@
 
 namespace esphome::rotary_encoder {
 
-static const char *const TAG = "rotary_encoder";
+ESPHOME_LOG_TAG(TAG, "rotary_encoder");
 
 // based on https://github.com/jkDesignDE/MechInputs/blob/master/QEIx4.cpp
 static const uint8_t STATE_LUT_MASK = 0x1C;  // clears upper counter increment/decrement bits and pin states
@@ -220,7 +220,7 @@ void RotaryEncoderSensor::loop() {
   }
 
   if (this->pin_i_ != nullptr && this->pin_i_->digital_read()) {
-    this->store_.counter = 0;
+    this->store_.counter = std::clamp<int32_t>(0, this->store_.min_value, this->store_.max_value);
   }
   int counter = this->store_.counter;
   if (this->store_.last_read != counter || this->publish_initial_value_) {

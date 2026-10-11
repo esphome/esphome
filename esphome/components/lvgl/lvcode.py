@@ -1,5 +1,5 @@
 import abc
-from typing import TYPE_CHECKING
+import contextvars
 
 from esphome import codegen as cg
 from esphome.config import Config
@@ -65,14 +65,32 @@ class IndentedStatement(Statement):
         return result
 
 
-class CodeContext(abc.ABC):
+class _CodeContextMeta(abc.ABCMeta):
+    """
+    Backs `CodeContext.code_context` with a contextvar instead of a plain class
+    attribute, so the FakeEventLoop's per-task context isolation (see coroutine.py)
+    keeps interleaved to_code() jobs from clobbering each other's current context.
+    """
+
+    _context_var: contextvars.ContextVar["CodeContext | None"] = contextvars.ContextVar(
+        "code_context", default=None
+    )
+
+    @property
+    def code_context(cls) -> "CodeContext | None":
+        return _CodeContextMeta._context_var.get()
+
+    @code_context.setter
+    def code_context(cls, value: "CodeContext | None") -> None:
+        _CodeContextMeta._context_var.set(value)
+
+
+class CodeContext(abc.ABC, metaclass=_CodeContextMeta):
     """
     A class providing a context for code generation. Generated code will be added to the
     current context. A new context will stack on the current context, and restore it
     when done. Used with the `with` statement.
     """
-
-    code_context = None
 
     @abc.abstractmethod
     def add(self, expression: Expression | Statement):
@@ -114,6 +132,9 @@ class CodeContext(abc.ABC):
 
     def indented_statement(self, stmt):
         return IndentedStatement(stmt, self.indent_level)
+
+    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
+        return []
 
 
 class MainContext(CodeContext):
@@ -188,9 +209,6 @@ class LvContext(LambdaContext):
     def __init__(self):
         super().__init__(parameters=LVGL_COMP_ARG)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await super().__aexit__(exc_type, exc_val, exc_tb)
-
     def add(self, expression: Expression | Statement):
         cg.add(expression)
         return expression
@@ -212,10 +230,6 @@ def get_lambda_context_args() -> list[tuple[SafeExpType, str]]:
     """
     if CodeContext.code_context is None:
         return []
-    if TYPE_CHECKING:
-        # CodeContext base class doesn't define get_automation_parameters(),
-        # but LambdaContext and LvContext (the concrete implementations) do.
-        assert isinstance(CodeContext.code_context, LambdaContext)
     return CodeContext.code_context.get_automation_parameters()
 
 
@@ -242,7 +256,7 @@ class LocalVariable(MockObj):
                     self.base.type, self.modifier, self.base.id
                 )
             )
-        return MockObj(self.base)
+        return MockObj(self.base, "->" if self.modifier == "*" else ".")
 
     def __exit__(self, *args):
         CodeContext.end_block()
@@ -283,7 +297,15 @@ class MockLv:
 
 class LvConditional:
     def __init__(self, condition):
-        self.condition = condition
+        # Condition is embedded directly into a raw `if (...)` statement below, rather than
+        # going through the argument-list machinery (ExpressionList) that would otherwise
+        # convert a native Python value (e.g. a plain bool) to a proper Expression.
+        if isinstance(condition, str):
+            raise ValueError(
+                "LvConditional condition must not be a raw str; wrap it in literal() "
+                "if a string literal condition is really intended"
+            )
+        self.condition = cg.safe_exp(condition) if condition is not None else None
 
     def __enter__(self):
         if self.condition is not None:
@@ -301,6 +323,35 @@ class LvConditional:
         CodeContext.code_context.detent()
         CodeContext.append(RawStatement("} else {"))
         CodeContext.code_context.indent()
+
+
+class LvCountdown:
+    """
+    Emits a C++ `for` loop that counts an int variable down from `count - 1` to `0` inclusive.
+    Used to iterate over a widget's children in reverse, e.g. to fire a trigger once per child
+    before they're all removed.
+    """
+
+    def __init__(self, var_name: str, count):
+        self.var_name = var_name
+        self.count = count
+
+    def __enter__(self):
+        # Cast explicitly rather than relying on `count`'s (typically unsigned) type to wrap
+        # and then narrow back to a negative int when count is 0 -- true in practice on every
+        # toolchain ESPHome targets, but not worth leaning on.
+        CodeContext.append(
+            RawStatement(
+                f"for (int {self.var_name} = (int) ({self.count}) - 1; {self.var_name} >= 0; "
+                f"{self.var_name}--) {{"
+            )
+        )
+        CodeContext.code_context.indent()
+        return literal(self.var_name)
+
+    def __exit__(self, *args):
+        CodeContext.code_context.detent()
+        CodeContext.append(RawStatement("}"))
 
 
 class ReturnStatement(ExpressionStatement):

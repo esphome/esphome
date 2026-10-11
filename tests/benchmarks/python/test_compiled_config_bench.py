@@ -52,7 +52,7 @@ def _prime_cache(yaml_path: Path) -> None:
 
     Mirrors ``esphome compile``: ``read_config`` populates ``CORE.config``,
     then ``update_storage_json`` writes both the StorageJSON sidecar and
-    the ``.validated.yaml`` compiled-config cache.
+    the ``.validated.json`` compiled-config cache.
     """
     CORE.config_path = yaml_path
     config = read_config({}, skip_external_update=True)

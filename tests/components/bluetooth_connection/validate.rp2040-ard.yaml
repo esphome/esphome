@@ -6,6 +6,7 @@ packages:
 
 rp2_ble_tracker:
 
+# Two slots: the one shape where the wrap pools are smaller than the cap.
 bluetooth_proxy:
   active: true
-  connection_slots: 1
+  connection_slots: 2

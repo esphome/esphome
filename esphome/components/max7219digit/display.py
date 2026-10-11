@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_NUM_CHIPS,
     CONF_STATE,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@rspaargaren"]
 DEPENDENCIES = ["spi"]
@@ -84,7 +85,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await spi.register_spi_device(var, config, write_only=True)
     await display.register_display(var, config)
@@ -109,14 +110,6 @@ async def to_code(config):
         cg.add(var.set_writer(lambda_))
 
 
-DisplayInvertAction = max7219_ns.class_("DisplayInvertAction", automation.Action)
-DisplayVisibilityAction = max7219_ns.class_(
-    "DisplayVisibilityAction", automation.Action
-)
-DisplayReverseAction = max7219_ns.class_("DisplayReverseAction", automation.Action)
-DisplayIntensityAction = max7219_ns.class_("DisplayIntensityAction", automation.Action)
-
-
 MAX7219_OFF_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(MAX7219Component),
@@ -132,64 +125,17 @@ MAX7219_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "max7219digit.invert_off",
-    DisplayInvertAction,
-    MAX7219_OFF_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "max7219digit.invert_on",
-    DisplayInvertAction,
-    MAX7219_ON_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def max7219digit_invert_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-    return var
-
-
-@automation.register_action(
-    "max7219digit.turn_off",
-    DisplayVisibilityAction,
-    MAX7219_OFF_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "max7219digit.turn_on",
-    DisplayVisibilityAction,
-    MAX7219_ON_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def max7219digit_visible_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-    return var
-
-
-@automation.register_action(
-    "max7219digit.reverse_off",
-    DisplayReverseAction,
-    MAX7219_OFF_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "max7219digit.reverse_on",
-    DisplayReverseAction,
-    MAX7219_ON_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def max7219digit_reverse_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-    return var
+for _name, _schema, _method in (
+    ("max7219digit.invert_off", MAX7219_OFF_ACTION_SCHEMA, "invert_on_off"),
+    ("max7219digit.invert_on", MAX7219_ON_ACTION_SCHEMA, "invert_on_off"),
+    ("max7219digit.turn_off", MAX7219_OFF_ACTION_SCHEMA, "turn_on_off"),
+    ("max7219digit.turn_on", MAX7219_ON_ACTION_SCHEMA, "turn_on_off"),
+    ("max7219digit.reverse_off", MAX7219_OFF_ACTION_SCHEMA, "set_reverse"),
+    ("max7219digit.reverse_on", MAX7219_ON_ACTION_SCHEMA, "set_reverse"),
+):
+    automation.register_apply_action(
+        _name, _schema, automation.ApplyField(CONF_STATE, _method, cg.bool_)
+    )
 
 
 MAX7219_INTENSITY_SCHEMA = cv.maybe_simple_value(
@@ -203,15 +149,8 @@ MAX7219_INTENSITY_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "max7219digit.intensity",
-    DisplayIntensityAction,
     MAX7219_INTENSITY_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_INTENSITY, "set_intensity", cg.uint8),
 )
-async def max7219digit_intensity_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_INTENSITY], args, cg.uint8)
-    cg.add(var.set_state(template_))
-    return var
