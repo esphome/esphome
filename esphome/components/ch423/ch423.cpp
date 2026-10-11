@@ -12,7 +12,7 @@ static constexpr uint8_t CH423_REG_IO_RD = 0x26;  // Read IO7-IO0 (0x4D >> 1, ro
 static constexpr uint8_t CH423_REG_OCL = 0x22;    // Write OC7-OC0 (0x44 >> 1)
 static constexpr uint8_t CH423_REG_OCH = 0x23;    // Write OC15-OC8 (0x46 >> 1)
 
-static const char *const TAG = "ch423";
+ESPHOME_LOG_TAG(TAG, "ch423");
 
 void CH423Component::setup() {
   // set outputs before mode

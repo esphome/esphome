@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_cgpr1 {
 
-static const char *const TAG = "xiaomi_cgpr1";
+ESPHOME_LOG_TAG(TAG, "xiaomi_cgpr1");
 
 void XiaomiCGPR1::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGPR1");

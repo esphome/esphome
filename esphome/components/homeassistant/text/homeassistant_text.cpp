@@ -10,7 +10,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.text";
+ESPHOME_LOG_TAG(TAG, "homeassistant.text");
 
 void HomeassistantText::state_changed_(StringRef state) {
   if (state == this->state) {

@@ -6,7 +6,7 @@
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.attribute";
+ESPHOME_LOG_TAG(TAG, "zigbee.attribute");
 
 void ZigbeeAttribute::set_attr_() {
   if (!this->zb_->is_started()) {

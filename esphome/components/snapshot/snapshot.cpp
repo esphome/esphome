@@ -22,7 +22,7 @@ namespace esphome::snapshot {
 
 namespace {
 
-constexpr const char *const TAG = "snapshot";
+ESPHOME_LOG_TAG(TAG, "snapshot");
 
 // Longest name we will build a path from. NAME_MAX is 255 and we may append a collision suffix.
 constexpr size_t MAX_NAME_LENGTH = 200;

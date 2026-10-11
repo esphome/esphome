@@ -38,7 +38,7 @@ extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-nam
 
 namespace esphome::esp32_ble {
 
-static const char *const TAG = "esp32_ble";
+ESPHOME_LOG_TAG(TAG, "esp32_ble");
 
 #ifdef CONFIG_BT_CONTROLLER_DISABLED
 // Bringing up the remote BT controller issues synchronous RPCs to the

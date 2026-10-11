@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER, CONF_SCL, CONF_SDA
 from esphome.pins import check_strapping_pin
 
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
+
 # Per the ESP32-S31 IDF DOCS and datasheet:
 # https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32s31/api-reference/peripherals/gpio.html
 # https://documentation.espressif.com/esp32-s31_datasheet_en.pdf
@@ -15,6 +17,8 @@ _ESP32S31_INVALID_PINS: set[int] = {29, 41}
 _ESP32S31_STRAPPING_PINS: set[int] = {36, 37, 60, 61}
 # LP I2C is fixed to GPIO6 (SCL) / GPIO7 (SDA) per the datasheet IO MUX table.
 _ESP32S31_I2C_LP_PINS = {"SDA": 7, "SCL": 6}
+
+_ESP32S31_USB_JTAG_PINS = {33, 34}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +32,7 @@ def esp32_s31_validate_gpio_pin(value: int) -> int:
         raise cv.Invalid(
             f"GPIO{value} is reserved for the SPI flash interface on ESP32-S31 and cannot be used."
         )
+    check_usb_jtag_pin(value, _ESP32S31_USB_JTAG_PINS, _LOGGER)
     return value
 
 
@@ -45,6 +50,8 @@ def esp32_s31_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
+
+    check_usb_jtag_hold(value, _ESP32S31_USB_JTAG_PINS, _LOGGER)
 
     check_strapping_pin(value, _ESP32S31_STRAPPING_PINS, _LOGGER)
     return value

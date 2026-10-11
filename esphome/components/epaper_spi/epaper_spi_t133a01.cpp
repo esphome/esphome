@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.t133a01";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.t133a01");
 
 // Color indices used in the 4bpp buffer (sprite-side)
 // These MUST match the Arduino GFX TFT_eSPI.h color definitions and

@@ -6,7 +6,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.service";
+ESPHOME_LOG_TAG(TAG, "api.service");
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void APIServerConnectionBase::log_send_message_(const LogString *name, const char *dump) {
@@ -749,6 +749,15 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       this->log_receive_message_(LOG_STR("on_wizard_input_set_request"), msg);
 #endif
       this->on_wizard_input_set_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SENDSPIN
+    case 159 /* SendspinPairingTokenRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_sendspin_pairing_token_request"));
+#endif
+      this->on_sendspin_pairing_token_request();
       break;
     }
 #endif

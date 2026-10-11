@@ -20,7 +20,7 @@
 
 namespace esphome::serial_proxy {
 
-static const char *const TAG = "serial_proxy";
+ESPHOME_LOG_TAG(TAG, "serial_proxy");
 
 uint32_t SerialProxy::stall_loop_time = 0;
 uint32_t SerialProxy::stall_spent_ms = 0;

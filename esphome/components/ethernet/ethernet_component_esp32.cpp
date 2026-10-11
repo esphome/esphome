@@ -77,7 +77,7 @@
 
 namespace esphome::ethernet {
 
-static const char *const TAG = "ethernet";
+ESPHOME_LOG_TAG(TAG, "ethernet");
 
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;

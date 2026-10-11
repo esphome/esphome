@@ -6,7 +6,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request";
+ESPHOME_LOG_TAG(TAG, "http_request");
 
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG,

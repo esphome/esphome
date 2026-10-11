@@ -13,7 +13,7 @@ static void *lv_alloc_draw_buf(size_t size, bool internal);
 static void *draw_buf_alloc_cb(size_t size, lv_color_format_t color_format) { return lv_alloc_draw_buf(size, false); };
 
 namespace esphome::lvgl {
-static const char *const TAG = "lvgl";
+ESPHOME_LOG_TAG(TAG, "lvgl");
 
 static const size_t MIN_BUFFER_FRAC = 8;     // buffer must be at least 1/8 of the display size
 static const size_t MIN_BUFFER_SIZE = 2048;  // Sensible minimum buffer size

@@ -16,6 +16,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
+DOMAIN = "cc1101"
 MULTI_CONF = True
 
 ns = cg.esphome_ns.namespace("cc1101")
