@@ -171,6 +171,11 @@ climate:
             args: ['data_size', 'data[0]', 'data[1]']
 ```
 
+> [!NOTE]
+> `on_status_message` may not contain deferring actions (`delay`, `wait_until`, `script.wait`, ...) - `data` points
+> into the receive buffer, which is reused for the next frame. Config validation rejects such an automation with an
+> error. Copy any value you need into a global first, then defer from a separate script or automation.
+
 ### `climate.haier.power_on` Action
 
 This action turns AC power on.
