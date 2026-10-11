@@ -177,9 +177,7 @@ void DaikinClimate::set_presets_(uint8_t *remote_state) const {
       remote_state[32] = DAIKIN_PRESET_SENSOR_ON;
       break;
     case climate::CLIMATE_PRESET_COMFORT:
-      // The remote sets the comfort bit in both the first frame and the state frame
-      remote_state[6] = DAIKIN_PRESET_COMFORT_ON;
-      remote_state[32] = DAIKIN_PRESET_COMFORT_ON;
+      remote_state[6] = DAIKIN_PRESET_COMFORT_ON;  // the only preset carried by the first frame
       break;
     default:
       break;

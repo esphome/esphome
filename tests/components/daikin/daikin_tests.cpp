@@ -208,7 +208,7 @@ TEST(Daikin, EncodesEachPresetInItsOwnByte) {
   const Case cases[] = {
       {climate::CLIMATE_PRESET_NONE, 0x00, 0x00, 0x00},     {climate::CLIMATE_PRESET_BOOST, 0x00, 0x01, 0x00},
       {climate::CLIMATE_PRESET_SLEEP, 0x00, 0x20, 0x00},    {climate::CLIMATE_PRESET_ECO, 0x00, 0x00, 0x04},
-      {climate::CLIMATE_PRESET_ACTIVITY, 0x00, 0x00, 0x02}, {climate::CLIMATE_PRESET_COMFORT, 0x10, 0x00, 0x10},
+      {climate::CLIMATE_PRESET_ACTIVITY, 0x00, 0x00, 0x02}, {climate::CLIMATE_PRESET_COMFORT, 0x10, 0x00, 0x00},
   };
   Fixture f;
   uint8_t plain_first_checksum = 0;

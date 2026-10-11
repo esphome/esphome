@@ -27,7 +27,7 @@ const uint8_t DAIKIN_FAN_3 = 0x50;
 const uint8_t DAIKIN_FAN_4 = 0x60;
 const uint8_t DAIKIN_FAN_5 = 0x70;
 
-// Presets: bit flags in frame byte 29 (powerful, quiet) and byte 32 (sensor, econo, comfort)
+// Presets: bit flags in byte 6 (comfort), byte 29 (powerful, quiet) and byte 32 (sensor, econo)
 const uint8_t DAIKIN_PRESET_COMFORT_ON = 0x10;
 const uint8_t DAIKIN_PRESET_POWERFUL_ON = 0x01;
 const uint8_t DAIKIN_PRESET_QUIET_ON = 0x20;
