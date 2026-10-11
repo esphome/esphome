@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import importlib
 import io
 import json
@@ -11,7 +12,7 @@ from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
 import voluptuous as vol
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, cpp_generator
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -69,6 +70,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
 from esphome.yaml_util import (
     ESPHomeDataBase,
+    SensitiveInt,
     SensitiveStr,
     load_yaml,
     make_data_base,
@@ -226,6 +228,32 @@ def test_sensitive__non_string_result_passes_through() -> None:
 
     validator = cv.sensitive(inner)
     assert validator("anything") is sentinel
+
+
+@pytest.mark.parametrize("inner", [cv.uint32_t, cv.hex_int])
+def test_sensitive__integer_preserves_codegen_and_is_idempotent(
+    inner: Callable[[str], int],
+) -> None:
+    """Tag credentials without changing their firmware expressions."""
+    original = inner("0x12345678")
+    tagged = cv.sensitive(inner)("0x12345678")
+    assert isinstance(tagged, SensitiveInt)
+    assert tagged == original
+    assert str(cpp_generator.safe_exp(tagged)) == str(cpp_generator.safe_exp(original))
+    assert isinstance(tagged, HexInt) == isinstance(original, HexInt)
+    assert cv.sensitive(lambda value: value)(tagged) is tagged
+
+
+def test_sensitive__integer_validation_still_rejects_out_of_range() -> None:
+    """Keep the inner validator's range checks."""
+    with pytest.raises(Invalid):
+        cv.sensitive(cv.uint32_t)(1 << 32)
+
+
+@pytest.mark.parametrize("value", [False, True])
+def test_sensitive__boolean_is_not_coerced_to_integer(value: bool) -> None:
+    """Boolean validators remain boolean despite bool being an int subclass."""
+    assert cv.sensitive(cv.boolean)(value) is value
 
 
 def test_sensitive__is_detectable_via_isinstance() -> None:

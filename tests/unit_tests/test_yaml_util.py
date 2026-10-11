@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import io
 from pathlib import Path
 import shutil
@@ -1899,6 +1900,49 @@ def test_dump__redacts_sensitive_str_by_default() -> None:
     assert "hunter2" not in out.replace(
         "\\033[8mhunter2\\033[28m", ""
     )  # the raw value is only present inside the wrap
+
+
+@pytest.mark.parametrize(
+    ("validator", "value", "rendered"),
+    [
+        (cv.uint32_t, 0, "0"),
+        (cv.uint32_t, 305419896, "305419896"),
+        (cv.uint32_t, 4294967295, "4294967295"),
+        (cv.hex_int, 0x12, "0x12"),
+        (
+            cv.hex_int,
+            0x00112233445566778899AABBCCDDEEFF,
+            "0x112233445566778899AABBCCDDEEFF",
+        ),
+        (cv.int_, -42, "-42"),
+    ],
+)
+def test_dump__redacts_sensitive_integer(
+    validator: Callable[[int], int], value: int, rendered: str
+) -> None:
+    """Mask integer credentials without changing their numeric value or format."""
+    sensitive = cv.sensitive(validator)(value)
+    assert isinstance(sensitive, int)
+    assert sensitive == value
+    assert str(sensitive) == rendered
+    out = yaml_util.dump({"credential": sensitive})
+    assert f"\\033[8m{rendered}\\033[28m" in out
+    assert yaml_util.dump({"credential": sensitive}, show_secrets=True).strip() == (
+        f"credential: {rendered}"
+    )
+
+
+@pytest.mark.parametrize("validator", [cv.uint32_t, cv.hex_int])
+def test_dump__integer_secret_reference_wins_over_redaction(
+    validator: Callable[[int], int],
+) -> None:
+    """Keep !secret references for tagged decimal and hexadecimal integers."""
+    value = cv.sensitive(validator)(305419896)
+    yaml_util._SECRET_VALUES[str(value)] = "my_numeric_secret"
+    out = yaml_util.dump({"credential": value})
+    assert "!secret" in out
+    assert "my_numeric_secret" in out
+    assert "\\033[8m" not in out
 
 
 def test_dump__show_secrets_emits_sensitive_str_raw() -> None:

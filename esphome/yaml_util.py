@@ -91,6 +91,18 @@ class SensitiveStr(str):
     __slots__ = ()
 
 
+class SensitiveInt(int):
+    """Marker subclass for integer credentials masked in user-visible YAML."""
+
+    __slots__ = ()
+
+
+class SensitiveHexInt(core.HexInt, SensitiveInt):
+    """Keep hexadecimal formatting and code generation for sensitive integers."""
+
+    __slots__ = ()
+
+
 @contextmanager
 def track_yaml_loads() -> Generator[list[Path]]:
     """Context manager that records every file loaded by the YAML loader.
@@ -1361,10 +1373,12 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_stringify(path.as_posix())
         return self.represent_stringify(value)
 
-    def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
+    def represent_sensitive(
+        self, value: SensitiveStr | SensitiveInt
+    ) -> yaml.ScalarNode:
         # Only the redact-and-not-a-secret branch is unique to sensitive
-        # values; otherwise let ``represent_stringify`` handle ``!secret``
-        # precedence and the plain-str fallthrough. Conceal sequence is
+        # values; otherwise use the original string/integer representer
+        # to preserve ``!secret`` references and scalar types. Conceal sequence is
         # emitted as literal ``\033`` text (not actual ESC bytes) so the
         # output matches the prior regex format and device-builder's
         # ``\033[8m...\033[28m`` parser keeps working.
@@ -1373,6 +1387,8 @@ class ESPHomeDumper(yaml.SafeDumper):
                 tag="tag:yaml.org,2002:str",
                 value=f"\\033[8m{value}\\033[28m",
             )
+        if isinstance(value, int):
+            return self.represent_int(value)
         return self.represent_stringify(value)
 
     # pylint: disable=arguments-renamed
@@ -1454,6 +1470,7 @@ ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
 # MRO-walked dispatch; SensitiveStr's own entry wins over the str one.
 ESPHomeDumper.add_multi_representer(SensitiveStr, ESPHomeDumper.represent_sensitive)
+ESPHomeDumper.add_multi_representer(SensitiveInt, ESPHomeDumper.represent_sensitive)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)

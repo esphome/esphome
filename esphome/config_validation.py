@@ -114,7 +114,12 @@ from esphome.schema_extractors import (
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import SensitiveStr, make_data_base
+from esphome.yaml_util import (
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+    make_data_base,
+)
 
 if typing.TYPE_CHECKING:
     from esphome.types import ConfigType
@@ -548,11 +553,14 @@ class SensitiveValidator:
 
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
-        # Tag string results so yaml_util.dump can mask them. Non-string
-        # results pass through unchanged; already-tagged values are not
-        # re-wrapped to keep nested cv.sensitive applications idempotent.
-        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+        if isinstance(validated, (SensitiveStr, SensitiveInt)):
+            return validated
+        if isinstance(validated, str):
             return SensitiveStr(validated)
+        if isinstance(validated, HexInt):
+            return SensitiveHexInt(validated)
+        if isinstance(validated, int) and not isinstance(validated, bool):
+            return SensitiveInt(validated)
         return validated
 
     def __repr__(self) -> str:
