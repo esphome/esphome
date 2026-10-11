@@ -16,16 +16,12 @@ void EmonTx::setup() { this->buffer_pos_ = 0; }
  * 2. If line starts with '{', parse as JSON and update sensors/callbacks
  */
 void EmonTx::loop() {
-  // Let another component take exclusive ownership of the UART (e.g. while
-  // flashing new firmware to the emonTx over the same bus) without this
-  // component racing it for incoming bytes.
   if (this->is_paused()) {
     this->was_paused_ = true;
     return;
   }
   if (this->was_paused_) {
-    // Bytes received during the pause are stale or were meant for the other component, which may also have
-    // consumed bytes mid-line: drop the backlog and resync at the next line start
+    // Drop what arrived during the pause and resync at the next line start
     this->was_paused_ = false;
     this->buffer_pos_ = 0;
     this->discarding_line_ = true;
@@ -63,7 +59,7 @@ void EmonTx::loop() {
         }
       }
     } else if (received == '\r' || this->discarding_line_) {
-      // Ignore CR, and the rest of a line that overflowed the buffer or was interrupted by a pause
+      // Ignore CR, and the rest of a line that overflowed or was interrupted by a pause
     } else if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
       ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
       this->buffer_pos_ = 0;

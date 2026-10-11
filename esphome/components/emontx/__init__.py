@@ -159,7 +159,6 @@ automation.register_apply_action(
 )
 
 
-# Actions: emontx.pause / emontx.resume, condition: emontx.is_paused
 # Let another component (e.g. serial_proxy) take exclusive ownership of the UART.
 
 EMONTX_ID_SCHEMA = automation.maybe_simple_id({cv.GenerateID(): cv.use_id(EmonTx)})

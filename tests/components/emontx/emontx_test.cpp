@@ -111,8 +111,7 @@ TEST_F(EmonTxTest, SendCommandIsSuppressedWhilePaused) {
   EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "x\n");
 }
 
-// Neither the partial line held at pause time nor the tail received after resuming may reach on_data:
-// spliced they would form "{\"P1\":456}", alone "56}" - neither line arrived intact.
+// Neither the part before the pause nor the part after it may reach on_data
 TEST_F(EmonTxTest, ResumeDiscardsInterruptedLine) {
   this->uart_.push_rx("{\"P1\":4");
   this->sut_.loop();
@@ -130,7 +129,6 @@ TEST_F(EmonTxTest, ResumeDiscardsInterruptedLine) {
   EXPECT_EQ(this->lines_[0], "{\"P1\":789}");
 }
 
-// Lines received while paused are stale, and the last one may have been cut off where the RX buffer filled
 TEST_F(EmonTxTest, ResumeDropsBacklogReceivedWhilePaused) {
   this->sut_.set_paused(true);
   this->sut_.loop();
@@ -147,7 +145,6 @@ TEST_F(EmonTxTest, ResumeDropsBacklogReceivedWhilePaused) {
   EXPECT_EQ(this->lines_[0], "{\"P1\":4}");
 }
 
-// A backlog ending on a line boundary needs no further discarding
 TEST_F(EmonTxTest, ResumeAfterCompleteBacklogKeepsNextLine) {
   this->sut_.set_paused(true);
   this->sut_.loop();

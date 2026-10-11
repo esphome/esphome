@@ -42,31 +42,8 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void send_command(const char *command);
   void send_command(const std::string &command) { this->send_command(command.c_str()); }
 
-  /**
-   * Suspend or resume UART processing.
-   *
-   * When paused, loop() returns immediately without consuming any bytes from
-   * the UART buffer, and send_command() is suppressed. This lets another
-   * component (e.g. serial_proxy, or a firmware updater) take exclusive
-   * ownership of a shared UART bus while it is active. Exposed to YAML as the
-   * emontx.pause / emontx.resume actions and the emontx.is_paused condition.
-   *
-   * Backed by an atomic flag (not Component::disable_loop()/enable_loop())
-   * because a firmware updater flashing the emonTx over this same UART must
-   * be able to resume parsing from a background FreeRTOS task once flashing
-   * completes, not just the main loop task.
-   * disable_loop()/enable_loop() mutate Application::looping_components_,
-   * which is only safe to touch from the main loop task; this flag is safe
-   * to flip from any task.
-   *
-   * Once loop() has seen the pause, resuming discards the partial line held
-   * at pause time, the bytes received during the pause, and everything up to
-   * the next newline, since the other component may have consumed bytes
-   * mid-line; only complete lines reach on_data and the JSON parser.
-   * A pause and resume with no loop() pass in between are not seen, so no
-   * resync happens: keep the pause for at least one loop() pass before
-   * another component reads from the UART.
-   */
+  /// Stop reading the UART and sending commands, so another component can use it.
+  /// Atomic, so it can be called from any task. Hold the pause for at least one loop() pass.
   void set_paused(bool paused) { this->paused_.store(paused, std::memory_order_relaxed); }
 
   bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
