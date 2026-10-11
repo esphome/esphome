@@ -7,7 +7,7 @@
 // Lets a YAML lambda call esp_pm_dump_locks().
 #include "esp_pm.h"
 
-namespace esphome::esp32_pm {
+namespace esphome::esp32_power_management {
 
 class ESP32PowerManagement : public power_management::PowerManagementComponent {
  public:
@@ -23,6 +23,6 @@ class ESP32PowerManagement : public power_management::PowerManagementComponent {
   uint16_t min_freq_mhz_{0};
 };
 
-}  // namespace esphome::esp32_pm
+}  // namespace esphome::esp32_power_management
 
 #endif

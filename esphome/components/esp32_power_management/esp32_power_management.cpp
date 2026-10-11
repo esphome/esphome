@@ -1,13 +1,13 @@
-#include "esp32_pm.h"
+#include "esp32_power_management.h"
 #ifdef USE_ESP32
 #include "esphome/core/log.h"
 
 #include "esp_private/esp_clk.h"
 #include "soc/rtc.h"
 
-namespace esphome::esp32_pm {
+namespace esphome::esp32_power_management {
 
-ESPHOME_LOG_TAG(TAG, "esp32_pm");
+ESPHOME_LOG_TAG(TAG, "esp32_power_management");
 
 void ESP32PowerManagement::setup() {
   if (this->max_freq_mhz_ == 0)
@@ -66,5 +66,5 @@ void ESP32PowerManagement::dump_config() {
 #endif
 }
 
-}  // namespace esphome::esp32_pm
+}  // namespace esphome::esp32_power_management
 #endif

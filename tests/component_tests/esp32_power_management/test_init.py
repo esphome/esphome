@@ -1,4 +1,4 @@
-"""Tests for esp32_pm configuration validation and sdkconfig wiring."""
+"""Tests for esp32_power_management configuration validation and sdkconfig wiring."""
 
 from contextlib import nullcontext
 import logging
@@ -8,7 +8,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32H2
-from esphome.components.esp32_pm.power_management import (
+from esphome.components.esp32_power_management.power_management import (
     CONF_ENABLE_LIGHT_SLEEP,
     CONF_IDLE_TIME_BEFORE_SLEEP,
     CONF_MAX_FREQUENCY,
@@ -146,14 +146,14 @@ def _final_validate_config(
     _final_validate(validated)
 
 
-def test_rejects_multiple_esp32_pm_instances(
+def test_rejects_multiple_esp32_power_management_instances(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    with pytest.raises(cv.Invalid, match="Only one esp32_pm instance"):
+    with pytest.raises(cv.Invalid, match="Only one esp32_power_management instance"):
         _final_validate_config(
             set_core_config,
             {},
-            {"power_management": [{"platform": "esp32_pm"}] * 2},
+            {"power_management": [{"platform": "esp32_power_management"}] * 2},
         )
 
 
@@ -199,16 +199,16 @@ def sdkconfig_calls() -> dict[str, object]:
     calls: dict[str, object] = {}
     with (
         mock.patch(
-            "esphome.components.esp32_pm.power_management.cg.new_Pvariable",
+            "esphome.components.esp32_power_management.power_management.cg.new_Pvariable",
             return_value=mock.MagicMock(),
         ),
         mock.patch(
-            "esphome.components.esp32_pm.power_management.power_management."
+            "esphome.components.esp32_power_management.power_management.power_management."
             "register_power_management",
             new_callable=mock.AsyncMock,
         ),
         mock.patch(
-            "esphome.components.esp32_pm.power_management.add_idf_sdkconfig_option",
+            "esphome.components.esp32_power_management.power_management.add_idf_sdkconfig_option",
             side_effect=calls.__setitem__,
         ),
     ):

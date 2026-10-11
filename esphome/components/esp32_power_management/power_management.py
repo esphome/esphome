@@ -51,8 +51,8 @@ _TOP_PD_VARIANTS = [
     VARIANT_ESP32S31,
 ]
 
-esp32_pm_ns = cg.esphome_ns.namespace("esp32_pm")
-PowerManagement = esp32_pm_ns.class_(
+esp32_power_management_ns = cg.esphome_ns.namespace("esp32_power_management")
+PowerManagement = esp32_power_management_ns.class_(
     "ESP32PowerManagement", power_management.PowerManagementComponent
 )
 
