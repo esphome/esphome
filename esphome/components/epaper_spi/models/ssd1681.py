@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_RESET_PIN
 from esphome.types import ConfigType
@@ -11,10 +9,7 @@ MAX_HEIGHT = 200
 
 
 class SSD1681(SSD1683):
-    def __init__(
-        self, name: str, class_name: str = "EPaperSSD1681", **defaults: Any
-    ) -> None:
-        super().__init__(name, class_name=class_name, **defaults)
+    class_name = "EPaperSSD1681"
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         config = super().validate_config(config)
