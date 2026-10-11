@@ -31,6 +31,9 @@ bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value
 }
 
 bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
+  // Setup rejects an unknown chip; the action must not program it either
+  if (this->is_failed())
+    return false;
   for (size_t i = 0; i < regs.size(); i++) {
     const uint8_t reg = BQ25186_REG_VBAT_CTRL + i;
     const bool ok = BQ25186_CONFIG_MASKS[i] == 0xFF ? this->write_register_(reg, regs[i])
