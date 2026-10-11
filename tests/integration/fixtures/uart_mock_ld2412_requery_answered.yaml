@@ -1,0 +1,66 @@
+esphome:
+  name: uart-mock-ld2412-requery
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# The module ignores the motion threshold query sent during setup and answers the one the component sends
+# again when a write is held back. The static threshold query is never answered
+#
+# Frame layout follows the 0x0013 answer in the HLK-LD2412 Serial Communication Protocol V1.05, section
+# 2.2.10: header, length 12 00, command 13 01, status 00 00, 14 threshold bytes, footer
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  on_tx:
+    - then:
+        - lambda: |-
+            // The component writes a command in pieces, the length and command word 02 00 13 00 is the one
+            // that identifies the motion threshold query
+            static const std::vector<uint8_t> MOTION_QUERY = {0x02, 0x00, 0x13, 0x00};
+            static int motion_queries = 0;
+            if (data != MOTION_QUERY || ++motion_queries != 2) {
+              return;
+            }
+            id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{
+                0xFD, 0xFC, 0xFB, 0xFA,  // header
+                0x12, 0x00,              // length 18
+                0x13, 0x01,              // answer to command 0x0013
+                0x00, 0x00,              // status: success
+                0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,  // gates 0 to 6
+                0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,  // gates 7 to 13
+                0x04, 0x03, 0x02, 0x01,  // footer
+            });
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+# Gate 5 has a number, but it holds no value until the module answers
+number:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    gate_0:
+      move_threshold:
+        name: "Gate 0 Move Threshold"
+      still_threshold:
+        name: "Gate 0 Still Threshold"
+    gate_5:
+      move_threshold:
+        name: "Gate 5 Move Threshold"
+      still_threshold:
+        name: "Gate 5 Still Threshold"

@@ -1,0 +1,75 @@
+esphome:
+  name: uart-mock-ld2412-footer
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  # Both answers carry the command frame footer 04 03 02 01 inside the threshold bytes, so the parser sees a
+  # footer before the frame is complete and has to keep reading up to the real footer
+  #
+  # Frame layout and values follow the 0x0013 and 0x0014 answer examples in the HLK-LD2412 Serial
+  # Communication Protocol V1.05, sections 2.2.10 and 2.2.12: header, length 12 00, command 13 01 (14 01),
+  # status 00 00, 14 threshold bytes, footer. The examples print more than 14 value bytes, more than the
+  # length 12 00 allows, so only their first 14 (00 23 23 23 23 19 ...) are used
+  responses:
+    # Motion thresholds: the documented example values, with gates 5 to 8 holding 4, 3, 2, 1
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x13, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x12, 0x00,
+          0x13, 0x01,
+          0x00, 0x00,
+          0x00, 0x23, 0x23, 0x23, 0x23, 0x04, 0x03,
+          0x02, 0x01, 0x19, 0x19, 0x19, 0x19, 0x19,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+    # Still thresholds: the documented example values, with the last 4 gates holding 4, 3, 2, 1 right
+    # before the real footer
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x14, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x12, 0x00,
+          0x14, 0x01,
+          0x00, 0x00,
+          0x00, 0x23, 0x23, 0x23, 0x23, 0x19, 0x19,
+          0x19, 0x19, 0x19, 0x04, 0x03, 0x02, 0x01,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+# Gate 5 is one of the gates that holds a footer byte in the motion answer
+number:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    gate_0:
+      move_threshold:
+        name: "Gate 0 Move Threshold"
+      still_threshold:
+        name: "Gate 0 Still Threshold"
+    gate_5:
+      move_threshold:
+        name: "Gate 5 Move Threshold"
+      still_threshold:
+        name: "Gate 5 Still Threshold"

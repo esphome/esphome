@@ -1,0 +1,76 @@
+esphome:
+  name: uart-mock-ld2412-truncated
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Frame layout follows the 0x0013 and 0x0014 answers in the HLK-LD2412 Serial Communication Protocol V1.05,
+# sections 2.2.10 and 2.2.12: header, length 12 00, command 13 01 (14 01), status 00 00, 14 threshold bytes,
+# footer
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  responses:
+    # The motion answer loses its last two gate bytes but keeps its footer, and the next acknowledgement
+    # follows right behind it, so both arrive as one run of bytes
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x13, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,  # motion header
+          0x12, 0x00,  # length 18, but only 16 bytes follow
+          0x13, 0x01,  # answer to command 0x0013
+          0x00, 0x00,  # status: success
+          0x30, 0x31, 0x32, 0x33, 0x34, 0x35,  # gates 0 to 5
+          0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B,  # gates 6 to 11, gates 12 and 13 are missing
+          0x04, 0x03, 0x02, 0x01,  # motion footer
+          0xFD, 0xFC, 0xFB, 0xFA,  # next frame: the config-mode end acknowledgement
+          0x04, 0x00,  # length 4
+          0xFE, 0x01,  # answer to command 0x00FE
+          0x00, 0x00,  # status: success
+          0x04, 0x03, 0x02, 0x01,  # its footer; the merged 40-byte frame gets dropped
+        ]
+  # A complete motion answer arrives later, after setup has finished
+  injections:
+    - delay: 1500ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,  # header
+          0x12, 0x00,  # length 18
+          0x13, 0x01,  # answer to command 0x0013
+          0x00, 0x00,  # status: success
+          0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,  # gates 0 to 6
+          0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,  # gates 7 to 13
+          0x04, 0x03, 0x02, 0x01,  # footer
+        ]
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+number:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    gate_0:
+      move_threshold:
+        name: "Gate 0 Move Threshold"
+      still_threshold:
+        name: "Gate 0 Still Threshold"
+    gate_5:
+      move_threshold:
+        name: "Gate 5 Move Threshold"
+      still_threshold:
+        name: "Gate 5 Still Threshold"

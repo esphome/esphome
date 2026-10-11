@@ -85,9 +85,11 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void set_light_out_control();
   void set_basic_config();
 #ifdef USE_NUMBER
-  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; }
+  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) {
+    this->gate_move_thresholds_.numbers[gate] = n;
+  }
   void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
-    this->gate_still_threshold_numbers_[gate] = n;
+    this->gate_still_thresholds_.numbers[gate] = n;
   }
   void set_gate_threshold();
   void get_gate_threshold();
@@ -118,6 +120,16 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void query_light_control_();
   void restart_();
   void query_dynamic_background_correction_();
+#ifdef USE_NUMBER
+  // One threshold command carries every gate, so gates without a number are sent the value the module last reported
+  struct GateThresholds {
+    std::array<number::Number *, TOTAL_GATES> numbers{};
+    std::array<uint8_t, TOTAL_GATES> last_read{};
+    bool read{false};           // the module has answered the query at least once
+    bool write_pending{false};  // a write waits for that answer
+  };
+  void send_gate_thresholds_(bool motion);
+#endif
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
@@ -129,8 +141,8 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   bool bluetooth_on_{false};
   bool dynamic_background_correction_active_{false};
 #ifdef USE_NUMBER
-  std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
-  std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
+  GateThresholds gate_move_thresholds_;
+  GateThresholds gate_still_thresholds_;
 #endif
 #ifdef USE_SENSOR
   std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};

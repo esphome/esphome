@@ -73,8 +73,10 @@ enum PeriodicDataValue : uint8_t {
 };
 
 enum AckData : uint8_t {
+  FRAME_LENGTH = 4,  // little-endian count of the bytes between the length field and the footer
   COMMAND = 6,
   COMMAND_STATUS = 7,
+  ACK_PAYLOAD = 10,
 };
 
 // Memory-efficient lookup tables
@@ -191,6 +193,10 @@ static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0x
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+// A gate threshold answer carries one byte per gate
+static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
+// The length field counts the command word, the status word and the gates
+static constexpr uint16_t GATE_SENS_ACK_LENGTH = GATE_SENS_ACK_SIZE - COMMAND - HEADER_FOOTER_SIZE;
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
@@ -240,10 +246,10 @@ void LD2412Component::dump_config() {
   LOG_NUMBER("  ", "MaxDistanceGate", this->max_distance_gate_number_);
   LOG_NUMBER("  ", "MinDistanceGate", this->min_distance_gate_number_);
   LOG_NUMBER("  ", "Timeout", this->timeout_number_);
-  for (number::Number *n : this->gate_move_threshold_numbers_) {
+  for (number::Number *n : this->gate_move_thresholds_.numbers) {
     LOG_NUMBER("  ", "Move Thresholds", n);
   }
-  for (number::Number *n : this->gate_still_threshold_numbers_) {
+  for (number::Number *n : this->gate_still_thresholds_.numbers) {
     LOG_NUMBER("  ", "Still Thresholds", n);
   }
 #endif
@@ -460,6 +466,8 @@ void set_number_value(number::Number *n, float value) {
     n->publish_state(value);
   }
 }
+
+static inline bool has_value(number::Number *n) { return n != nullptr && n->has_state(); }
 #endif
 
 bool LD2412Component::handle_ack_data_() {
@@ -595,19 +603,33 @@ bool LD2412Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Handled set light control command");
       break;
 
-    case CMD_QUERY_MOTION_GATE_SENS: {
-#ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_move_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
-        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]);
-      }
-#endif
-      break;
-    }
-
+    case CMD_QUERY_MOTION_GATE_SENS:
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
-        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]);
+      const uint16_t declared = encode_uint16(this->buffer_data_[FRAME_LENGTH + 1], this->buffer_data_[FRAME_LENGTH]);
+      if (declared != GATE_SENS_ACK_LENGTH || this->buffer_pos_ > GATE_SENS_ACK_SIZE) {
+        // A truncated answer merged with the next frame, or a length this driver does not know
+        ESP_LOGW(TAG, "Dropping gate threshold answer of %u bytes", this->buffer_pos_);
+        return true;
+      }
+      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
+        return false;  // the footer pattern appeared inside the payload, keep reading
+      }
+      const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
+      GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        group.last_read[i] = this->buffer_data_[ACK_PAYLOAD + i];
+        // While a write waits for this answer, the values the user set must survive it
+        if (!group.write_pending || !has_value(group.numbers[i])) {
+          set_number_value(group.numbers[i], group.last_read[i]);
+        }
+      }
+      group.read = true;
+      if (group.write_pending) {
+        group.write_pending = false;
+        this->set_config_mode_(true);
+        this->send_gate_thresholds_(motion);
+        this->set_config_mode_(false);
       }
 #endif
       break;
@@ -805,24 +827,45 @@ void LD2412Component::set_basic_config() {
 }
 
 #ifdef USE_NUMBER
+void LD2412Component::send_gate_thresholds_(bool motion) {
+  GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+  const uint8_t command = motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS;
+  uint8_t value[TOTAL_GATES];
+  bool any_number = false;
+  uint8_t configured = 0;
+  for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+    number::Number *n = group.numbers[i];
+    if (n != nullptr) {
+      any_number = true;
+    }
+    if (has_value(n)) {
+      value[i] = static_cast<uint8_t>(n->state);
+      configured++;
+    } else {
+      value[i] = group.last_read[i];
+    }
+  }
+  if (configured == 0) {
+    if (any_number) {
+      ESP_LOGD(TAG, "Command %02X not sent, none of its numbers has a value yet", command);
+    }
+    return;
+  }
+  if (configured < TOTAL_GATES && !group.read) {
+    // Without the module's values those gates would be sent as zero, which is maximum sensitivity.
+    // Ask again and send the write once the answer arrives.
+    ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
+    group.write_pending = true;
+    this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
+    return;
+  }
+  this->send_command_(command, value, sizeof(value));
+}
+
 void LD2412Component::set_gate_threshold() {
-  if (this->gate_move_threshold_numbers_.empty() && this->gate_still_threshold_numbers_.empty()) {
-    return;  // No gate threshold numbers set; nothing to do here
-  }
-  uint8_t value[TOTAL_GATES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   this->set_config_mode_(true);
-  if (!this->gate_move_threshold_numbers_.empty()) {
-    for (size_t i = 0; i < this->gate_move_threshold_numbers_.size(); i++) {
-      value[i] = lowbyte(static_cast<int>(this->gate_move_threshold_numbers_[i]->state));
-    }
-    this->send_command_(CMD_MOTION_GATE_SENS, value, sizeof(value));
-  }
-  if (!this->gate_still_threshold_numbers_.empty()) {
-    for (size_t i = 0; i < this->gate_still_threshold_numbers_.size(); i++) {
-      value[i] = lowbyte(static_cast<int>(this->gate_still_threshold_numbers_[i]->state));
-    }
-    this->send_command_(CMD_STATIC_GATE_SENS, value, sizeof(value));
-  }
+  this->send_gate_thresholds_(true);
+  this->send_gate_thresholds_(false);
   this->set_config_mode_(false);
 }
 
