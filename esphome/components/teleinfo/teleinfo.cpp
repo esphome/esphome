@@ -154,7 +154,7 @@ void TeleInfo::loop() {
         if (std::count(buf_finger, grp_end, separator_) == 2 && strcmp(tag_, "DATE") != 0 && separator_ != 0x20) {
           field_len = get_field(timestamp_, buf_finger, grp_end, separator_, MAX_TIMESTAMP_SIZE);
           if (!field_len || field_len >= MAX_TIMESTAMP_SIZE) {
-            ESP_LOGE(TAG, "Invalid timestamp for tag %s", timestamp_);
+            ESP_LOGE(TAG, "Invalid timestamp for tag %s", tag_);
             continue;
           }
 
