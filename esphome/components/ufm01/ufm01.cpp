@@ -9,7 +9,7 @@
 
 namespace esphome::ufm01 {
 
-static const char *const TAG = "ufm01";
+ESPHOME_LOG_TAG(TAG, "ufm01");
 
 static constexpr uint8_t COMMAND_ACK = 0xE5;
 static constexpr uint32_t COMMAND_ACK_TIMEOUT_MS = 500;
@@ -68,9 +68,7 @@ static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t exp
 }
 
 static bool validate_active_frame(const uint8_t data[FRAME_SIZE]) {
-  uint8_t sum = 0;
-  for (size_t i = 0; i < FRAME_CHECKSUM_INDEX; ++i)
-    sum += data[i];
+  const uint8_t sum = sum_bytes(data, FRAME_CHECKSUM_INDEX);
   return check_byte(data, 0, FRAME_START_BYTE_1, "start byte 1") &&
          check_byte(data, 1, FRAME_START_BYTE_2, "start byte 2") &&
          check_byte(data, FRAME_INDEX_INSTANT_FLOW_FLAG, FRAME_FLAG_INSTANT_FLOW, "instant flow flag") &&
@@ -83,10 +81,7 @@ static bool validate_active_frame(const uint8_t data[FRAME_SIZE]) {
 static bool validate_passive_frame(const uint8_t data[PASSIVE_FRAME_SIZE]) {
   if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2 || data[22] != FRAME_STOP_BYTE)
     return false;
-  uint8_t sum = 0;
-  for (size_t i = 0; i < 21; ++i)
-    sum += data[i];
-  return data[21] == (sum & 0xFF);
+  return data[21] == sum_bytes(data, 21);
 }
 
 static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SIZE], uint8_t active[FRAME_SIZE]) {
@@ -213,7 +208,6 @@ void UFM01Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "Empty Tube", this->empty_tube_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
 #endif
-  this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
@@ -262,7 +256,7 @@ bool UFM01Component::process_active_stream_() {
     }
     if ((this->read_index_ == 0 && this->data_[0] != FRAME_START_BYTE_1) ||
         (this->read_index_ == 1 && this->data_[1] != FRAME_START_BYTE_2)) {
-      ESP_LOGD(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
+      ESP_LOGD(TAG, "not start of data at %" PRId32 " (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
       this->read_index_ = 0;
       continue;
     }

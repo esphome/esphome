@@ -3,7 +3,7 @@
 
 namespace esphome::micronova {
 
-static const char *const TAG = "micronova";
+ESPHOME_LOG_TAG(TAG, "micronova");
 static constexpr uint8_t STOVE_REPLY_SIZE = 2;
 static constexpr uint32_t STOVE_REPLY_TIMEOUT = 200;  // ms
 static constexpr uint8_t WRITE_BIT = 1 << 7;          // 0x80

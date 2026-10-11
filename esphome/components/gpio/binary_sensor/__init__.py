@@ -133,6 +133,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pin(pin))
 
     if config[CONF_USE_INTERRUPT]:
+        cg.add_define("USE_GPIO_BINARY_SENSOR_INTERRUPT")
         cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
     else:
         cg.add(var.set_use_interrupt(False))

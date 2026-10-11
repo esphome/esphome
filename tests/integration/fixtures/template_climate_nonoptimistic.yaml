@@ -1,0 +1,56 @@
+esphome:
+  name: tmpl-clim-nonopt
+host:
+api:
+logger:
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Template Climate Nonoptimistic
+    optimistic: false
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+      - FAN_ONLY
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+      - AWAY
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    on_control:
+      - lambda: |-
+          if (x.get_mode().has_value())
+            ESP_LOGD("test", "on_control mode=%d", (int) *x.get_mode());
+          if (x.get_target_temperature().has_value())
+            ESP_LOGD("test", "on_control target_temperature=%.1f", *x.get_target_temperature());
+          if (x.get_fan_mode().has_value())
+            ESP_LOGD("test", "on_control fan_mode=%d", (int) *x.get_fan_mode());
+          if (x.get_swing_mode().has_value())
+            ESP_LOGD("test", "on_control swing_mode=%d", (int) *x.get_swing_mode());
+          if (x.get_preset().has_value())
+            ESP_LOGD("test", "on_control preset=%d", (int) *x.get_preset());
+
+button:
+  - platform: template
+    id: simulate_device_confirmation
+    name: Simulate Device Confirmation
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          mode: HEAT
+          target_temperature: 22.5
+          fan_mode: HIGH
+          swing_mode: VERTICAL
+          preset: AWAY

@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "template.binary_sensor");
 
 void TemplateBinarySensor::setup() {
   if (!this->f_.has_value()) {
