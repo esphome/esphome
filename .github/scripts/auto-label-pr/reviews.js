@@ -58,19 +58,19 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
 
     message += `, which makes it harder for maintainers to review.\n\n`;
     message +=
-      `**This PR will not be reviewed while it carries the \`too-big\` label.** ` +
-      `The label is removed automatically once the change is under ` +
-      `${TOO_BIG_THRESHOLD} lines (excluding tests). The only exception is a ` +
-      `change that genuinely cannot be split, which is rare: ask in \`#devs\` ` +
-      `on [Discord](https://esphome.io/chat), and if a maintainer agrees to ` +
-      `review it in one piece they will add the \`mega-pr\` label.\n\n`;
+      `**This PR will not be reviewed until it is under ${TOO_BIG_THRESHOLD} ` +
+      `lines (excluding tests).** Nobody is going to pick it up as it is, ` +
+      `and waiting does not change that. The way forward is to split it: ` +
+      `the label is removed automatically once the change is under the cap.\n\n`;
     message +=
-      `Smaller, focused PRs tend to be reviewed much faster since they ` +
-      `fit into the short gaps between other maintainer work; large ones ` +
-      `often have to wait for a rare long uninterrupted block of time. ` +
-      `For a new component, the first PR should bring the hub and a single ` +
-      `platform (for example \`sensor\`); each further platform is its own ` +
-      `PR on top of it.\n\n`;
+      `There is no exception to apply for. A maintainer in \`#devs\` on ` +
+      `[Discord](https://esphome.io/chat) can add the \`mega-pr\` label to a ` +
+      `change that genuinely cannot be split, but that almost never happens, ` +
+      `so do not count on it or wait for it. Smaller, focused PRs are ` +
+      `reviewed much faster because they fit into the short gaps between ` +
+      `other maintainer work. For a new component, the first PR brings the ` +
+      `hub and a single platform (for example \`sensor\`); each further ` +
+      `platform is its own PR on top of it.\n\n`;
     message +=
       `For more details (including how to split the work up), see: ` +
       `https://developers.esphome.io/contributing/submitting-your-work/` +
