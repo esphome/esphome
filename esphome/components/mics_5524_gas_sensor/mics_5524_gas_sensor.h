@@ -5,12 +5,9 @@
 #include <cstdint>
 
 #include "esphome/core/component.h"
-#include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
 
 #include "mics_math.h"
@@ -43,16 +40,9 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void set_samples(uint8_t samples) { this->samples_ = samples; }
   void set_sample_interval(uint32_t interval) { this->sample_interval_ = interval; }
   void set_warmup_time(uint32_t warmup) { this->warmup_time_ = warmup; }
-  void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
   void set_source(voltage_sampler::VoltageSampler *source) { this->source_ = source; }
-  void set_calibration(bool enabled, uint32_t delay, uint32_t samples, bool persist);
+  void set_calibration(bool enabled, uint32_t delay, uint32_t samples);
   void set_air_reference(float air_reference);
-  void set_ratio_sensor(sensor::Sensor *sensor) { this->ratio_sensor_ = sensor; }
-  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
-  void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
-  /// Log the published value at `INFO` on every update (the detailed `DEBUG` chain
-  /// needs the logger tag at `DEBUG`).
-  void set_log_ppm(bool log_ppm) { this->log_ppm_ = log_ppm; }
 
   /// Console level of a `log_message_()` call, ordered like ESP-IDF's
   /// `esp_log_level_t`: ERROR is always printed, DEBUG only with `logger: level: DEBUG`.
@@ -68,11 +58,6 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
 
   /// Size of the message buffer of `log_message_()` (also the text sensor limit).
   static constexpr size_t LOG_BUFFER_SIZE = 160;
-
-  /// Minimum interval between two `LOG_SEVERITY_DEBUG` messages mirrored to
-  /// `log_sensor_`: a text state per second would flood the Home Assistant recorder.
-  /// Calibration messages, warnings and errors are mirrored immediately.
-  static constexpr uint32_t LOG_SENSOR_DEBUG_INTERVAL_MS = 30000;
 
   // ----------------------------------------------------------------- runtime
   /// (Re)start the clean-air calibration (deferred until `warmup_time` ended).
@@ -99,18 +84,9 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void begin_calibration_();
   void process_calibration_();
   void finish_calibration_();
-  void publish_diagnostics_();
-  void save_reference_();
-  bool load_reference_();
   void log_config_();
-  /// Log the next published value at `INFO` (`'<gas>': <ppm> ppm`, the "normal mode"
-  /// counterpart of the `DEBUG` chain).  Console only; no-op when off or invalid.
-  void log_reading_(float ppm);
-  /// Publish a message to `log_sensor_` (no-op when it is not configured); the
-  /// `LOG_SEVERITY_DEBUG` messages are rate limited to `LOG_SENSOR_DEBUG_INTERVAL_MS`.
-  void publish_log_(LogSeverity level, const char *message);
-  /// Log on the console and mirror the message to `log_sensor_`, prefixed with the
-  /// gas (`'H2': ...`) so several channels stay readable.
+  /// Log a message on the console, prefixed with the gas (`'H2': ...`) so several
+  /// channels stay readable.
   void log_message_(LogSeverity level, const char *format, ...);
 
   // ------------------------------------------------------------- configuration
@@ -128,13 +104,10 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   /// never waits for it.  The ~16 ms main loop tick is the practical floor.
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};
-  bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)
   voltage_sampler::VoltageSampler *source_{nullptr};
-  GPIOPin *enable_pin_{nullptr};
 
   // -------------------------------------------------------------- calibration
   bool calibration_enabled_{false};
-  bool persist_{false};
   uint32_t calibration_delay_{0};
   uint32_t calibration_samples_{10};
 
@@ -157,13 +130,6 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   /// Clean-air reference: `x_air` in volts.
   float reference_{0.0f};
   bool reference_configured_{false};
-
-  sensor::Sensor *ratio_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
-  text_sensor::TextSensor *log_sensor_{nullptr};
-  uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
-
-  ESPPreferenceObject reference_pref_{};
 };
 
 }  // namespace esphome::mics_5524_gas_sensor

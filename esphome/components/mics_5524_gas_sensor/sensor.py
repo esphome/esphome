@@ -4,29 +4,19 @@ One entry configures one gas of one sensor.  The MiCS-5524 has a single analog
 output, so several entries on the same physical sensor report the same mixture
 with different calibrations (see ``SELECTIVITY_NOTE``).
 
-The signal comes from an existing voltage sampler (``voltage:``) or from a pin
-this component owns (``pin:``, which creates a hidden internal ``adc`` sensor).
+The signal comes from an existing voltage sampler (``voltage:``, e.g. an ``adc``
+sensor configured next to this one).
 """
 
 import logging
 
-from esphome import pins
 import esphome.codegen as cg
-from esphome.components import sensor, text_sensor, voltage_sampler
+from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ATTENUATION,
     CONF_CALIBRATION,
     CONF_DELAY,
-    CONF_ENABLE_PIN,
-    CONF_ID,
-    CONF_INTERNAL,
-    CONF_NAME,
-    CONF_PIN,
-    CONF_RAW,
-    CONF_UPDATE_INTERVAL,
     CONF_VOLTAGE,
-    CONF_VOLTAGE_DIVIDER,
     CONF_WARMUP_TIME,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
@@ -34,28 +24,14 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from . import (
-    ADC_LIMIT_MARGIN_V,
-    CONF_ADC_ATTENUATION,
-    CONF_ADC_INPUT_MAX,
-    CONF_ADC_PIN_MAX,
-    CONF_ADC_SAMPLES,
     CONF_AIR_REFERENCE,
     CONF_GAS,
-    CONF_LOG_PPM,
-    CONF_LOG_SENSOR,
     CONF_MAX_PPM,
     CONF_MIN_PPM,
-    CONF_PERSIST,
-    CONF_R1,
-    CONF_R2,
-    CONF_RATIO_SENSOR,
     CONF_SAMPLE_COUNT,
     CONF_SAMPLE_INTERVAL,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,
-    CONF_VOLTAGE_SENSOR,
-    ESP32_ADC_INPUT_MAX_V,
-    ESP32_ADC_PIN_MAX_V,
     MiCS5524GasSensor,
 )
 from .coefficients import (
@@ -68,9 +44,7 @@ from .coefficients import (
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["sensor", "voltage_sampler", "adc"]
-
-ADC_ATTENUATIONS = ("0db", "2.5db", "6db", "11db", "12db", "auto")
+AUTO_LOAD = ["sensor", "voltage_sampler"]
 
 
 def validate_gas(value: str) -> str:
@@ -84,57 +58,10 @@ def validate_gas(value: str) -> str:
     return key
 
 
-#: Private key holding the generated, internal ``adc`` sensor configuration; the
-#: entry lives inside the validated config so ESPHome's ID pass sees its ID.
-_KEY_GENERATED_ADC = "_generated_adc"
-
-
-def _build_internal_adc(config: ConfigType) -> ConfigType:
-    """Validate the hidden ``adc`` entry of a ``pin:`` configuration."""
-    from esphome.components.adc import sensor as adc_sensor
-
-    adc_id = f"{config[CONF_ID].id}_adc"
-    adc_config: ConfigType = {
-        CONF_ID: adc_id,
-        CONF_PIN: config[CONF_PIN],
-        CONF_NAME: f"{adc_id} voltage",
-        CONF_INTERNAL: True,
-        CONF_RAW: False,
-        adc_sensor.CONF_SAMPLES: config[CONF_ADC_SAMPLES],
-        adc_sensor.CONF_SAMPLING_MODE: "avg",
-        CONF_UPDATE_INTERVAL: "never",
-    }
-    if (attenuation := config.get(CONF_ADC_ATTENUATION)) is not None:
-        adc_config[CONF_ATTENUATION] = attenuation
-
-    return adc_sensor.CONFIG_SCHEMA(adc_config)
-
-
-DIVIDER_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_R1): cv.positive_not_null_float,
-        cv.Required(CONF_R2): cv.positive_not_null_float,
-    }
-)
-
-
-def _voltage_multiplier(config: ConfigType) -> float:
-    """Inverse of the divider ratio: ``voltage_divider:`` r1/r2 yields ``(r1 + r2) / r2``.
-
-    ``voltage_multiplier:`` is the low-level escape hatch (1.0 for a directly
-    connected sensor, more for a sampler with a wider input range, e.g. an ADS1115).
-    """
-    divider = config.get(CONF_VOLTAGE_DIVIDER)
-    if divider is not None:
-        return (divider[CONF_R1] + divider[CONF_R2]) / divider[CONF_R2]
-    return float(config.get(CONF_VOLTAGE_MULTIPLIER, 1.0))
-
-
 CALIBRATION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_SAMPLE_COUNT, default=10): cv.int_range(min=1, max=1000),
-        cv.Optional(CONF_PERSIST, default=True): cv.boolean,
     }
 )
 
@@ -182,45 +109,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
         SELECTIVITY_NOTE,
     )
 
-    if CONF_VOLTAGE_DIVIDER in config and CONF_VOLTAGE_MULTIPLIER in config:
-        raise cv.Invalid(
-            "use either 'voltage_divider:' or 'voltage_multiplier:', not both - "
-            "'voltage_divider:' already derives the multiplier from r1/r2"
-        )
-
-    # ADC range guard: the module output can reach VCC and the divider maps that
-    # onto the ADC pin.  Only meaningful when this component owns the pin, or when
-    # the limits were declared for an external sampler (e.g. an ADS1115).
-    if CONF_PIN in config or CONF_ADC_INPUT_MAX in config or CONF_ADC_PIN_MAX in config:
-        multiplier = _voltage_multiplier(config)
-        input_max = float(config.get(CONF_ADC_INPUT_MAX, ESP32_ADC_INPUT_MAX_V))
-        pin_max = float(config.get(CONF_ADC_PIN_MAX, ESP32_ADC_PIN_MAX_V))
-        vcc = float(config[CONF_VCC])
-        expected_max = vcc / multiplier
-        if expected_max > pin_max + ADC_LIMIT_MARGIN_V:
-            raise cv.Invalid(
-                f"the module output can reach {vcc:.2f} V and the configured divider "
-                f"maps that to {expected_max:.2f} V on the ADC pin, above 'adc_pin_max' "
-                f"({pin_max:.2f} V) - that can damage the pin. Use "
-                f"'voltage_divider: {{r1: 10.0, r2: 20.0}}' (-> 1.5) or "
-                f"'{{r1: 10.0, r2: 10.0}}' (-> 2.0), or set 'adc_pin_max' to your "
-                f"sampler's limit (6.144 for an ADS1115)"
-            )
-        if expected_max > input_max + ADC_LIMIT_MARGIN_V:
-            _LOGGER.warning(
-                "%s: the module output can reach %.2f V and the configured divider maps "
-                "that to %.2f V at the ADC input, above 'adc_input_max' (%.2f V): the top "
-                "of the range clips or reads non-linearly. 10k/20k gives 3.33 V - raise "
-                "'adc_input_max' if that is intentional",
-                label,
-                vcc,
-                expected_max,
-                input_max,
-            )
-
-    if CONF_PIN in config:
-        config[_KEY_GENERATED_ADC] = _build_internal_adc(config)
-
     return config
 
 
@@ -235,16 +123,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Required(CONF_GAS): cv.All(cv.string, validate_gas),
-            cv.Optional(CONF_VOLTAGE): cv.use_id(voltage_sampler.VoltageSampler),
-            cv.Optional(CONF_PIN): cv.valid,
-            cv.SplitDefault(CONF_ADC_ATTENUATION, esp32="12db"): cv.All(
-                cv.only_on_esp32, cv.one_of(*ADC_ATTENUATIONS, lower=True)
-            ),
-            cv.Optional(CONF_ADC_SAMPLES, default=1): cv.int_range(min=1, max=255),
+            cv.Required(CONF_VOLTAGE): cv.use_id(voltage_sampler.VoltageSampler),
             cv.Optional(CONF_VOLTAGE_MULTIPLIER): cv.positive_not_null_float,
-            cv.Optional(CONF_VOLTAGE_DIVIDER): DIVIDER_SCHEMA,
-            cv.Optional(CONF_ADC_INPUT_MAX): cv.positive_not_null_float,
-            cv.Optional(CONF_ADC_PIN_MAX): cv.positive_not_null_float,
             cv.Optional(CONF_VCC, default=5.0): cv.positive_not_null_float,
             cv.Optional(CONF_AIR_REFERENCE): cv.positive_not_null_float,
             cv.Optional(CONF_SAMPLE_COUNT, default=4): cv.int_range(min=1, max=255),
@@ -256,37 +136,12 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_MIN_PPM): cv.float_,
             cv.Optional(CONF_MAX_PPM): cv.positive_not_null_float,
-            cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
-            cv.Optional(CONF_RATIO_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_VOLTAGE_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_LOG_SENSOR): cv.use_id(text_sensor.TextSensor),
-            cv.Optional(CONF_LOG_PPM, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("30s")),
-    cv.has_exactly_one_key(CONF_VOLTAGE, CONF_PIN),
     _validate_config,
 )
-
-
-async def _create_internal_adc(config: ConfigType):
-    """Instantiate the hidden ``adc`` sensor of a ``pin:`` configuration.
-
-    The entry was validated by :func:`_build_internal_adc`; the ADC platform's own
-    ``to_code`` is reused, so it behaves like a hand written ``adc`` entry.
-    """
-    from esphome.components.adc import sensor as adc_sensor
-
-    adc_config = config.get(_KEY_GENERATED_ADC)
-    if adc_config is None:  # pragma: no cover - would be a bug in this component
-        raise ValueError(
-            f"internal adc sensor for '{config[CONF_ID].id}' was not generated, "
-            "the 'pin:' configuration could not be validated"
-        )
-
-    await adc_sensor.to_code(adc_config)
-    return await cg.get_variable(adc_config[CONF_ID])
 
 
 async def to_code(config: ConfigType) -> None:
@@ -307,7 +162,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_min_ppm(resolved.min_ppm))
     cg.add(var.set_max_ppm(resolved.max_ppm))
     cg.add(var.set_vcc(config[CONF_VCC]))
-    cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
+    cg.add(var.set_voltage_multiplier(float(config.get(CONF_VOLTAGE_MULTIPLIER, 1.0))))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_sample_interval(config[CONF_SAMPLE_INTERVAL]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
@@ -323,27 +178,10 @@ async def to_code(config: ConfigType) -> None:
                 True,
                 calibration[CONF_DELAY],
                 calibration[CONF_SAMPLE_COUNT],
-                calibration[CONF_PERSIST],
             )
         )
 
-    if (enable := config.get(CONF_ENABLE_PIN)) is not None:
-        cg.add(var.set_enable_pin(await cg.gpio_pin_expression(enable)))
-
-    if source_id := config.get(CONF_VOLTAGE):
-        cg.add(var.set_source(await cg.get_variable(source_id)))
-    else:
-        cg.add(var.set_source(await _create_internal_adc(config)))
-
-    for key, setter in (
-        (CONF_RATIO_SENSOR, var.set_ratio_sensor),
-        (CONF_VOLTAGE_SENSOR, var.set_voltage_sensor),
-        (CONF_LOG_SENSOR, var.set_log_sensor),
-    ):
-        if (target := config.get(key)) is not None:
-            cg.add(setter(await cg.get_variable(target)))
-
-    cg.add(var.set_log_ppm(config[CONF_LOG_PPM]))
+    cg.add(var.set_source(await cg.get_variable(config[CONF_VOLTAGE])))
 
     _LOGGER.debug(
         "%s: threshold=%s gain=%s vcc=%s range=%s..%s ppm",
