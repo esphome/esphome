@@ -129,7 +129,7 @@ canbus::CanEventFlags ESP32Can::get_events() {
     if (err != ESP_ERR_TIMEOUT) {
       ESP_LOGD(TAG, "failed to get CAN events");
     }
-    return {};
+    alerts = 0;
   }
 
   uint8_t events = 0;
@@ -141,22 +141,39 @@ canbus::CanEventFlags ESP32Can::get_events() {
   }
   if (alerts & TWAI_ALERT_BUS_OFF) {
     events |= canbus::CAN_EVENT_BUS_OFF;
-    // Start recovery at once, as the MCP2515 does in hardware. This only fails with an invalid
-    // handle or outside the bus-off state, and bus-off persists until recovery is started.
-    if (twai_initiate_recovery_v2(this->twai_handle_) != ESP_OK) {
-      this->mark_failed(LOG_STR("Recovery after bus off failed"));
-    }
+    // Start recovery at once, as the MCP2515 does in hardware
+    this->recovery_pending_ = true;
   }
   if (alerts & TWAI_ALERT_BUS_RECOVERED) {
-    // Recovery leaves the controller stopped; this only fails with an invalid handle or outside that state
-    if (twai_start_v2(this->twai_handle_) != ESP_OK) {
-      this->mark_failed(LOG_STR("Restart after bus off failed"));
-    }
+    // Recovery leaves the controller stopped
+    this->restart_pending_ = true;
+  }
+  if (this->recovery_pending_ || this->restart_pending_) {
+    this->handle_bus_off_recovery_();
   }
   if (alerts & TWAI_ALERT_RX_QUEUE_FULL) {
     events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
   }
   return static_cast<canbus::CanEventFlags>(events);
+}
+
+void ESP32Can::handle_bus_off_recovery_() {
+  // These only fail with an invalid handle or outside the expected state; retry on the next pass
+  if (this->recovery_pending_) {
+    if (twai_initiate_recovery_v2(this->twai_handle_) != ESP_OK) {
+      this->status_set_error(LOG_STR("Recovery after bus off failed"));
+      return;
+    }
+    this->recovery_pending_ = false;
+  }
+  if (this->restart_pending_) {
+    if (twai_start_v2(this->twai_handle_) != ESP_OK) {
+      this->status_set_error(LOG_STR("Restart after bus off failed"));
+      return;
+    }
+    this->restart_pending_ = false;
+  }
+  this->status_clear_error();
 }
 
 canbus::CanStatus ESP32Can::get_status() {

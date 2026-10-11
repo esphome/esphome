@@ -32,10 +32,13 @@ class ESP32Can final : public canbus::Canbus {
   canbus::CanEventFlags get_events() override;
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message(struct canbus::CanFrame *frame) override;
+  void handle_bus_off_recovery_();
 
   int rx_{-1};
   int tx_{-1};
   CanMode mode_{CAN_MODE_NORMAL};
+  bool recovery_pending_{false};
+  bool restart_pending_{false};
   TickType_t tx_enqueue_timeout_ticks_{};
   optional<uint32_t> tx_queue_len_{};
   optional<uint32_t> rx_queue_len_{};
