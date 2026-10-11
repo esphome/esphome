@@ -1,0 +1,60 @@
+climate:
+  - platform: midea_portasplit
+    id: midea_portasplit_unit
+    name: PortaSplit
+    energy_format: binary
+    log_frames: false
+    outdoor_temperature:
+      name: Outdoor Temperature
+    power:
+      name: Power
+    energy:
+      name: Energy
+    outdoor_fan_speed:
+      name: Outdoor Fan Speed
+    humidity:
+      name: Humidity
+    compressor_frequency:
+      name: Compressor Status
+    evaporator_temperature:
+      name: Evaporator Temperature
+    condenser_temperature:
+      name: Condenser Temperature
+    discharge_temperature:
+      name: Discharge Temperature
+    suction_temperature:
+      name: Suction Temperature
+    compressor_runtime:
+      name: Compressor Runtime
+    indoor_fan_rpm:
+      name: Indoor Fan RPM
+    compressor_frequency_g1:
+      name: Compressor Frequency
+    compressor_current:
+      name: Compressor Current
+    serial_number:
+      name: Serial Number
+    firmware_version:
+      name: Firmware Version
+    defrost:
+      name: Defrost
+    ion:
+      name: Ion
+    beeper:
+      name: Beeper
+    self_clean:
+      name: Self Clean
+    led_display:
+      name: LED Display
+    temperature_range:
+      name: Temperature Range
+    silent_mode:
+      name: Silent Mode
+    power_limit:
+      name: Power Limit
+    fan_speed:
+      name: Fan Speed
+    temperature_range_min:
+      name: Temperature Range Min
+    temperature_range_max:
+      name: Temperature Range Max
