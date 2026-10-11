@@ -14,12 +14,19 @@
 namespace esphome::usb_cdc_acm {
 
 static const char *const TAG = "usb_cdc_acm";
+static constexpr uint32_t FLUSH_TIMEOUT_MS = 500;
 
 // Returns false if the USB device accepted no data and TX was stopped
 bool USBCDCACMInstance::uart_tx_process_() {
   uint8_t *data;
   uint32_t send_len = ring_buf_get_claim(&this->tx_ringbuf_, &data, UINT32_MAX);
   if (send_len == 0) {
+    // Our ring buffer is empty. Here (tx_ready set) cdc_acm reports the free space in its own
+    // TX ring buffer. tx_ready is cleared before each USB transfer and set again when it
+    // completes, so a fully free driver buffer means the host has received everything.
+    if (uart_irq_tx_ready(this->uart_dev_) >= CONFIG_USB_CDC_ACM_RINGBUF_SIZE) {
+      this->tx_drained_ = true;
+    }
     uart_irq_tx_disable(this->uart_dev_);
     return true;
   }
@@ -185,17 +192,35 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult USBCDCACMInstance::flush() {
-  constexpr uint32_t timeout_500ms = 500;
-  uart_irq_tx_enable(this->uart_dev_);
+  // The driver only moves data while the host reads the port. With no host listening (DTR off)
+  // the data cannot drain, so do not stall the caller waiting for it.
+  uint32_t dtr = 0;
+  uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
+  if (dtr == 0) {
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  }
+  // flush() and write_array() both run on the main loop, so nothing is added while we wait.
+  // The IRQ handler sets tx_drained_ once both our ring buffer and the driver are empty.
+  this->tx_drained_ = false;
   uint32_t start = millis();
-  while (!ring_buf_is_empty(&this->tx_ringbuf_)) {
-    if (millis() - start > timeout_500ms) {
+  while (true) {
+    // Wakes the IRQ handler now if the driver is idle, or after the transfer in progress
+    uart_irq_tx_enable(this->uart_dev_);
+    // ring_buf_is_empty() is not enough: it is already true while the IRQ handler holds
+    // claimed bytes that it has not yet copied into the driver.
+    if (this->tx_drained_ && ring_buf_space_get(&this->tx_ringbuf_) == ESPHOME_CDC_TX_RING_BUFFER_SIZE) {
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+    }
+    // USB device suspended or not configured (see uart_tx_process_()): nothing will drain
+    if (this->tx_irq_disabled_) {
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+    }
+    if (millis() - start > FLUSH_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Flush timeout");
       return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
     delay(1);
   }
-  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {

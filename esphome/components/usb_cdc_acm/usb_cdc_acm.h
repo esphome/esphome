@@ -150,6 +150,8 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   uint32_t rts_{0};
   std::atomic<bool> rx_irq_disabled_{false};
   std::atomic<bool> tx_irq_disabled_{false};
+  // Set by the IRQ handler when our TX ring buffer and the driver's are both empty
+  std::atomic<bool> tx_drained_{false};
   ring_buf rx_ringbuf_;
   ring_buf tx_ringbuf_;
   uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
