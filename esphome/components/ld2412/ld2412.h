@@ -127,7 +127,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
     std::array<uint8_t, TOTAL_GATES> last_read{};
     bool read{false};  // the module has answered the query at least once
   };
-  void send_gate_thresholds_(uint8_t command, const GateThresholds &group);
+  void send_gate_thresholds_(uint8_t command, uint8_t query_command, const GateThresholds &group);
 #endif
 
   uint8_t light_function_ = 0;

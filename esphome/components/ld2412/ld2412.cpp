@@ -808,7 +808,7 @@ void LD2412Component::set_basic_config() {
 }
 
 #ifdef USE_NUMBER
-void LD2412Component::send_gate_thresholds_(uint8_t command, const GateThresholds &group) {
+void LD2412Component::send_gate_thresholds_(uint8_t command, uint8_t query_command, const GateThresholds &group) {
   uint8_t value[TOTAL_GATES];
   bool any_configured = false;
   bool any_from_module = false;
@@ -828,7 +828,7 @@ void LD2412Component::send_gate_thresholds_(uint8_t command, const GateThreshold
   if (any_from_module && !group.read) {
     // Without the module's values those gates would be sent as zero, which is maximum sensitivity
     ESP_LOGW(TAG, "Command %02X not sent, the module has not reported its gate thresholds yet", command);
-    this->get_gate_threshold();  // ask again so the next write has values to fill in
+    this->send_command_(query_command, nullptr, 0);  // ask again so the next write has values to fill in
     return;
   }
   this->send_command_(command, value, sizeof(value));
@@ -836,8 +836,8 @@ void LD2412Component::send_gate_thresholds_(uint8_t command, const GateThreshold
 
 void LD2412Component::set_gate_threshold() {
   this->set_config_mode_(true);
-  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, this->gate_move_thresholds_);
-  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, this->gate_still_thresholds_);
+  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, CMD_QUERY_MOTION_GATE_SENS, this->gate_move_thresholds_);
+  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, CMD_QUERY_STATIC_GATE_SENS, this->gate_still_thresholds_);
   this->set_config_mode_(false);
 }
 
