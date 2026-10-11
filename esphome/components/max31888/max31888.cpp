@@ -55,6 +55,7 @@ void MAX31888Sensor::update() {
     return;
 
   if (!this->send_checked_command_(MAX31888_COMMAND_START_CONVERSION)) {
+    this->publish_state(NAN);
     return;
   }
 
