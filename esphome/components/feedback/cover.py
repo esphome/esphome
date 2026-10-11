@@ -83,9 +83,7 @@ CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
             cv.Optional(
                 CONF_ACCELERATION_WAIT_TIME, "0s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_OVERSHOOT_DURATION, "0s"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OVERSHOOT_DURATION): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
         },
     )
@@ -164,5 +162,9 @@ async def to_code(config: ConfigType) -> None:
             var.set_direction_change_waittime(config[CONF_DIRECTION_CHANGE_WAIT_TIME])
         )
     cg.add(var.set_acceleration_wait_time(config[CONF_ACCELERATION_WAIT_TIME]))
-    cg.add(var.set_overshoot_duration(config[CONF_OVERSHOOT_DURATION]))
+    if (
+        overshoot := config.get(CONF_OVERSHOOT_DURATION)
+    ) and overshoot.total_milliseconds:
+        cg.add_define("USE_FEEDBACK_COVER_OVERSHOOT")
+        cg.add(var.set_overshoot_duration(overshoot))
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))
