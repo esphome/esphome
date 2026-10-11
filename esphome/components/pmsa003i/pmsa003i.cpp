@@ -5,7 +5,7 @@
 
 namespace esphome::pmsa003i {
 
-static const char *const TAG = "pmsa003i";
+ESPHOME_LOG_TAG(TAG, "pmsa003i");
 
 static const uint8_t COUNT_PAYLOAD_BYTES = 28;
 static const uint8_t COUNT_PAYLOAD_LENGTH_BYTES = 2;
@@ -15,24 +15,38 @@ static const uint8_t CHECKSUM_START_INDEX = COUNT_DATA_BYTES - 2;
 static const uint8_t COUNT_16_BIT_VALUES = (COUNT_PAYLOAD_LENGTH_BYTES + COUNT_PAYLOAD_BYTES) / 2;
 static const uint8_t START_CHARACTER_1 = 0x42;
 static const uint8_t START_CHARACTER_2 = 0x4D;
-static const uint8_t READ_DATA_RETRY_COUNT = 3;
+
+// Timeout for determining when the device is ready for use, in milliseconds.
+// The PMSA003I typically takes 2.3 seconds to perform its first measurement after a cold power up and
+// I2C requests performed during that time will be NACKed. Use a slightly longer timeout to tolerate
+// timing variation.  Note that although we consider the device ready as soon as it responds to I2C
+// requests, it may take 30 seconds or more for the data to stabilize according to the datasheet.
+static const uint32_t READY_TIMEOUT_MS = 3000;
+
+// Poll interval for determining when the device is ready for use, in milliseconds.
+static const uint32_t READY_POLL_INTERVAL_MS = 100;
 
 void PMSA003IComponent::setup() {
-  PM25AQIData data;
-  bool successful_read = this->read_data_(&data);
+  // Stop polling until the device is actually ready to prevent spurious I2C warnings during premature updates.
+  this->stop_poller();
+  this->poll_until_ready_or_timeout_(millis());
+}
 
-  if (!successful_read) {
-    for (uint8_t i = 0; i < READ_DATA_RETRY_COUNT; i++) {
-      successful_read = this->read_data_(&data);
-      if (successful_read) {
-        break;
-      }
-    }
+void PMSA003IComponent::poll_until_ready_or_timeout_(uint32_t start_time) {
+  // Check whether the device is responding and identifies itself as expected.
+  // We don't care about the actual sensor readings or the packet CRC in this case.
+  uint8_t buffer[2];
+  if (this->read(buffer, sizeof(buffer)) == i2c::ERROR_OK && buffer[0] == START_CHARACTER_1 &&
+      buffer[1] == START_CHARACTER_2) {
+    ESP_LOGD(TAG, "PMSA003I is ready");
+    this->start_poller();
+    return;
   }
 
-  if (!successful_read) {
-    this->mark_failed();
-    return;
+  if (millis() - start_time < READY_TIMEOUT_MS) {
+    this->set_timeout(READY_POLL_INTERVAL_MS, [this, start_time]() { this->poll_until_ready_or_timeout_(start_time); });
+  } else {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -88,7 +102,11 @@ void PMSA003IComponent::update() {
 bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   uint8_t buffer[COUNT_DATA_BYTES];
 
-  this->read_bytes_raw(buffer, COUNT_DATA_BYTES);
+  const i2c::ErrorCode error = this->read(buffer, COUNT_DATA_BYTES);
+  if (error != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "I2C error %d", error);
+    return false;
+  }
 
   // https://github.com/adafruit/Adafruit_PM25AQI
 

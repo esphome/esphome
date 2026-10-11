@@ -1,0 +1,7 @@
+# Deprecated `pin: TEMPERATURE`, superseded by the `internal_temperature` platform.
+# Remove before 2027.2.0
+sensor:
+  - id: adc_temperature_sensor
+    platform: adc
+    pin: TEMPERATURE
+    name: ADC Test temperature

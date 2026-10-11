@@ -38,8 +38,8 @@ class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponen
   void setup() override;
   void dump_config() override;
 
-  void set_display(display::Display *display);
-  void set_font(display::BaseFont *font);
+  void set_display(display::Display *display) { this->display_ = display; }
+  void set_font(display::BaseFont *font) { this->font_ = font; }
   template<typename V> void set_menu_item_value(V menu_item_value) { this->menu_item_value_ = menu_item_value; }
   void set_foreground_color(Color foreground_color);
   void set_background_color(Color background_color);
@@ -70,17 +70,7 @@ class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponen
   Color foreground_color_{COLOR_ON};
   Color background_color_{COLOR_OFF};
 
-  CallbackManager<void()> on_redraw_callbacks_{};
-};
-
-class GraphicalDisplayMenuOnRedrawTrigger final : public Trigger<const GraphicalDisplayMenu *> {
- public:
-  explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) : parent_(parent) {
-    parent->add_on_redraw_callback([this]() { this->trigger(this->parent_); });
-  }
-
- protected:
-  GraphicalDisplayMenu *parent_;
+  LazyCallbackManager<void(const GraphicalDisplayMenu *)> on_redraw_callbacks_{};
 };
 
 }  // namespace graphical_display_menu

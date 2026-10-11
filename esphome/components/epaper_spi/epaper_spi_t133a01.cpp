@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.t133a01";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.t133a01");
 
 // Color indices used in the 4bpp buffer (sprite-side)
 // These MUST match the Arduino GFX TFT_eSPI.h color definitions and
@@ -311,8 +311,11 @@ bool HOT EPaperT133A01::transfer_data() {
       this->current_data_index_ = half;
 
       if (millis() - start_time > MAX_TRANSFER_TIME) {
-        return false;
+        break;
       }
+    }
+    if (half < total_rows) {
+      return false;
     }
     ESP_LOGD(TAG, "CS phase done");
     this->disable();
@@ -346,8 +349,11 @@ bool HOT EPaperT133A01::transfer_data() {
       this->current_data_index_ = half;
 
       if (millis() - start_time > MAX_TRANSFER_TIME) {
-        return false;
+        break;
       }
+    }
+    if (half < total_rows * 2) {
+      return false;
     }
     ESP_LOGD(TAG, "CS1 phase done");
     this->disable();

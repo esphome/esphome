@@ -1,0 +1,176 @@
+esphome:
+  name: uart-mock-modbus-client-typed
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_client
+              data: !lambda return data;
+  - id: virtual_uart_client
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_client
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 10ms
+
+globals:
+  - id: reg10
+    type: uint16_t
+    initial_value: "0"
+  - id: reg11
+    type: uint16_t
+    initial_value: "0"
+  - id: reg12
+    type: uint16_t
+    initial_value: "0"
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return id(reg10);
+        write_lambda: |-
+          id(reg10) = x;
+          return true;
+      - address: 0x11
+        value_type: U_WORD
+        read_lambda: return id(reg11);
+        write_lambda: |-
+          id(reg11) = x;
+          return true;
+      - address: 0x12
+        value_type: U_WORD
+        read_lambda: return id(reg12);
+        write_lambda: |-
+          id(reg12) = x;
+          return true;
+
+sensor:
+  - platform: template
+    name: "typed_value"
+    id: typed_value
+  - platform: template
+    name: "ack_flag"
+    id: ack_flag
+  - platform: template
+    name: "error_code"
+    id: error_code
+  - platform: template
+    name: "coil_error_code"
+    id: coil_error_code
+  - platform: template
+    name: "multi_value"
+    id: multi_value
+  - platform: template
+    name: "multi_coil_error"
+    id: multi_coil_error
+  - platform: template
+    name: "not_sent_flag"
+    id: not_sent_flag
+
+# Typed actions end to end: a typed write lands on the server (ack -> ack_flag), the typed read-back
+# decodes the written value from the reply words (values[0] -> typed_value), and a read of an unserved
+# register resolves via on_error with the device's exception code (-> error_code).
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - modbus_client.write_single_register:
+          address: 1
+          start_address: 0x10
+          value: 777
+          on_response:
+            then:
+              - lambda: "id(ack_flag).publish_state(1);"
+      - modbus_client.read_holding_registers:
+          address: 1
+          start_address: 0x10
+          on_response:
+            then:
+              - lambda: |-
+                  if (!values.empty())
+                    id(typed_value).publish_state(values[0]);
+      - modbus_client.read_holding_registers:
+          address: 1
+          start_address: 0x99
+          on_error:
+            then:
+              - lambda: "id(error_code).publish_state((int) exception_code);"
+      # The mock server maps no bits, so it does not implement the coil function: a coil read draws
+      # ILLEGAL_FUNCTION - proving the bit-read action's request PDU and its typed error delivery.
+      - modbus_client.read_coils:
+          address: 1
+          start_address: 0x00
+          count: 8
+          on_error:
+            then:
+              - lambda: "id(coil_error_code).publish_state((int) exception_code);"
+      # Multi-register write (fc 0x10, served) then read-back of the second written register.
+      - modbus_client.write_multiple_registers:
+          address: 1
+          start_address: 0x11
+          values: [111, 222]
+          on_response:
+            then:
+              - modbus_client.read_holding_registers:
+                  address: 1
+                  start_address: 0x12
+                  on_response:
+                    then:
+                      - lambda: |-
+                          if (!values.empty())
+                            id(multi_value).publish_state(values[0]);
+      # A count lambda can go out of spec at runtime: the builder rejects it into an empty PDU, the hub
+      # refuses that at the door, and the send resolves via on_not_sent (no reply will ever come).
+      - modbus_client.read_holding_registers:
+          address: 1
+          start_address: 0x10
+          count: !lambda "return 0;"
+          on_not_sent:
+            then:
+              - lambda: "id(not_sent_flag).publish_state(1);"
+      # Multi-coil write (fc 0x0F): the server maps no bits, so it answers ILLEGAL_FUNCTION.
+      - modbus_client.write_multiple_coils:
+          address: 1
+          start_address: 0x00
+          values: [true, false, true]
+          on_error:
+            then:
+              - lambda: "id(multi_coil_error).publish_state((int) exception_code);"
