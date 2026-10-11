@@ -1,6 +1,6 @@
 #pragma once
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4) || defined(USE_ZEPHYR)
 
 #include "esphome/core/component.h"
 #include "esphome/core/event_pool.h"
@@ -11,14 +11,20 @@
 #include <atomic>
 #include <cstring>
 #include <functional>
+#ifdef USE_ZEPHYR
+#include <zephyr/device.h>
+#include <zephyr/sys/ring_buffer.h>
+#else
 #include "freertos/ringbuf.h"
 #include "esp_err.h"
 #include "tinyusb_cdc_acm.h"
+#endif
 
 namespace esphome::usb_cdc_acm {
 
 static const uint8_t EVENT_QUEUE_SIZE = 12;
 
+#ifndef USE_ZEPHYR
 // Drain up to out_buf_sz bytes from a byte ring buffer, handling FreeRTOS's wrapped
 // case with a second read. Shared with the cdc_acm_uart bridge platform, whose worker
 // tasks drain the same ring buffers.
@@ -47,6 +53,7 @@ inline esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, 
 
   return ESP_OK;
 }
+#endif
 
 // Callback types for line coding and line state changes
 using LineCodingCallback = std::function<void(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits)>;
@@ -93,12 +100,16 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   void set_interface_number(uint8_t itf) { this->itf_ = itf; }
   // Get the CDC port number for this instance
   uint8_t get_itf() const { return this->itf_; }
+#ifdef USE_ZEPHYR
+  explicit USBCDCACMInstance(const device *uart_dev) : uart_dev_(uart_dev) {}
+#else
   // Ring buffer accessors for bridge components
   RingbufHandle_t get_tx_ringbuf() const { return this->usb_tx_ringbuf_; }
   RingbufHandle_t get_rx_ringbuf() const { return this->usb_rx_ringbuf_; }
 
   // Task handle accessor for notifying TX task
   TaskHandle_t get_tx_task_handle() const { return this->usb_tx_task_handle_; }
+#endif
 
   // Callback registration for line coding and line state changes
   void set_line_coding_callback(LineCodingCallback callback) { this->line_coding_callback_ = std::move(callback); }
@@ -129,6 +140,23 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
+#ifdef USE_ZEPHYR
+  static void uart_irq_handler(const device *dev, void *instance);
+  void uart_rx_process_();
+  void uart_tx_process_();
+
+  const device *uart_dev_;
+  uint32_t dtr_{0};
+  uint32_t rts_{0};
+  std::atomic<bool> rx_irq_disabled_{false};
+  std::atomic<bool> tx_irq_disabled_{false};
+  // Set by the IRQ handler when our TX ring buffer and the driver's are both empty
+  std::atomic<bool> tx_drained_{false};
+  ring_buf rx_ringbuf_;
+  ring_buf tx_ringbuf_;
+  uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
+  uint8_t tx_ringbuf_data_[ESPHOME_CDC_TX_RING_BUFFER_SIZE];
+#else
   // True while TX bytes are still in the ring buffer or held by the TX task
   bool tx_pending_();
   TaskHandle_t usb_tx_task_handle_{nullptr};
@@ -151,6 +179,7 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   // flood the log).
   uint32_t tx_dropped_bytes_{0};
   uint32_t tx_dropped_log_ms_{0};
+#endif
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};

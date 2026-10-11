@@ -1,5 +1,5 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4) || defined(USE_ZEPHYR)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -15,6 +15,7 @@ USBCDCACMComponent *global_usb_cdc_component = nullptr;  // NOLINT(cppcoreguidel
 // USBCDCACMInstance Implementation
 //==============================================================================
 
+// NOLINTBEGIN(clang-analyzer-unix.Malloc)
 void USBCDCACMInstance::queue_line_state_event(bool dtr, bool rts) {
   // Allocate event from pool
   CDCEvent *event = this->event_pool_.allocate();
@@ -53,6 +54,7 @@ void USBCDCACMInstance::queue_line_coding_event(uint32_t bit_rate, uint8_t stop_
   this->event_queue_.push(event);
   App.wake_loop_threadsafe();
 }
+// NOLINTEND(clang-analyzer-unix.Malloc)
 
 void USBCDCACMInstance::process_events_() {
   // Process all pending events from the queue
@@ -111,6 +113,21 @@ void USBCDCACMInstance::process_events_() {
     // Return event to pool for reuse
     this->event_pool_.release(event);
   }
+}
+
+bool USBCDCACMInstance::peek_byte(uint8_t *data) {
+  if (this->has_peek_) {
+    *data = this->peek_buffer_;
+    return true;
+  }
+
+  if (this->read_byte(&this->peek_buffer_)) {
+    *data = this->peek_buffer_;
+    this->has_peek_ = true;
+    return true;
+  }
+
+  return false;
 }
 
 //==============================================================================

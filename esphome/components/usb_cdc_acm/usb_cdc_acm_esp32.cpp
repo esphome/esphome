@@ -293,26 +293,15 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
     }
     return;
   }
-
   // Notify TX task that data is available
   if (this->usb_tx_task_handle_ != nullptr) {
     xTaskNotifyGive(this->usb_tx_task_handle_);
   }
-}
-
-bool USBCDCACMInstance::peek_byte(uint8_t *data) {
-  if (this->has_peek_) {
-    *data = this->peek_buffer_;
-    return true;
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < len; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
   }
-
-  if (this->read_byte(&this->peek_buffer_)) {
-    *data = this->peek_buffer_;
-    this->has_peek_ = true;
-    return true;
-  }
-
-  return false;
+#endif
 }
 
 bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
@@ -327,6 +316,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (this->has_peek_) {
     data[0] = this->peek_buffer_;
     this->has_peek_ = false;
+    // No debug callback here: peek_byte() read this byte through read_array(), which already reported it
     bytes_read = 1;
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
@@ -343,6 +333,11 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 
   memcpy(data, buf, rx_size);
   vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < rx_size; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+  }
+#endif
   bytes_read += rx_size;
   data += rx_size;
   len -= rx_size;
@@ -358,6 +353,11 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 
   memcpy(data, buf, rx_size);
   vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < rx_size; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+  }
+#endif
   bytes_read += rx_size;
 
   return bytes_read == original_len;
