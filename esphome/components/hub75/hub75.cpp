@@ -202,40 +202,21 @@ void HUB75Display::set_brightness(uint8_t brightness) {
   }
 }
 
-void HUB75Display::set_rotation(display::DisplayRotation rotation) {
-  if (this->driver_ == nullptr) [[unlikely]]
-    return;
-
-  Hub75Rotation hub75_rotation;
+static Hub75Rotation to_hub75_rotation(display::DisplayRotation rotation) {
   switch (rotation) {
-    case display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES:
-      hub75_rotation = Hub75Rotation::ROTATE_0;
-      break;
     case display::DisplayRotation::DISPLAY_ROTATION_90_DEGREES:
-      hub75_rotation = Hub75Rotation::ROTATE_90;
-      break;
+      return Hub75Rotation::ROTATE_90;
     case display::DisplayRotation::DISPLAY_ROTATION_180_DEGREES:
-      hub75_rotation = Hub75Rotation::ROTATE_180;
-      break;
+      return Hub75Rotation::ROTATE_180;
     case display::DisplayRotation::DISPLAY_ROTATION_270_DEGREES:
-      hub75_rotation = Hub75Rotation::ROTATE_270;
-      break;
+      return Hub75Rotation::ROTATE_270;
     default:
-      ESP_LOGE(TAG, "Unsupported rotation: %d", static_cast<int>(rotation));
-      return;
+      return Hub75Rotation::ROTATE_0;
   }
-
-  this->driver_->set_rotation(hub75_rotation);
 }
 
-display::DisplayRotation HUB75Display::get_rotation() const {
-  if (this->driver_ == nullptr) [[unlikely]]
-    return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
-
-  Hub75Rotation hub75_rotation = this->driver_->get_rotation();
-  switch (hub75_rotation) {
-    case Hub75Rotation::ROTATE_0:
-      return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
+static display::DisplayRotation to_display_rotation(Hub75Rotation rotation) {
+  switch (rotation) {
     case Hub75Rotation::ROTATE_90:
       return display::DisplayRotation::DISPLAY_ROTATION_90_DEGREES;
     case Hub75Rotation::ROTATE_180:
@@ -243,9 +224,22 @@ display::DisplayRotation HUB75Display::get_rotation() const {
     case Hub75Rotation::ROTATE_270:
       return display::DisplayRotation::DISPLAY_ROTATION_270_DEGREES;
     default:
-      ESP_LOGE(TAG, "Unsupported Hub75 rotation: %d", static_cast<int>(hub75_rotation));
       return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
   }
+}
+
+// Before setup() creates the driver the configuration holds the rotation, afterwards the driver does
+void HUB75Display::set_rotation(display::DisplayRotation rotation) {
+  const Hub75Rotation hub75_rotation = to_hub75_rotation(rotation);
+  if (this->driver_ == nullptr) {
+    this->config_.rotation = hub75_rotation;
+    return;
+  }
+  this->driver_->set_rotation(hub75_rotation);
+}
+
+display::DisplayRotation HUB75Display::get_rotation() const {
+  return to_display_rotation(this->driver_ == nullptr ? this->config_.rotation : this->driver_->get_rotation());
 }
 
 }  // namespace esphome::hub75
