@@ -126,7 +126,7 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
 
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               const std::vector<uint8_t> &data_pins) {
-  if (interface == nullptr || !device_is_ready(interface)) {
+  if (!device_is_ready(interface)) {
     ESP_LOGE(TAG, "SPI device is not ready");
     return nullptr;
   }

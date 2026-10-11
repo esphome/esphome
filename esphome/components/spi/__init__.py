@@ -32,7 +32,6 @@ from esphome.const import (
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
     CONF_NUMBER,
-    CONF_SPI,
     CONF_SPI_ID,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -108,7 +107,11 @@ def _frequency_validator(value: Any) -> float:
     if value < 1000:
         raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
     if platform == PLATFORM_NRF52:
-        actual = min(PLATFORM_NRF52_SPI_RATES, key=lambda rate: abs(rate - value))
+        # The SPIM driver runs at the highest step not above the request
+        actual = max(
+            (rate for rate in PLATFORM_NRF52_SPI_RATES if rate <= value),
+            default=PLATFORM_NRF52_SPI_RATES[0],
+        )
     else:
         divisor = round(frequency / value)
         actual = frequency / divisor
@@ -287,7 +290,7 @@ def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
             return sdo_pin_no in (-1, 13) and sdi_pin_no in (-1, 12)
         return False
 
-    if target_platform == PLATFORM_ESP32:
+    if target_platform in (PLATFORM_ESP32, PLATFORM_NRF52):
         return clk_pin_no >= 0
 
     if target_platform == PLATFORM_RP2:
@@ -305,8 +308,6 @@ def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
         if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:
             return False
         return sdi_pin_no in pin_set[CONF_MISO_PIN]
-    if target_platform == PLATFORM_NRF52:
-        return clk_pin_no >= 0
     return False
 
 
@@ -370,6 +371,8 @@ def get_spi_interface(index: int) -> str:
     # Arduino code follows
     if platform == PLATFORM_RP2:
         return ["&SPI", "&SPI1"][index]
+    if platform == PLATFORM_NRF52:
+        return "DEVICE_DT_GET(DT_NODELABEL(spi2))"
     if index == 0:
         return "&SPI"
     return "new SPIClass(HSPI)"
@@ -444,14 +447,42 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> None:
-    full_config = fv.full_config.get().get(CONF_SPI, [])
-    hardware_buses = sum(CONF_INTERFACE_INDEX in spi for spi in full_config)
-    if CORE.using_zephyr and hardware_buses > 1:
-        raise cv.Invalid("Second spi is not implemented on Zephyr yet")
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+def _add_nrf52_spi2_overlay(spi: ConfigType) -> None:
+    """Route SPIM2 to the configured pins; a board file may leave spi2 on the legacy non-DMA driver."""
+    zephyr_add_prj_conf("SPI", True)
+    signals = [("SCK", spi[CONF_CLK_PIN])]
+    if (mosi := spi.get(CONF_MOSI_PIN)) is not None:
+        signals.append(("MOSI", mosi))
+    if (miso := spi.get(CONF_MISO_PIN)) is not None:
+        signals.append(("MISO", miso))
+    psels = ", ".join(
+        f"<NRF_PSEL(SPIM_{signal}, {pin[CONF_NUMBER] // 32}, {pin[CONF_NUMBER] % 32})>"
+        for signal, pin in signals
+    )
+    zephyr_add_overlay(
+        f"""
+            &pinctrl {{
+                spi2_default: spi2_default {{
+                    group1 {{
+                        psels = {psels};
+                    }};
+                }};
+                spi2_sleep: spi2_sleep {{
+                    group1 {{
+                        psels = {psels};
+                        low-power-enable;
+                    }};
+                }};
+            }};
+            &spi2 {{
+                compatible = "nordic,nrf-spim";
+                status = "okay";
+                pinctrl-0 = <&spi2_default>;
+                pinctrl-1 = <&spi2_sleep>;
+                pinctrl-names = "default", "sleep";
+            }};
+        """
+    )
 
 
 @coroutine_with_priority(CoroPriority.BUS)
@@ -472,52 +503,12 @@ async def to_code(configs: list[ConfigType]) -> None:
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
+            interface = get_spi_interface(index)
+            cg.add(var.set_interface(cg.RawExpression(interface)))
             if CORE.using_zephyr:
-                zephyr_add_prj_conf("SPI", True)
-                clk_pin = spi[CONF_CLK_PIN][CONF_NUMBER]
-                mosi_pin = mosi[CONF_NUMBER] if mosi else None
-                miso_pin = miso[CONF_NUMBER] if miso else None
-                psels = f"<NRF_PSEL(SPIM_SCK, {clk_pin // 32}, {clk_pin % 32})>"
-                if mosi_pin is not None:
-                    psels += (
-                        f", <NRF_PSEL(SPIM_MOSI, {mosi_pin // 32}, {mosi_pin % 32})>"
-                    )
-                if miso_pin is not None:
-                    psels += (
-                        f", <NRF_PSEL(SPIM_MISO, {miso_pin // 32}, {miso_pin % 32})>"
-                    )
-                zephyr_add_overlay(
-                    f"""
-                        &pinctrl {{
-                            spi2_default: spi2_default {{
-                                group1 {{
-                                    psels = {psels};
-                                }};
-                            }};
-                            spi2_sleep: spi2_sleep {{
-                                group1 {{
-                                    psels = {psels};
-                                    low-power-enable;
-                                }};
-                            }};
-                        }};
-                        &spi2 {{
-                            status = "okay";
-                            pinctrl-0 = <&spi2_default>;
-                            pinctrl-1 = <&spi2_sleep>;
-                            pinctrl-names = "default", "sleep";
-                        }};
-                    """
-                )
-                cg.add(
-                    var.set_interface(
-                        cg.RawExpression("DEVICE_DT_GET(DT_NODELABEL(spi2))")
-                    )
-                )
+                _add_nrf52_spi2_overlay(spi)
                 cg.add(var.set_interface_name("spi2"))
             else:
-                interface = get_spi_interface(index)
-                cg.add(var.set_interface(cg.RawExpression(interface)))
                 cg.add(
                     var.set_interface_name(
                         re.sub(r"\W", "", interface.replace("new SPIClass", ""))

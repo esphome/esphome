@@ -25,16 +25,14 @@ class ZephyrSPIDelegate : public SPIDelegate {
   ZephyrSPIDelegate(const device *dev, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin);
 
   uint8_t transfer(uint8_t data) override;
-  void transfer(uint8_t *ptr, size_t length) override;
   void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) override;
   void write_array(const uint8_t *ptr, size_t length) override;
   void write_array16(const uint16_t *data, size_t length) override;
   void read_array(uint8_t *ptr, size_t length) override;
 
  protected:
-  void do_transceive_(const uint8_t *tx, uint8_t *rx, size_t length);
-  // Returns false if the transfer failed; rx (if given) is zeroed in that case.
-  bool transceive_chunk_(const uint8_t *tx, uint8_t *rx, size_t length);
+  /// One spi_transceive; rx (if given) is zeroed when the transfer fails
+  void transceive_(const uint8_t *tx, uint8_t *rx, size_t length);
 
   const device *dev_;
   // CS is driven by ESPHome via SPIDelegate::cs_pin_; cfg_.cs stays unset so
