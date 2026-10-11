@@ -118,7 +118,6 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   static constexpr uint8_t IRQ_RXE = 0x10;
   static constexpr uint8_t IRQ_TXE = 0x08;
   static constexpr uint8_t IRQ_COL = 0x04;
-  static constexpr uint8_t IRQ_NRE = 0x01;
 
   std::unique_ptr<nfc::NfcTag> current_tag_;
   nfc::NfcTagUid scan_uid_;

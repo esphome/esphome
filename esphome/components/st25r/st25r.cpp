@@ -85,6 +85,9 @@ void ST25R::loop() {
   if (this->irq_pin_ == nullptr || this->irq_fired_) {
     this->irq_fired_ = false;
     this->irq_status_ = this->read_register(ST25R_REG_IRQ_MAIN);
+    // The line only drops once every pending source is read, or the next edge is missed
+    this->read_register(ST25R_REG_IRQ_TIMER);
+    this->read_register(ST25R_REG_IRQ_ERROR);
   } else {
     this->irq_status_ = 0;
   }
@@ -164,8 +167,6 @@ void ST25R::process_state_() {
         this->send_anticol_frame_();
         this->state_ = STATE_ANTICOL;
         this->last_state_change_ = now;
-      } else if (this->irq_status_ & IRQ_NRE) {
-        this->finish_scan_();
       } else if (now - this->last_state_change_ > 100) {
         this->read_register(ST25R_REG_IRQ_TIMER);
         this->read_register(ST25R_REG_IRQ_ERROR);
@@ -245,8 +246,10 @@ void ST25R::process_state_() {
         break;
       }
 
+#ifdef ESPHOME_LOG_HAS_VERBOSE
       char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
       ESP_LOGV(TAG, "Tag selected: %s (SAK=0x%02X)", nfc::format_uid_to(uid_buf, this->scan_uid_), sak);
+#endif
       this->tag_found_this_scan_ = true;
       this->send_halt_();
       this->finish_scan_();
