@@ -28,9 +28,11 @@ sensor:
       warning_current_limit: 1A
       critical_current_limit: 2A
     channel_2:
+      shunt_resistance: 0.05 ohm
       bus_voltage:
         name: INA3221 B Channel 2 Bus Voltage
     channel_3:
+      shunt_resistance: 0.05 ohm
       power:
         name: INA3221 B Channel 3 Power
     sum_shunt_voltage:
