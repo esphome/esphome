@@ -1,0 +1,3 @@
+st25r_spi:
+  id: st25r_nfcc_spi
+  cs_pin: ${cs_pin}
