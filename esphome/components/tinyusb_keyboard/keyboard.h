@@ -50,7 +50,8 @@ class TinyUSBKeyboard final : public Component {
   /// Sends whatever changed; a report the endpoint cannot take yet is retried from loop()
   void flush_();
 
-  // The wanted state of each report, resent until the endpoint accepts it so a release is never lost
+  // The wanted state of each report, resent until the endpoint accepts it so a release is never lost.
+  // Only the latest state is kept, so consecutive key actions need a short delay between them.
   uint16_t usage_{0};
   uint8_t keycode_{0};
   uint8_t modifiers_{0};

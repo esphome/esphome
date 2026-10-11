@@ -25,8 +25,10 @@ void TinyUSBKeyboard::set_consumer_(uint16_t usage) {
 
 void TinyUSBKeyboard::flush_() {
   if (!tud_ready()) {
-    // Nothing is listening; the state is sent once a host configures the device
-    this->enable_loop();
+    // No host is listening, and a key held from before it attached would be wrong, so drop the state
+    this->keyboard_pending_ = false;
+    this->consumer_pending_ = false;
+    this->disable_loop();
     return;
   }
   // tud_hid_*_report() returns false while the endpoint still holds the previous report, which is
