@@ -4,8 +4,6 @@
 
 #include "espnow_component.h"
 
-#include "esphome/core/helpers.h"
-
 namespace esphome::espnow::platform {
 
 // The SDK reports 0 for success and a non-zero value for any failure
@@ -23,7 +21,18 @@ static void on_send_report(uint8_t *mac_addr, uint8_t status) {
 }
 
 void init_radio() {
-  wifi_set_opmode_current(STATION_MODE);
+  // The NONOS SDK only delivers broadcast frames to ESP-NOW while the station is associated or the
+  // soft-AP interface is up. Without Wi-Fi, run a hidden, open soft-AP that accepts no clients so
+  // broadcasts (for example from a WizMote style remote) are received.
+  softap_config ap{};
+  ap.channel = 1;
+  ap.authmode = AUTH_OPEN;
+  ap.ssid_hidden = 1;
+  ap.max_connection = 0;
+  ap.beacon_interval = 60000;
+  wifi_set_opmode_current(STATIONAP_MODE);
+  wifi_softap_set_config_current(&ap);
+  wifi_softap_dhcps_stop();
   wifi_set_sleep_type(NONE_SLEEP_T);
   wifi_station_disconnect();
 }
@@ -36,12 +45,17 @@ void set_channel(uint8_t channel) {
 
 uint8_t get_channel() { return wifi_get_channel(); }
 
-void read_mac(uint8_t *mac) { get_mac_address_raw(mac); }
+void read_mac(uint8_t *mac) {
+  // Frames leave from the station interface unless the device runs as a soft-AP only
+  wifi_get_macaddr(wifi_get_opmode() == SOFTAP_MODE ? SOFTAP_IF : STATION_IF, mac);
+}
 
 esp_err_t init() {
   int result = esp_now_init();
   if (result == 0) {
-    result = esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+    // CONTROLLER sends from the station interface; the other roles send from the soft-AP MAC whenever
+    // that interface is up, so peers would no longer recognise the sender.
+    result = esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER);
   }
   if (result == 0) {
     result = esp_now_register_recv_cb(on_data_received);
