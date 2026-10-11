@@ -45,7 +45,7 @@ void EmonTx::loop() {
         }
       }
     } else if (this->discarding_line_) {
-      continue;
+      // Skip the rest of a line that overflowed the buffer
     } else if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
       ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
       this->buffer_pos_ = 0;
