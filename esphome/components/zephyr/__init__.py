@@ -61,6 +61,7 @@ from .const import (
     CONF_WEST_VERSION,
     KEY_BOARD,
     KEY_BOARD_ROOT,
+    KEY_BOOT_LAYOUT,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_FRAMEWORK_TYPE,
@@ -69,6 +70,7 @@ from .const import (
     KEY_MODULE_REQUESTS,
     KEY_OVERLAY,
     KEY_OVERLAY_BUILDER,
+    KEY_PARTITION_REQUIREMENTS,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_RUNNER,
@@ -88,6 +90,12 @@ from .const import (
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
+from .partitions import (  # noqa: F401
+    BootLayout,
+    render_sysbuild_cmake,
+    zephyr_require_partition,
+    zephyr_set_boot_layout,
+)
 
 # I2C/UART/SPI pinctrl overlay generation lives in pinctrl.py; re-exported here so
 # the i2c/uart/spi components' existing `from . import zephyr_setup_*_pinctrl`
@@ -192,6 +200,9 @@ class ZephyrData(TypedDict):
     overlay: dict[str, str]
     extra_build_files: dict[str, Path]
     pm_static: list[Section]
+    # (label, reason) partitions components need; see partitions.zephyr_require_partition()
+    partition_requirements: list[tuple[str, str]]
+    boot_layout: BootLayout | None  # None = where the first image starts is not checked
     user: dict[str, list[str]]
     kconfig: str
     overlay_builder: list[Callable[[], str]]
@@ -257,6 +268,8 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         overlay_builder=[],
         extra_build_files={},
         pm_static=[],
+        partition_requirements=[],
+        boot_layout=None,
         user={},
         kconfig="",
         fake_board_manifest=None,
@@ -983,6 +996,20 @@ def copy_files() -> None:
     sysbuild_conf = "\n".join(sysbuild_conf_lines) + "\n" if sysbuild_conf_lines else ""
     changed |= _write_file_if_changed_or_remove_when_empty(
         CORE.relative_build_path("zephyr/sysbuild.conf"), sysbuild_conf
+    )
+
+    # Flash layout checks, platform: zephyr only. Removed otherwise so a build folder
+    # shared with platform: nrf52 doesn't run them; a change drops the CMake cache,
+    # which a new file needs anyway to replace Zephyr's sysbuild template.
+    sysbuild_cmake = (
+        render_sysbuild_cmake(
+            zephyr_data()[KEY_BOOT_LAYOUT], zephyr_data()[KEY_PARTITION_REQUIREMENTS]
+        )
+        if zephyr_variant() is not None
+        else ""
+    )
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/sysbuild/CMakeLists.txt"), sysbuild_cmake
     )
 
     if changed:

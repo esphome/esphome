@@ -19,6 +19,7 @@ from ..const import (
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_STM32F1,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -52,6 +53,8 @@ _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_STM32F1
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (nucleo_f103rb.dts boot_partition@0).
+    boot=BootLayout(0x0),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="stm32",

@@ -23,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
+from ..board_revision import parse_board_string
 from ..const import (
     BOOTLOADER_MCUBOOT,
     CONF_BOOTLOADER,
@@ -33,6 +34,7 @@ from ..const import (
     KEY_ZEPHYR,
     VERSION_RECOMMENDED,
 )
+from ..partitions import BootLayout
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -322,6 +324,13 @@ class ZephyrVariant:
     # hardware. Value should leave headroom below the real computed ceiling for
     # rounding-table granularity, not sit exactly on it.
     watchdog_max_timeout_ms: int | None = None
+    # Where this chip starts the first image (MCUboot when built, else the app) and the
+    # flash it keeps for itself; checked against the merged devicetree at build time
+    # (see partitions.py). None = not checked.
+    boot: BootLayout | None = None
+    # Boards whose resident vendor bootloader moves `boot`, keyed by board name without
+    # revision or qualifiers.
+    board_boot: dict[str, BootLayout] = field(default_factory=dict)
 
 
 def resolve_sdk(
@@ -364,6 +373,11 @@ def mcuboot_or_none(advanced: dict) -> str:
         if advanced.get(CONF_BOOTLOADER) == BOOTLOADER_MCUBOOT
         else ""
     )
+
+
+def board_boot_layout(variant: ZephyrVariant, board: str) -> BootLayout | None:
+    """Return the boot layout for `board`: its own override, else the variant's."""
+    return variant.board_boot.get(parse_board_string(board).name, variant.boot)
 
 
 def qualify_board(
@@ -517,6 +531,8 @@ def set_core_data(
         overlay_builder=overlay_builder if overlay_builder is not None else [],
         extra_build_files=extra_build_files if extra_build_files is not None else {},
         pm_static=pm_static if pm_static is not None else [],
+        partition_requirements=[],
+        boot_layout=board_boot_layout(VARIANTS[variant_name], board),
         user=user if user is not None else {},
         kconfig=kconfig,
         fake_board_manifest=fake_board_manifest,

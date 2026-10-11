@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -12,12 +13,13 @@ from esphome.types import ConfigType
 from ..const import (
     ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
-    BOOTLOADER_SCHEMA,
+    BOOTLOADER_NONE,
     CONF_BOOTLOADER,
     CONF_RUNNER,
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_STM32U5,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -33,13 +35,22 @@ from . import (
 # so unlike stm32f4's nucleo_f401re no `overlays:` storage_partition is needed.
 _DEFAULT_BOARD = "stm32u5g9j_dk1"
 
-# Like stm32l4/f1, not stm32f4/wb55: bootloader: defaults to none here and is opted into
-# with `bootloader: mcuboot`.
-_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
+# Like stm32f1/f4/wb55: the stock board links the app at slot0_partition (0x10000) and
+# the chip resets to offset 0, so a `none` image would never run. none stays selectable
+# for a board whose own DTS runs the app from offset 0.
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
+    {
+        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_MCUBOOT): cv.one_of(
+            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
+        ),
+    }
+)
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_STM32U5
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (stm32u5g9j_dk1.dts boot_partition@0).
+    boot=BootLayout(0x0),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="stm32",

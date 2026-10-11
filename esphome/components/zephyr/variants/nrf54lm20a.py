@@ -1,20 +1,28 @@
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_OTA,
     CONF_SOURCE,
     ThreadModel,
     Toolchain,
 )
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from ..const import (
     ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
+    BOOTLOADER_NONE,
+    CONF_BOOTLOADER,
     CONF_RUNNER,
+    KEY_BOOTLOADER,
+    KEY_MODULE_REQUESTS,
     ZEPHYR_VARIANT_NRF54LM20A,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     NCS,
@@ -31,7 +39,13 @@ _DEFAULT_BOARD = "nrf54lm20dk"
 # co-processor core) is a separate, much more specialized target this variant does not
 # build for.
 
-_ADVANCED_SCHEMA = ADVANCED_SCHEMA
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
+    {
+        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_MCUBOOT): cv.one_of(
+            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
+        ),
+    }
+)
 
 # GPIO -> nRF54LM20A SAADC analog-input name. Fixed silicon fact (AIN0-AIN7 datasheet
 # pin assignment) -- not discoverable from any board's DTS, same reasoning as nrf52's
@@ -67,6 +81,8 @@ _GPIO_MATRIX_PINS = (
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF54LM20A
 VARIANT = ZephyrVariant(
+    # Resets from the start of RRAM (nordic/nrf54lm20a_cpuapp_partition.dtsi).
+    boot=BootLayout(0x0),
     # Same reasoning as nrf52/nrf54l15: NCS is Nordic's own SDK and where support for its
     # own newest silicon lands and gets tested first -- nrf54lm20dk is already in
     # nrfconnect/sdk-zephyr today. Mainline Zephyr (which also carries this SoC, plus
@@ -109,6 +125,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
+    bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "nrf54lm20a", config, "nRF54LM20A support"
@@ -116,7 +133,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],
-        BOOTLOADER_MCUBOOT,
+        bootloader if bootloader == BOOTLOADER_MCUBOOT else "",
         framework_ver,
         config,
         framework_type=sdk_name,
@@ -127,12 +144,7 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import (
-        zephyr_add_overlay,
-        zephyr_add_prj_conf,
-        zephyr_add_sysbuild_conf,
-        zephyr_setup_preferences,
-    )
+    from .. import zephyr_add_overlay, zephyr_add_prj_conf, zephyr_setup_preferences
 
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NRF54LM20A")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -155,5 +167,18 @@ async def to_code(config: ConfigType) -> None:
         """
     )
 
-    # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
-    zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
+    CORE.add_job(_bootloader_to_code)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _bootloader_to_code() -> None:
+    from .. import zephyr_add_sysbuild_conf, zephyr_data
+
+    # As nrf52: zigbee's default layout has no MCUboot slots, so zigbee only gets
+    # MCUboot with ota:. FINAL so zigbee's module request has already been made.
+    if (
+        "zigbee" not in zephyr_data()[KEY_MODULE_REQUESTS] or CORE.config.get(CONF_OTA)
+    ) and zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+        # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+        zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

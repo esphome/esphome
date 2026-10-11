@@ -144,5 +144,5 @@ def spi_pinctrl(
 
 
 def bootloader(advanced: ConfigType) -> str:
-    """Return the bootloader; nrf52 has a choice, nrf54 is always MCUboot."""
+    """Return the configured bootloader, MCUboot by default."""
     return advanced.get(CONF_BOOTLOADER, BOOTLOADER_MCUBOOT)

@@ -32,6 +32,7 @@ from ..const import (
     ZEPHYR_VARIANT_NRF52,
     zephyr_ns,
 )
+from ..partitions import BootLayout
 from ..usb_baud_rate import CONF_USB_BAUD_RATE, UsbBaudRate, declare_component_id
 from . import (
     MAINLINE,
@@ -60,15 +61,14 @@ _DEFAULT_BOARD = "adafruit_feather_nrf52840"
 BOOTLOADER_ADAFRUIT_NRF52_SD140_V6 = "adafruit_nrf52_sd140_v6"
 BOOTLOADER_ADAFRUIT_NRF52_SD140_V7 = "adafruit_nrf52_sd140_v7"
 
-# Expected "SoftDevice" partition size for each choice above, cross-checked against
-# upstream's own dtsi (nordic/nrf52840_partition_uf2_sdv{6,7}.dtsi): v6 reserves
-# 0x26000 (152K), v7 reserves 0x27000 (156K) -- a board whose stock DTS has a
-# "SoftDevice" partition of the wrong size for the selected version means the app
-# would still be linked against the wrong gap, same footgun as a missing partition.
-_SOFTDEVICE_PARTITION_SIZE = {
+# Where each SoftDevice ends (upstream nordic/nrf52840_partition_uf2_sdv{6,7}.dtsi) and
+# where the Adafruit UF2 bootloader starts; the app must fit between them.
+_SOFTDEVICE_END = {
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: 0x26000,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: 0x27000,
 }
+_ADAFRUIT_BOOTLOADER_START = 0xF4000
+_FLASH_SIZE = 0x100000  # nRF52840
 
 CONF_DFU = "dfu"
 DeviceFirmwareUpdate = zephyr_ns.class_("DeviceFirmwareUpdate", cg.Component)
@@ -130,6 +130,9 @@ _GPIO_MATRIX_PINS = frozenset(range(48))
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF52
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (nordic/nrf52840_partition.dtsi). An Adafruit
+    # bootloader moves this; see to_code().
+    boot=BootLayout(0x0),
     # NCS (nRF Connect SDK) is the default -- Nordic's own vendor SDK, which is where
     # real hardware support/testing effort for this chip is expected to concentrate.
     # Mainline Zephyr stays available as an alternate (framework: type: zephyr) for
@@ -200,7 +203,7 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences
+    from .. import zephyr_add_prj_conf, zephyr_set_boot_layout, zephyr_setup_preferences
 
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -210,50 +213,16 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
 
-    bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
-    if bootloader in (
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    ):
-        from ..dts_lookup import get_board_partitions
-
-        # zephyr/__init__.py's to_code() already fetched this board's DTS
-        # (fetch_board_dts) and validated it exists before calling here, so this
-        # reflects the real board -- not a guess. Only the
-        # itsybitsy's stock DTS (nrf52840_partition_uf2_sdv6.dtsi) ships a "SoftDevice"
-        # partition; picking this bootloader on a board without one (e.g. the default
-        # adafruit_feather_nrf52840, whose nrf52840_partition.dtsi has no such
-        # reservation) silently links the app at flash address 0x0 instead of into a
-        # real gap, which would overwrite whatever's actually on that board's flash.
-        # Warning, not an error: this only sees the board's stock DTS -- a user who
-        # added the missing/mismatched partition themselves via `zephyr: overlays:`
-        # would be correct and this check can't see that fix.
-        partitions = get_board_partitions(config[CONF_BOARD])
-        if partitions is not None:
-            softdevice = next((p for p in partitions if p[0] == "SoftDevice"), None)
-            expected_size = _SOFTDEVICE_PARTITION_SIZE[bootloader]
-            if softdevice is None:
-                _LOGGER.warning(
-                    "Board '%s' has no 'SoftDevice' partition in its stock "
-                    "devicetree, so '%s' would not actually protect an existing "
-                    "bootloader on this board unless one was added via 'overlays:'. "
-                    "Use a board whose stock devicetree ships that partition (e.g. "
-                    "adafruit_itsybitsy), or set 'advanced: bootloader: %s' instead.",
-                    config[CONF_BOARD],
-                    bootloader,
-                    BOOTLOADER_MCUBOOT,
-                )
-            elif softdevice[2] != expected_size:
-                _LOGGER.warning(
-                    "Board '%s' has a 'SoftDevice' partition of 0x%x bytes, but "
-                    "'%s' expects 0x%x bytes -- the app would still be linked "
-                    "against the wrong gap unless this was intentionally overridden "
-                    "via 'overlays:'.",
-                    config[CONF_BOARD],
-                    softdevice[2],
-                    bootloader,
-                    expected_size,
-                )
+    if (
+        sd_end := _SOFTDEVICE_END.get(config[CONF_ADVANCED][CONF_BOOTLOADER])
+    ) is not None:
+        # The SoftDevice starts the app right after itself; writing over it or the
+        # bootloader bricks the board.
+        zephyr_set_boot_layout(
+            BootLayout(
+                sd_end, ((0x0, sd_end), (_ADAFRUIT_BOOTLOADER_START, _FLASH_SIZE))
+            )
+        )
 
     CORE.add_job(_bootloader_to_code, config)
     if dfu_config := config[CONF_ADVANCED].get(CONF_DFU):

@@ -20,6 +20,7 @@ from ..const import (
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RP2040,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -58,6 +59,9 @@ _ADC_CHANNEL_MAP = {26: 0, 27: 1, 28: 2, 29: 3}
 
 VARIANT_NAME = ZEPHYR_VARIANT_RP2040
 VARIANT = ZephyrVariant(
+    # The first 256 bytes hold boot2, built into the first image; that image starts
+    # after it (rpi_pico-common.dtsi second_stage_bootloader@0, code_partition@100).
+    boot=BootLayout(0x100),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="rpi_pico",

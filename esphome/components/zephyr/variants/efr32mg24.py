@@ -16,6 +16,7 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_EFR32MG24,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     SILABS,
@@ -57,6 +58,8 @@ _GPIO_MATRIX_PINS = frozenset(
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_EFR32MG24
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (xg24_ek2703a.dts boot_partition@0).
+    boot=BootLayout(0x0),
     # Mainline stays default; Silicon Labs' vendor SDK (SILABS) is available as an alt
     # (framework: type: silabs) pending real hardware testing.
     sdk=MAINLINE,

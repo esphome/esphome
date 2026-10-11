@@ -20,6 +20,7 @@ from ..const import (
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RP2350,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -51,6 +52,8 @@ _ADC_CHANNEL_MAP = {26: 0, 27: 1, 28: 2, 29: 3}
 
 VARIANT_NAME = ZEPHYR_VARIANT_RP2350
 VARIANT = ZephyrVariant(
+    # ROM boots from the start of flash (rpi_pico2, partitions_4M_sysbuild.dtsi).
+    boot=BootLayout(0x0),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="rpi_pico",

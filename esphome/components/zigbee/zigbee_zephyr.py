@@ -6,6 +6,7 @@ from esphome.components.zephyr import (
     request_zephyr_module,
     zephyr_add_prj_conf,
     zephyr_framework_type,
+    zephyr_require_partition,
     zephyr_variant,
 )
 from esphome.components.zephyr.variants import VARIANTS, resolve_sdk
@@ -134,6 +135,9 @@ async def zephyr_to_code(config: ConfigType) -> "MockObj":
         # "zigbee" module (see there) -- this can't fail.
         request_zephyr_module("zigbee")
         cg.add_define("USE_ZEPHYR_FRAMEWORK_ZIGBEE")
+        # ncs-zigbee has no Partition Manager; the layout must come from devicetree.
+        zephyr_require_partition("zboss_nvram", "Zigbee")
+        zephyr_require_partition("zboss_product_config", "Zigbee")
 
     # Top-level Zigbee-stack-enable Kconfig symbol: "ZIGBEE" for platform: nrf52's
     # legacy inline stack, "ZIGBEE_ADD_ON" for the separate ncs-zigbee module (the

@@ -15,6 +15,7 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_ESP32_C5,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -35,6 +36,8 @@ _GPIO_MATRIX_PINS = frozenset(range(29)) - frozenset(range(16, 23))
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C5
 VARIANT = ZephyrVariant(
+    # ROM loads the first image at 0x2000 (espressif/partitions_0x2000_*.dtsi).
+    boot=BootLayout(0x2000),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="esp32",

@@ -11,6 +11,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from ..const import ADVANCED_SCHEMA, CONF_RUNNER, ZEPHYR_VARIANT_SIWX917
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     SILABS,
@@ -68,6 +69,9 @@ _SPI_MISO_MACROS = {p: f"GSPI_MISO_HP{p}" for p in (11, 26, 47, 56)}
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_SIWX917
 VARIANT = ZephyrVariant(
+    # The ROM/TA bootloader and network processor firmware sit below 0x202000
+    # (siwx917_dk2605a.dts code_partition@202000).
+    boot=BootLayout(0x202000, ((0x0, 0x202000),)),
     # Mainline stays default; Silicon Labs' vendor SDK (SILABS) is available as an
     # alt, same reasoning as efr32mg24 -- pending real hardware testing either way.
     sdk=MAINLINE,

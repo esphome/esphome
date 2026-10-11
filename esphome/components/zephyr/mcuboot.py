@@ -118,4 +118,3 @@ def apply_single_slot() -> None:
 
     zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
     zephyr_add_sysbuild_conf("MCUBOOT_MODE_SINGLE_APP", True)
-    cg.add_define("USE_ZEPHYR_MCUBOOT_SINGLE_SLOT")

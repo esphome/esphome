@@ -18,6 +18,7 @@ from ..const import (
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RA4M1,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -80,6 +81,14 @@ _PWM_PIN_MAP = {
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_RA4M1
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (ek_ra4m1.dts has no code partition).
+    boot=BootLayout(0x0),
+    # Arduino's resident bootloader keeps 0x0-0x4000 and starts the app at 0x4000
+    # (arduino_uno_r4.dts / arduino_nano_r4.dts, boot_partition label "bootloader").
+    board_boot={
+        "arduino_uno_r4": BootLayout(0x4000, ((0x0, 0x4000),)),
+        "arduino_nano_r4": BootLayout(0x4000, ((0x0, 0x4000),)),
+    },
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="renesas",
