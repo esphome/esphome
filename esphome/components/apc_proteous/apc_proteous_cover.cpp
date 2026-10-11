@@ -81,6 +81,11 @@ void APCProteousCover::parse_response_() {
         (this->pending_command_ == CLOSE_CMD && new_operation == COVER_OPERATION_CLOSING)) {
       this->clear_pending_();
     }
+    // A partial move is over once the acknowledged motion has stopped, wherever it stopped, so an
+    // old target cannot halt a movement started from the wall button or the remote later on
+    if (new_operation == COVER_OPERATION_IDLE && this->pending_command_ == nullptr) {
+      this->target_position_.reset();
+    }
     ESP_LOGV(TAG, "s-status: 0x%02X (operation=%d)", value, new_operation);
   } else if (type == 'x') {
     // Position percentage, snapped to the ends so is_open/is_closed can latch despite calibration offsets
@@ -131,6 +136,7 @@ void APCProteousCover::retry_pending_command_(uint32_t now) {
   if (this->command_retries_ >= MAX_COMMAND_RETRIES) {
     ESP_LOGW(TAG, "Gate did not acknowledge %s command after %u retries", LOG_STR_ARG(label), this->command_retries_);
     this->clear_pending_();
+    this->target_position_.reset();
     return;
   }
   this->command_retries_++;
