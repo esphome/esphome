@@ -44,20 +44,11 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
-def _synchronous_automation(value: ConfigType) -> ConfigType:
-    """Reject deferring actions: the received line and parsed JSON are only valid while the
-    automation runs, and DelayAction and friends keep the trigger arguments for later."""
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in on_json and "
-            "on_data: the received data is only valid while the automation runs. Copy what you need "
-            "into globals first, then defer in a separate script or automation."
-        )
-    return value
-
-
 def _synchronous_automation_schema() -> cv.All:
-    return cv.All(automation.validate_automation({}), _synchronous_automation)
+    # The received line and the parsed JSON document only live while the callbacks run.
+    return automation.validate_synchronous_automation(
+        "on_json and on_data", "the received data"
+    )
 
 
 # Main configuration schema
@@ -166,3 +157,16 @@ automation.register_apply_action(
         CONF_COMMAND, "send_command", cg.std_string, const_fn=_plain_literal
     ),
 )
+
+
+# Let another component (e.g. serial_proxy) take exclusive ownership of the UART.
+
+EMONTX_ID_SCHEMA = automation.maybe_simple_id({cv.GenerateID(): cv.use_id(EmonTx)})
+
+automation.register_apply_action(
+    "emontx.pause", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(true)")
+)
+automation.register_apply_action(
+    "emontx.resume", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(false)")
+)
+automation.register_apply_condition("emontx.is_paused", EMONTX_ID_SCHEMA, "is_paused()")
