@@ -2,6 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#ifdef USE_TMP102_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
@@ -11,6 +14,9 @@ namespace esphome::tmp102 {
 
 class TMP102Component final : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
+#ifdef USE_TMP102_BINARY_SENSOR
+  SUB_BINARY_SENSOR(alert)
+#endif
 #ifdef USE_TMP102_CONFIGURE
   void setup() override;
   void set_configuration(uint16_t config, uint16_t high_limit, uint16_t low_limit) {
@@ -24,6 +30,10 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   void update() override;
 
  protected:
+#ifdef USE_TMP102_BINARY_SENSOR
+  bool read_alert_state_();
+  void invalidate_alert_();
+#endif
 #ifdef USE_TMP102_CONFIGURE
   bool write_register_(uint8_t reg, uint16_t value);
   bool write_configuration_();

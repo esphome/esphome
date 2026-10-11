@@ -47,6 +47,7 @@ class TMP102Test : public ::testing::Test {
  protected:
   RegisterBus bus_;
   TMP102Component chip_;
+  binary_sensor::BinarySensor alert_;
   unsigned publications_{0};
 
   void SetUp() override {
@@ -110,6 +111,41 @@ TEST_F(TMP102Test, WritableConfigurationFields) {
   EXPECT_EQ(this->bus_.registers[1], 0x1FD0);
   EXPECT_EQ(this->bus_.registers[3], 0x2800);
   EXPECT_EQ(this->bus_.registers[2], 0x2580);
+}
+
+TEST_F(TMP102Test, AlertEntityPreservesHardwareAndUsesObservedPolarity) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
+  this->chip_.setup();
+  EXPECT_EQ(this->bus_.transactions, 0);
+  for (uint16_t config : {0x60A0, 0x6080, 0x64A0, 0x6480}) {
+    this->bus_.registers[1] = config;
+    this->chip_.update();
+    run_timers(55);
+    ASSERT_TRUE(this->alert_.has_state());
+    EXPECT_EQ(this->alert_.state, bool(config & 0x20) == bool(config & 0x400));
+    EXPECT_EQ(this->bus_.registers[1], config);
+  }
+  EXPECT_EQ(this->bus_.writes, 0);
+}
+
+TEST_F(TMP102Test, FailedTemperatureOrAlertReadInvalidatesAlert) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
+  this->chip_.setup();
+  this->chip_.update();
+  run_timers(55);
+  ASSERT_TRUE(this->alert_.has_state());
+  for (int reg : {0, 1}) {
+    this->bus_.fail_read = reg;
+    this->chip_.update();
+    run_timers(55);
+    EXPECT_TRUE(this->chip_.status_has_warning());
+    EXPECT_FALSE(this->alert_.has_state());
+    this->bus_.fail_read = -1;
+    this->chip_.update();
+    run_timers(55);
+    EXPECT_FALSE(this->chip_.status_has_warning());
+    EXPECT_TRUE(this->alert_.has_state());
+  }
 }
 
 TEST_F(TMP102Test, RestoresRegistersAfterChipOnlyResetBeforePublishing) {

@@ -4,7 +4,11 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
+from esphome.const import CONF_PLATFORM
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+CONF_TMP102_ID = "tmp102_id"
 
 DOMAIN = "tmp102"
 
@@ -81,5 +85,20 @@ def validate_tmp102_thresholds(config: ConfigType) -> ConfigType:
             f"low limit ({low}°C) is above the chip power-up THIGH default "
             f"({TMP102_DEFAULT_THIGH}°C). Set temperature_high explicitly.",
             [CONF_TEMPERATURE_LOW],
+        )
+    return config
+
+
+def validate_unique_child(config: ConfigType, platform: str) -> ConfigType:
+    entries = fv.full_config.get().get(platform, [])
+    matches = [
+        entry
+        for entry in entries
+        if entry.get(CONF_PLATFORM) == DOMAIN
+        and entry.get(CONF_TMP102_ID) == config[CONF_TMP102_ID]
+    ]
+    if len(matches) > 1:
+        raise cv.Invalid(
+            f"Only one TMP102 {platform} may reference each temperature sensor"
         )
     return config
