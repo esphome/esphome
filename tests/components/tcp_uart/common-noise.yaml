@@ -1,0 +1,17 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+tcp_uart:
+  - id: tcp_uart_noise_server
+    role: server
+    port: 6638
+    encryption:
+      key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+    connected:
+      name: TCP UART Noise Connected
+
+# modbus depends on uart; no uart block, tcp_uart is the only UART
+modbus:
+  - id: modbus_noise
+    uart_id: tcp_uart_noise_server

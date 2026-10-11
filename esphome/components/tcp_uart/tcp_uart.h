@@ -1,6 +1,9 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#ifdef USE_NOISE_STREAM
+#include "esphome/components/noise/noise_stream.h"
+#endif
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -24,6 +27,10 @@ class TcpUart : public uart::UARTComponent, public Component {
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
+  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
+#ifdef USE_NOISE_STREAM
+  void set_noise_stream(noise::NoiseStream *stream) { this->noise_ = stream; }
+#endif
 #ifdef USE_SENSOR
   void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
 #endif
@@ -45,9 +52,16 @@ class TcpUart : public uart::UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return static_cast<size_t>(this->rx_end_ - this->rx_start_); }
   // Same room write_array() grants, so consumers can apply backpressure.
-  size_t available_for_write() override { return this->link_.tx_free(); }
+  size_t available_for_write() override {
+#ifdef USE_NOISE_STREAM
+    if (this->noise_ != nullptr) {
+      return this->noise_->tx_free(this->link_);
+    }
+#endif
+    return this->link_.tx_free();
+  }
   uart::UARTFlushResult flush() override;
-  bool is_connected() override { return this->link_.connected(); }
+  bool is_connected() override { return this->session_up_(); }
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
@@ -55,7 +69,34 @@ class TcpUart : public uart::UARTComponent, public Component {
 
  protected:
   void check_logger_conflict() override {}
-  void sync_link_();
+  /// The link is up and, with encryption, its session is secure.
+  bool link_up_() {
+#ifdef USE_NOISE_STREAM
+    if (this->noise_ != nullptr) {
+      return this->noise_->up(this->link_);
+    }
+#endif
+    return this->link_.connected();
+  }
+  /// The state link_up_() last reached, without driving the handshake.
+  bool session_up_() const {
+#ifdef USE_NOISE_STREAM
+    if (this->noise_ != nullptr) {
+      return this->noise_->ready() && this->link_.connected();
+    }
+#endif
+    return this->link_.connected();
+  }
+  /// Send what is queued; true once the link's buffer is empty.
+  bool flush_link_() {
+#ifdef USE_NOISE_STREAM
+    if (this->noise_ != nullptr) {
+      return this->noise_->flush(this->link_);
+    }
+#endif
+    return this->link_.flush_tx();
+  }
+  void sync_link_(bool up);
   void read_socket_();
 
   static constexpr size_t RX_BUFFER_SIZE = 1024;
@@ -63,6 +104,9 @@ class TcpUart : public uart::UARTComponent, public Component {
   socket::TcpClientLink link_;
 #ifdef USE_SOCKET_TCP_LISTENER
   socket::TcpListener listener_;
+#endif
+#ifdef USE_NOISE_STREAM
+  noise::NoiseStream *noise_{nullptr};
 #endif
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
 #ifdef USE_SENSOR
