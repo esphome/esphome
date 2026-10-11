@@ -1,0 +1,7 @@
+network:
+  enable_ipv6: true
+
+openthread:
+  device_type: MTD
+  tlv: 0E080000000000010000
+  poll_period: 5s
