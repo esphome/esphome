@@ -11,7 +11,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.wizard";
+ESPHOME_LOG_TAG(TAG, "api.wizard");
 
 #ifdef USE_API_WIZARD_INPUTS
 static bool wizard_entity_id_valid(const char *entity_id, size_t length) {

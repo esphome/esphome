@@ -32,7 +32,7 @@
 
 namespace esphome::esp32_ble_tracker {
 
-static const char *const TAG = "esp32_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_tracker");
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

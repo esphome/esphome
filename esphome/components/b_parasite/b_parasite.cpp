@@ -3,7 +3,7 @@
 
 namespace esphome::b_parasite {
 
-static const char *const TAG = "b_parasite";
+ESPHOME_LOG_TAG(TAG, "b_parasite");
 
 void BParasite::dump_config() {
   ESP_LOGCONFIG(TAG, "b_parasite");

@@ -23,6 +23,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@exciton"]
+DOMAIN = "modbus_server"
 
 AUTO_LOAD = ["modbus"]
 

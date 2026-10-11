@@ -6,7 +6,7 @@
 
 namespace esphome::radio_frequency {
 
-static const char *const TAG = "radio_frequency";
+ESPHOME_LOG_TAG(TAG, "radio_frequency");
 
 void RadioFrequency::dump_config() {
   ESP_LOGCONFIG(TAG,

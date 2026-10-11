@@ -16,7 +16,7 @@
 
 namespace esphome::bk72xx_ble_tracker {
 
-static const char *const TAG = "bk72xx_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "bk72xx_ble_tracker");
 
 // Minimum interval between scan (re)start attempts, so a failing controller start
 // cannot be retried every main-loop iteration (single-core CPU starvation). The

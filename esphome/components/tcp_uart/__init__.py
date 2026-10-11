@@ -24,6 +24,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["uart", "binary_sensor", "sensor", "socket"]
+DOMAIN = "tcp_uart"
 MULTI_CONF = True
 
 CONF_DISCONNECTS = "disconnects"

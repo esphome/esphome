@@ -12,6 +12,7 @@ from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "globals"
 globals_ns = cg.esphome_ns.namespace("globals")
 GlobalsComponent = globals_ns.class_("GlobalsComponent", cg.Component)
 RestoringGlobalsComponent = globals_ns.class_(

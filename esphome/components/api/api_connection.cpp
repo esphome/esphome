@@ -48,6 +48,9 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+#include "esphome/components/sendspin/sendspin_hub.h"
+#endif
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
@@ -88,7 +91,7 @@ static_assert(sizeof(ESPHOME_VERSION) - 1 <= 32, "Update max_data_length for esp
 static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for name in api.proto");
 static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
-static const char *const TAG = "api.connection";
+ESPHOME_LOG_TAG(TAG, "api.connection");
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 void log_dropped_message(const char *tag, int line, const LogString *what) {
@@ -641,16 +644,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
-  FixedVector<const char *> effects_list;
-  if (light->supports_effects()) {
-    auto &light_effects = light->get_effects();
-    effects_list.init(light_effects.size() + 1);
-    effects_list.push_back("None");
-    for (auto *effect : light_effects) {
-      // c_str() is safe as effect names are null-terminated strings from codegen
-      effects_list.push_back(effect->get_name().c_str());
-    }
-  }
+  light::LightEffectNames effects_list(light->get_effects());
   msg.effects = &effects_list;
   return fill_and_encode_entity_info(light, msg, conn, remaining_size);
 }
@@ -1402,6 +1396,40 @@ void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+bool APIConnection::send_sendspin_pairing_token_response_() {
+  SendspinPairingTokenResponse resp;
+#ifdef USE_API_NOISE
+  // has_psk() stands in for "this session proved the key": with a key active, plaintext and zero-key sessions
+  // never reach hello, and activating a key closes every session opened before it.
+  if (!this->parent_->get_noise_ctx().has_psk()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED;
+    return this->send_message(resp);
+  }
+  auto token = sendspin_::global_sendspin_hub->get_pairing_token();
+  if (token.has_value()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK;
+    resp.token = StringRef(*token);
+  } else if (sendspin_::global_sendspin_hub->status_has_error()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED;
+  } else if (sendspin_::global_sendspin_hub->is_disabled()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED;
+  } else {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY;
+  }
+#else
+  resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED;
+#endif
+  return this->send_message(resp);
+}
+
+void APIConnection::on_sendspin_pairing_token_request() {
+  if (!this->send_sendspin_pairing_token_response_()) {
+    this->on_fatal_error();
+  }
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   return this->send_message_smart_(a_alarm_control_panel, AlarmControlPanelStateResponse::MESSAGE_TYPE,
@@ -1872,7 +1900,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 18;
+  resp.api_version_minor = 19;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -2088,6 +2116,9 @@ bool APIConnection::send_device_capabilities_response_() {
 #endif
 #ifdef USE_API_WIZARD
   resp.wizard.configured = true;
+#endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
 #endif
   return this->send_message(resp);
 }

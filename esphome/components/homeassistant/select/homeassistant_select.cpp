@@ -10,7 +10,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.select";
+ESPHOME_LOG_TAG(TAG, "homeassistant.select");
 
 namespace {
 

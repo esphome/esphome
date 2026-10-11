@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.const import CONF_REQUEST_HEADERS
+from esphome.components.const import CONF_REQUEST_HEADERS, CONF_VERIFY_SSL
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -30,6 +30,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
+DOMAIN = "http_request"
 
 http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)
@@ -52,7 +53,6 @@ HttpRequestResponseTrigger = http_request_ns.class_(
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 CONF_USERAGENT = "useragent"
-CONF_VERIFY_SSL = "verify_ssl"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
@@ -226,14 +226,8 @@ async def to_code(config: ConfigType) -> None:
                 #         use_full_certificate_bundle: true
                 esp32.require_certificate_bundle()
 
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_INSECURE",
-            not config.get(CONF_VERIFY_SSL),
-        )
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
-            not config.get(CONF_VERIFY_SSL),
-        )
+        else:
+            esp32.allow_insecure_tls()
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
     if CORE.is_rp2 and CORE.using_arduino:
