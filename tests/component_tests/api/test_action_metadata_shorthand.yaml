@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+
+api:
+  actions:
+    - action: plain_action
+      variables:
+        value: int
+      then:
+        - logger.log: Action Called

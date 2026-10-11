@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import ota, update
 import esphome.config_validation as cv
 from esphome.const import CONF_SOURCE
+from esphome.types import ConfigType
 
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 from ..ota import OtaHttpRequestComponent
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await update.new_update(config)
     ota_parent = await cg.get_variable(config[CONF_OTA_ID])
     cg.add(var.set_ota_parent(ota_parent))

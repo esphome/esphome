@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_NAME, DEVICE_CLASS_VIBRATION, ICON_VIBRATE
+from esphome.types import ConfigType
 
 from . import CONF_MSA3XX_ID, MSA_SENSOR_SCHEMA
 
@@ -31,7 +32,7 @@ CONFIG_SCHEMA = MSA_SENSOR_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MSA3XX_ID])
 
     for sensor in EVENT_SENSORS:

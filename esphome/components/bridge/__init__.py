@@ -1,0 +1,4 @@
+CODEOWNERS = ["@kbx81"]
+DOMAIN = "bridge"
+
+IS_PLATFORM_COMPONENT = True
