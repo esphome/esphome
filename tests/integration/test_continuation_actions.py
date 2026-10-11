@@ -1,4 +1,4 @@
-"""Test continuation actions (ContinuationAction, WhileLoopContinuation, RepeatLoopContinuation)."""
+"""Test that if, while and repeat resume the actions after them once their branch finishes."""
 
 from __future__ import annotations
 
@@ -17,10 +17,7 @@ async def test_continuation_actions(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """
-    Test that continuation actions work correctly for if/while/repeat.
-
-    These continuation classes replace LambdaAction with simple parent pointers,
-    saving 32-36 bytes per instance and eliminating std::function overhead.
+    Test that if/while/repeat resume the actions after them once their branch finishes.
     """
     loop = asyncio.get_running_loop()
 
@@ -218,7 +215,7 @@ async def test_continuation_actions(
         )
         assert test_results["combined_complete"], "Combined did not complete"
 
-        # Test 6: Rapid triggers (tests memory efficiency of ContinuationAction)
+        # Test 6: Rapid triggers through an if/else
         test_service = next((s for s in services if s.name == "test_rapid_if"), None)
         assert test_service is not None, "test_rapid_if service not found"
         await client.execute_service(test_service, {})
