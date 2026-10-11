@@ -68,6 +68,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
  public:
   enum State : uint8_t {
     STATE_IDLE,
+    STATE_FIELD_ON,
     STATE_WUPA,
     STATE_ANTICOL,
   };
@@ -99,7 +100,6 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void write_register_table_(const uint8_t (*table)[2], size_t count);
   void field_on_();
   void send_anticol_frame_();
-  void send_halt_();
   bool transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t resp_cap, uint8_t &resp_len,
                       uint32_t timeout_ms);
   void process_state_();
@@ -113,6 +113,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
 
   // Consecutive empty polls before a tag counts as removed
   static constexpr uint8_t MISS_THRESHOLD = 3;
+  static constexpr uint32_t FIELD_GUARD_MS = 10;
 
   // IRQ_MAIN bit definitions
   static constexpr uint8_t IRQ_RXE = 0x10;

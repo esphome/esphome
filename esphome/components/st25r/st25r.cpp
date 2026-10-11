@@ -65,13 +65,11 @@ void ST25R::update() {
     return;
 
   this->enable_loop();
-  this->clear_irqs_();
-  this->write_command(ST25R_CMD_RESET_RX_GAIN);
+  // The field was off between scans, so every tag in range restarts in the IDLE state and
+  // answers the WUPA; a tag left on the reader is found again without needing a HLTA first.
   this->write_register(ST25R_REG_OP_CONTROL, 0xC8);  // en=1, rx_en=1, tx_en=1
-
   this->tag_found_this_scan_ = false;
-  this->write_command(ST25R_CMD_TRANSMIT_WUPA);
-  this->state_ = STATE_WUPA;
+  this->state_ = STATE_FIELD_ON;
   this->last_state_change_ = App.get_loop_component_start_time();
 }
 
@@ -159,6 +157,18 @@ void ST25R::process_state_() {
   switch (this->state_) {
     case STATE_IDLE:
       break;
+
+    case STATE_FIELD_ON: {
+      // ISO 14443-3 guard time: a tag needs 5 ms of field before the first command
+      if (now - this->last_state_change_ < FIELD_GUARD_MS)
+        break;
+      this->clear_irqs_();
+      this->write_command(ST25R_CMD_RESET_RX_GAIN);
+      this->write_command(ST25R_CMD_TRANSMIT_WUPA);
+      this->state_ = STATE_WUPA;
+      this->last_state_change_ = now;
+      break;
+    }
 
     case STATE_WUPA: {
       if (this->irq_status_ & (IRQ_RXE | IRQ_COL)) {
@@ -249,7 +259,6 @@ void ST25R::process_state_() {
       ESP_LOGV(TAG, "Tag selected: %s (SAK=0x%02X)", nfc::format_uid_to(uid_buf, this->scan_uid_), sak);
 #endif
       this->tag_found_this_scan_ = true;
-      this->send_halt_();
       this->finish_scan_();
       break;
     }
@@ -257,6 +266,7 @@ void ST25R::process_state_() {
 }
 
 void ST25R::finish_scan_() {
+  this->write_register(ST25R_REG_OP_CONTROL, 0x80);  // en=1: field off until the next scan
   this->state_ = STATE_IDLE;
   this->irq_status_ = 0;
   this->finalize_scan_();
@@ -360,15 +370,6 @@ void ST25R::send_anticol_frame_() {
   this->write_register(ST25R_REG_NUM_TX_BYTES1, 0x00);
   this->write_register(ST25R_REG_NUM_TX_BYTES2, 0x10);
   this->write_command(ST25R_CMD_TRANSMIT_WITHOUT_CRC);
-}
-
-void ST25R::send_halt_() {
-  uint8_t halt_cmd[2] = {nfc::MIFARE_CMD_HALT, 0x00};
-  this->clear_irqs_();
-  this->write_fifo(halt_cmd, sizeof(halt_cmd));
-  this->write_register(ST25R_REG_NUM_TX_BYTES1, 0x00);
-  this->write_register(ST25R_REG_NUM_TX_BYTES2, 0x10);
-  this->write_command(ST25R_CMD_TRANSMIT_WITH_CRC);
 }
 
 void ST25R::field_on_() {
