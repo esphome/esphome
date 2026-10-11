@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@DennisGaida"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "lp5562"
 MULTI_CONF = True
 
 lp5562_ns = cg.esphome_ns.namespace("lp5562")
