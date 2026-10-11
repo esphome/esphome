@@ -6,7 +6,7 @@
 
 namespace esphome::a01nyub {
 
-static const char *const TAG = "a01nyub.sensor";
+ESPHOME_LOG_TAG(TAG, "a01nyub.sensor");
 
 void A01nyubComponent::loop() {
   uint8_t data;

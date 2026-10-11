@@ -16,7 +16,7 @@
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c";
+ESPHOME_LOG_TAG(TAG, "i2c");
 
 HostI2CBus::~HostI2CBus() {
   if (this->file_descriptor_ != -1) {

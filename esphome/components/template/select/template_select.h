@@ -9,7 +9,8 @@
 
 namespace esphome::template_ {
 
-struct Empty {};
+// Distinct per member: two empty members of the same type cannot share an address
+template<int N> struct Empty {};
 class BaseTemplateSelect : public select::Select, public PollingComponent {};
 
 void dump_config_helper(BaseTemplateSelect *sel_comp, bool optimistic, bool has_lambda, size_t initial_option_index,
@@ -59,8 +60,8 @@ class TemplateSelect : public BaseTemplateSelect {
     if constexpr (RESTORE_VALUE)
       this->pref_.save(&index);
   }
-  [[no_unique_address]] std::conditional_t<HAS_LAMBDA, TemplateLambda<std::string>, Empty> f_{};
-  [[no_unique_address]] std::conditional_t<RESTORE_VALUE, ESPPreferenceObject, Empty> pref_{};
+  [[no_unique_address]] std::conditional_t<HAS_LAMBDA, TemplateLambda<std::string>, Empty<0>> f_{};
+  [[no_unique_address]] std::conditional_t<RESTORE_VALUE, ESPPreferenceObject, Empty<1>> pref_{};
 };
 
 /// Template select with set_action trigger - only instantiated when set_action is configured

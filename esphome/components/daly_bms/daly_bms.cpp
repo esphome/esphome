@@ -6,7 +6,7 @@
 
 namespace esphome::daly_bms {
 
-static const char *const TAG = "daly_bms";
+ESPHOME_LOG_TAG(TAG, "daly_bms");
 
 static const uint8_t DALY_FRAME_SIZE = 13;
 static const uint8_t DALY_TEMPERATURE_OFFSET = 40;

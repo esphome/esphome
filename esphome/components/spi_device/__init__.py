@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "spi_device"
 
 MULTI_CONF = True
 spi_device_ns = cg.esphome_ns.namespace("spi_device")

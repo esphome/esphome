@@ -7,3 +7,5 @@ reading temperatures to a resolution of 0.0625°C.
 https://www.sparkfun.com/datasheets/Sensors/Temperature/tmp102.pdf
 
 """
+
+DOMAIN = "tmp102"
