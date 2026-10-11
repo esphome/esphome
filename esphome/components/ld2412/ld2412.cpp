@@ -195,6 +195,8 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0x
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 // A gate threshold answer carries one byte per gate
 static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
+// The length field counts the command word, the status word and the gates
+static constexpr uint16_t GATE_SENS_ACK_LENGTH = GATE_SENS_ACK_SIZE - COMMAND - HEADER_FOOTER_SIZE;
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
@@ -464,6 +466,8 @@ void set_number_value(number::Number *n, float value) {
     n->publish_state(value);
   }
 }
+
+static inline bool has_value(number::Number *n) { return n != nullptr && n->has_state(); }
 #endif
 
 bool LD2412Component::handle_ack_data_() {
@@ -602,15 +606,13 @@ bool LD2412Component::handle_ack_data_() {
     case CMD_QUERY_MOTION_GATE_SENS:
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      const uint16_t frame_size =
-          ACK_PAYLOAD - 4 + encode_uint16(this->buffer_data_[FRAME_LENGTH + 1], this->buffer_data_[FRAME_LENGTH]) +
-          HEADER_FOOTER_SIZE;
-      if (frame_size != GATE_SENS_ACK_SIZE || this->buffer_pos_ > frame_size) {
+      const uint16_t declared = encode_uint16(this->buffer_data_[FRAME_LENGTH + 1], this->buffer_data_[FRAME_LENGTH]);
+      if (declared != GATE_SENS_ACK_LENGTH || this->buffer_pos_ > GATE_SENS_ACK_SIZE) {
         // A truncated answer merged with the next frame, or a length this driver does not know
         ESP_LOGW(TAG, "Dropping gate threshold answer of %u bytes", this->buffer_pos_);
         return true;
       }
-      if (this->buffer_pos_ < frame_size) {
+      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
         return false;  // the footer pattern appeared inside the payload, keep reading
       }
       const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
@@ -618,17 +620,15 @@ bool LD2412Component::handle_ack_data_() {
       for (size_t i = 0; i < TOTAL_GATES; i++) {
         group.last_read[i] = this->buffer_data_[ACK_PAYLOAD + i];
         // While a write waits for this answer, the values the user set must survive it
-        number::Number *n = group.numbers[i];
-        if (!group.write_pending || n == nullptr || !n->has_state()) {
-          set_number_value(n, group.last_read[i]);
+        if (!group.write_pending || !has_value(group.numbers[i])) {
+          set_number_value(group.numbers[i], group.last_read[i]);
         }
       }
       group.read = true;
       if (group.write_pending) {
         group.write_pending = false;
         this->set_config_mode_(true);
-        this->send_gate_thresholds_(motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS, this->buffer_data_[COMMAND],
-                                    group);
+        this->send_gate_thresholds_(motion);
         this->set_config_mode_(false);
       }
 #endif
@@ -827,36 +827,36 @@ void LD2412Component::set_basic_config() {
 }
 
 #ifdef USE_NUMBER
-void LD2412Component::send_gate_thresholds_(uint8_t command, uint8_t query_command, GateThresholds &group) {
+void LD2412Component::send_gate_thresholds_(bool motion) {
+  GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+  const uint8_t command = motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS;
   uint8_t value[TOTAL_GATES];
   bool any_number = false;
-  bool any_configured = false;
-  bool any_from_module = false;
+  uint8_t configured = 0;
   for (uint8_t i = 0; i < TOTAL_GATES; i++) {
     number::Number *n = group.numbers[i];
     if (n != nullptr) {
       any_number = true;
     }
-    if (n != nullptr && n->has_state()) {
-      value[i] = lowbyte(static_cast<int>(n->state));
-      any_configured = true;
+    if (has_value(n)) {
+      value[i] = static_cast<uint8_t>(n->state);
+      configured++;
     } else {
       value[i] = group.last_read[i];
-      any_from_module = true;
     }
   }
-  if (!any_configured) {
+  if (configured == 0) {
     if (any_number) {
       ESP_LOGD(TAG, "Command %02X not sent, none of its numbers has a value yet", command);
     }
     return;
   }
-  if (any_from_module && !group.read) {
+  if (configured < TOTAL_GATES && !group.read) {
     // Without the module's values those gates would be sent as zero, which is maximum sensitivity.
     // Ask again and send the write once the answer arrives.
     ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
     group.write_pending = true;
-    this->send_command_(query_command, nullptr, 0);
+    this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
     return;
   }
   this->send_command_(command, value, sizeof(value));
@@ -864,8 +864,8 @@ void LD2412Component::send_gate_thresholds_(uint8_t command, uint8_t query_comma
 
 void LD2412Component::set_gate_threshold() {
   this->set_config_mode_(true);
-  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, CMD_QUERY_MOTION_GATE_SENS, this->gate_move_thresholds_);
-  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, CMD_QUERY_STATIC_GATE_SENS, this->gate_still_thresholds_);
+  this->send_gate_thresholds_(true);
+  this->send_gate_thresholds_(false);
   this->set_config_mode_(false);
 }
 

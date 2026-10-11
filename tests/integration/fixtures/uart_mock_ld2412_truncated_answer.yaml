@@ -24,7 +24,6 @@ uart:
 uart_mock:
   id: mock_uart
   baud_rate: 256000
-  auto_start: true
   responses:
     # The motion answer loses its last two gate bytes but keeps its footer, and the next acknowledgement
     # follows right behind it, so both arrive as one run of bytes

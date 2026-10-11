@@ -52,18 +52,95 @@ test_uart_mock_ld2412_truncated_answer (truncated threshold answer):
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
+from collections.abc import Callable
 
-from aioesphomeapi import ButtonInfo, EntityState, NumberInfo, NumberState
+from aioesphomeapi import (
+    APIClient,
+    ButtonInfo,
+    EntityInfo,
+    EntityState,
+    NumberInfo,
+    NumberState,
+)
 import pytest
 
 from .state_utils import (
     InitialStateHelper,
     SensorStateCollector,
+    StateWaiter,
     find_entity,
     require_entity,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
+
+# Frames as the uart mock logs what the component writes. The component writes the length and command word
+# as one piece and the payload as the next, so each shows up on its own TX line
+# Length 16 (2 command bytes and one byte per gate), then the threshold command, motion is 0x03 and still 0x04
+MOTION_COMMAND = "10:00:03:00"
+STILL_COMMAND = "10:00:04:00"
+# Length 2 and the query command for each group, motion is 0x13 and still is 0x14
+MOTION_QUERY = "02:00:13:00"
+STILL_QUERY = "02:00:14:00"
+# Length 2 and command 0xFE, the frame that leaves configuration mode
+CONFIG_MODE_LEFT = "02:00:FE:00"
+# Motion payload after writing 77 (0x4D) to gate 0, every other gate keeps the module value (11 to 23)
+EXPECTED_MOTION = "4D:0B:0C:0D:0E:0F:10:11:12:13:14:15:16:17"
+
+THRESHOLD_NUMBERS = (
+    "gate_0_move_threshold",
+    "gate_0_still_threshold",
+    "gate_5_move_threshold",
+    "gate_5_still_threshold",
+)
+
+
+def _is_tx(line: str) -> bool:
+    """Return whether the log line is a TX line from the uart mock."""
+    return "uart_mock" in line and "TX " in line
+
+
+def _tx_waiter(
+    *payloads: str,
+) -> tuple[Callable[[str], None], list[asyncio.Future[bool]]]:
+    """Return a line callback and one future per payload, resolved when a TX line holds it."""
+    loop = asyncio.get_running_loop()
+    futures = [loop.create_future() for _ in payloads]
+
+    def line_callback(line: str) -> None:
+        if not _is_tx(line):
+            return
+        for payload, future in zip(payloads, futures, strict=True):
+            if payload in line and not future.done():
+                future.set_result(True)
+
+    return line_callback, futures
+
+
+def _threshold_numbers(entities: list[EntityInfo]) -> dict[str, NumberInfo]:
+    """Return the gate 0 and gate 5 threshold numbers by name."""
+    return {
+        name: require_entity(entities, name, NumberInfo) for name in THRESHOLD_NUMBERS
+    }
+
+
+async def _wait_initial(
+    client: APIClient,
+    entities: list[EntityInfo],
+    on_state: Callable[[EntityState], None] = lambda s: None,
+) -> InitialStateHelper:
+    """Subscribe to states and wait until every entity has sent its initial state."""
+    initial_state_helper = InitialStateHelper(entities)
+    client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+    try:
+        await initial_state_helper.wait_for_initial_states()
+    except TimeoutError:
+        pytest.fail("Timeout waiting for initial states")
+    return initial_state_helper
+
+
+def _number_state_of(key: int) -> Callable[[EntityState], bool]:
+    """Return a predicate that matches a number state with a value for ``key``."""
+    return lambda s: isinstance(s, NumberState) and not s.missing_state and s.key == key
 
 
 @pytest.mark.asyncio
@@ -73,14 +150,6 @@ async def test_uart_mock_ld2412(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2412 data parsing with happy path, garbage, overflow, and recovery."""
-    # Replace external component path placeholder
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     # Track overflow warning in logs
@@ -93,7 +162,7 @@ async def test_uart_mock_ld2412(
         if "Max command length exceeded" in line and not overflow_seen.done():
             overflow_seen.set_result(True)
         # Capture all TX log lines from uart_mock
-        if "uart_mock" in line and "TX " in line:
+        if _is_tx(line):
             tx_log_lines.append(line)
 
     collector = SensorStateCollector(
@@ -129,16 +198,7 @@ async def test_uart_mock_ld2412(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        # Set up initial state helper
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
-        )
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await _wait_initial(client, entities, collector.on_state)
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = find_entity(entities, "start_scenario", ButtonInfo)
@@ -208,12 +268,6 @@ async def test_uart_mock_ld2412_engineering(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2412 engineering mode with per-gate energy, light, and multi-byte distance."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -252,15 +306,7 @@ async def test_uart_mock_ld2412_engineering(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
-        )
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await _wait_initial(client, entities, collector.on_state)
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = find_entity(entities, "start_scenario", ButtonInfo)
@@ -320,12 +366,6 @@ async def test_uart_mock_ld2412_engineering_truncated(
     check but reads indices 17-45 from stale buffer data, publishing garbage values
     (e.g. frame footer bytes 0xF8=248 as gate energy).
     """
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     loop = asyncio.get_running_loop()
 
@@ -373,15 +413,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
-        )
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await _wait_initial(client, entities, collector.on_state)
 
         start_btn = find_entity(entities, "start_scenario", ButtonInfo)
         assert start_btn is not None, "Start Scenario button not found"
@@ -443,82 +475,37 @@ async def test_uart_mock_ld2412_gate_thresholds(
     It used to dereference the numbers of gates that were never configured, which crashed on the first
     write. The gates without a number must be written back with the value read from the module.
     """
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
-    loop = asyncio.get_running_loop()
-
-    # Payloads the component is expected to write, as the mock logs them
-    # Motion: gate 0 becomes 77 (0x4D), every other gate keeps the module value (11 to 23)
-    expected_motion = "4D:0B:0C:0D:0E:0F:10:11:12:13:14:15:16:17"
     # Still: nothing was changed, so every gate keeps the module value (40 to 53)
     expected_still = "28:29:2A:2B:2C:2D:2E:2F:30:31:32:33:34:35"
-    motion_written = loop.create_future()
-    still_written = loop.create_future()
-
-    def line_callback(line: str) -> None:
-        if "uart_mock" not in line or "TX " not in line:
-            return
-        if expected_motion in line and not motion_written.done():
-            motion_written.set_result(True)
-        if expected_still in line and not still_written.done():
-            still_written.set_result(True)
+    line_callback, written = _tx_waiter(EXPECTED_MOTION, expected_still)
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-
-        initial_state_helper = InitialStateHelper(entities)
-
-        client.subscribe_states(initial_state_helper.on_state_wrapper(lambda s: None))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
-        numbers = {
-            name: require_entity(entities, name, NumberInfo)
-            for name in (
-                "gate_0_move_threshold",
-                "gate_0_still_threshold",
-                "gate_5_move_threshold",
-                "gate_5_still_threshold",
-            )
-        }
+        initial_state_helper = await _wait_initial(client, entities)
+        numbers = _threshold_numbers(entities)
 
         # The setup queries were answered, so the 2 configured gates show the module values
-        initial_states = initial_state_helper.initial_states
-        assert initial_states[numbers["gate_0_move_threshold"].key].state == (
-            pytest.approx(10.0)
-        )
-        assert initial_states[numbers["gate_5_move_threshold"].key].state == (
-            pytest.approx(15.0)
-        )
-        assert initial_states[numbers["gate_0_still_threshold"].key].state == (
-            pytest.approx(40.0)
-        )
-        assert initial_states[numbers["gate_5_still_threshold"].key].state == (
-            pytest.approx(45.0)
-        )
+        for name, value in {
+            "gate_0_move_threshold": 10.0,
+            "gate_5_move_threshold": 15.0,
+            "gate_0_still_threshold": 40.0,
+            "gate_5_still_threshold": 45.0,
+        }.items():
+            state = initial_state_helper.initial_states[numbers[name].key]
+            assert state.state == pytest.approx(value), name
 
         # Write one threshold; this is what used to crash the device
         client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
 
         try:
-            await asyncio.wait_for(
-                asyncio.gather(motion_written, still_written), timeout=5.0
-            )
+            await asyncio.wait_for(asyncio.gather(*written), timeout=5.0)
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for the threshold commands.\n"
-                f"  expected motion payload: {expected_motion}\n"
+                f"  expected motion payload: {EXPECTED_MOTION}\n"
                 f"  expected still payload:  {expected_still}"
             )
 
@@ -539,78 +526,36 @@ async def test_uart_mock_ld2412_footer_in_payload(
     before the frame is complete. A short frame is not a complete answer, so it has to keep reading up
     to the real footer, parse all 14 thresholds and then parse the next answer as well.
     """
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
-    loop = asyncio.get_running_loop()
-
-    # Payloads the component is expected to write, as the mock logs them. Every gate except the changed
-    # gate 0 must match the answer byte for byte, which proves all 14 thresholds were parsed
+    # Every gate except the changed gate 0 must match the answer byte for byte, which proves all 14
+    # thresholds were parsed
     # Motion: gate 0 becomes 77 (0x4D), gates 5 to 8 keep 4, 3, 2, 1
     expected_motion = "4D:23:23:23:23:04:03:02:01:19:19:19:19:19"
     # Still: nothing was changed, gates 10 to 13 keep 4, 3, 2, 1
     expected_still = "00:23:23:23:23:19:19:19:19:19:04:03:02:01"
-    motion_written = loop.create_future()
-    still_written = loop.create_future()
-
-    def line_callback(line: str) -> None:
-        if "uart_mock" not in line or "TX " not in line:
-            return
-        if expected_motion in line and not motion_written.done():
-            motion_written.set_result(True)
-        if expected_still in line and not still_written.done():
-            still_written.set_result(True)
+    line_callback, written = _tx_waiter(expected_motion, expected_still)
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-
-        initial_state_helper = InitialStateHelper(entities)
-
-        client.subscribe_states(initial_state_helper.on_state_wrapper(lambda s: None))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
-        numbers = {
-            name: require_entity(entities, name, NumberInfo)
-            for name in (
-                "gate_0_move_threshold",
-                "gate_0_still_threshold",
-                "gate_5_move_threshold",
-                "gate_5_still_threshold",
-            )
-        }
+        initial_state_helper = await _wait_initial(client, entities)
+        numbers = _threshold_numbers(entities)
 
         # Gate 5 move holds the first footer byte, gate 5 still comes from the second answer
-        initial_states = initial_state_helper.initial_states
-        assert initial_states[numbers["gate_0_move_threshold"].key].state == (
-            pytest.approx(0.0)
-        )
-        assert initial_states[numbers["gate_5_move_threshold"].key].state == (
-            pytest.approx(4.0)
-        )
-        assert initial_states[numbers["gate_0_still_threshold"].key].state == (
-            pytest.approx(0.0)
-        )
-        assert initial_states[numbers["gate_5_still_threshold"].key].state == (
-            pytest.approx(25.0)
-        )
+        for name, value in {
+            "gate_0_move_threshold": 0.0,
+            "gate_5_move_threshold": 4.0,
+            "gate_0_still_threshold": 0.0,
+            "gate_5_still_threshold": 25.0,
+        }.items():
+            state = initial_state_helper.initial_states[numbers[name].key]
+            assert state.state == pytest.approx(value), name
 
         client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
 
         try:
-            await asyncio.wait_for(
-                asyncio.gather(motion_written, still_written), timeout=5.0
-            )
+            await asyncio.wait_for(asyncio.gather(*written), timeout=5.0)
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for the threshold commands.\n"
@@ -633,24 +578,8 @@ async def test_uart_mock_ld2412_thresholds_not_read(
     has to be held back instead, and only that group is queried again. The still group has no gate with
     a value at all, so it is neither sent nor queried.
     """
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
-    # The length and command bytes of a threshold command, as the mock logs them
-    # Length 16 (2 command bytes and one byte per gate), then the command, motion is 0x03 and still is 0x04
-    motion_command = "10:00:03:00"
-    still_command = "10:00:04:00"
-    # Length 2 and the query command for each group, motion is 0x13 and still is 0x14
-    motion_query = "02:00:13:00"
-    still_query = "02:00:14:00"
-    # Length 2 and command 0xFE, the frame that leaves configuration mode at the end of the write
-    config_mode_left = "02:00:FE:00"
     motion_held_back = loop.create_future()
     write_finished = loop.create_future()
     tx_lines: list[str] = []
@@ -662,13 +591,13 @@ async def test_uart_mock_ld2412_thresholds_not_read(
         if "Command 03 held back" in line and not motion_held_back.done():
             motion_held_back.set_result(True)
             return
-        if "uart_mock" not in line or "TX " not in line:
+        if not _is_tx(line):
             return
         tx_lines.append(line)
         if not motion_held_back.done() or write_finished.done():
             return
         # Configuration mode is left once both groups have been dealt with
-        if config_mode_left in line:
+        if CONFIG_MODE_LEFT in line:
             write_finished.set_result(True)
             return
         write_tx_lines.append(line)
@@ -691,18 +620,18 @@ async def test_uart_mock_ld2412_thresholds_not_read(
             pytest.fail("Timeout waiting for the write to be handled")
 
         # Neither threshold command reached the module, so no gate was reconfigured
-        assert not any(motion_command in line for line in tx_lines), (
+        assert not any(MOTION_COMMAND in line for line in tx_lines), (
             "motion threshold command was sent without a value for the gates that have no number"
         )
-        assert not any(still_command in line for line in tx_lines), (
+        assert not any(STILL_COMMAND in line for line in tx_lines), (
             "still threshold command was sent when no gate had a value to write"
         )
 
         # Only the held back motion group asks the module for its values again
-        assert any(motion_query in line for line in write_tx_lines), (
+        assert any(MOTION_QUERY in line for line in write_tx_lines), (
             "motion thresholds were not queried again after the command was held back"
         )
-        assert not any(still_query in line for line in write_tx_lines), (
+        assert not any(STILL_QUERY in line for line in write_tx_lines), (
             "still thresholds were queried although that group was not held back"
         )
 
@@ -724,23 +653,9 @@ async def test_uart_mock_ld2412_requery_answered(
     go out with the value the user wrote for gate 0 and the module values for every other gate. The
     answer must not overwrite the value the user wrote.
     """
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     held_back = "Command 03 held back"
-    # Length 2 and the motion query command 0x13
-    motion_query = "02:00:13:00"
-    # Length 16 and the threshold command, motion is 0x03 and still is 0x04
-    motion_command = "10:00:03:00"
-    still_command = "10:00:04:00"
-    # Gate 0 becomes 77 (0x4D), every other gate keeps the module value (11 to 23)
-    expected_motion = "4D:0B:0C:0D:0E:0F:10:11:12:13:14:15:16:17"
     # Lines in the order they were logged: the warning and every TX line
     events: list[str] = []
     motion_written = loop.create_future()
@@ -749,14 +664,13 @@ async def test_uart_mock_ld2412_requery_answered(
         if held_back in line:
             events.append(line)
             return
-        if "uart_mock" not in line or "TX " not in line:
+        if not _is_tx(line):
             return
         events.append(line)
-        # The command word and the gate bytes are written, and logged, as separate pieces
         if (
-            expected_motion in line
+            EXPECTED_MOTION in line
             and len(events) >= 2
-            and motion_command in events[-2]
+            and MOTION_COMMAND in events[-2]
             and not motion_written.done()
         ):
             motion_written.set_result(True)
@@ -770,38 +684,32 @@ async def test_uart_mock_ld2412_requery_answered(
         gate_0_move = require_entity(entities, "gate_0_move_threshold", NumberInfo)
         gate_5_move = require_entity(entities, "gate_5_move_threshold", NumberInfo)
 
-        states: dict[int, list[float]] = {}
-        gate_5_read = loop.create_future()
+        gate_0_values: list[float] = []
+        waiter = StateWaiter()
 
         def on_state(state: EntityState) -> None:
-            if not isinstance(state, NumberState) or state.missing_state:
-                return
-            states.setdefault(state.key, []).append(state.state)
-            if state.key == gate_5_move.key and not gate_5_read.done():
-                gate_5_read.set_result(state.state)
+            if _number_state_of(gate_0_move.key)(state):
+                gate_0_values.append(state.state)
+            waiter.on_state(state)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        initial_state_helper = await _wait_initial(client, entities, on_state)
 
         # Neither query was answered during setup, so no threshold has a value yet
         for key in (gate_0_move.key, gate_5_move.key):
             assert initial_state_helper.initial_states[key].missing_state
 
+        gate_5_read = waiter.expect(
+            _number_state_of(gate_5_move.key), label="gate 5 move threshold"
+        )
         client.number_command(gate_0_move.key, 77.0)
 
         try:
-            await asyncio.wait_for(
-                asyncio.gather(motion_written, gate_5_read), timeout=5.0
-            )
+            await asyncio.wait_for(motion_written, timeout=5.0)
+            gate_5_state = await gate_5_read
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for the held back motion write.\n"
-                f"  expected payload: {motion_command} then {expected_motion}\n"
+                f"  expected payload: {MOTION_COMMAND} then {EXPECTED_MOTION}\n"
                 f"  logged: {events}"
             )
 
@@ -810,19 +718,19 @@ async def test_uart_mock_ld2412_requery_answered(
         query_at = next(
             i
             for i, line in enumerate(events)
-            if i > warning_at and motion_query in line
+            if i > warning_at and MOTION_QUERY in line
         )
-        write_at = next(i for i, line in enumerate(events) if expected_motion in line)
+        write_at = next(i for i, line in enumerate(events) if EXPECTED_MOTION in line)
         assert warning_at < query_at < write_at
 
-        assert not any(still_command in line for line in events), (
+        assert not any(STILL_COMMAND in line for line in events), (
             "still threshold command was sent although no still gate has a value"
         )
 
         # The user value survives the answer, gate 5 takes the module value
-        assert states[gate_0_move.key][-1] == pytest.approx(77.0)
-        assert all(value == pytest.approx(77.0) for value in states[gate_0_move.key])
-        assert gate_5_read.result() == pytest.approx(15.0)
+        assert gate_0_values
+        assert all(value == pytest.approx(77.0) for value in gate_0_values)
+        assert gate_5_state.state == pytest.approx(15.0)
 
 
 @pytest.mark.asyncio
@@ -838,13 +746,6 @@ async def test_uart_mock_ld2412_truncated_answer(
     number. A complete motion answer that arrives later has to be parsed, which proves the parser
     recovered.
     """
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     dropped = loop.create_future()
@@ -864,49 +765,33 @@ async def test_uart_mock_ld2412_truncated_answer(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-
-        numbers = {
-            name: require_entity(entities, name, NumberInfo)
-            for name in (
-                "gate_0_move_threshold",
-                "gate_0_still_threshold",
-                "gate_5_move_threshold",
-                "gate_5_still_threshold",
-            )
-        }
-        gate_0_move = numbers["gate_0_move_threshold"]
-        gate_5_move = numbers["gate_5_move_threshold"]
+        numbers = _threshold_numbers(entities)
 
         states: dict[int, list[float]] = {}
-        gate_0_read = loop.create_future()
-        gate_5_read = loop.create_future()
+        waiter = StateWaiter()
+        gate_0_read = waiter.expect(
+            _number_state_of(numbers["gate_0_move_threshold"].key),
+            label="gate 0 move threshold",
+        )
+        gate_5_read = waiter.expect(
+            _number_state_of(numbers["gate_5_move_threshold"].key),
+            label="gate 5 move threshold",
+        )
 
         def record(state: EntityState) -> None:
-            if not isinstance(state, NumberState) or state.missing_state:
-                return
-            states.setdefault(state.key, []).append(state.state)
-            for key, future in (
-                (gate_0_move.key, gate_0_read),
-                (gate_5_move.key, gate_5_read),
-            ):
-                if state.key == key and not future.done():
-                    future.set_result(state.state)
+            if isinstance(state, NumberState) and not state.missing_state:
+                states.setdefault(state.key, []).append(state.state)
+            waiter.on_state(state)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(record))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        initial_state_helper = await _wait_initial(client, entities, record)
 
         # The late answer may already have been parsed when the client connected
         for state in initial_state_helper.initial_states.values():
             record(state)
 
         try:
-            await asyncio.wait_for(
-                asyncio.gather(dropped, gate_0_read, gate_5_read), timeout=5.0
+            _, gate_0_state, gate_5_state = await asyncio.gather(
+                asyncio.wait_for(dropped, timeout=5.0), gate_0_read, gate_5_read
             )
         except TimeoutError:
             pytest.fail(
@@ -915,8 +800,8 @@ async def test_uart_mock_ld2412_truncated_answer(
                 f"  states: {states}"
             )
 
-        assert gate_0_read.result() == pytest.approx(10.0)
-        assert gate_5_read.result() == pytest.approx(15.0)
+        assert gate_0_state.state == pytest.approx(10.0)
+        assert gate_5_state.state == pytest.approx(15.0)
 
         for number in numbers.values():
             for value in states.get(number.key, []):

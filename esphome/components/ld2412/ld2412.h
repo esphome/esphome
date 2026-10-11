@@ -128,7 +128,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
     bool read{false};           // the module has answered the query at least once
     bool write_pending{false};  // a write waits for that answer
   };
-  void send_gate_thresholds_(uint8_t command, uint8_t query_command, GateThresholds &group);
+  void send_gate_thresholds_(bool motion);
 #endif
 
   uint8_t light_function_ = 0;
