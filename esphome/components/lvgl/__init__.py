@@ -296,9 +296,15 @@ def final_validation(config_list):
 
     for img in get_lv_images_used():
         path = global_config.get_path_for_id(img.id)[:-1]
-        image_conf = global_config.get_config_for_path(path)
-        # Images nested in another platform (sendspin's current_image) carry no type of their own
-        if IMAGE_TYPE.get(image_conf.get(CONF_TYPE)) is ImageRGB111:
+        # An image nested in another platform (sendspin's current_image) takes its type from the parent
+        while path:
+            image_conf = global_config.get_config_for_path(path)
+            if isinstance(image_conf, dict) and CONF_TYPE in image_conf:
+                break
+            path = path[:-1]
+        else:
+            continue
+        if IMAGE_TYPE.get(image_conf[CONF_TYPE]) is ImageRGB111:
             raise cv.FinalExternalInvalid(
                 f"Image '{img}': LVGL does not support RGB111 images, use RGB565 or RGB instead",
                 path + [CONF_TYPE],

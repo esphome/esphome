@@ -196,17 +196,33 @@ class TestImageTypeValidation:
                 "RGB111", pytest.raises(Invalid, match="does not support RGB111")
             ),
             pytest.param("RGB565", nullcontext()),
-            pytest.param(None, nullcontext(), id="nested_image_without_type"),
         ],
     )
-    def test_image_type(self, image_type: str | None, expectation) -> None:
+    def test_image_type(self, image_type: str, expectation) -> None:
         image_id = ID("my_image", True)
         fc = full_config.get()
-        image_conf = {CONF_ID: image_id}
-        if image_type is not None:
-            image_conf[CONF_TYPE] = image_type
-        fc["image"] = [image_conf]
+        fc["image"] = [{CONF_ID: image_id, CONF_TYPE: image_type}]
         fc.declare_ids.append((image_id, ["image", 0, CONF_ID]))
+        get_lv_images_used().add(image_id)
+
+        with expectation:
+            final_validation([_make_lvgl_config(["my_disp"])])
+
+    @pytest.mark.parametrize(
+        ("image_type", "expectation"),
+        [
+            pytest.param(
+                "RGB111", pytest.raises(Invalid, match="does not support RGB111")
+            ),
+            pytest.param("RGB565", nullcontext()),
+        ],
+    )
+    def test_nested_image_takes_parent_type(self, image_type: str, expectation) -> None:
+        """A sendspin artwork image declares its ID below the slot that holds the type."""
+        image_id = ID("album_art", True)
+        fc = full_config.get()
+        fc["image"] = [{CONF_TYPE: image_type, "current_image": {CONF_ID: image_id}}]
+        fc.declare_ids.append((image_id, ["image", 0, "current_image", CONF_ID]))
         get_lv_images_used().add(image_id)
 
         with expectation:
