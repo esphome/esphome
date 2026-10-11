@@ -3,6 +3,4 @@ packages:
   update: !include common-update.yaml
 
 mqtt:
-  broker: "test.mosquitto.org"
-  port: 8886
   tls: true

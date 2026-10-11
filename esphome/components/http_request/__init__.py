@@ -226,15 +226,8 @@ async def to_code(config: ConfigType) -> None:
                 #         use_full_certificate_bundle: true
                 esp32.require_certificate_bundle()
 
-        if not config.get(CONF_VERIFY_SSL):
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_TLS_INSECURE",
-                True,
-            )
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
-                True,
-            )
+        else:
+            esp32.allow_insecure_tls()
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
     if CORE.is_rp2 and CORE.using_arduino:

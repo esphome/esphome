@@ -1,9 +1,10 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import logger, socket
+from esphome.components.const import CONF_VERIFY_SSL
 from esphome.components.esp32 import (
     add_idf_component,
-    add_idf_sdkconfig_option,
+    allow_insecure_tls,
     idf_version,
     include_builtin_idf_component,
     request_tls,
@@ -80,7 +81,6 @@ def AUTO_LOAD():
 
 
 CONF_TLS = "tls"
-CONF_VERIFY_SSL = "verify_ssl"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
@@ -218,28 +218,24 @@ def validate_config(value):
             }
         else:
             out[CONF_LOG_TOPIC] = {}
-    # Validate that CONF_VERIFY_SSL is not False when CONF_CERTIFICATE_AUTHORITY is set
-    if (
-        CONF_CERTIFICATE_AUTHORITY in value
-        and value.get(CONF_VERIFY_SSL, True) is False
-    ):
+    if CONF_CERTIFICATE_AUTHORITY in value and value.get(CONF_VERIFY_SSL) is False:
         raise cv.Invalid(
-            "cannot set 'verify_ssl' to false when 'certificate_authority' is set."
+            "'verify_ssl' cannot be false when 'certificate_authority' is set."
         )
-    # Enable SSL if any of the SSL-related options are set
-    ssl_related_options = [
-        CONF_VERIFY_SSL,
-        CONF_CERTIFICATE_AUTHORITY,
-        CONF_CLIENT_CERTIFICATE,
-        CONF_CLIENT_CERTIFICATE_KEY,
-    ]
     if any(
-        (opt in value) if opt == CONF_VERIFY_SSL else (opt in value and value[opt])
-        for opt in ssl_related_options
+        key in value
+        for key in (
+            CONF_CERTIFICATE_AUTHORITY,
+            CONF_VERIFY_SSL,
+            CONF_CLIENT_CERTIFICATE,
+        )
     ):
-        if CONF_TLS in value and value[CONF_TLS] is False:
-            raise cv.Invalid("'tls' must be enabled when using SSL-related options.")
+        if value.get(CONF_TLS) is False:
+            raise cv.Invalid(
+                "'tls' cannot be false when a certificate or 'verify_ssl' is set."
+            )
         out[CONF_TLS] = True
+    out.setdefault(CONF_PORT, 8883 if out.get(CONF_TLS) else 1883)
     return out
 
 
@@ -256,7 +252,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(MQTTClientComponent),
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_PORT, default=1883): cv.port,
+            cv.Optional(CONF_PORT): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
@@ -474,23 +470,20 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
-    if config.get(CONF_TLS, False):
-        cg.add(var.set_ssl(config[CONF_TLS]))
-        cg.add(var.set_verify_ssl(config.get(CONF_VERIFY_SSL, True)))
-
-        if CONF_CLIENT_CERTIFICATE in config:
-            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+    if config.get(CONF_TLS):
+        cg.add_define("USE_MQTT_TLS")
+        if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
+            cg.add(var.set_cl_certificate(client_certificate))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
-
         if not config.get(CONF_VERIFY_SSL, True):
-            add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
-            add_idf_sdkconfig_option("CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True)
-        elif CONF_CERTIFICATE_AUTHORITY in config:
-            cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
-            cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+            allow_insecure_tls()
         else:
-            # Verify against the certificate bundle configured in the esp32 component
-            require_certificate_bundle()
+            cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+            if (ca := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
+                cg.add(var.set_ca_certificate(ca))
+            else:
+                cg.add_define("USE_MQTT_CERT_BUNDLE")
+                require_certificate_bundle()
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
