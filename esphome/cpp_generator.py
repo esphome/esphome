@@ -10,6 +10,7 @@ from esphome.core import (
     ID,
     Define,
     EnumValue,
+    EsphomeError,
     HexInt,
     Lambda,
     Library,
@@ -447,13 +448,16 @@ class LineComment(Statement):
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
-    __slots__ = ()
+    __slots__ = ("constexpr",)
 
-    def __init__(self, type_, name, rhs):
+    def __init__(self, type_, name, rhs, constexpr: bool = True):
         super().__init__(type_, "", name, rhs)
+        self.constexpr = constexpr
 
     def __str__(self):
-        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        if self.constexpr:
+            return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"ESPHOME_FLASH_CONSTINIT static {self.type} const {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -493,20 +497,34 @@ def extern_progmem_array(
 
 
 def shared_progmem_array(
-    name: str, type_: "MockObjClass", rhs: SafeExpType, *, share: bool = True
+    name: str,
+    type_: "MockObjClass",
+    rhs: SafeExpType,
+    *,
+    share: bool = True,
+    constexpr: bool = True,
 ) -> "MockObj":
     """Emit a global PROGMEM array once per distinct type and contents; later calls reuse it.
 
-    The array is ``static constexpr``, so elements must be constant expressions and lambdas
-    must be captureless. Its name is made unique against every config id and variable.
+    The array is ``static constexpr`` by default, so elements must be constant expressions and
+    lambdas must be captureless. Its name is made unique against every config id and variable.
     ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
+    ``constexpr=False`` is for tables of generated object pointers: each top level variable
+    element must pass ``is_static_pointer`` or ``EsphomeError`` is raised.
     """
     from esphome.config import iter_ids
     from esphome.config_validation import RESERVED_IDS
 
     arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
     rhs = safe_exp(rhs)
-    key = f"{type_} {rhs}"
+    if not constexpr and isinstance(rhs, ArrayInitializer):
+        for arg in rhs.args:
+            if isinstance(arg, MockObj) and not is_static_pointer(arg):
+                raise EsphomeError(
+                    f"'{arg}' must be created with cg.new_Pvariable so its address is known "
+                    "at compile time"
+                )
+    key = f"{type_} {rhs} {constexpr}"
     if share and (array := arrays.get(key)) is not None:
         return array
     used = {str(i) for i, _ in iter_ids(CORE.config)}
@@ -514,7 +532,7 @@ def shared_progmem_array(
     used |= set(RESERVED_IDS) | CORE.loaded_integrations
     id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
     # Global, so any scope can use it; anything a lambda references is already declared.
-    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs))
+    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs, constexpr))
     array = MockObj(id_, ".")
     CORE.register_variable(id_, array)
     if share:
@@ -703,6 +721,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
+        CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
@@ -710,6 +729,20 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
 
     CORE.register_variable(id_, obj)
     return obj
+
+
+_STATIC_POINTER_IDS = "static_pointer_ids"
+
+
+def is_static_pointer(obj: SafeExpType) -> bool:
+    """True if ``obj`` is a Pvariable whose object was placement constructed in static storage.
+
+    Its pointer is then an address known at compile time and may appear in a ``constexpr=False``
+    PROGMEM table; a pointer assigned in ``setup()`` may not.
+    """
+    return isinstance(obj, MockObj) and str(obj.base) in CORE.data.get(
+        _STATIC_POINTER_IDS, ()
+    )
 
 
 def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":

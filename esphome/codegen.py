@@ -34,6 +34,7 @@ from esphome.cpp_generator import (  # noqa: F401
     extern_progmem_array,
     get_variable,
     get_variable_with_full_id,
+    is_static_pointer,
     is_template,
     new_Pvariable,
     new_variable,

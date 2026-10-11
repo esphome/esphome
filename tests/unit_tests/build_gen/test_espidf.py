@@ -242,9 +242,18 @@ def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
 
 
 def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
-    """The link declares the map so size can build in the same ninja run."""
+    """The map is a link byproduct only when IDF has not declared it itself."""
     content = _render()
-    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map" in content
+    assert (
+        "get_source_file_property(esphome_map_declared\n"
+        "    ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map GENERATED)"
+    ) in content
+    assert (
+        "set(esphome_map_byproducts BYPRODUCTS "
+        "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map)"
+    ) in content
+    assert "    ${esphome_map_byproducts}\n    WORKING_DIRECTORY" in content
+    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map\n" not in content
 
 
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:

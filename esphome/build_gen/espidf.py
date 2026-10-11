@@ -425,15 +425,24 @@ project({CORE.name})
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
 # json2 stays small; raw dumps every symbol (~2s on a large map) and
 # this command runs inside the link edge, blocking everything downstream.
-# The map is a BYPRODUCT so ninja knows the link writes it; IDF's size
-# target depends on the map and can then be built in the same run as all.
-# IDF's cmakev2 declares the map itself, so drop this line on that switch.
+# IDF's size target depends on the map, so ninja has to know the link
+# writes it for size to build in the same run as all. IDF declares the
+# map itself since espressif/esp-idf#19201 (and in cmakev2), and ninja
+# rejects two rules for one output, so declare it here only when IDF has
+# not. add_custom_command(OUTPUT) marks its outputs GENERATED.
+get_source_file_property(esphome_map_declared
+    ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map GENERATED)
+if(esphome_map_declared)
+    set(esphome_map_byproducts)
+else()
+    set(esphome_map_byproducts BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map)
+endif()
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
     COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
-    BYPRODUCTS ${{CMAKE_BINARY_DIR}}/${{CMAKE_PROJECT_NAME}}.map
+    ${{esphome_map_byproducts}}
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
     VERBATIM
 )
