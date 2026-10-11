@@ -87,13 +87,11 @@ def test_cache_path_is_deterministic_per_url(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The cache path is derived from (and stable for) the URL."""
-    monkeypatch.setattr(
-        gsl.external_files, "compute_local_file_dir", lambda _: tmp_path
-    )
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path))
     first = gsl._cache_path(VALID_URL)
     assert first == gsl._cache_path(VALID_URL)
     assert first != gsl._cache_path("https://example.com/other.bin")
-    assert first.parent == tmp_path
+    assert first.parent == tmp_path / "gsl3670"
 
 
 def test_firmware_path_prefers_local_file(tmp_path: Path) -> None:
@@ -106,9 +104,7 @@ def test_firmware_path_uses_cache_for_url(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A ``url`` source resolves to the cache path for that URL."""
-    monkeypatch.setattr(
-        gsl.external_files, "compute_local_file_dir", lambda _: tmp_path
-    )
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path))
     assert gsl.firmware_path({"url": VALID_URL}) == gsl._cache_path(VALID_URL)
 
 
@@ -145,9 +141,7 @@ def test_firmware_url_downloads_and_validates(
 ) -> None:
     """A url source downloads the content and validates its structure."""
     data = _make_firmware()
-    monkeypatch.setattr(
-        gsl.external_files, "compute_local_file_dir", lambda _: tmp_path
-    )
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(gsl.external_files, "download_content", lambda url, path: data)
     assert gsl._validate_firmware({"url": VALID_URL}) == {"url": VALID_URL}
 
@@ -157,9 +151,7 @@ def test_firmware_url_sha256_mismatch_rejected(
 ) -> None:
     """A configured SHA-256 that does not match the download is rejected."""
     data = _make_firmware()
-    monkeypatch.setattr(
-        gsl.external_files, "compute_local_file_dir", lambda _: tmp_path
-    )
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(gsl.external_files, "download_content", lambda url, path: data)
     with pytest.raises(cv.Invalid, match="SHA-256 mismatch"):
         gsl._validate_firmware({"url": VALID_URL, "sha256": "00" * 32})
@@ -169,9 +161,7 @@ def test_firmware_url_invalid_structure_rejected(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Downloaded content that is not a valid blob is rejected."""
-    monkeypatch.setattr(
-        gsl.external_files, "compute_local_file_dir", lambda _: tmp_path
-    )
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(
         gsl.external_files, "download_content", lambda url, path: b"\x00\x01\x02"
     )
@@ -252,6 +242,31 @@ def test_config_seeed_model_applies_defaults(tmp_path: Path) -> None:
     # The interrupt pin default (16) is applied without being specified.
     assert CONF_INTERRUPT_PIN in result
     assert CONF_RESET_PIN in result
+
+
+def test_config_guition_model_applies_defaults(tmp_path: Path) -> None:
+    """The GUITION model populates transform and calibration defaults."""
+    fw = _write_firmware(tmp_path)
+    result = gsl.CONFIG_SCHEMA(
+        {
+            "model": "guition-jc8012p4a1",
+            "firmware": {"file": str(fw)},
+        }
+    )
+    assert result[CONF_MODEL] == "GUITION-JC8012P4A1"
+    # Transform defaults from the model.
+    assert result[CONF_TRANSFORM] == {
+        "swap_xy": True,
+        "mirror_x": True,
+        "mirror_y": False,
+    }
+    # Calibration defaults from the model.
+    assert result[CONF_CALIBRATION]["x_min"] == 20
+    assert result[CONF_CALIBRATION]["x_max"] == 880
+    assert result[CONF_CALIBRATION]["y_min"] == 20
+    assert result[CONF_CALIBRATION]["y_max"] == 1648
+    assert result[CONF_INTERRUPT_PIN]["number"] == 21
+    assert result[CONF_RESET_PIN]["number"] == 22
 
 
 def test_config_rejects_non_dict() -> None:

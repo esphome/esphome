@@ -4,4 +4,5 @@ media_source:
   - platform: audio_http
     id: audio_http_source
     buffer_size: 100000
+    persistent_ring_buffer: true
     task_stack_in_psram: true

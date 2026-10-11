@@ -28,3 +28,32 @@ text_sensor:
       name: "PAN ID"
     ext_pan_id:
       name: "Extended PAN ID"
+
+sensor:
+  - platform: openthread_info
+    parent_average_rssi:
+      name: "Parent Average RSSI"
+    parent_last_rssi:
+      name: "Parent Last RSSI"
+    parent_link_quality_in:
+      name: "Parent Link Quality In"
+    parent_link_quality_out:
+      name: "Parent Link Quality Out"
+    tx_total:
+      name: "TX Total"
+    tx_retries:
+      name: "TX Retries"
+    tx_err_cca:
+      name: "TX CCA Errors"
+    tx_err_abort:
+      name: "TX Abort Errors"
+    rx_total:
+      name: "RX Total"
+    rx_err_fcs:
+      name: "RX FCS Errors"
+    attach_attempts:
+      name: "Attach Attempts"
+    parent_changes:
+      name: "Parent Changes"
+    partition_id_changes:
+      name: "Partition ID Changes"

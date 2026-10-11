@@ -6,7 +6,6 @@ import re
 from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
-from esphome.automation import register_action, register_condition
 from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
@@ -58,17 +57,6 @@ micro_wake_word_ns = cg.esphome_ns.namespace("micro_wake_word")
 
 MicroWakeWord = micro_wake_word_ns.class_("MicroWakeWord", cg.Component)
 
-DisableModelAction = micro_wake_word_ns.class_("DisableModelAction", automation.Action)
-EnableModelAction = micro_wake_word_ns.class_("EnableModelAction", automation.Action)
-StartAction = micro_wake_word_ns.class_("StartAction", automation.Action)
-StopAction = micro_wake_word_ns.class_("StopAction", automation.Action)
-
-ModelIsEnabledCondition = micro_wake_word_ns.class_(
-    "ModelIsEnabledCondition", automation.Condition
-)
-IsRunningCondition = micro_wake_word_ns.class_(
-    "IsRunningCondition", automation.Condition
-)
 
 WakeWordModel = micro_wake_word_ns.class_("WakeWordModel")
 
@@ -166,12 +154,7 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
 
 
 def _compute_local_file_path(config: dict) -> Path:
-    url = config[CONF_URL]
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, config[CONF_URL])
 
 
 def _convert_manifest_v1_to_v2(v1_manifest):
@@ -389,11 +372,14 @@ def _download_http_models(config: ConfigType) -> ConfigType:
         return config
 
     external_files.download_content_many(
-        ((url, path / "manifest.json") for path, url in http_models.items()),
+        (
+            external_files.RemoteFile(url, path / "manifest.json")
+            for path, url in http_models.items()
+        ),
         description="wake word manifest(s)",
     )
 
-    model_files: list[tuple[str, Path]] = []
+    model_files: list[external_files.RemoteFile] = []
     errors: list[cv.Invalid] = []
     for path, url in http_models.items():
         try:
@@ -412,7 +398,7 @@ def _download_http_models(config: ConfigType) -> ConfigType:
                 cv.Invalid(f"Manifest file at {url} is missing the 'model' key")
             )
             continue
-        model_files.append((urljoin(url, model), path / model))
+        model_files.append(external_files.RemoteFile(urljoin(url, model), path / model))
     if errors:
         raise cv.MultipleInvalid(errors)
 
@@ -432,7 +418,7 @@ CONFIG_SCHEMA = cv.All(
                 min_channels=1,
                 max_channels=1,
             ),
-            cv.Required(CONF_MODELS): cv.ensure_list(
+            cv.Optional(CONF_MODELS, default=[]): cv.ensure_list(
                 cv.maybe_simple_value(MODEL_SCHEMA, key=CONF_MODEL)
             ),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
@@ -555,6 +541,9 @@ async def to_code(config):
         # Use the general model loading code for the VAD codegen
         config[CONF_MODELS].append(vad_model)
 
+    # Default feature step size for runtime models
+    feature_step_size = 10
+
     for i, model_parameters in enumerate(config[CONF_MODELS]):
         model_config = model_parameters.get(CONF_MODEL)
         data = []
@@ -572,6 +561,9 @@ async def to_code(config):
             CONF_SLIDING_WINDOW_SIZE,
             manifest[KEY_MICRO][CONF_SLIDING_WINDOW_SIZE],
         )
+
+        # Update feature step size from manifest
+        feature_step_size = manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]
 
         if manifest[KEY_WAKE_WORD] == "vad":
             cg.add(
@@ -602,7 +594,7 @@ async def to_code(config):
 
             cg.add(var.add_wake_word_model(wake_word_model))
 
-    cg.add(var.set_features_step_size(manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]))
+    cg.add(var.set_features_step_size(feature_step_size))
     cg.add(var.set_stop_after_detection(config[CONF_STOP_AFTER_DETECTION]))
 
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):
@@ -615,23 +607,19 @@ async def to_code(config):
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
 
-
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.start",
-    StartAction,
     MICRO_WAKE_WORD_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("start()"),
 )
-@register_action(
-    "micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "micro_wake_word.stop",
+    MICRO_WAKE_WORD_ACTION_SCHEMA,
+    automation.ApplyCall("stop()"),
 )
-@register_condition(
-    "micro_wake_word.is_running", IsRunningCondition, MICRO_WAKE_WORD_ACTION_SCHEMA
+automation.register_apply_condition(
+    "micro_wake_word.is_running", MICRO_WAKE_WORD_ACTION_SCHEMA, "is_running()"
 )
-async def micro_wake_word_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -640,24 +628,18 @@ MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.enable_model",
-    EnableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("enable()"),
 )
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.disable_model",
-    DisableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("disable()"),
 )
-@register_condition(
+automation.register_apply_condition(
     "micro_wake_word.model_is_enabled",
-    ModelIsEnabledCondition,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
+    "is_enabled()",
 )
-async def model_action(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)

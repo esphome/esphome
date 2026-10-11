@@ -7,7 +7,7 @@
 
 namespace esphome::emc2101 {
 
-static const char *const TAG = "EMC2101";
+ESPHOME_LOG_TAG(TAG, "EMC2101");
 
 static const uint8_t EMC2101_CHIP_ID = 0x16;      // EMC2101 default device id from part id
 static const uint8_t EMC2101_ALT_CHIP_ID = 0x28;  // EMC2101 alternate device id from part id
@@ -93,7 +93,7 @@ void Emc2101Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? "DAC" : "PWM");
+  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? LOG_STR_LITERAL("DAC") : LOG_STR_LITERAL("PWM"));
   if (this->dac_mode_) {
     ESP_LOGCONFIG(TAG, "  DAC Conversion Rate: %X", this->dac_conversion_rate_);
   } else {

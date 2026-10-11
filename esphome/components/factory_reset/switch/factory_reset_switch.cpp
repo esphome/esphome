@@ -11,7 +11,7 @@
 
 namespace esphome::factory_reset {
 
-static const char *const TAG = "factory_reset.switch";
+ESPHOME_LOG_TAG(TAG, "factory_reset.switch");
 
 void FactoryResetSwitch::dump_config() { LOG_SWITCH("", "Factory Reset Switch", this); }
 void FactoryResetSwitch::write_state(bool state) {
