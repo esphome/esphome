@@ -38,7 +38,10 @@ static const uint8_t NFCA_PROFILE_CORR[][2] PROGMEM = {
     {ST25R_REG_CORR_CONF2, 0x00},
 };
 
-void IRAM_ATTR ST25R::isr(ST25R *arg) { arg->enable_loop_soon_any_context(); }
+void IRAM_ATTR ST25R::isr(ST25R *arg) {
+  arg->irq_fired_ = true;
+  arg->enable_loop_soon_any_context();
+}
 
 void ST25R::setup() {
   if (this->reset_pin_ != nullptr) {
@@ -77,7 +80,14 @@ void ST25R::loop() {
     this->disable_loop();
     return;
   }
-  this->irq_status_ = this->read_register(ST25R_REG_IRQ_MAIN);
+  // With an IRQ pin the status is only fetched after the chip raised the line; the
+  // state timeouts still run on every pass
+  if (this->irq_pin_ == nullptr || this->irq_fired_) {
+    this->irq_fired_ = false;
+    this->irq_status_ = this->read_register(ST25R_REG_IRQ_MAIN);
+  } else {
+    this->irq_status_ = 0;
+  }
   this->process_state_();
 }
 
@@ -101,15 +111,16 @@ void ST25R::write_register_table_(const uint8_t (*table)[2], size_t count) {
 }
 
 bool ST25R::transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t resp_cap, uint8_t &resp_len,
-                           bool with_crc, uint32_t timeout_ms) {
+                           uint32_t timeout_ms) {
   this->clear_irqs_();
   this->write_command(ST25R_CMD_RESET_RX_GAIN);
 
-  this->write_register(ST25R_REG_NUM_TX_BYTES1, (len >> 8) & 0xFF);
-  this->write_register(ST25R_REG_NUM_TX_BYTES2, with_crc ? ((len & 0x1F) << 3) : 0x00);
+  // The byte count spans both registers: ntx[12:5] in the first, ntx[4:0] plus the bit count in the second
+  this->write_register(ST25R_REG_NUM_TX_BYTES1, (len >> 5) & 0xFF);
+  this->write_register(ST25R_REG_NUM_TX_BYTES2, (len & 0x1F) << 3);
 
   this->write_fifo(data, len);
-  this->write_command(with_crc ? ST25R_CMD_TRANSMIT_WITH_CRC : ST25R_CMD_TRANSMIT_WITHOUT_CRC);
+  this->write_command(ST25R_CMD_TRANSMIT_WITH_CRC);
 
   uint32_t start = millis();
   resp_len = 0;
@@ -190,6 +201,11 @@ void ST25R::process_state_() {
       uint8_t resp[5];
       this->read_fifo(resp, 5);
       uint8_t bcc = resp[0] ^ resp[1] ^ resp[2] ^ resp[3];
+      if (bcc != resp[4]) {
+        ESP_LOGV(TAG, "Anticollision BCC mismatch");
+        this->finish_scan_();
+        break;
+      }
       uint8_t sel_pk[7] = {SEL_CMDS[this->cascade_level_], 0x70, resp[0], resp[1], resp[2], resp[3], bcc};
 
       // Skip the cascade tag (0x88)
@@ -202,7 +218,7 @@ void ST25R::process_state_() {
 
       uint8_t sak_buf[3];
       uint8_t sak_len = 0;
-      if (!this->transceive_ex_(sel_pk, sizeof(sel_pk), sak_buf, sizeof(sak_buf), sak_len, true, 150)) {
+      if (!this->transceive_ex_(sel_pk, sizeof(sel_pk), sak_buf, sizeof(sak_buf), sak_len, 150)) {
         ESP_LOGW(TAG, "SELECT failed (no SAK)");
         this->finish_scan_();
         break;
@@ -230,7 +246,7 @@ void ST25R::process_state_() {
       }
 
       char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
-      ESP_LOGD(TAG, "Tag selected: %s (SAK=0x%02X)", nfc::format_uid_to(uid_buf, this->scan_uid_), sak);
+      ESP_LOGV(TAG, "Tag selected: %s (SAK=0x%02X)", nfc::format_uid_to(uid_buf, this->scan_uid_), sak);
       this->tag_found_this_scan_ = true;
       this->send_halt_();
       this->finish_scan_();

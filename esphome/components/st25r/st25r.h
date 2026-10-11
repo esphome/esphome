@@ -101,7 +101,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void send_anticol_frame_();
   void send_halt_();
   bool transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t resp_cap, uint8_t &resp_len,
-                      bool with_crc, uint32_t timeout_ms);
+                      uint32_t timeout_ms);
   void process_state_();
   void finish_scan_();
   void finalize_scan_();
@@ -129,6 +129,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   uint8_t irq_status_{0};
   uint8_t cascade_level_{0};
   bool tag_found_this_scan_{false};
+  volatile bool irq_fired_{false};
 
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_callback_;
   LazyCallbackManager<void(const std::string &, const nfc::NfcTag &)> on_tag_removed_callback_;
