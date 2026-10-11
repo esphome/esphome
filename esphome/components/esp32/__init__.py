@@ -243,7 +243,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
-    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, sigma_delta, Arduino BLE libs
     "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
@@ -251,7 +251,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
     "esp_driver_sdio",  # SDIO device-mode driver - unused by ESPHome
-    "esp_driver_sdm",  # Sigma-delta modulation driver - unused by ESPHome
+    "esp_driver_sdm",  # Sigma-delta modulation driver - re-included by sigma_delta speaker
     "esp_driver_sdmmc",  # SD/MMC host driver - unused by ESPHome
     "esp_driver_sdspi",  # SD-over-SPI driver - unused by ESPHome
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
