@@ -29,6 +29,7 @@ void TinyUSBKeyboard::flush_() {
     ESP_LOGV(TAG, "No host, dropping report");
     this->keyboard_pending_ = false;
     this->consumer_pending_ = false;
+    this->wakeup_requested_ = false;
     this->disable_loop();
     return;
   }
