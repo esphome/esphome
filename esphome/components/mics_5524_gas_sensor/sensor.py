@@ -40,35 +40,25 @@ from . import (
     CONF_ADC_PIN_MAX,
     CONF_ADC_SAMPLES,
     CONF_AIR_REFERENCE,
-    CONF_COEFFICIENT_A,
-    CONF_COEFFICIENT_B,
-    CONF_CONVERSION,
     CONF_GAS,
     CONF_LOG_PPM,
     CONF_LOG_SENSOR,
     CONF_MAX_PPM,
     CONF_MIN_PPM,
     CONF_PERSIST,
-    CONF_R0,
     CONF_R1,
     CONF_R2,
     CONF_RATIO_SENSOR,
-    CONF_RL,
-    CONF_RS_SENSOR,
     CONF_SAMPLE_COUNT,
     CONF_SAMPLE_INTERVAL,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
-    CONVERSION_MODELS,
     ESP32_ADC_INPUT_MAX_V,
     ESP32_ADC_PIN_MAX_V,
     MiCS5524GasSensor,
 )
 from .coefficients import (
-    CONVERSION_DATASHEET,
-    CONVERSION_DFROBOT,
-    DEFAULT_RL_KOHM,
     SELECTIVITY_NOTE,
     gas_keys,
     label_for,
@@ -150,17 +140,13 @@ CALIBRATION_SCHEMA = cv.Schema(
 
 
 def _validate_config(config: ConfigType) -> ConfigType:
-    """Cross-check the gas/conversion/coefficient combination at compile time."""
+    """Cross-check the gas and the PPM range at compile time."""
     gas = config[CONF_GAS]
-    conversion = config[CONF_CONVERSION]
     label = label_for(gas)
 
     try:
         resolved = resolve_gas(
             gas,
-            conversion,
-            a=config.get(CONF_COEFFICIENT_A),
-            b=config.get(CONF_COEFFICIENT_B),
             min_ppm=config.get(CONF_MIN_PPM),
             max_ppm=config.get(CONF_MAX_PPM),
         )
@@ -172,21 +158,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
             f"max_ppm ({resolved.max_ppm}) must be greater than min_ppm ({resolved.min_ppm})"
         )
 
-    if conversion == CONVERSION_DFROBOT:
-        stray = [key for key in (CONF_RL, CONF_R0) if key in config]
-        if stray:
-            raise cv.Invalid(
-                f"'conversion: {CONVERSION_DFROBOT}' derives everything from the clean-air "
-                f"reference, remove {', '.join(f'{key}:' for key in stray)} "
-                f"(or use 'conversion: {CONVERSION_DATASHEET}')"
-            )
-    elif CONF_AIR_REFERENCE in config:
-        raise cv.Invalid(
-            f"'air_reference:' belongs to 'conversion: {CONVERSION_DFROBOT}', "
-            f"use 'r0:' with 'conversion: {CONVERSION_DATASHEET}'"
-        )
-
-    fixed = CONF_AIR_REFERENCE if conversion == CONVERSION_DFROBOT else CONF_R0
+    fixed = CONF_AIR_REFERENCE
     if fixed in config and CONF_CALIBRATION in config:
         _LOGGER.warning(
             "%s: both '%s:' and 'calibration:' are set - the fixed value wins and the "
@@ -205,9 +177,8 @@ def _validate_config(config: ConfigType) -> ConfigType:
     if resolved.note:
         _LOGGER.info("%s: %s", label, resolved.note)
     _LOGGER.info(
-        "%s: conversion '%s' - %s (treat the value as an estimate)",
+        "%s: %s (treat the value as an estimate)",
         label,
-        conversion,
         SELECTIVITY_NOTE,
     )
 
@@ -264,9 +235,6 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Required(CONF_GAS): cv.All(cv.string, validate_gas),
-            cv.Optional(CONF_CONVERSION, default=CONVERSION_DFROBOT): cv.one_of(
-                *CONVERSION_MODELS, lower=True
-            ),
             cv.Optional(CONF_VOLTAGE): cv.use_id(voltage_sampler.VoltageSampler),
             cv.Optional(CONF_PIN): cv.valid,
             cv.SplitDefault(CONF_ADC_ATTENUATION, esp32="12db"): cv.All(
@@ -278,11 +246,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ADC_INPUT_MAX): cv.positive_not_null_float,
             cv.Optional(CONF_ADC_PIN_MAX): cv.positive_not_null_float,
             cv.Optional(CONF_VCC, default=5.0): cv.positive_not_null_float,
-            cv.Optional(CONF_RL): cv.positive_not_null_float,
-            cv.Optional(CONF_R0): cv.positive_not_null_float,
             cv.Optional(CONF_AIR_REFERENCE): cv.positive_not_null_float,
-            cv.Optional(CONF_COEFFICIENT_A): cv.float_,
-            cv.Optional(CONF_COEFFICIENT_B): cv.float_,
             cv.Optional(CONF_SAMPLE_COUNT, default=4): cv.int_range(min=1, max=255),
             cv.Optional(
                 CONF_SAMPLE_INTERVAL, default="20ms"
@@ -295,7 +259,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
             cv.Optional(CONF_RATIO_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_RS_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_VOLTAGE_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_LOG_SENSOR): cv.use_id(text_sensor.TextSensor),
             cv.Optional(CONF_LOG_PPM, default=False): cv.boolean,
@@ -329,9 +292,6 @@ async def _create_internal_adc(config: ConfigType):
 async def to_code(config: ConfigType) -> None:
     resolved = resolve_gas(
         config[CONF_GAS],
-        config[CONF_CONVERSION],
-        a=config.get(CONF_COEFFICIENT_A),
-        b=config.get(CONF_COEFFICIENT_B),
         min_ppm=config.get(CONF_MIN_PPM),
         max_ppm=config.get(CONF_MAX_PPM),
     )
@@ -340,29 +300,22 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_gas(resolved.label))
-    cg.add(var.set_conversion(CONVERSION_MODELS[resolved.conversion]))
     cg.add(var.set_threshold(resolved.threshold))
     cg.add(var.set_gain(resolved.gain))
     cg.add(var.set_vendor_min_ppm(resolved.vendor_min_ppm))
     cg.add(var.set_vendor_max_ppm(resolved.vendor_max_ppm))
-    cg.add(var.set_a(resolved.a))
-    cg.add(var.set_b(resolved.b))
     cg.add(var.set_min_ppm(resolved.min_ppm))
     cg.add(var.set_max_ppm(resolved.max_ppm))
-    rl = float(config.get(CONF_RL, DEFAULT_RL_KOHM))
-    cg.add(var.set_rl(rl))
     cg.add(var.set_vcc(config[CONF_VCC]))
     cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_sample_interval(config[CONF_SAMPLE_INTERVAL]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
 
-    if (r0 := config.get(CONF_R0)) is not None:
-        cg.add(var.set_r0(r0))
     if (air_reference := config.get(CONF_AIR_REFERENCE)) is not None:
         cg.add(var.set_air_reference(air_reference))
 
-    fixed = CONF_AIR_REFERENCE if resolved.conversion == CONVERSION_DFROBOT else CONF_R0
+    fixed = CONF_AIR_REFERENCE
     calibration = config.get(CONF_CALIBRATION)
     if calibration is not None and fixed not in config:
         cg.add(
@@ -384,7 +337,6 @@ async def to_code(config: ConfigType) -> None:
 
     for key, setter in (
         (CONF_RATIO_SENSOR, var.set_ratio_sensor),
-        (CONF_RS_SENSOR, var.set_rs_sensor),
         (CONF_VOLTAGE_SENSOR, var.set_voltage_sensor),
         (CONF_LOG_SENSOR, var.set_log_sensor),
     ):
@@ -394,14 +346,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_log_ppm(config[CONF_LOG_PPM]))
 
     _LOGGER.debug(
-        "%s: conversion=%s threshold=%s gain=%s a=%s b=%s rl=%s vcc=%s range=%s..%s ppm",
+        "%s: threshold=%s gain=%s vcc=%s range=%s..%s ppm",
         resolved.label,
-        resolved.conversion,
         resolved.threshold,
         resolved.gain,
-        resolved.a,
-        resolved.b,
-        rl,
         config[CONF_VCC],
         resolved.min_ppm,
         resolved.max_ppm,

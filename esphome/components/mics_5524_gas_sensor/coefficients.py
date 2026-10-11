@@ -1,8 +1,6 @@
-"""Data tables for the MiCS-5524 gas sensor platform.
+"""Data tables for the ``mics_5524_gas_sensor`` platform.
 
-Two conversion models, which are *not* interchangeable:
-
-``dfrobot`` (default) - vendor model of the `DFRobot_MICS` library (MIT), which is
+The conversion is the vendor model of the `DFRobot_MICS` library (MIT), which is
 what the "Fermion" analog breakout and its clones are sold for:
 ``x = VCC - V_AO``, ``ratio = x / x_air`` (~1.0 in clean air, drops with gas),
 ``ppm = (threshold - ratio) / gain`` clamped to the gas range.  ``x_air`` is
@@ -10,23 +8,11 @@ sampled during the clean-air calibration, so the board's load resistor and its
 divider ratio do not matter.  Source: ``DFRobot_MICS.cpp`` (``getGasData()`` and
 the per-gas helpers), cross-checked against ``python/raspberrypi/DFRobot_MICS.py``.
 
-``datasheet`` - ``RS = (VCC * RL) / V_AO - RL``, ``ratio = RS / R0`` (R0 = RS in
-clean air), ``ppm = a * ratio^b``.  Only CO ships with coefficients (``a = 6.3``,
-``b = -1.1``, from 10 ppm at RS/R0 = 0.5 and 1000 ppm at RS/R0 = 0.01 in the Home
-Assistant community thread "CO sensor - MICS-5524 or MICS-6814"); all other gases
-need explicit ``coefficient_a:``/``coefficient_b:``.
-
-Both tables are resolved at code generation time, so a wrong ``gas:`` /
-``conversion:`` combination fails the build instead of producing nonsense.
+The table is resolved at code generation time, so a wrong ``gas:`` fails the build
+instead of producing nonsense.
 """
 
 from dataclasses import dataclass
-
-CONVERSION_DFROBOT = "dfrobot"
-CONVERSION_DATASHEET = "datasheet"
-
-#: Accepted ``conversion:`` values, the vendor model first.
-CONVERSIONS = (CONVERSION_DFROBOT, CONVERSION_DATASHEET)
 
 
 @dataclass(frozen=True)
@@ -40,22 +26,12 @@ class VendorCurve:
 
 
 @dataclass(frozen=True)
-class DatasheetCurve:
-    """Coefficients of the datasheet power law ``ppm = a * ratio^b``."""
-
-    a: float
-    b: float
-    max_ppm: float
-
-
-@dataclass(frozen=True)
 class GasDefinition:
-    """One gas of the MiCS-5524, with the constants of both models."""
+    """One gas of the MiCS-5524, with the constants of the vendor model."""
 
     key: str
     label: str
     vendor: VendorCurve | None
-    datasheet: DatasheetCurve | None
     vendor_range: str
     note: str = ""
 
@@ -68,15 +44,12 @@ GASES: dict[str, GasDefinition] = {
         key="CO",
         label="CO",
         vendor=VendorCurve(0.425, 0.000405, 1.0, 1000.0),
-        datasheet=DatasheetCurve(6.3, -1.1, 1000.0),
         vendor_range="1 - 1000 ppm",
-        note="2-point datasheet fit (10 ppm @ RS/R0 0.5, 1000 ppm @ RS/R0 0.01)",
     ),
     "H2": GasDefinition(
         key="H2",
         label="H2",
         vendor=VendorCurve(0.279, 0.00026, 1.0, 1000.0),
-        datasheet=None,  # no published fit - set a:/b: explicitly
         vendor_range="1 - 1000 ppm",
         note="target gas of this project (trace / early warning band)",
     ),
@@ -84,21 +57,18 @@ GASES: dict[str, GasDefinition] = {
         key="NH3",
         label="NH3",
         vendor=VendorCurve(0.8, 0.0015, 10.0, 500.0),
-        datasheet=None,
         vendor_range="1 - 500 ppm (vendor math reports 0 below 10 ppm)",
     ),
     "C2H5OH": GasDefinition(
         key="C2H5OH",
         label="C2H5OH",
         vendor=VendorCurve(0.306, 0.00057, 10.0, 500.0),
-        datasheet=None,
         vendor_range="10 - 500 ppm",
     ),
     "CH4": GasDefinition(
         key="CH4",
         label="CH4",
         vendor=VendorCurve(0.786, 0.000023, 1000.0, 25000.0),
-        datasheet=None,
         vendor_range="1000 - 25000 ppm",
     ),
 }
@@ -110,9 +80,6 @@ SELECTIVITY_NOTE = (
     "single analog output: the reading is a mixture of CO, H2, C2H5OH, NH3 and "
     "CH4, it cannot identify which gas is present"
 )
-
-#: Load resistor of the common analog breakouts; only the datasheet model uses it.
-DEFAULT_RL_KOHM = 10.0
 
 #: Friendly aliases accepted by ``gas:`` (the two references name gases differently).
 GAS_ALIASES: dict[str, str] = {
@@ -151,13 +118,8 @@ def gas_keys() -> list[str]:
 
 
 def label_for(gas_key: str) -> str:
-    """Datasheet label of a gas key (``H2`` -> ``H2``)."""
+    """Friendly label of a gas key (``H2`` -> ``H2``)."""
     return GASES[gas_key].label
-
-
-def datasheet_gases() -> list[str]:
-    """Gases that ship with datasheet coefficients (the others need ``coefficient_a:``)."""
-    return [key for key, definition in GASES.items() if definition.datasheet is not None]
 
 
 def vendor_gases() -> list[str]:
@@ -171,13 +133,10 @@ class ResolvedGas:
 
     gas: str
     label: str
-    conversion: str
-    threshold: float  # vendor model: detection threshold of the ratio
-    gain: float  # vendor model: ppm per unit ratio
-    vendor_min_ppm: float  # vendor model: below this the vendor reports 0
-    vendor_max_ppm: float  # vendor model: upper end of the vendor's own range
-    a: float  # datasheet model
-    b: float  # datasheet model
+    threshold: float  #: ratio at/below which the gas counts as detected
+    gain: float  #: ppm per unit ratio
+    vendor_min_ppm: float  #: below this the vendor reports 0
+    vendor_max_ppm: float  #: upper end of the vendor's own range
     min_ppm: float
     max_ppm: float
     note: str = ""
@@ -185,80 +144,32 @@ class ResolvedGas:
 
 def resolve_gas(
     gas: str,
-    conversion: str,
     *,
-    a: float | None = None,
-    b: float | None = None,
     min_ppm: float | None = None,
     max_ppm: float | None = None,
 ) -> ResolvedGas:
-    """Merge the built-in table of `gas`/`conversion` with explicit YAML overrides.
+    """Merge the built-in table of `gas` with explicit YAML overrides.
 
-    Raises :class:`ValueError` for an unknown gas/conversion, coefficients of the
-    other model, or a missing coefficient.
+    Raises :class:`ValueError` for an unknown gas.
     """
-    if conversion not in CONVERSIONS:
-        raise ValueError(
-            f"unknown conversion '{conversion}', expected one of: {', '.join(CONVERSIONS)}"
-        )
     if gas not in GASES:
         raise ValueError(
             f"unknown gas '{gas}', expected one of: {', '.join(gas_keys())}"
         )
 
     definition = GASES[gas]
-    explicit_coefficients = a is not None or b is not None
+    curve = definition.vendor
+    if curve is None:  # pragma: no cover - every shipped gas has a vendor curve
+        raise ValueError(f"{definition.label} has no built-in vendor constants")
 
-    if conversion == CONVERSION_DFROBOT:
-        if explicit_coefficients:
-            raise ValueError(
-                f"'coefficient_a:'/'coefficient_b:' are the coefficients of "
-                f"conversion: {CONVERSION_DATASHEET} - remove them or switch "
-                f"the conversion"
-            )
-        curve = definition.vendor
-        if curve is None:  # pragma: no cover - every shipped gas has a vendor curve
-            raise ValueError(f"{definition.label} has no built-in vendor constants")
-        return ResolvedGas(
-            gas=gas,
-            label=definition.label,
-            conversion=conversion,
-            threshold=curve.threshold,
-            gain=curve.gain,
-            vendor_min_ppm=curve.min_ppm,
-            vendor_max_ppm=curve.max_ppm,
-            a=0.0,
-            b=0.0,
-            min_ppm=float(0.0 if min_ppm is None else min_ppm),
-            max_ppm=float(curve.max_ppm if max_ppm is None else max_ppm),
-            note=definition.note,
-        )
-
-    curve = definition.datasheet
-    resolved_a = float(a) if a is not None else (curve.a if curve is not None else None)
-    resolved_b = float(b) if b is not None else (curve.b if curve is not None else None)
-    if resolved_a is None or resolved_b is None:
-        shipped = ", ".join(datasheet_gases())
-        raise ValueError(
-            f"{definition.label} has no built-in 'conversion: {CONVERSION_DATASHEET}' "
-            f"coefficients (only {shipped}) - set both 'coefficient_a:' and "
-            f"'coefficient_b:' in the configuration"
-        )
     return ResolvedGas(
         gas=gas,
         label=definition.label,
-        conversion=conversion,
-        threshold=0.0,
-        gain=0.0,
-        vendor_min_ppm=0.0,
-        vendor_max_ppm=0.0,
-        a=resolved_a,
-        b=resolved_b,
+        threshold=curve.threshold,
+        gain=curve.gain,
+        vendor_min_ppm=curve.min_ppm,
+        vendor_max_ppm=curve.max_ppm,
         min_ppm=float(0.0 if min_ppm is None else min_ppm),
-        max_ppm=float(
-            (curve.max_ppm if curve is not None else 1000.0)
-            if max_ppm is None
-            else max_ppm
-        ),
+        max_ppm=float(curve.max_ppm if max_ppm is None else max_ppm),
         note=definition.note,
     )

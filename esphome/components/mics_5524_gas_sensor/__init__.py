@@ -1,16 +1,10 @@
 """``mics_5524_gas_sensor`` - ESPHome platform for the MiCS-5524 gas sensor.
 
-Two conversion models are available (constants and sources in
-``coefficients.py``):
-
-``conversion: dfrobot`` (default)
-    Vendor model of the DFRobot_MICS library (MIT) used by the analog breakout.
-    The reference value is captured in clean air, so the board's load resistor
-    and divider do not matter.
-
-``conversion: datasheet``
-    ``RS = (VCC * RL) / V_AO - RL``, ``ppm = a * (RS / R0)^b`` - the classic
-    datasheet fit, shipped for CO only (``a = 6.3``, ``b = -1.1``).
+The conversion is the vendor model of the DFRobot_MICS library (MIT) used by the
+analog breakout (constants and source in ``coefficients.py``):
+``ratio = (VCC - V_AO) / (VCC - V_AO_air)``, ``ppm = (threshold - ratio) / gain``
+per gas.  The reference value is captured in clean air, so the board's load
+resistor and its divider do not matter.
 
 The analog signal comes either from an existing voltage sampler (``voltage:``)
 or from a pin this component owns (``pin:``, which creates an internal ``adc``
@@ -38,9 +32,6 @@ MiCS5524GasSensor = mics_5524_gas_sensor_ns.class_(
 # components (`warmup_time`, `enable_pin`, `voltage_divider`) are imported from
 # esphome.const by the platform schema.
 CONF_GAS = "gas"
-CONF_CONVERSION = "conversion"
-CONF_COEFFICIENT_A = "coefficient_a"
-CONF_COEFFICIENT_B = "coefficient_b"
 CONF_VOLTAGE_MULTIPLIER = "voltage_multiplier"
 CONF_R1 = "r1"
 CONF_R2 = "r2"
@@ -49,8 +40,6 @@ CONF_ADC_PIN_MAX = "adc_pin_max"
 CONF_ADC_ATTENUATION = "adc_attenuation"
 CONF_ADC_SAMPLES = "adc_samples"
 CONF_VCC = "vcc"
-CONF_RL = "rl"
-CONF_R0 = "r0"
 CONF_AIR_REFERENCE = "air_reference"
 CONF_SAMPLE_COUNT = "sample_count"
 CONF_SAMPLE_INTERVAL = "sample_interval"
@@ -60,14 +49,7 @@ CONF_LOG_SENSOR = "log_sensor"
 CONF_LOG_PPM = "log_ppm"
 CONF_PERSIST = "persist"
 CONF_RATIO_SENSOR = "ratio_sensor"
-CONF_RS_SENSOR = "rs_sensor"
 CONF_VOLTAGE_SENSOR = "voltage_sensor"
-
-# Conversion models, mirroring micsmath::ConversionModel.
-CONVERSION_MODELS = {
-    "dfrobot": 0,  # DFRobot_MICS vendor model (analog breakout)
-    "datasheet": 1,  # RS/R0 power law fitted on the datasheet curve
-}
 
 # Divider guard limits of the classic ESP32: the recommended maximum input
 # voltage (VDD) and the datasheet's absolute maximum (VDD + 0.3 V).  Override them

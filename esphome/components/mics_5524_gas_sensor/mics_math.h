@@ -1,28 +1,16 @@
 #pragma once
 //
-// Pure math of the MiCS-5524 models; per-gas constants are in `coefficients.py`.
+// Pure math of the MiCS-5524 vendor model; per-gas constants live in `coefficients.py`.
 //
-// "dfrobot"   - vendor model of the DFRobot_MICS library (MIT), used by the
-//               analog breakout: x = VCC - V_ao, ratio = x / x_air (the value
-//               sampled in the clean-air calibration), ppm = (threshold - ratio)
-//               / gain, per gas clamped to its range.
-// "datasheet" - log-log fit of the datasheet curve: RS = (VCC * RL) / V_ao - RL,
-//               ratio = RS / R0 (R0 = RS in clean air), ppm = a * ratio^b.
+// x = VCC - V_ao, ratio = x / x_air (the value sampled during the clean-air
+// calibration), ppm = (threshold - ratio) / gain, per gas clamped to its range.
 //
 // Free of ESPHome / ESP-IDF dependencies so the same code can be tested on the host.
 //
 
-#include <cfloat>
 #include <cmath>
-#include <cstdint>
 
 namespace esphome::mics_5524_gas_sensor::micsmath {
-
-/// Conversion model, mirrors `CONVERSION_MODELS` in `__init__.py`.
-enum ConversionModel : uint8_t {
-  CONVERSION_MODEL_DFROBOT = 0,    ///< vendor model of DFRobot_MICS (analog breakout)
-  CONVERSION_MODEL_DATASHEET = 1,  ///< RS/R0 power law fitted on the datasheet curve
-};
 
 /// Per-gas constants of the vendor model, see `coefficients.py` for the table.
 struct VendorCurve {
@@ -31,43 +19,6 @@ struct VendorCurve {
   float min_ppm;    ///< below this the vendor reports "0 ppm"
   float max_ppm;    ///< upper end of the measuring range
 };
-
-/// pow() with the fast paths of the reference implementations.
-inline double safe_pow(double base, double exponent) {
-  if (exponent == 0.0)
-    return 1.0;
-  if (exponent == 1.0)
-    return base;
-  if (exponent == 2.0)
-    return base * base;
-  return std::pow(base, exponent);
-}
-
-/// True when `log_ppm` cannot be turned into a finite float again.
-inline bool will_overflow(double log_ppm) {
-  const double max_log = std::log10(static_cast<double>(FLT_MAX));
-  const double min_log = std::log10(static_cast<double>(FLT_MIN));
-  return (log_ppm > max_log || log_ppm < min_log);
-}
-
-/// Sensor resistance in kOhm for a divider output: RS = (VCC * RL) / V - RL.
-/// Returns 0 for a non-positive / non-finite voltage instead of +inf.
-inline float rs_from_voltage(float voltage, float vcc, float rl) {
-  if (!std::isfinite(voltage) || voltage <= 0.0f)
-    return 0.0f;
-  const double rs =
-      (static_cast<double>(vcc) * static_cast<double>(rl) / static_cast<double>(voltage)) - static_cast<double>(rl);
-  if (!std::isfinite(rs) || rs < 0.0)
-    return 0.0f;
-  return static_cast<float>(rs);
-}
-
-/// RS / R0 ratio (0 when either value is unusable).
-inline float ratio_from_rs(float rs, float r0) {
-  if (!std::isfinite(rs) || rs <= 0.0f || !std::isfinite(r0) || r0 <= 0.0f)
-    return 0.0f;
-  return static_cast<float>(static_cast<double>(rs) / static_cast<double>(r0));
-}
 
 /// Vendor model input `x = VCC - V_ao` (clamped to >= 0, 0 for unusable input).
 inline float air_value_from_voltage(float voltage, float vcc) {
@@ -104,27 +55,6 @@ inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
     return 0.0f;
   if (ppm > static_cast<double>(curve.max_ppm))
     return curve.max_ppm;
-  return static_cast<float>(ppm);
-}
-
-/// Datasheet model: ppm = a * ratio^b (MQUnifiedsensor style regression).
-/// FLT_MAX signals "out of range / not evaluable" so the caller can clamp it.
-inline float ppm_from_power_law(float a, float b, float ratio) {
-  if (!std::isfinite(ratio) || ratio <= 0.0f || a == 0.0f)
-    return 0.0f;
-
-  const double log_ppm =
-      std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
-  double ppm;
-  if (will_overflow(log_ppm)) {
-    ppm = (std::isnan(log_ppm) || log_ppm > 0.0) ? static_cast<double>(FLT_MAX) : 0.0;
-  } else {
-    ppm = safe_pow(10.0, log_ppm);
-  }
-  if (std::isnan(ppm) || std::isinf(ppm))
-    ppm = static_cast<double>(FLT_MAX);
-  if (ppm < 0.0)
-    ppm = 0.0;
   return static_cast<float>(ppm);
 }
 
