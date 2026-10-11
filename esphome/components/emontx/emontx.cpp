@@ -18,7 +18,9 @@ void EmonTx::setup() { this->buffer_pos_ = 0; }
 void EmonTx::loop() {
   // Read all available data to prevent UART buffer overflow
   while (this->available() > 0) {
-    uint8_t received = this->read();
+    uint8_t received;
+    if (!this->read_byte(&received))
+      break;
 
     if (received == '\r') {
       continue;  // Ignore CR
