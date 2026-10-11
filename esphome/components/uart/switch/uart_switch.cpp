@@ -4,7 +4,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.switch";
+ESPHOME_LOG_TAG(TAG, "uart.switch");
 
 void UARTSwitch::loop() {
   if (this->send_every_) {

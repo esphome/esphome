@@ -3,7 +3,7 @@
 
 namespace esphome::qwiic_pir {
 
-static const char *const TAG = "qwiic_pir";
+ESPHOME_LOG_TAG(TAG, "qwiic_pir");
 
 void QwiicPIRComponent::setup() {
   // Verify I2C communcation by reading and verifying the chip ID

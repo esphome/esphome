@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mat931"]
+DOMAIN = "sun_gtil2"
 MULTI_CONF = True
 DEPENDENCIES = ["uart"]
 

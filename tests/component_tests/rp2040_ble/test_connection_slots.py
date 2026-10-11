@@ -20,7 +20,7 @@ def test_proxy_claims_its_slots_through_the_shared_accounting(
     # A default (3-slot) proxy build records one claim per slot, attributed
     # to the consumer, and passes final validation.
     generate_main(component_config_path("rp2_proxy_default.yaml"))
-    used = CORE.data[rp2040_ble.KEY_RP2040_BLE][rp2040_ble.KEY_USED_CONNECTION_SLOTS]
+    used = CORE.data[rp2040_ble.DOMAIN][rp2040_ble.KEY_USED_CONNECTION_SLOTS]
     assert used == ["bluetooth_proxy"] * 3
 
 

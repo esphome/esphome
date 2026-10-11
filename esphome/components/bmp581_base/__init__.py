@@ -19,6 +19,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kahrendt", "@danielkent-net"]
+DOMAIN = "bmp581_base"
 
 bmp581_ns = cg.esphome_ns.namespace("bmp581_base")
 

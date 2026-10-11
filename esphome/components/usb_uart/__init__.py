@@ -5,6 +5,7 @@ from esphome.components.uart import (
     CONF_DEBUG_PREFIX,
     CONF_FLUSH_TIMEOUT,
     UARTComponent,
+    UARTParityOptions,
     mark_unclocked,
 )
 from esphome.components.usb_host import (
@@ -23,18 +24,27 @@ from esphome.const import (
     CONF_ID,
     CONF_TYPE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "usb_uart"
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 
-UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
+
+def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
+    return any(
+        channel[CONF_ID] == uart_id
+        for device in full_config.get(DOMAIN) or []
+        for channel in device[CONF_CHANNELS]
+    )
+
+
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
     "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,

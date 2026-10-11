@@ -3,6 +3,8 @@ esphome:
 
 esp32:
   board: esp32dev
+  framework:
+    version: 5.5.5
 
 ethernet:
   id: eth_component
