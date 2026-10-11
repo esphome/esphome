@@ -1,7 +1,7 @@
 from typing import Any
 
 import esphome.config_validation as cv
-from esphome.const import CONF_DIMENSIONS
+from esphome.const import CONF_DIMENSIONS, CONF_RESET_PIN
 from esphome.types import ConfigType
 
 from . import RESUMES_AFTER_DEEP_SLEEP
@@ -19,12 +19,16 @@ class SSD1681(SSD1683):
         super().__init__(name, class_name=class_name, **defaults)
 
     def validate_config(self, config: ConfigType) -> ConfigType:
+        config = super().validate_config(config)
         width, height = self.get_dimensions(config)
         if width > MAX_WIDTH or height > MAX_HEIGHT:
             raise cv.Invalid(
                 f"{self.name} supports at most {MAX_WIDTH}x{MAX_HEIGHT} pixels",
                 path=[CONF_DIMENSIONS],
             )
+        if CONF_RESET_PIN not in config:
+            # The panel sleeps after every update, and only the hardware reset wakes it
+            raise cv.Invalid(f"{self.name} needs a {CONF_RESET_PIN}")
         return config
 
 
