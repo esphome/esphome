@@ -312,6 +312,11 @@ void LD2412Component::read_all_info() {
 void LD2412Component::restart_and_read_all_info() {
   this->set_config_mode_(true);
   this->restart_();
+#ifdef USE_NUMBER
+  // The module's thresholds may change across the restart, so a write waits for the re-read
+  this->gate_move_thresholds_.read = false;
+  this->gate_still_thresholds_.read = false;
+#endif
   this->set_timeout(1000, [this]() { this->read_all_info(); });
 }
 
