@@ -1,0 +1,4 @@
+---
+InheritParentConfig: true
+ExtraArgs:
+  - -fno-access-control
