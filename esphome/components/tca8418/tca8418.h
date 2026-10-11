@@ -73,14 +73,13 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   const uint8_t *keys_{nullptr};  // PROGMEM, indexed by key number - 1
   InternalGPIOPin *interrupt_pin_{nullptr};
   uint32_t last_poll_{0};
+#ifdef TCA8418_LISTENER_COUNT
+  StaticVector<TCA8418Listener *, TCA8418_LISTENER_COUNT> listeners_;
+#endif
   uint8_t rows_{0};
   uint8_t columns_{0};
   uint8_t keys_size_{0};
   bool gpi_events_{true};
-
-#ifdef TCA8418_LISTENER_COUNT
-  StaticVector<TCA8418Listener *, TCA8418_LISTENER_COUNT> listeners_;
-#endif
 };
 
 }  // namespace esphome::tca8418
