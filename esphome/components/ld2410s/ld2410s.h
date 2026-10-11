@@ -27,7 +27,8 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   enum class FrameType : uint8_t { NONE, SHORT_DATA, STD_DATA, COMMAND };
 
   void receive_byte_(uint8_t byte);
-  void handle_frame_();
+  /// Returns false when the footer does not match, so the bytes can be scanned again.
+  bool handle_frame_();
   void handle_data_frame_(const uint8_t *payload, uint16_t len);
   void handle_command_ack_(const uint8_t *payload, uint16_t len);
   void reset_frame_() {
@@ -48,6 +49,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   uint8_t init_timeouts_{0};
   FrameType frame_type_{FrameType::NONE};
   bool awaiting_ack_{false};
+  bool rescanning_{false};
 };
 
 }  // namespace esphome::ld2410s

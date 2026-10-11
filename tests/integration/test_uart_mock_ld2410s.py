@@ -15,7 +15,8 @@ test_uart_mock_ld2410s_recovery (the mock never answers the init commands):
      that it is starting over
   3. A standard frame whose length field exceeds the receive buffer is dropped
   4. A truncated standard frame swallows the bytes after it up to its declared
-     length, fails the footer check, and later frames parse again
+     length and fails the footer check; the swallowed bytes are rescanned, so
+     the short frames hidden in them still publish
   5. A command frame with a bad footer is dropped
   6. 100 bytes that never start a header are skipped
   7. A standard frame of the largest size that fits (86 byte payload) is accepted
@@ -47,10 +48,22 @@ ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 # short 1, noise + short 2, short 0, partial header + short 3
 EXPECTED_PRESENCE = [True, False, True, False, True, False, True]
 
-# has_target after each recovery phase (see uart_mock_ld2410s_recovery.yaml):
-# baseline on, oversized length + off, truncated + absorbed frames (no change),
-# on, bad command footer + off, junk + on, off, max-size frame on, off
-EXPECTED_RECOVERY_PRESENCE = [True, False, True, False, True, False, True, False]
+# has_target after each recovery phase (see uart_mock_ld2410s_recovery.yaml).
+# The truncated frame swallows the state 2 short frame after it plus the header
+# byte of the following state 0 short frame; the footer mismatch rescans those
+# bytes, which publishes the swallowed frame and resumes the next one.
+EXPECTED_RECOVERY_PRESENCE = [
+    True,  # baseline short frame
+    False,  # short frame after the dropped oversized length field
+    True,  # rescued: short frame swallowed by the truncated standard frame
+    False,  # short frame whose header byte completed the truncated frame
+    True,  # short frame
+    False,  # short frame after the command frame with a bad footer
+    True,  # short frame after 100 junk bytes
+    False,  # short frame
+    True,  # maximum-size standard frame
+    False,  # short frame
+]
 # The truncated frame takes the next 6 bytes to reach its declared length
 TRUNCATED_FRAME_HEX = "F4 F3 F2 F1 05 00 01 02 2C 6E 02 2C 01 62 6E"
 BAD_COMMAND_FRAME_HEX = "FD FC FB FA 04 00 FE 01 00 00 00 00 00 00"
@@ -195,6 +208,8 @@ async def test_uart_mock_ld2410s_recovery(
         # Let any unexpected extra update arrive before comparing
         await asyncio.sleep(0.3)
 
+        # Recovery shows in the published states alone; the footer log below is
+        # only a cross-check that needs the fixture's VERBOSE logger level
         assert collector.binary_states["has_target"] == EXPECTED_RECOVERY_PRESENCE
         assert oversized_dropped.done(), "Oversized length field was not dropped"
         assert footer_mismatches == [TRUNCATED_FRAME_HEX, BAD_COMMAND_FRAME_HEX]

@@ -36,8 +36,9 @@ uart_mock:
     # frame is read as the rest of the declared length, so the frame stays one byte short
     - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x05, 0x00, 0x01, 0x02, 0x2C, 0x6E, 0x02, 0x2C, 0x01, 0x62]
-    # Short frame, state 0: its first byte completes the truncated frame (footer mismatch), the rest
-    # is dropped as noise -> no change
+    # Short frame, state 0: its first byte completes the truncated frame (footer mismatch); the
+    # rescan of the swallowed bytes rescues the state 2 short frame -> presence on, and leaves this
+    # frame's header pending, so the rest of it completes -> presence off
     - delay: 100ms
       inject_rx: [0x6E, 0x00, 0x00, 0x00, 0x62]
     # Short frame, state 2 -> presence on

@@ -173,13 +173,26 @@ void LD2410SComponent::receive_byte_(uint8_t byte) {
     return;
   }
 
-  if (this->rx_len_ >= this->expected_len_) {
-    this->handle_frame_();
-    this->reset_frame_();
+  if (this->rx_len_ < this->expected_len_) {
+    return;
   }
+  if (this->handle_frame_() || this->rescanning_) {
+    this->reset_frame_();
+    return;
+  }
+  // A truncated long frame swallowed the bytes that followed it; try them again as new frames, once
+  uint8_t rest[RX_BUFFER_SIZE];
+  const uint8_t rest_len = this->rx_len_ - 1;
+  memcpy(rest, &this->rx_buffer_[1], rest_len);
+  this->reset_frame_();
+  this->rescanning_ = true;
+  for (uint8_t i = 0; i < rest_len; i++) {
+    this->receive_byte_(rest[i]);
+  }
+  this->rescanning_ = false;
 }
 
-void LD2410SComponent::handle_frame_() {
+bool LD2410SComponent::handle_frame_() {
   const uint8_t *footer;
   uint8_t footer_size = sizeof(CMD_FRAME_FOOTER);
   uint8_t payload_pos = LONG_PAYLOAD_POS;
@@ -202,7 +215,7 @@ void LD2410SComponent::handle_frame_() {
     ESP_LOGV(TAG, "Footer does not match header: %s",
              format_hex_pretty_to(hex_buf, this->rx_buffer_, this->rx_len_, ' '));
 #endif
-    return;
+    return false;
   }
   const uint8_t *payload = &this->rx_buffer_[payload_pos];
   const uint16_t payload_len = this->rx_len_ - payload_pos - footer_size;
@@ -220,6 +233,7 @@ void LD2410SComponent::handle_frame_() {
       this->handle_command_ack_(payload, payload_len);
       break;
   }
+  return true;
 }
 
 void LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) {
@@ -234,6 +248,7 @@ void LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) 
 
 void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len) {
   if (len < 4) {
+    ESP_LOGV(TAG, "Acknowledgement too short (%u bytes)", len);
     return;
   }
   const uint16_t command_word = encode_uint16(payload[1], payload[0]);
