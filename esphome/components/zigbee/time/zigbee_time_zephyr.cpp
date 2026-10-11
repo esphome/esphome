@@ -25,7 +25,7 @@ void ZigbeeTime::sync_time(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t 
 void ZigbeeTime::setup() {
   global_time = this;
   this->parent_->add_callback(this->endpoint_, [this](zb_bufid_t bufid) { this->zcl_device_cb_(bufid); });
-  synchronize_epoch_(EPOCH_2000);
+  this->update();
   this->parent_->add_on_join_callback([this](bool x) { zb_zcl_time_server_synchronize(this->endpoint_, sync_time); });
 }
 
@@ -38,8 +38,12 @@ void ZigbeeTime::dump_config() {
 }
 
 void ZigbeeTime::update() {
-  time_t time = timestamp_now();
-  this->cluster_attributes_->time = time - EPOCH_2000;
+  const time_t now = this->timestamp_now();
+  if (now < EPOCH_2000) {
+    this->cluster_attributes_->time = 0xFFFFFFFF;  // ZCL invalid UTCTime
+  } else {
+    this->cluster_attributes_->time = static_cast<uint32_t>(now - EPOCH_2000);
+  }
 }
 
 void ZigbeeTime::set_epoch_time(uint32_t epoch) {
