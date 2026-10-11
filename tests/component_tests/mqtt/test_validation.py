@@ -35,6 +35,7 @@ def test_plain_defaults_to_port_1883() -> None:
         {CONF_CERTIFICATE_AUTHORITY: "cert"},
         {CONF_VERIFY_SSL: False},
         {CONF_CLIENT_CERTIFICATE: "cert"},
+        {CONF_SKIP_CERT_CN_CHECK: True},
     ],
 )
 def test_tls_defaults_to_port_8883(extra: ConfigType) -> None:
@@ -63,6 +64,7 @@ def test_skip_cert_cn_check_with_verify_ssl_false_rejected() -> None:
         {CONF_CERTIFICATE_AUTHORITY: "cert"},
         {CONF_VERIFY_SSL: True},
         {CONF_CLIENT_CERTIFICATE: "cert"},
+        {CONF_SKIP_CERT_CN_CHECK: True},
     ],
 )
 def test_tls_false_with_certificate_options_rejected(extra: ConfigType) -> None:

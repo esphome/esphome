@@ -382,6 +382,8 @@ def _prepare_with_mocks(config: dict) -> tuple[MagicMock, MagicMock, MagicMock]:
     ):
         client = client_cls.return_value
         context = create_context.return_value
+        # A real context verifies hostnames unless prepare() turns that off
+        context.check_hostname = True
         mqtt_module.prepare(config, [], None, None, None, None, None)
     return client, create_context, context
 
@@ -400,7 +402,7 @@ def test_prepare_tls_without_ca_uses_system_trust_store() -> None:
     )
 
     create_context.assert_called_once_with(cadata=None)
-    assert context.check_hostname is not False
+    assert context.check_hostname is True
     client.tls_set_context.assert_called_once_with(context)
 
 

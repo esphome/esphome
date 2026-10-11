@@ -242,7 +242,8 @@ def _validate_tls(config: ConfigType) -> ConfigType:
     if config.keys() & TLS_IMPLYING_KEYS or config.get(CONF_SKIP_CERT_CN_CHECK):
         if config.get(CONF_TLS) is False:
             raise cv.Invalid(
-                "'tls' cannot be false when a certificate or 'verify_ssl' is set."
+                "'tls' cannot be false when a certificate, 'verify_ssl' or "
+                "'skip_cert_cn_check' is set."
             )
         config[CONF_TLS] = True
     config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
