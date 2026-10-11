@@ -45,6 +45,12 @@ void EPaperUC8179::set_refresh_mode_() {
   }
 }
 
+void EPaperUC8179::setup() {
+  EPaperBase::setup();
+  if (!this->is_failed())
+    this->init_sent_frame_(this->buffer_length_);
+}
+
 bool HOT EPaperUC8179::transfer_data() {
   const uint32_t start_time = millis();
   const size_t buffer_length = this->buffer_length_;
@@ -97,6 +103,8 @@ bool HOT EPaperUC8179::transfer_data() {
         bytes_to_send[i] = invert_new_data ? ~byte : byte;
       }
       this->write_array(bytes_to_send, bytes_to_copy);
+      if (!invert_new_data)
+        this->record_sent_(data_idx, bytes_to_send, bytes_to_copy);
       this->current_data_index_ += bytes_to_copy;
       if (millis() - start_time > MAX_TRANSFER_TIME) {
         this->disable();
