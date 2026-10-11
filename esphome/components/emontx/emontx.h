@@ -60,9 +60,12 @@ class EmonTx final : public Component, public uart::UARTDevice {
    * to flip from any task.
    *
    * Once loop() has seen the pause, resuming discards the partial line held
-   * at pause time and everything up to the next newline, since the other
-   * component may have consumed bytes mid-line; only complete lines reach
-   * on_data and the JSON parser.
+   * at pause time, the bytes received during the pause, and everything up to
+   * the next newline, since the other component may have consumed bytes
+   * mid-line; only complete lines reach on_data and the JSON parser.
+   * A pause and resume with no loop() pass in between are not seen, so no
+   * resync happens: keep the pause for at least one loop() pass before
+   * another component reads from the UART.
    */
   void set_paused(bool paused) { this->paused_.store(paused, std::memory_order_relaxed); }
 

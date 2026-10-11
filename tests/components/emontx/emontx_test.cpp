@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -89,6 +90,75 @@ TEST_F(EmonTxTest, OverflowAcrossLoopCalls) {
 
   ASSERT_EQ(this->lines_.size(), 1u);
   EXPECT_EQ(this->lines_[0], "MSG:3");
+}
+
+TEST_F(EmonTxTest, LoopLeavesBytesUntouchedWhenPaused) {
+  this->uart_.push_rx("{\"P1\":123}\n");
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+
+  EXPECT_EQ(this->uart_.available(), std::strlen("{\"P1\":123}\n"));
+  EXPECT_TRUE(this->lines_.empty());
+}
+
+TEST_F(EmonTxTest, SendCommandIsSuppressedWhilePaused) {
+  this->sut_.set_paused(true);
+  this->sut_.send_command("x");
+  EXPECT_TRUE(this->uart_.tx.empty());
+
+  this->sut_.set_paused(false);
+  this->sut_.send_command("x");
+  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "x\n");
+}
+
+// Neither the partial line held at pause time nor the tail received after resuming may reach on_data:
+// spliced they would form "{\"P1\":456}", alone "56}" - neither line arrived intact.
+TEST_F(EmonTxTest, ResumeDiscardsInterruptedLine) {
+  this->uart_.push_rx("{\"P1\":4");
+  this->sut_.loop();
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  this->sut_.set_paused(false);
+
+  this->uart_.push_rx("56}\n");
+  this->sut_.loop();
+  EXPECT_TRUE(this->lines_.empty());
+
+  this->uart_.push_rx("{\"P1\":789}\n");
+  this->sut_.loop();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], "{\"P1\":789}");
+}
+
+// Lines received while paused are stale, and the last one may have been cut off where the RX buffer filled
+TEST_F(EmonTxTest, ResumeDropsBacklogReceivedWhilePaused) {
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  this->uart_.push_rx("{\"P1\":1}\n{\"P1\":2}\n{\"P1\":");
+  this->sut_.set_paused(false);
+
+  this->sut_.loop();
+  EXPECT_EQ(this->uart_.available(), 0u);
+  EXPECT_TRUE(this->lines_.empty());
+
+  this->uart_.push_rx("3}\n{\"P1\":4}\n");
+  this->sut_.loop();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], "{\"P1\":4}");
+}
+
+// A backlog ending on a line boundary needs no further discarding
+TEST_F(EmonTxTest, ResumeAfterCompleteBacklogKeepsNextLine) {
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  this->uart_.push_rx("{\"P1\":1}\n");
+  this->sut_.set_paused(false);
+
+  this->sut_.loop();
+  this->uart_.push_rx("{\"P1\":2}\n");
+  this->sut_.loop();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], "{\"P1\":2}");
 }
 
 }  // namespace esphome::emontx::testing

@@ -24,10 +24,14 @@ void EmonTx::loop() {
     return;
   }
   if (this->was_paused_) {
-    // The other component may have consumed bytes mid-line
+    // Bytes received during the pause are stale or were meant for the other component, which may also have
+    // consumed bytes mid-line: drop the backlog and resync at the next line start
     this->was_paused_ = false;
     this->buffer_pos_ = 0;
     this->discarding_line_ = true;
+    uint8_t dropped;
+    while (this->available() > 0 && this->read_byte(&dropped))
+      this->discarding_line_ = dropped != '\n';
   }
 
   // Read all available data to prevent UART buffer overflow
