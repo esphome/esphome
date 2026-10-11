@@ -1,0 +1,14 @@
+substitutions:
+  some_file: some_file.txt
+  this_dir_name: substitutions
+
+test_list:
+  - Current dir is: substitutions
+  - Current file is: 20-current-file.input.yaml
+  - Parent dir is: fixtures
+  - Last three parts of path:
+      - fixtures
+      - substitutions
+      - some_file.txt
+  - file_is_absolute: true
+  - file_parent_equals_dir: true

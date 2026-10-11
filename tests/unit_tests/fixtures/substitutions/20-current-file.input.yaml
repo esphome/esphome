@@ -1,0 +1,11 @@
+substitutions:
+  some_file: some_file.txt
+  this_dir_name: ${ this_dir().name }
+
+test_list:
+  - Current dir is: ${ this_dir().name }
+  - Current file is: ${ this_file().name }
+  - Parent dir is: ${ this_dir().parent.name }
+  - Last three parts of path: ${ (this_dir() / some_file).parts[-3:] | list }
+  - file_is_absolute: ${ this_file().is_absolute() }
+  - file_parent_equals_dir: ${ this_file().parent == this_dir() }
