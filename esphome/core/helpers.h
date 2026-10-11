@@ -881,7 +881,8 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 }
 
 /// Add up the bytes of \p data with size \p len, truncated to 8 bits: the checksum many serial and IR
-/// protocols use.
+/// protocols use. Prefer this over a bare std::accumulate, whose result type follows the seed, so a plain 0
+/// sums in int and compares wrong against a checksum byte.
 constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
   return std::accumulate(data, data + len, sum);
 }
