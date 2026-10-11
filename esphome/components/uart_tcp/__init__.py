@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, sensor, socket, uart
+from esphome.components import binary_sensor, noise, sensor, socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
     CONF_CONNECTED,
@@ -12,8 +12,11 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
+    CONF_ENCRYPTION,
     CONF_ID,
+    CONF_KEY,
     CONF_PORT,
+    CONF_TIMEOUT,
     CONF_UART_ID,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -26,8 +29,22 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@Bascht74"]
 DOMAIN = "uart_tcp"
 DEPENDENCIES = ["network", "uart"]
-AUTO_LOAD = ["binary_sensor", "sensor", "socket"]
 MULTI_CONF = True
+
+
+def AUTO_LOAD() -> list[str]:
+    # Reads the raw config, as tcp_uart does: an AUTO_LOAD that takes the
+    # config runs after the DEPENDENCIES checks
+    base = ["binary_sensor", "sensor", "socket"]
+    raw = (CORE.raw_config or {}).get(DOMAIN)
+    confs = raw if isinstance(raw, list) else [raw]
+    # Without a config (tooling) the maximal set
+    if CORE.raw_config is None or any(
+        isinstance(conf, dict) and CONF_ENCRYPTION in conf for conf in confs
+    ):
+        base.append("noise")
+    return base
+
 
 CONF_DISCONNECTS = "disconnects"
 
@@ -43,6 +60,8 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ENCRYPTION): noise.STREAM_ENCRYPTION_SCHEMA,
         cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_CONNECTIVITY,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -125,7 +144,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = cv.All(
+    socket.final_validate_idle_timeout,
+    noise.final_validate_stream_key(DOMAIN),
+    _final_validate,
+)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -142,8 +165,16 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
+    if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
+        cg.add(var.set_timeout(timeout))
     if (host := config.get(CONF_HOST)) is not None:
         cg.add(var.set_host(host))
+    if (encryption := config.get(CONF_ENCRYPTION)) is not None:
+        # The TCP client starts the handshake
+        stream = noise.new_stream(
+            config[CONF_ID], encryption[CONF_KEY], config[CONF_ROLE] == "client"
+        )
+        cg.add(var.set_noise_stream(stream))
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
     sensors = sensor.sub_sensors(config)

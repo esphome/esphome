@@ -24,9 +24,13 @@ class TcpClientLink {
   void set_host(const char *host) { this->host_ = StringRef(host); }
   void set_port(uint16_t port) { this->port_ = port; }
   void set_reconnect_interval(uint32_t ms) { this->reconnect_interval_ms_ = ms; }
+  /// 0 leaves the link up. A full local buffer is not idle: the caller notes that
+  /// with note_io(), because the peer may still be sending.
+  void set_idle_timeout(uint32_t ms) { this->idle_timeout_ms_ = ms; }
   const char *host() const { return this->host_.c_str(); }
   uint16_t port() const { return this->port_; }
   uint32_t reconnect_interval() const { return this->reconnect_interval_ms_; }
+  uint32_t idle_timeout() const { return this->idle_timeout_ms_; }
 
   /// Call from setup(). tag names this link's log lines.
   void begin(const char *tag);
@@ -59,6 +63,15 @@ class TcpClientLink {
   }
   /// Close without scheduling a reconnect (shutdown).
   void close();
+  /// Restart the idle clock. A consumer that cannot take more bytes calls this,
+  /// so a full buffer is not treated as a quiet peer.
+  void note_io() { this->last_io_ms_ = App.get_loop_component_start_time(); }
+  /// Close when no byte has moved for idle_timeout(). Inline no-op at a zero timeout or while down.
+  void check_idle() {
+    if (this->idle_timeout_ms_ != 0 && this->connected_) {
+      this->check_idle_slow_();
+    }
+  }
 
   bool connected() const { return this->connected_; }
   bool ready() const { return this->sock_ != nullptr && this->sock_->ready(); }
@@ -78,12 +91,15 @@ class TcpClientLink {
   void try_connect_();
   /// Close after a failure, log what and errno, schedule the next attempt.
   void drop_(const LogString *what, int err);
+  void check_idle_slow_();
 
   StringRef host_;
   std::unique_ptr<Socket> sock_;
   const char *tag_{nullptr};
   uint32_t last_attempt_ms_{0};
   uint32_t reconnect_interval_ms_{5000};
+  uint32_t last_io_ms_{0};
+  uint32_t idle_timeout_ms_{0};
   Ipv4Resolve resolved_;
   uint16_t port_{0};
   uint16_t tx_len_{0};

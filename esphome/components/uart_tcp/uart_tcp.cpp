@@ -13,6 +13,11 @@ ESPHOME_LOG_TAG(TAG, "uart_tcp");
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
+#ifdef USE_NOISE_STREAM
+  if (this->noise_ != nullptr) {
+    this->noise_->set_log_tag(TAG);
+  }
+#endif
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
@@ -34,6 +39,14 @@ void UartTcp::dump_config() {
                 this->server_ ? LOG_STR_LITERAL("Listen") : LOG_STR_LITERAL("Host"),
                 this->server_ ? LOG_STR_LITERAL("*") : this->link_.host(), this->link_.port(),
                 this->link_.reconnect_interval());
+  if (this->link_.idle_timeout() != 0) {
+    ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "ms", this->link_.idle_timeout());
+  }
+#ifdef USE_NOISE_STREAM
+  if (this->noise_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Encryption: Noise");
+  }
+#endif
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
@@ -50,12 +63,17 @@ void UartTcp::on_shutdown() {
 #endif
 }
 
-void UartTcp::sync_link_() {
-  bool up = this->link_.connected();
+void UartTcp::sync_link_(bool up) {
   this->link_was_up_ = up;
   if (up) {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
+#ifdef USE_NOISE_STREAM
+    // The handshake's last read can leave session bytes the socket's ready flag does not show
+    if (this->noise_ != nullptr) {
+      this->rx_pending_ = true;
+    }
+#endif
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
@@ -74,12 +92,18 @@ void UartTcp::read_socket_() {
   // not fit in the socket, so TCP flow control throttles the peer.
   size_t room = this->parent_->paced_write_room(this->last_write_ms_);
   if (room == 0) {
+    // The UART cannot take more. The peer is not idle.
     this->rx_pending_ = true;
+    this->link_.note_io();
     return;
   }
   uint8_t tmp[READ_CHUNK];
   size_t want = std::min(room, sizeof(tmp));
+#ifdef USE_NOISE_STREAM
+  ssize_t count = this->noise_ != nullptr ? this->noise_->read(this->link_, tmp, want) : this->link_.read(tmp, want);
+#else
   ssize_t count = this->link_.read(tmp, want);
+#endif
   if (count <= 0) {
     // A dropped link (-1) is cleaned up by sync_link_() on the next loop.
     if (count == 0) {
@@ -106,6 +130,19 @@ void UartTcp::discard_uart_() {
 }
 
 void UartTcp::read_uart_() {
+#ifdef USE_NOISE_STREAM
+  if (this->noise_ != nullptr) {
+    // Plaintext goes into the stream's open frame, so it cannot fill the link's buffer directly.
+    uint8_t tmp[READ_CHUNK];
+    for (;;) {
+      size_t want = std::min({this->available(), this->noise_->tx_free(this->link_), sizeof(tmp)});
+      if (want == 0 || !this->read_array(tmp, want)) {
+        return;
+      }
+      this->noise_->queue(this->link_, tmp, want);
+    }
+  }
+#endif
   size_t want = std::min<size_t>(this->available(), this->link_.tx_free());
   if (want != 0 && this->read_array(this->link_.tx_tail(), want)) {
     this->link_.tx_commit(want);
@@ -124,18 +161,21 @@ void UartTcp::loop() {
 #else
   this->link_.poll();
 #endif
-  if (this->link_.connected() != this->link_was_up_) {
-    this->sync_link_();
+  bool up = this->link_up_();
+  if (up != this->link_was_up_) {
+    this->sync_link_(up);
   }
   if (!this->link_was_up_) {
     return;
   }
+  // A byte moved in this pass resets the clock before the timeout can close.
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_();
   }
   // UART bytes picked up here go out in the same pass.
   this->read_uart_();
-  this->link_.flush_tx();
+  this->flush_link_();
+  this->link_.check_idle();
 }
 
 }  // namespace esphome::uart_tcp

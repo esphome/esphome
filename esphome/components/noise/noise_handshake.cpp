@@ -20,7 +20,8 @@ NoiseResponderHandshake::~NoiseResponderHandshake() {
   }
 }
 
-int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {
+template<int Role>
+int NoiseResponderHandshake::init_(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {
   if (this->handshake_ != nullptr) {
     noise_handshakestate_free(this->handshake_);
     this->handshake_ = nullptr;
@@ -39,7 +40,7 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
       .hybrid_id = NOISE_DH_NONE,
   };
 
-  int err = noise_handshakestate_new_by_id(&this->handshake_, &nid, NOISE_ROLE_RESPONDER);
+  int err = noise_handshakestate_new_by_id(&this->handshake_, &nid, Role);
   if (err != 0) {
     HANDSHAKE_STEP_LOG("noise_handshakestate_new_by_id", err);
     return err;
@@ -58,10 +59,12 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
     return this->fail_init_(err);
   }
 #ifdef USE_NOISE_SPARE_EPHEMERAL
-  err = consume_spare_ephemeral(this->handshake_);
-  // Not fatal: the handshake generates its own key instead
-  if (err != 0) {
-    HANDSHAKE_STEP_LOG("noise_handshakestate_set_local_ephemeral", err);
+  if constexpr (Role == NOISE_ROLE_RESPONDER) {
+    err = consume_spare_ephemeral(this->handshake_);
+    // Not fatal: the handshake generates its own key instead
+    if (err != 0) {
+      HANDSHAKE_STEP_LOG("noise_handshakestate_set_local_ephemeral", err);
+    }
   }
 #endif
   err = noise_handshakestate_start(this->handshake_);
@@ -71,6 +74,11 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
   }
   return 0;
 }
+
+template int NoiseResponderHandshake::init_<NOISE_ROLE_RESPONDER>(const NoiseContext &, const uint8_t *, size_t);
+#ifdef USE_NOISE_STREAM
+template int NoiseResponderHandshake::init_<NOISE_ROLE_INITIATOR>(const NoiseContext &, const uint8_t *, size_t);
+#endif
 
 /// Release a half-initialized state so a failed init() leaves the object as
 /// if init() was never called.
