@@ -324,17 +324,34 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   const std::span<const uint8_t> pdu(pdu_buffer, pdu_len);
   const std::span<const uint8_t> data = pdu.subspan(1);  // after the function code
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  std::memcpy(this->request_, pdu_buffer, pdu_len);
+  this->request_len_ = static_cast<uint8_t>(pdu_len);
+#endif
+
+  ModbusServerDevice *device = nullptr;
+  if (address != BROADCAST_ADDRESS) {
+    device = this->find_device_(address);
+    if (device == nullptr) {
+      this->expecting_peer_response_ = address;
+#ifdef USE_MODBUS_SEND_RESPONSE
+      // Before on_request, so a reply its handler sends with send_response is matched.
+      this->peer_function_code_ = function_code;
+#endif
+      ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
+    }
+  }
+#ifdef MODBUS_ON_REQUEST_COUNT
+  // Before a device here answers, so the monitor sees the bus in order.
+  this->request_callback_.call(address, pdu);
+#endif
 
   if (address == BROADCAST_ADDRESS) {
     // Keep the unicast response buffers out of the broadcast call chain.
     this->process_broadcast_frame_(function_code, data);
-  } else {
-    this->process_modbus_client_frame_(address, function_code, data);
+  } else if (device != nullptr) {
+    this->process_modbus_client_frame_(device, address, function_code, data);
   }
-#ifdef MODBUS_ON_REQUEST_COUNT
-  // After the dispatch: a local device has answered or queued its answer, or the reply of another device is expected.
-  this->request_callback_.call(address, pdu);
-#endif
 
   return true;
 }
@@ -405,9 +422,8 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<con
   if (this->expecting_peer_response_ == address) {
     ESP_LOGV(TAG, "Expected response from peer %" PRIu8 " received", address);
 #ifdef MODBUS_ON_RESPONSE_COUNT
-    if (this->peer_request_len_ != 0 && (pdu[0] & FUNCTION_CODE_MASK) == this->peer_request_[0]) {
-      this->response_callback_.call(address, std::span<const uint8_t>(this->peer_request_, this->peer_request_len_),
-                                    pdu);
+    if ((pdu[0] & FUNCTION_CODE_MASK) == this->request_[0]) {
+      this->response_callback_.call(address, std::span<const uint8_t>(this->request_, this->request_len_), pdu);
     }
 #endif
   } else {
@@ -624,23 +640,8 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
   return true;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
+void ModbusServerHub::process_modbus_client_frame_(ModbusServerDevice *device, uint8_t address, uint8_t function_code,
                                                    std::span<const uint8_t> data) {
-  ModbusServerDevice *device = this->find_device_(address);
-  if (device == nullptr) {
-    this->expecting_peer_response_ = address;
-#ifdef USE_MODBUS_SEND_RESPONSE
-    this->peer_function_code_ = function_code;
-#endif
-#ifdef MODBUS_ON_RESPONSE_COUNT
-    this->peer_request_[0] = function_code;
-    std::memcpy(this->peer_request_ + 1, data.data(), data.size());
-    this->peer_request_len_ = static_cast<uint8_t>(data.size() + 1);
-#endif
-    ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
-    return;
-  }
-
   ResponseStatus status;
   uint8_t response_buffer[modbus::MAX_RAW_SIZE];
   const uint8_t *response_data = response_buffer;
@@ -859,9 +860,9 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
-  cmd->sent();
+  cmd->mark_sent();
   if (cmd->fire_and_forget()) {
-    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
+    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent below
     // reports the transmission, and the entry then retires with no terminal callback instead of
     // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
     // spaces the next frame; the following sweep erases the entry.
@@ -873,9 +874,10 @@ void ModbusClientHub::send_next_frame_() {
   }
 #ifdef MODBUS_ON_REQUEST_COUNT
   // Once per frame on the wire, retries included. After the bookkeeping, so a request queued from the
-  // handler is not taken into a broadcast that has just been completed.
+  // handler is not taken into a broadcast that has just been completed. Before on_sent: the monitor first.
   this->request_callback_.call(cmd->frame.address(), cmd->frame.pdu());
 #endif
+  cmd->sent();
 }
 
 void ModbusClientHub::dump_config() {
@@ -983,7 +985,6 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
 }
 
 bool ModbusDeviceCommand::sent() {
-  this->state = FrameState::WAITING;
   // on_sent() is not a terminal, so nothing is consumed.
   if (this->device == nullptr)
     return false;
@@ -1259,7 +1260,7 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
       this->deferred_payload_len_ = 0;
-      if (!this->send_frame_(frame)) {
+      if (!this->send_reply_(frame)) {
         ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
       }
     });
@@ -1267,9 +1268,20 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   }
 
   ModbusFrame frame(payload[0], payload + 1, len - 1);
-  if (!this->send_frame_(frame)) {
+  if (!this->send_reply_(frame)) {
     ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");
   }
+}
+
+bool ModbusServerHub::send_reply_(const ModbusFrame &frame) {
+  if (!this->send_frame_(frame))
+    return false;
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  // Only once on the wire: a reply that is dropped is not reported.
+  this->response_callback_.call(frame.address(), std::span<const uint8_t>(this->request_, this->request_len_),
+                                frame.pdu());
+#endif
+  return true;
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
