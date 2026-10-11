@@ -40,7 +40,12 @@ from pathlib import Path
 from aioesphomeapi import ButtonInfo, NumberInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .state_utils import (
+    InitialStateHelper,
+    SensorStateCollector,
+    find_entity,
+    require_entity,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -462,7 +467,7 @@ async def test_uart_mock_ld2412_gate_thresholds(
             pytest.fail("Timeout waiting for initial states")
 
         numbers = {
-            name: find_entity(entities, name, NumberInfo)
+            name: require_entity(entities, name, NumberInfo)
             for name in (
                 "gate_0_move_threshold",
                 "gate_0_still_threshold",
@@ -470,8 +475,6 @@ async def test_uart_mock_ld2412_gate_thresholds(
                 "gate_5_still_threshold",
             )
         }
-        for name, entity in numbers.items():
-            assert entity is not None, f"{name} number not found"
 
         # The setup queries were answered, so the 2 configured gates show the module values
         initial_states = initial_state_helper.initial_states
@@ -562,8 +565,7 @@ async def test_uart_mock_ld2412_thresholds_not_read(
     ):
         entities, _ = await client.list_entities_services()
 
-        gate_0_move = find_entity(entities, "gate_0_move_threshold", NumberInfo)
-        assert gate_0_move is not None, "gate_0_move_threshold number not found"
+        gate_0_move = require_entity(entities, "gate_0_move_threshold", NumberInfo)
 
         client.number_command(gate_0_move.key, 77.0)
 
@@ -575,10 +577,10 @@ async def test_uart_mock_ld2412_thresholds_not_read(
             pytest.fail("Timeout waiting for the write to be handled")
 
         # Neither threshold command reached the module, so no gate was reconfigured
-        assert not [line for line in tx_lines if motion_command in line], (
+        assert not any(motion_command in line for line in tx_lines), (
             "motion threshold command was sent without a value for the gates that have no number"
         )
-        assert not [line for line in tx_lines if still_command in line], (
+        assert not any(still_command in line for line in tx_lines), (
             "still threshold command was sent when no gate had a value to write"
         )
 

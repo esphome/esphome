@@ -85,9 +85,11 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void set_light_out_control();
   void set_basic_config();
 #ifdef USE_NUMBER
-  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; }
+  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) {
+    this->gate_move_thresholds_.numbers[gate] = n;
+  }
   void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
-    this->gate_still_threshold_numbers_[gate] = n;
+    this->gate_still_thresholds_.numbers[gate] = n;
   }
   void set_gate_threshold();
   void get_gate_threshold();
@@ -119,8 +121,13 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void restart_();
   void query_dynamic_background_correction_();
 #ifdef USE_NUMBER
-  void send_gate_thresholds_(uint8_t command, const std::array<number::Number *, TOTAL_GATES> &numbers,
-                             const std::array<uint8_t, TOTAL_GATES> &last_read, bool last_read_valid);
+  // One threshold command carries every gate, so gates without a number are sent the value the module last reported
+  struct GateThresholds {
+    std::array<number::Number *, TOTAL_GATES> numbers{};
+    std::array<uint8_t, TOTAL_GATES> last_read{};
+    bool read{false};  // the module has answered the query at least once
+  };
+  void send_gate_thresholds_(uint8_t command, const GateThresholds &group);
 #endif
 
   uint8_t light_function_ = 0;
@@ -133,16 +140,8 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   bool bluetooth_on_{false};
   bool dynamic_background_correction_active_{false};
 #ifdef USE_NUMBER
-  std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
-  std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
-  // Thresholds last read back from the module, one per gate
-  // A threshold command carries all of the gates at once, so a gate with no configured number still needs a value
-  // Sending back what the module reported leaves that gate alone, where a zero would mean maximum sensitivity
-  std::array<uint8_t, TOTAL_GATES> gate_move_thresholds_{};
-  std::array<uint8_t, TOTAL_GATES> gate_still_thresholds_{};
-  // Set once the module has answered the matching query, until then there is nothing to fill an unconfigured gate with
-  bool gate_move_thresholds_read_{false};
-  bool gate_still_thresholds_read_{false};
+  GateThresholds gate_move_thresholds_;
+  GateThresholds gate_still_thresholds_;
 #endif
 #ifdef USE_SENSOR
   std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};

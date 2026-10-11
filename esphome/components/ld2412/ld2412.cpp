@@ -192,7 +192,7 @@ static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0x
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
-// A gate threshold answer carries one byte per gate, so the whole frame is the payload offset, the gates and the footer
+// A gate threshold answer carries one byte per gate
 static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
@@ -243,10 +243,10 @@ void LD2412Component::dump_config() {
   LOG_NUMBER("  ", "MaxDistanceGate", this->max_distance_gate_number_);
   LOG_NUMBER("  ", "MinDistanceGate", this->min_distance_gate_number_);
   LOG_NUMBER("  ", "Timeout", this->timeout_number_);
-  for (number::Number *n : this->gate_move_threshold_numbers_) {
+  for (number::Number *n : this->gate_move_thresholds_.numbers) {
     LOG_NUMBER("  ", "Move Thresholds", n);
   }
-  for (number::Number *n : this->gate_still_threshold_numbers_) {
+  for (number::Number *n : this->gate_still_thresholds_.numbers) {
     LOG_NUMBER("  ", "Still Thresholds", n);
   }
 #endif
@@ -606,14 +606,12 @@ bool LD2412Component::handle_ack_data_() {
         return false;
       }
       const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
-      auto &thresholds = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
-      const auto &numbers = motion ? this->gate_move_threshold_numbers_ : this->gate_still_threshold_numbers_;
-      bool &thresholds_read = motion ? this->gate_move_thresholds_read_ : this->gate_still_thresholds_read_;
-      for (size_t i = 0; i < thresholds.size(); i++) {
-        thresholds[i] = this->buffer_data_[ACK_PAYLOAD + i];
-        set_number_value(numbers[i], this->buffer_data_[ACK_PAYLOAD + i]);
+      GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        group.last_read[i] = this->buffer_data_[ACK_PAYLOAD + i];
+        set_number_value(group.numbers[i], group.last_read[i]);
       }
-      thresholds_read = true;
+      group.read = true;
 #endif
       break;
     }
@@ -810,28 +808,27 @@ void LD2412Component::set_basic_config() {
 }
 
 #ifdef USE_NUMBER
-void LD2412Component::send_gate_thresholds_(uint8_t command, const std::array<number::Number *, TOTAL_GATES> &numbers,
-                                            const std::array<uint8_t, TOTAL_GATES> &last_read, bool last_read_valid) {
+void LD2412Component::send_gate_thresholds_(uint8_t command, const GateThresholds &group) {
   uint8_t value[TOTAL_GATES];
   bool any_configured = false;
   bool any_from_module = false;
   for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-    number::Number *n = numbers[i];
+    number::Number *n = group.numbers[i];
     if (n != nullptr && n->has_state()) {
       value[i] = lowbyte(static_cast<int>(n->state));
       any_configured = true;
     } else {
-      // Gates the configuration left out, and gates still waiting for their first read back, keep the module value
-      value[i] = last_read[i];
+      value[i] = group.last_read[i];
       any_from_module = true;
     }
   }
   if (!any_configured) {
-    return;  // Nothing to change in this group
+    return;
   }
-  if (any_from_module && !last_read_valid) {
-    // The module never reported what it holds, so those gates would be sent as zero, which is maximum sensitivity
+  if (any_from_module && !group.read) {
+    // Without the module's values those gates would be sent as zero, which is maximum sensitivity
     ESP_LOGW(TAG, "Command %02X not sent, the module has not reported its gate thresholds yet", command);
+    this->get_gate_threshold();  // ask again so the next write has values to fill in
     return;
   }
   this->send_command_(command, value, sizeof(value));
@@ -839,10 +836,8 @@ void LD2412Component::send_gate_thresholds_(uint8_t command, const std::array<nu
 
 void LD2412Component::set_gate_threshold() {
   this->set_config_mode_(true);
-  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, this->gate_move_threshold_numbers_, this->gate_move_thresholds_,
-                              this->gate_move_thresholds_read_);
-  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, this->gate_still_threshold_numbers_, this->gate_still_thresholds_,
-                              this->gate_still_thresholds_read_);
+  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, this->gate_move_thresholds_);
+  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, this->gate_still_thresholds_);
   this->set_config_mode_(false);
 }
 
