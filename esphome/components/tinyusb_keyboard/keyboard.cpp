@@ -24,11 +24,18 @@ void TinyUSBKeyboard::set_consumer_(uint16_t usage) {
 }
 
 void TinyUSBKeyboard::flush_() {
-  if (!tud_ready()) {
+  if (!tud_mounted()) {
     // No host is listening, and a key held from before it attached would be wrong, so drop the state
+    ESP_LOGV(TAG, "No host, dropping report");
     this->keyboard_pending_ = false;
     this->consumer_pending_ = false;
     this->disable_loop();
+    return;
+  }
+  if (tud_suspended()) {
+    // A key press wakes a sleeping host, like a real keyboard; the report goes out once the bus resumes
+    tud_remote_wakeup();
+    this->enable_loop();
     return;
   }
   // tud_hid_*_report() returns false while the endpoint still holds the previous report, which is

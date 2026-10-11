@@ -26,7 +26,7 @@ inline constexpr uint8_t HID_REPORT_DESCRIPTOR[] = {
 
 // esp_tinyusb ships default configuration descriptors for CDC, MSC and NCM only, so the keyboard supplies its own
 inline constexpr uint8_t CONFIGURATION_DESCRIPTOR[] = {
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
+    TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(HID_REPORT_DESCRIPTOR), ENDPOINT_IN, CFG_TUD_HID_EP_BUFSIZE,
                        POLL_INTERVAL_MS),
 };
