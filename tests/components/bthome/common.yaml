@@ -1,0 +1,11 @@
+binary_sensor:
+  - platform: bthome
+    mac_address: AA:BB:CC:DD:EE:FF
+    event: press
+    name: BTHome press
+  - platform: bthome
+    mac_address: AA:BB:CC:DD:EE:FE
+    index: 8
+    event: hold_press
+    pulse_length: 300ms
+    name: BTHome hold
