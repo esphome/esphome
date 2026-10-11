@@ -6,6 +6,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 max31888_ns = cg.esphome_ns.namespace("max31888")
 
@@ -20,7 +21,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(
         MAX31888Sensor,
         unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
+        accuracy_decimals=2,
         device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,
     )
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await one_wire.register_one_wire_device(var, config)

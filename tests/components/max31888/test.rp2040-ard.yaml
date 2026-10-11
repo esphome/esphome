@@ -1,0 +1,5 @@
+substitutions:
+  one_wire_pin: "10"
+
+packages:
+  max31888: !include common.yaml

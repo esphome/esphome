@@ -1,17 +1,30 @@
 #include "max31888.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::max31888 {
 
-static const char *const TAG = "max31888.sensor";
+ESPHOME_LOG_TAG(TAG, "max31888");
 
-static const uint8_t MAX31888_MODEL = 0x54;
-static const uint8_t MAX31888_COMMAND_START_CONVERSION = 0x44;
-static const uint8_t MAX31888_COMMAND_READ = 0x33;
-static const uint8_t MAX31888_COMMAND_SOFT_RESET = 0x82;
-static const uint16_t MAX31888_MILIS_TO_WAIT = 20;
-static const uint8_t MAX31888_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
-static const uint8_t MAX31888_COMMAND_COPY_SCRATCH_PAD = 0x48;
+static constexpr uint32_t CONVERSION_TIMEOUT_ID = 0;
+
+static constexpr uint8_t MAX31888_COMMAND_START_CONVERSION = 0x44;
+static constexpr uint8_t MAX31888_COMMAND_READ = 0x33;
+static constexpr uint8_t MAX31888_COMMAND_SOFT_RESET = 0x82;
+static constexpr uint8_t MAX31888_REGISTER_FIFO_DATA = 0x08;
+static constexpr uint8_t MAX31888_FIFO_READ_LENGTH = 0x01;  // number of bytes to read, minus one
+static constexpr uint16_t MAX31888_CONVERSION_TIME_MS = 20;
+static constexpr float MAX31888_DEGREES_PER_LSB = 0.005f;
+
+void MAX31888Sensor::setup() {
+  if (!this->check_address_or_index_())
+    return;
+  if (this->send_command_(MAX31888_COMMAND_SOFT_RESET)) {
+    // The device appends a checksum to every command, which has to be clocked out
+    this->bus_->read8();
+    this->bus_->read8();
+  }
+}
 
 void MAX31888Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX31888 Sensor:");
@@ -27,62 +40,45 @@ void MAX31888Sensor::update() {
   if (this->address_ == 0)
     return;
 
-  this->status_clear_warning();
+  if (!this->send_command_(MAX31888_COMMAND_START_CONVERSION)) {
+    this->status_set_warning(LOG_STR("bus reset failed"));
+    return;
+  }
+  this->bus_->read8();
+  this->bus_->read8();
 
-  this->send_command_(MAX31888_COMMAND_START_CONVERSION);
-  uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8);  // this must be read to start conversion
-  ESP_LOGV(TAG, "CRC: %04X", crc);
-
-  this->set_timeout(this->get_address_name().c_str(), MAX31888_MILIS_TO_WAIT, [this] {
-    if (!this->read_fifo_()) {
+  this->set_timeout(CONVERSION_TIMEOUT_ID, MAX31888_CONVERSION_TIME_MS, [this] {
+    int16_t raw;
+    if (!this->read_temperature_(raw)) {
       this->publish_state(NAN);
       return;
     }
-
-    float tempc = (int16_t) (this->fifo_[0] << 8 | this->fifo_[1]) * 0.005;
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.3f°C", this->get_name().c_str(), tempc);
-    this->publish_state(tempc);
+    const float temperature = raw * MAX31888_DEGREES_PER_LSB;
+    ESP_LOGD(TAG, "'%s': Got Temperature=%.3f°C", this->get_name().c_str(), temperature);
+    this->status_clear_warning();
+    this->publish_state(temperature);
   });
 }
 
-bool MAX31888Sensor::read_fifo_() {
-  uint8_t data[7] = {MAX31888_COMMAND_READ, 0x08, 0x01, 0xff, 0xff, 0, 0};
-  {
-    InterruptLock lock;
-    if (this->send_command_(data[0])) {
-      this->bus_->write8(data[1]);  // Starting Adddress -> FIFO Data Register
-      this->bus_->write8(data[2]);  // Length (Bytes -1) -> 2 Bytes
-
-      for (uint32_t i = 3; i < sizeof(data); i++)
-        data[i] = this->bus_->read8();
-    }
-  }
-
-  // ESP_LOGI(TAG, "FIFO: %02X.%02X.%02X.%02X", this->fifo_[0], this->fifo_[1], this->crc_[0], this->crc_[1]);
-  if (crc16(data, sizeof(data) - 2, 0, 0xa001, false, true) == (data[5] | (data[6] << 8))) {
-    this->fifo_[0] = data[3];
-    this->fifo_[1] = data[4];
-    return true;
-  } else {
-    ESP_LOGW(TAG, "'%s' - CRC failed: %02x.%02x.%02x.%02x", this->get_name().c_str(), data[3], data[4], data[5],
-             data[6]);
-    // this->status_set_warning ("bus reset failed");
+bool MAX31888Sensor::read_temperature_(int16_t &raw) {
+  // The checksum covers the command and its two arguments as well as the data
+  uint8_t frame[7] = {MAX31888_COMMAND_READ, MAX31888_REGISTER_FIFO_DATA, MAX31888_FIFO_READ_LENGTH};
+  if (!this->send_command_(frame[0])) {
+    this->status_set_warning(LOG_STR("bus reset failed"));
     return false;
   }
-}
-
-void MAX31888Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "setting up MAX31888 temperature sensor...");
-  if (!this->check_address_or_index_())
-    return;
-
-  {
-    InterruptLock lock;
-    if (this->send_command_(MAX31888_COMMAND_SOFT_RESET)) {
-      uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8);  // this must be read to perform reset
-      ESP_LOGV(TAG, "CRC: %04X", crc);
-    }
+  this->bus_->write8(frame[1]);
+  this->bus_->write8(frame[2]);
+  for (size_t i = 3; i < sizeof(frame); i++) {
+    frame[i] = this->bus_->read8();
   }
+  // Maxim CRC-16: starts at zero, reflected polynomial, result sent inverted and low byte first
+  if (crc16(frame, 5, 0, 0xa001, false, true) != encode_uint16(frame[6], frame[5])) {
+    this->status_set_warning(LOG_STR("checksum invalid"));
+    return false;
+  }
+  raw = static_cast<int16_t>(encode_uint16(frame[3], frame[4]));
+  return true;
 }
 
 }  // namespace esphome::max31888
