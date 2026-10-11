@@ -180,14 +180,21 @@ class ImageBinary(ImageEncoder):
 class ImageRGB111(ImageEncoder):
     allow_config = {CONF_OPAQUE, CONF_ALPHA_CHANNEL}
 
-    def __init__(self, width, height, transparency, dither, invert_alpha):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+    ):
         bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
         super().__init__(
             (width * bpp + 7) // 8, height, transparency, dither, invert_alpha
         )
         self.bitno = 0
 
-    def convert(self, image, path):
+    def convert(self, image: Image, path: str):
         if is_alpha_only(image):
             image = image.split()[-1]
         image = image.convert("RGBA")
@@ -205,7 +212,7 @@ class ImageRGB111(ImageEncoder):
             return dithered_image
         return image
 
-    def add_bit(self, bit):
+    def add_bit(self, bit: bool):
         if bit:
             self.data[self.index] |= 0x80 >> (self.bitno % 8)
         self.bitno += 1
@@ -213,7 +220,7 @@ class ImageRGB111(ImageEncoder):
             self.bitno = 0
             self.index += 1
 
-    def encode(self, pixel):
+    def encode(self, pixel: tuple[int, int, int, int]):
         r, g, b, a = pixel
         if self.invert_alpha:
             a ^= 0xFF
