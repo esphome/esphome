@@ -1,8 +1,14 @@
 #include "uart_component.h"
+#include "esphome/core/application.h"
+
+#include <algorithm>
 
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
+
+// Keeps the pacing product in 32 bits up to about 10 Mbaud.
+static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
 
 bool UARTComponent::check_read_timeout_(size_t len) {
   if (this->available() >= len)
@@ -17,6 +23,19 @@ bool UARTComponent::check_read_timeout_(size_t len) {
     yield();
   }
   return true;
+}
+
+size_t UARTComponent::paced_write_room(uint32_t last_write_ms) {
+  size_t room = this->available_for_write();
+  if (room != SIZE_MAX) {
+    return room;
+  }
+  // A pass woken early writes little.
+  uint32_t span =
+      std::min({App.get_loop_component_start_time() - last_write_ms, App.get_loop_interval(), MAX_PACE_SPAN_MS});
+  // 10 bits per byte on the line.
+  uint32_t paced = this->baud_rate_ / 10 * span / 1000;
+  return std::max<size_t>(1, paced);
 }
 
 void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {

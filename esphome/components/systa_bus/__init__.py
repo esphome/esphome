@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mat931"]
+DOMAIN = "systa_bus"
 
 DEPENDENCIES = ["uart"]
 
@@ -15,6 +16,8 @@ systa_bus_ns = cg.esphome_ns.namespace("systa_bus")
 SystaBus = systa_bus_ns.class_("SystaBus", cg.Component, uart.UARTDevice)
 
 CONF_SYSTA_BUS_ID = "systa_bus_id"
+
+CONF_SYSTASOLAR_AQUA = "systasolar_aqua"
 
 CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
     {

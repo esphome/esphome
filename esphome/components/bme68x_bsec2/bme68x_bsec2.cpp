@@ -15,6 +15,8 @@ namespace esphome::bme68x_bsec2 {
 
 ESPHOME_LOG_TAG(TAG, "bme68x_bsec2.sensor");
 
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
+
 static constexpr const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 static bool is_no_new_data_warning(int8_t status) {
@@ -285,11 +287,11 @@ void BME68xBSEC2Component::run_() {
     uint32_t meas_dur = bme68x_get_meas_dur(this->op_mode_, &bme68x_conf, &this->bme68x_);
     ESP_LOGV(TAG, "Queueing read in %" PRIu32 "us", meas_dur);
     this->trigger_time_ns_ = curr_time_ns;
-    this->set_timeout("read", meas_dur / 1000, [this]() { this->read_(this->trigger_time_ns_); });
+    this->set_timeout(READ_TIMEOUT_ID, meas_dur / 1000, [this]() { this->read_(this->trigger_time_ns_); });
   } else {
     ESP_LOGV(TAG, "Measurement not required, queueing immediate read");
     this->trigger_time_ns_ = curr_time_ns;
-    this->set_timeout("read", 0, [this]() { this->read_(this->trigger_time_ns_); });
+    this->set_timeout(READ_TIMEOUT_ID, 0, [this]() { this->read_(this->trigger_time_ns_); });
   }
 }
 

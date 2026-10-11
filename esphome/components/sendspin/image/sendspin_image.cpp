@@ -10,6 +10,8 @@ namespace esphome::sendspin_ {
 
 ESPHOME_LOG_TAG(TAG, "sendspin.image");
 
+static constexpr uint32_t TRANSITION_ACK_TIMEOUT_ID = 0;
+
 // How long a displayed frame may wait for sendspin.image.transition_finished before a warning
 // names the missing ack. Generous next to a typical fade of a second or two.
 static constexpr uint32_t TRANSITION_ACK_WARNING_MS = 10000;
@@ -163,7 +165,7 @@ void SendspinImageSlot::on_display_(uint32_t lateness_ms) {
     // that never reaches the action stalls the slot with nothing in the log. Name the cause after
     // a generous wait. Arming again replaces the previous timeout, so it cannot fire for a frame
     // that was already acked and superseded.
-    this->set_timeout("transition_ack", TRANSITION_ACK_WARNING_MS, [this]() {
+    this->set_timeout(TRANSITION_ACK_TIMEOUT_ID, TRANSITION_ACK_WARNING_MS, [this]() {
       if (this->transition_pending_) {
         ESP_LOGW(TAG,
                  "Slot %u: displayed artwork was never acknowledged; no new artwork will arrive until "

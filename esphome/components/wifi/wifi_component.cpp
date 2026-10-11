@@ -398,6 +398,7 @@ static constexpr uint32_t WIFI_AP_EXCLUSIVE_DWELL_MS = 300000;
 /// disconnect event cannot keep the networks from being tried for good.
 static constexpr uint32_t WIFI_AP_EXCLUSIVE_MAX_DWELL_MS = 3 * WIFI_AP_EXCLUSIVE_DWELL_MS;
 static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
+static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 #endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
@@ -1222,7 +1223,7 @@ void WiFiComponent::connect_soon_() {
   // New credentials from the portal: the AP pauses for them once its answer
   // is out, and the STA state machine picks them up from there.
   if (this->ap_setup_) {
-    this->set_timeout("wifi-ap-handover", WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
+    this->set_timeout(AP_HANDOVER_TIMEOUT_ID, WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
       if (this->ap_setup_)
         this->pause_exclusive_ap_();
     });

@@ -8,6 +8,7 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
+from esphome.components.network import DOMAIN as NETWORK_DOMAIN
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
 # components and downstream consumers that import them from api
@@ -514,7 +515,7 @@ def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
         or host.version != 6
     ):
         return config
-    network_conf = fv.full_config.get().get("network") or {}
+    network_conf = fv.full_config.get().get(NETWORK_DOMAIN) or {}
     if not network_conf.get(CONF_ENABLE_IPV6):
         raise cv.Invalid(
             "outgoing_connection host is an IPv6 address but IPv6 is not "

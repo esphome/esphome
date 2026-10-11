@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@linkedupbits"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "sy6970"
 MULTI_CONF = True
 
 CONF_SY6970_ID = "sy6970_id"

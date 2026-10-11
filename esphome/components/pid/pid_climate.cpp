@@ -5,6 +5,8 @@ namespace esphome::pid {
 
 ESPHOME_LOG_TAG(TAG, "pid.climate");
 
+static constexpr uint32_t AUTOTUNE_PROGRESS_INTERVAL_ID = 0;
+
 bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
   if (threshold_low > threshold_high) {
     ESP_LOGW(TAG, "Deadband threshold low %.2f must not be greater than high %.2f", threshold_low, threshold_high);
@@ -191,7 +193,7 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
            "Until your sensor provides a reading, the autotuner may display \'nan\'",
            this->get_name().c_str());
 
-  this->set_interval("autotune-progress", 10000, [this]() {
+  this->set_interval(AUTOTUNE_PROGRESS_INTERVAL_ID, 10000, [this]() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
       this->autotuner_->dump_config();
   });

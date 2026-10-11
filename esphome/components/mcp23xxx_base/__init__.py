@@ -20,6 +20,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "mcp23xxx_base"
 
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
 MCP23XXXBase = mcp23xxx_base_ns.class_("MCP23XXXBase", cg.Component)
