@@ -13,7 +13,7 @@
 //==============================================================================
 namespace esphome::usb_cdc_acm {
 
-static const char *const TAG = "usb_cdc_acm";
+ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 500;
 
 // Returns false if the USB device accepted no data and TX was stopped
