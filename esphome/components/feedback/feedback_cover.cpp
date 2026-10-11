@@ -242,21 +242,17 @@ void FeedbackCover::loop() {
           // Don't trigger stop, let the cover stop by itself.
           this->set_current_operation_(COVER_OPERATION_IDLE, true);
         } else if (this->overshoot_duration_) {
-          // We want to overshoot a bit on cover being totaly open or closed, in order to make sure cover is synced
+          // Keep driving past the end position for a while so accumulated timing error is squeezed out
           if (!this->start_overshoot_time_) {
-            // We just started overshooting, save time for comparison
             this->start_overshoot_time_ = now;
           } else if (now - this->start_overshoot_time_ > this->overshoot_duration_) {
-            // We overshot enough, stop the cover
             ESP_LOGD(TAG, "'%s' - Overshoot duration reached. Stopping cover.", this->name_.c_str());
             this->start_direction_(COVER_OPERATION_IDLE);
           }
         } else {
-          // No overshoot_duration, stop immediately at open-close
           this->start_direction_(COVER_OPERATION_IDLE);
         }
       } else {
-        // Not on open-close position, stop immediately
         this->start_direction_(COVER_OPERATION_IDLE);
       }
     } else if (now - this->start_dir_time_ > this->max_duration_) {
@@ -358,10 +354,12 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   binary_sensor::BinarySensor *obstacle{nullptr};
 #endif
 
+  // Any new command ends a running overshoot
+  this->start_overshoot_time_ = 0;
+
   switch (dir) {
     case COVER_OPERATION_IDLE:
       trig = &this->stop_trigger_;
-      this->start_overshoot_time_ = 0;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
