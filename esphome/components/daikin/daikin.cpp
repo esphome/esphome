@@ -330,11 +330,13 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   if (frame_size == DAIKIN_COMFORT_FRAME_SIZE) {
     // Only enter or leave comfort here, so the state frame that follows still sees the previous preset
+    const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
     if (frame[6] & DAIKIN_PRESET_COMFORT_ON) {
       this->preset = climate::CLIMATE_PRESET_COMFORT;
     } else if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
       this->preset = climate::CLIMATE_PRESET_NONE;
     }
+    this->update_boost_timer_(was_boost);
     return true;
   }
   return this->parse_state_frame_(frame);
