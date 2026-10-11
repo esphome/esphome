@@ -58,6 +58,8 @@ switch:
 
 zigbee:
   model: zigbee_test
+  manufacturer: test
+  version: 1
   sleepy: true
   polling_interval: 2s
   power_source: BATTERY

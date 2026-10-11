@@ -44,13 +44,20 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
+def _synchronous_automation_schema() -> cv.All:
+    # The received line and the parsed JSON document only live while the callbacks run.
+    return automation.validate_synchronous_automation(
+        "on_json and on_data", "the received data"
+    )
+
+
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmonTx),
-            cv.Optional(CONF_ON_JSON): automation.validate_automation({}),
-            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
+            cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
+            cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -104,10 +111,10 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_JSON,
         "add_on_json_callback",
-        [(cg.JsonObject, "json"), (cg.std_string, "raw_json")],
+        [(cg.JsonObject, "json"), (cg.StringRef, "raw_json")],
     ),
     automation.CallbackAutomation(
-        CONF_ON_DATA, "add_on_data_callback", [(cg.std_string, "data")]
+        CONF_ON_DATA, "add_on_data_callback", [(cg.StringRef, "data")]
     ),
 )
 
@@ -150,3 +157,16 @@ automation.register_apply_action(
         CONF_COMMAND, "send_command", cg.std_string, const_fn=_plain_literal
     ),
 )
+
+
+# Let another component (e.g. serial_proxy) take exclusive ownership of the UART.
+
+EMONTX_ID_SCHEMA = automation.maybe_simple_id({cv.GenerateID(): cv.use_id(EmonTx)})
+
+automation.register_apply_action(
+    "emontx.pause", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(true)")
+)
+automation.register_apply_action(
+    "emontx.resume", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(false)")
+)
+automation.register_apply_condition("emontx.is_paused", EMONTX_ID_SCHEMA, "is_paused()")
