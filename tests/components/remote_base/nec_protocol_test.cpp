@@ -63,9 +63,12 @@ TEST(NECProtocolTest, DecodeFullFrame) {
   auto decoded = protocol.decode(rx);
 
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->address, 0x1234);
-  EXPECT_EQ(decoded->command, 0x5678);
-  EXPECT_EQ(decoded->command_repeats, 1);
+  // clang-tidy's unchecked-optional-access does not model gtest's ASSERT_TRUE as a check
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->address, 0x1234);
+    EXPECT_EQ(decoded->command, 0x5678);
+    EXPECT_EQ(decoded->command_repeats, 1);
+  }
 }
 
 TEST(NECProtocolTest, DecodeWithoutStopMark) {
@@ -76,8 +79,10 @@ TEST(NECProtocolTest, DecodeWithoutStopMark) {
   auto decoded = protocol.decode(rx);
 
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->address, 0x1234);
-  EXPECT_EQ(decoded->command, 0x5678);
+  if (decoded.has_value()) {
+    EXPECT_EQ(decoded->address, 0x1234);
+    EXPECT_EQ(decoded->command, 0x5678);
+  }
 }
 
 TEST(NECProtocolTest, DecodeStandaloneRepeatFrameRejected) {
