@@ -29,6 +29,14 @@ sensor:
       name: 'CSE7761 Active Power 1'
     active_power_2:
       name: 'CSE7761 Active Power 2'
+    energy_1:
+      name: 'CSE7761 Energy 1'
+    energy_2:
+      name: 'CSE7761 Energy 2'
+    frequency:
+      name: 'CSE7761 Frequency'
+    power_factor_1:
+      name: 'CSE7761 Power Factor 1'
 ```
 
 > [!NOTE]
@@ -51,11 +59,28 @@ sensor:
 - **active_power_2** (*Optional*): Use the (active) power value of the channel 2 in watts. All options from
   [Sensor](/components/sensor).
 
+- **energy_1** (*Optional*): Use the active energy counted by channel 1 in watt-hours. All options from
+  [Sensor](/components/sensor/).
+
+- **energy_2** (*Optional*): Use the active energy counted by channel 2 in watt-hours. All options from
+  [Sensor](/components/sensor/).
+
+- **frequency** (*Optional*): Use the mains frequency in Hz. All options from
+  [Sensor](/components/sensor/).
+
+- **power_factor_1** (*Optional*): Use the power factor of channel 1. The chip reports it for channel 1 only.
+  All options from [Sensor](/components/sensor/).
+
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
 
 - **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [UART Component](/components/uart) if you want
   to use multiple UART buses.
+
+The energy values come from the chip's pulse counters and start from zero again after a reboot. Home Assistant's
+energy dashboard handles that reset because the sensors use `total_increasing`; for a daily total that survives
+reboots, feed `active_power_1` or `active_power_2` into the [Total Daily Energy](/components/sensor/total_daily_energy/)
+sensor.
 
 ## See Also
 
