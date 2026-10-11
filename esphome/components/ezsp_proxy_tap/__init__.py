@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81", "@puddly"]
 DEPENDENCIES = ["serial_proxy"]
+DOMAIN = "ezsp_proxy_tap"
 
 CONF_SERIAL_PROXY_ID = "serial_proxy_id"
 
