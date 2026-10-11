@@ -306,7 +306,7 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     // play_next_() can trigger more items to be queued
     if (!this->param_queue_.empty()) {
       auto &params = this->param_queue_.front();
-      this->play_next_tuple_(params, std::make_index_sequence<sizeof...(Ts)>{});
+      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
       this->param_queue_.pop_front();
     } else {
       // Queue is now empty - disable loop until next play_complex
@@ -323,12 +323,8 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
  protected:
-  template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->play_next_(std::get<S>(tuple)...);
-  }
-
   C *script_;
-  std::list<std::tuple<Ts...>> param_queue_;
+  std::list<std::tuple<stored_trigger_arg_t<Ts>...>> param_queue_;
 };
 
 }  // namespace esphome::script

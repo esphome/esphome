@@ -5,6 +5,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_MANUFACTURER
 from esphome.components.esp32 import (
     CONF_PARTITIONS,
     DOMAIN as ESP32_DOMAIN,
@@ -30,6 +31,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
+    CONF_VERSION,
     CONF_WIFI,
     DEVICE_CLASS_OUTLET,
 )
@@ -51,6 +53,8 @@ from .const import (
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
     KEY_ZIGBEE,
+    KEY_ZIGBEE_AREA_STR,
+    KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
@@ -424,12 +428,14 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         cg.add(var.set_sleepy(True))
     if (keep_alive := config.get(CONF_POLLING_INTERVAL, 3000)) != 3000:
         cg.add(var.set_keep_alive(keep_alive))
-
     cg.add(
         var.set_basic_cluster(
             config[CONF_MODEL],
-            "esphome",
+            config[CONF_MANUFACTURER],
+            zb_data[KEY_ZIGBEE_AREA_STR],
+            zb_data[KEY_ZIGBEE_VERSION_STR],
             POWER_SOURCE[config[CONF_POWER_SOURCE]],
+            config[CONF_VERSION],
         )
     )
     for ep_num, ep in ep_dict.items():

@@ -242,9 +242,7 @@ void MitsubishiClimate::transmit_state() {
   }
 
   // Checksum
-  for (int i = 0; i < 17; i++) {
-    remote_state[17] += remote_state[i];
-  }
+  remote_state[17] = sum_bytes(remote_state, 17);
 
   ESP_LOGD(TAG, "sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
            remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
