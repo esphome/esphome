@@ -3,7 +3,7 @@
 
 namespace esphome::whirlpool {
 
-static const char *const TAG = "whirlpool.climate";
+ESPHOME_LOG_TAG(TAG, "whirlpool.climate");
 
 const uint16_t WHIRLPOOL_HEADER_MARK = 9000;
 const uint16_t WHIRLPOOL_HEADER_SPACE = 4494;
@@ -103,7 +103,7 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   // Swing
-  ESP_LOGV(TAG, "send swing %s", this->send_swing_cmd_ ? "true" : "false");
+  ESP_LOGV(TAG, "send swing %s", this->send_swing_cmd_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
   if (this->send_swing_cmd_) {
     if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_OFF) {
       remote_state[2] |= 128;

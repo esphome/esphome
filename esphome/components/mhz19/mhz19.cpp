@@ -5,7 +5,7 @@
 
 namespace esphome::mhz19 {
 
-static const char *const TAG = "mhz19";
+ESPHOME_LOG_TAG(TAG, "mhz19");
 static const uint8_t MHZ19_REQUEST_LENGTH = 8;
 static const uint8_t MHZ19_RESPONSE_LENGTH = 9;
 static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -143,8 +143,6 @@ void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  this->check_uart_settings(9600);
-
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration enabled on boot");
   } else if (this->abc_boot_logic_ == MHZ19_ABC_DISABLED) {

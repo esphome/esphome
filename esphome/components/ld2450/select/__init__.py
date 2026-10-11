@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_THERMOMETER,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
 
@@ -31,32 +32,29 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
-    if baud_rate_config := config.get(CONF_BAUD_RATE):
-        s = await select.new_select(
-            baud_rate_config,
-            options=[
-                "9600",
-                "19200",
-                "38400",
-                "57600",
-                "115200",
-                "230400",
-                "256000",
-                "460800",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_baud_rate_select(s))
-    if zone_type_config := config.get(CONF_ZONE_TYPE):
-        s = await select.new_select(
-            zone_type_config,
-            options=[
-                "Disabled",
-                "Detection",
-                "Filter",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_zone_type_select(s))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    selects = select.sub_selects(config, parent=hub)
+    await selects(
+        CONF_BAUD_RATE,
+        hub.set_baud_rate_select,
+        options=[
+            "9600",
+            "19200",
+            "38400",
+            "57600",
+            "115200",
+            "230400",
+            "256000",
+            "460800",
+        ],
+    )
+    await selects(
+        CONF_ZONE_TYPE,
+        hub.set_zone_type_select,
+        options=[
+            "Disabled",
+            "Detection",
+            "Filter",
+        ],
+    )

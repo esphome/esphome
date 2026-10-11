@@ -6,7 +6,7 @@
 
 namespace esphome::bl0940 {
 
-static const char *const TAG = "bl0940.button.calibration_reset";
+ESPHOME_LOG_TAG(TAG, "bl0940.button.calibration_reset");
 
 void CalibrationResetButton::dump_config() { LOG_BUTTON("", "Calibration Reset Button", this); }
 

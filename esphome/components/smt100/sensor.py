@@ -18,6 +18,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -67,31 +68,24 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "smt100", baud_rate=9600, require_rx=True, require_tx=True
+    "smt100",
+    baud_rate=9600,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_COUNTS in config:
-        sens = await sensor.new_sensor(config[CONF_COUNTS])
-        cg.add(var.set_counts_sensor(sens))
-
-    if CONF_PERMITTIVITY in config:
-        sens = await sensor.new_sensor(config[CONF_PERMITTIVITY])
-        cg.add(var.set_permittivity_sensor(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-
-    if CONF_MOISTURE in config:
-        sens = await sensor.new_sensor(config[CONF_MOISTURE])
-        cg.add(var.set_moisture_sensor(sens))
-
-    if CONF_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_VOLTAGE])
-        cg.add(var.set_voltage_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_COUNTS, var.set_counts_sensor)
+    await sensors(CONF_PERMITTIVITY, var.set_permittivity_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_MOISTURE, var.set_moisture_sensor)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

@@ -7,8 +7,9 @@ http_request:
 
 display:
 
-online_image:
-  - url: http://127.0.0.1:HTTP_PORT/foo.bmp
+image:
+  - platform: online_image
+    url: http://127.0.0.1:HTTP_PORT/foo.bmp
     id: myimg
     format: BMP
     type: RGB
