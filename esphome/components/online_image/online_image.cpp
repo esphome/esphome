@@ -1,5 +1,6 @@
 #include "online_image.h"
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
@@ -133,12 +134,18 @@ void OnlineImage::update() {
   }
 
   // JPEG requires the complete image in the download buffer before decoding
-  if (format == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
-    this->download_buffer_.resize(total_size);
+  if (format == runtime_image::JPEG && total_size > this->download_buffer_.size() &&
+      this->download_buffer_.resize(total_size) == 0) {
+    // resize() logged the failed allocation; get the configured buffer back for later downloads
+    this->download_buffer_.resize(this->download_buffer_initial_size_);
+    this->end_connection_();
+    this->download_error_callback_.call();
+    return;
   }
 
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = millis();
+  this->last_data_time_ = App.get_loop_component_start_time();
   this->enable_loop();
 }
 
@@ -173,6 +180,7 @@ void OnlineImage::loop() {
     auto len = this->downloader_->read(this->download_buffer_.append(), available);
 
     if (len > 0) {
+      this->last_data_time_ = App.get_loop_component_start_time();
       this->download_buffer_.write(len);
 
       // Feed data to decoder
@@ -194,13 +202,23 @@ void OnlineImage::loop() {
       this->download_error_callback_.call();
       return;
     } else if (this->downloader_->is_read_complete()) {
-      // The response has ended. With nothing left in the buffer the decoder has seen all
-      // data; anything left over cannot be used, and no more data will arrive to complete it.
-      if (this->download_buffer_.unread() == 0) {
+      // The response has ended, so data left in the buffer can never be completed
+      size_t unread = this->download_buffer_.unread();
+      if (unread == 0 && this->downloader_->get_bytes_read() > 0) {
         this->finish_download_();
         return;
       }
-      ESP_LOGE(TAG, "Download ended with %zu bytes the decoder could not use", this->download_buffer_.unread());
+      if (unread == 0) {
+        ESP_LOGE(TAG, "Server sent an empty response");
+      } else {
+        ESP_LOGE(TAG, "Download ended with %zu bytes the decoder could not use", unread);
+      }
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
+    } else if (App.get_loop_component_start_time() - this->last_data_time_ >= this->parent_->get_timeout()) {
+      // ESP-IDF keeps returning 0 after the server closes the connection early
+      ESP_LOGE(TAG, "No data received for %" PRIu32 " ms", this->parent_->get_timeout());
       this->end_connection_();
       this->download_error_callback_.call();
       return;

@@ -108,6 +108,7 @@ class OnlineImage final : public PollingComponent,
   std::string last_modified_;
 
   uint32_t start_time_{0};
+  uint32_t last_data_time_{0};
 };
 
 }  // namespace esphome::online_image

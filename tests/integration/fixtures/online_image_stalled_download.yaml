@@ -27,6 +27,15 @@ image:
       logger.log: "download finished: large_header"
     on_error:
       logger.log: "download error: large_header"
+  - platform: online_image
+    url: http://127.0.0.1:HTTP_PORT/empty.bmp
+    id: empty_img
+    format: BMP
+    type: RGB
+    on_download_finished:
+      logger.log: "download finished: empty"
+    on_error:
+      logger.log: "download error: empty"
 
 api:
   actions:
@@ -36,6 +45,9 @@ api:
     - action: fetch_large_header
       then:
         - component.update: large_header_img
+    - action: fetch_empty
+      then:
+        - component.update: empty_img
 
 logger:
   level: DEBUG

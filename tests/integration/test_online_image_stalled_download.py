@@ -34,6 +34,7 @@ LARGE_HEADER_BMP = _make_palette_bmp()
 IMAGES = {
     "/truncated.bmp": TRUNCATED_BMP,
     "/large_header.bmp": LARGE_HEADER_BMP,
+    "/empty.bmp": b"",
 }
 
 
@@ -77,6 +78,8 @@ async def test_online_image_stalled_download(
         "truncated_error": "download error: truncated",
         "large_header_reason": "Image does not fit in the 256 byte download buffer",
         "large_header_error": "download error: large_header",
+        "empty_reason": "Server sent an empty response",
+        "empty_error": "download error: empty",
     }
     log_futures = {key: loop.create_future() for key in expected_logs}
     finished_lines: list[str] = []
@@ -109,5 +112,10 @@ async def test_online_image_stalled_download(
         async with asyncio.timeout(2.0):
             await log_futures["large_header_reason"]
             await log_futures["large_header_error"]
+
+        await client.execute_service(actions["fetch_empty"], {})
+        async with asyncio.timeout(2.0):
+            await log_futures["empty_reason"]
+            await log_futures["empty_error"]
 
     assert not finished_lines, f"Unexpected successful download: {finished_lines}"

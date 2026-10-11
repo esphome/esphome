@@ -1,0 +1,160 @@
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "esphome/components/http_request/http_request.h"
+#include "esphome/components/online_image/online_image.h"
+#include "esphome/core/application.h"
+
+namespace esphome::online_image::testing {
+
+// Serves a fixed body, handing out at most `available` bytes of it.
+class FakeContainer : public http_request::HttpContainer {
+ public:
+  FakeContainer(std::vector<uint8_t> body, size_t available, bool chunked)
+      : body_(std::move(body)), available_(std::min(available, this->body_.size())) {
+    this->status_code = 200;
+    this->content_length = chunked ? 0 : this->body_.size();
+    this->set_chunked(chunked);
+  }
+
+  int read(uint8_t *buf, size_t max_len) override {
+    size_t len = std::min(max_len, this->available_ - this->bytes_read_);
+    std::memcpy(buf, this->body_.data() + this->bytes_read_, len);
+    this->bytes_read_ += len;
+    return static_cast<int>(len);
+  }
+  void end() override {}
+
+  // Like ESP-IDF: a chunked response is complete once its last chunk has been read
+  bool is_read_complete() const override {
+    if (this->is_chunked_)
+      return this->bytes_read_ >= this->body_.size();
+    return HttpContainer::is_read_complete();
+  }
+
+  void set_content_length(size_t length) { this->content_length = length; }
+
+ protected:
+  std::vector<uint8_t> body_;
+  size_t available_;
+};
+
+class FakeHttpRequest : public http_request::HttpRequestComponent {
+ public:
+  std::shared_ptr<http_request::HttpContainer> next;
+
+ protected:
+  std::shared_ptr<http_request::HttpContainer> perform(const char *url, const char *method, const std::string &body,
+                                                       const std::vector<http_request::Header> &request_headers,
+                                                       const std::vector<std::string> &collect_headers) override {
+    return std::move(this->next);
+  }
+};
+
+// A 24-bit BMP, 2x2 pixels: 54 header bytes, then two rows of 6 pixel bytes and 2 padding bytes.
+static constexpr size_t BMP_HEADER_SIZE = 54;
+static constexpr size_t BMP_ROW_SIZE = 8;
+
+static std::vector<uint8_t> make_bmp() {
+  std::vector<uint8_t> bmp(BMP_HEADER_SIZE + 2 * BMP_ROW_SIZE, 0);
+  auto put32 = [&bmp](size_t offset, uint32_t value) {
+    for (size_t i = 0; i < 4; i++)
+      bmp[offset + i] = (value >> (8 * i)) & 0xFF;
+  };
+  bmp[0] = 'B';
+  bmp[1] = 'M';
+  put32(2, bmp.size());
+  put32(10, BMP_HEADER_SIZE);
+  put32(14, 40);  // DIB header size
+  put32(18, 2);   // width
+  put32(22, 2);   // height
+  bmp[26] = 1;    // color planes
+  bmp[28] = 24;   // bits per pixel
+  return bmp;
+}
+
+static void set_loop_time(uint32_t now) { LoopBlockingGuard clock(nullptr, LOG_STR("test"), now); }
+
+class OnlineImageDownloadEnd : public ::testing::Test {
+ protected:
+  std::unique_ptr<OnlineImage> make_image(runtime_image::ImageFormat format) {
+    auto img = std::make_unique<OnlineImage>("http://example.com/image", 0, 0, format, image::IMAGE_TYPE_RGB,
+                                             image::TRANSPARENCY_OPAQUE, nullptr, 256);
+    img->set_parent(&this->http_);
+    return img;
+  }
+
+  void start(OnlineImage &image, const std::shared_ptr<FakeContainer> &container) {
+    image.add_on_finished_callback([this](bool) { this->finished_++; });
+    image.add_on_error_callback([this]() { this->errors_++; });
+    this->http_.next = container;
+    image.update();
+  }
+
+  FakeHttpRequest http_;
+  int finished_{0};
+  int errors_{0};
+};
+
+// A chunked stream can end without the decoder reporting it is finished (PNG never does).
+// When the decoder used every byte, the download succeeds.
+TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishes) {
+  std::vector<uint8_t> bmp = make_bmp();
+  bmp.resize(BMP_HEADER_SIZE + BMP_ROW_SIZE);  // only the first row, so the decoder is not finished
+  auto container = std::make_shared<FakeContainer>(bmp, bmp.size(), true);
+  auto image = this->make_image(runtime_image::BMP);
+  this->start(*image, container);
+
+  for (int i = 0; i < 4 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+
+  EXPECT_EQ(this->finished_, 1);
+  EXPECT_EQ(this->errors_, 0);
+}
+
+// ESP-IDF keeps returning 0 after the server closes the connection early.
+TEST_F(OnlineImageDownloadEnd, NoDataForTimeoutReportsError) {
+  this->http_.set_timeout(100);
+  auto container = std::make_shared<FakeContainer>(make_bmp(), 20, false);
+  auto image = this->make_image(runtime_image::BMP);
+  set_loop_time(1000);
+  this->start(*image, container);
+
+  image->loop();
+  ASSERT_EQ(container->get_bytes_read(), 20u);
+  set_loop_time(1099);
+  image->loop();
+  EXPECT_EQ(this->errors_, 0);
+
+  set_loop_time(1100);
+  image->loop();
+  EXPECT_EQ(this->errors_, 1);
+  EXPECT_EQ(this->finished_, 0);
+}
+
+// A JPEG too big for the heap must fail, and leave the configured buffer for the next download.
+TEST_F(OnlineImageDownloadEnd, JpegBufferAllocationFailureReportsError) {
+  auto image = this->make_image(runtime_image::JPEG);
+  auto huge = std::make_shared<FakeContainer>(std::vector<uint8_t>(16), 16, false);
+  huge->set_content_length(SIZE_MAX / 2);
+  this->start(*image, huge);
+  EXPECT_EQ(this->errors_, 1);
+
+  // A chunked response does not resize the buffer. The body is not a real JPEG, so the decoder
+  // rejects it, but only once it has been read into the buffer.
+  auto next = std::make_shared<FakeContainer>(std::vector<uint8_t>(100, 0xAA), 100, true);
+  this->http_.next = next;
+  image->update();
+  image->loop();
+  EXPECT_EQ(next->get_bytes_read(), 100u);
+  EXPECT_EQ(this->errors_, 2);
+  EXPECT_EQ(this->finished_, 0);
+}
+
+}  // namespace esphome::online_image::testing
