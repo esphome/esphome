@@ -13,7 +13,8 @@ namespace esphome::ld2450 {
 /// A zone with any polygon shape. The text state holds the polygon, so it can be edited and read back from HA.
 class PolygonZone : public text::Text {
  public:
-  explicit PolygonZone(binary_sensor::BinarySensor *presence) : presence_(presence) {}
+  /// Config validation guarantees every zone gets exactly one presence binary sensor.
+  void set_presence_binary_sensor(binary_sensor::BinarySensor *presence) { this->presence_ = presence; }
 
   /// Load the saved polygon and publish the initial states. Called from the hub's setup().
   void setup();
@@ -26,7 +27,7 @@ class PolygonZone : public text::Text {
   void control(const std::string &value) override;
   void publish_polygon_();
 
-  binary_sensor::BinarySensor *presence_;
+  binary_sensor::BinarySensor *presence_{nullptr};
   Polygon polygon_;
   ESPPreferenceObject pref_;
 };

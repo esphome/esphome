@@ -3,18 +3,6 @@ ld2450:
     on_data:
       then:
         - logger.log: "LD2450 Radar Data Received"
-    polygon_zones:
-      - polygon:
-          name: Couch Zone Polygon
-        presence:
-          name: Couch Occupied
-      - polygon:
-          id: desk_zone_polygon
-          name: Desk Zone Polygon
-        presence:
-          name: Desk Occupied
-          filters:
-            - delayed_off: 1s
 
 button:
   - platform: ld2450
@@ -108,6 +96,22 @@ binary_sensor:
       name: Moving Target
     has_still_target:
       name: Still Target
+    polygon_zones:
+      - polygon_zone_id: ld2450_couch_zone
+        name: Couch Occupied
+      - polygon_zone_id: ld2450_desk_zone
+        name: Desk Occupied
+        filters:
+          - delayed_off: 1s
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    polygon_zones:
+      - id: ld2450_couch_zone
+        name: Couch Zone Polygon
+      - id: ld2450_desk_zone
+        name: Desk Zone Polygon
 
 switch:
   - platform: ld2450
