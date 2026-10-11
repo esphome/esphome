@@ -10,9 +10,6 @@ ESPHOME_LOG_TAG(TAG, "lis3dh");
 // operating mode, since the chip leaves the unused low bits at zero.
 static const float SCALE_G[] PROGMEM = {0.0625e-3f, 0.125e-3f, 0.25e-3f, 0.75e-3f};
 
-// Motion interrupt threshold LSB in mg, indexed by range.
-static const uint8_t THRESHOLD_LSB_MG[] PROGMEM = {16, 32, 62, 186};
-
 static const LogString *mode_to_str(LIS3DHOperatingMode mode) {
   switch (mode) {
     case LIS3DH_MODE_LOW_POWER:
@@ -134,15 +131,14 @@ void LIS3DHComponent::dump_config() {
                 2u << this->range_, LOG_STR_ARG(mode_to_str(this->operating_mode_)),
                 (unsigned) progmem_read_uint16(&RATE_HZ[this->data_rate_ - 1]));
   if (this->interrupt_axes_cfg_ != 0) {
-    const float threshold_g = this->interrupt_threshold_ * progmem_read_byte(&THRESHOLD_LSB_MG[this->range_]) / 1000.0f;
     ESP_LOGCONFIG(TAG,
                   "  Motion interrupt: %s (%s%s%s)\n"
-                  "    Threshold: %.3fg (%u)\n"
+                  "    Threshold: %u steps\n"
                   "    Duration: %u samples",
                   this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? LOG_STR_LITERAL("INT1") : LOG_STR_LITERAL("INT2"),
                   this->interrupt_active_high_ ? LOG_STR_LITERAL("active high") : LOG_STR_LITERAL("active low"),
                   this->interrupt_high_pass_ ? LOG_STR_LITERAL(", high-pass") : LOG_STR_LITERAL(""),
-                  this->interrupt_latched_ ? LOG_STR_LITERAL(", latched") : LOG_STR_LITERAL(""), threshold_g,
+                  this->interrupt_latched_ ? LOG_STR_LITERAL(", latched") : LOG_STR_LITERAL(""),
                   this->interrupt_threshold_, this->interrupt_duration_);
   }
   MotionComponent::dump_config();

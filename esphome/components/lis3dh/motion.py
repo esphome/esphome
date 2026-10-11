@@ -97,7 +97,7 @@ def _axes(value: object) -> list[str]:
     return value
 
 
-# Without high_pass_filter the threshold includes gravity, so it must exceed 1g.
+# Without high_pass_filter the threshold includes gravity, so it should exceed 1g.
 INTERRUPT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PIN, default="INT1"): cv.enum(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from esphome.components.lis3dh.motion import (
@@ -22,7 +24,11 @@ from esphome.core import TimePeriod
 
 
 def _interrupt_config(
-    range_key: str, odr_key: str, threshold_g: float, duration_ms: int
+    range_key: str,
+    odr_key: str,
+    threshold_g: float,
+    duration_ms: int,
+    high_pass: bool = True,
 ) -> dict:
     return {
         CONF_ACCELEROMETER_RANGE: range_key,
@@ -30,7 +36,7 @@ def _interrupt_config(
         CONF_INTERRUPT: {
             CONF_THRESHOLD: threshold_g,
             CONF_DURATION: TimePeriod(milliseconds=duration_ms),
-            CONF_HIGH_PASS_FILTER: True,
+            CONF_HIGH_PASS_FILTER: high_pass,
         },
     }
 
@@ -118,3 +124,24 @@ def test_duration_at_register_limit_is_accepted() -> None:
     """127 samples is the largest INT1_DURATION value."""
     config = _interrupt_config("2G", "100HZ", 1.1, 1270)
     assert _validate_interrupt(config) is config
+
+
+def test_sub_gravity_threshold_without_filter_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Gravity alone can hold the pad asserted below 1g unless the high-pass filter is on."""
+    config = _interrupt_config("2G", "100HZ", 0.5, 0, high_pass=False)
+    with caplog.at_level(logging.WARNING):
+        assert _validate_interrupt(config) is config
+    assert "high_pass_filter: true" in caplog.text
+
+
+@pytest.mark.parametrize(("threshold_g", "high_pass"), [(1.1, False), (0.5, True)])
+def test_threshold_without_gravity_problem_is_silent(
+    caplog: pytest.LogCaptureFixture, threshold_g: float, high_pass: bool
+) -> None:
+    """Above 1g, or with the filter on, no warning is logged."""
+    config = _interrupt_config("2G", "100HZ", threshold_g, 0, high_pass=high_pass)
+    with caplog.at_level(logging.WARNING):
+        _validate_interrupt(config)
+    assert caplog.text == ""
