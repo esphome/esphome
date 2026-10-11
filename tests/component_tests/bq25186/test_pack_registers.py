@@ -1,0 +1,70 @@
+"""Tests for the bq25186 register packer."""
+
+from esphome.components.bq25186 import (
+    BQ25186_CONFIG_SCHEMA,
+    CONF_BATTERY_REGULATION_VOLTAGE,
+    CONF_CHARGE_ENABLED,
+    CONF_FAST_CHARGE_CURRENT,
+    CONF_MASK_TS_INTERRUPT,
+    CONF_PUSH_BUTTON_LONG_PRESS_ACTION,
+    CONF_WATCHDOG,
+    REG_ICHG_CTRL,
+    REG_MASK_ID,
+    REG_SHIP_RST,
+    REG_VBAT_CTRL,
+    pack_registers,
+)
+from esphome.types import ConfigType
+
+# Datasheet power-on values for VBAT_CTRL..MASK_ID, except that IC_CTRL has the
+# watchdog disabled (0x87 instead of 0x84) and MASK_ID carries only its
+# configurable bits 7:4 (0x40 instead of 0x41 with the device id).
+DEFAULT_REGISTERS = [0x46, 0x05, 0x24, 0xC6, 0x87, 0x4D, 0x11, 0x40, 0x00, 0x40]
+
+
+def _packed(reg: int, config: ConfigType | None = None) -> int:
+    regs = pack_registers(BQ25186_CONFIG_SCHEMA(config or {}))
+    return regs[reg - REG_VBAT_CTRL]
+
+
+def test_defaults_match_power_on_values() -> None:
+    assert pack_registers(BQ25186_CONFIG_SCHEMA({})) == DEFAULT_REGISTERS
+    assert BQ25186_CONFIG_SCHEMA({})[CONF_WATCHDOG] == "disabled"
+
+
+def test_battery_regulation_voltage_code() -> None:
+    assert _packed(REG_VBAT_CTRL, {CONF_BATTERY_REGULATION_VOLTAGE: "4.1V"}) == 0x3C
+    assert _packed(REG_VBAT_CTRL, {CONF_BATTERY_REGULATION_VOLTAGE: "3.5V"}) == 0x00
+    assert _packed(REG_VBAT_CTRL, {CONF_BATTERY_REGULATION_VOLTAGE: "4.65V"}) == 0x73
+
+
+def test_fast_charge_current_code() -> None:
+    # 1 mA steps from 5 mA to 35 mA
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "5mA"}) == 0x00
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "20mA"}) == 0x0F
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "35mA"}) == 0x1E
+    # 10 mA steps from 40 mA, rounded down
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "36mA"}) == 0x1F
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "40mA"}) == 0x1F
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "200mA"}) == 0x2F
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "1A"}) == 0x7F
+
+
+def test_charge_disabled_sets_bit_7() -> None:
+    assert _packed(REG_ICHG_CTRL, {CONF_CHARGE_ENABLED: False}) == 0x85
+    assert _packed(REG_ICHG_CTRL, {CONF_CHARGE_ENABLED: True}) == 0x05
+
+
+def test_masked_registers_only_carry_configurable_bits() -> None:
+    config: ConfigType = {
+        CONF_PUSH_BUTTON_LONG_PRESS_ACTION: "shutdown_mode",
+        CONF_MASK_TS_INTERRUPT: True,
+    }
+    # SHIP_RST bits 7:5 are reset triggers
+    ship_rst = _packed(REG_SHIP_RST, config)
+    assert ship_rst == 0x19
+    assert ship_rst & ~0x1F == 0
+    # MASK_ID bits 3:0 are the device id
+    mask_id = _packed(REG_MASK_ID, config)
+    assert mask_id == 0xC0
+    assert mask_id & ~0xF0 == 0
