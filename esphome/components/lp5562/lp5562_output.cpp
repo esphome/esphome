@@ -4,15 +4,19 @@
 
 namespace esphome::lp5562 {
 
-static const char *const TAG = "lp5562";
+ESPHOME_LOG_TAG(TAG, "lp5562");
 
 // see table 26 in the datasheet https://web.archive.org/web/20240327023921/https://www.ti.com/lit/ds/symlink/lp5562.pdf
-static const uint8_t LP5562_REG_ENABLE = 0x00;
-static const uint8_t LP5562_REG_CONFIG = 0x08;
-static const uint8_t LP5562_REG_LED_MAP = 0x70;
+static constexpr uint8_t LP5562_REG_ENABLE = 0x00;
+static constexpr uint8_t LP5562_REG_CONFIG = 0x08;
+static constexpr uint8_t LP5562_REG_LED_MAP = 0x70;
+
+static constexpr uint8_t LP5562_ENABLE_CHIP_EN = 0x40;
+static constexpr uint8_t LP5562_CONFIG_INT_CLK_EN = 0x01;
+static constexpr uint8_t LP5562_LED_MAP_ALL_PWM_REGISTERS = 0x00;  // every channel driven by its PWM register
 
 // PWM duty-cycle registers, indexed the same way as the LP5562_CHANNELS enum in output.py
-static const uint8_t LP5562_REG_PWM[4] = {
+static constexpr uint8_t LP5562_REG_PWM[4] = {
     0x02,  // blue
     0x03,  // green
     0x04,  // red
@@ -22,14 +26,15 @@ static const uint8_t LP5562_REG_PWM[4] = {
 void LP5562Output::setup() {
   // power up the chip and enable the internal 32 kHz oscillator, see
   // https://github.com/m5stack/M5GFX/blob/b2422cdb4735159209c2097d425c0756505b9a81/src/M5GFX.cpp#L566
-  if (!this->write_byte(LP5562_REG_ENABLE, 0x40)) {
+  if (!this->write_byte(LP5562_REG_ENABLE, LP5562_ENABLE_CHIP_EN)) {
     this->mark_failed();
     return;
   }
   delay(1);
   // use the internal clock, and drive every channel directly from its PWM register instead of the
   // internal blink/fade engines
-  if (!this->write_byte(LP5562_REG_CONFIG, 0x01) || !this->write_byte(LP5562_REG_LED_MAP, 0x00)) {
+  if (!this->write_byte(LP5562_REG_CONFIG, LP5562_CONFIG_INT_CLK_EN) ||
+      !this->write_byte(LP5562_REG_LED_MAP, LP5562_LED_MAP_ALL_PWM_REGISTERS)) {
     this->mark_failed();
   }
 }
