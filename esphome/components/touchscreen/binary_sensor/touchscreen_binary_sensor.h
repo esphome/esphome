@@ -10,10 +10,10 @@
 
 namespace esphome::touchscreen {
 
-class TouchscreenBinarySensor : public binary_sensor::BinarySensor,
-                                public Component,
-                                public TouchListener,
-                                public Parented<Touchscreen> {
+class TouchscreenBinarySensor final : public binary_sensor::BinarySensor,
+                                      public Component,
+                                      public TouchListener,
+                                      public Parented<Touchscreen> {
  public:
   void setup() override;
 

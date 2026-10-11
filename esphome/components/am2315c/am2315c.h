@@ -27,7 +27,7 @@
 
 namespace esphome::am2315c {
 
-class AM2315C : public PollingComponent, public i2c::I2CDevice {
+class AM2315C final : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void update() override;

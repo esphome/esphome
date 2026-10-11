@@ -7,7 +7,7 @@ namespace esphome::sx1509 {
 
 class SX1509Component;
 
-class SX1509FloatOutputChannel : public output::FloatOutput, public Component {
+class SX1509FloatOutputChannel final : public output::FloatOutput, public Component {
  public:
   void set_parent(SX1509Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }

@@ -6,7 +6,7 @@
 namespace esphome::emc2101 {
 
 /// This class allows to control the EMC2101 output.
-class EMC2101Output : public output::FloatOutput {
+class EMC2101Output final : public output::FloatOutput {
  public:
   EMC2101Output(Emc2101Component *parent) : parent_(parent) {}
 

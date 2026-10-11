@@ -17,6 +17,7 @@ from esphome.const import (
 )
 from esphome.core.entity_helpers import inherit_property_from
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
@@ -28,10 +29,6 @@ SourceSpeaker = mixer_speaker_ns.class_("SourceSpeaker", cg.Component, speaker.S
 CONF_DECIBEL_REDUCTION = "decibel_reduction"
 CONF_QUEUE_MODE = "queue_mode"
 CONF_SOURCE_SPEAKERS = "source_speakers"
-
-DuckingApplyAction = mixer_speaker_ns.class_(
-    "DuckingApplyAction", automation.Action, cg.Parented.template(SourceSpeaker)
-)
 
 
 SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
@@ -48,7 +45,7 @@ SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
 )
 
 
-def _validate_source_speaker(config):
+def _validate_source_speaker(config: ConfigType) -> ConfigType:
     fconf = fv.full_config.get()
 
     # Get ID for the output speaker and add it to the source speakers config to easily inherit properties
@@ -70,7 +67,7 @@ def _validate_source_speaker(config):
     return config
 
 
-def _validate_output_speaker(config):
+def _validate_output_speaker(config: ConfigType) -> ConfigType:
     audio.final_validate_audio_schema(
         "mixer",
         audio_device=CONF_OUTPUT_SPEAKER,
@@ -112,7 +109,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -145,29 +142,21 @@ async def to_code(config):
         cg.add(var.add_source_speaker(source_speaker))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "mixer_speaker.apply_ducking",
-    DuckingApplyAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SourceSpeaker),
             cv.Required(CONF_DECIBEL_REDUCTION): cv.templatable(
-                cv.int_range(min=0, max=51)
+                cv.int_range(min=0, max=255)
             ),
             cv.Optional(CONF_DURATION, default="0.0s"): cv.templatable(
                 cv.positive_time_period_milliseconds
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "apply_ducking({}, {})",
+        ((CONF_DECIBEL_REDUCTION, cg.uint8), (CONF_DURATION, cg.uint32)),
+    ),
 )
-async def ducking_set_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    decibel_reduction = await cg.templatable(
-        config[CONF_DECIBEL_REDUCTION], args, cg.uint8
-    )
-    cg.add(var.set_decibel_reduction(decibel_reduction))
-    duration = await cg.templatable(config[CONF_DURATION], args, cg.uint32)
-    cg.add(var.set_duration(duration))
-    return var

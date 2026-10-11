@@ -4,7 +4,7 @@
 
 namespace esphome::sx127x {
 
-static const char *const TAG = "sx127x";
+ESPHOME_LOG_TAG(TAG, "sx127x");
 static const uint32_t FXOSC = 32000000u;
 static const uint16_t RAMP[16] = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
 static const uint32_t BW_HZ[22] = {2604,  3125,  3906,  5208,  6250,  7812,   10416,  12500,  15625,  20833,  25000,
@@ -43,11 +43,11 @@ void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
   this->disable();
 }
 
-void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
+void SX127x::write_fifo_(const uint8_t *data, size_t len) {
   this->enable();
   this->write_byte(REG_FIFO | 0x80);
-  for (const auto &byte : packet) {
-    this->transfer_byte(byte);
+  for (size_t i = 0; i < len; i++) {
+    this->transfer_byte(data[i]);
   }
   this->disable();
 }
@@ -201,8 +201,8 @@ void SX127x::configure_fsk_ook_() {
   this->write_register_(REG_OOK_AVG, OOK_AVG_RESERVED | OOK_THRESH_DEC_1_8);
 
   // set rx floor
-  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0));
-  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0)));
+  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0f));
+  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0f)));
 }
 
 void SX127x::configure_lora_() {
@@ -225,7 +225,7 @@ void SX127x::configure_lora_() {
   }
 
   // optimize detection
-  float duration = 1000.0f * std::pow(2, this->spreading_factor_) / BW_HZ[this->bandwidth_];
+  float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
   if (duration > 16) {
     this->write_register_(REG_MODEM_CONFIG3, MODEM_AGC_AUTO_ON | LOW_DATA_RATE_OPTIMIZE_ON);
   } else {
@@ -250,18 +250,17 @@ size_t SX127x::get_max_packet_size() {
     return this->payload_length_;
   }
   if (this->modulation_ == MOD_LORA) {
-    return 256;
-  } else {
-    return 64;
+    return SX127X_MAX_PACKET_SIZE;
   }
+  return 64;
 }
 
-SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
-  if (this->payload_length_ > 0 && this->payload_length_ != packet.size()) {
+SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
+  if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX127xError::INVALID_PARAMS;
   }
-  if (packet.empty() || packet.size() > this->get_max_packet_size()) {
+  if (len == 0 || len > this->get_max_packet_size()) {
     ESP_LOGE(TAG, "Packet size out of range");
     return SX127xError::INVALID_PARAMS;
   }
@@ -275,18 +274,18 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
   if (this->modulation_ == MOD_LORA) {
     this->set_mode_standby();
     if (this->payload_length_ == 0) {
-      this->write_register_(REG_PAYLOAD_LENGTH, packet.size());
+      this->write_register_(REG_PAYLOAD_LENGTH, len);
     }
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
     this->write_register_(REG_FIFO_ADDR_PTR, 0);
-    this->write_fifo_(packet);
+    this->write_fifo_(data, len);
     this->set_mode_tx();
   } else {
     this->set_mode_standby();
     if (this->payload_length_ == 0) {
-      this->write_register_(REG_FIFO, packet.size());
+      this->write_register_(REG_FIFO, len);
     }
-    this->write_fifo_(packet);
+    this->write_fifo_(data, len);
     this->set_mode_tx();
   }
 
@@ -479,8 +478,9 @@ void SX127x::dump_config() {
                   "  Rx Start: %s\n"
                   "  Rx Floor: %.1f dBm\n"
                   "  Packet Mode: %s",
-                  shaping, this->modulation_ == MOD_FSK ? "FSK" : "OOK", this->bitrate_, TRUEFALSE(this->bitsync_),
-                  TRUEFALSE(this->rx_start_), this->rx_floor_, TRUEFALSE(this->packet_mode_));
+                  shaping, this->modulation_ == MOD_FSK ? LOG_STR_LITERAL("FSK") : LOG_STR_LITERAL("OOK"),
+                  this->bitrate_, TRUEFALSE(this->bitsync_), TRUEFALSE(this->rx_start_), this->rx_floor_,
+                  TRUEFALSE(this->packet_mode_));
     if (this->packet_mode_) {
       ESP_LOGCONFIG(TAG, "  CRC Enable: %s", TRUEFALSE(this->crc_enable_));
     }

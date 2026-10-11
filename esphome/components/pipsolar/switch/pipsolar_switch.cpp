@@ -4,7 +4,7 @@
 
 namespace esphome::pipsolar {
 
-static const char *const TAG = "pipsolar.switch";
+ESPHOME_LOG_TAG(TAG, "pipsolar.switch");
 
 void PipsolarSwitch::dump_config() { LOG_SWITCH("", "Pipsolar Switch", this); }
 void PipsolarSwitch::write_state(bool state) {

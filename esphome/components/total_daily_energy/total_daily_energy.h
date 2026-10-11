@@ -14,7 +14,7 @@ enum TotalDailyEnergyMethod {
   TOTAL_DAILY_ENERGY_METHOD_RIGHT,
 };
 
-class TotalDailyEnergy : public sensor::Sensor, public Component {
+class TotalDailyEnergy final : public sensor::Sensor, public Component {
  public:
   void set_restore(bool restore) { restore_ = restore; }
   void set_time(time::RealTimeClock *time) { time_ = time; }

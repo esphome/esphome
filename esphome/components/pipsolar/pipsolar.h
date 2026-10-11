@@ -56,7 +56,7 @@ struct QFLAGValues {
   PIPSOLAR_ENTITY_(binary_sensor::BinarySensor, name, polling_command)
 #define PIPSOLAR_TEXT_SENSOR(name, polling_command) PIPSOLAR_ENTITY_(text_sensor::TextSensor, name, polling_command)
 
-class Pipsolar : public uart::UARTDevice, public PollingComponent {
+class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   // QPIGS values
   PIPSOLAR_SENSOR(grid_voltage, QPIGS)
   PIPSOLAR_SENSOR(grid_frequency, QPIGS)

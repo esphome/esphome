@@ -2,11 +2,11 @@
 
 light:
   - platform: rp2040_pio_led_strip
-    id: led_strip
+    id: e131_led_strip
     pin: 2
     pio: 0
     num_leds: 256
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: WS2812
     effects:
       - e131:

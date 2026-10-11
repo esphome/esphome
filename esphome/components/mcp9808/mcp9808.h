@@ -6,7 +6,7 @@
 
 namespace esphome::mcp9808 {
 
-class MCP9808Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class MCP9808Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

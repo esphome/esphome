@@ -11,7 +11,7 @@ struct RacPt1411hwruFanSpeed {
   uint8_t code2;
 };
 
-static const char *const TAG = "toshiba.climate";
+ESPHOME_LOG_TAG(TAG, "toshiba.climate");
 // Timings for IR bits/data
 const uint16_t TOSHIBA_HEADER_MARK = 4380;
 const uint16_t TOSHIBA_HEADER_SPACE = 4370;
@@ -593,7 +593,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   message[3] = ~message[2];
   // Byte 4u: Temp
   if (this->model_ == MODEL_RAC_PT1411HWRU_F) {
-    temperature = (temperature * 1.8) + 32;
+    temperature = (temperature * 1.8f) + 32;
     temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN;
   }
 

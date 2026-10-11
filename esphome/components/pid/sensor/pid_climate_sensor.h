@@ -16,9 +16,14 @@ enum PIDClimateSensorType {
   PID_SENSOR_TYPE_KP,
   PID_SENSOR_TYPE_KI,
   PID_SENSOR_TYPE_KD,
+  PID_SENSOR_TYPE_DEADBAND_THRESHOLD_HIGH,
+  PID_SENSOR_TYPE_DEADBAND_THRESHOLD_LOW,
+  PID_SENSOR_TYPE_KP_DEADBAND_MULTIPLIER,
+  PID_SENSOR_TYPE_KI_DEADBAND_MULTIPLIER,
+  PID_SENSOR_TYPE_KD_DEADBAND_MULTIPLIER,
 };
 
-class PIDClimateSensor : public sensor::Sensor, public Component {
+class PIDClimateSensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void set_parent(PIDClimate *parent) { parent_ = parent; }

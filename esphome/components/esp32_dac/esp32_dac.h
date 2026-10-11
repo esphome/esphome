@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_dac {
 
-class ESP32DAC : public output::FloatOutput, public Component {
+class ESP32DAC final : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
 

@@ -7,7 +7,7 @@
 
 namespace esphome::daikin_arc {
 
-static const char *const TAG = "daikin.climate";
+ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 void DaikinArcClimate::setup() {
   climate_ir::ClimateIR::setup();
@@ -216,7 +216,7 @@ uint8_t DaikinArcClimate::temperature_() {
       return 0xc0;
     default:
       float new_temp = clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX);
-      uint8_t temperature = (uint8_t) floor(new_temp);
+      uint8_t temperature = (uint8_t) std::floor(new_temp);
       return temperature << 1 | (new_temp - temperature > 0 ? 0x01 : 0);
   }
 }

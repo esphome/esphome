@@ -56,7 +56,7 @@ union DataPacket {  // NOLINT(altera-struct-pack-align)
   };
 } __attribute__((packed));
 
-class BL0939 : public PollingComponent, public uart::UARTDevice {
+class BL0939 final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor_1(sensor::Sensor *current_sensor_1) { current_sensor_1_ = current_sensor_1; }

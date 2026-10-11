@@ -31,9 +31,9 @@ class WeikaiRegisterSPI : public weikai::WeikaiRegister {
 /// @brief The WeikaiComponentSPI class stores the information to the WeiKai component
 /// connected through an SPI bus.
 ////////////////////////////////////////////////////////////////////////////////////
-class WeikaiComponentSPI : public weikai::WeikaiComponent,
-                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+class WeikaiComponentSPI final : public weikai::WeikaiComponent,
+                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                       spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   weikai::WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_spi_.register_ = reg;

@@ -9,7 +9,7 @@
 
 namespace esphome::sound_level {
 
-static const char *const TAG = "sound_level";
+ESPHOME_LOG_TAG(TAG, "sound_level");
 
 static const uint32_t MAX_FILL_DURATION_MS = 30;
 static const uint32_t RING_BUFFER_DURATION_MS = 120;
@@ -121,7 +121,7 @@ void SoundLevelComponent::loop() {
   if (this->sample_count_ == samples_in_window) {
     // Processed enough samples for the measurement window, compute and publish the sensor values
     if (this->peak_sensor_ != nullptr) {
-      const float peak_db = 10.0f * log10(static_cast<float>(this->squared_peak_) / MAX_SAMPLE_SQUARED_DENOMINATOR);
+      const float peak_db = 10.0f * log10f(static_cast<float>(this->squared_peak_) / MAX_SAMPLE_SQUARED_DENOMINATOR);
       this->peak_sensor_->publish_state(peak_db);
 
       this->squared_peak_ = 0;  // reset accumulator
@@ -171,7 +171,7 @@ bool SoundLevelComponent::start_() {
       (stream_info.ms_to_bytes(RING_BUFFER_DURATION_MS) / bytes_per_frame) * bytes_per_frame;
   std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
   if (temp_ring_buffer == nullptr) {
-    this->status_momentary_error("ring_buffer", 15000);
+    this->status_momentary_error(15000);
     return false;
   }
 
@@ -180,7 +180,7 @@ bool SoundLevelComponent::start_() {
   this->audio_source_ = audio::RingBufferAudioSource::create(
       temp_ring_buffer, stream_info.ms_to_bytes(MAX_FILL_DURATION_MS), static_cast<uint8_t>(bytes_per_frame));
   if (this->audio_source_ == nullptr) {
-    this->status_momentary_error("audio_source", 15000);
+    this->status_momentary_error(15000);
     return false;
   }
   this->ring_buffer_ = temp_ring_buffer;

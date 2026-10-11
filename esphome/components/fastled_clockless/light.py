@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_RGB_ORDER,
     Framework,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["fastled_base"]
 
@@ -41,7 +42,7 @@ CHIPSETS = [
 ]
 
 
-def _validate(value):
+def _validate(value: ConfigType) -> ConfigType:
     if value[CONF_CHIPSET] == "NEOPIXEL" and CONF_RGB_ORDER in value:
         raise cv.Invalid("NEOPIXEL doesn't support RGB order")
     return value
@@ -73,7 +74,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await fastled_base.new_fastled_light(config)
 
     rgb_order = None

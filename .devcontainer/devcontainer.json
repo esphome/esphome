@@ -15,7 +15,6 @@
     // uncomment and edit the path in order to pass through local USB serial to the container
     // , "--device=/dev/ttyACM0"
   ],
-  "appPort": 6052,
   // if you are using avahi in the host device, uncomment these to allow the
   // devcontainer to find devices via mdns
   //"mounts": [
@@ -41,7 +40,11 @@
       ],
       "settings": {
         "python.languageServer": "Pylance",
-        "python.pythonPath": "/usr/bin/python3",
+        // Use the container's pre-provisioned venv (built by the Dockerfile, outside the
+        // bind-mounted workspace) rather than a ./venv that may leak in from the host and
+        // mismatch the container's Python. See .devcontainer/Dockerfile (esphome-venv).
+        "python.defaultInterpreterPath": "/home/esphome/.local/esphome-venv/bin/python",
+        "python.terminal.activateEnvironment": true,
         "pylint.args": [
           "--rcfile=${workspaceFolder}/pyproject.toml"
         ],

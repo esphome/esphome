@@ -9,10 +9,10 @@
 
 namespace esphome::adc128s102 {
 
-class ADC128S102Sensor : public PollingComponent,
-                         public Parented<ADC128S102>,
-                         public sensor::Sensor,
-                         public voltage_sampler::VoltageSampler {
+class ADC128S102Sensor final : public PollingComponent,
+                               public Parented<ADC128S102>,
+                               public sensor::Sensor,
+                               public voltage_sampler::VoltageSampler {
  public:
   ADC128S102Sensor(uint8_t channel);
 

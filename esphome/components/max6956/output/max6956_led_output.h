@@ -7,7 +7,7 @@ namespace esphome::max6956 {
 
 class MAX6956;
 
-class MAX6956LedChannel : public output::FloatOutput, public Component {
+class MAX6956LedChannel final : public output::FloatOutput, public Component {
  public:
   void set_parent(MAX6956 *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }

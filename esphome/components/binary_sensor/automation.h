@@ -18,29 +18,9 @@ struct MultiClickTriggerEvent {
   uint32_t max_length;
 };
 
-class PressTrigger : public Trigger<> {
- public:
-  explicit PressTrigger(BinarySensor *parent) {
-    parent->add_on_state_callback([this](bool state) {
-      if (state)
-        this->trigger();
-    });
-  }
-};
-
-class ReleaseTrigger : public Trigger<> {
- public:
-  explicit ReleaseTrigger(BinarySensor *parent) {
-    parent->add_on_state_callback([this](bool state) {
-      if (!state)
-        this->trigger();
-    });
-  }
-};
-
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length);
 
-class ClickTrigger : public Trigger<> {
+class ClickTrigger final : public Trigger<> {
  public:
   explicit ClickTrigger(BinarySensor *parent, uint32_t min_length, uint32_t max_length)
       : min_length_(min_length), max_length_(max_length) {
@@ -61,7 +41,7 @@ class ClickTrigger : public Trigger<> {
   uint32_t max_length_;     /// Maximum length of click. 0 means no maximum.
 };
 
-class DoubleClickTrigger : public Trigger<> {
+class DoubleClickTrigger final : public Trigger<> {
  public:
   explicit DoubleClickTrigger(BinarySensor *parent, uint32_t min_length, uint32_t max_length)
       : min_length_(min_length), max_length_(max_length) {
@@ -127,7 +107,7 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
 
 /// Template wrapper that provides inline std::array storage for timing events.
 /// N is set by code generation to match the exact number of timing events configured in YAML.
-template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
+template<size_t N> class MultiClickTrigger final : public MultiClickTriggerBase {
  public:
   MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
       : MultiClickTriggerBase(parent) {
@@ -138,55 +118,6 @@ template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
 
  protected:
   std::array<MultiClickTriggerEvent, N> timing_storage_{};
-};
-
-class StateTrigger : public Trigger<bool> {
- public:
-  explicit StateTrigger(BinarySensor *parent) {
-    parent->add_on_state_callback([this](bool state) { this->trigger(state); });
-  }
-};
-
-class StateChangeTrigger : public Trigger<optional<bool>, optional<bool> > {
- public:
-  explicit StateChangeTrigger(BinarySensor *parent) {
-    parent->add_full_state_callback(
-        [this](optional<bool> old_state, optional<bool> state) { this->trigger(old_state, state); });
-  }
-};
-
-template<typename... Ts> class BinarySensorCondition : public Condition<Ts...> {
- public:
-  BinarySensorCondition(BinarySensor *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(const Ts &...x) override { return this->parent_->state == this->state_; }
-
- protected:
-  BinarySensor *parent_;
-  bool state_;
-};
-
-template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> {
- public:
-  explicit BinarySensorPublishAction(BinarySensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(bool, state)
-
-  void play(const Ts &...x) override {
-    auto val = this->state_.value(x...);
-    this->sensor_->publish_state(val);
-  }
-
- protected:
-  BinarySensor *sensor_;
-};
-
-template<typename... Ts> class BinarySensorInvalidateAction : public Action<Ts...> {
- public:
-  explicit BinarySensorInvalidateAction(BinarySensor *sensor) : sensor_(sensor) {}
-
-  void play(const Ts &...x) override { this->sensor_->invalidate_state(); }
-
- protected:
-  BinarySensor *sensor_;
 };
 
 }  // namespace esphome::binary_sensor

@@ -3,6 +3,6 @@ substitutions:
   rx_pin: GPIO3
 
 packages:
-  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+  uart_4800: !include ../../test_build_components/common/uart_4800/esp8266-ard.yaml
 
 <<: !include common.yaml

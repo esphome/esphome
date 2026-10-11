@@ -6,7 +6,7 @@
 
 namespace esphome::max17043 {
 
-class MAX17043Component : public PollingComponent, public i2c::I2CDevice {
+class MAX17043Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

@@ -21,13 +21,13 @@ struct WiegandStore {
   static void d1_gpio_intr(WiegandStore *arg);
 };
 
-class WiegandTagTrigger : public Trigger<std::string> {};
+class WiegandTagTrigger final : public Trigger<std::string> {};
 
-class WiegandRawTrigger : public Trigger<uint8_t, uint64_t> {};
+class WiegandRawTrigger final : public Trigger<uint8_t, uint64_t> {};
 
-class WiegandKeyTrigger : public Trigger<uint8_t> {};
+class WiegandKeyTrigger final : public Trigger<uint8_t> {};
 
-class Wiegand : public key_provider::KeyProvider, public Component {
+class Wiegand final : public key_provider::KeyProvider, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void setup() override;

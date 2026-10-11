@@ -20,7 +20,7 @@ class TM1638Component;
 
 using tm1638_writer_t = display::DisplayWriter<TM1638Component>;
 
-class TM1638Component : public PollingComponent {
+class TM1638Component final : public PollingComponent {
  public:
   void set_writer(tm1638_writer_t &&writer) { this->writer_ = writer; }
   void setup() override;

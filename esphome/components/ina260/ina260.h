@@ -6,7 +6,7 @@
 
 namespace esphome::ina260 {
 
-class INA260Component : public PollingComponent, public i2c::I2CDevice {
+class INA260Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

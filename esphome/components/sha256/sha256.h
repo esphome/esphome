@@ -3,7 +3,7 @@
 #include "esphome/core/defines.h"
 
 // Only define SHA256 on platforms that support it
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_HOST)
 
 #include <cstdint>
 #include <string>
@@ -25,7 +25,7 @@
 #elif defined(USE_LIBRETINY)
 #define USE_SHA256_MBEDTLS
 #include "mbedtls/sha256.h"
-#elif defined(USE_ESP8266) || defined(USE_RP2040)
+#elif defined(USE_ESP8266) || defined(USE_RP2)
 #include <bearssl/bearssl_hash.h>
 #elif defined(USE_HOST)
 #include <openssl/evp.h>
@@ -70,7 +70,7 @@ class SHA256 final : public esphome::HashBase {
   // The mbedtls context for ESP32-S3 hardware SHA requires proper alignment and stack frame constraints.
   // See class documentation above for critical requirements.
   mbedtls_sha256_context ctx_{};
-#elif defined(USE_ESP8266) || defined(USE_RP2040)
+#elif defined(USE_ESP8266) || defined(USE_RP2)
   br_sha256_context ctx_{};
   bool calculated_{false};
 #elif defined(USE_HOST)

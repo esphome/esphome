@@ -18,6 +18,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -71,22 +72,17 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_pack_size(config.get(CONF_SIZE)))
     cg.add(var.set_pack_voltage(BATTERY_VOLTAGE_OPTIONS[config[CONF_VOLTAGE]]))
 
-    if voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
 
-    if level_config := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(level_config)
-        cg.add(var.set_battery_remaining_sensor(sens))
-
-    if temp_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temp_config)
-        cg.add(var.set_temperature_sensor(sens))
-        cg.add(var.set_thermistor_b_constant(temp_config[CONF_B_CONSTANT]))
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        b_constant = config[CONF_TEMPERATURE][CONF_B_CONSTANT]
+        cg.add(var.set_thermistor_b_constant(b_constant))

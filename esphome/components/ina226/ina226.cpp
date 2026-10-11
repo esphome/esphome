@@ -5,7 +5,7 @@
 
 namespace esphome::ina226 {
 
-static const char *const TAG = "ina226";
+ESPHOME_LOG_TAG(TAG, "ina226");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -70,7 +70,7 @@ void INA226Component::setup() {
 
   this->calibration_lsb_ = lsb;
 
-  auto calibration = uint32_t(0.00512 / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
+  auto calibration = uint32_t(0.00512f / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
 
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
 

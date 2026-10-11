@@ -25,7 +25,7 @@ enum AdcInputMicLine : uint8_t {
   ADC_INPUT_MIC_DIFFERENCE,
 };
 
-class ES8388 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
+class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
 #ifdef USE_SELECT
   SUB_SELECT(dac_output)
   SUB_SELECT(adc_input_mic)

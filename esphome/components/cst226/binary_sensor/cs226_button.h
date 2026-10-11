@@ -6,10 +6,10 @@
 
 namespace esphome::cst226 {
 
-class CST226Button : public binary_sensor::BinarySensor,
-                     public Component,
-                     public CST226ButtonListener,
-                     public Parented<CST226Touchscreen> {
+class CST226Button final : public binary_sensor::BinarySensor,
+                           public Component,
+                           public CST226ButtonListener,
+                           public Parented<CST226Touchscreen> {
  public:
   void setup() override;
   void dump_config() override;

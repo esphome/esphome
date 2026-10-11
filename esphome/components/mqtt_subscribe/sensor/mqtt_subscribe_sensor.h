@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt_subscribe {
 
-class MQTTSubscribeSensor : public sensor::Sensor, public Component {
+class MQTTSubscribeSensor final : public sensor::Sensor, public Component {
  public:
   void set_parent(mqtt::MQTTClientComponent *parent) { parent_ = parent; }
   void set_topic(const std::string &topic) { topic_ = topic; }
@@ -18,7 +18,7 @@ class MQTTSubscribeSensor : public sensor::Sensor, public Component {
   void dump_config() override;
   float get_setup_priority() const override;
 
-  void set_qos(uint8_t qos);
+  void set_qos(uint8_t qos) { this->qos_ = qos; }
 
  protected:
   mqtt::MQTTClientComponent *parent_;

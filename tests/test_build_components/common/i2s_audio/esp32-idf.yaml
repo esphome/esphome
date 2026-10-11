@@ -1,0 +1,14 @@
+# Common I2S audio bus configuration for ESP32 IDF tests
+# Provides a shared i2s_audio bus that speaker/microphone components can use
+# Each consumer must give its speaker/microphone a unique data pin
+
+substitutions:
+  i2s_bclk_pin: GPIO5
+  i2s_lrclk_pin: GPIO4
+  i2s_mclk_pin: GPIO15
+
+i2s_audio:
+  - id: i2s_audio_bus
+    i2s_bclk_pin: ${i2s_bclk_pin}
+    i2s_lrclk_pin: ${i2s_lrclk_pin}
+    i2s_mclk_pin: ${i2s_mclk_pin}

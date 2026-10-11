@@ -6,7 +6,7 @@
 
 namespace esphome::tof10120 {
 
-class TOF10120Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class TOF10120Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
 

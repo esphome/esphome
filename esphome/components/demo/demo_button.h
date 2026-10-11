@@ -5,7 +5,7 @@
 
 namespace esphome::demo {
 
-class DemoButton : public button::Button {
+class DemoButton final : public button::Button {
  protected:
   void press_action() override {}
 };

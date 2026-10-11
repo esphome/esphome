@@ -9,7 +9,7 @@ pi4ioe5v6408:
 
 switch:
   - platform: gpio
-    id: switch1
+    id: pi4ioe5v6408_switch1
     pin:
       pi4ioe5v6408: pi4ioe1
       number: 0

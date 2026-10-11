@@ -83,7 +83,7 @@ enum LineFrequency : uint8_t {
   LINE_FREQUENCY_60HZ = 60,
 };
 
-class BL0942 : public PollingComponent, public uart::UARTDevice {
+class BL0942 final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }

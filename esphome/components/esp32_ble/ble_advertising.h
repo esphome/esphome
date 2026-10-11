@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "ble_uuid.h"
 
 #include <array>
 #include <functional>
@@ -14,8 +15,6 @@
 #include <esp_gatts_api.h>
 
 namespace esphome::esp32_ble {
-
-class ESPBTUUID;
 
 class BLEAdvertising {
  public:
