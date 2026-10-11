@@ -14,6 +14,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 #include <cstdint>
 #include <cstring>
@@ -153,17 +154,21 @@ class ESPBLEiBeacon {
 };
 
 /// Pack a controller-order (LSB-first) MAC into the uint64 the API speaks.
-///
-/// The result is the printable-order value esp32 has always sent
-/// (esp32_ble::ble_addr_to_uint64), so both proxy paths agree on the wire.
-/// This takes the raw controller order delivered by BLEHub's raw-advertisement
-/// callback; ESPBTDevice::address_uint64() is the equivalent for an already
-/// parsed device, whose address is stored MSB-first.
+/// Trackers with LSB-native SDKs call this at the emit site before filling
+/// RawAdvertisement::address; ESPBTDevice::address_uint64() is the equivalent
+/// for an already parsed device, whose address is stored MSB-first.
 inline uint64_t mac_lsb_first_to_uint64(const uint8_t *mac) {
   uint64_t addr = 0;
   for (int i = 0; i < 6; i++)
     addr |= static_cast<uint64_t>(mac[i]) << (i * 8);
   return addr;
+}
+
+/// Unpack a uint64 BLE address into printable (MSB-first) byte order —
+/// the order bd_addr_t / esp_bd_addr_t style APIs expect.
+inline void uint64_to_mac_msb_first(uint64_t address, uint8_t out[6]) {
+  for (int i = 0; i < 6; i++)
+    out[i] = (address >> ((5 - i) * 8)) & 0xFF;
 }
 
 // ---------------------------------------------------------------------------
@@ -211,7 +216,9 @@ class ESPBTDevice {
   const char *address_type_str() const;
 
   int get_rssi() const { return rssi_; }
-  const std::string &get_name() const { return name_; }
+  /// Advertised name as a view into the fixed buffer (always NUL-terminated,
+  /// so c_str() is safe); converts implicitly to std::string where needed.
+  StringRef get_name() const { return StringRef(this->name_, this->name_len_); }
 
   const std::vector<ESPBTUUID> &get_service_uuids() const { return service_uuids_; }
   const std::vector<ServiceData> &get_manufacturer_datas() const { return manufacturer_datas_; }
@@ -230,10 +237,17 @@ class ESPBTDevice {
  protected:
   void parse_adv_(const uint8_t *payload, uint16_t len);
 
-  uint8_t address_[6]{0};
+  // Max name bytes in a legacy advertisement AD element (31-byte PDU minus
+  // the 2-byte element header); every in-tree tracker scans legacy PDUs only.
+  static constexpr uint8_t MAX_ADV_NAME_LEN = 29;
+
+  uint8_t address_[MAC_ADDRESS_SIZE]{0};
   uint8_t address_type_{0};
   int rssi_{0};
-  std::string name_{};
+  // Fixed buffer instead of std::string: no per-advertisement heap churn on
+  // the scan path, and no libstdc++ string/exception machinery in the image.
+  char name_[MAX_ADV_NAME_LEN + 1]{};
+  uint8_t name_len_{0};
   std::vector<ESPBTUUID> service_uuids_{};
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};

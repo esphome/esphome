@@ -6,7 +6,7 @@
 
 namespace esphome::jsn_sr04t {
 
-static const char *const TAG = "jsn_sr04t.sensor";
+ESPHOME_LOG_TAG(TAG, "jsn_sr04t.sensor");
 
 void Jsnsr04tComponent::update() {
   this->write_byte((this->model_ == AJ_SR04M) ? 0x01 : 0x55);

@@ -1,3 +1,6 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
+# Explicit ble_hub_id: pins the neutral binding as a declared key.
 mopeka_ble:
+  ble_hub_id: ble_tracker_hub

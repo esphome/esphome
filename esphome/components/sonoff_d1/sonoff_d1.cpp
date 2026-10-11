@@ -46,7 +46,7 @@
 
 namespace esphome::sonoff_d1 {
 
-static const char *const TAG = "sonoff_d1";
+ESPHOME_LOG_TAG(TAG, "sonoff_d1");
 
 // Protocol constants
 static constexpr size_t SONOFF_D1_ACK_SIZE = 7;

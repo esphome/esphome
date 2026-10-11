@@ -8,7 +8,7 @@ using esphome::i2c::ErrorCode;
 
 namespace esphome::ltr_als_ps {
 
-static const char *const TAG = "ltr_als_ps";
+ESPHOME_LOG_TAG(TAG, "ltr_als_ps");
 
 static const uint8_t MAX_TRIES = 5;
 

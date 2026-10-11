@@ -6,7 +6,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request";
+ESPHOME_LOG_TAG(TAG, "http_request");
 
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -25,11 +25,10 @@ std::string HttpContainer::get_response_header(const std::string &header_name) {
   auto lower = str_lower_case(header_name);  // NOLINT
   for (const auto &entry : this->response_headers_) {
     if (entry.name == lower) {
-      ESP_LOGD(TAG, "Header with name %s found with value %s", lower.c_str(), entry.value.c_str());
+      ESP_LOGV(TAG, "Header with name %s found with value %s", lower.c_str(), entry.value.c_str());
       return entry.value;
     }
   }
-  ESP_LOGW(TAG, "No header with name %s found", lower.c_str());
   return "";
 }
 

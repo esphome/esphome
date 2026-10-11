@@ -4,7 +4,7 @@ light:
     default_transition_length: 500ms
     chipset: ws2812
     num_leds: 256
-    rgb_order: GRB
+    channel_colors: GRB
     pin: ${pin}
   - platform: partition
     name: Partition Light

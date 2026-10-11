@@ -9,6 +9,14 @@ esphome:
           event: esphome.button_pressed
           data:
             message: Button was pressed
+      - homeassistant.event:
+          event: esphome.button_pressed_with_variables
+          data_template:
+            message: Button {{ button_name }} ({{ button_index }}) was pressed from {{ button_source }}
+          variables:
+            button_name: !lambda 'return std::string("test_button");'
+            button_index: !lambda 'return 1;'
+            button_source: static_value
       - homeassistant.action:
           action: notify.html5
           data:
@@ -53,8 +61,12 @@ api:
   reboot_timeout: 0min
   actions:
     - action: hello_world
+      description: Log a greeting
       variables:
-        name: string
+        name:
+          type: string
+          description: Name to greet
+          example: World
       then:
         - logger.log:
             format: Hello World %s!
@@ -80,7 +92,7 @@ api:
       then:
         - logger.log:
             # yamllint disable rule:line-length
-            format: "Bool: %s (%u), Int: %ld (%u), Float: %f (%u), String: %s (%u)"
+            format: "Bool: %s (%zu), Int: %ld (%zu), Float: %f (%zu), String: %s (%zu)"
             # yamllint enable rule:line-length
             args:
               - YESNO(bool_arr[0])
@@ -104,7 +116,7 @@ api:
       then:
         - delay: 20ms
         - logger.log:
-            format: "Delayed: %s (%u ints, %u strings)"
+            format: "Delayed: %s (%zu ints, %zu strings)"
             args:
               - name.c_str()
               - int_arr.size()
@@ -127,7 +139,7 @@ api:
               message: !lambda 'return name;'
             on_success:
               - logger.log:
-                  format: "Notified %s (%u ints)"
+                  format: "Notified %s (%zu ints)"
                   args:
                     - name.c_str()
                     - int_arr.size()
@@ -137,6 +149,38 @@ api:
                   args:
                     - error.c_str()
                     - name.c_str()
+    # Constant and lambda fields mixed in one action, with lambdas of several
+    # return types reading the trigger args, and a templated action name
+    - action: test_homeassistant_fields
+      variables:
+        room: string
+        level: int
+      then:
+        - homeassistant.action:
+            action: !lambda 'return std::string("light.") + (level > 0 ? "turn_on" : "turn_off");'
+            data:
+              entity_id: light.living_room
+              brightness: !lambda 'return level;'
+            data_template:
+              message: "{{ room }} is at {{ level }}"
+            variables:
+              room: !lambda 'return room.c_str();'
+              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", level); return buf;'
+        - homeassistant.action:
+            action: notify.html5
+            data:
+              message: Button was pressed
+        # Same constant fields as above, so codegen can share them
+        - homeassistant.action:
+            action: notify.html5
+            data:
+              message: Button was pressed
+        - homeassistant.event:
+            event: esphome.room_level
+            data:
+              room: !lambda 'return room;'
+              ratio: !lambda 'return level / 100.0f;'
+        - homeassistant.tag_scanned: !lambda 'return room;'
     # Test ContinuationAction (IfAction with then/else branches)
     - action: test_if_action
       variables:

@@ -1,0 +1,7 @@
+esphome:
+  name: bk-family-gate-n
+
+bk72xx:
+  board: cb2s
+
+bk72xx_ble:

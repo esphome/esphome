@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_MILLIMETER,
 )
+from esphome.types import ConfigType
 
 from . import HydreonRGxxComponent, RG15Resolution, RGModel
 
@@ -65,7 +66,7 @@ PROTOCOL_NAMES = {
 }
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     for conf, models in SUPPORTED_OPTIONS.items():
         if conf in config and config[CONF_MODEL] not in models:
             raise cv.Invalid(
@@ -129,8 +130,16 @@ CONFIG_SCHEMA = cv.All(
     _validate,
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "hydreon_rgxx",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
