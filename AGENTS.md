@@ -197,7 +197,9 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Constant data lives in RAM on ESP8266** unless marked `PROGMEM`: `const` tables, class-scope
         constant arrays, and in-class `std::array` initializers (a `.rodata` template plus a copy). Mark the
         table `PROGMEM` and read it with `progmem_memcpy()` or `progmem_read_byte()` (`esphome/core/hal.h`);
-        for a table of structs copy the whole entry out and return the copy, never a pointer into flash.
+        for a table of structs copy the whole entry out and return the copy, never a pointer into flash. A table
+        of strings is `PROGMEM` char arrays behind a `PROGMEM` pointer table read with `progmem_read_ptr()`;
+        `LOG_STR()` cannot fill a static table, since it expands to code that runs at first use.
         On other platforms they are a plain `memcpy` and dereference, so no `#ifdef` is needed. Declare log tags with
         `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
         `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
