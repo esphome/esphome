@@ -316,9 +316,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (this->has_peek_) {
     data[0] = this->peek_buffer_;
     this->has_peek_ = false;
-#ifdef USE_UART_DEBUGGER
-    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
-#endif
+    // No debug callback here: peek_byte() read this byte through read_array(), which already reported it
     bytes_read = 1;
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
