@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import ExitStack
 import sys
 from typing import Any
 
@@ -43,6 +44,7 @@ from ..defines import (
     STATES,
     LValidator,
     add_lv_use,
+    add_warning,
     get_options,
     get_part_state_selector,
     get_styles_used,
@@ -53,6 +55,7 @@ from ..defines import (
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
+    LocalVariable,
     LvConditional,
     add_line_marks,
     lv,
@@ -182,7 +185,7 @@ class WidgetType:
         wid = config[CONF_ID]
         add_line_marks(wid)
         if self.is_compound():
-            var = cg.new_Pvariable(wid)
+            var = cg.new_Pvariable(wid, *await self.get_ctor_args(config))
             lv_add(var.set_obj(creator))
             await self.on_create(var.obj, config)
         else:
@@ -229,6 +232,37 @@ class WidgetType:
         :param config: Its configuration
         """
 
+    async def get_ctor_args(self, config: dict) -> list:
+        """
+        Get extra arguments for a compound widget's constructor. Anything the widget needs
+        before it builds its parts belongs here, since a setter would be called too late.
+        :param config: Its configuration
+        :return:
+        """
+        return []
+
+    def obj_targets(self, w: "Widget", prop: str) -> list["Widget"]:
+        """
+        Get the widgets one object property, as opposed to a style, applies to. A widget
+        built out of other widgets can point a property at the ones it really concerns, such
+        as sending a touch margin to the parts that are actually pressed.
+        :param w: The widget being configured
+        :param prop: The property name, one of OBJ_PROPERTIES
+        :return:
+        """
+        return [w]
+
+    def part_targets(self, w: "Widget", part: str) -> list[tuple["Widget", str]]:
+        """
+        Get the widgets a part's styles should be applied to, each paired with the part to
+        use on it. A widget built out of other widgets can point a part at those, so that
+        styling it works the same as it does for a plain widget.
+        :param w: The widget being styled
+        :param part: The configured part name
+        :return:
+        """
+        return [(w, part)]
+
     def get_uses(self) -> tuple:
         """
         Get a list of other widgets used by this one
@@ -270,8 +304,9 @@ def apply_theme_styles(w: "Widget") -> None:
     """Apply the current theme's styles for this widget's type"""
     from ..styles import get_widget_theme_styles
 
-    for style, lv_state in get_widget_theme_styles(w.type.name):
-        w.add_style(style, lv_state)
+    for style, part, state in get_widget_theme_styles(w.type.name):
+        for target, target_part in w.type.part_targets(w, part):
+            target.add_style(style, get_part_state_selector(target_part, state))
 
 
 def apply_debug_outline(w: "Widget") -> None:
@@ -524,6 +559,32 @@ def collect_states(config):
     return states
 
 
+def _misplaced_obj_properties(config):
+    """
+    Find object properties set where LVGL has no way to apply them. They belong to a widget
+    as a whole, taking neither a part nor a state, so anywhere else they are quietly dropped.
+    :param config: The widget configuration
+    :return: Each place one was found, paired with the property name
+    """
+    from ..schemas import OBJ_PROPERTIES
+
+    def scan(sub, where):
+        if isinstance(sub, dict):
+            for prop in sorted(OBJ_PROPERTIES.intersection(sub)):
+                yield where, prop
+
+    for state in STATES:
+        if state in config:
+            yield from scan(config[state], state)
+    for part in PARTS:
+        if part not in config:
+            continue
+        yield from scan(config[part], part)
+        for state in STATES:
+            if state in config[part]:
+                yield from scan(config[part][state], f"{part}/{state}")
+
+
 def collect_parts(config):
     """
     Collect properties and states for all widget parts
@@ -613,19 +674,41 @@ async def set_obj_properties(w: Widget, config):
         else:
             base_name = None
         _set_layout_options(w, layout, base_name)
+    for where, prop in _misplaced_obj_properties(config):
+        add_warning(
+            f"'{prop}' applies to a widget as a whole, not to one part or state of it, so "
+            f"setting it under '{where}' has no effect. Set it on the widget itself instead."
+        )
     parts = collect_parts(config)
     for part, states in parts.items():
+        targets = w.type.part_targets(w, part)
         for state, props in states.items():
-            lv_state = get_part_state_selector(part, state)
-            for style_id in props.get(CONF_STYLES, ()):
-                w.add_style(style_id, lv_state)
-            for prop, value in {
-                k: v for k, v in props.items() if k in ALL_STYLES
-            }.items():
-                if isinstance(ALL_STYLES[prop], LValidator):
-                    value = await ALL_STYLES[prop].process(value)
-                prop_r = remap_property(prop)
-                w.set_style(prop_r, value, lv_state)
+            style_ids = props.get(CONF_STYLES, ())
+            # Each value is worked out once and then given to every target. A widget built
+            # out of others has one target per part, and a lambda is written out in full
+            # wherever it appears, so with more than one target it goes into a variable
+            # rather than being repeated. The blocks holding those variables stay open
+            # until every target has been dealt with.
+            with ExitStack() as stack:
+                values = []
+                for prop, value in {
+                    k: v for k, v in props.items() if k in ALL_STYLES
+                }.items():
+                    validator = ALL_STYLES[prop]
+                    if isinstance(validator, LValidator):
+                        is_lambda = isinstance(value, cv.Lambda)
+                        value = await validator.process(value)
+                        if is_lambda and len(targets) > 1:
+                            value = stack.enter_context(
+                                LocalVariable(prop, validator.rtype, value, modifier="")
+                            )
+                    values.append((remap_property(prop), value))
+                for target, target_part in targets:
+                    lv_state = get_part_state_selector(target_part, state)
+                    for style_id in style_ids:
+                        target.add_style(style_id, lv_state)
+                    for prop_r, value in values:
+                        target.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):
         group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)
@@ -663,7 +746,8 @@ async def set_obj_properties(w: Widget, config):
         w.set_state(state, value)
 
     for property in OBJ_PROPERTIES:
-        await w.set_property(property, config, lv_name="obj")
+        for target in w.type.obj_targets(w, property):
+            await target.set_property(property, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):

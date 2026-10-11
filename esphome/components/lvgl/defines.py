@@ -143,8 +143,8 @@ def get_theme_styles() -> dict[str, MockObj]:
     return _get_data(KEY_THEME_STYLES, {})
 
 
-def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, MockObj]]]:
-    """Get the map of widget type names to the list of (style variable, part/state name)"""
+def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, str, str]]]:
+    """Get the map of widget type names to the list of (style variable, part, state)"""
     return _get_data(KEY_WIDGET_THEME_STYLES, {})
 
 
@@ -464,7 +464,9 @@ LV_ANIM = LvConstant(
     "OUT_BOTTOM",
 )
 
-LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
+LV_GRAD_DIR = LvConstant(
+    "LV_GRAD_DIR_", "NONE", "HOR", "VER", "LINEAR", "RADIAL", "CONICAL"
+)
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
 LV_GRAD_EXTEND = LvConstant("LV_GRAD_EXTEND_", "PAD", "REPEAT", "REFLECT")
 
@@ -705,6 +707,7 @@ CONF_BUTTONS = "buttons"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_END = "color_end"
+CONF_COLOR_PICKER = "color_picker"
 CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"

@@ -12,7 +12,6 @@ from .defines import (
     STATES,
     LValidator,
     add_lv_use,
-    get_part_state_selector,
     get_styles_used,
     get_theme_styles,
     get_theme_update_requests,
@@ -109,8 +108,8 @@ def _get_theme_style_name(w_name: str, part: str, state: str) -> str:
     return f"_lv_theme_style_{w_name}_{part}_{state}"
 
 
-def get_widget_theme_styles(w_name: str) -> list[tuple[MockObj, MockObj]]:
-    """Return a list of (style variable, part/state name) for all theme styles used by the given widget type."""
+def get_widget_theme_styles(w_name: str) -> list[tuple[MockObj, str, str]]:
+    """Return a list of (style variable, part, state) for all theme styles used by the given widget type."""
     widget_styles = get_widget_theme_style_data()
     if w_name in widget_styles:
         return widget_styles[w_name]
@@ -120,9 +119,7 @@ def get_widget_theme_styles(w_name: str) -> list[tuple[MockObj, MockObj]]:
         for state in STATES + (CONF_DEFAULT,):
             style_name = _get_theme_style_name(w_name, part, state)
             if style_name in theme_styles:
-                style_list.append(
-                    (theme_styles[style_name], get_part_state_selector(part, state))
-                )
+                style_list.append((theme_styles[style_name], part, state))
     widget_styles[w_name] = style_list
     return style_list
 

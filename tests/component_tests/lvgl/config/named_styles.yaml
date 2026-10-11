@@ -1,0 +1,47 @@
+esphome:
+  name: test-named-styles
+
+esp32:
+  board: lolin_c3_mini
+
+logger:
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO3
+
+lvgl:
+  style_definitions:
+    - id: chunky
+      bg_opa: cover
+      border_width: 2
+
+  widgets:
+    # A plain widget, so the selector each named style is added with is the one LVGL is
+    # given directly, with no compound widget in the way.
+    - slider:
+        id: plain_slider
+        width: 100
+        # No part and no state: the selector is a bare zero.
+        styles: [chunky]
+        knob:
+          # A part on its own.
+          styles: [chunky]
+          pressed:
+            # A part combined with a state, which has to survive the cast.
+            styles: [chunky]
+        pressed:
+          # A state on its own.
+          styles: [chunky]
