@@ -45,8 +45,9 @@ void SpiLedStrip::dump_config() {
   }
 }
 void SpiLedStrip::write_state(light::LightState *state) {
-  if (this->is_failed())
+  if (!this->is_ready()) {
     return;
+  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   {
     char strbuf[49];  // format_hex_pretty_size(16) = 48, fits 16 bytes
@@ -60,6 +61,9 @@ void SpiLedStrip::write_state(light::LightState *state) {
   this->disable();
 }
 light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
+  if (this->buf_ == nullptr || this->effect_data_ == nullptr) {
+    return {&this->correction_};
+  }
   size_t pos = index * 4 + 5;
   return {this->buf_ + pos + 2,       this->buf_ + pos + 1, this->buf_ + pos + 0, nullptr,
           this->effect_data_ + index, &this->correction_};

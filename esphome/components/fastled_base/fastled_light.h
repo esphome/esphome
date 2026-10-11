@@ -216,12 +216,17 @@ class FastLEDLightOutput final : public light::AddressableLight {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void clear_effect_data() override {
+    if (this->effect_data_ == nullptr)
+      return;
     for (int i = 0; i < this->size(); i++)
       this->effect_data_[i] = 0;
   }
 
  protected:
   light::ESPColorView get_view_internal(int32_t index) const override {
+    if (this->leds_ == nullptr || this->effect_data_ == nullptr) {
+      return {&this->correction_};
+    }
     return {&this->leds_[index].r,      &this->leds_[index].g, &this->leds_[index].b, nullptr,
             &this->effect_data_[index], &this->correction_};
   }
