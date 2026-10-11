@@ -37,6 +37,7 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
       .cipher_id = NOISE_CIPHER_CHACHAPOLY,
       .hash_id = NOISE_HASH_SHA256,
       .hybrid_id = NOISE_DH_NONE,
+      .reserved = {},
   };
 
   int err = noise_handshakestate_new_by_id(&this->handshake_, &nid, NOISE_ROLE_RESPONDER);
