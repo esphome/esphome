@@ -413,9 +413,12 @@ class MonitorServerHeld : public MonitorServer {
  protected:
   void SetUp() override {
     // The test main does not construct App as generated code does.
-    static const bool app_constructed = (new (&App) Application(), true);
-    (void) app_constructed;
-    App.pre_setup("test_modbus", 11, "", 0);
+    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
+    (void) APP_CONSTRUCTED;
+    // Writable buffers, since a build with a MAC suffix writes it into the name
+    static char name[] = "test_modbus";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     MonitorServer::SetUp();
     this->hub_.register_device(&this->device_);
     this->hub_.busy = true;
@@ -437,7 +440,7 @@ TEST_F(MonitorServerHeld, HeldReplyIsSeenOnceSent) {
   ASSERT_TRUE(this->hub_.reply_held());
   EXPECT_TRUE(this->paired_.empty());
   this->hub_.busy = false;
-  this->run_timers();
+  run_timers();
   EXPECT_FALSE(this->hub_.reply_held());
   EXPECT_EQ(this->uart_.written.size(), LOCAL_READ_REPLY_FRAME);
   ASSERT_EQ(this->paired_.size(), 1u);
@@ -452,7 +455,7 @@ TEST_F(MonitorServerHeld, ReplyDroppedForTheNextFrameIsNotSeen) {
   this->receive_(0x05, READ);
   EXPECT_FALSE(this->hub_.reply_held());
   this->hub_.busy = false;
-  this->run_timers();
+  run_timers();
   EXPECT_EQ(this->seen_.size(), 2u);
   EXPECT_TRUE(this->uart_.written.empty());
   EXPECT_TRUE(this->paired_.empty());
@@ -461,7 +464,7 @@ TEST_F(MonitorServerHeld, ReplyDroppedForTheNextFrameIsNotSeen) {
 TEST_F(MonitorServerHeld, ReplyStillBlockedWhenDueIsNotSeen) {
   this->receive_(0x02, READ);
   ASSERT_TRUE(this->hub_.reply_held());
-  this->run_timers();
+  run_timers();
   EXPECT_FALSE(this->hub_.reply_held());
   EXPECT_TRUE(this->uart_.written.empty());
   EXPECT_TRUE(this->paired_.empty());
