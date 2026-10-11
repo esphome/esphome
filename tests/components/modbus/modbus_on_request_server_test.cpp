@@ -351,4 +351,12 @@ TEST_F(MonitorServer, ResponseWithoutAnOpenRequestIsDropped) {
   EXPECT_TRUE(this->uart_.written.empty());
 }
 
+// A gateway may answer inside on_request, for example from on_not_sent of modbus_client.send.
+TEST_F(MonitorServer, ResponseFromInsideOnRequestIsSent) {
+  this->hub_.add_on_request_callback(
+      [this](uint8_t address, std::span<const uint8_t>) { this->hub_.send_response(address, READ_REPLY); });
+  this->receive_(0x05, READ);
+  EXPECT_EQ(this->uart_.written.size(), sizeof(READ_REPLY) + 3);
+}
+
 }  // namespace esphome::modbus::testing
