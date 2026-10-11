@@ -294,7 +294,7 @@ using display_writer_t = DisplayWriter<Display>;
                   prefix type "\n" \
                               "%s  Rotations: %d °\n" \
                               "%s  Dimensions: %dpx x %dpx", \
-                  prefix, log_display_obj->rotation_, prefix, log_display_obj->get_width(), \
+                  prefix, log_display_obj->get_rotation(), prefix, log_display_obj->get_width(), \
                   log_display_obj->get_height()); \
   }
 
@@ -710,7 +710,7 @@ class Display : public PollingComponent {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
-  DisplayRotation get_rotation() const { return this->rotation_; }
+  virtual DisplayRotation get_rotation() const { return this->rotation_; }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
