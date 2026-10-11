@@ -41,6 +41,12 @@ void set_channel(uint8_t channel) {
   wifi_promiscuous_enable(true);
   wifi_set_channel(channel);
   wifi_promiscuous_enable(false);
+  // Keep the soft-AP from init_radio() on the same channel so the SDK never retunes the radio to its own
+  softap_config ap{};
+  if (wifi_get_opmode() == STATIONAP_MODE && wifi_softap_get_config(&ap) && ap.channel != channel) {
+    ap.channel = channel;
+    wifi_softap_set_config_current(&ap);
+  }
 }
 
 uint8_t get_channel() { return wifi_get_channel(); }
