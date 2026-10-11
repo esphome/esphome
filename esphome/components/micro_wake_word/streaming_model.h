@@ -97,9 +97,10 @@ class StreamingModel {
   std::vector<uint8_t> recent_streaming_probabilities_;
 
   const uint8_t *model_start_{nullptr};
-  const uint8_t *model_source_{nullptr};
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
   size_t model_size_{0};
   RAMUniquePtr<uint8_t[]> model_copy_;
+#endif
   uint8_t *tensor_arena_{nullptr};
   uint8_t *var_arena_{nullptr};
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;

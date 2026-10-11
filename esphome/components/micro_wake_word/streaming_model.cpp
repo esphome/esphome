@@ -5,6 +5,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+#include <esp_memory_utils.h>
+#endif
 
 ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
@@ -64,15 +67,15 @@ bool StreamingModel::load_model_() {
 
   if (this->tensor_arena_ == nullptr) {
 #ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
-    RAMAllocator<uint8_t> internal_allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-    this->tensor_arena_ = internal_allocator.allocate(this->tensor_arena_size_);
-    if (this->tensor_arena_ == nullptr) {
+    RAMAllocator<uint8_t> preferred_allocator(RAMAllocator<uint8_t>::PREFER_INTERNAL);
+    this->tensor_arena_ = preferred_allocator.allocate(this->tensor_arena_size_);
+    if (this->tensor_arena_ != nullptr && !esp_ptr_internal(this->tensor_arena_)) {
       ESP_LOGW(TAG, "Could not allocate %zu bytes of internal RAM for tensor arena; using default memory",
                this->tensor_arena_size_);
     }
+#else
+    this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
 #endif
-    if (this->tensor_arena_ == nullptr)
-      this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
     if (this->tensor_arena_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate the streaming model's tensor arena.");
       return false;
@@ -80,22 +83,26 @@ bool StreamingModel::load_model_() {
   }
 
 #ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
-  if (this->model_source_ != nullptr && this->model_copy_ == nullptr) {
+  if (!esp_ptr_internal(this->model_start_) && this->model_copy_ == nullptr) {
     RAMAllocator<uint8_t> internal_allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
     this->model_copy_ = internal_allocator.make_unique_array_for_overwrite(this->model_size_);
     if (this->model_copy_ == nullptr) {
       ESP_LOGW(TAG, "Could not allocate %zu bytes of internal RAM for model; using original model data",
                this->model_size_);
     } else {
-      std::memcpy(this->model_copy_.get(), this->model_source_, this->model_size_);
-      this->model_start_ = this->model_copy_.get();
+      std::memcpy(this->model_copy_.get(), this->model_start_, this->model_size_);
     }
   }
 #endif
 
   if (this->interpreter_ == nullptr) {
+    const uint8_t *model_data = this->model_start_;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+    if (this->model_copy_ != nullptr)
+      model_data = this->model_copy_.get();
+#endif
     this->interpreter_ =
-        make_unique<tflite::MicroInterpreter>(tflite::GetModel(this->model_start_), this->streaming_op_resolver_,
+        make_unique<tflite::MicroInterpreter>(tflite::GetModel(model_data), this->streaming_op_resolver_,
                                               this->tensor_arena_, this->tensor_arena_size_, this->mrv_);
     if (this->interpreter_->AllocateTensors() != kTfLiteOk) {
       ESP_LOGE(TAG, "Failed to allocate tensors for the streaming model");
@@ -200,9 +207,9 @@ size_t StreamingModel::probe_arena_size_() {
 
 void StreamingModel::unload_model() {
   this->interpreter_.reset();
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
   this->model_copy_.reset();
-  if (this->model_source_ != nullptr)
-    this->model_start_ = this->model_source_;
+#endif
 
   RAMAllocator<uint8_t> arena_allocator;
 
@@ -288,8 +295,9 @@ WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, 
                              bool internal_only) {
   this->id_ = id;
   this->model_start_ = model_start;
-  this->model_source_ = model_start;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
   this->model_size_ = model_size;
+#endif
   this->default_probability_cutoff_ = default_probability_cutoff;
   this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_average_size;
@@ -321,6 +329,9 @@ WakeWordModel::WakeWordModel(const std::string &id, std::shared_ptr<ModelData> m
   // null or unvalidated handle rather than dereferencing it blindly: model_start_ stays null and the model is
   // never loaded.
   this->model_start_ = this->model_data_ ? this->model_data_->get_model_pointer() : nullptr;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
+  this->model_size_ = this->model_data_ ? this->model_data_->size() : 0;
+#endif
   if (this->model_start_ == nullptr) {
     ESP_LOGE(TAG, "Model '%s' has no valid data and will not be loaded", id.c_str());
   }
@@ -387,8 +398,9 @@ DetectionEvent WakeWordModel::determine_detected() {
 VADModel::VADModel(const uint8_t *model_start, size_t model_size, uint8_t default_probability_cutoff,
                    size_t sliding_window_size, size_t tensor_arena_size) {
   this->model_start_ = model_start;
-  this->model_source_ = model_start;
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
   this->model_size_ = model_size;
+#endif
   this->default_probability_cutoff_ = default_probability_cutoff;
   this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_size;
