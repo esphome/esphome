@@ -40,7 +40,7 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 async def to_code(config: ConfigType) -> None:
     rhs = mcp2515.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
-    await canbus.register_canbus(var, config)
+    await canbus.register_canbus(var, config, reports_status=True)
     if CONF_CLOCK in config:
         canclock = CAN_CLOCK[config[CONF_CLOCK]]
         cg.add(var.set_mcp_clock(canclock))

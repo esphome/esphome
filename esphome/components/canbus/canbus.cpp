@@ -1,5 +1,6 @@
 #include "canbus.h"
 #include <algorithm>
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::canbus {
@@ -65,6 +66,12 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 };
 
 void Canbus::loop() {
+  uint32_t now = App.get_loop_component_start_time();
+  if ((now - this->last_event_check_time_) >= EVENT_CHECK_INTERVAL_MS) {
+    this->log_events_(this->get_events(), now);
+    this->last_event_check_time_ = now;
+  }
+
   struct CanFrame can_message;
   uint32_t message_counter = 0;
   for (; message_counter < this->max_frames_per_loop_; message_counter++) {
@@ -107,6 +114,57 @@ void Canbus::loop() {
              "Reached max_frames_per_loop=%" PRIu32 ", deferring remaining CAN frames. Some frames might be dropped",
              this->max_frames_per_loop_);
   }
+}
+
+void Canbus::log_events_(CanEventFlags events, uint32_t now) {
+  // Bus-off gets its own handling because automatic recovery can make it flap
+  if (events & CanEventFlags::CAN_EVENT_BUS_OFF) {
+    this->last_bus_off_time_ = now;
+    if (!this->bus_off_) {
+      this->bus_off_ = true;
+      this->status_set_warning(LOG_STR("Bus off"));
+    }
+  } else if (this->bus_off_) {
+    if ((now - this->last_bus_off_time_) >= EVENT_LOG_BUS_OFF_HOLDOFF_MS) {
+      // No bus-off event for the hold-off time, so ask whether it is really over
+      if (this->get_status().bus_off) {
+        this->last_bus_off_time_ = now;
+      } else {
+        this->bus_off_ = false;
+        this->status_clear_warning();
+        // Events gathered while bus-off say nothing about the recovered bus
+        this->events_to_log_ = 0;
+      }
+    }
+  } else {
+    this->events_to_log_ |= events;
+    if (this->events_to_log_ != 0 && (now - this->last_event_log_time_) >= EVENT_LOG_THROTTLE_MS) {
+      if (this->events_to_log_ & (CanEventFlags::CAN_EVENT_PASSIVE | CanEventFlags::CAN_EVENT_ACTIVE)) {
+        bool error_passive = this->events_to_log_ & CanEventFlags::CAN_EVENT_PASSIVE;
+        if (error_passive && (this->events_to_log_ & CanEventFlags::CAN_EVENT_ACTIVE)) {
+          // Both edges within one throttle window, so the counters decide the current state
+          auto status = this->get_status();
+          error_passive = status.rx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD ||
+                          status.tx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD;
+        }
+        ESP_LOGW(TAG, "entered %s", error_passive ? LOG_STR_LITERAL("error-passive") : LOG_STR_LITERAL("error-active"));
+      }
+      if (this->events_to_log_ & CanEventFlags::CAN_EVENT_RX_QUEUE_FULL) {
+        ESP_LOGD(TAG, "receive buffer overrun");
+      }
+      this->events_to_log_ = 0;
+      this->last_event_log_time_ = now;
+    }
+  }
+
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  if ((now - this->last_state_log_time_) >= STATE_LOG_INTERVAL_MS) {
+    auto status = this->get_status();
+    ESP_LOGV(TAG, "Status: bus_off %d, tx_err %d, rx_err %d", status.bus_off, status.tx_error_counter,
+             status.rx_error_counter);
+    this->last_state_log_time_ = now;
+  }
+#endif
 }
 
 }  // namespace esphome::canbus
