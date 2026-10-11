@@ -220,14 +220,14 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
 #else
   // The netif list must be read under the core lock, but the callback calls setsockopt(),
   // which takes that lock itself, so collect the indices first and call back after unlocking.
-  static constexpr size_t max_ifs = 8;
-  std::array<uint8_t, max_ifs> indices;
+  static constexpr size_t MAX_IFS = 8;
+  std::array<uint8_t, MAX_IFS> indices;
   size_t count = 0;
   {
     LwIPLock lock;
     struct netif *netif;
     NETIF_FOREACH(netif) {
-      if (count == max_ifs) {
+      if (count == MAX_IFS) {
         break;
       }
       if (netif->name[0] == 'l' && netif->name[1] == 'o') {
