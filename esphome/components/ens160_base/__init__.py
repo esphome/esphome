@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_AQI
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPENSATION,
@@ -22,10 +23,10 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@vincentscode", "@latonita"]
+DOMAIN = "ens160_base"
 
 ens160_ns = cg.esphome_ns.namespace("ens160_base")
 
-CONF_AQI = "aqi"
 
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
@@ -63,15 +64,10 @@ async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if eco2_config := config.get(CONF_ECO2):
-        sens = await sensor.new_sensor(eco2_config)
-        cg.add(var.set_co2(sens))
-    if tvoc_config := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(tvoc_config)
-        cg.add(var.set_tvoc(sens))
-    if aqi_config := config.get(CONF_AQI):
-        sens = await sensor.new_sensor(aqi_config)
-        cg.add(var.set_aqi(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ECO2, var.set_co2)
+    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_AQI, var.set_aqi)
 
     if compensation_config := config.get(CONF_COMPENSATION):
         sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE])

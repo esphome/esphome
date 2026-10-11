@@ -12,7 +12,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "component";
+ESPHOME_LOG_TAG(TAG, "component");
 
 // Global vectors for component data that doesn't belong in every instance.
 // Using vector instead of unordered_map for both because:
@@ -292,13 +292,16 @@ void Component::status_set_warning(const LogString *message) {
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const LogString *message) {
-  if (!this->set_status_flag_(STATUS_LED_ERROR))
-    return;
-  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
-           message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
-  if (message != nullptr) {
+  if (this->set_error_flag_(message) && message != nullptr) {
     store_component_error_message(this, message);
   }
+}
+bool Component::set_error_flag_(const LogString *message) {
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
+    return false;
+  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
+           message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
+  return true;
 }
 void Component::status_clear_warning_slow_path_() {
   this->component_state_ &= ~STATUS_LED_WARNING;
@@ -328,6 +331,21 @@ void Component::status_momentary_warning(const char *name, uint32_t length) {
 void Component::status_momentary_error(const char *name, uint32_t length) {
   this->status_set_error();
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
+}
+void Component::status_momentary_warning(uint32_t length) {
+  this->status_momentary_warning(static_cast<const LogString *>(nullptr), length);
+}
+void Component::status_momentary_warning(const LogString *message, uint32_t length) {
+  this->status_set_warning(message);
+  this->set_timeout(InternalSchedulerID::STATUS_WARNING, length, [this]() { this->status_clear_warning(); });
+}
+void Component::status_momentary_error(uint32_t length) {
+  this->status_momentary_error(static_cast<const LogString *>(nullptr), length);
+}
+void Component::status_momentary_error(const LogString *message, uint32_t length) {
+  // Not stored: a cleared momentary error must not show up later as a FAILED reason
+  this->set_error_flag_(message);
+  this->set_timeout(InternalSchedulerID::STATUS_ERROR, length, [this]() { this->status_clear_error(); });
 }
 void Component::dump_config() {}
 

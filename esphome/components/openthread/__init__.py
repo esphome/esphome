@@ -13,10 +13,14 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    require_mbedtls_ecp,
+    require_mbedtls_tls_extras,
+    require_mbedtls_tls_server,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.network import add_use_address
+from esphome.components.network import DOMAIN as NETWORK_DOMAIN, add_use_address
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -28,17 +32,17 @@ from esphome.const import (
     CONF_LOG_LEVEL,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PlatformFramework,
 )
 from esphome.core import (
     CORE,
-    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -58,6 +62,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@mrene"]
+DOMAIN = "openthread"
 
 AUTO_LOAD = ["network"]
 
@@ -108,6 +113,14 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DIAG", False)
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
+
+    # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
+    # setting one under sdkconfig_options keeps TLS in the build automatically.
+    # The crypto platform uses AES-CCM and deterministic ECDSA directly.
+    require_mbedtls_tls_server()
+    require_mbedtls_tls_extras(
+        ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
+    )
 
     if not config.get(CONF_TLV):
         if pan_id := config.get(CONF_PAN_ID):
@@ -248,7 +261,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(_: ConfigType) -> None:
     full_config = fv.full_config.get()
-    network_config = full_config.get("network", {})
+    network_config = full_config.get(NETWORK_DOMAIN, {})
     if not network_config.get(CONF_ENABLE_IPV6, False):
         raise cv.Invalid(
             "OpenThread requires IPv6 to be enabled in the network component. "
@@ -282,6 +295,8 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
+        # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
+        require_mbedtls_ecp()
 
     cg.add_define("USE_OPENTHREAD")
     if config.get(CONF_FORCE_DATASET):
@@ -309,6 +324,11 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         set_sdkconfig_options(config)
     elif CORE.using_zephyr:
+        # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
+        include_west_project("mbedtls")
+        include_west_project("openthread")
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+            include_west_project("oberon-psa-crypto")
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
@@ -318,12 +338,6 @@ async def to_code(config: ConfigType) -> None:
 
 
 # Actions
-OpenThreadComponentPollPeriodAction = openthread_ns.class_(
-    "OpenThreadComponentPollPeriodAction",
-    automation.Action,
-    cg.Parented.template(OpenThreadComponent),
-)
-
 POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     CONF_POLL_PERIOD,
     cv.Schema(
@@ -337,20 +351,8 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "openthread.set_poll_period",
-    OpenThreadComponentPollPeriodAction,
     POLL_PERIOD_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_POLL_PERIOD, "apply_poll_period", cg.uint32),
 )
-async def openthread_poll_period_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)
-    cg.add(var.set_poll_period(template_))
-    return var

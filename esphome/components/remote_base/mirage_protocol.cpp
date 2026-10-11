@@ -4,7 +4,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.mirage";
+ESPHOME_LOG_TAG(TAG, "remote.mirage");
 
 constexpr uint32_t HEADER_MARK_US = 8360;
 constexpr uint32_t HEADER_SPACE_US = 4248;

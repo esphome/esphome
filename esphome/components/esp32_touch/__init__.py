@@ -31,6 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["binary_sensor"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_touch"
 
 CONF_DEBOUNCE_COUNT = "debounce_count"
 CONF_DENOISE_GRADE = "denoise_grade"

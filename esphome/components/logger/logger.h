@@ -12,6 +12,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
@@ -85,12 +86,16 @@ class LoggerLevelListener {
 };
 #endif
 
-#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-// Comparison function for const char* keys in log_levels_ map
-struct CStrCompare {
-  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+// RAM map keys compared with a tag that may be in PROGMEM, without copying it
+struct FlashTag {
+  const char *tag;
 };
-#endif
+struct CStrCompare {
+  using is_transparent = void;
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+  bool operator()(const char *key, FlashTag t) const { return ESPHOME_strcmp_P(key, t.tag) < 0; }
+  bool operator()(FlashTag t, const char *key) const { return ESPHOME_strcmp_P(key, t.tag) > 0; }
+};
 
 // Stack buffer size for retrieving thread/task names from the OS
 // macOS allows up to 64 bytes, Linux up to 16
@@ -200,9 +205,9 @@ class Logger final : public Component {
   float get_setup_priority() const override { return setup_priority::BUS + 500.0f; }
 
   void log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args);  // NOLINT
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
-                    va_list args);  // NOLINT
+#ifdef USE_ESP8266
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
 
  protected:
@@ -244,14 +249,14 @@ class Logger final : public Component {
     buf.format_body(format, args);
   }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
   // Format a log message with flash string format and write it to a buffer with header, footer, and null terminator
   // ESP8266-only (single-task), thread_name is always nullptr
-  inline void HOT format_log_to_buffer_with_terminator_P_(uint8_t level, const char *tag, int line,
+  inline void HOT format_log_to_buffer_with_terminator_p_(uint8_t level, const char *tag, int line,
                                                           const __FlashStringHelper *format, va_list args,
                                                           LogBuffer &buf) {
     buf.write_header(level, tag, line, nullptr);
-    buf.format_body_P(reinterpret_cast<PGM_P>(format), args);
+    buf.format_body_p(reinterpret_cast<PGM_P>(format), args);
   }
 #endif
 
@@ -283,9 +288,9 @@ class Logger final : public Component {
                                                   FormatType format, va_list args, const char *thread_name) {
     RecursionGuard guard(recursion_guard);
     LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
     if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
-      this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+      this->format_log_to_buffer_with_terminator_p_(level, tag, line, format, args, buf);
     } else
 #endif
     {
@@ -352,10 +357,10 @@ class Logger final : public Component {
   // Group smaller types together at the end
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
-  UARTSelection uart_{UART_SELECTION_UART0};
+  UARTSelection uart_{UART_SELECTION_UART0};  // Must match cpp_default_uart in __init__.py
 #endif
 #ifdef USE_LIBRETINY
-  UARTSelection uart_{UART_SELECTION_DEFAULT};
+  UARTSelection uart_{UART_SELECTION_DEFAULT};  // Must match cpp_default_uart in __init__.py
 #endif
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   bool main_task_recursion_guard_{false};
@@ -488,6 +493,12 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
                              [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
                                auto *trigger = static_cast<LoggerMessageTrigger *>(self);
                                if (level <= trigger->level_) {
+#ifdef USE_ESP8266
+                                 // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
+                                 // the trigger so an automation that suspends (delay) still sees a valid tag.
+                                 ESPHOME_strncpy_P(trigger->ram_tag_, tag, MAX_TAG_LENGTH);
+                                 tag = trigger->ram_tag_;
+#endif
                                  trigger->trigger(level, tag, message);
                                }
                              });
@@ -495,6 +506,9 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 
  protected:
   uint8_t level_;
+#ifdef USE_ESP8266
+  char ram_tag_[MAX_TAG_LENGTH + 1]{};
+#endif
 };
 
 }  // namespace esphome::logger

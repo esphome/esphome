@@ -4,7 +4,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion_binarysensor";
+ESPHOME_LOG_TAG(TAG, "nextion_binarysensor");
 
 void NextionBinarySensor::process_bool(const std::string &variable_name, bool state) {
   if (!this->nextion_->is_setup())

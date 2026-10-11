@@ -7,6 +7,8 @@ from esphome.const import CONF_DATA, CONF_DIMENSIONS, CONF_POSITION
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+DOMAIN = "lcd_base"
+
 CONF_USER_CHARACTERS = "user_characters"
 
 lcd_base_ns = cg.esphome_ns.namespace("lcd_base")
