@@ -74,14 +74,14 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
       `please split the change. The label is removed automatically once ` +
       `the PR ${condition}.\n\n`;
     message +=
-      `A maintainer can add the \`mega-pr\` label after a conversation in ` +
-      `\`#devs\` on [Discord](https://esphome.io/chat) for a change that ` +
-      `genuinely cannot be split, but that is rare enough that you should ` +
-      `plan on splitting rather than wait for it. Smaller, focused PRs are ` +
-      `picked up much faster because they fit into the short gaps between ` +
-      `other maintainer work. For a new component, the first PR brings the ` +
-      `hub and a single platform (for example \`sensor\`); each further ` +
-      `platform is its own PR on top of it.\n\n`;
+      `There is no exception you can request. Rarely, a maintainer agrees in ` +
+      `\`#devs\` on [Discord](https://esphome.io/chat) to review a change that ` +
+      `genuinely cannot be split as one piece and adds the \`mega-pr\` label, ` +
+      `but that is rare enough that you should plan on splitting rather than ` +
+      `wait for it. Smaller, focused PRs are picked up much faster because ` +
+      `they fit into the short gaps between other maintainer work. For a new ` +
+      `component, the first PR brings the hub and a single platform (for ` +
+      `example \`sensor\`); each further platform is its own PR on top of it.\n\n`;
     message +=
       `For more details (including how to split the work up), see: ` +
       `https://developers.esphome.io/contributing/submitting-your-work/` +
