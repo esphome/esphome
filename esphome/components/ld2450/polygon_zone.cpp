@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-static const char *const TAG = "ld2450.polygon_zone";
+ESPHOME_LOG_TAG(TAG, "ld2450.polygon_zone");
 
 void PolygonZone::setup() {
   this->pref_ = this->make_entity_preference<Polygon>();
