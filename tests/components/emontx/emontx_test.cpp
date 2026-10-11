@@ -41,6 +41,25 @@ TEST_F(EmonTxTest, JsonLineParsed) {
   EXPECT_EQ(this->json_count_, 1);
 }
 
+// The CR check must come before the overflow check, or a full line ending in CRLF would overflow.
+TEST_F(EmonTxTest, FullLengthLineWithCrLfDelivered) {
+  this->uart_.push_rx(MAX_LINE_LENGTH, 'a');
+  this->uart_.push_rx("\r\n");
+  this->sut_.loop();
+
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], std::string(MAX_LINE_LENGTH, 'a'));
+}
+
+TEST_F(EmonTxTest, FullLengthLineWithLfDelivered) {
+  this->uart_.push_rx(MAX_LINE_LENGTH, 'a');
+  this->uart_.push_rx("\n");
+  this->sut_.loop();
+
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], std::string(MAX_LINE_LENGTH, 'a'));
+}
+
 TEST_F(EmonTxTest, OverflowedLineDiscardedUntilLineFeed) {
   // One byte more than the buffer holds, then more of the same line.
   this->uart_.push_rx(MAX_LINE_LENGTH + 1, 'a');
