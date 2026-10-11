@@ -65,8 +65,10 @@ class UDPComponent final : public Component {
     socklen_t len{0};
   };
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
-  std::unique_ptr<socket::Socket> send_socket_v6_ = nullptr;
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
+#if USE_NETWORK_IPV6
+  std::unique_ptr<socket::Socket> send_socket_v6_ = nullptr;
+#endif
   FixedVector<SockaddrEntry> sockaddrs_{};
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP

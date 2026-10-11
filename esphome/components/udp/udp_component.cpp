@@ -10,17 +10,6 @@ namespace esphome::udp {
 
 ESPHOME_LOG_TAG(TAG, "udp");
 
-// A device running only as a Wi-Fi access point still exchanges UDP with its clients.
-static bool network_ready() {
-  if (network::is_connected())
-    return true;
-#ifdef USE_WIFI
-  return wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_ap_active();
-#else
-  return false;
-#endif
-}
-
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   size_t address_count = 0;
@@ -49,7 +38,9 @@ bool UDPComponent::retry_if_transient_(const LogString *what) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->listen_socket_.reset();
   this->broadcast_socket_.reset();
+#if USE_NETWORK_IPV6
   this->send_socket_v6_.reset();
+#endif
 #endif
   this->retry_delay_ms_ = next_retry_delay_ms(this->retry_delay_ms_);
   this->next_retry_ms_ = App.get_loop_component_start_time() + this->retry_delay_ms_;
@@ -192,7 +183,7 @@ bool UDPComponent::open_sockets_() {
 
 void UDPComponent::loop() {
   if (!this->net_started_) {
-    if (!network_ready())
+    if (!network::is_connected_or_ap())
       return;
     if (this->retry_delay_ms_ != 0 && (int32_t) (App.get_loop_component_start_time() - this->next_retry_ms_) < 0)
       return;

@@ -56,6 +56,17 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
   // NOLINTEND(readability-simplify-boolean-expr)
 }
 
+/// Return whether the node can exchange traffic: connected to a network, or running its own Wi-Fi access point.
+ESPHOME_ALWAYS_INLINE inline bool is_connected_or_ap() {
+  if (is_connected())
+    return true;
+#ifdef USE_WIFI
+  return wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_ap_active();
+#else
+  return false;
+#endif
+}
+
 /// Return whether the network is disabled: every configured interface with a
 /// disable() lifecycle (modem, wifi, ethernet) is disabled.
 bool is_disabled();
