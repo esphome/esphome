@@ -3,11 +3,9 @@
 #include <cinttypes>
 #include <vector>
 
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::mopeka_std_check {
 
@@ -42,11 +40,11 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
   mopeka_std_values val[3];
 } __attribute__((packed));
 
-class MopekaStdCheck final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaStdCheck final : public Component, public ble_device_base::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
 
   void set_level(sensor::Sensor *level) { this->level_ = level; };
@@ -74,5 +72,3 @@ class MopekaStdCheck final : public Component, public esp32_ble_tracker::ESPBTDe
 };
 
 }  // namespace esphome::mopeka_std_check
-
-#endif

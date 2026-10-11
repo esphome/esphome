@@ -1,0 +1,5 @@
+sensor:
+  - platform: ble_rssi
+    # irk: is the only thing that emits USE_BLE_DEVICE_IRK off ESP32
+    irk: 1234567890abcdef1234567890abcdef
+    name: BLE Test RSSI

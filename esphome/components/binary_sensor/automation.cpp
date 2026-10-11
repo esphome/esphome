@@ -1,9 +1,14 @@
+#include "esphome/core/defines.h"
+#if defined(USE_BINARY_SENSOR_CLICK_TRIGGER) || defined(USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER)
+
 #include "automation.h"
 #include "esphome/core/log.h"
 
 namespace esphome::binary_sensor {
 
-static const char *const TAG = "binary_sensor.automation";
+#ifdef USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
+
+ESPHOME_LOG_TAG(TAG, "binary_sensor.automation");
 
 // MultiClickTrigger timeout IDs.
 // MultiClickTrigger is its own Component instance, so the scheduler scopes
@@ -95,13 +100,15 @@ void MultiClickTriggerBase::schedule_is_valid_(uint32_t min_length) {
   }
   this->is_valid_ = false;
   this->set_timeout(MULTICLICK_IS_VALID_ID, min_length, [this]() {
-    ESP_LOGV(TAG, "Multi Click: You can now %s the button.", this->parent_->state ? "RELEASE" : "PRESS");
+    ESP_LOGV(TAG, "Multi Click: You can now %s the button.",
+             this->parent_->state ? LOG_STR_LITERAL("RELEASE") : LOG_STR_LITERAL("PRESS"));
     this->is_valid_ = true;
   });
 }
 void MultiClickTriggerBase::schedule_is_not_valid_(uint32_t max_length) {
   this->set_timeout(MULTICLICK_IS_NOT_VALID_ID, max_length, [this]() {
-    ESP_LOGV(TAG, "Multi Click: You waited too long to %s.", this->parent_->state ? "RELEASE" : "PRESS");
+    ESP_LOGV(TAG, "Multi Click: You waited too long to %s.",
+             this->parent_->state ? LOG_STR_LITERAL("RELEASE") : LOG_STR_LITERAL("PRESS"));
     this->is_valid_ = false;
     this->schedule_cooldown_();
   });
@@ -120,6 +127,9 @@ void MultiClickTriggerBase::trigger_() {
   this->trigger();
 }
 
+#endif  // USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
+
+#ifdef USE_BINARY_SENSOR_CLICK_TRIGGER
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length) {
   if (max_length == 0) {
     return length >= min_length;
@@ -127,4 +137,8 @@ bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length) {
     return length >= min_length && length <= max_length;
   }
 }
+#endif  // USE_BINARY_SENSOR_CLICK_TRIGGER
+
 }  // namespace esphome::binary_sensor
+
+#endif  // USE_BINARY_SENSOR_CLICK_TRIGGER || USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER

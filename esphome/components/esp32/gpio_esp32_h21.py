@@ -5,10 +5,14 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
+
 # Partial set from the ESP-IDF / esptool boot-mode docs:
 # https://docs.espressif.com/projects/esptool/en/latest/esp32h21/advanced-topics/boot-mode-selection.html
 # The full list awaits the ESP32-H21 datasheet's "Strapping Pins" section.
 _ESP32H21_STRAPPING_PINS: set[int] = {13, 14}
+
+_ESP32H21_USB_JTAG_PINS = {17, 18}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,6 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 def esp32_h21_validate_gpio_pin(value: int) -> int:
     if value < 0 or value > 25:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-25)")
+    check_usb_jtag_pin(value, _ESP32H21_USB_JTAG_PINS, _LOGGER)
     return value
 
 
@@ -29,6 +34,8 @@ def esp32_h21_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
+
+    check_usb_jtag_hold(value, _ESP32H21_USB_JTAG_PINS, _LOGGER)
 
     check_strapping_pin(value, _ESP32H21_STRAPPING_PINS, _LOGGER)
     return value
