@@ -182,3 +182,8 @@ on_hob2hood:
     - logger.log:
         format: "on_hob2hood: %u"
         args: ["x.command"]
+on_ira211:
+  then:
+    - logger.log:
+        format: "on_ira211: %u %.1f"
+        args: ["static_cast<uint8_t>(x.command)", "x.get_temperature()"]
