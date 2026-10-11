@@ -157,6 +157,12 @@ Additional options:
   issuing a command to reaching endstop.
   Defaults to `0s`.
 
+- **overshoot_duration** (*Optional*, [Time](/guides/configuration-types/#time)): After the estimated position reaches
+  fully open or fully closed, keep the cover moving for this duration before stopping. This squeezes out the timing
+  error that builds up over repeated partial open and close actions. Only for covers stopped by time: it cannot be
+  combined with `has_built_in_endstop` or with both endstop sensors. `max_duration` still caps the whole movement.
+  Defaults to `0s`.
+
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval
   to publish updated position information to the UI while the cover is moving.
   Defaults to `1s`.
