@@ -1,5 +1,6 @@
 #include "socket.h"
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+#include <array>
 #include <cerrno>
 #include <cstring>
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
@@ -8,6 +9,7 @@
 #include <string>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
@@ -216,24 +218,36 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   }
   return ctx.found_any;
 #else
-  bool found_any = false;
-  struct netif *netif;
-  NETIF_FOREACH(netif) {
-    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
-      continue;
+  // The netif list must be read under the core lock, but the callback calls setsockopt(),
+  // which takes that lock itself, so collect the indices first and call back after unlocking.
+  static constexpr size_t max_ifs = 8;
+  std::array<uint8_t, max_ifs> indices;
+  size_t count = 0;
+  {
+    LwIPLock lock;
+    struct netif *netif;
+    NETIF_FOREACH(netif) {
+      if (count == max_ifs) {
+        break;
+      }
+      if (netif->name[0] == 'l' && netif->name[1] == 'o') {
+        continue;
+      }
+      if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
+        continue;
+      }
+      indices[count++] = netif_get_index(netif);
     }
-    if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
-      continue;
-    }
-    found_any = true;
-    if (callback(netif_get_index(netif))) {
+  }
+  for (size_t i = 0; i < count; i++) {
+    if (callback(indices[i])) {
       break;
     }
   }
-  if (!found_any) {
+  if (count == 0) {
     errno = EADDRNOTAVAIL;
   }
-  return found_any;
+  return count != 0;
 #endif
 }
 

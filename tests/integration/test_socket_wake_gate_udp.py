@@ -36,8 +36,8 @@ async def test_socket_wake_gate_udp(
     # Hold the port open with SO_REUSEADDR to prevent another process from
     # claiming it during compilation and binary startup. The device's listen
     # socket also sets SO_REUSEADDR, allowing it to bind the same port while
-    # this socket is still open. The hold is released after BOOT_DONE, which
-    # guarantees all setup() calls have completed and the device owns the port.
+    # this socket is still open. The hold is released once the device logs
+    # "Sockets ready", which means its listen socket is bound to the port.
     hold_sock: socket.socket | None = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     hold_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     hold_sock.bind(("", 0))
@@ -47,11 +47,14 @@ async def test_socket_wake_gate_udp(
 
     loop = asyncio.get_running_loop()
     boot_done: asyncio.Future[None] = loop.create_future()
+    sockets_ready: asyncio.Future[None] = loop.create_future()
     pong: asyncio.Future[None] = loop.create_future()
 
     def on_log_line(line: str) -> None:
         if "BOOT_DONE" in line and not boot_done.done():
             boot_done.set_result(None)
+        if "Sockets ready" in line and not sockets_ready.done():
+            sockets_ready.set_result(None)
         if "PONG" in line and not pong.done():
             pong.set_result(None)
 
@@ -61,10 +64,15 @@ async def test_socket_wake_gate_udp(
                 await asyncio.wait_for(boot_done, timeout=15.0)
             except TimeoutError:
                 pytest.fail("BOOT_DONE never appeared — device did not complete boot")
+            try:
+                await asyncio.wait_for(sockets_ready, timeout=15.0)
+            except TimeoutError:
+                pytest.fail(
+                    "Sockets ready never appeared — UDP did not open its sockets"
+                )
 
-            # BOOT_DONE confirms on_boot(priority=-100) has run, meaning all
-            # setup() calls are complete and the UDP listen socket is bound.
-            # Release the hold — the device is now the sole owner of the port.
+            # The UDP listen socket is bound, so release the hold — the device
+            # is now the sole owner of the port.
             hold_sock.close()
             hold_sock = None
 

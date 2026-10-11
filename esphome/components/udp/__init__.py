@@ -78,11 +78,9 @@ def _ipv6_multicast_address(value):
 
 def _listen_address(value):
     """Accept IPv4 multicast/broadcast or IPv6 multicast address."""
-    try:
-        return cv.ipv4address_multi_broadcast(value)
-    except cv.Invalid:
-        pass
-    return _ipv6_multicast_address(value)
+    if ":" in str(value):
+        return _ipv6_multicast_address(value)
+    return cv.ipv4address_multi_broadcast(value)
 
 
 def _final_validate(config):

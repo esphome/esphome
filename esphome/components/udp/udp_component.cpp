@@ -1,5 +1,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
+#include <cerrno>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/network/util.h"
@@ -9,7 +10,7 @@ namespace esphome::udp {
 
 static const char *const TAG = "udp";
 
-void UDPComponent::open_sockets_() {
+void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   size_t address_count = 0;
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++)
@@ -23,11 +24,35 @@ void UDPComponent::open_sockets_() {
     if (entry.len == 0) {
       ESP_LOGW(TAG, "Invalid address %s", address);
       // A dropped address silently receives nothing; surface the misconfiguration
+      this->invalid_address_ = true;
       this->status_set_warning(LOG_STR("invalid address"));
       continue;
     }
     this->sockaddrs_.push_back(entry);
   }
+#endif
+}
+
+bool UDPComponent::retry_if_transient_(const LogString *what) {
+  const int err = errno;
+  if (err != EADDRNOTAVAIL && err != ENODEV) {
+    return false;
+  }
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+  this->listen_socket_.reset();
+  this->broadcast_socket_.reset();
+  this->send_socket_v6_.reset();
+#endif
+  this->retry_delay_ms_ = next_retry_delay_ms(this->retry_delay_ms_);
+  ESP_LOGW(TAG, "%s failed (errno %d), retrying in %" PRIu32 " ms", LOG_STR_ARG(what), err, this->retry_delay_ms_);
+  this->status_set_warning(what);
+  this->retry_pending_ = true;
+  this->set_timeout(this->retry_delay_ms_, [this]() { this->retry_pending_ = false; });
+  return true;
+}
+
+bool UDPComponent::open_sockets_() {
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   uint32_t mcast_ifindex = 0;
   // create listening socket first so mcast_ifindex is known before broadcast socket setup
   if (this->should_listen_) {
@@ -38,7 +63,7 @@ void UDPComponent::open_sockets_() {
       if (addr_buf[0] == '\0') {
         ESP_LOGE(TAG, "Failed to format listen address");
         this->mark_failed();
-        return;
+        return true;
       }
       int af = (strchr(addr_buf, ':') != nullptr) ? AF_INET6 : AF_INET;
       this->listen_socket_ = socket::socket_loop_monitored(af, SOCK_DGRAM, IPPROTO_IP);
@@ -52,7 +77,7 @@ void UDPComponent::open_sockets_() {
           ESP_LOGE(TAG, "Failed to set IPV6_V6ONLY: errno %d", errno);
           this->status_set_error(LOG_STR("Failed to set IPV6_V6ONLY"));
           this->mark_failed();
-          return;
+          return true;
         }
       }
 #endif
@@ -60,14 +85,14 @@ void UDPComponent::open_sockets_() {
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
-      return;
+      return true;
     }
     auto err = this->listen_socket_->setblocking(false);
     if (err < 0) {
       ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
       this->status_set_error(LOG_STR("Unable to set nonblocking"));
       this->mark_failed();
-      return;
+      return true;
     }
     int enable = 1;
     err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
@@ -83,21 +108,24 @@ void UDPComponent::open_sockets_() {
       if (addr_buf[0] == '\0') {
         ESP_LOGE(TAG, "Failed to format listen address");
         this->mark_failed();
-        return;
+        return true;
       }
       ESP_LOGD(TAG, "Join multicast %s", addr_buf);
       if (!socket::join_multicast_group(this->listen_socket_.get(), addr_buf, &mcast_ifindex)) {
+        if (this->retry_if_transient_(LOG_STR("Join multicast group"))) {
+          return false;
+        }
         ESP_LOGE(TAG, "Failed to join multicast group. Error %d", errno);
         this->status_set_error(LOG_STR("Failed to join multicast group"));
         this->mark_failed();
-        return;
+        return true;
       }
       server_len = socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), addr_buf, this->listen_port_);
       if (server_len == 0) {
         ESP_LOGE(TAG, "Failed to set bind address. Error %d", errno);
         this->status_set_error(LOG_STR("Failed to set bind address"));
         this->mark_failed();
-        return;
+        return true;
       }
 #if defined(USE_HOST) || defined(USE_ZEPHYR)
       if (server_len == sizeof(sockaddr_in6) && mcast_ifindex != 0) {
@@ -112,10 +140,13 @@ void UDPComponent::open_sockets_() {
 
     err = this->listen_socket_->bind((struct sockaddr *) &server, server_len);
     if (err != 0) {
+      if (this->retry_if_transient_(LOG_STR("Bind"))) {
+        return false;
+      }
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
       this->status_set_error(LOG_STR("Unable to bind socket"));
       this->mark_failed();
-      return;
+      return true;
     }
   }
   // set up send socket(s)
@@ -125,7 +156,7 @@ void UDPComponent::open_sockets_() {
     if (this->broadcast_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
-      return;
+      return true;
     }
     int enable = 1;
     auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
@@ -142,14 +173,17 @@ void UDPComponent::open_sockets_() {
         if (this->send_socket_v6_ == nullptr) {
           this->status_set_error(LOG_STR("Could not create IPv6 socket"));
           this->mark_failed();
-          return;
+          return true;
         }
         err = this->send_socket_v6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
         if (err != 0)
           this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
         if (!socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), mcast_ifindex)) {
+          if (this->retry_if_transient_(LOG_STR("Set IPv6 multicast interface"))) {
+            return false;
+          }
           this->mark_failed(LOG_STR("Failed to set IPv6 multicast interface"));
-          return;
+          return true;
         }
         break;
       }
@@ -173,6 +207,7 @@ void UDPComponent::open_sockets_() {
     this->udp_client_.begin(this->listen_port_);
 #endif
   ESP_LOGD(TAG, "Sockets ready");
+  return true;
 }
 
 void UDPComponent::loop() {
@@ -180,8 +215,16 @@ void UDPComponent::loop() {
     if (!network::is_connected()) {
       return;
     }
-    this->open_sockets_();
-    if (this->is_failed()) {
+    if (this->retry_pending_) {
+      return;
+    }
+    if (this->retry_delay_ms_ != 0) {
+      this->status_clear_warning();
+      if (this->invalid_address_) {
+        this->status_set_warning(LOG_STR("invalid address"));
+      }
+    }
+    if (!this->open_sockets_() || this->is_failed()) {
       return;
     }
     this->net_started_ = true;
@@ -233,6 +276,10 @@ void UDPComponent::dump_config() {
 }
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
+  if (!this->net_started_) {
+    ESP_LOGV(TAG, "Sockets not open yet, dropping packet");
+    return;
+  }
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &entry : this->sockaddrs_) {
 #if USE_NETWORK_IPV6
