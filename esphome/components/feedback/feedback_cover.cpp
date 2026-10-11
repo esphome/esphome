@@ -5,7 +5,7 @@
 
 namespace esphome::feedback {
 
-static const char *const TAG = "feedback.cover";
+ESPHOME_LOG_TAG(TAG, "feedback.cover");
 
 static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 1;
 
@@ -79,6 +79,11 @@ void FeedbackCover::dump_config() {
   if (this->acceleration_wait_time_) {
     ESP_LOGCONFIG(TAG, "  Acceleration wait time: %.1fs", this->acceleration_wait_time_ / 1e3f);
   }
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+  if (this->overshoot_duration_) {
+    ESP_LOGCONFIG(TAG, "  Overshoot duration: %.1fs", this->overshoot_duration_ / 1e3f);
+  }
+#endif
 #ifdef USE_BINARY_SENSOR
   if (this->obstacle_rollback_ && (this->open_obstacle_ != nullptr || this->close_obstacle_ != nullptr)) {
     ESP_LOGCONFIG(TAG, "  Obstacle rollback: %.1f%%", this->obstacle_rollback_ * 100);
@@ -93,7 +98,8 @@ void FeedbackCover::set_open_sensor(binary_sensor::BinarySensor *open_feedback) 
 
   // setup callbacks to react to sensor changes
   open_feedback->add_on_state_callback([this](bool state) {
-    ESP_LOGD(TAG, "'%s' - Open feedback '%s'.", this->name_.c_str(), state ? "STARTED" : "ENDED");
+    ESP_LOGD(TAG, "'%s' - Open feedback '%s'.", this->name_.c_str(),
+             state ? LOG_STR_LITERAL("STARTED") : LOG_STR_LITERAL("ENDED"));
     this->recompute_position_();
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_OPENING) {
       this->endstop_reached_(true);
@@ -106,7 +112,8 @@ void FeedbackCover::set_close_sensor(binary_sensor::BinarySensor *close_feedback
   this->close_feedback_ = close_feedback;
 
   close_feedback->add_on_state_callback([this](bool state) {
-    ESP_LOGD(TAG, "'%s' - Close feedback '%s'.", this->name_.c_str(), state ? "STARTED" : "ENDED");
+    ESP_LOGD(TAG, "'%s' - Close feedback '%s'.", this->name_.c_str(),
+             state ? LOG_STR_LITERAL("STARTED") : LOG_STR_LITERAL("ENDED"));
     this->recompute_position_();
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_CLOSING) {
       this->endstop_reached_(false);
@@ -144,7 +151,8 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
   // from a position slightly past the endpoint
   if (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING)) {
     float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(), open_endstop ? "Open" : "Close", dur);
+    ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(),
+             open_endstop ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"), dur);
 
     // if there is no external mechanism, stop the cover
     if (!this->has_built_in_endstop_) {
@@ -231,10 +239,22 @@ void FeedbackCover::loop() {
   // (stoping from endstop sensor is handled in callback)
   if (this->current_trigger_operation_ != COVER_OPERATION_IDLE) {
     if (this->is_at_target_()) {
-      if (this->has_built_in_endstop_ &&
-          (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
+      const bool at_end = this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED;
+      if (this->has_built_in_endstop_ && at_end) {
         // Don't trigger stop, let the cover stop by itself.
         this->set_current_operation_(COVER_OPERATION_IDLE, true);
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+      } else if (at_end && this->overshoot_duration_) {
+        // The define is global, so a cover without the option still lands here with a zero duration
+        // Keep driving past the end position for a while so accumulated timing error is squeezed out
+        if (!this->start_overshoot_time_) {
+          this->start_overshoot_time_ = now;
+        } else if (now - this->start_overshoot_time_ > this->overshoot_duration_ ||
+                   now - this->start_dir_time_ > this->max_duration_) {
+          ESP_LOGD(TAG, "'%s' - Overshoot duration reached. Stopping cover.", this->name_.c_str());
+          this->start_direction_(COVER_OPERATION_IDLE);
+        }
+#endif
       } else {
         this->start_direction_(COVER_OPERATION_IDLE);
       }
@@ -337,6 +357,11 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   binary_sensor::BinarySensor *obstacle{nullptr};
 #endif
 
+#ifdef USE_FEEDBACK_COVER_OVERSHOOT
+  // Any new command ends a running overshoot
+  this->start_overshoot_time_ = 0;
+#endif
+
   switch (dir) {
     case COVER_OPERATION_IDLE:
       trig = &this->stop_trigger_;
@@ -366,7 +391,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   // the case when an obstacle appears while moving is handled in the callback
   if (obstacle != nullptr && obstacle->state) {
     ESP_LOGD(TAG, "'%s' - %s obstacle detected. Action not started.", this->name_.c_str(),
-             dir == COVER_OPERATION_OPENING ? "Open" : "Close");
+             dir == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"));
     return;
   }
 #endif
@@ -383,9 +408,9 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
     this->set_current_operation_(dir, true);
     this->prev_command_trigger_ = trig;
     ESP_LOGD(TAG, "'%s' - Firing '%s' trigger.", this->name_.c_str(),
-             dir == COVER_OPERATION_OPENING   ? "OPEN"
-             : dir == COVER_OPERATION_CLOSING ? "CLOSE"
-                                              : "STOP");
+             dir == COVER_OPERATION_OPENING   ? LOG_STR_LITERAL("OPEN")
+             : dir == COVER_OPERATION_CLOSING ? LOG_STR_LITERAL("CLOSE")
+                                              : LOG_STR_LITERAL("STOP"));
     trig->trigger();
   }
 }

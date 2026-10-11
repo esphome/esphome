@@ -24,17 +24,6 @@ animation_ns = cg.esphome_ns.namespace("animation")
 
 Animation_ = animation_ns.class_("Animation", Image_)
 
-# Actions
-NextFrameAction = animation_ns.class_(
-    "AnimationNextFrameAction", automation.Action, cg.Parented.template(Animation_)
-)
-PrevFrameAction = animation_ns.class_(
-    "AnimationPrevFrameAction", automation.Action, cg.Parented.template(Animation_)
-)
-SetFrameAction = animation_ns.class_(
-    "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
-)
-
 ANIMATION_SCHEMA = image_schema(Animation_).extend(
     {
         cv.Optional(CONF_LOOP): cv.All(
@@ -70,23 +59,17 @@ SET_FRAME_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "animation.next_frame", NextFrameAction, NEXT_FRAME_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "animation.next_frame", NEXT_FRAME_SCHEMA, automation.ApplyCall("next_frame()")
 )
-@automation.register_action(
-    "animation.prev_frame", PrevFrameAction, PREV_FRAME_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "animation.prev_frame", PREV_FRAME_SCHEMA, automation.ApplyCall("prev_frame()")
 )
-@automation.register_action(
-    "animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "animation.set_frame",
+    SET_FRAME_SCHEMA,
+    automation.ApplyField(CONF_FRAME, "set_frame", cg.uint16),
 )
-async def animation_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    if (frame := config.get(CONF_FRAME)) is not None:
-        template_ = await cg.templatable(frame, args, cg.uint16)
-        cg.add(var.set_frame(template_))
-    return var
 
 
 async def setup_animation(config: ConfigType) -> None:

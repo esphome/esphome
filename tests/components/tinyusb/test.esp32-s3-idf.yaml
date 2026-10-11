@@ -1,1 +1,7 @@
-<<: !include common.yaml
+packages:
+  tinyusb: !include common.yaml
+
+# VBUS monitoring is per variant: the OTG hardware watches the pin here, while the
+# S31 would need the GPIO ISR path and rejects the key.
+tinyusb:
+  vbus_monitor_pin: 4

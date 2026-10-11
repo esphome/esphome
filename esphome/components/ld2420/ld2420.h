@@ -105,7 +105,6 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void apply_config_action();
   void factory_reset_action();
   void revert_config_action();
-  float get_setup_priority() const override;
   int send_cmd_from_array(CmdFrameT cmd_frame);
   void report_gate_data();
   void handle_cmd_error(uint16_t error);
