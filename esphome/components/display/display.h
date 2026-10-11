@@ -294,7 +294,7 @@ using display_writer_t = DisplayWriter<Display>;
                   prefix type "\n" \
                               "%s  Rotations: %d °\n" \
                               "%s  Dimensions: %dpx x %dpx", \
-                  prefix, log_display_obj->rotation_, prefix, log_display_obj->get_width(), \
+                  prefix, log_display_obj->get_rotation(), prefix, log_display_obj->get_width(), \
                   log_display_obj->get_height()); \
   }
 
