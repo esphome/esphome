@@ -7,6 +7,8 @@
 #include "common.h"
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/components/modbus/modbus_helpers.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::modbus::testing {
 
@@ -34,12 +36,22 @@ struct Response {
   uint8_t address;
   std::vector<uint8_t> request;
   std::vector<uint8_t> response;
+  size_t written_before;  // bytes the hub had written when the callback ran
 };
 
-// Lets the bus fall silent past the frame timeout without waiting for real time.
+// Lets the bus fall silent past the frame timeout without waiting for real time, and holds replies back as if
+// the bus were busy.
 class QuietServerHub : public ModbusServerHub {
  public:
   void go_quiet() { this->last_modbus_byte_ -= 1000000; }
+  bool tx_blocked() override { return this->busy || this->Modbus::tx_blocked(); }
+  bool reply_held() const { return this->deferred_payload_len_ != 0; }
+  void cancel_held_reply() { this->cancel_timeout("deferred_send"); }
+  bool busy{false};
+
+ protected:
+  // No wait before a send, so a held reply is due at once and the tests need not sleep.
+  int32_t tx_delay_remaining() override { return 0; }
 };
 
 class MonitorServer : public ::testing::Test {
@@ -52,7 +64,7 @@ class MonitorServer : public ::testing::Test {
     });
     this->hub_.add_on_response_callback(
         [this](uint8_t address, std::span<const uint8_t> request, std::span<const uint8_t> response) {
-          this->paired_.push_back({address, vec(request), vec(response)});
+          this->paired_.push_back({address, vec(request), vec(response), this->uart_.written.size()});
         });
   }
   void receive_(uint8_t address, std::span<const uint8_t> pdu) {
@@ -74,23 +86,45 @@ class MonitorServer : public ::testing::Test {
 
 constexpr uint8_t READ[] = {0x03, 0x00, 0x10, 0x00, 0x01};
 constexpr uint8_t READ_REPLY[] = {0x03, 0x02, 0x00, 0x2A};
-constexpr uint8_t READ_TWO[] = {0x03, 0x00, 0xCA, 0x00, 0x02};  // two registers from 202
+constexpr uint8_t LOCAL_READ_REPLY[] = {0x03, 0x02, 0x12, 0x34};             // RegisterDevice's answer to READ
+constexpr size_t LOCAL_READ_REPLY_FRAME = 1 + sizeof(LOCAL_READ_REPLY) + 2;  // with address and CRC
+constexpr uint8_t READ_TWO[] = {0x03, 0x00, 0xCA, 0x00, 0x02};               // two registers from 202
 constexpr uint8_t READ_TWO_REPLY[] = {0x03, 0x04, 0x10, 0x04, 0xFF, 0x30};
 constexpr uint8_t WRITE_1[] = {0x06, 0x00, 0x10, 0x00, 0x01};
 constexpr uint8_t WRITE_2[] = {0x06, 0x00, 0x10, 0x00, 0x02};
 
 }  // namespace
 
-// A request to a local device is seen too, after the device has answered.
-TEST_F(MonitorServer, ServedRequestIsSeenAfterTheReply) {
+// A request to a local device is seen too, before the device answers.
+TEST_F(MonitorServer, ServedRequestIsSeenBeforeTheReply) {
   RegisterDevice device(0x02);
   this->hub_.register_device(&device);
   this->receive_(0x02, READ);
   ASSERT_EQ(this->seen_.size(), 1u);
   EXPECT_EQ(this->seen_[0].address, 0x02);
   EXPECT_EQ(this->seen_[0].pdu, vec(READ));
-  EXPECT_FALSE(this->uart_.written.empty());
-  EXPECT_EQ(this->seen_[0].written_before, this->uart_.written.size());
+  EXPECT_EQ(this->seen_[0].written_before, 0u);
+  EXPECT_EQ(this->uart_.written.size(), LOCAL_READ_REPLY_FRAME);
+}
+
+// A reply of a local device is reported with its request once it is on the wire, an exception reply too.
+TEST_F(MonitorServer, OwnReplyIsSeenWithItsRequest) {
+  RegisterDevice device(0x02);
+  this->hub_.register_device(&device);
+  const uint8_t read_none[] = {0x03, 0x00, 0x10, 0x00, 0x00};  // zero registers
+  const uint8_t illegal_value[] = {0x83, 0x03};
+  this->receive_(0x02, READ);
+  this->receive_(0x02, read_none);
+  ASSERT_EQ(this->seen_.size(), 2u);
+  ASSERT_EQ(this->paired_.size(), 2u);
+  EXPECT_EQ(this->paired_[0].address, 0x02);
+  EXPECT_EQ(this->paired_[0].request, vec(READ));
+  EXPECT_EQ(this->paired_[0].response, vec(LOCAL_READ_REPLY));
+  EXPECT_EQ(this->paired_[0].written_before, LOCAL_READ_REPLY_FRAME);
+  EXPECT_EQ(this->paired_[1].address, 0x02);
+  EXPECT_EQ(this->paired_[1].request, vec(read_none));
+  EXPECT_EQ(this->paired_[1].response, vec(illegal_value));
+  EXPECT_EQ(this->paired_[1].written_before, this->uart_.written.size());
 }
 
 // The second request arrives while the hub still waits for the first one's reply.
@@ -307,6 +341,67 @@ TEST_F(MonitorServer, ListenerNeverTransmits) {
   EXPECT_EQ(this->seen_.size(), 2u);
   EXPECT_EQ(this->paired_.size(), 1u);
   EXPECT_TRUE(this->uart_.written.empty());
+}
+
+namespace {
+
+// Replies held back by a busy bus go out from a timer, which needs the App scheduler.
+class MonitorServerHeld : public MonitorServer {
+ protected:
+  void SetUp() override {
+    // The test main does not construct App as generated code does.
+    static const bool app_constructed = (new (&App) Application(), true);
+    (void) app_constructed;
+    App.pre_setup("test_modbus", 11, "", 0);
+    MonitorServer::SetUp();
+    this->hub_.register_device(&this->device_);
+    this->hub_.busy = true;
+  }
+  void TearDown() override {
+    // App outlives each test, so drop a timer still pointing at this hub.
+    this->hub_.cancel_held_reply();
+    App.scheduler.call(millis());
+  }
+  static void run_timers() { App.scheduler.call(millis()); }
+
+  RegisterDevice device_{0x02};
+};
+
+}  // namespace
+
+TEST_F(MonitorServerHeld, HeldReplyIsSeenOnceSent) {
+  this->receive_(0x02, READ);
+  ASSERT_TRUE(this->hub_.reply_held());
+  EXPECT_TRUE(this->paired_.empty());
+  this->hub_.busy = false;
+  this->run_timers();
+  EXPECT_FALSE(this->hub_.reply_held());
+  EXPECT_EQ(this->uart_.written.size(), LOCAL_READ_REPLY_FRAME);
+  ASSERT_EQ(this->paired_.size(), 1u);
+  EXPECT_EQ(this->paired_[0].request, vec(READ));
+  EXPECT_EQ(this->paired_[0].response, vec(LOCAL_READ_REPLY));
+}
+
+// The next frame arrived first, so the client has moved on: the reply is dropped and not reported.
+TEST_F(MonitorServerHeld, ReplyDroppedForTheNextFrameIsNotSeen) {
+  this->receive_(0x02, READ);
+  ASSERT_TRUE(this->hub_.reply_held());
+  this->receive_(0x05, READ);
+  EXPECT_FALSE(this->hub_.reply_held());
+  this->hub_.busy = false;
+  this->run_timers();
+  EXPECT_EQ(this->seen_.size(), 2u);
+  EXPECT_TRUE(this->uart_.written.empty());
+  EXPECT_TRUE(this->paired_.empty());
+}
+
+TEST_F(MonitorServerHeld, ReplyStillBlockedWhenDueIsNotSeen) {
+  this->receive_(0x02, READ);
+  ASSERT_TRUE(this->hub_.reply_held());
+  this->run_timers();
+  EXPECT_FALSE(this->hub_.reply_held());
+  EXPECT_TRUE(this->uart_.written.empty());
+  EXPECT_TRUE(this->paired_.empty());
 }
 
 }  // namespace esphome::modbus::testing

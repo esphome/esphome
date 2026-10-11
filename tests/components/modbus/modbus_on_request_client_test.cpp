@@ -47,6 +47,18 @@ struct Request {
   std::vector<uint8_t> pdu;
 };
 
+// Notes how many requests the monitor had seen each time on_sent runs.
+class SentDevice : public ModbusClientDevice {
+ public:
+  SentDevice(ModbusClientHub *hub, uint8_t address, const std::vector<Request> &seen)
+      : ModbusClientDevice(hub, address), seen_(seen) {}
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->seen_at_sent.push_back(this->seen_.size()); }
+  std::vector<size_t> seen_at_sent;
+
+ protected:
+  const std::vector<Request> &seen_;
+};
+
 class MonitorClient : public ::testing::Test {
  protected:
   void SetUp() override { this->attach_(this->hub_); }
@@ -76,6 +88,19 @@ TEST_F(MonitorClient, SeenWhenSentNotWhenQueued) {
   EXPECT_EQ(this->seen_[0].address, 0x02);
   EXPECT_EQ(this->seen_[0].pdu, std::vector<uint8_t>(std::begin(READ), std::end(READ)));
   EXPECT_TRUE(this->hub_.waiting());
+}
+
+// The monitor runs first: after the hub has set its state, before the device's on_sent.
+TEST_F(MonitorClient, RequestIsSeenBeforeOnSent) {
+  bool waiting_at_request = false;
+  this->hub_.add_on_request_callback(
+      [this, &waiting_at_request](uint8_t, std::span<const uint8_t>) { waiting_at_request = this->hub_.waiting(); });
+  SentDevice device(&this->hub_, 0x02, this->seen_);
+  ASSERT_TRUE(device.queue_pdu(READ));
+  this->hub_.send_next_for_test();
+  EXPECT_TRUE(waiting_at_request);
+  ASSERT_EQ(device.seen_at_sent.size(), 1u);
+  EXPECT_EQ(device.seen_at_sent[0], 1u);
 }
 
 TEST_F(MonitorClient, RetryIsSeenAgain) {
