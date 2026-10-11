@@ -44,20 +44,16 @@ bool MCP2515::setup_internal() {
 }
 
 canbus::CanEventFlags MCP2515::get_events() {
-  uint32_t events = 0;
+  uint8_t events = 0;
   uint8_t error_flags = this->get_error_flags_();
 
-  uint8_t changed_flags = this->last_error_flags_ ^ error_flags;
-  if (changed_flags & (EFLG_RXEP | EFLG_TXEP)) {
-    bool was_passive = this->last_error_flags_ & (EFLG_RXEP | EFLG_TXEP);
-    bool is_passive = error_flags & (EFLG_RXEP | EFLG_TXEP);
-
-    // only throw event if the status has changed (both on RX and TX passive flags)
-    if (was_passive != is_passive) {
-      events |= is_passive ? canbus::CAN_EVENT_PASSIVE : canbus::CAN_EVENT_ACTIVE;
-    }
+  // Error-passive is one state for RX and TX together, so only a change of the combined flag is an event
+  bool was_passive = this->last_error_flags_ & (EFLG_RXEP | EFLG_TXEP);
+  bool is_passive = error_flags & (EFLG_RXEP | EFLG_TXEP);
+  if (was_passive != is_passive) {
+    events |= is_passive ? canbus::CAN_EVENT_PASSIVE : canbus::CAN_EVENT_ACTIVE;
   }
-  if (changed_flags & EFLG_TXBO) {
+  if ((this->last_error_flags_ ^ error_flags) & EFLG_TXBO) {
     events |= canbus::CAN_EVENT_BUS_OFF;
   }
 

@@ -127,11 +127,10 @@ class Canbus : public Component {
   uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
   bool use_extended_id_{false};
-  CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
-      callback_manager_{};
-
   uint8_t events_to_log_{0};
   bool bus_off_{false};
+  CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
+      callback_manager_{};
 
   // interval in which to check for new can bus events (bus-off, passive, active)
   static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
@@ -150,7 +149,7 @@ class Canbus : public Component {
   uint32_t last_state_log_time_{0};
 #endif
 
-  void log_events_(CanEventFlags events);
+  void log_events_(CanEventFlags events, uint32_t now);
   virtual bool setup_internal() = 0;
   virtual Error send_message(struct CanFrame *frame) = 0;
   virtual Error read_message(struct CanFrame *frame) = 0;

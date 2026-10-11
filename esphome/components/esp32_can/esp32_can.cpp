@@ -119,45 +119,42 @@ bool ESP32Can::setup_internal() {
 }
 
 canbus::CanEventFlags ESP32Can::get_events() {
-  uint32_t events = 0;
-  uint32_t alerts;
-
   if (this->twai_handle_ == nullptr) {
-    // not setup yet or setup failed
-    return static_cast<canbus::CanEventFlags>(events);
+    return {};  // not set up yet, or setup failed
   }
 
+  uint32_t alerts;
   esp_err_t err = twai_read_alerts_v2(this->twai_handle_, &alerts, 0);
-  if (err == ESP_OK) {
-    if (alerts & TWAI_ALERT_ERR_PASS) {
-      events |= canbus::CAN_EVENT_PASSIVE;
+  if (err != ESP_OK) {
+    if (err != ESP_ERR_TIMEOUT) {
+      ESP_LOGD(TAG, "failed to get CAN events");
     }
-    if (alerts & TWAI_ALERT_ERR_ACTIVE) {
-      events |= canbus::CAN_EVENT_ACTIVE;
-    }
+    return {};
+  }
 
-    if (alerts & TWAI_ALERT_BUS_OFF) {
-      events |= canbus::CAN_EVENT_BUS_OFF;
-      // immediately initiate bus recovery, like MCP2515 does as well
-      if (twai_initiate_recovery_v2(this->twai_handle_) != ESP_OK) {
-        // should never happen as this only fails with an invalid handle (which is checked above)
-        // or when the state is not "bus off", which is a permanent state until recovery is initiated.
-        this->mark_failed(LOG_STR("Recovery after bus off failed"));
-      }
+  uint8_t events = 0;
+  if (alerts & TWAI_ALERT_ERR_PASS) {
+    events |= canbus::CAN_EVENT_PASSIVE;
+  }
+  if (alerts & TWAI_ALERT_ERR_ACTIVE) {
+    events |= canbus::CAN_EVENT_ACTIVE;
+  }
+  if (alerts & TWAI_ALERT_BUS_OFF) {
+    events |= canbus::CAN_EVENT_BUS_OFF;
+    // Start recovery at once, as the MCP2515 does in hardware. This only fails with an invalid
+    // handle or outside the bus-off state, and bus-off persists until recovery is started.
+    if (twai_initiate_recovery_v2(this->twai_handle_) != ESP_OK) {
+      this->mark_failed(LOG_STR("Recovery after bus off failed"));
     }
-    if (alerts & TWAI_ALERT_BUS_RECOVERED) {
-      if (twai_start_v2(this->twai_handle_) != ESP_OK) {
-        // should never happen as this only fails with an invalid handle (which is checked above)
-        // or when the state is not "stopped", which is a permanent state once recovery is finished.
-        this->mark_failed(LOG_STR("Restart after bus off failed"));
-      }
+  }
+  if (alerts & TWAI_ALERT_BUS_RECOVERED) {
+    // Recovery leaves the controller stopped; this only fails with an invalid handle or outside that state
+    if (twai_start_v2(this->twai_handle_) != ESP_OK) {
+      this->mark_failed(LOG_STR("Restart after bus off failed"));
     }
-
-    if (alerts & TWAI_ALERT_RX_QUEUE_FULL) {
-      events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
-    }
-  } else if (err != ESP_ERR_TIMEOUT) {
-    ESP_LOGD(TAG, "failed to get CAN events");
+  }
+  if (alerts & TWAI_ALERT_RX_QUEUE_FULL) {
+    events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
   }
   return static_cast<canbus::CanEventFlags>(events);
 }
