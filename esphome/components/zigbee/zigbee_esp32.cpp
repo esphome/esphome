@@ -49,6 +49,12 @@ void ZigbeeComponent::factory_reset() {
   esp_zigbee_lock_release();
 }
 
+void ZigbeeComponent::report() {
+  for (const auto &[_, attribute] : this->attributes_) {
+    attribute->report();
+  }
+}
+
 void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode) {
   if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 100,
