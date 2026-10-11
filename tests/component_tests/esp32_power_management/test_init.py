@@ -33,11 +33,10 @@ def _set_variant(
     variant: str,
     /,
     *,
-    framework: PlatformFramework = PlatformFramework.ESP32_IDF,
     full_config: ConfigType | None = None,
 ) -> None:
     set_core_config(
-        framework,
+        PlatformFramework.ESP32_IDF,
         core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
         platform_data={KEY_VARIANT: variant},
         full_config=full_config,
@@ -120,14 +119,6 @@ def test_power_down_peripherals_default(
 ) -> None:
     _set_variant(set_core_config, variant)
     assert CONFIG_SCHEMA(config)[CONF_POWER_DOWN_PERIPHERALS] is expected
-
-
-def test_rejects_arduino_framework(set_core_config: SetCoreConfigCallable) -> None:
-    _set_variant(
-        set_core_config, VARIANT_ESP32, framework=PlatformFramework.ESP32_ARDUINO
-    )
-    with pytest.raises(cv.Invalid, match="only available with framework"):
-        CONFIG_SCHEMA({})
 
 
 def _final_validate_config(

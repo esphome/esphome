@@ -109,7 +109,6 @@ CONFIG_SCHEMA = cv.All(
             ): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_framework("esp-idf"),
     _validate,
 )
 

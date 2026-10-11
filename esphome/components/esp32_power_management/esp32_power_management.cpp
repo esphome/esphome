@@ -14,6 +14,9 @@ void ESP32PowerManagement::setup() {
     this->max_freq_mhz_ = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
   if (this->min_freq_mhz_ == 0)
     this->min_freq_mhz_ = esp_clk_xtal_freq() / MHZ;
+  // A low boot frequency (ESP32-H2 at 16 MHz) can sit below the crystal frequency.
+  if (this->min_freq_mhz_ > this->max_freq_mhz_)
+    this->min_freq_mhz_ = this->max_freq_mhz_;
 
   esp_pm_config_t pm_config = {
     .max_freq_mhz = this->max_freq_mhz_,
