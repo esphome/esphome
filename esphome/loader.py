@@ -41,6 +41,10 @@ class FileResource:
 
 
 class ComponentManifest:
+    # Accessors for optional module attributes, so the count tracks how many things
+    # a component may declare rather than this class's complexity.
+    # pylint: disable=too-many-public-methods
+
     def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
         self.recursive_sources = recursive_sources
@@ -101,6 +105,16 @@ class ComponentManifest:
     @property
     def codeowners(self) -> list[str]:
         return getattr(self.module, "CODEOWNERS", [])
+
+    @property
+    def component_version(self) -> str | None:
+        """Version this component reports for itself, or None if it declares none.
+
+        Optional and purely informational. Exists so external components, which
+        have no version anywhere in the config, can be surfaced to the user.
+        """
+        version = getattr(self.module, "COMPONENT_VERSION", None)
+        return None if version is None else str(version)
 
     @property
     def aliases(self) -> list[str]:
