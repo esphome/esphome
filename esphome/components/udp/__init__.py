@@ -22,7 +22,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_TRIGGER_ID,
 )
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -87,6 +87,12 @@ def _listen_address(value: Any) -> IPv4Address | IPv6Address:
 
 
 def _final_validate(config: ConfigType) -> None:
+    # The Arduino WiFiUDP path on these platforms only listens on the broadcast address
+    if (CORE.is_esp8266 or CORE.is_rp2040) and config[CONF_LISTEN_ADDRESS].version == 6:
+        raise cv.Invalid(
+            "IPv6 multicast listening is not supported on this platform",
+            [CONF_LISTEN_ADDRESS],
+        )
     if fv.full_config.get().get(NETWORK_DOMAIN, {}).get(CONF_ENABLE_IPV6, False):
         return
     for key, addresses in (

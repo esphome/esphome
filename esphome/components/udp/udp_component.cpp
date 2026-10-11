@@ -239,6 +239,9 @@ void UDPComponent::dump_config() {
 }
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
+  // A failed component already shows its error in the status
+  if (this->is_failed())
+    return;
   if (!this->net_started_) {
     ESP_LOGD(TAG, "Sockets not open yet, dropping packet");
     return;
