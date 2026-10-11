@@ -128,3 +128,6 @@ script:
       - lvgl.color_picker.update:
           id: picker_fixed
           color: 0x00FF00
+      - lvgl.color_picker.update:
+          id: picker_hue
+          color: !lambda return lv_color_hex(0x123456);

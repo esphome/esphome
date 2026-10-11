@@ -178,6 +178,10 @@ class TestColorPickerWheel:
     def test_wheel_defaults_to_false(self, schema: Callable[[dict], dict]) -> None:
         assert schema({"width": 100})["wheel"] is False
 
+    def test_wheel_must_be_a_boolean(self, schema: Callable[[dict], dict]) -> None:
+        with pytest.raises(Invalid, match="boolean"):
+            schema({"width": 100, "wheel": "round"})
+
     def test_wheel_leaves_only_brightness_by_default(
         self, schema: Callable[[dict], dict]
     ) -> None:
@@ -258,6 +262,14 @@ class TestColorPickerCodeGeneration:
     def test_update_action_generates_set_color(self, main_cpp: str) -> None:
         """`lvgl.color_picker.update` used to fail outright on the missing width."""
         assert main_cpp.count("picker_fixed->set_color(") == 2
+
+    def test_update_action_accepts_a_lambda(self, main_cpp: str) -> None:
+        # A lambda that only returns an expression is generated as that expression.
+        assert "picker_hue->set_color(lv_color_hex(0x123456));" in main_cpp
+
+    @pytest.mark.parametrize("message", ["released", "updated"])
+    def test_other_triggers_are_generated(self, main_cpp: str, message: str) -> None:
+        assert f'"{message}"' in main_cpp
 
     def test_gradient_stops_are_raised_for_the_hue_bar(self, main_cpp: str) -> None:
         """The hue bar fills seven stops of a fixed-size array.

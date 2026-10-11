@@ -1,0 +1,59 @@
+esphome:
+  name: lvgl-color-picker-render
+
+host:
+
+api:
+  actions:
+    # A snapshot never writes over an existing file, so the test supplies a new name each time.
+    - action: take_screenshot
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: picker_display
+            filename: !lambda return name;
+    - action: set_orange
+      then:
+        - lvgl.color_picker.update:
+            id: picker_sliders
+            color: 0xFF8800
+        - lvgl.color_picker.update:
+            id: picker_wheel
+            color: 0xFF8800
+
+logger:
+  level: DEBUG
+
+display:
+  - platform: snapshot
+    id: picker_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 400
+      height: 200
+
+lvgl:
+  displays: picker_display
+  default_font: montserrat_14
+  widgets:
+    - obj:
+        width: 100%
+        height: 100%
+        bg_color: 0x404040
+        bg_opa: cover
+        border_width: 0
+        radius: 0
+        pad_all: 0
+        widgets:
+          - color_picker:
+              id: picker_sliders
+              align: left_mid
+              width: 196
+              color: 0x3366CC
+          - color_picker:
+              id: picker_wheel
+              align: right_mid
+              width: 196
+              wheel: true
+              color: 0x3366CC
