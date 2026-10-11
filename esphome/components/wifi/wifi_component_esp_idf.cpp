@@ -904,11 +904,20 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
                     ap_dns.ip.u_addr.ip4.addr == sta_dns.ip.u_addr.ip4.addr;
         if (!same) {
           // DNS changes only propagate while the DHCP server is stopped.
-          esp_netif_dhcps_stop(s_ap_netif);
-          uint8_t offer_dns = 0x02;  // DHCPS_OFFER_DNS: advertise a DNS option
-          esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns,
-                                 sizeof(offer_dns));
-          esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+          err = esp_netif_dhcps_stop(s_ap_netif);
+          if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+            ESP_LOGW(TAG, "esp_netif_dhcps_stop failed: %s", esp_err_to_name(err));
+          }
+          uint8_t offer_dns = OFFER_DNS;  // advertise a DNS server to AP clients
+          err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns,
+                                       sizeof(offer_dns));
+          if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to offer DNS to AP clients: %s", esp_err_to_name(err));
+          }
+          err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+          if (err != ESP_OK) {
+            ESP_LOGW(TAG, "esp_netif_set_dns_info failed: %s", esp_err_to_name(err));
+          }
           esp_netif_dhcps_start(s_ap_netif);
         }
       }
@@ -1217,9 +1226,16 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
     esp_netif_dns_info_t sta_dns{};
     if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &sta_dns) == ESP_OK &&
         sta_dns.ip.u_addr.ip4.addr != 0) {
-      uint8_t offer_dns = 0x02;  // DHCPS_OFFER_DNS: advertise a DNS option
-      esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns, sizeof(offer_dns));
-      esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+      uint8_t offer_dns = OFFER_DNS;  // advertise a DNS server to AP clients
+      err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns,
+                                   sizeof(offer_dns));
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to offer DNS to AP clients: %s", esp_err_to_name(err));
+      }
+      err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_netif_set_dns_info failed: %s", esp_err_to_name(err));
+      }
     }
   }
 #endif

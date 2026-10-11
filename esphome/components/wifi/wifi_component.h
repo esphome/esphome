@@ -1032,7 +1032,7 @@ class WiFiComponent final : public Component {
   bool ap_started_{false};
 #ifdef USE_WIFI_APSTA
   bool ap_coexist_{false};
-  uint32_t ap_coexist_last_attempt_{0};  // Throttles coexist AP start retries
+  uint32_t ap_coexist_last_attempt_{0};  // 0 = not attempted yet; throttles coexist AP retries
 #endif
 #ifdef USE_WIFI_AP_NAPT
   bool ap_napt_{false};

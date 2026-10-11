@@ -401,8 +401,9 @@ static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 #endif
 #ifdef USE_WIFI_APSTA
-/// A failed coexist AP start leaves ap_setup_ false; without a throttle it
-/// would be retried (and logged) on every loop pass.
+/// Retry interval after a failed coexist AP start, so a failure is not retried
+/// (and logged) on every loop pass. The first attempt starts as soon as the
+/// loop runs.
 static constexpr uint32_t WIFI_AP_COEXIST_RETRY_MS = 5000;
 #endif
 
@@ -927,8 +928,9 @@ void WiFiComponent::loop() {
 #ifdef USE_WIFI_APSTA
       if (this->ap_coexist_) {
         // A failed start leaves ap_setup_ false; throttle retries so a
-        // failure is not retried (and logged) on every loop pass.
-        if (now - this->ap_coexist_last_attempt_ >= WIFI_AP_COEXIST_RETRY_MS) {
+        // failure is not retried (and logged) on every loop pass. The first
+        // attempt is never delayed - ap_coexist_last_attempt_ is 0 until then.
+        if (this->ap_coexist_last_attempt_ == 0 || now - this->ap_coexist_last_attempt_ >= WIFI_AP_COEXIST_RETRY_MS) {
           this->ap_coexist_last_attempt_ = now;
           ESP_LOGI(TAG, "Starting coexist AP");
           this->setup_ap_config_();
