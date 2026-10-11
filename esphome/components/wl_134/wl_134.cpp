@@ -6,7 +6,7 @@
 
 namespace esphome::wl_134 {
 
-static const char *const TAG = "wl_134.sensor";
+ESPHOME_LOG_TAG(TAG, "wl_134.sensor");
 static const uint8_t ASCII_CR = 0x0D;
 static const uint8_t ASCII_NBSP = 0xFF;
 static const int MAX_DATA_LENGTH_BYTES = 6;
@@ -110,7 +110,5 @@ uint64_t Wl134Component::hex_lsb_ascii_to_uint64_(const uint8_t *text, uint8_t t
 void Wl134Component::dump_config() {
   ESP_LOGCONFIG(TAG, "WL-134 Sensor:");
   LOG_TEXT_SENSOR("", "Tag", this);
-  // As specified in the sensor's data sheet
-  this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
 }  // namespace esphome::wl_134

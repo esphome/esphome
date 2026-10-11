@@ -1,0 +1,14 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+audio_file:
+  - id: chime
+    file:
+      type: local
+      path: ../../../components/audio_file/test.wav

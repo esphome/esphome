@@ -5,7 +5,7 @@
 
 namespace esphome::bl0906 {
 
-static const char *const TAG = "bl0906";
+ESPHOME_LOG_TAG(TAG, "bl0906");
 
 constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 

@@ -7,7 +7,7 @@
 
 namespace esphome::uponor_smatrix {
 
-static const char *const TAG = "uponor_smatrix";
+ESPHOME_LOG_TAG(TAG, "uponor_smatrix");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t UPONOR_MAX_LOG_BYTES = 36;
@@ -28,8 +28,6 @@ void UponorSmatrixComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Time master device address: 0x%08" PRIX32 "", this->time_device_address_);
   }
 #endif
-
-  this->check_uart_settings(19200);
 
   if (!this->unknown_devices_.empty()) {
     ESP_LOGCONFIG(TAG, "  Detected unknown device addresses:");

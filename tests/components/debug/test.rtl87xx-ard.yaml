@@ -1,6 +1,0 @@
-<<: !include common.yaml
-
-sensor:
-  - platform: debug
-    min_free:
-      name: "Heap Min Free"
