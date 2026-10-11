@@ -1,0 +1,662 @@
+number:
+  - platform: toptronic
+    name: Normal room temp. heating oper. (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    id: FW_1_0_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    id: FW_1_0_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal room temp. heating oper. (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    id: FW_1_1_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    id: FW_1_1_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal room temp. heating oper. (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    id: FW_1_2_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    id: FW_1_2_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal room temp. heating oper. (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3051
+    id: FW_1_3_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3053
+    id: FW_1_3_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal room temp. heating oper. (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3051
+    id: FW_1_4_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3053
+    id: FW_1_4_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room setpoint (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 1001
+    id: FW_1_0_1001_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room setpoint (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 1001
+    id: FW_1_1_1001_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room setpoint (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 1001
+    id: FW_1_2_1001_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room setpoint (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 1001
+    id: FW_1_3_1001_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room setpoint (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 1001
+    id: FW_1_4_1001_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal hot water temp. (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    id: FW_2_0_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation hot water temp. (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    id: FW_2_0_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal hot water temp. (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5051
+    id: FW_2_1_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation hot water temp. (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5086
+    id: FW_2_1_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal hot water temp. (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5051
+    id: FW_2_2_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation hot water temp. (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5086
+    id: FW_2_2_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal hot water temp. (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5051
+    id: FW_2_3_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation hot water temp. (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5086
+    id: FW_2_3_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal hot water temp. (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5051
+    id: FW_2_4_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation hot water temp. (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5086
+    id: FW_2_4_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint contrast req. (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    id: FW_1_0_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint contrast req. (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    id: FW_1_1_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint contrast req. (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    id: FW_1_2_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint contrast req. (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 7036
+    id: FW_1_3_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint contrast req. (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 7036
+    id: FW_1_4_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+select:
+  - platform: toptronic
+    name: Heating operation choice (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    id: FW_1_0_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Heating operation choice (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    id: FW_1_1_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Heating operation choice (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    id: FW_1_2_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Heating operation choice (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3050
+    id: FW_1_3_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Heating operation choice (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3050
+    id: FW_1_4_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Hot water operation choice (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    id: FW_2_0_5050_set
+    options:
+      - Standby
+      - 'week 1 '
+      - week 2
+      - Constant
+      - Eco mode
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Hot water operation choice (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5050
+    id: FW_2_1_5050_set
+    options:
+      - Standby
+      - 'week 1 '
+      - week 2
+      - Constant
+      - Eco mode
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Hot water operation choice (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5050
+    id: FW_2_2_5050_set
+    options:
+      - Standby
+      - 'week 1 '
+      - week 2
+      - Constant
+      - Eco mode
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Hot water operation choice (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5050
+    id: FW_2_3_5050_set
+    options:
+      - Standby
+      - 'week 1 '
+      - week 2
+      - Constant
+      - Eco mode
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Hot water operation choice (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5050
+    id: FW_2_4_5050_set
+    options:
+      - Standby
+      - 'week 1 '
+      - week 2
+      - Constant
+      - Eco mode
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6

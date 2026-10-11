@@ -1,0 +1,177 @@
+sensor:
+  - platform: toptronic
+    name: Modulazione ventilazione normale
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40651
+    id: HV_50_0_40651
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Modulazione ventilazione risparmio
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40686
+    id: HV_50_0_40686
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Modulazione ventilazione
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 38606
+    id: HV_50_0_38606
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: "Valore nominale umidit\xE0"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40687
+    id: HV_50_0_40687
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:water-percent
+    device_class: humidity
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Umidit\xE0 aria ripresa"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 37600
+    id: HV_50_0_37600
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:water-percent
+    device_class: humidity
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura aria esterna
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 0
+    id: HV_50_0_0
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatura aria ripresa
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 37602
+    id: HV_50_0_37602
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Ventilatore aria espulsa nominale
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 38600
+    id: HV_50_0_38600
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Val cont manut messagg manut (sett funz)
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 0
+    function_number: 0
+    datapoint: 20037
+    id: HV_0_0_20037
+    type: U32
+  - platform: toptronic
+    name: Val conteggio pulizia messaggio pulizia (sett funz)
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 0
+    function_number: 0
+    datapoint: 41613
+    id: HV_0_0_41613
+    type: U32
+text_sensor:
+  - platform: toptronic
+    name: Selezione modo funzion.to ventilazione
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40650
+    id: HV_50_0_40650
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Modo costante, valore nominale 40651
+      - Modo risparmio, valore nominale DAP40686
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+  - platform: toptronic
+    name: Stato regolazione ventilazione
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 39652
+    id: HV_50_0_39652
+    options:
+      - Apparecchio off, per es. modo Stand-by
+      - Modo ventilazione normale
+      - Modo VOC attivo
+      - "Modo umidit\xE0 attivo"
+      - Protezione antigelo attiva
+      - CoolVent attivo
+      - Stato errore
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
