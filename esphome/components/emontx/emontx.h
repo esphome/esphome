@@ -62,10 +62,10 @@ class EmonTx final : public Component, public uart::UARTDevice {
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
   uint16_t buffer_pos_{0};
-  bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
-  std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
   std::atomic<bool> paused_{false};
   bool was_paused_{false};
+  bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
+  std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
 };
 
 }  // namespace esphome::emontx
