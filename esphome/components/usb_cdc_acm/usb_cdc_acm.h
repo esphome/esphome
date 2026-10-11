@@ -143,12 +143,13 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 #ifdef USE_ZEPHYR
   static void uart_irq_handler(const device *dev, void *instance);
   void uart_rx_process_();
-  void uart_tx_process_();
+  bool uart_tx_process_();
 
   const device *uart_dev_;
   uint32_t dtr_{0};
   uint32_t rts_{0};
   std::atomic<bool> rx_irq_disabled_{false};
+  std::atomic<bool> tx_irq_disabled_{false};
   ring_buf rx_ringbuf_;
   ring_buf tx_ringbuf_;
   uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];

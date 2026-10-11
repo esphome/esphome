@@ -15,15 +15,27 @@ namespace esphome::usb_cdc_acm {
 
 static const char *const TAG = "usb_cdc_acm";
 
-void USBCDCACMInstance::uart_tx_process_() {
+// Returns false if the USB device accepted no data and TX was stopped
+bool USBCDCACMInstance::uart_tx_process_() {
   uint8_t *data;
   uint32_t send_len = ring_buf_get_claim(&this->tx_ringbuf_, &data, UINT32_MAX);
-  if (send_len) {
-    send_len = uart_fifo_fill(this->uart_dev_, data, send_len);
-    ring_buf_get_finish(&this->tx_ringbuf_, send_len);
-  } else {
+  if (send_len == 0) {
     uart_irq_tx_disable(this->uart_dev_);
+    return true;
   }
+  int sent = uart_fifo_fill(this->uart_dev_, data, send_len);
+  if (sent <= 0) {
+    // No progress: the USB device is suspended (host asleep, hub power save) or not configured.
+    // fill() then returns 0 without clearing tx_ready, and irq_update() always returns 1 for
+    // cdc_acm, so the IRQ handler would loop forever on the cooperative USB work queue and
+    // block the main loop. Stop TX here; loop() turns it back on while data is waiting.
+    ring_buf_get_finish(&this->tx_ringbuf_, 0);
+    uart_irq_tx_disable(this->uart_dev_);
+    this->tx_irq_disabled_ = true;
+    return false;
+  }
+  ring_buf_get_finish(&this->tx_ringbuf_, sent);
+  return true;
 }
 
 void USBCDCACMInstance::uart_rx_process_() {
@@ -54,8 +66,8 @@ void USBCDCACMInstance::uart_irq_handler(const device *dev, void *instance) {
       thiz->uart_rx_process_();
     }
 
-    if (uart_irq_tx_ready(dev)) {
-      thiz->uart_tx_process_();
+    if (uart_irq_tx_ready(dev) && !thiz->uart_tx_process_()) {
+      break;
     }
   }
 }
@@ -86,6 +98,11 @@ void USBCDCACMInstance::loop() {
   if (this->rx_irq_disabled_ && ring_buf_space_get(&this->rx_ringbuf_) > 0) {
     this->rx_irq_disabled_ = false;
     uart_irq_rx_enable(this->uart_dev_);
+  }
+  // Retry TX stopped by uart_tx_process_() (e.g. after the host resumes from suspend)
+  if (this->tx_irq_disabled_ && !ring_buf_is_empty(&this->tx_ringbuf_)) {
+    this->tx_irq_disabled_ = false;
+    uart_irq_tx_enable(this->uart_dev_);
   }
   uint32_t dtr = 0;
   uint32_t rts = 0;
