@@ -55,6 +55,7 @@ void LD2410SComponent::loop() {
   while (avail > 0) {
     const size_t len = std::min(avail, sizeof(chunk));
     if (!this->read_array(chunk, len)) {
+      ESP_LOGV(TAG, "UART read of %u bytes failed", static_cast<unsigned>(len));
       break;
     }
     for (size_t i = 0; i < len; i++) {
@@ -230,7 +231,14 @@ bool LD2410SComponent::handle_frame_() {
   const uint16_t payload_len = this->rx_len_ - payload_pos - footer_size;
   switch (this->frame_type_) {
     case FrameType::SHORT_DATA:
-      // [state][distance low][distance high]; states 0 and 1 mean no target
+      // [state][distance low][distance high]; states 0 and 1 mean no target, 2 and 3 a target
+      if (payload[0] > 3) {
+        // Line noise that happened to carry the header and footer bytes
+        if (this->dropped_frames_ < UINT8_MAX) {
+          this->dropped_frames_++;
+        }
+        break;
+      }
       this->last_frame_at_ = App.get_loop_component_start_time();
       this->dropped_frames_ = 0;
       this->publish_target_(payload[0] > 1);
