@@ -70,12 +70,8 @@ void BL0942::loop() {
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
-  uint8_t checksum = BL0942_READ_COMMAND | this->address_;
   // Whole package but checksum
-  uint8_t *raw = (uint8_t *) data;
-  for (uint32_t i = 0; i < sizeof(*data) - 1; i++) {
-    checksum += raw[i];
-  }
+  uint8_t checksum = sum_bytes((uint8_t *) data, sizeof(*data) - 1, BL0942_READ_COMMAND | this->address_);
   checksum ^= 0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "BL0942 invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);

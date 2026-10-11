@@ -32,11 +32,7 @@ static const LogString *detection_range_to_log_string(MHZ19DetectionRange range)
 #endif
 
 uint8_t mhz19_checksum(const uint8_t *command) {
-  uint8_t sum = 0;
-  for (uint8_t i = 1; i < MHZ19_REQUEST_LENGTH; i++) {
-    sum += command[i];
-  }
-  return 0xFF - sum + 0x01;
+  return 0xFF - sum_bytes(command + 1, MHZ19_REQUEST_LENGTH - 1) + 0x01;
 }
 
 void MHZ19Component::setup() {

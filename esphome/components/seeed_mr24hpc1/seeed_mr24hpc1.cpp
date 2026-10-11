@@ -252,13 +252,7 @@ void MR24HPC1Component::loop() {
 }
 
 // Calculate CRC check digit
-static uint8_t get_frame_crc_sum(const uint8_t *data, int len) {
-  unsigned int crc_sum = 0;
-  for (int i = 0; i < len - 3; i++) {
-    crc_sum += data[i];
-  }
-  return crc_sum & 0xff;
-}
+static uint8_t get_frame_crc_sum(const uint8_t *data, int len) { return sum_bytes(data, len - 3); }
 
 // Check that the check digit is correct
 static int get_frame_check_status(uint8_t *data, int len) {

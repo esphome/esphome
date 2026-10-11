@@ -879,6 +879,15 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
+/// Add up the bytes of \p data with size \p len, truncated to 8 bits: the checksum many serial and IR
+/// protocols use.
+constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
+  for (size_t i = 0; i < len; i++) {
+    sum += data[i];
+  }
+  return sum;
+}
+
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
