@@ -1,4 +1,5 @@
-<<: !include common.yaml
+packages:
+  tinyusb_keyboard: !include common.yaml
 
 # S2 defaults logger to USB_CDC, which conflicts with tinyusb on the shared
 # USB OTG peripheral; route the logger to UART0 so the fixture builds.

@@ -4,9 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "tinyusb_default_config.h"
-#ifdef USE_TINYUSB_KEYBOARD
-#include "../tinyusb_keyboard/keyboard.h"
-#endif
 
 namespace esphome::tinyusb {
 
@@ -29,6 +26,7 @@ void TinyUSB::setup() {
   }
 
   // Start from esp_tinyusb defaults to keep required task settings valid across esp_tinyusb updates.
+  const uint8_t *full_speed_config = this->tusb_cfg_.descriptor.full_speed_config;
   this->tusb_cfg_ = TINYUSB_DEFAULT_CONFIG();
   this->tusb_cfg_.port = TINYUSB_PORT_FULL_SPEED_0;
   this->tusb_cfg_.phy.skip_setup = false;
@@ -42,54 +40,8 @@ void TinyUSB::setup() {
       .device = &this->usb_descriptor_,
       .string = this->string_descriptor_,
       .string_count = SIZE,
+      .full_speed_config = full_speed_config,
   };
-
-#ifdef USE_TINYUSB_KEYBOARD
-  // esp_tinyusb requires a valid full-speed configuration descriptor when HID is enabled.
-  // This is a minimal keyboard HID configuration descriptor, not much thought has been put into the contents.
-  static const uint8_t fs_configuration_descriptor[] = {
-      /* Configuration Descriptor (9) */
-      0x09,       /* bLength */
-      0x02,       /* bDescriptorType = Configuration */
-      0x22, 0x00, /* wTotalLength = 34 (configuration + interface + HID + endpoint) */
-      0x01,       /* bNumInterfaces */
-      0x01,       /* bConfigurationValue */
-      0x00,       /* iConfiguration */
-      0x80,       /* bmAttributes (bus-powered) */
-      0x32,       /* bMaxPower (100 mA) */
-
-      /* Interface Descriptor (9) */
-      0x09, /* bLength */
-      0x04, /* bDescriptorType = Interface */
-      0x00, /* bInterfaceNumber */
-      0x00, /* bAlternateSetting */
-      0x01, /* bNumEndpoints */
-      0x03, /* bInterfaceClass = HID */
-      0x01, /* bInterfaceSubClass = Boot */
-      0x01, /* bInterfaceProtocol = Keyboard */
-      0x00, /* iInterface (no string descriptor) */
-
-      /* HID Descriptor (9) */
-      0x09,       /* bLength */
-      0x21,       /* bDescriptorType = HID */
-      0x11, 0x01, /* bcdHID = 1.11 */
-      0x00,       /* bCountryCode */
-      0x01,       /* bNumDescriptors */
-      0x22,       /* bDescriptorType (Report) */
-      (uint8_t) (sizeof(esphome::tinyusb_keyboard::HID_REPORT_DESCRIPTOR) & 0xFF),
-      (uint8_t) (sizeof(esphome::tinyusb_keyboard::HID_REPORT_DESCRIPTOR) >> 8), /* wDescriptorLength */
-
-      /* Endpoint Descriptor (7) */
-      0x07,       /* bLength */
-      0x05,       /* bDescriptorType = Endpoint */
-      0x81,       /* bEndpointAddress (IN endpoint 1) */
-      0x03,       /* bmAttributes = Interrupt */
-      0x08, 0x00, /* wMaxPacketSize = 8 */
-      0x0A        /* bInterval = 10 ms */
-  };
-
-  this->tusb_cfg_.descriptor.full_speed_config = fs_configuration_descriptor;
-#endif  // TINYUSB_KEYBOARD
 
   // Defense-in-depth: esp_tinyusb's tinyusb_descriptors_set() fails with
   // ESP_ERR_INVALID_ARG when no configuration descriptor is provided and

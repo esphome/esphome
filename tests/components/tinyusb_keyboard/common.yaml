@@ -4,48 +4,40 @@ tinyusb_keyboard:
   id: kb
 
 binary_sensor:
-  - platform: gpio
-    name: "Button"
-    pin: 12
+  - platform: template
+    id: kb_letter
     on_press:
       - tinyusb_keyboard.press:
           id: kb
-          key: "a"
+          key: a
     on_release:
-      - tinyusb_keyboard.release:
-          id: kb
+      - tinyusb_keyboard.release: kb
 
-  - platform: gpio
-    pin: 13
-    name: "Shift + H Button"
-    on_press:
-      - tinyusb_keyboard.press:
-          id: kb
-          key: "h"
-          modifiers: 0x02  # Left Shift
-    on_release:
-      - tinyusb_keyboard.release:
-          id: kb
-
-  - platform: gpio
-    pin: 14
-    name: "Volume Up Button"
-    on_press:
-      - tinyusb_keyboard.media_press:
-          id: kb
-          usage: 0xE9  # Volume Up
-    on_release:
-      - tinyusb_keyboard.media_release:
-          id: kb
-
-  - platform: gpio
-    pin: 15
-    name: "Shift + 1 Button"
+  - platform: template
+    id: kb_shift_digit
     on_press:
       - tinyusb_keyboard.press:
           id: kb
           key: "1"
           modifiers: 0x02  # Left Shift
     on_release:
-      - tinyusb_keyboard.release:
+      - tinyusb_keyboard.release: kb
+
+  - platform: template
+    id: kb_raw_code
+    on_press:
+      - tinyusb_keyboard.press:
           id: kb
+          key: 0x28  # Enter
+          modifiers: !lambda return 0;
+    on_release:
+      - tinyusb_keyboard.release: kb
+
+  - platform: template
+    id: kb_volume_up
+    on_press:
+      - tinyusb_keyboard.media_press:
+          id: kb
+          usage: 0xE9  # Volume Up
+    on_release:
+      - tinyusb_keyboard.media_release: kb

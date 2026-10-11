@@ -1,1 +1,2 @@
-<<: !include common.yaml
+packages:
+  tinyusb_keyboard: !include common.yaml

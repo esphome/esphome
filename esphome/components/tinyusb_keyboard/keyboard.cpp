@@ -1,92 +1,59 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
 #include "keyboard.h"
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
-#include "tusb.h"
 
 namespace esphome::tinyusb_keyboard {
 
-static const char *TAG = "tinyusb_keyboard";
+ESPHOME_LOG_TAG(TAG, "tinyusb_keyboard");
 
-void TinyUSBKeyboard::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "TinyUSB Keyboard component:\n"
-                "  tud_ready(): %s\n",
-                tud_ready() ? "YES" : "NO");
+void TinyUSBKeyboard::dump_config() { ESP_LOGCONFIG(TAG, "TinyUSB Keyboard"); }
+
+bool TinyUSBKeyboard::ready_() {
+  if (tud_ready()) {
+    return true;
+  }
+  ESP_LOGW(TAG, "USB host not ready, dropping report");
+  return false;
 }
 
 void TinyUSBKeyboard::press_key(uint8_t keycode, uint8_t modifiers) {
-  if (!tud_ready()) {
-    ESP_LOGW(TAG, "TinyUSB not ready; dropping press_key");
-    return;
+  uint8_t keycodes[6] = {keycode};
+  if (this->ready_()) {
+    tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifiers, keycodes);
   }
-
-  uint8_t report[8] = {0};
-  report[0] = modifiers;
-  report[1] = 0x00;  // reserved
-  report[2] = keycode;
-  // Send using Report ID 1 (keyboard)
-  tud_hid_report(1, report, sizeof(report));
 }
 
 void TinyUSBKeyboard::release_keys() {
-  if (!tud_ready()) {
-    ESP_LOGW(TAG, "TinyUSB not ready; dropping release_keys");
-    return;
+  if (this->ready_()) {
+    tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, nullptr);
   }
-  // Release all keys by sending empty keyboard report (Report ID 1)
-  uint8_t report[8] = {0};
-  tud_hid_report(1, report, sizeof(report));
 }
 
 void TinyUSBKeyboard::press_media(uint16_t usage) {
-  if (!tud_ready()) {
-    ESP_LOGW(TAG, "TinyUSB not ready; dropping press_media");
-    return;
+  if (this->ready_()) {
+    tud_hid_report(REPORT_ID_CONSUMER, &usage, sizeof(usage));
   }
-  // Consumer reports are 2 bytes (usage code); send with Report ID 2
-  uint8_t report[2] = {(uint8_t) (usage & 0xFF), (uint8_t) ((usage >> 8) & 0xFF)};
-  tud_hid_report(2, report, sizeof(report));
-}
-
-void TinyUSBKeyboard::release_media() {
-  if (!tud_ready()) {
-    ESP_LOGW(TAG, "TinyUSB not ready; dropping release_media");
-    return;
-  }
-  uint8_t report[2] = {0, 0};
-  tud_hid_report(2, report, sizeof(report));
 }
 
 }  // namespace esphome::tinyusb_keyboard
 
+// TinyUSB resolves these at link time when HID is enabled
 extern "C" {
-// TinyUSB expects the application to provide these callbacks when HID is enabled.
-// We don't actually use these yet.
-uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
-  (void) instance;
-  return ::esphome::tinyusb_keyboard::HID_REPORT_DESCRIPTOR;
+const uint8_t *tud_hid_descriptor_report_cb(uint8_t /*instance*/) {
+  return esphome::tinyusb_keyboard::HID_REPORT_DESCRIPTOR;
 }
 
-uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer,
-                               uint16_t reqlen) {
-  (void) instance;
-  (void) report_id;
-  (void) report_type;
-  (void) buffer;
-  (void) reqlen;
+uint16_t tud_hid_get_report_cb(uint8_t /*instance*/, uint8_t /*report_id*/, hid_report_type_t /*report_type*/,
+                               uint8_t * /*buffer*/, uint16_t /*reqlen*/) {
   return 0;
 }
 
-void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer,
-                           uint16_t bufsize) {
-  (void) instance;
-  (void) report_id;
-  (void) report_type;
-  (void) buffer;
-  (void) bufsize;
+// Keyboard LED state from the host; nothing consumes it yet
+void tud_hid_set_report_cb(uint8_t /*instance*/, uint8_t /*report_id*/, hid_report_type_t /*report_type*/,
+                           const uint8_t * /*buffer*/, uint16_t /*bufsize*/) {}
 }
-}  // extern "C"
 
-#endif  // defined(USE_ESP32_VARIANT...)
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4
