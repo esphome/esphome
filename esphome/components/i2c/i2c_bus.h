@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::i2c {
@@ -52,6 +53,15 @@ class I2CBus {
   ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len, bool stop = true) {
     return this->write_readv(address, buffer, len, nullptr, 0);
   }
+
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  /// @brief Switch the bus frequency for the transactions that follow; an external bus
+  /// that does not override this reports an error and keeps its frequency
+  virtual ErrorCode switch_frequency(uint32_t frequency) { return ERROR_UNKNOWN; }
+
+  /// @brief The frequency the bus runs at
+  virtual uint32_t get_frequency() const { return 0; }
+#endif
 
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair

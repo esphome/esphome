@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
+import copy
 from datetime import datetime
 from ipaddress import (
     AddressValueError,
@@ -15,6 +16,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
+import os
 from pathlib import Path
 import re
 from string import ascii_letters, digits
@@ -111,7 +113,7 @@ from esphome.schema_extractors import (
 # Deprecated re-export for external components; remove before 2027.2.0
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
-from esphome.voluptuous_schema import _Schema
+from esphome.voluptuous_schema import KeyInvalid, _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
 
 if typing.TYPE_CHECKING:
@@ -133,6 +135,7 @@ Upper = vol.Upper
 Length = vol.Length
 Exclusive = vol.Exclusive
 Inclusive = vol.Inclusive
+Unique = vol.Unique
 ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
@@ -416,6 +419,51 @@ class Required(vol.Required):
     ):
         super().__init__(key, msg=msg)
         self.visibility: Visibility | None = visibility
+
+
+def with_visibility(schema: Schema, visibility: Visibility, *keys: str) -> Schema:
+    """Return a copy of ``schema`` with the given ``keys`` re-marked at ``visibility``.
+
+    Lets a platform override the editor :class:`Visibility` of fields it
+    inherits from a shared schema builder — without that builder needing a
+    visibility parameter of its own. The canonical use is a ``template``
+    platform promoting the value metadata its user is expected to define
+    (``device_class``, ``unit_of_measurement``, …) onto the main form:
+
+        CONFIG_SCHEMA = cv.with_visibility(
+            sensor.sensor_schema(TemplateSensor),
+            cv.Visibility.UI,
+            CONF_DEVICE_CLASS, CONF_UNIT_OF_MEASUREMENT,
+        )
+
+    The original marker's key, default and validator are preserved; only the
+    visibility changes, and the input ``schema`` is left untouched. Raises if
+    a requested key is not present so typos fail at schema-build time.
+    """
+    wanted = {str(k) for k in keys}
+    overrides = {}
+    for marker, validator in schema.schema.items():
+        if str(marker) in wanted:
+            marker = copy.copy(marker)
+            marker.visibility = visibility
+            overrides[marker] = validator
+    if missing := wanted - {str(m) for m in overrides}:
+        raise ValueError(f"with_visibility: keys not in schema: {sorted(missing)}")
+    return schema.extend(overrides)
+
+
+class SourceTraceInvalid(Invalid):
+    """An error whose message is followed by where the bad value came from.
+
+    ``detail`` is the message without that trace, for output that already
+    gives the location.
+    """
+
+    def __init__(
+        self, detail: str, source_trace: str, path: list[typing.Hashable] | None = None
+    ) -> None:
+        super().__init__(f"{detail}\n{source_trace}", path)
+        self.detail = detail
 
 
 class FinalExternalInvalid(Invalid):
@@ -1966,38 +2014,51 @@ def _remap_bundle_path(value: str) -> Path | None:
     return remap_bundle_path(value)
 
 
-def directory(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
+def _declaring_document(value: str) -> Path | None:
+    """Return the on-disk YAML file *value* was loaded from, absolute, or None."""
+    esp_range = getattr(value, "esp_range", None)
+    if esp_range is None:
+        return None
+    document = Path(esp_range.start_mark.document).absolute()
+    return document if document.is_file() else None
 
-    if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
+
+def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Path:
+    """Resolve *value* to a *kind* entry: config dir, then declaring document, then bundle remap."""
+    path = CORE.relative_config_path(value)
+    if is_kind(path):
+        return path
+    candidates = [path]
+    tried_document: Path | None = None
+    if (document := _declaring_document(value)) is not None:
+        beside_document = document.parent / Path(value).expanduser()
+        if os.path.normpath(beside_document) != os.path.normpath(path):
+            candidates.append(beside_document)
+            tried_document = document
+    if (remapped := _remap_bundle_path(value)) is not None:
+        candidates.append(remapped)
+    for candidate in candidates:
+        if is_kind(candidate):
+            return candidate
+    for candidate in candidates:
+        if candidate.exists():
             raise Invalid(
-                f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
+                f"Path '{candidate}' is not a {kind} (full path: {candidate.resolve()})."
             )
-        path = remapped
-    if not path.is_dir():
-        raise Invalid(
-            f"Path '{path}' is not a directory (full path: {path.resolve()})."
-        )
-    return path
+    also = (
+        f" Also looked next to {tried_document}." if tried_document is not None else ""
+    )
+    raise Invalid(
+        f"Could not find {kind} '{path}'. Please make sure it exists (full path: {path.resolve()}).{also}"
+    )
+
+
+def directory(value: object) -> Path:
+    return _existing_path(string(value), "directory", Path.is_dir)
 
 
 def file_(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
-
-    if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
-            raise Invalid(
-                f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
-            )
-        path = remapped
-    if not path.is_file():
-        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
-    return path
+    return _existing_path(string(value), "file", Path.is_file)
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
@@ -2246,7 +2307,7 @@ def validate_registry_entry(name, registry):
         if key is None:
             raise Invalid(f"Key missing from {name}! Got {value}")
         if key not in registry:
-            raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
+            raise KeyInvalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(
@@ -2307,6 +2368,7 @@ def maybe_simple_value(*validators, **kwargs):
             return validator(value)
         return validator({key: value})
 
+    validate.inner_schema = validator
     return validate
 
 
@@ -2824,9 +2886,14 @@ def rename_key(
     When ``removed_in`` is set, a deprecation warning is logged if the old key is
     present. Pass ``component`` (the platform/component name) alongside
     ``removed_in`` so the warning identifies where it originates.
+
+    Input that is not a dictionary is returned unchanged, so the schema that
+    follows reports it as a normal configuration error.
     """
 
     def validator(config: dict) -> dict:
+        if not isinstance(config, dict):
+            return config
         config = config.copy()
         if old_key in config:
             has_at_most_one_key(old_key, new_key)(config)

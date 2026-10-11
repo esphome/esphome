@@ -272,7 +272,7 @@ class GDEW029T5 : public WaveshareEPaper {
   void dump_config() override;
 
   void deep_sleep() override;
-  void set_full_update_every(uint32_t full_update_every);
+  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
  protected:
   void init_display_();
@@ -503,7 +503,7 @@ class GDEY042T81 : public WaveshareEPaper {
     this->data(0x01);
   }
 
-  void set_full_update_every(uint32_t full_update_every);
+  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
  protected:
   uint32_t full_update_every_{30};
@@ -695,7 +695,7 @@ class GDEY0583T81 : public WaveshareEPaper {
 
   void deep_sleep() override;
 
-  void set_full_update_every(uint32_t full_update_every);
+  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
  protected:
   int get_width_internal() override;

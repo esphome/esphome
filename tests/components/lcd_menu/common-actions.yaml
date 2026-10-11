@@ -1,0 +1,17 @@
+button:
+  - platform: template
+    name: Menu Actions
+    on_press:
+      - display_menu.show: test_lcd_menu
+      - display_menu.up: test_lcd_menu
+      - display_menu.down: test_lcd_menu
+      - display_menu.left: test_lcd_menu
+      - display_menu.right: test_lcd_menu
+      - display_menu.enter: test_lcd_menu
+      - if:
+          condition:
+            display_menu.is_active: test_lcd_menu
+          then:
+            - display_menu.hide: test_lcd_menu
+          else:
+            - display_menu.show_main: test_lcd_menu

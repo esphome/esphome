@@ -4,7 +4,7 @@
 
 namespace esphome::lc709203f {
 
-static const char *const TAG = "lc709203f.sensor";
+ESPHOME_LOG_TAG(TAG, "lc709203f.sensor");
 
 // Device I2C address. This address is fixed.
 static const uint8_t LC709203F_I2C_ADDR_DEFAULT = 0x0B;
@@ -274,9 +274,5 @@ void Lc709203f::set_pack_size(uint16_t pack_size) {
   //  consequence is that the RSOC values will likley not be as accurate. However, it should
   //  not cause an error or crash, so I am not doing any additional checking here.
 }
-
-void Lc709203f::set_thermistor_b_constant(uint16_t b_constant) { this->b_constant_ = b_constant; }
-
-void Lc709203f::set_pack_voltage(LC709203FBatteryVoltage pack_voltage) { this->pack_voltage_ = pack_voltage; }
 
 }  // namespace esphome::lc709203f

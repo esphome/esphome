@@ -68,6 +68,14 @@ class Initiator {
 
 static const uint8_t PROLOGUE[] = {'t', 'e', 's', 't', 'p', 'r', 'o', 'l', 'o', 'g', 'u', 'e'};
 
+// The context only points at the key and init() copies it before returning,
+// so a temporary context over a temporary key is safe within one call
+static NoiseContext ctx_for(const psk_t &psk) {
+  NoiseContext ctx;
+  ctx.set_psk(psk.data());
+  return ctx;
+}
+
 static psk_t make_psk(uint8_t seed) {
   psk_t psk;
   for (size_t i = 0; i < psk.size(); i++) {
@@ -102,7 +110,7 @@ TEST(NoiseResponderHandshakeTest, MessageMethodsErrorBeforeInit) {
 TEST(NoiseResponderHandshakeTest, FullHandshakeAndTransportRoundTrip) {
   const psk_t psk = make_psk(7);
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(psk, PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
   EXPECT_EQ(responder.action(), Action::ACTION_READ);
 
   Initiator initiator(psk, PROLOGUE, sizeof(PROLOGUE));
@@ -149,14 +157,80 @@ TEST(NoiseResponderHandshakeTest, FullHandshakeAndTransportRoundTrip) {
   noise_cipherstate_free(recv_cipher);
 }
 
+// One full NNpsk0 handshake; responder_e gets the ephemeral public key the responder put on the wire, read
+// before the initiator consumes the buffer in place
+static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_e[SPARE_EPHEMERAL_KEY_SIZE]) {
+  const psk_t psk = make_psk(7);
+  ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
+  Initiator initiator(psk, PROLOGUE, sizeof(PROLOGUE));
+  uint8_t msg[MAX_HANDSHAKE_SIZE];
+  size_t msg_len = initiator.write_message(msg, sizeof(msg));
+  ASSERT_EQ(responder.read_message(msg, msg_len), 0);
+  size_t reply_len = 0;
+  ASSERT_EQ(responder.write_message(msg, sizeof(msg), reply_len), 0);
+  ASSERT_GE(reply_len, SPARE_EPHEMERAL_KEY_SIZE);
+  std::memcpy(responder_e, msg, SPARE_EPHEMERAL_KEY_SIZE);
+  ASSERT_EQ(initiator.read_message(msg, reply_len), 0);
+  ASSERT_EQ(responder.action(), Action::ACTION_SPLIT);
+}
+
+TEST(SpareEphemeralTest, EmptySlotLeavesHandshakeToGenerate) {
+  ASSERT_FALSE(has_spare_ephemeral());
+  NoiseResponderHandshake responder;
+  uint8_t responder_e[SPARE_EPHEMERAL_KEY_SIZE];
+  run_handshake(responder, responder_e);
+  EXPECT_FALSE(has_spare_ephemeral());
+}
+
+TEST(SpareEphemeralTest, ConsumeHandsTheKeyToANewState) {
+  prepare_spare_ephemeral();
+  ASSERT_TRUE(has_spare_ephemeral());
+  const NoiseProtocolId nid = {
+      .prefix_id = NOISE_PREFIX_STANDARD,
+      .pattern_id = NOISE_PATTERN_NN,
+      .modifier_ids = {NOISE_MODIFIER_PSK0},
+      .dh_id = NOISE_DH_CURVE25519,
+      .cipher_id = NOISE_CIPHER_CHACHAPOLY,
+      .hash_id = NOISE_HASH_SHA256,
+      .hybrid_id = NOISE_DH_NONE,
+  };
+  NoiseHandshakeState *state = nullptr;
+  ASSERT_EQ(noise_handshakestate_new_by_id(&state, &nid, NOISE_ROLE_RESPONDER), 0);
+  const psk_t psk = make_psk(7);
+  ASSERT_EQ(noise_handshakestate_set_pre_shared_key(state, psk.data(), psk.size()), 0);
+  ASSERT_EQ(noise_handshakestate_set_prologue(state, PROLOGUE, sizeof(PROLOGUE)), 0);
+  EXPECT_EQ(consume_spare_ephemeral(state), 0);
+  EXPECT_FALSE(has_spare_ephemeral());
+  noise_handshakestate_free(state);
+}
+
+TEST(SpareEphemeralTest, SlotKeyIsOnTheWireAndConsumedOnce) {
+  prepare_spare_ephemeral();
+  ASSERT_TRUE(has_spare_ephemeral());
+  uint8_t expected_pub[SPARE_EPHEMERAL_KEY_SIZE];
+  std::memcpy(expected_pub, spare_ephemeral + SPARE_EPHEMERAL_KEY_SIZE, sizeof(expected_pub));
+
+  NoiseResponderHandshake first;
+  uint8_t responder_e[SPARE_EPHEMERAL_KEY_SIZE];
+  run_handshake(first, responder_e);
+  // The spare, not a generated key, went out; and it went out once
+  EXPECT_EQ(std::memcmp(responder_e, expected_pub, sizeof(expected_pub)), 0);
+  EXPECT_FALSE(has_spare_ephemeral());
+
+  NoiseResponderHandshake second;
+  run_handshake(second, responder_e);
+  EXPECT_NE(std::memcmp(responder_e, expected_pub, sizeof(expected_pub)), 0);
+  EXPECT_FALSE(has_spare_ephemeral());
+}
+
 TEST(NoiseResponderHandshakeTest, ReInitRestartsHandshake) {
   // The documented retry shape: a repeated init() frees the previous state
   // and starts over. The first message under the new key authenticating
   // proves the restart took effect; the old state surviving would fail the
   // MAC here.
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(make_psk(7), PROLOGUE, sizeof(PROLOGUE)), 0);
-  ASSERT_EQ(responder.init(make_psk(9), PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(make_psk(7)), PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(make_psk(9)), PROLOGUE, sizeof(PROLOGUE)), 0);
   EXPECT_EQ(responder.action(), Action::ACTION_READ);
 
   Initiator initiator(make_psk(9), PROLOGUE, sizeof(PROLOGUE));
@@ -168,7 +242,7 @@ TEST(NoiseResponderHandshakeTest, ReInitRestartsHandshake) {
 
 TEST(NoiseResponderHandshakeTest, WrongPskFailsWithMacFailure) {
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(make_psk(7), PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(make_psk(7)), PROLOGUE, sizeof(PROLOGUE)), 0);
 
   Initiator initiator(make_psk(200), PROLOGUE, sizeof(PROLOGUE));
   uint8_t msg[MAX_HANDSHAKE_SIZE];
@@ -185,7 +259,7 @@ TEST(NoiseResponderHandshakeTest, MismatchedPrologueFailsWithMacFailure) {
   // tampered preamble must fail even with the right key.
   const psk_t psk = make_psk(7);
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(psk, PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
 
   static const uint8_t TAMPERED[] = {'x'};
   Initiator initiator(psk, TAMPERED, sizeof(TAMPERED));
