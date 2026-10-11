@@ -667,6 +667,7 @@ def test_partial_update_after_deep_sleep_needs_partial_updates(
                 "id": "test_display",
                 "model": "ssd1681",
                 "dc_pin": 21,
+                "reset_pin": 23,
                 "partial_update_after_deep_sleep": "panel",
             }
         )
@@ -688,6 +689,7 @@ def test_partial_update_after_deep_sleep_holds_the_enable_pins(
         "id": "test_display",
         "model": "ssd1681",
         "dc_pin": 21,
+        "reset_pin": 23,
         "enable_pin": [{"number": 25, "inverted": True}, 26],
         "full_update_every": 20,
     }
