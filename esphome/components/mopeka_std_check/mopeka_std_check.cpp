@@ -5,7 +5,7 @@
 
 namespace esphome::mopeka_std_check {
 
-static const char *const TAG = "mopeka_std_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_std_check");
 static const uint16_t SERVICE_UUID = 0xADA0;
 static const uint8_t MANUFACTURER_DATA_LENGTH = 23;
 static const uint16_t MANUFACTURER_ID = 0x000D;

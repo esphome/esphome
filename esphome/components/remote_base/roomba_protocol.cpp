@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.roomba";
+ESPHOME_LOG_TAG(TAG, "remote.roomba");
 
 static constexpr uint8_t NBITS = 8;
 static constexpr uint32_t BIT_ONE_HIGH_US = 3000;

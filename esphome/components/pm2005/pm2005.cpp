@@ -3,7 +3,7 @@
 
 namespace esphome::pm2005 {
 
-static const char *const TAG = "pm2005";
+ESPHOME_LOG_TAG(TAG, "pm2005");
 
 // Converts a sensor situation to a human readable string
 static const LogString *pm2005_get_situation_string(int status) {

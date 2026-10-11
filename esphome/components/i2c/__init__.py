@@ -38,7 +38,6 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_DEVICE,
     CONF_FREQUENCY,
-    CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
     CONF_LOW_POWER_MODE,
@@ -58,6 +57,7 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+DOMAIN = "i2c"
 LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 i2c_ns = cg.esphome_ns.namespace("i2c")
@@ -232,7 +232,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    full_config = fv.full_config.get()[CONF_I2C]
+    full_config = fv.full_config.get()[DOMAIN]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
     if CORE.is_rp2:

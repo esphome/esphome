@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "rdm6300"
 MULTI_CONF = True
 
 rdm6300_ns = cg.esphome_ns.namespace("rdm6300")
