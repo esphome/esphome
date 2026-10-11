@@ -1,3 +1,4 @@
 packages:
   i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
   tmp102: !include common.yaml
+  tmp102_advanced: !include advanced.yaml
