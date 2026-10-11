@@ -7,6 +7,8 @@ namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
 ESPHOME_LOG_TAG(TAG, "bme680_bsec.sensor");
 
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
+
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 std::vector<BME680BSECComponent *>
@@ -259,7 +261,7 @@ void BME680BSECComponent::run_() {
       this->snapshot_state_();
 
     ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
-    this->set_timeout("read", meas_dur, [this]() { this->read_(); });
+    this->set_timeout(READ_TIMEOUT_ID, meas_dur, [this]() { this->read_(); });
   } else {
     ESP_LOGV(TAG, "Measurement not required");
     this->read_();
