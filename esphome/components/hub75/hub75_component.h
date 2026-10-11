@@ -46,7 +46,7 @@ class HUB75Display final : public display::Display {
 
   // Member variables
   Hub75Driver *driver_{nullptr};
-  Hub75Config config_;  // Immutable configuration
+  Hub75Config config_;  // Fixed after setup(); only the rotation can change before the driver exists
 
   // Runtime state (mutable)
   uint8_t brightness_{128};
