@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome::socket {
@@ -64,6 +65,7 @@ void TcpClientLink::poll_slow_() {
       break;
   }
   this->connected_ = true;
+  this->note_io();
   ESP_LOGI(this->tag_, "Connected to %s:%u", this->host_.c_str(), this->port_);
 }
 
@@ -102,6 +104,7 @@ void TcpClientLink::adopt(std::unique_ptr<Socket> sock) {
   set_stream_options(sock.get(), this->tag_);
   this->sock_ = std::move(sock);
   this->connected_ = true;
+  this->note_io();
 }
 
 ssize_t TcpClientLink::read(uint8_t *buf, size_t len) {
@@ -110,6 +113,7 @@ ssize_t TcpClientLink::read(uint8_t *buf, size_t len) {
   }
   ssize_t count = this->sock_->read(buf, len);
   if (count > 0) {
+    this->note_io();
     return count;
   }
   if (count == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
@@ -124,8 +128,12 @@ ssize_t TcpClientLink::write_(const uint8_t *buf, size_t len) {
     return 0;
   }
   ssize_t sent = this->sock_->write(buf, len);
-  if (sent >= 0) {
+  if (sent > 0) {
+    this->note_io();
     return sent;
+  }
+  if (sent == 0) {
+    return 0;
   }
   if (errno == EAGAIN || errno == EWOULDBLOCK) {
     return 0;
@@ -169,6 +177,16 @@ void TcpClientLink::drop_(const LogString *what, int err) {
   ESP_LOGW(this->tag_, "%s: %d", LOG_STR_ARG(what), err);
   this->close();
   this->note_attempt();
+}
+
+void TcpClientLink::check_idle_slow_() {
+  uint32_t idle = App.get_loop_component_start_time() - this->last_io_ms_;
+  if (idle >= this->idle_timeout_ms_) {
+    // A configured close, not a failure.
+    ESP_LOGI(this->tag_, "Idle for %" PRIu32 "ms, closing", idle);
+    this->close();
+    this->note_attempt();
+  }
 }
 
 }  // namespace esphome::socket
