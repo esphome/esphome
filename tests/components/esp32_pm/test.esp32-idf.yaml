@@ -1,6 +1,7 @@
 substitutions:
-  max_frequency: 160MHZ
-  min_frequency: 40MHZ
-  power_down_peripherals: false
+  esp32_pm_max_frequency: 160MHZ
+  esp32_pm_min_frequency: 40MHZ
+  esp32_pm_power_down_peripherals: "false"
 
-<<: !include common.yaml
+packages:
+  esp32_pm: !include common.yaml

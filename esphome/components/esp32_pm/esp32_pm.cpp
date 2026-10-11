@@ -10,36 +10,35 @@ namespace esphome::esp32_pm {
 ESPHOME_LOG_TAG(TAG, "esp32_pm");
 
 void ESP32PowerManagement::setup() {
-  esp_err_t rc = ESP_OK;
-  // Configure PM
-  int max_freq_mhz = this->max_freq_mhz_ > 0 ? this->max_freq_mhz_ : CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
-  int min_freq_mhz = this->min_freq_mhz_ > 0 ? this->min_freq_mhz_ : esp_clk_xtal_freq() / MHZ;
+  if (this->max_freq_mhz_ == 0)
+    this->max_freq_mhz_ = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
+  if (this->min_freq_mhz_ == 0)
+    this->min_freq_mhz_ = esp_clk_xtal_freq() / MHZ;
 
   esp_pm_config_t pm_config = {
-    .max_freq_mhz = max_freq_mhz,
-    .min_freq_mhz = min_freq_mhz,
+    .max_freq_mhz = this->max_freq_mhz_,
+    .min_freq_mhz = this->min_freq_mhz_,
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-    .light_sleep_enable = true
+    .light_sleep_enable = true,
 #endif
   };
-  this->applied_max_freq_mhz_ = max_freq_mhz;
-  this->applied_min_freq_mhz_ = min_freq_mhz;
-
-  rc = esp_pm_configure(&pm_config);
+  esp_err_t rc = esp_pm_configure(&pm_config);
   if (rc != ESP_OK) {
-    ESP_LOGE(TAG, "Failed esp_pm_configure %s", esp_err_to_name(rc));
+    ESP_LOGE(TAG, "esp_pm_configure failed: %s", esp_err_to_name(rc));
     this->mark_failed();
-    return;
   }
 }
 
 void ESP32PowerManagement::dump_config() {
-  ESP_LOGCONFIG(TAG, "Power Management:");
-  ESP_LOGCONFIG(TAG, "  Max Frequency: %dMHZ", this->applied_max_freq_mhz_);
-  ESP_LOGCONFIG(TAG, "  Min Frequency: %dMHZ", this->applied_min_freq_mhz_);
+  ESP_LOGCONFIG(TAG,
+                "Power Management:\n"
+                "  Max Frequency: %uMHZ\n"
+                "  Min Frequency: %uMHZ",
+                this->max_freq_mhz_, this->min_freq_mhz_);
 #if SOC_CLK_XTAL32K_SUPPORTED
   ESP_LOGCONFIG(TAG, "  32k XTAL: %s",
-                rtc_clk_slow_src_get() == SOC_RTC_SLOW_CLK_SRC_XTAL32K ? "in use" : "not in use");
+                rtc_clk_slow_src_get() == SOC_RTC_SLOW_CLK_SRC_XTAL32K ? LOG_STR_LITERAL("in use")
+                                                                       : LOG_STR_LITERAL("not in use"));
 #endif
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   ESP_LOGCONFIG(TAG, "  Light Sleep Enabled");
