@@ -27,6 +27,7 @@ class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
 
   void start() override;
   void stop() override;
+  void finish() override;
   size_t play(const uint8_t *data, size_t length) override { return this->play(data, length, 0); }
   size_t play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) override;
   bool has_buffered_data() const override;
@@ -40,6 +41,7 @@ class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
   /// Copies as many whole frames as fit into the ring; returns the number of bytes consumed.
   size_t write_frames_(const uint8_t *data, size_t length);
   void update_gain_();
+  void report_played_();
   void arm_timer_();
   void disarm_timer_();
 
@@ -59,6 +61,7 @@ class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
   std::atomic<int32_t> gain_q15_{1 << 15};
   std::atomic<bool> timer_armed_{false};  // Written only from the main loop
   uint32_t last_data_ms_{0};
+  uint32_t last_reported_read_{0};  // Main loop only
 
  private:
   void teardown_();

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include <esp_timer.h>
 #include <freertos/task.h>
 
 namespace esphome::sigma_delta {
@@ -29,6 +30,7 @@ void SigmaDeltaSpeaker::setup() {
   sdm_cfg.clk_src = SDM_CLK_SRC_DEFAULT;
   sdm_cfg.gpio_num = this->pin_->get_pin();
   sdm_cfg.sample_rate_hz = OVERSAMPLE_RATE_HZ;
+  sdm_cfg.flags.invert_out = this->pin_->is_inverted();
 
   gptimer_config_t timer_cfg = {};
   timer_cfg.clk_src = GPTIMER_CLK_SRC_DEFAULT;
@@ -66,20 +68,32 @@ void SigmaDeltaSpeaker::dump_config() {
 
 void SigmaDeltaSpeaker::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  const bool running = this->is_running();
-  if (running && this->has_buffered_data()) {
+  this->report_played_();
+  if (this->state_ == speaker::STATE_STOPPING && !this->has_buffered_data()) {
+    this->disarm_timer_();
+    this->state_ = speaker::STATE_STOPPED;
+  }
+  const bool active = !this->is_stopped();
+  if (active && this->has_buffered_data()) {
     this->last_data_ms_ = now;
     if (!this->timer_armed_.load(std::memory_order_relaxed))
       this->arm_timer_();
     return;
   }
-  if (running && this->timer_armed_.load(std::memory_order_relaxed) && now - this->last_data_ms_ < IDLE_TIMEOUT_MS)
+  if (active && this->timer_armed_.load(std::memory_order_relaxed) && now - this->last_data_ms_ < IDLE_TIMEOUT_MS)
     return;
 
   this->disarm_timer_();
-  if (!running) {
-    // The ISR is stopped, so dropping what stop() left behind cannot race it
-    this->ring_read_.store(this->ring_write_.load(std::memory_order_acquire), std::memory_order_release);
+  this->report_played_();
+  if (!active) {
+    // Load the write index before re-checking the state: if play() restarted the speaker and published data,
+    // seeing that data means also seeing the new state, so a fresh chunk is never dropped.
+    const uint32_t write = this->ring_write_.load(std::memory_order_acquire);
+    if (!this->is_stopped())
+      return;
+    // The ISR is stopped, so dropping what stop() left behind cannot race it. Dropped frames were never played.
+    this->ring_read_.store(write, std::memory_order_release);
+    this->last_reported_read_ = write;
     this->disable_loop();
     return;
   }
@@ -87,6 +101,15 @@ void SigmaDeltaSpeaker::loop() {
   std::atomic_thread_fence(std::memory_order_seq_cst);
   if (!this->has_buffered_data())
     this->disable_loop();
+}
+
+void SigmaDeltaSpeaker::report_played_() {
+  // One ring slot is one frame, since channels are mixed before the write
+  const uint32_t read = this->ring_read_.load(std::memory_order_acquire);
+  if (read != this->last_reported_read_) {
+    this->audio_output_callback_.call(read - this->last_reported_read_, esp_timer_get_time());
+    this->last_reported_read_ = read;
+  }
 }
 
 void SigmaDeltaSpeaker::start() {
@@ -104,6 +127,14 @@ void SigmaDeltaSpeaker::stop() {
   this->enable_loop_soon_any_context();
 }
 
+void SigmaDeltaSpeaker::finish() {
+  if (this->is_stopped())
+    return;
+  ESP_LOGV(TAG, "Finishing");
+  this->state_ = speaker::STATE_STOPPING;
+  this->enable_loop_soon_any_context();
+}
+
 size_t SigmaDeltaSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
   if (this->is_failed())
     return 0;
@@ -111,8 +142,9 @@ size_t SigmaDeltaSpeaker::play(const uint8_t *data, size_t length, TickType_t ti
     this->start();
 
   size_t written = this->write_frames_(data, length);
-  if (written == 0 && ticks_to_wait > 0) {
-    vTaskDelay(ticks_to_wait);
+  const TickType_t start_ticks = xTaskGetTickCount();
+  while (written == 0 && xTaskGetTickCount() - start_ticks < ticks_to_wait) {
+    vTaskDelay(1);
     written = this->write_frames_(data, length);
   }
   if (written > 0) {
