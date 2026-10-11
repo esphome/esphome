@@ -161,8 +161,8 @@ def test_wake_on_lan_keeps_ipv4_under_openthread(
     assert str(define.value) == "true"
 
 
-# Each config pairs a require_ipv4() registrant (wifi, wake_on_lan, udp, or the esp8266
-# platform itself) with an explicit 'enable_ipv4: false' -- unlike the "stays on" tests
+# Each config pairs a require_ipv4() registrant (wifi, wake_on_lan, udp, tcp_uart,
+# uart_tcp, or the esp8266 platform itself) with an explicit 'enable_ipv4: false' -- unlike the "stays on" tests
 # above, these fail if the corresponding require_ipv4() call is ever removed, since
 # enable_ipv4: false would then validate instead of being rejected.
 @pytest.mark.parametrize(
@@ -171,6 +171,8 @@ def test_wake_on_lan_keeps_ipv4_under_openthread(
         "wifi_ipv4_disabled_rejected.yaml",
         "wake_on_lan_ipv4_disabled_rejected.yaml",
         "udp_ipv4_disabled_rejected.yaml",
+        "tcp_uart_ipv4_disabled_rejected.yaml",
+        "uart_tcp_ipv4_disabled_rejected.yaml",
         "esp8266_ipv4_disabled_rejected.yaml",
         "esp32_arduino_ipv4_disabled_rejected.yaml",
     ],
