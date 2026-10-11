@@ -1,214 +1,133 @@
 #include "apds9930.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
+
+#include <algorithm>
 
 namespace esphome::apds9930 {
 
-static const char *const TAG = "apds9930";
+ESPHOME_LOG_TAG(TAG, "apds9930");
 
-#define APDS9930_ERROR_CHECK(func) \
-  if (!(func)) { \
-    this->mark_failed(); \
-    return; \
-  }
-#define APDS9930_WRITE_BYTE(reg, value) APDS9930_ERROR_CHECK(this->write_byte((reg) | APDS9930_CMD, value));
+// Register addresses
+static constexpr uint8_t APDS9930_ENABLE = 0x00;
+static constexpr uint8_t APDS9930_ATIME = 0x01;
+static constexpr uint8_t APDS9930_PTIME = 0x02;
+static constexpr uint8_t APDS9930_PPULSE = 0x0E;
+static constexpr uint8_t APDS9930_CONTROL = 0x0F;
+static constexpr uint8_t APDS9930_ID = 0x12;
+static constexpr uint8_t APDS9930_STATUS = 0x13;
 
-void APDS9930::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up APDS9930...");
+// Command byte: repeated byte and auto-increment protocols
+static constexpr uint8_t APDS9930_CMD = 0x80;
+static constexpr uint8_t APDS9930_CMD_AUTO_INCREMENT = 0xA0;
 
+static constexpr uint8_t APDS9930_CHIP_ID = 0x39;
+
+// ENABLE register bits
+static constexpr uint8_t APDS9930_PON = 0x01;
+static constexpr uint8_t APDS9930_AEN = 0x02;
+static constexpr uint8_t APDS9930_PEN = 0x04;
+
+// STATUS register bits
+static constexpr uint8_t APDS9930_AVALID = 0x01;
+static constexpr uint8_t APDS9930_PVALID = 0x02;
+
+// CONTROL register fields
+static constexpr uint8_t CONTROL_PDRIVE_SHIFT = 6;
+static constexpr uint8_t CONTROL_PDIODE_SHIFT = 4;
+static constexpr uint8_t CONTROL_PGAIN_SHIFT = 2;
+static constexpr uint8_t CONTROL_AGAIN_SHIFT = 0;
+static constexpr uint8_t CONTROL_PDIODE_CH1 = 0b10;  // The only supported proximity diode
+
+static constexpr uint8_t APDS9930_ATIME_VALUE = 0xED;   // 19 cycles, about 52 ms
+static constexpr uint8_t APDS9930_PTIME_VALUE = 0xFF;   // 2.73 ms
+static constexpr uint8_t APDS9930_PPULSE_VALUE = 0x08;  // 8 pulses
+
+// Lux calculation coefficients
+static constexpr float APDS9930_DF = 52.0f;
+static constexpr float APDS9930_GA = 0.49f;
+static constexpr float APDS9930_ALS_B = 1.862f;
+static constexpr float APDS9930_ALS_C = 0.746f;
+static constexpr float APDS9930_ALS_D = 1.291f;
+static constexpr float APDS9930_ALSIT_MS = 2.73f * (256 - APDS9930_ATIME_VALUE);
+
+static constexpr uint8_t AMBIENT_GAINS[4] = {1, 8, 16, 120};
+static constexpr uint8_t PROXIMITY_GAINS[4] = {1, 2, 4, 8};
+static constexpr float LED_CURRENTS_MA[4] = {100.0f, 50.0f, 25.0f, 12.5f};
+
+// Lux per count for each ambient gain, at the fixed integration time
+static constexpr float LUX_PER_COUNT[4] = {
+    APDS9930_GA * APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[0]),
+    APDS9930_GA *APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[1]),
+    APDS9930_GA *APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[2]),
+    APDS9930_GA *APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[3]),
+};
+
+bool APDS9930Component::write_reg_(uint8_t reg, uint8_t value) { return this->write_byte(reg | APDS9930_CMD, value); }
+
+void APDS9930Component::setup() {
   uint8_t id;
-  // Read ID register with command byte
   if (!this->read_byte(APDS9930_ID | APDS9930_CMD, &id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Communication failed"));
+    return;
+  }
+  if (id != APDS9930_CHIP_ID) {
+    ESP_LOGE(TAG, "Wrong ID 0x%02X (expected 0x%02X)", id, APDS9930_CHIP_ID);
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
-  if (id != APDS9930_ID_1 && id != APDS9930_ID_2) {
-    this->error_code_ = WRONG_ID;
-    this->mark_failed();
-    return;
+  const uint8_t control =
+      (this->led_drive_ & 0b11) << CONTROL_PDRIVE_SHIFT | CONTROL_PDIODE_CH1 << CONTROL_PDIODE_SHIFT |
+      (this->proximity_gain_ & 0b11) << CONTROL_PGAIN_SHIFT | (this->ambient_gain_ & 0b11) << CONTROL_AGAIN_SHIFT;
+
+  uint8_t enable = APDS9930_PON;
+  if (this->illuminance_sensor_ != nullptr)
+    enable |= APDS9930_AEN;
+  if (this->proximity_sensor_ != nullptr)
+    enable |= APDS9930_PEN;
+
+  if (!this->write_reg_(APDS9930_ENABLE, 0x00) || !this->write_reg_(APDS9930_ATIME, APDS9930_ATIME_VALUE) ||
+      !this->write_reg_(APDS9930_PTIME, APDS9930_PTIME_VALUE) ||
+      !this->write_reg_(APDS9930_PPULSE, APDS9930_PPULSE_VALUE) || !this->write_reg_(APDS9930_CONTROL, control) ||
+      !this->write_reg_(APDS9930_ENABLE, enable)) {
+    this->mark_failed(LOG_STR("Configuration failed"));
   }
-
-  // Disable all features first
-  APDS9930_WRITE_BYTE(APDS9930_ENABLE, 0x00);
-
-  // Configure timing registers
-  APDS9930_WRITE_BYTE(APDS9930_ATIME, this->atime_);
-  APDS9930_WRITE_BYTE(APDS9930_PTIME, APDS9930_DEFAULT_PTIME);
-  APDS9930_WRITE_BYTE(APDS9930_WTIME, APDS9930_DEFAULT_WTIME);
-
-  // Configure proximity pulse count
-  APDS9930_WRITE_BYTE(APDS9930_PPULSE, APDS9930_DEFAULT_PPULSE);
-
-  // Configure proximity offset
-  APDS9930_WRITE_BYTE(APDS9930_POFFSET, APDS9930_DEFAULT_POFFSET);
-
-  // Configure config register
-  APDS9930_WRITE_BYTE(APDS9930_CONFIG, APDS9930_DEFAULT_CONFIG);
-
-  // Configure control register (LED drive, proximity gain, ambient gain, proximity diode)
-  uint8_t control = 0;
-  // LED drive strength (bits 6-7): 0=100mA, 1=50mA, 2=25mA, 3=12.5mA
-  control |= (this->led_drive_ & 0b11) << 6;
-  // Proximity gain (bits 2-3): 0=1x, 1=2x, 2=4x, 3=8x
-  control |= (this->proximity_gain_ & 0b11) << 2;
-  // Ambient light gain (bits 0-1): 0=1x, 1=8x, 2=16x, 3=120x
-  control |= (this->ambient_gain_ & 0b11) << 0;
-  // Proximity diode (bits 4-5): which LED to use
-  control |= (this->proximity_diode_ & 0b11) << 4;
-  APDS9930_WRITE_BYTE(APDS9930_CONTROL, control);
-
-  // Build enable register value
-  uint8_t enable = 0;
-  enable |= APDS9930_PON;  // Power on
-  if (this->is_ambient_enabled_()) {
-    enable |= APDS9930_AEN;  // Ambient light enable
-  }
-  if (this->is_proximity_enabled_()) {
-    enable |= APDS9930_PEN;  // Proximity enable
-  }
-  APDS9930_WRITE_BYTE(APDS9930_ENABLE, enable);
-
-  ESP_LOGCONFIG(TAG, "APDS9930 setup complete");
 }
 
-bool APDS9930::is_ambient_enabled_() const {
-#ifdef USE_SENSOR
-  return this->illuminance_sensor_ != nullptr;
-#else
-  return false;
-#endif
-}
-
-bool APDS9930::is_proximity_enabled_() const {
-#ifdef USE_SENSOR
-  return this->proximity_sensor_ != nullptr;
-#else
-  return false;
-#endif
-}
-
-void APDS9930::dump_config() {
-  ESP_LOGCONFIG(TAG, "APDS9930:");
+void APDS9930Component::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "APDS9930:\n"
+                "  LED Drive: %.1f mA\n"
+                "  Proximity Gain: %ux\n"
+                "  Ambient Light Gain: %ux",
+                LED_CURRENTS_MA[this->led_drive_], PROXIMITY_GAINS[this->proximity_gain_],
+                AMBIENT_GAINS[this->ambient_gain_]);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-
-#ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Ambient Light", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Proximity", this->proximity_sensor_);
-#endif
-
-  ESP_LOGCONFIG(TAG, "  LED Drive: %u", this->led_drive_);
-  ESP_LOGCONFIG(TAG, "  Proximity Gain: %u", this->proximity_gain_);
-  ESP_LOGCONFIG(TAG, "  Ambient Light Gain: %u", this->ambient_gain_);
-  ESP_LOGCONFIG(TAG, "  Proximity Diode: %u", this->proximity_diode_);
-
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, "Communication with APDS9930 failed!");
-        break;
-      case WRONG_ID:
-        ESP_LOGE(TAG, "APDS9930 has invalid ID (expected 0x12 or 0x39)!");
-        break;
-      default:
-        ESP_LOGE(TAG, "Setting up APDS9930 failed!");
-        break;
-    }
-  }
 }
 
-#define APDS9930_WARNING_CHECK(func, warning) \
-  if (!(func)) { \
-    ESP_LOGW(TAG, warning); \
-    this->status_set_warning(); \
-    return; \
+void APDS9930Component::update() {
+  // STATUS, CH0DATAL/H, CH1DATAL/H, PDATAL/H
+  uint8_t raw[7];
+  if (!this->read_bytes(APDS9930_STATUS | APDS9930_CMD_AUTO_INCREMENT, raw, sizeof(raw))) {
+    this->status_set_warning(LOG_STR("Reading data failed"));
+    return;
   }
-
-void APDS9930::update() {
-  uint8_t status;
-  APDS9930_WARNING_CHECK(this->read_byte(APDS9930_STATUS | APDS9930_CMD, &status), "Reading status register failed.");
   this->status_clear_warning();
+  const uint8_t status = raw[0];
 
-  this->read_ambient_data_(status);
-  this->read_proximity_data_(status);
-}
-
-void APDS9930::read_ambient_data_(uint8_t status) {
-#ifndef USE_SENSOR
-  return;
-#else
-  if (this->illuminance_sensor_ == nullptr)
-    return;
-
-  // Check if ambient light data is valid (AVALID bit)
-  if ((status & APDS9930_AVALID) == 0x00) {
-    return;
+  if (this->illuminance_sensor_ != nullptr && (status & APDS9930_AVALID) != 0) {
+    const float ch0 = encode_uint16(raw[2], raw[1]);
+    const float ch1 = encode_uint16(raw[4], raw[3]);
+    const float iac = std::max({ch0 - APDS9930_ALS_B * ch1, APDS9930_ALS_C * ch0 - APDS9930_ALS_D * ch1, 0.0f});
+    this->illuminance_sensor_->publish_state(iac * LUX_PER_COUNT[this->ambient_gain_]);
   }
 
-  uint8_t raw[4];
-  // Read Ch0 and Ch1 data with auto-increment
-  APDS9930_WARNING_CHECK(this->read_bytes(APDS9930_CH0DATAL | APDS9930_CMD_AUTO_INCREMENT, raw, 4),
-                         "Reading ambient light values failed.");
-
-  uint16_t ch0 = (uint16_t(raw[1]) << 8) | raw[0];
-  uint16_t ch1 = (uint16_t(raw[3]) << 8) | raw[2];
-
-  float lux = this->calculate_lux_(ch0, ch1);
-
-  ESP_LOGD(TAG, "Got Ch0=%u Ch1=%u Lux=%.0f", ch0, ch1, lux);
-  this->illuminance_sensor_->publish_state(lux);
-#endif
-}
-
-void APDS9930::read_proximity_data_(uint8_t status) {
-#ifndef USE_SENSOR
-  return;
-#else
-  if (this->proximity_sensor_ == nullptr)
-    return;
-
-  // Check if proximity data is valid (PVALID bit)
-  if ((status & APDS9930_PVALID) == 0x00) {
-    return;
+  if (this->proximity_sensor_ != nullptr && (status & APDS9930_PVALID) != 0) {
+    this->proximity_sensor_->publish_state(encode_uint16(raw[6], raw[5]));
   }
-
-  uint8_t raw[2];
-  // Read proximity data with auto-increment
-  APDS9930_WARNING_CHECK(this->read_bytes(APDS9930_PDATAL | APDS9930_CMD_AUTO_INCREMENT, raw, 2),
-                         "Reading proximity value failed.");
-
-  uint16_t proximity = (uint16_t(raw[1]) << 8) | raw[0];
-
-  ESP_LOGD(TAG, "Got Proximity=%u", proximity);
-  this->proximity_sensor_->publish_state(proximity);
-#endif
 }
-
-float APDS9930::calculate_lux_(uint16_t ch0, uint16_t ch1) {
-  // Gain multiplier values: 1x, 8x, 16x, 120x
-  static const uint8_t GAIN_VALUES[4] = {1, 8, 16, 120};
-
-  // Calculate integration time in milliseconds
-  float alsit = 2.73f * (256.0f - this->atime_);
-
-  // Calculate IAC (Integrated Ambient Count) - use the larger of the two formulas
-  float iac1 = ch0 - APDS9930_ALS_B * ch1;
-  float iac2 = APDS9930_ALS_C * ch0 - APDS9930_ALS_D * ch1;
-  float iac = iac1 > iac2 ? iac1 : iac2;
-  if (iac < 0)
-    iac = 0;
-
-  // Calculate lux per count
-  float lpc = (APDS9930_GA * APDS9930_DF) / (alsit * GAIN_VALUES[this->ambient_gain_]);
-
-  // Calculate final lux value
-  float lux = iac * lpc;
-
-  return lux;
-}
-
-float APDS9930::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace esphome::apds9930
