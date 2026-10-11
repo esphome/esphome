@@ -60,12 +60,12 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
     let condition;
     if (tooManyLabels && tooManyChanges) {
       condition =
-        `is under ${TOO_BIG_THRESHOLD} lines (excluding tests) and touches ` +
+        `is at most ${TOO_BIG_THRESHOLD} lines (excluding tests) and touches ` +
         `at most ${MAX_LABELS} components/areas`;
     } else if (tooManyLabels) {
       condition = `touches at most ${MAX_LABELS} components/areas`;
     } else {
-      condition = `is under ${TOO_BIG_THRESHOLD} lines (excluding tests)`;
+      condition = `is at most ${TOO_BIG_THRESHOLD} lines (excluding tests)`;
     }
     message +=
       `**This PR will not be reviewed until it ${condition}.** We know ` +
