@@ -180,8 +180,9 @@ void MiCS5524GasSensor::request_calibration() {
     ESP_LOGE(TAG, "'%s': cannot calibrate without samples", this->gas_.c_str());
     return;
   }
-  if (this->calibration_pending_)
+  if (this->calibration_pending_) {
     ESP_LOGW(TAG, "'%s': calibration already scheduled - restarting the wait", this->gas_.c_str());
+  }
 
   // A request (button, on_boot lambda) must never capture an unstable reading, so
   // it is deferred until the warm-up / burn-in window of this sensor has ended.
