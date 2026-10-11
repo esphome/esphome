@@ -20,7 +20,7 @@ void original_setup() {
   // =========== AUTO GENERATED CODE END ============
 }
 
-// Shared App state one test moves must not leak into the next, like CORE.reset() in the Python tests
+// The loop clock and current component one test moves must not leak into the next, like CORE.reset() in Python
 class ResetAppListener : public ::testing::EmptyTestEventListener {
   void OnTestStart(const ::testing::TestInfo &) override { esphome::LoopBlockingGuard reset{nullptr, nullptr, 0}; }
 };
