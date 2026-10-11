@@ -142,6 +142,9 @@ UDP_RESEND_MIN = 0.2
 UDP_RESEND_MAX = 2.0
 # Acks still asking for the head after later messages arrived; resend it once
 UDP_DUP_ACKS = 2
+# Progress acks in a row with no round trip to time: the link is slower than
+# the resend timer, so back it off (random loss still yields samples)
+UDP_UNTIMED_ACKS = 8
 # Refusals in a row with no ACK between: the device's UDP port is closed
 UDP_REFUSALS = 3
 UDP_FALLBACK = b"\x00"
@@ -616,6 +619,10 @@ class UdpChannel:
         self._committed = False
         self._srtt: float | None = None
         self._rttvar = 0.0
+        # Doubles while acks come back untimed, so a link slower than the
+        # timer still yields messages sent once to time (Karn, RFC 6298)
+        self._backoff = 1
+        self._untimed = 0
         self._dup_acks = 0
         self._free = UDP_WINDOW  # the device's empty slots, as of its last ACK
         self._last_ping = 0.0
@@ -683,8 +690,10 @@ class UdpChannel:
 
     def _rto(self) -> float:
         if self._srtt is None:
-            return UDP_RESEND_INITIAL
-        return min(max(self._srtt + 4 * self._rttvar, UDP_RESEND_MIN), UDP_RESEND_MAX)
+            rto = UDP_RESEND_INITIAL
+        else:
+            rto = max(self._srtt + 4 * self._rttvar, UDP_RESEND_MIN)
+        return min(rto * self._backoff, UDP_RESEND_MAX)
 
     def _send(self, msg_type: int, seq: int, payload: bytes) -> None:
         flags = UDP_FLAG_COMMITTED if self._committed else 0
@@ -754,6 +763,8 @@ class UdpChannel:
 
     def _sample_rtt(self, sample: float) -> None:
         # RFC 6298 smoothing
+        self._backoff = 1
+        self._untimed = 0
         if self._srtt is None:
             self._srtt, self._rttvar = sample, sample / 2
         else:
@@ -777,13 +788,20 @@ class UdpChannel:
             head = self._queue[0].seq
             index = (prompted - head) & 0xFFFF
             # This datagram's own round trip; only from messages sent once (Karn)
-            if index < len(self._queue) and self._queue[index].sends == 1:
+            timed = index < len(self._queue) and self._queue[index].sends == 1
+            if timed:
                 self._sample_rtt(now - self._queue[index].last_send)
             done = (received - head) & 0xFFFF
             if 0 < done <= len(self._queue):
                 del self._queue[:done]
                 self._last_progress = now
                 self._dup_acks = 0
+                if not timed:
+                    self._untimed += 1
+                    if self._untimed >= UDP_UNTIMED_ACKS:
+                        self._untimed = 0
+                        if self._rto() < UDP_RESEND_MAX:
+                            self._backoff *= 2
             elif done == 0 and self._queue[0].sends:
                 # A later message arrived while the head is missing; resend it once
                 self._dup_acks += 1

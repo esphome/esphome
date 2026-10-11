@@ -1958,3 +1958,31 @@ def test_start_udp_socket_error_falls_back(mock_socket: Mock) -> None:
         call(espota2.UDP_REQUEST),
         call(espota2.UDP_FALLBACK),
     ]
+
+
+def test_udp_channel_backs_off_when_acks_come_back_untimed() -> None:
+    """Progress acks that only answer resent messages mean the link is slower
+    than the timer: it backs off, up to its cap, until a sample resets it."""
+    token = b"\x01\x01\x01\x01"
+    channel = espota2.UdpChannel(Mock(), token)
+    channel._queue = [espota2._UdpMessage(seq, b"x") for seq in range(40)]
+    rtos = []
+    for received in range(1, 33):
+        for message in channel._queue[:1]:
+            message.sends = 2  # every message was resent before its ack
+        rtos.append(channel._rto())
+        ack = (
+            bytes([espota2.UDP_MSG_ACK])
+            + token
+            + received.to_bytes(2, "big")
+            + (received - 1).to_bytes(2, "big")
+            + bytes(2)
+            + b"\x40"
+        )
+        channel._handle_ack(ack)
+    n = espota2.UDP_UNTIMED_ACKS
+    assert rtos[0] == espota2.UDP_RESEND_INITIAL
+    assert rtos[n] == espota2.UDP_RESEND_INITIAL * 2
+    assert rtos[-1] == espota2.UDP_RESEND_MAX
+    channel._sample_rtt(0.1)
+    assert channel._rto() == pytest.approx(0.3)  # srtt 0.1 + 4 * rttvar 0.05
