@@ -38,6 +38,7 @@ from .const import (
 )
 from .sensors import SENSOR_FORMATS
 
+DOMAIN = "mipi_csi"
 CODEOWNERS = ["@Horstexplorer"]
 
 DEPENDENCIES = ["esp32", "i2c", "psram"]
