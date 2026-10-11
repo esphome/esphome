@@ -7,8 +7,8 @@
 namespace esphome::udp::testing {
 
 TEST(NextRetryDelay, DoublesUntilCapped) {
-  uint32_t delay = 0;
-  for (uint32_t want : {1000u, 2000u, 4000u, 8000u, 16000u, 32000u, 60000u, 60000u}) {
+  uint16_t delay = 0;
+  for (uint16_t want : {1000, 2000, 4000, 8000, 16000, 32000, 60000, 60000}) {
     delay = next_retry_delay_ms(delay);
     EXPECT_EQ(delay, want);
   }

@@ -42,7 +42,7 @@ bool UDPComponent::retry_if_transient_(const LogString *what) {
 #endif
   this->retry_delay_ms_ = next_retry_delay_ms(this->retry_delay_ms_);
   this->next_retry_ms_ = App.get_loop_component_start_time() + this->retry_delay_ms_;
-  ESP_LOGW(TAG, "%s failed (errno %d), retrying in %" PRIu32 " ms", LOG_STR_ARG(what), err, this->retry_delay_ms_);
+  ESP_LOGW(TAG, "%s failed (errno %d), retrying in %u ms", LOG_STR_ARG(what), err, this->retry_delay_ms_);
   this->status_set_warning(what);
   return true;
 }

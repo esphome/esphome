@@ -43,8 +43,12 @@ button:
     on_press:
       then:
         - udp.write:
+            id: my_udp
             data: [0x01, 0x02, 0x03]
         - udp.write:
+            id: my_udp
             data: [0xAA, 0x55, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06]
-        - udp.write: !lambda |-
-            return {0x10, 0x20, (uint8_t)id(udp_my_number).state};
+        - udp.write:
+            id: my_udp
+            data: !lambda |-
+              return {0x10, 0x20, (uint8_t)id(udp_my_number).state};
