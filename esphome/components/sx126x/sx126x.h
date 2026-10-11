@@ -10,6 +10,8 @@
 
 namespace esphome::sx126x {
 
+static constexpr size_t SX126X_MAX_PACKET_SIZE = 255;
+
 enum SX126xBw : uint8_t {
   // FSK
   SX126X_BW_4800,
@@ -97,7 +99,10 @@ class SX126x final : public Component,
   void set_tcxo_delay(uint32_t tcxo_delay) { this->tcxo_delay_ = tcxo_delay; }
   void run_image_cal();
   void configure();
-  SX126xError transmit_packet(const std::vector<uint8_t> &packet);
+  SX126xError transmit_packet(const uint8_t *data, size_t len);
+  SX126xError transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
@@ -107,7 +112,7 @@ class SX126x final : public Component,
   void configure_lora_();
   void set_packet_params_(uint8_t payload_length);
   uint8_t read_fifo_(uint8_t offset, std::vector<uint8_t> &packet);
-  void write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet);
+  void write_fifo_(uint8_t offset, const uint8_t *data, size_t len);
   void write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
   uint8_t read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
   void write_register_(uint16_t reg, uint8_t *data, uint8_t size);

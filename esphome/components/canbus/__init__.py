@@ -1,12 +1,16 @@
 import re
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID
 from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
+DOMAIN = "canbus"
 IS_PLATFORM_COMPONENT = True
 
 CONF_CAN_ID = "can_id"
@@ -16,9 +20,12 @@ CONF_REMOTE_TRANSMISSION_REQUEST = "remote_transmission_request"
 CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
+CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
+DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
+DEFAULT_BIT_RATE = "125KBPS"  # Keep in sync with bit_rate_ in canbus.h
 
 
-def validate_id(config):
+def validate_id(config: ConfigType) -> ConfigType:
     if CONF_CAN_ID in config:
         can_id = config[CONF_CAN_ID]
         id_ext = config[CONF_USE_EXTENDED_ID]
@@ -27,7 +34,7 @@ def validate_id(config):
     return config
 
 
-def validate_raw_data(value):
+def validate_raw_data(value: Any) -> bytes | list:
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, list):
@@ -71,7 +78,7 @@ CAN_SPEEDS = {
 }
 
 
-def get_rate(value):
+def get_rate(value: str) -> int:
     match = re.match(r"(\d+)(?:K(\d+)?)?BPS", value, re.IGNORECASE)
     if not match:
         raise ValueError(f"Invalid rate format: {value}")
@@ -83,8 +90,13 @@ CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
         cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
-        cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
+        cv.Optional(CONF_BIT_RATE, default=DEFAULT_BIT_RATE): cv.enum(
+            CAN_SPEEDS, upper=True
+        ),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+        cv.Optional(
+            CONF_MAX_FRAMES_PER_LOOP, default=DEFAULT_MAX_FRAMES_PER_LOOP
+        ): cv.positive_not_null_int,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
@@ -103,11 +115,15 @@ CANBUS_SCHEMA = cv.Schema(
 CANBUS_SCHEMA.add_extra(validate_id)
 
 
-async def setup_canbus_core_(var, config):
+async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
-    cg.add(var.set_can_id([config[CONF_CAN_ID]]))
-    cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
-    cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
+    cg.add(var.set_can_id(config[CONF_CAN_ID]))
+    if config[CONF_USE_EXTENDED_ID]:
+        cg.add(var.set_use_extended_id(True))
+    if (bit_rate := config[CONF_BIT_RATE]) != DEFAULT_BIT_RATE:
+        cg.add(var.set_bitrate(CAN_SPEEDS[bit_rate]))
+    if (max_frames := config[CONF_MAX_FRAMES_PER_LOOP]) != DEFAULT_MAX_FRAMES_PER_LOOP:
+        cg.add(var.set_max_frames_per_loop(max_frames))
 
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = conf[CONF_CAN_ID]
@@ -134,30 +150,41 @@ async def setup_canbus_core_(var, config):
         )
 
 
-async def register_canbus(var, config):
+async def register_canbus(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.new_Pvariable(config[CONF_ID], var)
     await setup_canbus_core_(var, config)
 
 
 # Actions
+CANBUS_SEND_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
+        cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+        cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+        cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST, default=False): cv.boolean,
+        # One classic CAN frame
+        cv.Required(CONF_DATA): cv.templatable(
+            cv.All(validate_raw_data, cv.Length(max=8))
+        ),
+    },
+    validate_id,
+    key=CONF_DATA,
+)
+
+
 @automation.register_action(
     "canbus.send",
     canbus_ns.class_("CanbusSendAction", automation.Action),
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-            cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
-            cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
-            cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST, default=False): cv.boolean,
-            cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
-        },
-        validate_id,
-        key=CONF_DATA,
-    ),
+    CANBUS_SEND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def canbus_action_to_code(config, action_id, template_arg, args):
+async def canbus_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_CANBUS_ID])
 
@@ -169,15 +196,11 @@ async def canbus_action_to_code(config, action_id, template_arg, args):
         var.set_remote_transmission_request(config[CONF_REMOTE_TRANSMISSION_REQUEST])
     )
 
-    data = config[CONF_DATA]
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        if isinstance(data, bytes):
-            data = [int(x) for x in data]
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "canbus_data",
+    )
     return var

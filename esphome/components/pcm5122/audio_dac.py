@@ -13,6 +13,8 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
@@ -50,7 +52,7 @@ PCM5122_CHANNEL_MIX_ENUM = {
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
-def _validate_volume_range(config):
+def _validate_volume_range(config: ConfigType) -> ConfigType:
     if config[CONF_VOLUME_MIN_DB] >= config[CONF_VOLUME_MAX_DB]:
         raise cv.Invalid(f"{CONF_VOLUME_MIN_DB} must be less than {CONF_VOLUME_MAX_DB}")
     return config
@@ -90,7 +92,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_pin_mode(value):
+def _validate_pin_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -98,7 +100,7 @@ def _validate_pin_mode(value):
     return value
 
 
-def _validate_pin(value):
+def _validate_pin(value: ConfigType) -> ConfigType:
     if value[CONF_MODE][CONF_INPUT] and value[CONF_NUMBER] == 6:
         raise cv.Invalid("GPIO6 cannot be used as input on the PCM5122")
     return value
@@ -120,7 +122,7 @@ PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCM5122, PIN_SCHEMA)
-async def pcm5122_pin_to_code(config):
+async def pcm5122_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_PCM5122])
 
@@ -130,7 +132,7 @@ async def pcm5122_pin_to_code(config):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

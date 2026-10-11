@@ -3,7 +3,7 @@
 
 namespace esphome::daikin_brc {
 
-static const char *const TAG = "daikin_brc.climate";
+ESPHOME_LOG_TAG(TAG, "daikin_brc.climate");
 
 void DaikinBrcClimate::control(const climate::ClimateCall &call) {
   this->mode_button_ = 0x00;

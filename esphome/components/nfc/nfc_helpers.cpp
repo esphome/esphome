@@ -2,16 +2,16 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc.helpers";
+ESPHOME_LOG_TAG(TAG, "nfc.helpers");
 
-bool has_ha_tag_ndef(NfcTag &tag) { return !get_ha_tag_ndef(tag).empty(); }
+bool has_ha_tag_ndef(const NfcTag &tag) { return !get_ha_tag_ndef(tag).empty(); }
 
-std::string get_ha_tag_ndef(NfcTag &tag) {
+std::string get_ha_tag_ndef(const NfcTag &tag) {
   if (!tag.has_ndef_message()) {
     return std::string();
   }
-  auto message = tag.get_ndef_message();
-  auto records = message->get_records();
+  const auto &message = tag.get_ndef_message();
+  const auto &records = message->get_records();
   for (const auto &record : records) {
     std::string payload = record->get_payload();
     size_t pos = payload.find(HA_TAG_ID_PREFIX);

@@ -5,7 +5,26 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    variant_filtered_enum,
+)
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AFTER,
@@ -27,6 +46,7 @@ from esphome.const import (
     CONF_SEQUENCE,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
+    CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
@@ -176,6 +196,33 @@ UART_PARITY_OPTIONS = {
 CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
+CONF_CLOCK_SOURCE = "clock_source"
+
+UARTClockSource = cg.global_ns.enum("uart_sclk_t")
+UART_CLOCK_SOURCES = {
+    "DEFAULT": UARTClockSource.UART_SCLK_DEFAULT,
+    "APB": UARTClockSource.UART_SCLK_APB,
+    "XTAL": UARTClockSource.UART_SCLK_XTAL,
+    "RTC": UARTClockSource.UART_SCLK_RTC,
+    "REF_TICK": UARTClockSource.UART_SCLK_REF_TICK,
+}
+
+# Keep in sync with SOC_UART_SUPPORT_* in ESP-IDF's per-variant soc_caps.h.
+UART_CLOCK_SOURCES_BY_VARIANT = {
+    VARIANT_ESP32: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32C2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32C5: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C6: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C61: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H21: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32P4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32S2: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32S3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32S31: ["DEFAULT", "XTAL", "RTC"],
+}
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -251,6 +298,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
+            cv.Optional(CONF_TX_BUFFER_SIZE): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=129)
+            ),
             cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
             ),
@@ -259,6 +309,10 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FLUSH_TIMEOUT): cv.All(
                 cv.only_on_esp32, cv.positive_time_period_milliseconds
+            ),
+            cv.Optional(CONF_CLOCK_SOURCE): cv.All(
+                cv.only_on_esp32,
+                variant_filtered_enum(UART_CLOCK_SOURCES_BY_VARIANT, upper=True),
             ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -341,9 +395,16 @@ async def to_code(config):
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
         if CONF_FLUSH_TIMEOUT in config:
             cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
+        if (tx_buffer_size := config.get(CONF_TX_BUFFER_SIZE)) is not None:
+            cg.add(var.set_tx_buffer_size(tx_buffer_size))
+        # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
+        if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
+            cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
-    cg.add(var.set_parity(config[CONF_PARITY]))
+    # Skip the setter when the config matches the C++ initializer (UART_CONFIG_PARITY_NONE).
+    if (parity := config[CONF_PARITY]) != "NONE":
+        cg.add(var.set_parity(parity))
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
@@ -428,7 +489,8 @@ def final_validate_device_schema(
         return value
 
     def validate_stop_bits(value):
-        if value != stop_bits:
+        # usb_uart channels store stop bits as strings ("1", "1.5", "2").
+        if float(value) != stop_bits:
             raise cv.Invalid(
                 f"Component {name} requires {stop_bits} stop bits for the uart referenced by {uart_bus}"
             )
@@ -469,6 +531,25 @@ def final_validate_device_schema(
         {cv.Required(uart_bus): fv.id_declaration_match_schema(validate_hub)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+def subtree_references_uart(
+    node: object, uart_id: str, conf_key: str = CONF_UART_ID
+) -> bool:
+    """Return True if any dict in the subtree has a conf_key entry naming this bus.
+
+    For the final validation of a component that needs a UART for itself. Bare
+    `id:` references (a uart.write action) and lambdas are not found.
+    """
+    if isinstance(node, dict):
+        return any(
+            (key == conf_key and str(value) == uart_id)
+            or subtree_references_uart(value, uart_id, conf_key)
+            for key, value in node.items()
+        )
+    if isinstance(node, list):
+        return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
+    return False
 
 
 async def register_uart_device(var, config):
@@ -521,7 +602,7 @@ async def final_step():
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "uart_component_esp_idf.cpp": {
             PlatformFramework.ESP32_IDF,
@@ -537,3 +618,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
+# debug block is configured.
+_define_filter = filter_source_files_from_defines(
+    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()
