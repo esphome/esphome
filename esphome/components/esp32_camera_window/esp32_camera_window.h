@@ -41,7 +41,6 @@ class Esp32CameraWindow : public Component {
     int offset_y;
     int width;
     int height;
-    bool enabled;
   };
 
   explicit Esp32CameraWindow(esp32_camera::ESP32Camera *camera) : camera_(camera) {}
@@ -66,12 +65,14 @@ class Esp32CameraWindow : public Component {
   /// Read out the whole sensor again, without changing the frame size.
   bool reset_window();
 
-  /// True when the camera has a sensor that accepts a window.
+  /// True when the camera has a sensor that accepts a window. Meant for use from lambdas: the
+  /// component checks the sensor itself before every write.
   bool supports_window() const;
 
   /// Window to apply in setup(), in frame pixels. No window is applied by default.
   void set_initial_window(int offset_x, int offset_y, int width, int height) {
-    this->initial_window_ = {offset_x, offset_y, width, height, true};
+    this->initial_window_ = {offset_x, offset_y, width, height};
+    this->has_initial_window_ = true;
   }
 
  protected:
@@ -80,7 +81,8 @@ class Esp32CameraWindow : public Component {
   static const char *sensor_name(sensor_t *sensor);
 
   esp32_camera::ESP32Camera *camera_;
-  Window initial_window_{0, 0, 0, 0, false};
+  Window initial_window_{0, 0, 0, 0};
+  bool has_initial_window_{false};
 };
 
 }  // namespace esphome::esp32_camera_window

@@ -1,4 +1,4 @@
-# The sensor readout window, and both actions.
+# The sensor readout window, and both actions, with constants and with a template.
 esphome:
   on_boot:
     then:
@@ -8,6 +8,14 @@ esphome:
           offset_y: 0
           width: 480
           height: 320
+      # Constants and templates are rendered into the same call, so the template
+      # has to survive validation and reach set_window() untouched.
+      - esp32_camera_window.set:
+          id: test_window
+          offset_x: 0
+          offset_y: 0
+          width: !lambda "return 320;"
+          height: 240
       - esp32_camera_window.reset: test_window
 
 esp32_camera_window:

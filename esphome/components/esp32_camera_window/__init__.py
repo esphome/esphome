@@ -58,13 +58,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_CAMERA_WINDOW")
 
 
-WINDOW_ACTION_SCHEMA = maybe_simple_id(
+# Templatable so a !lambda computes the window at runtime; without it the lambda is rejected.
+# maybe_simple_id is not used here: it would allow `set: <id>`, which wraps the value into `id`
+# and then fails on the other four Required keys.
+WINDOW_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Esp32CameraWindow),
-        cv.Required(CONF_OFFSET_X): cv.int_range(min=0),
-        cv.Required(CONF_OFFSET_Y): cv.int_range(min=0),
-        cv.Required(CONF_WIDTH): cv.int_range(min=1),
-        cv.Required(CONF_HEIGHT): cv.int_range(min=1),
+        cv.Required(CONF_OFFSET_X): cv.templatable(cv.int_range(min=0)),
+        cv.Required(CONF_OFFSET_Y): cv.templatable(cv.int_range(min=0)),
+        cv.Required(CONF_WIDTH): cv.templatable(cv.int_range(min=1)),
+        cv.Required(CONF_HEIGHT): cv.templatable(cv.int_range(min=1)),
     }
 )
 

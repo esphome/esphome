@@ -6,6 +6,11 @@
 
 #include <algorithm>
 
+// vTaskDelay() and portTICK_PERIOD_MS are used below, so the headers that declare them are included
+// here rather than left to arrive through the camera component's own includes.
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 namespace esphome::esp32_camera_window {
 
 ESPHOME_LOG_TAG(TAG, "esp32_camera_window");
@@ -254,6 +259,8 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
 
 /// Writes the first and the last edge of one axis of an SC window, reporting whether the sensor took them.
 ///
+/// The edge a window ends at is the first pixel outside it, which is how the registers count.
+///
 /// The edges are not named `start` and `end`: the register constants (`SC_REG_H_START`) contain the word
 /// `START`, which makes clang-tidy's readability-suspicious-call-argument read a register as a swapped edge.
 static bool write_sc_axis(sensor_t *sensor, int reg, int first, int last, int edge_bits) {
@@ -277,17 +284,21 @@ static bool write_sc_axis(sensor_t *sensor, int reg, int first, int last, int ed
 /// shows. A window on them is counted from the corner of the whole readout of the sensor, because
 /// that is where their window registers count from.
 static bool set_sc_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, const ScWindowFormat &format) {
-  const int offset_x = std::clamp(window.offset_x, 0, format.area_width - window.width);
-  const int offset_y = std::clamp(window.offset_y, 0, format.area_height - window.height);
+  // The size is clamped to the readout area before the offsets are, so that the offsets clamp
+  // against a window that already fits: std::clamp needs its lower bound no greater than its upper.
+  const int width = std::clamp(window.width, 1, format.area_width);
+  const int height = std::clamp(window.height, 1, format.area_height);
+  const int offset_x = std::clamp(window.offset_x, 0, format.area_width - width);
+  const int offset_y = std::clamp(window.offset_y, 0, format.area_height - height);
 
-  if (!write_sc_axis(sensor, SC_REG_H_START, offset_x, offset_x + window.width, format.edge_bits) ||
-      !write_sc_axis(sensor, SC_REG_V_START, offset_y, offset_y + window.height, format.edge_bits))
+  if (!write_sc_axis(sensor, SC_REG_H_START, offset_x, offset_x + width, format.edge_bits) ||
+      !write_sc_axis(sensor, SC_REG_V_START, offset_y, offset_y + height, format.edge_bits))
     return false;
 
   vTaskDelay(WINDOW_SETTLE_MS / portTICK_PERIOD_MS);
-  ESP_LOGI(TAG, "Window at %d,%d of %dx%d reads out %d,%d to %d,%d of the %dx%d sensor", window.offset_x,
-           window.offset_y, window.width, window.height, offset_x, offset_y, offset_x + window.width - 1,
-           offset_y + window.height - 1, format.area_width, format.area_height);
+  ESP_LOGI(TAG, "Window at %d,%d of %dx%d reads out %dx%d at %d,%d of the %dx%d sensor", window.offset_x,
+           window.offset_y, window.width, window.height, width, height, offset_x, offset_y, format.area_width,
+           format.area_height);
   return true;
 }
 
@@ -297,6 +308,8 @@ float Esp32CameraWindow::get_setup_priority() const {
 }
 
 void Esp32CameraWindow::setup() {
+  // Code generation always passes the camera, and nothing below follows that pointer: it is only
+  // held to tie this component to the camera. This reports a build that went without one.
   if (this->camera_ == nullptr) {
     ESP_LOGE(TAG, "No camera is configured");
     return;
@@ -311,7 +324,7 @@ void Esp32CameraWindow::setup() {
     return;
   }
 
-  if (this->initial_window_.enabled) {
+  if (this->has_initial_window_) {
     this->set_window(this->initial_window_.offset_x, this->initial_window_.offset_y, this->initial_window_.width,
                      this->initial_window_.height);
   }
@@ -330,7 +343,7 @@ void Esp32CameraWindow::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor_name(sensor));
   ESP_LOGCONFIG(TAG, "  Window support: %s", YESNO(is_window_supported(sensor)));
-  if (this->initial_window_.enabled) {
+  if (this->has_initial_window_) {
     ESP_LOGCONFIG(TAG, "  Window: offset %d,%d size %dx%d", this->initial_window_.offset_x,
                   this->initial_window_.offset_y, this->initial_window_.width, this->initial_window_.height);
   }
@@ -351,7 +364,7 @@ bool Esp32CameraWindow::set_window(int offset_x, int offset_y, int width, int he
     return false;
   }
 
-  const Window window{offset_x, offset_y, width, height, true};
+  const Window window{offset_x, offset_y, width, height};
   if (!this->set_sensor_window_(sensor, window))
     return false;
 
