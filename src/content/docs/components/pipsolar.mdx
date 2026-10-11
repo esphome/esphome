@@ -112,6 +112,8 @@ All sensors are normal sensors... so all sensor variables are working to.
 - **battery_voltage_offset_for_fans_on** (*Optional*): battery voltage offset for fans on
 - **eeprom_version** (*Optional*): eeprom version
 - **pv_charging_power** (*Optional*): pc charging power
+- **total_pv_generated_energy** (*Optional*): Total energy the PV input has produced, in Wh (QET query)
+- **total_output_load_energy** (*Optional*): Total energy delivered to the load, in Wh (QLT query)
 
 ## Binary Sensor
 
@@ -218,6 +220,8 @@ All sensors are normal text sensors... so all text sensor variables are working 
 - **last_qpiws** (*Optional*): last qpiws reponse
 - **last_qt** (*Optional*): last qt reponse
 - **last_qmn** (*Optional*): last qmn reponse
+- **last_qet** (*Optional*): Raw response to the last QET query
+- **last_qlt** (*Optional*): Raw response to the last QLT query
 
 ## Switch
 
