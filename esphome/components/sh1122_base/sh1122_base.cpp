@@ -63,9 +63,8 @@ void SH1122::setup() {
 }
 void SH1122::display() {
   // Return the RAM pointer to the top left corner in one transfer, then stream the frame
-  static constexpr uint8_t SET_ADDRESS[] = {SH1122_SETHIGHCOLUMNADDRESS, SH1122_SETLOWCOLUMNADDRESS,
-                                            SH1122_SETROWADDRESS, 0x00};
-  this->write_command(SET_ADDRESS, sizeof(SET_ADDRESS));
+  const uint8_t set_address[] = {SH1122_SETHIGHCOLUMNADDRESS, SH1122_SETLOWCOLUMNADDRESS, SH1122_SETROWADDRESS, 0x00};
+  this->write_command(set_address, sizeof(set_address));
   this->write_display_data();
 }
 void SH1122::update() {
