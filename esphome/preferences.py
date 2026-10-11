@@ -48,7 +48,7 @@ def _default_storage() -> str:
     return STORAGE_RTC if CORE.is_esp8266 else STORAGE_FLASH
 
 
-def validate_storage(value):
+def validate_storage(value: object) -> str:
     """Validate a bare ``storage:`` field: ``flash`` or ``rtc`` (the latter gated by
     platform support). Use directly for an option that resolves its own default;
     use :func:`storage_schema` for the historic per-platform default."""
