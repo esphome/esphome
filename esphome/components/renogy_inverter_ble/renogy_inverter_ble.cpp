@@ -39,6 +39,7 @@ static void publish(sensor::Sensor *s, float value) {
 
 void RenogyInverterBle::dump_config() {
   ESP_LOGCONFIG(TAG, "Renogy Inverter BLE:");
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "AC input voltage", this->ac_input_voltage_sensor_);
   LOG_SENSOR("  ", "AC output voltage", this->ac_output_voltage_sensor_);
   LOG_SENSOR("  ", "AC output current", this->ac_output_current_sensor_);
@@ -201,11 +202,17 @@ void RenogyInverterBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (this->state_ == State::INIT && param->read.handle == this->init_handle_) {
-        // Init handshake done; the inverter now answers Modbus reads
-        this->state_ = State::MAIN;
-        this->read_register_(REG_MAIN, REG_MAIN_WORDS);
+      if (this->state_ != State::INIT || param->read.handle != this->init_handle_) {
+        break;
       }
+      if (param->read.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "init read failed, status=%d", param->read.status);
+        this->abort_cycle_();
+        break;
+      }
+      // Init handshake done; the inverter now answers Modbus reads
+      this->state_ = State::MAIN;
+      this->read_register_(REG_MAIN, REG_MAIN_WORDS);
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
