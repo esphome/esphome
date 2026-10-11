@@ -1033,18 +1033,30 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     Non-synchronous actions (delay, wait_until, script.wait, etc.) store
     trigger args for later execution, making non-owning types like StringRef
     unsafe.
+
+    Accepts an action list, a single action, or an automation. Only the keys of
+    action entries are looked up as action names; the options of an action are
+    only searched for nested action lists (``then:``, ``else:``, ...), so an
+    option that shares a name with an action, such as the ``delay:`` option of
+    ``speaker_source.set_playlist_delay``, is not mistaken for that action.
     """
     if isinstance(actions, list):
         return any(has_non_synchronous_actions(item) for item in actions)
     if isinstance(actions, dict):
-        for key in actions:
+        for key, options in actions.items():
             if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
                 return True
-        return any(
-            has_non_synchronous_actions(v)
-            for v in actions.values()
-            if isinstance(v, (list, dict))
-        )
+            if _options_have_non_synchronous_actions(options):
+                return True
+    return False
+
+
+def _options_have_non_synchronous_actions(options: Any) -> bool:
+    """Search an action's options for nested action lists, without treating option keys as actions."""
+    if isinstance(options, list):
+        return has_non_synchronous_actions(options)
+    if isinstance(options, dict):
+        return any(_options_have_non_synchronous_actions(v) for v in options.values())
     return False
 
 

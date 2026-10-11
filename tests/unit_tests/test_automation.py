@@ -213,6 +213,76 @@ def test_has_non_synchronous_actions_dict_input(
     assert has_non_synchronous_actions({"logger.log": "hello"}) is False
 
 
+def test_has_non_synchronous_actions_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """An option that shares a name with a deferring action is not that action."""
+    actions = [{"logger.log": {"message": "hello", "delay": "1s"}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_nested_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Option keys in nested option dicts are not looked up as action names either."""
+    actions = [{"logger.log": {"settings": {"wait_until": {"condition": {}}}}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_option_named_like_action_inside_then(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": {"message": "hello", "delay": "1s"}}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_in_else(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Action lists in any option of an action are searched, not only then:."""
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": "hello"}],
+                "else": [{"delay": "1s"}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is True
+
+
+def test_has_non_synchronous_actions_automation_dict(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """A single automation, as validate_automation(single=True) returns it."""
+    assert has_non_synchronous_actions({CONF_THEN: [{"delay": "1s"}]}) is True
+    assert has_non_synchronous_actions({CONF_THEN: [{"logger.log": "hi"}]}) is False
+
+
+def test_has_non_synchronous_actions_set_playlist_delay() -> None:
+    """speaker_source.set_playlist_delay is synchronous despite its delay: option."""
+    import esphome.components.speaker_source.media_player  # noqa: F401  # registers the action
+
+    actions = [
+        {
+            "speaker_source.set_playlist_delay": {
+                CONF_ID: "player",
+                "pipeline": 0,
+                "delay": 1000,
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
+
+
 def _build_forwarder(
     automation_name: str,
     args: list[tuple[str, str]],
