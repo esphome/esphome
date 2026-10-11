@@ -34,13 +34,12 @@ const uint8_t WHIRLPOOL_SWING_BYTE8 = 0x40;  // byte 8
 
 const uint8_t WHIRLPOOL_POWER = 0x04;
 
-#ifdef USE_WHIRLPOOL_HISENSE_ARG
+// Hisense ARG model; unused constexpr values cost nothing in DG11J1-only builds
 static constexpr uint8_t HISENSE_ARG_DISPLAY_ON = 0x80;     // byte 11
 static constexpr uint8_t HISENSE_ARG_AMBIENT_TEMP = 0x18;   // byte 12, 24 C
 static constexpr uint8_t HISENSE_ARG_POWER_TOGGLE = 0x01;   // byte 15
 static constexpr uint8_t HISENSE_ARG_SETTINGS_ONLY = 0x02;  // byte 15
 static constexpr uint8_t HISENSE_ARG_FIXED_TEMP_STEP = 7;   // auto and fan-only send 23 C
-#endif
 
 WhirlpoolClimate::WhirlpoolClimate()
     : climate_ir::ClimateIR(

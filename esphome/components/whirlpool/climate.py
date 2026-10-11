@@ -27,5 +27,6 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(WhirlpoolClimate).ext
 async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
-    if config[CONF_MODEL] == Model.MODEL_HISENSE_ARG:
+    # The enum values are MockObj expressions, so compare identity, not equality
+    if config[CONF_MODEL] is Model.MODEL_HISENSE_ARG:
         cg.add_define("USE_WHIRLPOOL_HISENSE_ARG")
