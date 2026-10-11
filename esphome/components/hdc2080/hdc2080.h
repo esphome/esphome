@@ -6,7 +6,7 @@
 
 namespace esphome::hdc2080 {
 
-class HDC2080Component : public PollingComponent, public i2c::I2CDevice {
+class HDC2080Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { this->temperature_sensor_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { this->humidity_sensor_ = humidity; }

@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pca9685 {
+namespace esphome::pca9685 {
 
-static const char *const TAG = "pca9685";
+ESPHOME_LOG_TAG(TAG, "pca9685");
 
 // PCA9685 mode constants are now inline constexpr in pca9685_output.h
 
@@ -160,5 +159,4 @@ void PCA9685Channel::write_state(float state) {
   this->parent_->set_channel_value_(this->channel_, duty);
 }
 
-}  // namespace pca9685
-}  // namespace esphome
+}  // namespace esphome::pca9685

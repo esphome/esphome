@@ -42,14 +42,29 @@ using ListenSocket = LWIPRawListenImpl;
 
 #ifdef USE_LWIP_FAST_SELECT
 /// Shared ready() helper using cached lwip_sock pointer for direct rcvevent read.
-inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
-  return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
+/// cached_sock == nullptr means the socket is not monitored (monitor_loop was false, fd
+/// was invalid, or esphome_lwip_get_sock() failed) — in that case return true so the
+/// caller attempts the read and handles blocking itself.
+inline bool socket_ready(struct lwip_sock *cached_sock) {
+  return cached_sock == nullptr || esphome_lwip_socket_has_data(cached_sock);
 }
-#elif defined(USE_HOST)
+
+/// Resolve an fd to its lwip_sock and install the netconn event-callback hook so the
+/// main loop is woken by FreeRTOS task notifications when data arrives. Shared between
+/// BSD and LwIP socket impls on the fast-select path. Returns the cached lwip_sock
+/// pointer (or nullptr if the fd does not map to a valid lwip_sock).
+inline struct lwip_sock *hook_fd_for_fast_select(int fd) {
+  struct lwip_sock *sock = esphome_lwip_get_sock(fd);
+  if (sock != nullptr) {
+    esphome_lwip_hook_socket(sock);
+  }
+  return sock;
+}
+#elif defined(USE_HOST) || defined(USE_ZEPHYR)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
-#endif
+#endif  // USE_LWIP_FAST_SELECT
 
 // Inline ready() — defined here because it depends on socket_ready/socket_ready_fd
 // declared above, while the impl headers are included before those declarations.
@@ -69,7 +84,7 @@ bool socket_ready_fd(int fd, bool loop_monitored);
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 inline bool Socket::ready() const {
 #ifdef USE_LWIP_FAST_SELECT
-  return socket_ready(this->cached_sock_, this->loop_monitored_);
+  return socket_ready(this->cached_sock_);
 #else
   return socket_ready_fd(this->fd_, this->loop_monitored_);
 #endif
@@ -122,6 +137,10 @@ inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int prot
 /// @return Size of the sockaddr structure used, or 0 on error
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port);
 
+/// Network order IPv4 of an AF_INET or v4 mapped AF_INET6 peer; false for anything else.
+/// addr must hold the family's full struct.
+bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out);
+
 /// Convenience overload for std::string (backward compatible).
 inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
   return set_sockaddr(addr, addrlen, ip_address.c_str(), port);
@@ -129,6 +148,14 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
+
+/// Poll a connect() that returned EINPROGRESS. On error, err_out is SO_ERROR (or
+/// errno) on fd implementations and the failure the callbacks recorded on raw lwip.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+inline ConnectPollResult poll_connect(Socket &sock, int &err_out) { return sock.poll_connect(err_out); }
+#else
+ConnectPollResult poll_connect(Socket &sock, int &err_out);
+#endif
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);

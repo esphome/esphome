@@ -1,0 +1,69 @@
+esphome:
+  name: valve-control-action-test
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: test_position
+    type: float
+    initial_value: "0.42"
+
+valve:
+  - platform: template
+    name: "Test Valve"
+    id: test_valve
+    has_position: true
+    optimistic: true
+    assumed_state: true
+    open_action:
+      - valve.template.publish:
+          id: test_valve
+          position: 1.0
+    close_action:
+      - valve.template.publish:
+          id: test_valve
+          position: 0.0
+    stop_action:
+      - valve.template.publish:
+          id: test_valve
+          current_operation: IDLE
+
+button:
+  # valve.control: position only
+  - platform: template
+    id: btn_position
+    name: "Set Position"
+    on_press:
+      - valve.control:
+          id: test_valve
+          position: 50%
+
+  # valve.control: state alias for position 1.0
+  - platform: template
+    id: btn_open_state
+    name: "Open State"
+    on_press:
+      - valve.control:
+          id: test_valve
+          state: OPEN
+
+  # valve.control: lambda position (exercises lambda path)
+  - platform: template
+    id: btn_lambda_position
+    name: "Lambda Position"
+    on_press:
+      - valve.control:
+          id: test_valve
+          position: !lambda "return id(test_position);"
+
+  # valve.control: stop only — template valve's stop_action publishes
+  # current_operation: IDLE.
+  - platform: template
+    id: btn_stop
+    name: "Stop Valve"
+    on_press:
+      - valve.control:
+          id: test_valve
+          stop: true

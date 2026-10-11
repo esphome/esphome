@@ -1,10 +1,9 @@
 #include "pioneer_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.pioneer";
+ESPHOME_LOG_TAG(TAG, "remote.pioneer");
 
 static constexpr uint32_t HEADER_HIGH_US = 9000;
 static constexpr uint32_t HEADER_LOW_US = 4500;
@@ -152,5 +151,4 @@ void PioneerProtocol::dump(const PioneerData &data) {
   }
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

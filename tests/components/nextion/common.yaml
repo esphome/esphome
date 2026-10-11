@@ -3,6 +3,7 @@ esphome:
     - lambda: 'ESP_LOGD("display","is_connected(): %s", YESNO(id(main_lcd).is_connected()));'
 
     - display.nextion.set_brightness: 80%
+    - display.nextion.set_brightness: !lambda 'return 0.5;'
 
     # Binary sensor publish action tests
     - binary_sensor.nextion.publish:
@@ -276,7 +277,6 @@ display:
     auto_wake_on_touch: true
     brightness: 80%
     command_spacing: 5ms
-    dump_device_info: true
     exit_reparse_on_start: true
     lambda: |-
         ESP_LOGD("display","Display is being tested!");
@@ -299,7 +299,7 @@ display:
         - lambda: |-
             // key: StringRef, value: int32_t
             if (key == "temperature_raw") {
-              ESP_LOGD("nextion.custom", "%s=%d", key.c_str(), value);
+              ESP_LOGD("nextion.custom", "%s=%" PRId32, key.c_str(), value);
             }
     on_custom_binary_sensor:
       then:

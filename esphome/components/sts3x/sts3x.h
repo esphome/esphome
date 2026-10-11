@@ -6,16 +6,16 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace sts3x {
+namespace esphome::sts3x {
 
 /// This class implements support for the ST3x-DIS family of temperature i2c sensors.
-class STS3XComponent : public sensor::Sensor, public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class STS3XComponent final : public sensor::Sensor,
+                             public PollingComponent,
+                             public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
 };
 
-}  // namespace sts3x
-}  // namespace esphome
+}  // namespace esphome::sts3x

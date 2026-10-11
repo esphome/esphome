@@ -1,10 +1,9 @@
 #include "sen21231.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sen21231_sensor {
+namespace esphome::sen21231_sensor {
 
-static const char *const TAG = "sen21231_sensor.sensor";
+ESPHOME_LOG_TAG(TAG, "sen21231_sensor.sensor");
 
 void Sen21231Sensor::update() { this->read_data_(); }
 
@@ -14,7 +13,7 @@ void Sen21231Sensor::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGI(TAG, "SEN21231: %s", this->is_failed() ? "FAILED" : "OK");
+  ESP_LOGI(TAG, "SEN21231: %s", this->is_failed() ? LOG_STR_LITERAL("FAILED") : LOG_STR_LITERAL("OK"));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -33,5 +32,4 @@ void Sen21231Sensor::read_data_() {
   }
 }
 
-}  // namespace sen21231_sensor
-}  // namespace esphome
+}  // namespace esphome::sen21231_sensor

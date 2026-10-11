@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace as7341 {
+namespace esphome::as7341 {
 
-static const char *const TAG = "as7341";
+ESPHOME_LOG_TAG(TAG, "as7341");
 
 void AS7341Component::setup() {
   LOG_I2C_DEVICE(this);
@@ -266,5 +265,4 @@ bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) 
 
 uint16_t AS7341Component::swap_bytes(uint16_t data) { return (data >> 8) | (data << 8); }
 
-}  // namespace as7341
-}  // namespace esphome
+}  // namespace esphome::as7341

@@ -2,10 +2,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_wave_mini {
+namespace esphome::airthings_wave_mini {
 
-static const char *const TAG = "airthings_wave_mini";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_mini");
 
 void AirthingsWaveMini::read_sensors(uint8_t *raw_value, uint16_t value_len) {
   auto *value = (WaveMiniReadings *) raw_value;
@@ -49,7 +48,6 @@ AirthingsWaveMini::AirthingsWaveMini() {
       espbt::ESPBTUUID::from_raw(ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID);
 }
 
-}  // namespace airthings_wave_mini
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_mini
 
 #endif  // USE_ESP32

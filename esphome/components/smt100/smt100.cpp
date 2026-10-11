@@ -1,10 +1,9 @@
 #include "smt100.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace smt100 {
+namespace esphome::smt100 {
 
-static const char *const TAG = "smt100";
+ESPHOME_LOG_TAG(TAG, "smt100");
 
 void SMT100Component::update() {
   ESP_LOGV(TAG, "Sending measurement request");
@@ -66,7 +65,6 @@ void SMT100Component::dump_config() {
   LOG_SENSOR(TAG, "Temperature", this->temperature_sensor_);
   LOG_SENSOR(TAG, "Moisture", this->moisture_sensor_);
   LOG_UPDATE_INTERVAL(this);
-  this->check_uart_settings(9600);
 }
 
 int SMT100Component::readline_(int readch, char *buffer, int len) {
@@ -91,5 +89,4 @@ int SMT100Component::readline_(int readch, char *buffer, int len) {
   return -1;
 }
 
-}  // namespace smt100
-}  // namespace esphome
+}  // namespace esphome::smt100

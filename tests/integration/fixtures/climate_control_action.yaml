@@ -1,0 +1,92 @@
+esphome:
+  name: climate-control-action-test
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: test_target_temp
+    type: float
+    initial_value: "21.5"
+
+sensor:
+  - platform: template
+    id: temp_sensor
+    name: "Temp"
+    lambda: 'return 20.0;'
+    update_interval: 60s
+
+climate:
+  - platform: thermostat
+    id: test_climate
+    name: "Test Climate"
+    sensor: temp_sensor
+    min_idle_time: 30s
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    heat_action:
+      - logger.log: heating
+    idle_action:
+      - logger.log: idle
+    cool_action:
+      - logger.log: cooling
+    heat_cool_mode:
+      - logger.log: heat_cool
+    preset:
+      - name: Default
+        default_target_temperature_low: 18 °C
+        default_target_temperature_high: 22 °C
+    visual:
+      min_temperature: 10 °C
+      max_temperature: 30 °C
+
+button:
+  # mode only
+  - platform: template
+    id: btn_mode
+    name: "Set Mode Heat"
+    on_press:
+      - climate.control:
+          id: test_climate
+          mode: HEAT
+
+  # mode + target_temperature_low + target_temperature_high
+  - platform: template
+    id: btn_mode_temps
+    name: "Set Mode Temps"
+    on_press:
+      - climate.control:
+          id: test_climate
+          mode: HEAT_COOL
+          target_temperature_low: 19.0 °C
+          target_temperature_high: 23.0 °C
+
+  # target_temperature_low only
+  - platform: template
+    id: btn_low_only
+    name: "Set Low Only"
+    on_press:
+      - climate.control:
+          id: test_climate
+          target_temperature_low: 17.5 °C
+
+  # Lambda path: target_temperature_high computed at runtime
+  - platform: template
+    id: btn_lambda_high
+    name: "Lambda High"
+    on_press:
+      - climate.control:
+          id: test_climate
+          target_temperature_high: !lambda "return id(test_target_temp);"
+
+  # mode only — turn off via mode
+  - platform: template
+    id: btn_off
+    name: "Set Off"
+    on_press:
+      - climate.control:
+          id: test_climate
+          mode: "OFF"

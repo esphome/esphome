@@ -6,7 +6,7 @@
 
 namespace esphome::bm8563 {
 
-static const char *const TAG = "bm8563";
+ESPHOME_LOG_TAG(TAG, "bm8563");
 
 static constexpr uint8_t CONTROL_STATUS_1_REG = 0x00;
 static constexpr uint8_t CONTROL_STATUS_2_REG = 0x01;
@@ -63,7 +63,7 @@ void BM8563::read_time() {
            rtc_time.day_of_week, rtc_time.hour, rtc_time.minute, rtc_time.second);
 
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }

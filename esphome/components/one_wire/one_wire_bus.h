@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <vector>
 
-namespace esphome {
-namespace one_wire {
+namespace esphome::one_wire {
 
 class OneWireBus {
  public:
@@ -16,7 +15,8 @@ class OneWireBus {
   virtual void write64(uint64_t val) = 0;
 
   /// Write a command to the bus that addresses all devices by skipping the ROM.
-  void skip();
+  /// Returns true if a device presence pulse is detected.
+  bool skip();
 
   /// Read an 8 bit word from the bus.
   virtual uint8_t read8() = 0;
@@ -63,5 +63,4 @@ class OneWireBus {
   virtual uint64_t search_int() = 0;
 };
 
-}  // namespace one_wire
-}  // namespace esphome
+}  // namespace esphome::one_wire

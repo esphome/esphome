@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.mirage";
+ESPHOME_LOG_TAG(TAG, "remote.mirage");
 
 constexpr uint32_t HEADER_MARK_US = 8360;
 constexpr uint32_t HEADER_SPACE_US = 4248;
@@ -85,5 +84,4 @@ void MirageProtocol::dump(const MirageData &data) {
   ESP_LOGI(TAG, "Received Mirage: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

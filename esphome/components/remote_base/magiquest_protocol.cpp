@@ -5,10 +5,9 @@
  * https://arduino-irremote.github.io/Arduino-IRremote/ir__MagiQuest_8cpp_source.html
  */
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.magiquest";
+ESPHOME_LOG_TAG(TAG, "remote.magiquest");
 
 static constexpr uint32_t MAGIQUEST_UNIT = 288;  // us
 static constexpr uint32_t MAGIQUEST_ONE_MARK = 2 * MAGIQUEST_UNIT;
@@ -79,5 +78,4 @@ void MagiQuestProtocol::dump(const MagiQuestData &data) {
   ESP_LOGI(TAG, "Received MagiQuest: wand_id=0x%08" PRIX32 ", magnitude=0x%04X", data.wand_id, data.magnitude);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

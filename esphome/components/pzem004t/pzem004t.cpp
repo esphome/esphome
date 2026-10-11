@@ -3,10 +3,9 @@
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace pzem004t {
+namespace esphome::pzem004t {
 
-static const char *const TAG = "pzem004t";
+ESPHOME_LOG_TAG(TAG, "pzem004t");
 
 void PZEM004T::setup() {
   // Clear UART buffer
@@ -126,5 +125,4 @@ void PZEM004T::dump_config() {
   LOG_SENSOR("", "Power", this->power_sensor_);
 }
 
-}  // namespace pzem004t
-}  // namespace esphome
+}  // namespace esphome::pzem004t

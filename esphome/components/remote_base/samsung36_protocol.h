@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct Samsung36Data {
   uint16_t address;
@@ -17,9 +16,9 @@ struct Samsung36Data {
 
 class Samsung36Protocol : public RemoteProtocol<Samsung36Data> {
  public:
-  void encode(RemoteTransmitData *dst, const Samsung36Data &data) override;
-  optional<Samsung36Data> decode(RemoteReceiveData src) override;
-  void dump(const Samsung36Data &data) override;
+  void encode(RemoteTransmitData *dst, const Samsung36Data &data);
+  optional<Samsung36Data> decode(RemoteReceiveData src);
+  void dump(const Samsung36Data &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Samsung36)
@@ -37,5 +36,4 @@ template<typename... Ts> class Samsung36Action : public RemoteTransmitterActionB
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

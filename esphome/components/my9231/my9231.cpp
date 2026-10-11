@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace my9231 {
+namespace esphome::my9231 {
 
-static const char *const TAG = "my9231.output";
+ESPHOME_LOG_TAG(TAG, "my9231.output");
 
 // One-shot select (frame cycle repeat mode / frame cycle One-shot mode)
 static const uint8_t MY9231_CMD_ONE_SHOT_DISABLE = 0x0 << 6;
@@ -123,5 +122,4 @@ void MY9231OutputComponent::send_dcki_pulses_(uint8_t count) {
   }
 }
 
-}  // namespace my9231
-}  // namespace esphome
+}  // namespace esphome::my9231

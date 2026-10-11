@@ -3,10 +3,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.keeloq";
+ESPHOME_LOG_TAG(TAG, "remote.keeloq");
 
 static constexpr uint32_t BIT_TIME_US = 380;
 static constexpr uint8_t NBITS_PREAMBLE = 12;
@@ -190,5 +189,4 @@ void KeeloqProtocol::dump(const KeeloqData &data) {
   ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x", data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

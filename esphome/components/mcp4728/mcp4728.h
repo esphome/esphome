@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp4728 {
+namespace esphome::mcp4728 {
 
 enum class CMD {
   FAST_WRITE = 0x00,
@@ -39,7 +38,7 @@ struct DACInputData {
 class MCP4728Channel;
 
 /// MCP4728 float output component.
-class MCP4728Component : public Component, public i2c::I2CDevice {
+class MCP4728Component final : public Component, public i2c::I2CDevice {
  public:
   MCP4728Component(bool store_in_eeprom) : store_in_eeprom_(store_in_eeprom) {}
 
@@ -63,5 +62,4 @@ class MCP4728Component : public Component, public i2c::I2CDevice {
   bool update_ = false;
 };
 
-}  // namespace mcp4728
-}  // namespace esphome
+}  // namespace esphome::mcp4728

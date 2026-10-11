@@ -1,10 +1,9 @@
 #include "mcp2515.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp2515 {
+namespace esphome::mcp2515 {
 
-static const char *const TAG = "mcp2515";
+ESPHOME_LOG_TAG(TAG, "mcp2515");
 
 const struct MCP2515::TxBnRegs MCP2515::TXB[N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
                                                             {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
@@ -707,5 +706,4 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
     return canbus::ERROR_FAIL;
   }
 }
-}  // namespace mcp2515
-}  // namespace esphome
+}  // namespace esphome::mcp2515

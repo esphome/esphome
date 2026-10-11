@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct NECData {
   uint16_t address;
@@ -15,9 +14,9 @@ struct NECData {
 
 class NECProtocol : public RemoteProtocol<NECData> {
  public:
-  void encode(RemoteTransmitData *dst, const NECData &data) override;
-  optional<NECData> decode(RemoteReceiveData src) override;
-  void dump(const NECData &data) override;
+  void encode(RemoteTransmitData *dst, const NECData &data);
+  optional<NECData> decode(RemoteReceiveData src);
+  void dump(const NECData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(NEC)
@@ -37,5 +36,4 @@ template<typename... Ts> class NECAction : public RemoteTransmitterActionBase<Ts
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

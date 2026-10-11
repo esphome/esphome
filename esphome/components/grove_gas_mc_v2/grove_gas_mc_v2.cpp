@@ -2,10 +2,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace grove_gas_mc_v2 {
+namespace esphome::grove_gas_mc_v2 {
 
-static const char *const TAG = "grove_gas_mc_v2";
+ESPHOME_LOG_TAG(TAG, "grove_gas_mc_v2");
 
 // I2C Commands for Grove Gas Multichannel V2 Sensor
 // Taken from:
@@ -82,5 +81,4 @@ void GroveGasMultichannelV2Component::dump_config() {
   }
 }
 
-}  // namespace grove_gas_mc_v2
-}  // namespace esphome
+}  // namespace esphome::grove_gas_mc_v2

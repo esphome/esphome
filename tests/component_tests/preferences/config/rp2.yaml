@@ -1,0 +1,5 @@
+esphome:
+  name: preftest
+
+rp2:
+  board: rpipicow

@@ -8,8 +8,7 @@
 #include <esp_idf_version.h>
 #include <driver/i2s_std.h>
 
-namespace esphome {
-namespace i2s_audio {
+namespace esphome::i2s_audio {
 
 class I2SAudioComponent;
 
@@ -37,7 +36,7 @@ class I2SAudioIn : public I2SAudioBase {};
 
 class I2SAudioOut : public I2SAudioBase {};
 
-class I2SAudioComponent : public Component {
+class I2SAudioComponent final : public Component {
  public:
   i2s_std_gpio_config_t get_pin_config() const {
     return {.mclk = (gpio_num_t) this->mclk_pin_,
@@ -77,7 +76,6 @@ class I2SAudioComponent : public Component {
   int port_{};
 };
 
-}  // namespace i2s_audio
-}  // namespace esphome
+}  // namespace esphome::i2s_audio
 
 #endif  // USE_ESP32

@@ -4,11 +4,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace rotary_encoder {
+namespace esphome::rotary_encoder {
 
 /// All possible restore modes for the rotary encoder
 enum RotaryEncoderRestoreMode {
@@ -42,7 +40,7 @@ struct RotaryEncoderSensorStore {
   static void gpio_intr(RotaryEncoderSensorStore *arg);
 };
 
-class RotaryEncoderSensor : public sensor::Sensor, public Component {
+class RotaryEncoderSensor final : public sensor::Sensor, public Component {
  public:
   void set_pin_a(InternalGPIOPin *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(InternalGPIOPin *pin_b) { pin_b_ = pin_b; }
@@ -107,16 +105,4 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   CallbackManager<void(int32_t)> listeners_{};
 };
 
-template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...> {
- public:
-  RotaryEncoderSetValueAction(RotaryEncoderSensor *encoder) : encoder_(encoder) {}
-  TEMPLATABLE_VALUE(int, value)
-
-  void play(const Ts &...x) override { this->encoder_->set_value(this->value_.value(x...)); }
-
- protected:
-  RotaryEncoderSensor *encoder_;
-};
-
-}  // namespace rotary_encoder
-}  // namespace esphome
+}  // namespace esphome::rotary_encoder

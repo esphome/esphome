@@ -9,10 +9,9 @@
 #undef CAN_IO_UNUSED
 #define CAN_IO_UNUSED ((gpio_num_t) -1)
 
-namespace esphome {
-namespace esp32_can {
+namespace esphome::esp32_can {
 
-static const char *const TAG = "esp32_can";
+ESPHOME_LOG_TAG(TAG, "esp32_can");
 
 static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config) {
   switch (bitrate) {
@@ -184,7 +183,6 @@ canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
   return canbus::ERROR_OK;
 }
 
-}  // namespace esp32_can
-}  // namespace esphome
+}  // namespace esphome::esp32_can
 
 #endif

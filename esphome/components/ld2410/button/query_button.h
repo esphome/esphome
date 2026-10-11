@@ -5,7 +5,7 @@
 
 namespace esphome::ld2410 {
 
-class QueryButton : public button::Button, public Parented<LD2410Component> {
+class QueryButton final : public button::Button, public Parented<LD2410Component> {
  public:
   QueryButton() = default;
 

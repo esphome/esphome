@@ -1,10 +1,9 @@
 #include "panasonic_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.panasonic";
+ESPHOME_LOG_TAG(TAG, "remote.panasonic");
 
 static constexpr uint32_t HEADER_HIGH_US = 3502;
 static constexpr uint32_t HEADER_LOW_US = 1750;
@@ -70,5 +69,4 @@ void PanasonicProtocol::dump(const PanasonicData &data) {
   ESP_LOGI(TAG, "Received Panasonic: address=0x%04X, command=0x%08" PRIX32, data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

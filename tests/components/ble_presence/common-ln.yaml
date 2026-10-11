@@ -1,0 +1,4 @@
+binary_sensor:
+  - platform: ble_presence
+    mac_address: 11:22:33:44:55:66
+    name: BLE Test Presence

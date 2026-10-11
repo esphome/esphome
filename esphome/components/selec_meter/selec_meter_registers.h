@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace selec_meter {
+namespace esphome::selec_meter {
 
 static const float TWO_DEC_UNIT = 0.01;
 static const float ONE_DEC_UNIT = 0.1;
@@ -28,5 +27,4 @@ static const uint16_t SELEC_MAXIMUM_DEMAND_ACTIVE_POWER = 0x001C;
 static const uint16_t SELEC_MAXIMUM_DEMAND_REACTIVE_POWER = 0x001E;
 static const uint16_t SELEC_MAXIMUM_DEMAND_APPARENT_POWER = 0x0020;
 
-}  // namespace selec_meter
-}  // namespace esphome
+}  // namespace esphome::selec_meter

@@ -4,10 +4,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace update {
+namespace esphome::update {
 
-static const char *const TAG = "update";
+ESPHOME_LOG_TAG(TAG, "update");
 
 // Update state strings indexed by UpdateState enum (0-3): UNKNOWN, NO UPDATE, UPDATE AVAILABLE, INSTALLING
 PROGMEM_STRING_TABLE(UpdateStateStrings, "UNKNOWN", "NO UPDATE", "UPDATE AVAILABLE", "INSTALLING");
@@ -49,5 +48,4 @@ void UpdateEntity::publish_state() {
 #endif
 }
 
-}  // namespace update
-}  // namespace esphome
+}  // namespace esphome::update

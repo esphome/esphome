@@ -1,10 +1,9 @@
 #include "nec_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.nec";
+ESPHOME_LOG_TAG(TAG, "remote.nec");
 
 static constexpr uint32_t HEADER_HIGH_US = 9000;
 static constexpr uint32_t HEADER_LOW_US = 4500;
@@ -98,5 +97,4 @@ void NECProtocol::dump(const NECData &data) {
            data.command_repeats);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

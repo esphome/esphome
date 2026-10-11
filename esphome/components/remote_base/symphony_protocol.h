@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct SymphonyData {
   uint32_t data;
@@ -18,9 +17,9 @@ struct SymphonyData {
 
 class SymphonyProtocol : public RemoteProtocol<SymphonyData> {
  public:
-  void encode(RemoteTransmitData *dst, const SymphonyData &data) override;
-  optional<SymphonyData> decode(RemoteReceiveData src) override;
-  void dump(const SymphonyData &data) override;
+  void encode(RemoteTransmitData *dst, const SymphonyData &data);
+  optional<SymphonyData> decode(RemoteReceiveData src);
+  void dump(const SymphonyData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Symphony)
@@ -40,5 +39,4 @@ template<typename... Ts> class SymphonyAction : public RemoteTransmitterActionBa
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

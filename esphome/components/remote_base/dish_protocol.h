@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct DishData {
   uint8_t address;
@@ -14,9 +13,9 @@ struct DishData {
 
 class DishProtocol : public RemoteProtocol<DishData> {
  public:
-  void encode(RemoteTransmitData *dst, const DishData &data) override;
-  optional<DishData> decode(RemoteReceiveData src) override;
-  void dump(const DishData &data) override;
+  void encode(RemoteTransmitData *dst, const DishData &data);
+  optional<DishData> decode(RemoteReceiveData src);
+  void dump(const DishData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Dish)
@@ -34,5 +33,4 @@ template<typename... Ts> class DishAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

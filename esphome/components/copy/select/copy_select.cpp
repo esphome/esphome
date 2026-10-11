@@ -1,10 +1,9 @@
 #include "copy_select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-static const char *const TAG = "copy.select";
+ESPHOME_LOG_TAG(TAG, "copy.select");
 
 void CopySelect::setup() {
   source_->add_on_state_callback([this](size_t index) { this->publish_state(index); });
@@ -24,5 +23,4 @@ void CopySelect::control(size_t index) {
   call.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

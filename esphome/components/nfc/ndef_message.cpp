@@ -1,12 +1,11 @@
 #include "ndef_message.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
-static const char *const TAG = "nfc.ndef_message";
+ESPHOME_LOG_TAG(TAG, "nfc.ndef_message");
 
-NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
+NdefMessage::NdefMessage(const std::span<const uint8_t> data) {
   ESP_LOGV(TAG, "Building NdefMessage with %zu bytes", data.size());
   size_t index = 0;
   while (index < data.size()) {
@@ -53,7 +52,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     index += type_length;
 
-    std::string id_str = "";
+    std::string id_str;
     if (il) {
       id_str = std::string(data.begin() + index, data.begin() + index + id_length);
       index += id_length;
@@ -98,7 +97,7 @@ bool NdefMessage::add_record(std::unique_ptr<NdefRecord> record) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
   }
-  this->records_.emplace_back(std::move(record));
+  this->records_.emplace_next() = std::move(record);
   return true;
 }
 
@@ -120,5 +119,4 @@ std::vector<uint8_t> NdefMessage::encode() {
   return data;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

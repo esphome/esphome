@@ -5,10 +5,9 @@
 
 #include "weikai_spi.h"
 
-namespace esphome {
-namespace weikai_spi {
+namespace esphome::weikai_spi {
 using namespace weikai;
-static const char *const TAG = "weikai_spi";
+ESPHOME_LOG_TAG(TAG, "weikai_spi");
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
@@ -187,5 +186,4 @@ void WeikaiComponentSPI::dump_config() {
   }
 }
 
-}  // namespace weikai_spi
-}  // namespace esphome
+}  // namespace esphome::weikai_spi

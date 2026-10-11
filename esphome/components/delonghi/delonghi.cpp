@@ -1,10 +1,9 @@
 #include "delonghi.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace delonghi {
+namespace esphome::delonghi {
 
-static const char *const TAG = "delonghi.climate";
+ESPHOME_LOG_TAG(TAG, "delonghi.climate");
 
 void DelonghiClimate::transmit_state() {
   uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};
@@ -182,5 +181,4 @@ bool DelonghiClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(state_frame);
 }
 
-}  // namespace delonghi
-}  // namespace esphome
+}  // namespace esphome::delonghi
