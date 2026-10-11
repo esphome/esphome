@@ -32,9 +32,9 @@ bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value
 }
 
 bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
-  // Setup rejects an unknown chip; the action must not program it either
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, "Not applying configuration, setup failed");
+  // Setup rejects an unknown chip; the action must not program it before that check or after it failed
+  if (!this->is_ready() || this->is_failed()) {
+    ESP_LOGW(TAG, "Not applying configuration, setup has not succeeded");
     return false;
   }
   for (size_t i = 0; i < regs.size(); i++) {
@@ -42,7 +42,7 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
     const uint8_t mask = progmem_read_byte(&BQ25186_CONFIG_MASKS[i]);
     const bool ok = mask == 0xFF ? this->write_register_(reg, regs[i]) : this->update_register_(reg, mask, regs[i]);
     if (!ok) {
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR("Configuration partly applied"));
       return false;
     }
   }
