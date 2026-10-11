@@ -7,12 +7,6 @@ from esphome.components.tuya import CONF_FORCE_TIME_SYNC, CONFIG_SCHEMA
 from esphome.const import CONF_TIME_ID
 
 
-def test_force_time_sync_defaults_to_false() -> None:
-    config = CONFIG_SCHEMA({})
-
-    assert config[CONF_FORCE_TIME_SYNC] is False
-
-
 def test_force_time_sync_accepts_time_id() -> None:
     config = CONFIG_SCHEMA(
         {

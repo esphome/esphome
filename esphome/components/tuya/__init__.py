@@ -89,7 +89,8 @@ async def to_code(config):
     if (time_id := config.get(CONF_TIME_ID)) is not None:
         time_ = await cg.get_variable(time_id)
         cg.add(var.set_time_id(time_))
-        cg.add(var.set_force_time_sync(config[CONF_FORCE_TIME_SYNC]))
+        if config[CONF_FORCE_TIME_SYNC]:
+            cg.add(var.set_force_time_sync(True))
     if CONF_STATUS_PIN in config:
         status_pin_ = await cg.gpio_pin_expression(config[CONF_STATUS_PIN])
         cg.add(var.set_status_pin(status_pin_))

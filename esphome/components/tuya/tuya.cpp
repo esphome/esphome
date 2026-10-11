@@ -23,11 +23,10 @@ ESPHOME_LOG_TAG(TAG, "tuya");
 static constexpr uint32_t HEARTBEAT_INTERVAL_ID = 0;
 static constexpr uint32_t WIFI_STATUS_INTERVAL_ID = 1;
 static constexpr uint32_t DATAPOINT_DUMP_TIMEOUT_ID = 2;
-static constexpr uint32_t FORCE_TIME_SYNC_INTERVAL_ID = 3;
+static constexpr uint32_t FORCE_TIME_SYNC_TIMEOUT_ID = 3;
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
-static constexpr uint32_t FORCE_TIME_SYNC_CHECK_INTERVAL = 1000;
 // Max bytes to log for datapoint values (larger values are truncated)
 static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
 
@@ -42,9 +41,9 @@ static bool network_is_connected() {
 void Tuya::setup() {
   this->set_interval(HEARTBEAT_INTERVAL_ID, 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 #ifdef USE_TIME
-  if (this->time_id_ != nullptr && this->force_time_sync_) {
+  if (this->force_time_sync_) {
     this->register_local_time_sync_callback_();
-    this->set_interval(FORCE_TIME_SYNC_INTERVAL_ID, FORCE_TIME_SYNC_CHECK_INTERVAL, [this] { this->check_force_time_sync_(); });
+    this->arm_force_time_sync_();
   }
 #endif
   if (this->status_pin_ != nullptr) {
@@ -632,22 +631,15 @@ void Tuya::register_local_time_sync_callback_() {
   this->time_sync_callback_registered_ = true;
 }
 
-void Tuya::check_force_time_sync_() {
+void Tuya::arm_force_time_sync_() {
   ESPTime now = this->time_id_->now();
-  if (!now.is_valid()) {
-    return;
-  }
-
-  if (this->last_force_time_sync_minute_ == 0xFF) {
-    this->last_force_time_sync_minute_ = now.minute;
-    return;
-  }
-  if (now.minute == this->last_force_time_sync_minute_) {
-    return;
-  }
-
-  this->last_force_time_sync_minute_ = now.minute;
-  this->send_local_time_();
+  // Land 100 ms past the next minute boundary; until the clock is valid, look again in a second
+  const uint32_t delay = now.is_valid() ? (60 - now.second) * 1000 + 100 : 1000;
+  this->set_timeout(FORCE_TIME_SYNC_TIMEOUT_ID, delay, [this] {
+    if (this->time_id_->now().is_valid())
+      this->send_local_time_();
+    this->arm_force_time_sync_();
+  });
 }
 
 void Tuya::send_local_time_() {
