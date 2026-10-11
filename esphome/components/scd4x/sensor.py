@@ -45,6 +45,15 @@ MEASUREMENT_MODE_OPTIONS = {
 }
 
 
+def pressure_hpa(value):
+    """Pressure in hPa. A bare number is hPa, matching what the C++ sends to the sensor."""
+    try:
+        return cv.float_(value)
+    except cv.Invalid:
+        pass
+    return cv.pressure(value) * 1000  # bar, mbar, mBar
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -75,7 +84,9 @@ CONFIG_SCHEMA = (
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.All(
+                pressure_hpa, cv.float_range(min=700, max=1200)
+            ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
