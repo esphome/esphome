@@ -74,11 +74,24 @@ zigbee:
   sleep behavior. One of `UNKNOWN`, `MAINS_SINGLE_PHASE`, `MAINS_THREE_PHASE`, `BATTERY`,
   `DC_SOURCE`, `EMERGENCY_MAINS_CONST`, or `EMERGENCY_MAINS_TRANSF`. Defaults to `DC_SOURCE`.
 
+- **sleepy** (*Optional*, boolean): Disable RX during idle to reduce power consumption for battery-powered devices.
+  Only valid for end devices, not routers. The device polls for data typically every 3-5 s, or at the interval set
+  with `polling_interval` on `ESP32`. Device interview is considerably slower and can take a long time if many
+  sensors are used. Defaults to `false`.
+
 - **on_start** (*Optional*, [Automation](/automations#automation)): Automation to run when the Zigbee stack is fully
   initialized and can be interacted with. It will then try to (re-)join a network.
 
 - **on_join** (*Optional*, [Automation](/automations#automation)): Automation to run when the device joins the network.
   In [Lambdas](/automations/templates#config-lambda) you can get the join type with `x`. It is `true` for join and `false` for rejoin.
+
+Only on `ESP32`:
+
+- **polling_interval** (*Optional*, [Time](/guides/configuration-types/#time)): The time between polls for data of a
+  sleepy end device, also known as the long poll interval. Do not set a value higher than `7s` if the device needs to
+  be reachable from the coordinator (e.g. switch or number components). For non-sleepy end devices this is the
+  interval of the keep-alive message and has no influence on responsiveness. Only valid for end devices, not
+  routers. Must be between `200ms` and `1h`. Defaults to `3s`.
 
 Only on `nRF52`:
 
@@ -95,9 +108,6 @@ Only on `nRF52`:
   Alternatively, set to `random` to generate a new random OUI on every firmware compilation.
   This is useful during development to force the coordinator (ZHA/Z2M) to recognize the device
   as new after firmware updates.
-
-- **sleepy** (*Optional*, boolean): Disable RX during idle to reduce power consumption for battery-powered devices.
-  It may cause stability problems with the Zigbee connection. Defaults to `false`.
 
 > [!WARNING]
 > Overusing `random` may exhaust memory in the Zigbee coordinator by creating many "ghost" devices.
