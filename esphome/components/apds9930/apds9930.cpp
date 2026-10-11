@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace esphome::apds9930 {
 
@@ -54,13 +55,10 @@ static constexpr uint8_t AMBIENT_GAINS[4] = {1, 8, 16, 120};
 static constexpr uint8_t PROXIMITY_GAINS[4] = {1, 2, 4, 8};
 static constexpr float LED_CURRENTS_MA[4] = {100.0f, 50.0f, 25.0f, 12.5f};
 
-// Lux per count for each ambient gain, at the fixed integration time
-static constexpr float LUX_PER_COUNT[4] = {
-    APDS9930_GA * APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[0]),
-    APDS9930_GA *APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[1]),
-    APDS9930_GA *APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[2]),
-    APDS9930_GA *APDS9930_DF / (APDS9930_ALSIT_MS * AMBIENT_GAINS[3]),
-};
+// Lux per count at 1x gain and the fixed integration time
+static constexpr float LUX_PER_COUNT_1X = APDS9930_GA * APDS9930_DF / APDS9930_ALSIT_MS;
+// Each integration cycle adds up to 1024 counts, so this is the ceiling of both light channels
+static constexpr uint16_t ALS_SATURATION = 1024 * (256 - APDS9930_ATIME_VALUE);
 
 bool APDS9930Component::write_reg_(uint8_t reg, uint8_t value) { return this->write_byte(reg | APDS9930_CMD, value); }
 
@@ -119,10 +117,16 @@ void APDS9930Component::update() {
   const uint8_t status = raw[0];
 
   if (this->illuminance_sensor_ != nullptr && (status & APDS9930_AVALID) != 0) {
-    const float ch0 = encode_uint16(raw[2], raw[1]);
-    const float ch1 = encode_uint16(raw[4], raw[3]);
-    const float iac = std::max({ch0 - APDS9930_ALS_B * ch1, APDS9930_ALS_C * ch0 - APDS9930_ALS_D * ch1, 0.0f});
-    this->illuminance_sensor_->publish_state(iac * LUX_PER_COUNT[this->ambient_gain_]);
+    const uint16_t ch0 = encode_uint16(raw[2], raw[1]);
+    const uint16_t ch1 = encode_uint16(raw[4], raw[3]);
+    if (ch0 >= ALS_SATURATION || ch1 >= ALS_SATURATION) {
+      // A saturated channel would give a lux value that is too low, not too high
+      ESP_LOGW(TAG, "Light channel saturated, lower ambient_light_gain");
+      this->illuminance_sensor_->publish_state(NAN);
+    } else {
+      const float iac = std::max({ch0 - APDS9930_ALS_B * ch1, APDS9930_ALS_C * ch0 - APDS9930_ALS_D * ch1, 0.0f});
+      this->illuminance_sensor_->publish_state(iac * LUX_PER_COUNT_1X / AMBIENT_GAINS[this->ambient_gain_]);
+    }
   }
 
   if (this->proximity_sensor_ != nullptr && (status & APDS9930_PVALID) != 0) {
