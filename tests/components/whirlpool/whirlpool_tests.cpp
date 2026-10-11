@@ -44,9 +44,9 @@ static remote_base::RawTimings waveform(const Frame &bytes) {
 
 /// Decodes a captured waveform back into bytes, checking header, dividers and footer positions
 static ::testing::AssertionResult decode(const remote_base::RawTimings &raw, Frame &out) {
-  static constexpr size_t expected_len = 2 + FRAME_LEN * 16 + 2 * 2 + 1;
-  if (raw.size() != expected_len)
-    return ::testing::AssertionFailure() << "timing count " << raw.size() << ", expected " << expected_len;
+  static constexpr size_t EXPECTED_LEN = 2 + FRAME_LEN * 16 + 2 * 2 + 1;
+  if (raw.size() != EXPECTED_LEN)
+    return ::testing::AssertionFailure() << "timing count " << raw.size() << ", expected " << EXPECTED_LEN;
   if (raw[0] != HEADER_MARK || raw[1] != -HEADER_SPACE)
     return ::testing::AssertionFailure() << "bad header " << raw[0] << " " << raw[1];
   size_t pos = 2;
@@ -165,7 +165,7 @@ static bool receive(WhirlpoolClimate &climate, const Frame &bytes) {
   return static_cast<remote_base::RemoteReceiverListener &>(climate).on_receive(data);
 }
 
-TEST(WhirlpoolDG11J1_3A, CoolFromOffMatchesKnownFrame) {
+TEST(WhirlpoolDG11J13A, CoolFromOffMatchesKnownFrame) {
   Fixture f(MODEL_DG11J1_3A);
   f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_LOW);
 
@@ -174,7 +174,7 @@ TEST(WhirlpoolDG11J1_3A, CoolFromOffMatchesKnownFrame) {
                                 0x00, 0x00, 0xE5, 0x00, 0x06, 0x00, 0x00, 0x08, 0x00, 0x0E});
 }
 
-TEST(WhirlpoolDG11J1_91, CoolFromOffUsesSixteenDegreeBase) {
+TEST(WhirlpoolDG11J191, CoolFromOffUsesSixteenDegreeBase) {
   Fixture f(MODEL_DG11J1_91);
   f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_LOW);
 
@@ -217,7 +217,9 @@ TEST(WhirlpoolHisenseArg, ModeSpecificFanAndTemperature) {
     float target;
     uint8_t range;
   };
-  for (const RangeCase &c : {RangeCase{16, 0x30}, RangeCase{22, 0x50}, RangeCase{24, 0x40}, RangeCase{30, 0x20}}) {
+  // 23 C (step 7) shares the catch-all code with the high end of the range
+  for (const RangeCase &c :
+       {RangeCase{16, 0x30}, RangeCase{22, 0x50}, RangeCase{23, 0x20}, RangeCase{24, 0x40}, RangeCase{30, 0x20}}) {
     f.command(climate::CLIMATE_MODE_HEAT_COOL, c.target, climate::CLIMATE_FAN_LOW);
     frame = f.last_frame();
     EXPECT_EQ(frame[3], 0x71) << "target " << c.target;
@@ -251,7 +253,7 @@ TEST(WhirlpoolHisenseArg, SwingIsSentOnEveryTransmit) {
   EXPECT_EQ(frame[8], 0x00);
 }
 
-TEST(WhirlpoolDG11J1_3A, SwingIsSentOnlyWhenItChanges) {
+TEST(WhirlpoolDG11J13A, SwingIsSentOnlyWhenItChanges) {
   Fixture f(MODEL_DG11J1_3A);
   f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_VERTICAL);
   Frame frame = f.last_frame();
@@ -354,6 +356,17 @@ TEST(WhirlpoolHisenseArg, ReceiveIgnoredRightAfterTransmit) {
   f.command(climate::CLIMATE_MODE_COOL, 20, climate::CLIMATE_FAN_LOW);
   EXPECT_FALSE(receive(f.climate, hisense_cool_frame()));
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 20);
+}
+
+TEST(WhirlpoolHisenseArg, PowerOffKeepsTheCoolModeCode) {
+  Fixture f(MODEL_HISENSE_ARG);
+  f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_LOW);
+  f.command(climate::CLIMATE_MODE_OFF, 24, climate::CLIMATE_FAN_LOW);
+  const Frame frame = f.last_frame();
+  // The hardware-tested remote sends the cool code with the power toggle, not the heat code 0
+  EXPECT_EQ(frame[3] & 0x07, 2);
+  EXPECT_EQ(frame[2] & 0x04, 0x04);
+  EXPECT_EQ(frame[15], 0x01);
 }
 
 TEST(WhirlpoolHisenseArg, EveryTransmitHasValidChecksums) {

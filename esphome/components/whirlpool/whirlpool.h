@@ -47,12 +47,18 @@ class WhirlpoolClimate final : public climate_ir::ClimateIR {
   void transmit_state() override;
   /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
+  /// False when the model is compiled out, so the compiler drops the Hisense ARG branches.
+  bool is_hisense_arg_() const {
 #ifdef USE_WHIRLPOOL_HISENSE_ARG
+    return this->model_ == MODEL_HISENSE_ARG;
+#else
+    return false;
+#endif
+  }
   /// Modes in which the Hisense ARG model sends a fixed temperature.
   bool fixed_temp_mode_() const;
   /// Add the Hisense ARG bytes on top of the common whirlpool frame.
   void encode_hisense_arg_(uint8_t *remote_state, bool power_toggle, uint8_t temp_step) const;
-#endif
   /// Set the time of the last transmission.
   uint32_t last_transmit_time_{};
 

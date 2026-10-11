@@ -97,12 +97,10 @@ void WhirlpoolClimate::transmit_state() {
   // Temperature
   auto temp = (uint8_t) roundf(clamp(this->target_temperature, this->temperature_min_(), this->temperature_max_()));
   const auto temp_step = (uint8_t) (temp - this->temperature_min_());
-#ifdef USE_WHIRLPOOL_HISENSE_ARG
-  if (this->model_ == MODEL_HISENSE_ARG && this->fixed_temp_mode_()) {
+  const bool hisense_arg = this->is_hisense_arg_();
+  if (hisense_arg && this->fixed_temp_mode_()) {
     remote_state[3] |= HISENSE_ARG_FIXED_TEMP_STEP << 4;
-  } else
-#endif
-  {
+  } else {
     remote_state[3] |= temp_step << 4;
   }
 
@@ -123,17 +121,14 @@ void WhirlpoolClimate::transmit_state() {
 
   // Swing
   ESP_LOGV(TAG, "send swing %s", this->send_swing_cmd_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
-#ifdef USE_WHIRLPOOL_HISENSE_ARG
-  if (this->model_ == MODEL_HISENSE_ARG) {
+  if (hisense_arg) {
     // This model sends swing as a state on every frame; the DG11J1 remotes send a toggle
     if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
       remote_state[2] |= WHIRLPOOL_SWING_MASK;
       remote_state[8] = WHIRLPOOL_SWING_BYTE8;
     }
     this->encode_hisense_arg_(remote_state, power_toggle, temp_step);
-  } else
-#endif
-      if (this->send_swing_cmd_) {
+  } else if (this->send_swing_cmd_) {
     if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_OFF) {
       remote_state[2] |= WHIRLPOOL_SWING_MASK;
       remote_state[8] |= WHIRLPOOL_SWING_BYTE8;
@@ -184,17 +179,21 @@ void WhirlpoolClimate::transmit_state() {
   transmit.perform();
 }
 
-#ifdef USE_WHIRLPOOL_HISENSE_ARG
 bool WhirlpoolClimate::fixed_temp_mode_() const {
   return this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_FAN_ONLY;
 }
 
 void WhirlpoolClimate::encode_hisense_arg_(uint8_t *remote_state, bool power_toggle, uint8_t temp_step) const {
+#ifdef USE_WHIRLPOOL_HISENSE_ARG
   remote_state[11] = HISENSE_ARG_DISPLAY_ON;
   remote_state[12] = HISENSE_ARG_AMBIENT_TEMP;
   remote_state[15] = power_toggle ? HISENSE_ARG_POWER_TOGGLE : HISENSE_ARG_SETTINGS_ONLY;
 
   switch (this->mode) {
+    case climate::CLIMATE_MODE_OFF:
+      // The remote keeps the cool code in the power-off frame
+      remote_state[3] = (remote_state[3] & 0xF0) | WHIRLPOOL_COOL;
+      break;
     case climate::CLIMATE_MODE_DRY:
       remote_state[2] &= ~WHIRLPOOL_FAN_MASK;  // dry forces fan auto
       break;
@@ -204,7 +203,8 @@ void WhirlpoolClimate::encode_hisense_arg_(uint8_t *remote_state, bool power_tog
       }
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
-      // Auto sends the target as a range code in byte 2 bits 6:4 instead of the temperature nibble
+      // Auto sends the target as one of four range codes in byte 2 bits 6:4 instead of the temperature nibble.
+      // Taken from the HPA-4911 firmware: 16 to 21 C, 22 C, 24 C, and everything else (23 C and 25 C up) share a code.
       if (temp_step < 6) {
         remote_state[2] |= 0x30;
       } else if (temp_step == 6) {
@@ -218,8 +218,8 @@ void WhirlpoolClimate::encode_hisense_arg_(uint8_t *remote_state, bool power_tog
     default:
       break;
   }
-}
 #endif
+}
 
 bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Check if the esp isn't currently transmitting.
@@ -332,14 +332,8 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Set received temp; Hisense ARG sends fixed values in auto and fan-only
-#ifdef USE_WHIRLPOOL_HISENSE_ARG
-  const bool hisense_arg = this->model_ == MODEL_HISENSE_ARG;
-  const bool fixed_temp = hisense_arg && this->fixed_temp_mode_();
-#else
-  const bool hisense_arg = false;
-  const bool fixed_temp = false;
-#endif
-  if (!fixed_temp) {
+  const bool hisense_arg = this->is_hisense_arg_();
+  if (!hisense_arg || !this->fixed_temp_mode_()) {
     int temp = remote_state[3] & 0xF0;
     ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
     temp = (uint8_t) temp >> 4;
