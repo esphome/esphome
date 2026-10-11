@@ -122,11 +122,12 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void query_dynamic_background_correction_();
 #ifdef USE_NUMBER
   // One threshold command carries every gate, so gates without a number are sent the value the module last reported.
-  // Until the module has answered once, a configured number may still have no value, so a write waits for the answer
+  // Until the module has answered since boot or the last factory reset, the values on hand may be missing or stale,
+  // so a write waits for the answer
   struct GateThresholds {
     std::array<number::Number *, TOTAL_GATES> numbers{};
     std::array<uint8_t, TOTAL_GATES> last_read{};
-    bool read{false};  // the module has answered the query at least once
+    bool read{false};  // the module has answered the query since boot or the last factory reset
   };
   GateThresholds &gate_thresholds_(bool motion) {
     return motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;

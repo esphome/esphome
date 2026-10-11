@@ -75,3 +75,10 @@ number:
         name: "Gate 5 Move Threshold"
       still_threshold:
         name: "Gate 5 Still Threshold"
+
+# A factory reset discards the module's thresholds, so the next write has to wait for them to be read again
+button:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    factory_reset:
+      name: "Factory Reset"

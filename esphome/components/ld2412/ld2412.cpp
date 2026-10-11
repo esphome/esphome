@@ -778,6 +778,11 @@ void LD2412Component::set_engineering_mode(bool enable) {
 void LD2412Component::factory_reset() {
   this->set_config_mode_(true);
   this->send_command_(CMD_FACTORY_RESET, nullptr, 0);
+#ifdef USE_NUMBER
+  // The reset discards the module's thresholds, so a write must wait for the re-read
+  this->gate_move_thresholds_.read = false;
+  this->gate_still_thresholds_.read = false;
+#endif
   this->set_timeout(2000, [this]() { this->restart_and_read_all_info(); });
 }
 
@@ -865,8 +870,8 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
 void LD2412Component::gate_query_timeout_(bool motion) {
   ESP_LOGE(TAG, "Command %02X not sent, the module did not report its gate thresholds",
            motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS);
-  // Before the first answer every value a number holds was set by the user and never reached the module,
-  // so marking the group unknown hits only those values
+  // Every value a number holds either never reached the module (set by the user before the first answer) or
+  // is stale (read before a factory reset), so marking the group unknown loses nothing the module still has
   for (number::Number *n : this->gate_thresholds_(motion).numbers) {
     if (n != nullptr) {
       n->publish_state(NAN);

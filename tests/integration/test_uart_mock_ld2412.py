@@ -27,6 +27,8 @@ test_uart_mock_ld2412_footer_in_payload (frame footer bytes inside the threshold
   3. Writing a threshold does not crash when most gates have no number
   4. A motion write sends only the motion command with all 14 gates, the user value and the module
      values exactly as read, and a still write does the same for the still command
+  5. A factory reset discards the values read from the module, so the next write is held back and
+     queried again before it goes out
 
 test_uart_mock_ld2412_truncated_answer (truncated threshold answer):
   1. A motion answer missing two gate bytes runs into the next acknowledgement
@@ -78,6 +80,8 @@ MOTION_QUERY = "02:00:13:00"
 STILL_QUERY = "02:00:14:00"
 # Length 2 and command 0xFE, the frame that leaves configuration mode
 CONFIG_MODE_LEFT = "02:00:FE:00"
+# Length 2 and command 0xA2, the factory reset
+FACTORY_RESET = "02:00:A2:00"
 # Logged in place of the motion command when the write waits for the module's values, or was given up
 MOTION_HELD_BACK = "Command 03 held back"
 MOTION_GIVEN_UP = "Command 03 not sent, the module did not report"
@@ -142,6 +146,38 @@ def _number_state_of(key: int) -> Callable[[EntityState], bool]:
 def _is_nan_of(key: int) -> Callable[[EntityState], bool]:
     """Return a predicate that matches the number ``key`` being marked unknown."""
     return lambda s: _number_state_of(key)(s) and math.isnan(s.state)
+
+
+class _LogEvents:
+    """Record the TX lines and the log lines holding one of ``texts``, in the order they were logged."""
+
+    def __init__(self, *texts: str) -> None:
+        self._texts = texts
+        self.lines: list[str] = []
+        # Text a test waits for, resolved by the next line that holds it
+        self._awaited: dict[str, asyncio.Future[None]] = {}
+
+    def on_line(self, line: str) -> None:
+        if _is_tx(line) or any(text in line for text in self._texts):
+            self.lines.append(line)
+        for text, future in self._awaited.items():
+            if text in line and not future.done():
+                future.set_result(None)
+
+    def next_line_with(self, text: str) -> asyncio.Future[None]:
+        """Return a future resolved by the next line that holds ``text``."""
+        future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._awaited[text] = future
+        return future
+
+    def index_after(self, start: int, text: str) -> int:
+        """Return the index of the first recorded line after ``start`` that holds ``text``."""
+        return next(
+            i for i, line in enumerate(self.lines) if i > start and text in line
+        )
+
+    def count(self, text: str) -> int:
+        return sum(text in line for line in self.lines)
 
 
 @pytest.mark.asyncio
@@ -487,18 +523,12 @@ async def test_uart_mock_ld2412_footer_in_payload(
     expected_motion = "4D:23:23:23:23:04:03:02:01:19:19:19:19:19"
     # Still: gate 5 becomes 77 (0x4D), gates 10 to 13 keep 4, 3, 2, 1
     expected_still = "00:23:23:23:23:4D:19:19:19:19:04:03:02:01"
-    tx_lines: list[str] = []
-    tx_callback, (motion_written, still_written) = _tx_waiter(
-        expected_motion, expected_still
-    )
-
-    def line_callback(line: str) -> None:
-        if _is_tx(line):
-            tx_lines.append(line)
-        tx_callback(line)
+    # Motion after the factory reset: gate 0 becomes 50 (0x32), the rest is read from the module again
+    expected_motion_after_reset = "32:23:23:23:23:04:03:02:01:19:19:19:19:19"
+    events = _LogEvents(MOTION_HELD_BACK)
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=events.on_line),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -516,6 +546,7 @@ async def test_uart_mock_ld2412_footer_in_payload(
             assert state.state == pytest.approx(value), name
 
         # Write one motion threshold; this is what used to crash the device
+        motion_written = events.next_line_with(expected_motion)
         client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
         try:
             await asyncio.wait_for(motion_written, timeout=5.0)
@@ -526,10 +557,11 @@ async def test_uart_mock_ld2412_footer_in_payload(
             )
 
         # A motion write leaves the still thresholds alone
-        assert not any(STILL_COMMAND in line for line in tx_lines), (
+        assert events.count(STILL_COMMAND) == 0, (
             "still threshold command was sent for a motion write"
         )
 
+        still_written = events.next_line_with(expected_still)
         client.number_command(numbers["gate_5_still_threshold"].key, 77.0)
         try:
             await asyncio.wait_for(still_written, timeout=5.0)
@@ -539,9 +571,38 @@ async def test_uart_mock_ld2412_footer_in_payload(
                 f"  expected still payload: {expected_still}"
             )
 
-        # Each group was written exactly once
-        assert sum(MOTION_COMMAND in line for line in tx_lines) == 1
-        assert sum(STILL_COMMAND in line for line in tx_lines) == 1
+        # Each group was written exactly once, and nothing was held back
+        assert events.count(MOTION_COMMAND) == 1
+        assert events.count(STILL_COMMAND) == 1
+        assert events.count(MOTION_HELD_BACK) == 0
+
+        # A factory reset discards the module's thresholds, so the values read so far must not be reused
+        reset_sent = events.next_line_with(FACTORY_RESET)
+        client.button_command(require_entity(entities, "factory_reset", ButtonInfo).key)
+        try:
+            await asyncio.wait_for(reset_sent, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for the factory reset command")
+
+        # The write is held back, the motion thresholds are queried again, the mock answers and the write
+        # goes out
+        held_back = events.next_line_with(MOTION_HELD_BACK)
+        written_after_reset = events.next_line_with(expected_motion_after_reset)
+        client.number_command(numbers["gate_0_move_threshold"].key, 50.0)
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(held_back, written_after_reset), timeout=5.0
+            )
+        except TimeoutError:
+            pytest.fail(
+                "Timeout waiting for the write after the factory reset.\n"
+                f"  expected motion payload: {expected_motion_after_reset}\n"
+                f"  logged: {events.lines}"
+            )
+        reset_at = events.index_after(-1, FACTORY_RESET)
+        warning_at = events.index_after(reset_at, MOTION_HELD_BACK)
+        query_at = events.index_after(warning_at, MOTION_QUERY)
+        events.index_after(query_at, expected_motion_after_reset)
 
         # A round trip proves the device is still running after the writes
         entities_after, _ = await client.list_entities_services()
@@ -645,32 +706,12 @@ async def test_uart_mock_ld2412_requery_after_giveup(
     with the module value for gate 0 and the user value for gate 5. The answer must not overwrite the
     value the user wrote.
     """
-    loop = asyncio.get_running_loop()
-
     # Gate 0 takes the module value 25 (0x19), gate 5 the user value 30 (0x1E)
     expected_motion = "19:0B:0C:0D:0E:1E:10:11:12:13:14:15:16:17"
-    # The warnings, the error and every TX line in the order they were logged
-    events: list[str] = []
-    # Text of a log line a phase waits for, resolved by the next line that holds it
-    awaited: dict[str, asyncio.Future[None]] = {}
-
-    def line_callback(line: str) -> None:
-        if MOTION_HELD_BACK in line or MOTION_GIVEN_UP in line or _is_tx(line):
-            events.append(line)
-        for text, future in awaited.items():
-            if text in line and not future.done():
-                future.set_result(None)
-
-    def next_line_with(text: str) -> asyncio.Future[None]:
-        future: asyncio.Future[None] = loop.create_future()
-        awaited[text] = future
-        return future
-
-    def index_after(start: int, text: str) -> int:
-        return next(i for i, line in enumerate(events) if i > start and text in line)
+    events = _LogEvents(MOTION_HELD_BACK, MOTION_GIVEN_UP)
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=events.on_line),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -693,9 +734,9 @@ async def test_uart_mock_ld2412_requery_after_giveup(
             assert initial_state_helper.initial_states[key].missing_state
 
         # Phase 1: the write is held back, the query sent again stays unanswered and the write is given up
-        held_back = next_line_with(MOTION_HELD_BACK)
-        config_mode_left = next_line_with(CONFIG_MODE_LEFT)
-        given_up = next_line_with(MOTION_GIVEN_UP)
+        held_back = events.next_line_with(MOTION_HELD_BACK)
+        config_mode_left = events.next_line_with(CONFIG_MODE_LEFT)
+        given_up = events.next_line_with(MOTION_GIVEN_UP)
         unknown = [
             waiter.expect(_is_nan_of(key), label="NaN")
             for key in (gate_0_key, gate_5_key)
@@ -706,7 +747,7 @@ async def test_uart_mock_ld2412_requery_after_giveup(
                 asyncio.gather(held_back, config_mode_left), timeout=5.0
             )
         except TimeoutError:
-            pytest.fail(f"Timeout waiting for the write to be handled: {events}")
+            pytest.fail(f"Timeout waiting for the write to be handled: {events.lines}")
         # The unanswered query times out after 2 s
         try:
             await asyncio.wait_for(given_up, timeout=3.0)
@@ -716,11 +757,9 @@ async def test_uart_mock_ld2412_requery_after_giveup(
 
         # Only the held back motion group asks the module for its values again, before configuration
         # mode is left
-        warning_at = next(
-            i for i, line in enumerate(events) if MOTION_HELD_BACK in line
-        )
-        left_at = index_after(warning_at, CONFIG_MODE_LEFT)
-        write_window = events[warning_at:left_at]
+        warning_at = events.index_after(-1, MOTION_HELD_BACK)
+        left_at = events.index_after(warning_at, CONFIG_MODE_LEFT)
+        write_window = events.lines[warning_at:left_at]
         assert any(MOTION_QUERY in line for line in write_window), (
             "motion thresholds were not queried again after the command was held back"
         )
@@ -728,13 +767,13 @@ async def test_uart_mock_ld2412_requery_after_giveup(
             "still thresholds were queried for a motion write"
         )
         # Neither threshold command reached the module, so no gate was reconfigured
-        assert not any(MOTION_COMMAND in line for line in events), (
+        assert events.count(MOTION_COMMAND) == 0, (
             "motion threshold command was sent without a value for the gates that have no number"
         )
 
         # Phase 2: the write is held back again and the module answers the query sent again
-        held_back_again = next_line_with(MOTION_HELD_BACK)
-        motion_written = next_line_with(expected_motion)
+        held_back_again = events.next_line_with(MOTION_HELD_BACK)
+        motion_written = events.next_line_with(expected_motion)
         gate_0_refilled = waiter.expect(
             lambda s: _number_state_of(gate_0_key)(s) and not math.isnan(s.state),
             label="gate 0 move threshold from the module",
@@ -750,19 +789,19 @@ async def test_uart_mock_ld2412_requery_after_giveup(
             pytest.fail(
                 f"Timeout waiting for the second write: {err}\n"
                 f"  expected motion payload: {expected_motion}\n"
-                f"  logged: {events}"
+                f"  logged: {events.lines}"
             )
 
         # The warning, the query sent again and the write arrive in that order
-        warning_at = index_after(left_at, MOTION_HELD_BACK)
-        query_at = index_after(warning_at, MOTION_QUERY)
-        write_at = index_after(query_at, expected_motion)
-        assert MOTION_COMMAND in events[write_at - 1]
+        warning_at = events.index_after(left_at, MOTION_HELD_BACK)
+        query_at = events.index_after(warning_at, MOTION_QUERY)
+        write_at = events.index_after(query_at, expected_motion)
+        assert MOTION_COMMAND in events.lines[write_at - 1]
 
         # Setup, the given up write and the second write each queried the motion thresholds
-        assert sum(MOTION_QUERY in line for line in events) == 3
+        assert events.count(MOTION_QUERY) == 3
         # A motion write never touches the still group
-        assert not any(STILL_COMMAND in line for line in events), (
+        assert events.count(STILL_COMMAND) == 0, (
             "still threshold command was sent for a motion write"
         )
 
