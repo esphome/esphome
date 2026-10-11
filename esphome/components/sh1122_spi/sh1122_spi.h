@@ -16,7 +16,7 @@ class SPISH1122 final : public sh1122_base::SH1122,
   void dump_config() override;
 
  protected:
-  void write_command_(const uint8_t *bytes, size_t len) override;
+  void write_command(const uint8_t *bytes, size_t len) override;
   void write_display_data() override;
 
   GPIOPin *dc_pin_{nullptr};

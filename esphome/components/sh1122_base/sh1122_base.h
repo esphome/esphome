@@ -33,12 +33,12 @@ class SH1122 : public display::DisplayBuffer {
 
  protected:
   /// Sends a command byte and its arguments; the SH1122 takes command arguments with D/C low as well
-  virtual void write_command_(const uint8_t *bytes, size_t len) = 0;
+  virtual void write_command(const uint8_t *bytes, size_t len) = 0;
   virtual void write_display_data() = 0;
-  void command_(uint8_t value) { this->write_command_(&value, 1); }
-  void command2(uint8_t value, uint8_t data) {
+  void command_(uint8_t value) { this->write_command(&value, 1); }
+  void command2_(uint8_t value, uint8_t data) {
     const uint8_t bytes[2] = {value, data};
-    this->write_command_(bytes, 2);
+    this->write_command(bytes, 2);
   }
   void init_reset_();
 

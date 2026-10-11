@@ -24,17 +24,16 @@ void SPISH1122::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
-// enable() and disable() drive the CS pin
-void SPISH1122::write_command_(const uint8_t *bytes, size_t len) {
+// enable() and disable() drive the CS pin. The D/C setup time is a few tens of nanoseconds, so the
+// GPIO write followed by the CS edge already satisfies it; no delay is needed.
+void SPISH1122::write_command(const uint8_t *bytes, size_t len) {
   this->dc_pin_->digital_write(false);
-  delay(1);
   this->enable();
   this->write_array(bytes, len);
   this->disable();
 }
 void HOT SPISH1122::write_display_data() {
   this->dc_pin_->digital_write(true);
-  delay(1);
   this->enable();
   this->write_array(this->buffer_, this->get_buffer_length_());
   this->disable();

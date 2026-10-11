@@ -35,20 +35,24 @@ static constexpr uint8_t SH1122_SETVSEGMLEVEL = 0xDC;
 
 void SH1122::setup() {
   this->init_internal_(this->get_buffer_length_());
+  if (this->buffer_ == nullptr) {
+    this->mark_failed();
+    return;
+  }
 
   this->turn_off();
-  this->command2(SH1122_SETCLOCKDIVIDER, 0x50);
-  this->command2(SH1122_SETMULTIPLEXRATIO, 0x3F);
-  this->command2(SH1122_SETDISPLAYOFFSET, 0x00);
-  this->command2(SH1122_SETROWADDRESS, 0x00);
+  this->command2_(SH1122_SETCLOCKDIVIDER, 0x50);
+  this->command2_(SH1122_SETMULTIPLEXRATIO, 0x3F);
+  this->command2_(SH1122_SETDISPLAYOFFSET, 0x00);
+  this->command2_(SH1122_SETROWADDRESS, 0x00);
   this->command_(SH1122_SETDISPLAYSTARTLINE | 32);  // the panel's rows start half way down the 128 line RAM
   this->command_(SH1122_SETDISCHARGEVSLLEVEL);
-  this->command2(SH1122_DCDCSETTING, 0x81);
+  this->command2_(SH1122_DCDCSETTING, 0x81);
   this->command_(SH1122_SETSEGMENTREMAP | 0x01);   // column 0 on the right
   this->command_(SH1122_SETSCANDIRECTION | 0x08);  // rows scanned bottom up
-  this->command2(SH1122_SETDISCHARGEPRECHARGEPERIOD, 0x28);
-  this->command2(SH1122_SETVCOMDESELECTLEVEL, 0x35);
-  this->command2(SH1122_SETVSEGMLEVEL, 0x35);
+  this->command2_(SH1122_SETDISCHARGEPRECHARGEPERIOD, 0x28);
+  this->command2_(SH1122_SETVCOMDESELECTLEVEL, 0x35);
+  this->command2_(SH1122_SETVSEGMLEVEL, 0x35);
   this->command_(SH1122_SETNORMALDISPLAY);
   this->command_(SH1122_SETHIGHCOLUMNADDRESS);
   this->command_(SH1122_SETLOWCOLUMNADDRESS);
@@ -58,10 +62,10 @@ void SH1122::setup() {
   this->turn_on();
 }
 void SH1122::display() {
-  this->command_(SH1122_SETHIGHCOLUMNADDRESS);
-  this->command_(SH1122_SETLOWCOLUMNADDRESS);
-  this->command2(SH1122_SETROWADDRESS, 0x00);
-
+  // Return the RAM pointer to the top left corner in one transfer, then stream the frame
+  static constexpr uint8_t SET_ADDRESS[] = {SH1122_SETHIGHCOLUMNADDRESS, SH1122_SETLOWCOLUMNADDRESS,
+                                            SH1122_SETROWADDRESS, 0x00};
+  this->write_command(SET_ADDRESS, sizeof(SET_ADDRESS));
   this->write_display_data();
 }
 void SH1122::update() {
@@ -70,7 +74,7 @@ void SH1122::update() {
 }
 void SH1122::set_brightness(float brightness) {
   this->brightness_ = clamp(brightness, 0.0F, 1.0F);
-  this->command2(SH1122_SETCONTRASTCURRENT, int(SH1122_MAX_CONTRAST * (this->brightness_)));
+  this->command2_(SH1122_SETCONTRASTCURRENT, int(SH1122_MAX_CONTRAST * (this->brightness_)));
 }
 void SH1122::turn_on() {
   this->command_(SH1122_SETDISPLAYON);
