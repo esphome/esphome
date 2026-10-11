@@ -16,8 +16,7 @@ DOMAIN = "tca8418"
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 MULTI_CONF = True
 
-#  The firmware keeps its listeners in a fixed size list, so the number of them
-#  is counted here and emitted as a define once every platform has run.
+# Each keypad keeps its listeners in a fixed size list; the define is the largest count any one keypad needs
 _request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
 
 

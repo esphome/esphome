@@ -109,8 +109,9 @@ bool TCA8418Component::drain_events_(bool dispatch) {
   if (!this->read_byte(TCA8418_REG_KEY_LCK_EC, &count))
     return false;
   count &= TCA8418_EVENT_COUNT_MASK;
-  if (count == 0 && dispatch)
-    return true;  // idle poll, no flags to clear
+  // An idle poll has no flags to clear, unless INT is still asserted from a failed clear
+  if (count == 0 && dispatch && (this->interrupt_pin_ == nullptr || this->interrupt_pin_->digital_read()))
+    return true;
   //  The device's overflow flag stays clear even with a full queue, so check the count instead.
   if (dispatch && count >= TCA8418_FIFO_DEPTH) {
     ESP_LOGW(TAG, "Event queue is full - some key presses may have been lost");
