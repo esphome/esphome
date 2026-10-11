@@ -3,7 +3,7 @@
 
 namespace esphome::copy {
 
-static const char *const TAG = "copy.lock";
+ESPHOME_LOG_TAG(TAG, "copy.lock");
 
 void CopyLock::setup() {
   source_->add_on_state_callback([this](lock::LockState state) { this->publish_state(state); });

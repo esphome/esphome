@@ -6,7 +6,7 @@
 
 namespace esphome::wake_on_lan {
 
-static const char *const TAG = "wake_on_lan.button";
+ESPHOME_LOG_TAG(TAG, "wake_on_lan.button");
 static const uint8_t PREFIX[6] = {255, 255, 255, 255, 255, 255};
 
 void WakeOnLanButton::set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f) {

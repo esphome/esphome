@@ -3,6 +3,7 @@
 #include "api_pb2_defines.h"
 #include "api_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -464,6 +465,21 @@ class ProtoEncode {
   [[nodiscard]] static inline uint8_t *encode_bytes_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                           uint32_t field_id, const uint8_t *data, size_t len) {
     return encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, reinterpret_cast<const char *>(data), len);
+  }
+  /// encode_bytes for data in flash (PROGMEM), which ESP8266 can only read with progmem_memcpy.
+  [[nodiscard]] static inline uint8_t *encode_progmem_bytes(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                            uint32_t field_id, const uint8_t *data, size_t len) {
+    if (len == 0)
+      return pos;
+    return encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, data, len);
+  }
+  [[nodiscard]] static inline uint8_t *encode_progmem_bytes_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                  uint32_t field_id, const uint8_t *data, size_t len) {
+    pos = encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);  // type 2: Length-delimited
+    pos = encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, len);
+    PROTO_ENCODE_CHECK_BOUNDS(pos, len);
+    progmem_memcpy(pos, data, len);
+    return pos + len;
   }
   [[nodiscard]] static inline uint8_t *encode_uint32_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                            uint32_t field_id, uint32_t value) {

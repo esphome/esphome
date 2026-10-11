@@ -4,7 +4,7 @@
 
 namespace esphome::dfplayer {
 
-static const char *const TAG = "dfplayer";
+ESPHOME_LOG_TAG(TAG, "dfplayer");
 
 void DFPlayer::next() {
   this->ack_set_is_playing_ = true;

@@ -15,7 +15,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.outgoing";
+ESPHOME_LOG_TAG(TAG, "api.outgoing");
 
 #ifndef API_OUTGOING_CONNECTION_HOST
 static constexpr uint32_t OUTGOING_TARGET_PREF_HASH = 629847102UL;

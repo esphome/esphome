@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.10.0-dev"
+__version__ = "2026.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -25,6 +25,15 @@ class Toolchain(StrEnum):
     ARDUINO = "arduino"
     # host: the system C/C++ compiler driven by ninja (no PlatformIO)
     HOST = "host"
+
+
+class ErrorFormat(StrEnum):
+    """How configuration errors are printed."""
+
+    # Errors embedded in a dump of the failing YAML
+    YAML = "yaml"
+    # One `file:line:col: error: message` line per error
+    LINE = "line"
 
 
 # Toolchains that drive their build natively and never read platformio.ini.

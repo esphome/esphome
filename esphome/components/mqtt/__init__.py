@@ -68,6 +68,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+DOMAIN = "mqtt"
 
 
 def AUTO_LOAD():

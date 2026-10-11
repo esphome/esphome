@@ -7,7 +7,7 @@
 
 namespace esphome::datetime {
 
-static const char *const TAG = "datetime.time_entity";
+ESPHOME_LOG_TAG(TAG, "datetime.time_entity");
 
 void TimeEntity::publish_state() {
   if (this->hour_ > 23) {

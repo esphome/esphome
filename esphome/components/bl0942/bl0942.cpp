@@ -6,7 +6,7 @@
 
 namespace esphome::bl0942 {
 
-static const char *const TAG = "bl0942";
+ESPHOME_LOG_TAG(TAG, "bl0942");
 
 static const uint8_t BL0942_READ_COMMAND = 0x58;
 static const uint8_t BL0942_FULL_PACKET = 0xAA;

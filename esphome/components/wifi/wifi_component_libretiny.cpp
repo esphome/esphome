@@ -52,7 +52,7 @@ extern "C" int __wrap_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cf
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_lt";
+ESPHOME_LOG_TAG(TAG, "wifi_lt");
 
 // Thread-safe event handling for LibreTiny WiFi
 //

@@ -46,7 +46,6 @@ DOMAIN = "time"
 time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
-SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
 
 # C++ types for pre-parsed timezone struct generation
 DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
@@ -357,11 +356,7 @@ TIME_SCHEMA = cv.Schema(
             },
             validate_cron_keys,
         ),
-        cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SyncTrigger),
-            }
-        ),
+        cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation({}),
     }
 ).extend(
     # ``visibility=ADVANCED`` flags the inherited ``update_interval``
@@ -424,8 +419,7 @@ async def setup_time_core_(time_var, config):
         _emit_parsed_timezone_fields(parsed)
 
     on_time = config.get(CONF_ON_TIME, [])
-    on_time_sync = config.get(CONF_ON_TIME_SYNC, [])
-    if on_time or on_time_sync:
+    if on_time:
         cg.add_define("USE_TIME_TRIGGERS")
 
     for conf in on_time:
@@ -447,11 +441,10 @@ async def setup_time_core_(time_var, config):
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 
-    for conf in on_time_sync:
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
-
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TIME_SYNC, []):
+        await automation.build_callback_automation(
+            time_var, "add_on_time_sync_callback", [], conf
+        )
 
 
 async def register_time(time_var, config):
@@ -478,8 +471,8 @@ automation.register_apply_condition(
 
 
 # posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a
-# timezone is configured or detected; automation.cpp holds the on_time and
-# on_time_sync triggers and is #ifdef'd on USE_TIME_TRIGGERS.
+# timezone is configured or detected; automation.cpp holds the on_time
+# trigger and is #ifdef'd on USE_TIME_TRIGGERS.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "posix_tz.cpp": "USE_TIME_TIMEZONE",

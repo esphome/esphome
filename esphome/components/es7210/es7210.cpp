@@ -6,7 +6,7 @@
 
 namespace esphome::es7210 {
 
-static const char *const TAG = "es7210";
+ESPHOME_LOG_TAG(TAG, "es7210");
 
 static const size_t MCLK_DIV_FRE = 256;
 

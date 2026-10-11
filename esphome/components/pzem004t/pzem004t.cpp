@@ -5,7 +5,7 @@
 
 namespace esphome::pzem004t {
 
-static const char *const TAG = "pzem004t";
+ESPHOME_LOG_TAG(TAG, "pzem004t");
 
 void PZEM004T::setup() {
   // Clear UART buffer

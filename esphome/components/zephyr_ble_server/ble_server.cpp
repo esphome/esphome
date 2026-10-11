@@ -7,7 +7,7 @@
 
 namespace esphome::zephyr_ble_server {
 
-static const char *const TAG = "zephyr_ble_server";
+ESPHOME_LOG_TAG(TAG, "zephyr_ble_server");
 
 static k_work advertise_work;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

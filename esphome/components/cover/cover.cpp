@@ -8,7 +8,7 @@
 
 namespace esphome::cover {
 
-static const char *const TAG = "cover";
+ESPHOME_LOG_TAG(TAG, "cover");
 
 const LogString *cover_command_to_str(float pos) {
   if (pos == COVER_OPEN) {

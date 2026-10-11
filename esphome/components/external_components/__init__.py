@@ -6,7 +6,6 @@ from esphome import git, loader
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPONENTS,
-    CONF_EXTERNAL_COMPONENTS,
     CONF_PASSWORD,
     CONF_PATH,
     CONF_REF,
@@ -22,7 +21,7 @@ from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = CONF_EXTERNAL_COMPONENTS
+DOMAIN = "external_components"
 
 
 CONFIG_SCHEMA = cv.ensure_list(
