@@ -1,243 +1,247 @@
 #include "ira211_protocol.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <cstdlib>
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.ira211";
+ESPHOME_LOG_TAG(TAG, "remote.ira211");
 
+static constexpr uint32_t CARRIER_FREQUENCY = 38000;
 static constexpr uint32_t T_US = 800;
-static constexpr uint32_t CARRIER_FREQ = 38000;
-static constexpr uint32_t PREAMBLE_MARK1 = 7600;
-static constexpr uint32_t PREAMBLE_SPACE1 = 800;
-static constexpr uint32_t PREAMBLE_MARK2 = 800;
-static constexpr uint32_t PREAMBLE_SPACE2 = 7600;
+static constexpr uint32_t HEADER_US = 19 * T_US / 2;  // 7600 us, also the end-of-frame gap
+
+static constexpr uint8_t DEVICE_ID = 0x66;
+static constexpr uint8_t BITS_PER_PACKET = 10;
+static constexpr uint8_t MIN_PACKETS = 4;
+static constexpr uint8_t MAX_PACKETS = 7;
+static constexpr uint8_t MAX_BITS = MAX_PACKETS * BITS_PER_PACKET;
+
+// Fields each command carries, in wire order after the command byte: temperature (whole degrees
+// then tenths), mode, fan.
+static constexpr uint8_t FIELD_TEMPERATURE = 1 << 0;
+static constexpr uint8_t FIELD_MODE = 1 << 1;
+static constexpr uint8_t FIELD_FAN = 1 << 2;
+
+struct CommandLayout {
+  IRA211Command command;
+  uint8_t fields;
+};
+
+static constexpr CommandLayout LAYOUTS[] = {
+    {IRA211Command::IRA211_COMMAND_TEMP_UP, FIELD_TEMPERATURE},
+    {IRA211Command::IRA211_COMMAND_TEMP_DOWN, FIELD_TEMPERATURE},
+    {IRA211Command::IRA211_COMMAND_MODE, FIELD_MODE},
+    {IRA211Command::IRA211_COMMAND_FAN, FIELD_FAN},
+    {IRA211Command::IRA211_COMMAND_POWER, FIELD_TEMPERATURE | FIELD_MODE | FIELD_FAN},
+    {IRA211Command::IRA211_COMMAND_SYNC, FIELD_TEMPERATURE | FIELD_MODE | FIELD_FAN},
+};
+
+static const CommandLayout *find_layout(IRA211Command command) {
+  for (const auto &layout : LAYOUTS) {
+    if (layout.command == command)
+      return &layout;
+  }
+  return nullptr;
+}
+
+// Device ID, command, fields, checksum
+static uint8_t packet_count(const CommandLayout &layout) {
+  return 3 + ((layout.fields & FIELD_TEMPERATURE) ? 2 : 0) + ((layout.fields & FIELD_MODE) ? 1 : 0) +
+         ((layout.fields & FIELD_FAN) ? 1 : 0);
+}
+
+// Value to wire byte and back; the transform is its own inverse
+static uint8_t wire_xform(uint8_t value) { return reverse_bits(static_cast<uint8_t>(~value)); }
+
+static uint8_t checksum(const uint8_t *bytes, uint8_t count) {
+  uint8_t sum = count;
+  for (uint8_t i = 0; i < count; i++)
+    sum += reverse_bits(bytes[i]);
+  return reverse_bits(sum);
+}
+
+bool IRA211Data::operator==(const IRA211Data &rhs) const {
+  if (this->command != rhs.command)
+    return false;
+  const CommandLayout *layout = find_layout(this->command);
+  if (layout == nullptr)
+    return true;
+  if ((layout->fields & FIELD_TEMPERATURE) && this->half_degrees != rhs.half_degrees)
+    return false;
+  if ((layout->fields & FIELD_MODE) && this->mode != rhs.mode)
+    return false;
+  return !(layout->fields & FIELD_FAN) || this->fan == rhs.fan;
+}
 
 void IRA211Protocol::encode(RemoteTransmitData *dst, const IRA211Data &data) {
-  dst->set_carrier_frequency(CARRIER_FREQ);
-
-  uint8_t num_bits = data.get_frame_bits();
-  if (num_bits == 0)
+  const CommandLayout *layout = find_layout(data.command);
+  if (layout == nullptr)
     return;
 
-  // Worst case: each bit alternates → num_bits mark/space pairs + 4 preamble + 1 trailing
-  dst->reserve(4 + num_bits + 1);
+  uint8_t bytes[MAX_PACKETS];
+  uint8_t count = 0;
+  bytes[count++] = DEVICE_ID;
+  bytes[count++] = wire_xform(static_cast<uint8_t>(data.command));
+  if (layout->fields & FIELD_TEMPERATURE) {
+    bytes[count++] = wire_xform(data.half_degrees / 2);
+    bytes[count++] = wire_xform((data.half_degrees & 1) ? 5 : 0);
+  }
+  if (layout->fields & FIELD_MODE)
+    bytes[count++] = wire_xform(static_cast<uint8_t>(data.mode));
+  if (layout->fields & FIELD_FAN)
+    bytes[count++] = wire_xform(static_cast<uint8_t>(data.fan));
+  bytes[count] = checksum(bytes, count);
+  count++;
 
-  // Preamble
-  dst->mark(PREAMBLE_MARK1);
-  dst->space(PREAMBLE_SPACE1);
-  dst->mark(PREAMBLE_MARK2);
-  dst->space(PREAMBLE_SPACE2);
+  dst->set_carrier_frequency(CARRIER_FREQUENCY);
+  // Preamble, at most one item per bit, trailing mark
+  dst->reserve(4 + count * BITS_PER_PACKET + 1);
+  dst->item(HEADER_US, T_US);
+  dst->item(T_US, HEADER_US);
 
-  // NRZ: scan runs of identical bits, emit mark (1s) or space (0s) of run_count * T
-  const uint8_t *frame = data.get_frame_data();
-  uint8_t pos = 0;
-  while (pos < num_bits) {
-    bool bit_val = (frame[pos >> 3] >> (7 - (pos & 7))) & 1;
-    uint8_t run = 1;
-    while (pos + run < num_bits) {
-      bool next = (frame[(pos + run) >> 3] >> (7 - ((pos + run) & 7))) & 1;
-      if (next != bit_val)
-        break;
+  // Each packet is a 1 bit, the byte MSB first, then a 0 bit; runs of equal bits become one mark or space
+  bool level = true;
+  uint32_t run = 0;
+  for (uint8_t p = 0; p < count; p++) {
+    const uint16_t packet = (1 << 9) | (bytes[p] << 1);
+    for (int8_t i = BITS_PER_PACKET - 1; i >= 0; i--) {
+      const bool bit = (packet >> i) & 1;
+      if (bit != level && run != 0) {
+        if (level) {
+          dst->mark(run * T_US);
+        } else {
+          dst->space(run * T_US);
+        }
+        run = 0;
+      }
+      level = bit;
       run++;
     }
-    if (bit_val) {
-      dst->mark(run * T_US);
-    } else {
-      dst->space(run * T_US);
-    }
-    pos += run;
   }
-
-  // Trailing mark to end the last space (standard IR convention)
-  // Only needed if the frame ends with a space (last bit = 0, which it always does: boundary bit)
+  // Every packet ends with a 0 bit, so the frame ends with a space, closed by a trailing mark
+  dst->space(run * T_US);
   dst->mark(T_US);
 }
 
 optional<IRA211Data> IRA211Protocol::decode(RemoteReceiveData src) {
-  // Validate preamble: 7600µs mark, 800µs space, 800µs mark, 7600µs space
-  if (!src.expect_mark(PREAMBLE_MARK1))
-    return {};
-  if (!src.expect_space(PREAMBLE_SPACE1))
-    return {};
-  if (!src.expect_mark(PREAMBLE_MARK2))
-    return {};
-  if (!src.expect_space(PREAMBLE_SPACE2))
+  if (!src.expect_item(HEADER_US, T_US) || !src.expect_item(T_US, HEADER_US))
     return {};
 
-  // Convert remaining NRZ mark/space timings to a packed bitstream.
-  // Marks → 1-bits, spaces → 0-bits. Duration / T gives bit count.
-  // We decode in two passes: first 20 bits (2 packets = device ID + command)
-  // to determine the expected frame length, then read exactly that many bits.
-  std::array<uint8_t, IRA211_MAX_FRAME_BYTES> bitstream{};
-  uint8_t bit_pos = 0;
-  uint8_t target_bits = IRA211_MAX_FRAME_BITS;  // initial limit, refined after 20 bits
-
-  while (src.is_valid() && bit_pos < target_bits) {
-    int32_t raw = src.peek();
-    bool is_mark = raw > 0;
-    uint32_t duration = static_cast<uint32_t>(std::abs(raw));
-
-    // A duration >= 7600µs (preamble-length gap) after data starts means end-of-frame
-    if (bit_pos > 0 && duration >= PREAMBLE_MARK1)
+  // Read bits until the end-of-frame gap, checking packet framing and collecting bytes as they arrive
+  uint8_t bytes[MAX_PACKETS]{};
+  uint8_t bits = 0;
+  while (src.is_valid()) {
+    const int32_t raw = src.peek();
+    const bool is_mark = raw > 0;
+    const uint32_t duration = is_mark ? raw : -raw;
+    // A mark followed by the gap or the end of the data is the trailing mark, not a data bit
+    if (is_mark && (!src.is_valid(1) || src.peek(1) <= -static_cast<int32_t>(HEADER_US)))
       break;
-
-    // Round to nearest multiple of T
-    uint8_t count = static_cast<uint8_t>((duration + T_US / 2) / T_US);
-    if (count == 0)
+    if (!is_mark && duration >= HEADER_US)
       break;
-
-    for (uint8_t i = 0; i < count && bit_pos < target_bits; i++) {
-      if (is_mark) {
-        bitstream[bit_pos >> 3] |= (1 << (7 - (bit_pos & 7)));
+    const uint32_t run = (duration + T_US / 2) / T_US;
+    if (run == 0 || bits + run > MAX_BITS)
+      return {};
+    for (uint32_t i = 0; i < run; i++, bits++) {
+      const uint8_t pos = bits % BITS_PER_PACKET;
+      if ((pos == 0 && !is_mark) || (pos == BITS_PER_PACKET - 1 && is_mark))
+        return {};
+      if (pos != 0 && pos != BITS_PER_PACKET - 1) {
+        uint8_t &byte = bytes[bits / BITS_PER_PACKET];
+        byte = (byte << 1) | (is_mark ? 1 : 0);
       }
-      bit_pos++;
     }
-
     src.advance();
-
-    // After 20 bits (2 packets), we can determine the expected frame length
-    if (bit_pos >= 20 && target_bits == IRA211_MAX_FRAME_BITS) {
-      // Extract command from packet 1 (bits 11..18)
-      uint8_t cmd_wire = 0;
-      for (uint8_t i = 0; i < 8; i++) {
-        cmd_wire = (cmd_wire << 1) | ((bitstream[(10 + 1 + i) >> 3] >> (7 - ((10 + 1 + i) & 7))) & 1);
-      }
-      auto cmd = static_cast<IRA211Command>(IRA211Data::wire_decode_public(cmd_wire));
-      uint8_t expected = IRA211Data::packet_count_public(cmd);
-      if (expected > 0) {
-        target_bits = expected * 10;
-      }
-    }
   }
 
-  // Must be a valid 10-bit-aligned frame
-  if (bit_pos < 40 || bit_pos % 10 != 0)
+  const uint8_t count = bits / BITS_PER_PACKET;
+  if (bits % BITS_PER_PACKET != 0 || count < MIN_PACKETS || bytes[0] != DEVICE_ID)
     return {};
-
-  IRA211Data data(bitstream.data(), bit_pos);
-  if (!data.is_valid()) {
-    ESP_LOGV(TAG, "Received invalid IRA211 frame (%u bits)", bit_pos);
+  IRA211Data out{};
+  out.command = static_cast<IRA211Command>(wire_xform(bytes[1]));
+  const CommandLayout *layout = find_layout(out.command);
+  if (layout == nullptr || packet_count(*layout) != count || checksum(bytes, count - 1) != bytes[count - 1]) {
+    ESP_LOGV(TAG, "Invalid frame (%u bits)", bits);
     return {};
   }
 
-  return data;
+  uint8_t index = 2;
+  if (layout->fields & FIELD_TEMPERATURE) {
+    const uint8_t whole = wire_xform(bytes[index++]);
+    const uint8_t tenths = wire_xform(bytes[index++]);
+    out.half_degrees = whole * 2 + (tenths >= 5 ? 1 : 0);
+  }
+  if (layout->fields & FIELD_MODE)
+    out.mode = static_cast<IRA211Mode>(wire_xform(bytes[index++]));
+  if (layout->fields & FIELD_FAN)
+    out.fan = static_cast<IRA211Fan>(wire_xform(bytes[index++]));
+  return out;
+}
+
+static const LogString *command_to_string(IRA211Command command) {
+  switch (command) {
+    case IRA211Command::IRA211_COMMAND_TEMP_UP:
+      return LOG_STR("TEMP_UP");
+    case IRA211Command::IRA211_COMMAND_TEMP_DOWN:
+      return LOG_STR("TEMP_DOWN");
+    case IRA211Command::IRA211_COMMAND_MODE:
+      return LOG_STR("MODE");
+    case IRA211Command::IRA211_COMMAND_FAN:
+      return LOG_STR("FAN");
+    case IRA211Command::IRA211_COMMAND_POWER:
+      return LOG_STR("POWER");
+    case IRA211Command::IRA211_COMMAND_SYNC:
+      return LOG_STR("SYNC");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
+static const LogString *mode_to_string(IRA211Mode mode) {
+  switch (mode) {
+    case IRA211Mode::IRA211_MODE_PROTECTION:
+      return LOG_STR("Protection");
+    case IRA211Mode::IRA211_MODE_TIMER:
+      return LOG_STR("Timer");
+    case IRA211Mode::IRA211_MODE_COMFORT:
+      return LOG_STR("Comfort");
+    default:
+      return LOG_STR("Unknown");
+  }
+}
+
+static const LogString *fan_to_string(IRA211Fan fan) {
+  switch (fan) {
+    case IRA211Fan::IRA211_FAN_AUTO:
+      return LOG_STR("Auto");
+    case IRA211Fan::IRA211_FAN_LOW:
+      return LOG_STR("1/3");
+    case IRA211Fan::IRA211_FAN_MEDIUM:
+      return LOG_STR("2/3");
+    case IRA211Fan::IRA211_FAN_HIGH:
+      return LOG_STR("3/3");
+    default:
+      return LOG_STR("Unknown");
+  }
 }
 
 void IRA211Protocol::dump(const IRA211Data &data) {
-  const char *cmd_name;
-  switch (data.get_command()) {
-    case IRA211Command::TEMP_UP:
-      cmd_name = "TEMP_UP";
-      break;
-    case IRA211Command::TEMP_DOWN:
-      cmd_name = "TEMP_DOWN";
-      break;
-    case IRA211Command::MODE:
-      cmd_name = "MODE";
-      break;
-    case IRA211Command::FAN:
-      cmd_name = "FAN";
-      break;
-    case IRA211Command::POWER:
-      cmd_name = "POWER";
-      break;
-    case IRA211Command::SYNC:
-      cmd_name = "SYNC";
-      break;
-    default:
-      cmd_name = "UNKNOWN";
-      break;
-  }
-
-  switch (data.get_command()) {
-    case IRA211Command::SYNC:
-    case IRA211Command::POWER: {
-      const char *mode_name;
-      switch (data.get_mode()) {
-        case IRA211Mode::PROTECTION:
-          mode_name = "Protection";
-          break;
-        case IRA211Mode::TIMER:
-          mode_name = "Timer";
-          break;
-        case IRA211Mode::COMFORT:
-          mode_name = "Comfort";
-          break;
-        default:
-          mode_name = "Unknown";
-          break;
-      }
-      const char *fan_name;
-      switch (data.get_fan()) {
-        case IRA211Fan::FAN_AUTO:
-          fan_name = "Auto";
-          break;
-        case IRA211Fan::FAN_LOW:
-          fan_name = "1/3";
-          break;
-        case IRA211Fan::FAN_MEDIUM:
-          fan_name = "2/3";
-          break;
-        case IRA211Fan::FAN_HIGH:
-          fan_name = "3/3";
-          break;
-        default:
-          fan_name = "Unknown";
-          break;
-      }
-      ESP_LOGD(TAG, "Received IRA211: %s Temp=%u.%u°C Mode=%s Fan=%s", cmd_name, data.get_temperature(),
-               data.get_temp_tenths(), mode_name, fan_name);
-      break;
-    }
-    case IRA211Command::TEMP_UP:
-    case IRA211Command::TEMP_DOWN:
-      ESP_LOGD(TAG, "Received IRA211: %s Temp=%u.%u°C", cmd_name, data.get_temperature(), data.get_temp_tenths());
-      break;
-    case IRA211Command::FAN: {
-      const char *fan_name;
-      switch (data.get_fan()) {
-        case IRA211Fan::FAN_AUTO:
-          fan_name = "Auto";
-          break;
-        case IRA211Fan::FAN_LOW:
-          fan_name = "1/3";
-          break;
-        case IRA211Fan::FAN_MEDIUM:
-          fan_name = "2/3";
-          break;
-        case IRA211Fan::FAN_HIGH:
-          fan_name = "3/3";
-          break;
-        default:
-          fan_name = "Unknown";
-          break;
-      }
-      ESP_LOGD(TAG, "Received IRA211: %s Fan=%s", cmd_name, fan_name);
-      break;
-    }
-    case IRA211Command::MODE: {
-      const char *mode_name;
-      switch (data.get_mode()) {
-        case IRA211Mode::PROTECTION:
-          mode_name = "Protection";
-          break;
-        case IRA211Mode::TIMER:
-          mode_name = "Timer";
-          break;
-        case IRA211Mode::COMFORT:
-          mode_name = "Comfort";
-          break;
-        default:
-          mode_name = "Unknown";
-          break;
-      }
-      ESP_LOGD(TAG, "Received IRA211: %s Mode=%s", cmd_name, mode_name);
-      break;
-    }
-    default:
-      ESP_LOGD(TAG, "Received IRA211: %s", cmd_name);
-      break;
+  const CommandLayout *layout = find_layout(data.command);
+  const uint8_t fields = layout == nullptr ? 0 : layout->fields;
+  const unsigned whole = data.half_degrees / 2;
+  const unsigned tenths = (data.half_degrees & 1) ? 5 : 0;
+  const auto *command = LOG_STR_ARG(command_to_string(data.command));
+  if (fields == (FIELD_TEMPERATURE | FIELD_MODE | FIELD_FAN)) {
+    ESP_LOGI(TAG, "Received IRA211: command=%s, temperature=%u.%uC, mode=%s, fan=%s", command, whole, tenths,
+             LOG_STR_ARG(mode_to_string(data.mode)), LOG_STR_ARG(fan_to_string(data.fan)));
+  } else if (fields == FIELD_TEMPERATURE) {
+    ESP_LOGI(TAG, "Received IRA211: command=%s, temperature=%u.%uC", command, whole, tenths);
+  } else if (fields == FIELD_MODE) {
+    ESP_LOGI(TAG, "Received IRA211: command=%s, mode=%s", command, LOG_STR_ARG(mode_to_string(data.mode)));
+  } else if (fields == FIELD_FAN) {
+    ESP_LOGI(TAG, "Received IRA211: command=%s, fan=%s", command, LOG_STR_ARG(fan_to_string(data.fan)));
+  } else {
+    ESP_LOGI(TAG, "Received IRA211: command=%s", command);
   }
 }
 

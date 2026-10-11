@@ -2470,7 +2470,7 @@ async def Toto_action(var, config, args):
         cg.add(var.set_send_wait(template_))
 
 
-# --- IRA211 ---
+# IRA211
 (
     IRA211Data,
     IRA211BinarySensor,
@@ -2479,38 +2479,44 @@ async def Toto_action(var, config, args):
     IRA211Dumper,
 ) = declare_protocol("IRA211")
 
-CONF_TEMP_TENTHS = "temp_tenths"
-
 IRA211CommandEnum = ns.enum("IRA211Command", is_class=True)
 IRA211_COMMANDS = {
-    "TEMP_UP": IRA211CommandEnum.TEMP_UP,
-    "TEMP_DOWN": IRA211CommandEnum.TEMP_DOWN,
-    "MODE": IRA211CommandEnum.MODE,
-    "FAN": IRA211CommandEnum.FAN,
-    "POWER": IRA211CommandEnum.POWER,
-    "SYNC": IRA211CommandEnum.SYNC,
+    "TEMP_UP": IRA211CommandEnum.IRA211_COMMAND_TEMP_UP,
+    "TEMP_DOWN": IRA211CommandEnum.IRA211_COMMAND_TEMP_DOWN,
+    "MODE": IRA211CommandEnum.IRA211_COMMAND_MODE,
+    "FAN": IRA211CommandEnum.IRA211_COMMAND_FAN,
+    "POWER": IRA211CommandEnum.IRA211_COMMAND_POWER,
+    "SYNC": IRA211CommandEnum.IRA211_COMMAND_SYNC,
 }
 
 IRA211ModeEnum = ns.enum("IRA211Mode", is_class=True)
 IRA211_MODES = {
-    "PROTECTION": IRA211ModeEnum.PROTECTION,
-    "TIMER": IRA211ModeEnum.TIMER,
-    "COMFORT": IRA211ModeEnum.COMFORT,
+    "PROTECTION": IRA211ModeEnum.IRA211_MODE_PROTECTION,
+    "TIMER": IRA211ModeEnum.IRA211_MODE_TIMER,
+    "COMFORT": IRA211ModeEnum.IRA211_MODE_COMFORT,
 }
 
 IRA211FanEnum = ns.enum("IRA211Fan", is_class=True)
 IRA211_FAN_SPEEDS = {
-    "AUTO": IRA211FanEnum.FAN_AUTO,
-    "LOW": IRA211FanEnum.FAN_LOW,
-    "MEDIUM": IRA211FanEnum.FAN_MEDIUM,
-    "HIGH": IRA211FanEnum.FAN_HIGH,
+    "AUTO": IRA211FanEnum.IRA211_FAN_AUTO,
+    "LOW": IRA211FanEnum.IRA211_FAN_LOW,
+    "MEDIUM": IRA211FanEnum.IRA211_FAN_MEDIUM,
+    "HIGH": IRA211FanEnum.IRA211_FAN_HIGH,
 }
+
+
+def _half_degree_step(value: float) -> float:
+    if value * 2 != int(value * 2):
+        raise cv.Invalid("Temperature must be a multiple of 0.5")
+    return value
+
 
 IRA211_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_COMMAND): cv.enum(IRA211_COMMANDS, upper=True),
-        cv.Optional(CONF_TEMPERATURE, default=20): cv.int_range(min=5, max=35),
-        cv.Optional(CONF_TEMP_TENTHS, default=0): cv.one_of(0, 5, int=True),
+        cv.Optional(CONF_TEMPERATURE, default=20): cv.All(
+            cv.float_range(min=5, max=35), _half_degree_step
+        ),
         cv.Optional(CONF_MODE, default="COMFORT"): cv.enum(IRA211_MODES, upper=True),
         cv.Optional(CONF_FAN_MODE, default="AUTO"): cv.enum(
             IRA211_FAN_SPEEDS, upper=True
@@ -2521,11 +2527,17 @@ IRA211_SCHEMA = cv.Schema(
 
 @register_binary_sensor("ira211", IRA211BinarySensor, IRA211_SCHEMA)
 def ira211_binary_sensor(var, config):
-    cg.add(var.set_command(config[CONF_COMMAND]))
-    cg.add(var.set_temperature(config[CONF_TEMPERATURE], config[CONF_TEMP_TENTHS]))
-    cg.add(var.set_mode(config[CONF_MODE]))
-    cg.add(var.set_fan(config[CONF_FAN_MODE]))
-    cg.add(var.finalize())
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                IRA211Data,
+                ("command", config[CONF_COMMAND]),
+                ("half_degrees", int(config[CONF_TEMPERATURE] * 2)),
+                ("mode", config[CONF_MODE]),
+                ("fan", config[CONF_FAN_MODE]),
+            )
+        )
+    )
 
 
 @register_trigger("ira211", IRA211Trigger, IRA211Data)
@@ -2542,10 +2554,8 @@ def ira211_dumper(var, config):
 async def ira211_action(var, config, args):
     template_ = await cg.templatable(config[CONF_COMMAND], args, IRA211CommandEnum)
     cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
     cg.add(var.set_temperature(template_))
-    template_ = await cg.templatable(config[CONF_TEMP_TENTHS], args, cg.uint8)
-    cg.add(var.set_temp_tenths(template_))
     template_ = await cg.templatable(config[CONF_MODE], args, IRA211ModeEnum)
     cg.add(var.set_mode(template_))
     template_ = await cg.templatable(config[CONF_FAN_MODE], args, IRA211FanEnum)
