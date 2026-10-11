@@ -54,6 +54,17 @@ uart_mock:
     # Partial standard header byte directly followed by a short frame, state 3 -> presence on
     - delay: 100ms
       inject_rx: [0xF4, 0x6E, 0x03, 0x2C, 0x01, 0x62]
+    # Short frame with the impossible state 7, dropped, then a short frame, state 0 -> presence off
+    - delay: 100ms
+      inject_rx: [0x6E, 0x07, 0x00, 0x00, 0x62, 0x6E, 0x00, 0x00, 0x00, 0x62]
+    # Standard data frame, type 1, with the impossible state 7, dropped, then a short frame, state 2
+    # -> presence on
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1, 0x05, 0x00, 0x01, 0x07, 0x2C, 0x01, 0x00, 0xF8, 0xF7, 0xF6, 0xF5, 0x6E,
+          0x02, 0x2C, 0x01, 0x62,
+        ]
 
 ld2410s:
   id: ld2410s_dev

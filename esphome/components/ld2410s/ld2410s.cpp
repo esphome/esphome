@@ -170,9 +170,7 @@ void LD2410SComponent::receive_byte_(uint8_t byte) {
         encode_uint16(this->rx_buffer_[LONG_HEADER_SIZE + 1], this->rx_buffer_[LONG_HEADER_SIZE]);
     if (payload_len > RX_BUFFER_SIZE - LONG_PAYLOAD_POS - sizeof(CMD_FRAME_FOOTER)) {
       ESP_LOGV(TAG, "Dropping frame with a %u byte payload, larger than the receive buffer", payload_len);
-      if (this->dropped_frames_ < UINT8_MAX) {
-        this->dropped_frames_++;
-      }
+      this->count_dropped_frame_();
       this->reset_frame_();
       return;
     }
@@ -222,31 +220,20 @@ bool LD2410SComponent::handle_frame_() {
     ESP_LOGV(TAG, "Footer does not match header: %s",
              format_hex_pretty_to(hex_buf, this->rx_buffer_, this->rx_len_, ' '));
 #endif
-    if (this->dropped_frames_ < UINT8_MAX) {
-      this->dropped_frames_++;
-    }
+    this->count_dropped_frame_();
     return false;
   }
   const uint8_t *payload = &this->rx_buffer_[payload_pos];
   const uint16_t payload_len = this->rx_len_ - payload_pos - footer_size;
   switch (this->frame_type_) {
     case FrameType::SHORT_DATA:
-      // [state][distance low][distance high]; states 0 and 1 mean no target, 2 and 3 a target
-      if (payload[0] > 3) {
-        // Line noise that happened to carry the header and footer bytes
-        if (this->dropped_frames_ < UINT8_MAX) {
-          this->dropped_frames_++;
-        }
+    case FrameType::STD_DATA:
+      if (!this->handle_data_frame_(payload, payload_len)) {
+        this->count_dropped_frame_();
         break;
       }
       this->last_frame_at_ = App.get_loop_component_start_time();
       this->dropped_frames_ = 0;
-      this->publish_target_(payload[0] > 1);
-      break;
-    case FrameType::STD_DATA:
-      this->last_frame_at_ = App.get_loop_component_start_time();
-      this->dropped_frames_ = 0;
-      this->handle_data_frame_(payload, payload_len);
       break;
     default:
       this->handle_command_ack_(payload, payload_len);
@@ -255,14 +242,29 @@ bool LD2410SComponent::handle_frame_() {
   return true;
 }
 
-void LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) {
-  // [type][state][distance low][distance high]...; the module only sends these before the init
-  // sequence switches it to minimal output
-  if (len >= 4 && payload[0] == DATA_TYPE_STANDARD) {
-    this->publish_target_(payload[1] > 1);
-  } else if (len >= 1) {
-    ESP_LOGV(TAG, "Ignoring data frame type %02X", payload[0]);
+bool LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) {
+  uint8_t state;
+  if (this->frame_type_ == FrameType::SHORT_DATA) {
+    // [state][distance low][distance high]
+    state = payload[0];
+  } else if (len >= 4 && payload[0] == DATA_TYPE_STANDARD) {
+    // [type][state][distance low][distance high]...; the module only sends these before the init
+    // sequence switches it to minimal output
+    state = payload[1];
+  } else {
+    if (len >= 1) {
+      ESP_LOGV(TAG, "Ignoring data frame type %02X", payload[0]);
+    }
+    return true;
   }
+  // States 0 and 1 mean no target, 2 and 3 a target; anything else is line noise that happened to
+  // carry the header and footer bytes
+  if (state > 3) {
+    ESP_LOGV(TAG, "Dropping frame with impossible state %u", state);
+    return false;
+  }
+  this->publish_target_(state > 1);
+  return true;
 }
 
 void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len) {

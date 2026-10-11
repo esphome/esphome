@@ -29,8 +29,14 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   void receive_byte_(uint8_t byte);
   /// Returns false when the footer does not match, so the bytes can be scanned again.
   bool handle_frame_();
-  void handle_data_frame_(const uint8_t *payload, uint16_t len);
+  /// Returns false for a data frame whose state byte is impossible, so it counts as dropped.
+  bool handle_data_frame_(const uint8_t *payload, uint16_t len);
   void handle_command_ack_(const uint8_t *payload, uint16_t len);
+  void count_dropped_frame_() {
+    if (this->dropped_frames_ < UINT8_MAX) {
+      this->dropped_frames_++;
+    }
+  }
   void reset_frame_() {
     this->rx_len_ = 0;
     this->expected_len_ = 0;

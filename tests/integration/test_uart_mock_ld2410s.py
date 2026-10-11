@@ -8,6 +8,8 @@ test_uart_mock_ld2410s:
      data frame
   3. Resync - a noise byte or a partial header directly before a short frame
      does not hide that frame
+  4. A short frame and a standard frame whose state byte is above 3 are
+     dropped without publishing, and the short frame after each still publishes
 
 test_uart_mock_ld2410s_recovery (the mock never answers the init commands):
   1. Config-mode start is resent after the acknowledgement timeout
@@ -45,8 +47,11 @@ CONFIG_END_TX = "FD:FC:FB:FA:02:00:FE:00:04:03:02:01"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 # has_target after each injection: short 2, short 0, standard frame state 2,
-# short 1, noise + short 2, short 0, partial header + short 3
-EXPECTED_PRESENCE = [True, False, True, False, True, False, True]
+# short 1, noise + short 2, short 0, partial header + short 3,
+# short 7 (dropped) + short 0, standard frame state 7 (dropped) + short 2
+EXPECTED_PRESENCE = [True, False, True, False, True, False, True, False, True]
+# The short frame and the standard frame with state 7 are logged as dropped
+EXPECTED_DROPPED_STATES = ["7", "7"]
 
 # has_target after each recovery phase (see uart_mock_ld2410s_recovery.yaml).
 # The truncated frame swallows the state 2 short frame after it plus the header
@@ -113,6 +118,7 @@ async def test_uart_mock_ld2410s(
     tx_frames: list[str] = []
     setup_done = loop.create_future()
     warning_cleared = loop.create_future()
+    dropped_states: list[str] = []
 
     def line_callback(line: str) -> None:
         if (frame := _tx_frame(line)) is not None:
@@ -121,6 +127,10 @@ async def test_uart_mock_ld2410s(
             setup_done.set_result(True)
         if "ld2410s cleared Warning flag" in line and not warning_cleared.done():
             warning_cleared.set_result(True)
+        if "Dropping frame with impossible state " in line:
+            dropped_states.append(
+                ANSI_ESCAPE.sub("", line.split("state ", 1)[1]).strip()
+            )
 
     collector = SensorStateCollector(
         sensor_names=[], binary_sensor_names=["has_target"]
@@ -142,8 +152,11 @@ async def test_uart_mock_ld2410s(
 
         await _start_scenario(client, collector)
         await _wait_for_presence(collector, all_presence)
+        # Let any unexpected extra update arrive before comparing
+        await asyncio.sleep(0.3)
 
         assert collector.binary_states["has_target"] == EXPECTED_PRESENCE
+        assert dropped_states == EXPECTED_DROPPED_STATES
         # Data frames must not restart the init sequence
         assert len(tx_frames) == 3, tx_frames
 
