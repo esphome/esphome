@@ -3,50 +3,93 @@
 from collections.abc import Callable
 from pathlib import Path
 
-import yaml
+import pytest
 
+from esphome.components import tmp102 as component
+from esphome.components.tmp102.sensor import CONFIG_SCHEMA
+import esphome.config_validation as cv
 from esphome.core import CORE
 
 
-def base_config() -> dict:
-    return {
-        "esphome": {"name": "tmp102-test"},
-        "esp32": {"board": "esp32dev"},
-        "i2c": {"sda": "GPIO21", "scl": "GPIO22"},
-        "sensor": [{"platform": "tmp102", "id": "chip", "name": "Temperature"}],
-    }
-
-
-def write_config(tmp_path: Path, config: dict) -> Path:
-    path = tmp_path / "test.yaml"
-    path.write_text(yaml.safe_dump(config, sort_keys=False))
-    return path
-
-
-def test_basic_unchanged(tmp_path: Path, generate_main: Callable[[Path], str]) -> None:
-    config = base_config()
-    source = generate_main(write_config(tmp_path, config))
+def test_basic_unchanged(
+    generate_main: Callable[[Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = generate_main(component_config_path("basic.yaml"))
     assert "set_configuration" not in source
     defines = " ".join(define.name for define in CORE.defines)
     assert "USE_TMP102_" not in defines
 
 
 def test_advanced_options_enable_configuration_once(
-    tmp_path: Path, generate_main: Callable[[Path], str]
+    generate_main: Callable[[Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
-    config = base_config()
-    config["sensor"][0].update(
-        extended_mode=False,
-        conversion_rate="1Hz",
-        one_shot_mode=False,
-        alert_polarity="active_high",
-        thermostat_mode="interrupt",
-        fault_queue=2,
-        temperature_high=30,
-        temperature_low=25,
-    )
-    source = generate_main(write_config(tmp_path, config))
+    source = generate_main(component_config_path("advanced.yaml"))
     assert source.count("set_configuration(") == 1
-    assert "set_configuration(3648, 7680, 6400, 3)" in source
+    assert "set_configuration(3648, 7680, 6400)" in source
     defines = " ".join(define.name for define in CORE.defines)
     assert "USE_TMP102_CONFIGURE" in defines
+
+
+@pytest.mark.parametrize(
+    ("extended", "high", "low"),
+    [
+        (False, 127.9375, -55),
+        (True, 150, -55),
+        (False, 30, 30),
+    ],
+)
+def test_valid_limits(extended: bool, high: float, low: float) -> None:
+    validated = CONFIG_SCHEMA(
+        {
+            "name": "Temperature",
+            "extended_mode": extended,
+            "temperature_high": high,
+            "temperature_low": low,
+        }
+    )
+    assert validated["temperature_high"] == high
+    assert validated["temperature_low"] == low
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"temperature_high": float("nan")},
+        {"temperature_low": float("inf")},
+        {"temperature_low": -55.0625},
+        {"temperature_high": 128},
+        {"extended_mode": True, "temperature_high": 150.0625},
+        {"temperature_high": 30, "temperature_low": 31},
+        {"temperature_high": 74},
+        {"temperature_low": 81},
+        {"fault_queue": 3},
+    ],
+)
+def test_invalid_limits(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({"name": "Temperature", **config})
+
+
+def test_precomputed_register_values() -> None:
+    config = CONFIG_SCHEMA(
+        {
+            "name": "Temperature",
+            "extended_mode": True,
+            "conversion_rate": "0.25Hz",
+            "one_shot_mode": True,
+            "alert_polarity": "active_high",
+            "thermostat_mode": "interrupt",
+            "fault_queue": 6,
+            "temperature_high": 12.22,
+            "temperature_low": -12.22,
+        }
+    )
+    assert component.build_configuration(config) == 0x1F10
+    assert component.encode_temperature(config["temperature_high"], True) == 0x0620
+    assert component.encode_temperature(config["temperature_low"], True) == 0xF9E0
+
+
+def test_defaults_match_chip_reset() -> None:
+    assert component.build_configuration({}) == 0x0080

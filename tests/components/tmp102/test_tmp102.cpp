@@ -71,9 +71,8 @@ class TMP102Test : public ::testing::Test {
     App.scheduler.call(millis());
   }
 
-  void configure(uint16_t config = 0x0080, uint16_t high = 0x5000, uint16_t low = 0x4B00,
-                 uint8_t configured_limits = 0) {
-    this->chip_.set_configuration(config, high, low, configured_limits);
+  void configure(uint16_t config = 0x0080, uint16_t high = 0x5000, uint16_t low = 0x4B00) {
+    this->chip_.set_configuration(config, high, low);
   }
 };
 
@@ -106,32 +105,15 @@ TEST_F(TMP102Test, SampleFormatOverridesConfiguredModeInBothDirections) {
 }
 
 TEST_F(TMP102Test, WritableConfigurationFields) {
-  for (uint8_t rate : {0, 1, 2, 3}) {
-    for (uint8_t faults : {1, 2, 4, 6}) {
-      for (bool enabled : {false, true}) {
-        unsigned fault_bits = faults == 1 ? 0 : faults == 2 ? 1 : faults == 4 ? 2 : 3;
-        const uint16_t config = (fault_bits << 11) | (unsigned(rate) << 6) | (enabled ? 0x710 : 0);
-        const uint16_t high = enabled ? 0x2800 : 0x5000;
-        const uint16_t low = enabled ? 0x2580 : 0x4B00;
-        this->configure(config, high, low);
-        this->chip_.setup();
-        EXPECT_EQ(this->bus_.registers[1], config);
-        EXPECT_EQ(this->bus_.registers[3], high);
-        EXPECT_EQ(this->bus_.registers[2], low);
-      }
-    }
-  }
-}
-
-TEST_F(TMP102Test, StaticThresholdsAreQuantizedAndEncoded) {
-  this->configure(0x0080, 0x0C40, 0xF3C0, 0x03);
+  this->configure(0x1FD0, 0x2800, 0x2580);
   this->chip_.setup();
-  EXPECT_EQ(this->bus_.registers[3], 0x0C40);
-  EXPECT_EQ(this->bus_.registers[2], 0xF3C0);
+  EXPECT_EQ(this->bus_.registers[1], 0x1FD0);
+  EXPECT_EQ(this->bus_.registers[3], 0x2800);
+  EXPECT_EQ(this->bus_.registers[2], 0x2580);
 }
 
 TEST_F(TMP102Test, RestoresRegistersAfterChipOnlyResetBeforePublishing) {
-  this->configure(0x0090, 0x2D00, 0x2A80, 0x03);
+  this->configure(0x0090, 0x2D00, 0x2A80);
   this->chip_.setup();
   const auto configured = this->bus_.registers;
   this->chip_.update();
@@ -197,13 +179,11 @@ TEST_F(TMP102Test, OneShotTriggerFailureSetsWarning) {
   EXPECT_TRUE(this->chip_.status_has_warning());
 }
 
-TEST_F(TMP102Test, OneShotWaitsOnceAndReselectsTemperature) {
+TEST_F(TMP102Test, OneShotRestartsPendingReadAndReselectsTemperature) {
   this->configure(0x0180);
   this->chip_.setup();
   this->chip_.update();
-  auto transactions = this->bus_.transactions;
   this->chip_.update();
-  EXPECT_EQ(this->bus_.transactions, transactions);
   EXPECT_EQ(this->publications_, 0);
   this->bus_.pointer = 3;
   run_timers(45);
@@ -211,11 +191,23 @@ TEST_F(TMP102Test, OneShotWaitsOnceAndReselectsTemperature) {
   EXPECT_FLOAT_EQ(this->chip_.state, 25);
 }
 
-TEST_F(TMP102Test, RecursiveUpdateFromPublicationDoesNotStartAnotherRead) {
+TEST_F(TMP102Test, LimitsAreOnlyCheckedWhenConfigurationMatchesResetDefault) {
   this->configure();
-  this->chip_.add_on_state_callback([this](float) { this->chip_.update(); });
   this->chip_.setup();
+  this->bus_.registers[2] = 0;
   this->chip_.update();
+  EXPECT_EQ(this->publications_, 0);
+  EXPECT_TRUE(this->chip_.status_has_warning());
+  EXPECT_EQ(this->bus_.registers[2], 0x4B00);
+
+  this->configure(0x00C0);
+  this->chip_.setup();
+  this->bus_.registers[2] = 0;
+  const auto transactions = this->bus_.transactions;
+  const auto writes = this->bus_.writes;
+  this->chip_.update();
+  EXPECT_EQ(this->bus_.transactions - transactions, 2);
+  EXPECT_EQ(this->bus_.writes, writes);
   EXPECT_EQ(this->publications_, 1);
 }
 
@@ -224,7 +216,7 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
     TMP102Component failed;
     failed.set_i2c_bus(&this->bus_);
     failed.set_i2c_address(0x48);
-    failed.set_configuration(0x0080, 0x5000, 0x4B00, 0);
+    failed.set_configuration(0x0080, 0x5000, 0x4B00);
     this->bus_.fail_write = reg;
     failed.setup();
     EXPECT_TRUE(failed.is_failed());

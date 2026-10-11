@@ -39,25 +39,10 @@ def encode_temperature(temperature: float, extended: bool) -> int:
 
 def build_configuration(config: ConfigType) -> int:
     """Build the writable TMP102 configuration-register bits."""
-    conversion_rate = config.get(CONF_CONVERSION_RATE)
-    alert_polarity = config.get(CONF_ALERT_POLARITY)
-    thermostat_mode = config.get(CONF_THERMOSTAT_MODE)
-    value = (
-        conversion_rate.enum_value
-        if conversion_rate is not None
-        else CONVERSION_RATES["4Hz"]
-    ) << 6
+    value = CONVERSION_RATES[config.get(CONF_CONVERSION_RATE, "4Hz")] << 6
     value |= FAULT_QUEUE_BITS[config.get(CONF_FAULT_QUEUE, 1)] << 11
-    value |= (
-        alert_polarity.enum_value
-        if alert_polarity is not None
-        else ALERT_POLARITIES["active_low"]
-    ) << 10
-    value |= (
-        thermostat_mode.enum_value
-        if thermostat_mode is not None
-        else THERMOSTAT_MODES["comparator"]
-    ) << 9
+    value |= ALERT_POLARITIES[config.get(CONF_ALERT_POLARITY, "active_low")] << 10
+    value |= THERMOSTAT_MODES[config.get(CONF_THERMOSTAT_MODE, "comparator")] << 9
     if config.get(CONF_ONE_SHOT_MODE, False):
         value |= 1 << 8
     if config.get(CONF_EXTENDED_MODE, False):
@@ -65,26 +50,21 @@ def build_configuration(config: ConfigType) -> int:
     return value
 
 
-def _validate_temperature_range(key: str, value: float, extended: bool) -> None:
-    t_min = -55.0
-    t_max = 150.0 if extended else 127.9375
-    mode_str = "extended" if extended else "normal"
-    if not (t_min <= value <= t_max):
-        raise cv.Invalid(
-            f"{key} ({value}°C) out of range for {mode_str} mode "
-            f"({t_min}°C to {t_max}°C)",
-            [key],
-        )
-
-
 def validate_tmp102_thresholds(config: ConfigType) -> ConfigType:
     extended = config.get(CONF_EXTENDED_MODE, False)
-    for key in (CONF_TEMPERATURE_HIGH, CONF_TEMPERATURE_LOW):
-        if key in config:
-            _validate_temperature_range(key, config[key], extended)
-
+    t_min = -55.0
+    t_max = 150.0 if extended else 127.9375
     high = config.get(CONF_TEMPERATURE_HIGH)
     low = config.get(CONF_TEMPERATURE_LOW)
+    for key, value in ((CONF_TEMPERATURE_HIGH, high), (CONF_TEMPERATURE_LOW, low)):
+        if value is not None and not t_min <= value <= t_max:
+            raise cv.Invalid(
+                f"{key} ({value}°C) out of range for "
+                f"{'extended' if extended else 'normal'} mode "
+                f"({t_min}°C to {t_max}°C)",
+                [key],
+            )
+
     if high is not None and low is not None and low > high:
         raise cv.Invalid(
             f"low limit ({low}°C) must be <= high limit ({high}°C)",

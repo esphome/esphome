@@ -8,36 +8,32 @@ ESPHOME_LOG_TAG(TAG, "tmp102");
 
 static constexpr uint32_t READ_TEMP_TIMEOUT_ID = 0;
 
-static const uint8_t TMP102_REGISTER_TEMPERATURE = 0x00;
-static const float TMP102_CONVERSION_FACTOR = 0.0625f;
+static constexpr uint8_t TMP102_REGISTER_TEMPERATURE = 0x00;
+static constexpr float TMP102_CONVERSION_FACTOR = 0.0625f;
 #ifdef USE_TMP102_CONFIGURE
-static const uint8_t TMP102_REGISTER_CONFIGURATION = 0x01;
-static const uint8_t TMP102_REGISTER_LOW_LIMIT = 0x02;
-static const uint8_t TMP102_REGISTER_HIGH_LIMIT = 0x03;
+static constexpr uint8_t TMP102_REGISTER_CONFIGURATION = 0x01;
+static constexpr uint8_t TMP102_REGISTER_LOW_LIMIT = 0x02;
+static constexpr uint8_t TMP102_REGISTER_HIGH_LIMIT = 0x03;
 
-static const uint16_t TMP102_CONFIGURATION_MASK = 0x1FD0;
-static const uint16_t TMP102_ONE_SHOT_BIT = 0x8000;
-static const uint16_t TMP102_SHUTDOWN_BIT = 0x0100;
-static const uint16_t TMP102_THERMOSTAT_MODE_BIT = 0x0200;
-static const uint16_t TMP102_ALERT_POLARITY_BIT = 0x0400;
-static const uint16_t TMP102_EXTENDED_MODE_BIT = 0x0010;
-static const uint32_t TMP102_ONESHOT_DELAY_MS = 40;
+static constexpr uint16_t TMP102_CONFIGURATION_MASK = 0x1FD0;
+static constexpr uint16_t TMP102_RESET_CONFIGURATION = 0x60A0;
+static constexpr uint16_t TMP102_ONE_SHOT_BIT = 0x8000;
+static constexpr uint16_t TMP102_SHUTDOWN_BIT = 0x0100;
+static constexpr uint16_t TMP102_THERMOSTAT_MODE_BIT = 0x0200;
+static constexpr uint16_t TMP102_ALERT_POLARITY_BIT = 0x0400;
+static constexpr uint16_t TMP102_EXTENDED_MODE_BIT = 0x0010;
+static constexpr uint32_t TMP102_ONESHOT_DELAY_MS = 40;
 
-static float decode_limit(uint16_t raw, bool extended) {
-  const int16_t value = static_cast<int16_t>(raw) >> (extended ? 3 : 4);
-  return value * 0.0625f;
+static float decode_temperature(uint16_t raw, bool extended) {
+  return (static_cast<int16_t>(raw) >> (extended ? 3 : 4)) * TMP102_CONVERSION_FACTOR;
 }
 
 void TMP102Component::setup() {
   if (!this->configure_)
     return;
   ESP_LOGCONFIG(TAG, "Setting up TMP102...");
-  if (!this->write_register_(TMP102_REGISTER_CONFIGURATION, this->config_) ||
-      !this->write_register_(TMP102_REGISTER_HIGH_LIMIT, this->high_limit_) ||
-      !this->write_register_(TMP102_REGISTER_LOW_LIMIT, this->low_limit_)) {
+  if (!this->write_configuration_())
     this->mark_failed();
-    return;
-  }
 }
 #endif
 
@@ -57,24 +53,23 @@ void TMP102Component::dump_config() {
                               : rate == 1 ? LOG_STR("1Hz")
                               : rate == 2 ? LOG_STR("4Hz")
                                           : LOG_STR("8Hz");
-  ESP_LOGCONFIG(TAG, "  Extended Mode: %s", YESNO(this->config_ & TMP102_EXTENDED_MODE_BIT));
-  ESP_LOGCONFIG(TAG, "  One-Shot Mode: %s", YESNO(this->config_ & TMP102_SHUTDOWN_BIT));
-  ESP_LOGCONFIG(TAG, "  Conversion Rate: %s", LOG_STR_ARG(rate_str));
-  ESP_LOGCONFIG(
-      TAG, "  Thermostat Mode: %s",
-      this->config_ & TMP102_THERMOSTAT_MODE_BIT ? LOG_STR_LITERAL("Interrupt") : LOG_STR_LITERAL("Comparator"));
-  ESP_LOGCONFIG(
-      TAG, "  Alert Polarity: %s",
-      this->config_ & TMP102_ALERT_POLARITY_BIT ? LOG_STR_LITERAL("Active High") : LOG_STR_LITERAL("Active Low"));
   const uint8_t fault_bits = (this->config_ >> 11) & 0x03;
-  ESP_LOGCONFIG(TAG, "  Fault Queue: %u", fault_bits == 3 ? 6 : 1U << fault_bits);
   const bool extended = this->config_ & TMP102_EXTENDED_MODE_BIT;
-  if (this->configured_limits_ & 0x02) {
-    ESP_LOGCONFIG(TAG, "  Temperature High: %.4f°C", decode_limit(this->high_limit_, extended));
-  }
-  if (this->configured_limits_ & 0x01) {
-    ESP_LOGCONFIG(TAG, "  Temperature Low: %.4f°C", decode_limit(this->low_limit_, extended));
-  }
+  ESP_LOGCONFIG(
+      TAG,
+      "  Extended Mode: %s\n"
+      "  One-Shot Mode: %s\n"
+      "  Conversion Rate: %s\n"
+      "  Thermostat Mode: %s\n"
+      "  Alert Polarity: %s\n"
+      "  Fault Queue: %u\n"
+      "  Temperature High: %.4f°C\n"
+      "  Temperature Low: %.4f°C",
+      YESNO(extended), YESNO(this->config_ & TMP102_SHUTDOWN_BIT), LOG_STR_ARG(rate_str),
+      this->config_ & TMP102_THERMOSTAT_MODE_BIT ? LOG_STR_LITERAL("Interrupt") : LOG_STR_LITERAL("Comparator"),
+      this->config_ & TMP102_ALERT_POLARITY_BIT ? LOG_STR_LITERAL("Active High") : LOG_STR_LITERAL("Active Low"),
+      fault_bits == 3 ? 6 : 1U << fault_bits, decode_temperature(this->high_limit_, extended),
+      decode_temperature(this->low_limit_, extended));
   if (this->config_ & TMP102_THERMOSTAT_MODE_BIT) {
     ESP_LOGW(TAG, "Register reads clear the interrupt-mode ALERT pin");
   }
@@ -110,26 +105,16 @@ void TMP102Component::update() {
 
 #ifdef USE_TMP102_CONFIGURE
 void TMP102Component::update_configured_() {
-  if (this->conversion_pending_)
+  if (!this->check_configuration_())
     return;
-  this->conversion_pending_ = true;
-  if (!this->check_configuration_()) {
-    this->conversion_pending_ = false;
-    return;
-  }
   if (this->config_ & TMP102_SHUTDOWN_BIT) {
     if (!this->write_register_(TMP102_REGISTER_CONFIGURATION, this->config_ | TMP102_ONE_SHOT_BIT)) {
       this->status_set_warning();
-      this->conversion_pending_ = false;
       return;
     }
-    this->set_timeout(READ_TEMP_TIMEOUT_ID, TMP102_ONESHOT_DELAY_MS, [this]() {
-      this->read_temperature_();
-      this->conversion_pending_ = false;
-    });
+    this->set_timeout(READ_TEMP_TIMEOUT_ID, TMP102_ONESHOT_DELAY_MS, [this]() { this->read_temperature_(); });
   } else {
     this->read_temperature_();
-    this->conversion_pending_ = false;
   }
 }
 
@@ -141,40 +126,48 @@ bool TMP102Component::write_register_(uint8_t reg, uint16_t value) {
   return false;
 }
 
+bool TMP102Component::write_configuration_() {
+  return this->write_register_(TMP102_REGISTER_CONFIGURATION, this->config_) &&
+         this->write_register_(TMP102_REGISTER_HIGH_LIMIT, this->high_limit_) &&
+         this->write_register_(TMP102_REGISTER_LOW_LIMIT, this->low_limit_);
+}
+
 bool TMP102Component::check_configuration_() {
-  uint16_t config, high, low;
-  if (!this->read_byte_16(TMP102_REGISTER_CONFIGURATION, &config) ||
-      !this->read_byte_16(TMP102_REGISTER_HIGH_LIMIT, &high) || !this->read_byte_16(TMP102_REGISTER_LOW_LIMIT, &low)) {
+  uint16_t config;
+  if (!this->read_byte_16(TMP102_REGISTER_CONFIGURATION, &config)) {
     this->status_set_warning();
     return false;
   }
-  if ((config & TMP102_CONFIGURATION_MASK) == (this->config_ & TMP102_CONFIGURATION_MASK) &&
-      high == this->high_limit_ && low == this->low_limit_)
+  bool matches = (config & TMP102_CONFIGURATION_MASK) == (this->config_ & TMP102_CONFIGURATION_MASK);
+  // A chip reset is invisible in the configuration register when it matches the reset default; check the limits.
+  if (matches &&
+      (this->config_ & TMP102_CONFIGURATION_MASK) == (TMP102_RESET_CONFIGURATION & TMP102_CONFIGURATION_MASK)) {
+    uint16_t high, low;
+    if (!this->read_byte_16(TMP102_REGISTER_HIGH_LIMIT, &high) ||
+        !this->read_byte_16(TMP102_REGISTER_LOW_LIMIT, &low)) {
+      this->status_set_warning();
+      return false;
+    }
+    matches = high == this->high_limit_ && low == this->low_limit_;
+  }
+  if (matches)
     return true;
 
   ESP_LOGW(TAG, "Configuration changed; restoring configured settings and thresholds");
   this->status_set_warning();
-  if (!this->write_register_(TMP102_REGISTER_CONFIGURATION, this->config_) ||
-      !this->write_register_(TMP102_REGISTER_HIGH_LIMIT, this->high_limit_) ||
-      !this->write_register_(TMP102_REGISTER_LOW_LIMIT, this->low_limit_)) {
+  if (!this->write_configuration_()) {
     ESP_LOGW(TAG, "Failed to restore configuration and thresholds");
   }
   return false;
 }
 
 void TMP102Component::read_temperature_() {
-  if (this->write(&TMP102_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
+  uint16_t raw;
+  if (!this->read_byte_16(TMP102_REGISTER_TEMPERATURE, &raw)) {
     this->status_set_warning();
     return;
   }
-  int16_t raw_temperature;
-  if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  raw_temperature = i2c::i2ctohs(raw_temperature);
-  raw_temperature = (raw_temperature & 0x0001) ? (raw_temperature >> 3) : (raw_temperature >> 4);
-  const float temperature = raw_temperature * TMP102_CONVERSION_FACTOR;
+  const float temperature = decode_temperature(raw, raw & 0x0001);
   ESP_LOGD(TAG, "Got Temperature=%.2f°C", temperature);
   this->publish_state(temperature);
   this->status_clear_warning();
