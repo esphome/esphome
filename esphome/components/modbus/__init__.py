@@ -53,7 +53,6 @@ CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_MODBUS_ID = "modbus_id"
 CONF_PDU = "pdu"
-CONF_REQUEST = "request"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
@@ -478,7 +477,7 @@ async def register_modbus_device(var: MockObj, config: ConfigType) -> None:
 
 
 def _enable_send_response(config: ConfigType) -> ConfigType:
-    # send_peer_response() only exists with the define; to_code emits it from this fact.
+    # send_response() only exists with the define; to_code emits it from this fact.
     _get_data().send_response = True
     return config
 
@@ -493,8 +492,6 @@ automation.register_apply_action(
         {
             cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusServer),
             cv.Required(CONF_ADDRESS): cv.templatable(_validate_server_address),
-            # The request being answered; the reply is dropped unless the hub still waits for it.
-            cv.Required(CONF_REQUEST): cv.returning_lambda,
             cv.Required(CONF_PDU): cv.templatable(
                 cv.All(
                     cv.ensure_list(cv.hex_uint8_t),
@@ -504,10 +501,9 @@ automation.register_apply_action(
         }
     ).add_extra(_enable_send_response),
     automation.ApplyCall(
-        "send_peer_response({}, {}, {})",
+        "send_response({}, {})",
         (
             (CONF_ADDRESS, cg.uint8),
-            (CONF_REQUEST, PDU_SPAN),
             (CONF_PDU, PduBuffer, _pdu_literal),
         ),
     ),

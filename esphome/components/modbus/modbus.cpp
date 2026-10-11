@@ -630,7 +630,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
 #ifdef USE_MODBUS_SEND_RESPONSE
-    this->peer_request_crc_ = crc16(data.data(), data.size(), crc16(&function_code, 1, crc16(&address, 1)));
+    this->peer_function_code_ = function_code;
 #endif
 #ifdef MODBUS_ON_RESPONSE_COUNT
     this->peer_request_[0] = function_code;
@@ -937,11 +937,9 @@ bool ModbusServerHub::rejected_(uint8_t address, uint8_t function_code, Response
 }
 
 #ifdef USE_MODBUS_SEND_RESPONSE
-void ModbusServerHub::send_peer_response(uint8_t address, std::span<const uint8_t> request,
-                                         std::span<const uint8_t> pdu) {
-  if (pdu.empty() || request.empty() || address == BROADCAST_ADDRESS || this->expecting_peer_response_ != address ||
-      (pdu[0] & FUNCTION_CODE_MASK) != request[0] ||
-      crc16(request.data(), request.size(), crc16(&address, 1)) != this->peer_request_crc_) {
+void ModbusServerHub::send_response(uint8_t address, std::span<const uint8_t> pdu) {
+  if (pdu.empty() || address == BROADCAST_ADDRESS || this->expecting_peer_response_ != address ||
+      (pdu[0] & FUNCTION_CODE_MASK) != this->peer_function_code_) {
     ESP_LOGD(TAG, "Dropped response to %" PRIu8 ": no open request matches", address);
     return;
   }

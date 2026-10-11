@@ -24,7 +24,7 @@ def test_callbacks_are_added_to_their_hubs(generate_main) -> None:
     assert main_cpp.count("client_hub->add_on_response_callback(") == 1
     assert "server_hub->add_on_response_callback(" not in main_cpp
     assert _defines()["MODBUS_ON_RESPONSE_COUNT"] == "1"
-    assert "server_hub->send_peer_response(" in main_cpp
+    assert "server_hub->send_response(" in main_cpp
     assert "USE_MODBUS_SEND_RESPONSE" in _defines()
 
 

@@ -22,13 +22,11 @@ modbus_monitor:
                   - modbus.send_response:
                       modbus_id: gateway_server
                       address: 0x0A
-                      request: !lambda return request;
                       pdu: !lambda return {response.begin(), response.end()};
                 on_error:
                   - modbus.send_response:
                       modbus_id: gateway_server
                       address: 0x0A
-                      request: !lambda return request;
                       pdu: !lambda |-
                         return {static_cast<uint8_t>(request[0] | 0x80), static_cast<uint8_t>(exception_code)};
                 on_no_response:
@@ -37,5 +35,4 @@ modbus_monitor:
                     - modbus.send_response:
                         modbus_id: gateway_server
                         address: 0x0A
-                        request: !lambda return request;
                         pdu: !lambda return {static_cast<uint8_t>(request[0] | 0x80), 0x0B};

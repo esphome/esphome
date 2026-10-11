@@ -38,7 +38,6 @@ modbus_monitor:
       - modbus.send_response:
           modbus_id: server_hub
           address: 0x0A
-          request: !lambda return request;
           pdu: [0x03, 0x02, 0x00, 0x01]
   - modbus_id: server_hub
     on_request:
