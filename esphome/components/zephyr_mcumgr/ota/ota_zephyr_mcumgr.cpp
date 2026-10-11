@@ -27,7 +27,7 @@ static_assert(sizeof(struct img_mgmt_upload_req) == 8, "ABI mismatch");
 static_assert(offsetof(struct img_mgmt_upload_req, image) == 0, "ABI mismatch");
 static_assert(offsetof(struct img_mgmt_upload_req, off) == 4, "ABI mismatch");
 
-static const char *const TAG = "zephyr_mcumgr";
+ESPHOME_LOG_TAG(TAG, "zephyr_mcumgr");
 static OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_return prev_status, int32_t *rc,

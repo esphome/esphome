@@ -5,7 +5,7 @@
 
 namespace esphome::ccs811 {
 
-static const char *const TAG = "ccs811";
+ESPHOME_LOG_TAG(TAG, "ccs811");
 
 // based on
 //  - https://cdn.sparkfun.com/datasheets/BreakoutBoards/CCS811_Programming_Guide.pdf

@@ -11,7 +11,7 @@
 
 namespace esphome::pn532_spi {
 
-static const char *const TAG = "pn532_spi";
+ESPHOME_LOG_TAG(TAG, "pn532_spi");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t PN532_MAX_LOG_BYTES = 64;

@@ -31,11 +31,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
+    hub = await cg.get_variable(config[CONF_DEBUG_ID])
 
-    await text_sensor.new_sub_text_sensor(
-        config, CONF_DEVICE, debug_component.set_device_info_sensor
-    )
-    await text_sensor.new_sub_text_sensor(
-        config, CONF_RESET_REASON, debug_component.set_reset_reason_sensor
-    )
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_DEVICE, hub.set_device_info_sensor)
+    await text_sensors(CONF_RESET_REASON, hub.set_reset_reason_sensor)

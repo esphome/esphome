@@ -1,7 +1,5 @@
 #pragma once
-#include <chrono>
 #include <initializer_list>
-#include <thread>
 #include <utility>
 #include <gtest/gtest.h>
 #include "esphome/components/hoermann_hcp/hoermann_hcp.h"
@@ -14,9 +12,11 @@ using modbus::RegisterValues;
 constexpr uint16_t COMMAND_REG = 0x9C41;
 constexpr uint16_t STATE_REG = 0x9CB9;
 constexpr uint16_t BROADCAST_REG = 0x9D31;
-
-// The tests shorten the key-press delay to zero, so the release only needs the millis() clock to tick on.
-constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(2);
+// The lamp commands a status answer carries in its two command registers.
+constexpr uint16_t LIGHT_ON = 0x0880;
+constexpr uint16_t LIGHT_ON_2 = 0x0000;
+constexpr uint16_t LIGHT_OFF = 0x0800;
+constexpr uint16_t LIGHT_OFF_2 = 0x0100;
 
 inline RegisterValues make_registers(std::initializer_list<uint16_t> values) {
   RegisterValues registers;
@@ -35,16 +35,15 @@ inline void connect_controller(HoermannHcp &door) {
   door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
 }
 
-// Runs one status poll (write 2 / read 8) and returns the whole answer. The bus controller writes its counter
-// with command 0x03 here; most tests do not care and pass zero.
-inline RegisterValues status_answer(HoermannHcp &door, uint16_t command_reg = 0x0000) {
+// Runs one status poll (write 2 / read 8) and returns the whole answer.
+inline RegisterValues status_answer(HoermannHcp &door, uint16_t command_reg = 0x0003) {
   door.on_write_registers(COMMAND_REG, make_registers({command_reg, 0x0000}));
   RegisterValues response;
   door.on_read_holding_registers(STATE_REG, 8, response);
   return response;
 }
 
-// Runs one command poll (write 2 / read 8) and returns both key-press registers.
+// Runs one status poll and returns both command registers.
 inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
   const RegisterValues response = status_answer(door);
   EXPECT_EQ(response.size(), 8u);
@@ -53,29 +52,24 @@ inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
   return {response[2], response[3]};
 }
 
-// Presents and then releases the queued command, leaving the slot free.
-inline void consume_command(HoermannHcp &door) {
-  poll_command(door);
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  poll_command(door);
-}
+// Lets the controller fetch the queued command, leaving the slot free.
+inline void consume_command(HoermannHcp &door) { poll_command(door); }
 
 // Exposes the internal timings and the connection bookkeeping, so no test has to wait out a real delay.
 class TestableHoermannHcp : public HoermannHcp {
  public:
-  TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
-
   using HoermannHcp::connection_timeout_ms_;
+  using HoermannHcp::start_window_ms_;
 #ifdef USE_HOERMANN_HCP_IDENTITY
   using HoermannHcp::identity_asked_at_;
   using HoermannHcp::identity_request_;
   using HoermannHcp::firmware_unreadable_;
   using HoermannHcp::serial_unreadable_;
 #endif
-  using HoermannHcp::is_light_toggle_pending_;
-  using HoermannHcp::key_press_delay_ms_;
-  using HoermannHcp::light_toggle_released_at_;
-  using HoermannHcp::light_toggles_in_flight_;
+  using HoermannHcp::last_stop_at_;
+  using HoermannHcp::light_requested_;
+  using HoermannHcp::light_since_;
+  using HoermannHcp::light_command_sent_;
   using HoermannHcp::set_valid_;
 };
 

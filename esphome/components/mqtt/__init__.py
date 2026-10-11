@@ -3,9 +3,9 @@ import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
     add_idf_component,
-    add_idf_sdkconfig_option,
     idf_version,
     include_builtin_idf_component,
+    request_tls,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -68,6 +68,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+DOMAIN = "mqtt"
 
 
 def AUTO_LOAD():
@@ -359,8 +360,8 @@ async def to_code(config):
             add_idf_component(name="espressif/mqtt", ref="1.0.0")
         else:
             include_builtin_idf_component("mqtt")
-        # mqtt_client.h drags in esp_tls types; esp-tls is excluded by default
-        include_builtin_idf_component("esp-tls")
+        # esp-mqtt links transport_ssl.c (esp_tls) even for plain MQTT
+        request_tls()
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -451,10 +452,6 @@ async def to_code(config):
         if CONF_CLIENT_CERTIFICATE in config:
             cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
-
-        # prevent error -0x428e
-        # See https://github.com/espressif/esp-idf/issues/139
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")

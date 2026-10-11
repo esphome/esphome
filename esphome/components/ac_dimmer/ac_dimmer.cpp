@@ -14,7 +14,7 @@
 
 namespace esphome::ac_dimmer {
 
-static const char *const TAG = "ac_dimmer";
+ESPHOME_LOG_TAG(TAG, "ac_dimmer");
 
 // Global array to store dimmer objects
 static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

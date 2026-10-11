@@ -4,7 +4,7 @@
 
 namespace esphome::lcd_menu {
 
-static const char *const TAG = "lcd_menu";
+ESPHOME_LOG_TAG(TAG, "lcd_menu");
 
 void LCDCharacterMenuComponent::setup() {
   if (this->display_->is_failed()) {

@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
+from esphome.components.uart import DOMAIN as UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMMAND,
@@ -63,13 +65,13 @@ def final_validate(config: ConfigType) -> None:
     hub_id = str(config[CONF_ID])
     sensor_count = sum(
         1
-        for s in full_config.get("sensor", [])
-        if s.get("platform") == "emontx" and str(s.get(CONF_EMONTX_ID)) == hub_id
+        for s in full_config.get(SENSOR_DOMAIN, [])
+        if s.get("platform") == DOMAIN and str(s.get(CONF_EMONTX_ID)) == hub_id
     )
     _get_data().sensor_counts[hub_id] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
-    for uart_conf in full_config["uart"]:
+    for uart_conf in full_config[UART_DOMAIN]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
             current_buffer_size = uart_conf[CONF_RX_BUFFER_SIZE]
             if current_buffer_size < MINIMUM_RX_BUFFER_SIZE:
