@@ -53,19 +53,22 @@ void INA3221Component::setup() {
 #ifdef USE_INA3221_ALERT_LIMITS
   for (uint8_t i = 0; i < 3; i++) {
     const INA3221Channel &channel = this->channels_[i];
-    if (channel.critical_limit_ != 0) {
-      this->write_byte_16(INA3221_REGISTER_CHANNEL1_CRITICAL_ALERT + i, channel.critical_limit_);
-    }
-    if (channel.warning_limit_ != 0) {
-      this->write_byte_16(INA3221_REGISTER_CHANNEL1_WARNING_ALERT + i, channel.warning_limit_);
+    if ((channel.critical_limit_ != 0 &&
+         !this->write_byte_16(INA3221_REGISTER_CHANNEL1_CRITICAL_ALERT + i, channel.critical_limit_)) ||
+        (channel.warning_limit_ != 0 &&
+         !this->write_byte_16(INA3221_REGISTER_CHANNEL1_WARNING_ALERT + i, channel.warning_limit_))) {
+      this->mark_failed();
+      return;
     }
   }
 #endif
 
 #ifdef USE_INA3221_SUMMATION
-  if (this->sum_shunt_voltage_sensor_ != nullptr) {
-    // Sum the shunt voltages of every enabled channel
-    this->write_byte_16(INA3221_REGISTER_MASK_ENABLE, this->config_ & INA3221_CONFIG_CHANNEL_MASK);
+  // Sum the shunt voltages of every enabled channel
+  if (this->sum_shunt_voltage_sensor_ != nullptr &&
+      !this->write_byte_16(INA3221_REGISTER_MASK_ENABLE, this->config_ & INA3221_CONFIG_CHANNEL_MASK)) {
+    this->mark_failed();
+    return;
   }
 #endif
 }

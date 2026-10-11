@@ -113,7 +113,12 @@ INA3221_CHANNEL_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(
-        CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT, CONF_POWER
+        CONF_BUS_VOLTAGE,
+        CONF_SHUNT_VOLTAGE,
+        CONF_CURRENT,
+        CONF_POWER,
+        CONF_WARNING_CURRENT_LIMIT,
+        CONF_CRITICAL_CURRENT_LIMIT,
     ),
     validate_alert_limits,
 )
