@@ -4,7 +4,7 @@
 
 namespace esphome::emontx {
 
-static const char *const TAG = "emontx";
+ESPHOME_LOG_TAG(TAG, "emontx");
 
 void EmonTx::setup() { this->buffer_pos_ = 0; }
 
@@ -18,13 +18,15 @@ void EmonTx::setup() { this->buffer_pos_ = 0; }
 void EmonTx::loop() {
   // Read all available data to prevent UART buffer overflow
   while (this->available() > 0) {
-    uint8_t received = this->read();
+    uint8_t received;
+    if (!this->read_byte(&received))
+      break;
 
-    if (received == '\r') {
-      continue;  // Ignore CR
-    } else if (received == '\n') {
+    if (received == '\n') {
       // End of line - process the buffer
-      if (this->buffer_pos_ > 0) {
+      if (this->discarding_line_) {
+        this->discarding_line_ = false;
+      } else if (this->buffer_pos_ > 0) {
         // Null-terminate for safe logging and c_str() use
         size_t len = this->buffer_pos_;
         this->buffer_[len] = '\0';
@@ -42,9 +44,12 @@ void EmonTx::loop() {
           this->parse_json_(this->buffer_.data(), len);
         }
       }
+    } else if (received == '\r' || this->discarding_line_) {
+      // Ignore CR, and the rest of a line that overflowed the buffer
     } else if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
-      ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding buffer", MAX_LINE_LENGTH);
+      ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
       this->buffer_pos_ = 0;
+      this->discarding_line_ = true;
     } else {
       this->buffer_[this->buffer_pos_++] = static_cast<char>(received);
     }

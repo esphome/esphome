@@ -71,6 +71,8 @@ esphome:
               # encode_json_ receives const copies of non-const reference args.
               - http_request.post:
                   url: https://esphome.io
+                  request_headers:
+                    X-Body-Length: !lambda 'return body.empty() ? "0" : "1";'
                   json:
                     status: "ok"
               # Same with json: lambda variant, exercises json_func_ path
@@ -102,3 +104,23 @@ script:
     then:
       - http_request.get:
           url: "http://google.com"
+
+  - id: send_with_headers
+    parameters:
+      token: string
+    then:
+      - http_request.get:
+          url: https://esphome.io
+          request_headers:
+            Accept: application/json
+            X-Device: esphome
+      - http_request.get:
+          url: https://esphome.io/other
+          request_headers:
+            Accept: application/json
+            X-Device: esphome
+      - http_request.get:
+          url: https://esphome.io
+          request_headers:
+            Accept: application/json
+            X-Token-Set: !lambda 'return token.empty() ? "no" : "yes";'

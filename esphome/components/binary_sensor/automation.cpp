@@ -8,7 +8,7 @@ namespace esphome::binary_sensor {
 
 #ifdef USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
 
-static const char *const TAG = "binary_sensor.automation";
+ESPHOME_LOG_TAG(TAG, "binary_sensor.automation");
 
 // MultiClickTrigger timeout IDs.
 // MultiClickTrigger is its own Component instance, so the scheduler scopes

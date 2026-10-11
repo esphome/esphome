@@ -43,15 +43,35 @@ def clear_core_frontmatter() -> None:
     core.CORE.frontmatter = {}
 
 
-def test_include_with_vars(fixture_path: Path) -> None:
+def test_include(fixture_path: Path) -> None:
+    """Test !include with and without vars, with and without conditions"""
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
     actual = yaml_util.load_yaml(yaml_file)
     actual = substitutions.do_substitution_pass(actual, None)
     assert actual["esphome"]["name"] == "original"
+    assert actual["esphome"]["name_add_mac_suffix"]
     assert actual["esphome"]["libraries"][0] == "Wire"
     assert actual["esp8266"]["board"] == "nodemcu"
     assert actual["wifi"]["ssid"] == "my_custom_ssid"
+
+
+def test_include_with_no_file(fixture_path: Path) -> None:
+    """Ensure that an error is emitted when the file field is missing."""
+    yaml_file = fixture_path / "yaml_util" / "includetest_no_file.yaml"
+
+    with pytest.raises(EsphomeError, match=r"Must include 'file'"):
+        yaml_util.load_yaml(yaml_file)
+
+
+def test_include_with_invalid_condition_type(fixture_path: Path) -> None:
+    """Ensure that an error is emitted when the condition field is an invalid type."""
+    yaml_file = fixture_path / "yaml_util" / "includetest_invalid_condition_type.yaml"
+
+    with pytest.raises(
+        EsphomeError, match=r"Include 'condition' must be a boolean or string"
+    ):
+        yaml_util.load_yaml(yaml_file)
 
 
 def test_loading_a_missing_file(fixture_path):
@@ -64,7 +84,7 @@ def test_loading_a_missing_file(fixture_path):
 
 def test_parsing_with_custom_loader(fixture_path):
     """Test custom loader used for vscode connection
-    Default loader is tested in test_include_with_vars
+    Default loader is tested in test_include
     """
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
@@ -78,10 +98,11 @@ def test_parsing_with_custom_loader(fixture_path):
         # substitute config to expand includes:
         substitutions.substitute(config, [], substitutions.ContextVars(), False)
 
-    assert len(loader_calls) == 3
+    assert len(loader_calls) == 4
     assert loader_calls[0].parts[-2:] == ("includes", "included.yaml")
-    assert loader_calls[1].parts[-2:] == ("includes", "list.yaml")
-    assert loader_calls[2].parts[-2:] == ("includes", "scalar.yaml")
+    assert loader_calls[1].parts[-2:] == ("includes", "true.yaml")
+    assert loader_calls[2].parts[-2:] == ("includes", "list.yaml")
+    assert loader_calls[3].parts[-2:] == ("includes", "scalar.yaml")
 
 
 def test_construct_secret_simple(fixture_path: Path) -> None:
@@ -570,7 +591,7 @@ def test_represent_remove() -> None:
 def test_represent_include_file() -> None:
     """Test that IncludeFile objects are dumped as !include scalars."""
     include = yaml_util.IncludeFile(
-        Path("/fake/main.yaml"), "path/to/file.yaml", None, lambda _: {}
+        Path("/fake/main.yaml"), "path/to/file.yaml", lambda _: {}
     )
     assert yaml_util.dump({"key": include}) == "key: !include 'path/to/file.yaml'\n"
 
@@ -580,13 +601,27 @@ def test_represent_include_file_with_vars() -> None:
     include = yaml_util.IncludeFile(
         Path("/fake/main.yaml"),
         "path/to/file.yaml",
-        {"key": "value"},
         lambda _: {},
+        vars={"key": "value"},
     )
-    result = yaml_util.dump({"key": include})
-    assert "!include" in result
-    assert "file: path/to/file.yaml" in result
-    assert "key: value" in result
+    assert (
+        yaml_util.dump({"key": include})
+        == "key: !include\n  file: path/to/file.yaml\n  vars:\n    key: value\n"
+    )
+
+
+def test_represent_include_file_with_condition() -> None:
+    """Test that IncludeFile with condition is dumped as !include mapping form."""
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"),
+        "path/to/file.yaml",
+        lambda _: {},
+        condition="true",
+    )
+    assert (
+        yaml_util.dump({"key": include})
+        == "key: !include\n  file: path/to/file.yaml\n  condition: 'true'\n"
+    )
 
 
 def test_represent_include_file_with_data_base_mixin() -> None:
@@ -596,7 +631,7 @@ def test_represent_include_file_with_data_base_mixin() -> None:
     subclass. add_multi_representer must match this subclass through the MRO.
     """
     include = yaml_util.IncludeFile(
-        Path("/fake/main.yaml"), "common/spi.yaml", None, lambda _: {}
+        Path("/fake/main.yaml"), "common/spi.yaml", lambda _: {}
     )
     wrapped = yaml_util.make_data_base(include)
     assert isinstance(wrapped, yaml_util.ESPHomeDataBase)
@@ -609,7 +644,7 @@ def test_represent_include_file_with_data_base_mixin() -> None:
 def test_include_file_repr(tmp_path: Path) -> None:
     """repr() includes the filename so it appears usefully in error messages."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, "some/nested.yaml", None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, "some/nested.yaml", lambda _: {})
     assert repr(include) == "IncludeFile(some/nested.yaml)"
 
 
@@ -624,7 +659,7 @@ def test_include_file_load_caches_result(tmp_path: Path) -> None:
         call_count += 1
         return content
 
-    include = yaml_util.IncludeFile(parent, "child.yaml", None, counting_loader)
+    include = yaml_util.IncludeFile(parent, "child.yaml", counting_loader)
     first = include.load()
     second = include.load()
 
@@ -641,7 +676,7 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
         nonlocal call_count
         call_count += 1
 
-    include = yaml_util.IncludeFile(parent, "empty.yaml", None, counting_loader)
+    include = yaml_util.IncludeFile(parent, "empty.yaml", counting_loader)
     first = include.load()
     second = include.load()
 
@@ -653,7 +688,7 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
 def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> None:
     """load() raises if the filename contains unresolved substitutions or expressions."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", lambda _: {})
     with pytest.raises(cv.Invalid, match="unresolved"):
         include.load()
 
@@ -670,13 +705,83 @@ def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> N
         ("price-100$.yaml", False),  # $ at end, not followed by valid substitution
     ],
 )
-def test_include_file_has_unresolved_expressions(
+def test_include_file_has_unresolved_file(
     tmp_path: Path, filename: str, expected: bool
 ) -> None:
-    """has_unresolved_expressions() detects substitution patterns in the filename."""
+    """has_unresolved_file() detects substitution patterns in the filename."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, filename, None, lambda _: {})
-    assert include.has_unresolved_expressions() == expected
+    include = yaml_util.IncludeFile(parent, filename, lambda _: {})
+    assert include.has_unresolved_file() == expected
+
+
+@pytest.mark.parametrize(
+    ("condition", "expected"),
+    [
+        (None, False),
+        (True, False),
+        (False, False),
+        ("true", False),
+        ("false", False),
+        ("$has_feature", True),  # whole substitution
+        ("${has_feature}", True),  # whole substitution
+        ("tr$ue", True),  # partial substitution
+        ("$.", False),  # malformed substitution
+        ("${1 == 1}", True),  # Jinja expression
+        ("${", False),  # malformed expression
+    ],
+)
+def test_include_file_has_unresolved_condition(
+    tmp_path: Path, condition: bool | str | None, expected: bool
+) -> None:
+    """has_unresolved_condition() detects substitution patterns in the condition."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(
+        parent, "device.yaml", lambda _: {}, condition=condition
+    )
+    assert include.has_unresolved_condition() == expected
+
+
+@pytest.mark.parametrize(
+    ("condition", "expected_result_or_error"),
+    [
+        (None, True),
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("yes", True),
+        ("on", True),
+        ("enable", True),
+        ("false", False),
+        ("False", False),
+        ("FALSE", False),
+        ("no", False),
+        ("off", False),
+        ("disable", False),
+        (
+            "$sub",
+            "Cannot evaluate include condition for 'device.yaml' with unresolved substitutions",
+        ),
+        ("", "Cannot convert include condition for 'device.yaml' to a boolean"),
+        ("trues", "Cannot convert include condition for 'device.yaml' to a boolean"),
+    ],
+)
+def test_include_file_should_load(
+    tmp_path: Path,
+    condition: bool | str | None,
+    expected_result_or_error: bool | str,
+) -> None:
+    """should_load() evaluates the condition and raises an error if it is malformed."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(
+        parent, "device.yaml", lambda _: {}, condition=condition
+    )
+    if isinstance(expected_result_or_error, bool):
+        assert include.should_load() == expected_result_or_error
+    else:
+        with pytest.raises(cv.Invalid, match=expected_result_or_error):
+            include.should_load()
 
 
 def test_mapping_include_non_string_file_rejected(tmp_path: Path) -> None:
@@ -691,16 +796,16 @@ def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> Non
     """A templated filename keeps its verbatim text (issue #18545)."""
     parent = tmp_path / "main.yaml"
     expr = '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }'
-    include = yaml_util.IncludeFile(parent, expr, None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, expr, lambda _: {})
     assert include.file == expr
-    assert include.has_unresolved_expressions()
+    assert include.has_unresolved_file()
     assert repr(include) == f"IncludeFile({expr})"
 
 
 def test_represent_include_file_templated() -> None:
     """Dumping a templated IncludeFile emits the raw expression unchanged."""
     expr = '${ "a/b.yaml" if flag else "../c.yaml" }'
-    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, None, lambda _: {})
+    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, lambda _: {})
     assert yaml_util.dump({"key": include}) == f"key: !include '{expr}'\n"
 
 
@@ -710,12 +815,12 @@ def test_include_in_list_context() -> None:
     parent = Path("/fake/main.yaml")
 
     # The nested IncludeFile resolves to a plain string value
-    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: "gamma")
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: "gamma")
 
     # The outer IncludeFile returns a list whose last element is itself an IncludeFile,
     # exercising the substitution pass's ability to recurse into loaded content.
     outer = yaml_util.IncludeFile(
-        parent, "items.yaml", None, lambda _: ["alpha", "beta", inner]
+        parent, "items.yaml", lambda _: ["alpha", "beta", inner]
     )
 
     config = OrderedDict({"values": outer})
@@ -736,15 +841,48 @@ def test_top_level_include_resolved_by_load_yaml(tmp_path: Path) -> None:
     assert result["key"] == "value"
 
 
+@pytest.mark.parametrize(
+    ("condition", "expected_result_or_error"),
+    [
+        ("true", True),
+        ("false", False),
+        ('"TRUE"', True),
+        ('"FALSE"', False),
+        ('"x"', "Cannot convert include condition for 'child.yaml' to a boolean"),
+        (
+            "$sub",
+            "Cannot evaluate include condition for 'child.yaml' with unresolved substitutions",
+        ),
+    ],
+)
+def test_top_level_include_with_condition_resolved_by_load_yaml(
+    tmp_path: Path, condition: bool | str | None, expected_result_or_error: bool | str
+) -> None:
+    """load_yaml evaluates the condition for a top-level !include."""
+    child = tmp_path / "child.yaml"
+    child.write_text("key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text(f"!include {{ file: child.yaml, condition: {condition} }}\n")
+
+    if isinstance(expected_result_or_error, bool):
+        result = yaml_util.load_yaml(main)
+        assert isinstance(result, dict)
+        if expected_result_or_error:
+            assert result["key"] == "value"
+        else:
+            assert result == {}
+    else:
+        with pytest.raises(cv.Invalid, match=expected_result_or_error):
+            result = yaml_util.load_yaml(main)
+
+
 def test_include_plain_filename_loads_after_deferred_refactor() -> None:
     """!include with a plain filename (no $ expressions) still loads correctly.
 
     Regression guard: the deferred-loading refactor must not break the simple case.
     """
     parent = Path("/fake/main.yaml")
-    include = yaml_util.IncludeFile(
-        parent, "child.yaml", None, lambda _: {"answer": 42}
-    )
+    include = yaml_util.IncludeFile(parent, "child.yaml", lambda _: {"answer": 42})
 
     config = OrderedDict({"result": include})
     config = substitutions.do_substitution_pass(config)
@@ -756,7 +894,23 @@ def test_yaml_merge_include_with_filename_substitution_raises() -> None:
     """<<: !include ${expr} raises a clear error — substitutions in merge-key filenames
     are not yet supported, and the error message must say so."""
     yaml_text = "base:\n  existing: value\n  <<: !include ${filename}.yaml\n"
-    with pytest.raises(EsphomeError, match="not supported yet"):
+    with pytest.raises(
+        EsphomeError,
+        match="Substitution in include filename with merge keys is not supported yet",
+    ):
+        yaml_util.parse_yaml(
+            Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
+        )
+
+
+def test_yaml_merge_include_with_condition_substitution_raises() -> None:
+    """<<: !include { file: ${expr}, condition: {} } raises a clear error — substitutions in merge-key conditions
+    are not yet supported, and the error message must say so."""
+    yaml_text = "base:\n  existing: value\n  <<: !include\n    file: filename.yaml\n    condition: ${expr}\n"
+    with pytest.raises(
+        EsphomeError,
+        match="Substitution in include condition with merge keys is not supported yet",
+    ):
         yaml_util.parse_yaml(
             Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
         )
@@ -775,8 +929,8 @@ def test_yaml_merge_chain_include_resolves() -> None:
     """Chained includes in merge keys resolve through multiple IncludeFile layers."""
     parent = Path("/fake/main.yaml")
 
-    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: {"x": 1})
-    outer = yaml_util.IncludeFile(parent, "outer.yaml", None, lambda _: inner)
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: {"x": 1})
+    outer = yaml_util.IncludeFile(parent, "outer.yaml", lambda _: inner)
 
     yaml_text = "base:\n  existing: value\n  <<: !include outer.yaml\n"
     config = yaml_util.parse_yaml(parent, io.StringIO(yaml_text), lambda _: outer)
@@ -791,7 +945,7 @@ def test_yaml_merge_chain_include_depth_exceeded() -> None:
     parent = Path("/fake/main.yaml")
 
     def self_referencing_loader(path: Path) -> yaml_util.IncludeFile:
-        return yaml_util.IncludeFile(parent, path.name, None, self_referencing_loader)
+        return yaml_util.IncludeFile(parent, path.name, self_referencing_loader)
 
     yaml_text = "base:\n  <<: !include loop.yaml\n"
     with pytest.raises(EsphomeError, match="Maximum include chain depth"):
@@ -1061,7 +1215,7 @@ class _StubInclude:
         self._raise = raise_on_load
         self.load_calls = 0
 
-    def has_unresolved_expressions(self) -> bool:
+    def has_unresolved_file(self) -> bool:
         return self._unresolved
 
     def load(self) -> object:

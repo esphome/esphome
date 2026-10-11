@@ -8,6 +8,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@ljungqvist"]
+DOMAIN = "ufm01"
 
 MULTI_CONF = True
 

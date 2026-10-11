@@ -35,16 +35,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
+    hub = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
     if (conf := config.get(CONF_DOOR_STATE)) is not None:
-        var = await text_sensor.new_text_sensor(conf, parent)
+        var = await text_sensor.new_text_sensor(conf, hub)
         await cg.register_component(var, conf)
     # Only the identity sensors need the exchange with the motor compiled in.
     if CONF_SERIAL_NUMBER in config or CONF_VERSION in config:
         cg.add_define("USE_HOERMANN_HCP_IDENTITY")
-    if (conf := config.get(CONF_SERIAL_NUMBER)) is not None:
-        sens = await text_sensor.new_text_sensor(conf)
-        cg.add(parent.set_serial_number_text_sensor(sens))
-    if (conf := config.get(CONF_VERSION)) is not None:
-        sens = await text_sensor.new_text_sensor(conf)
-        cg.add(parent.set_version_text_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_SERIAL_NUMBER, hub.set_serial_number_text_sensor)
+    await text_sensors(CONF_VERSION, hub.set_version_text_sensor)

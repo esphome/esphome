@@ -3,7 +3,7 @@
 
 namespace esphome::inkbird_ibsth1_mini {
 
-static const char *const TAG = "inkbird_ibsth1_mini";
+ESPHOME_LOG_TAG(TAG, "inkbird_ibsth1_mini");
 
 void InkbirdIbstH1Mini::dump_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");

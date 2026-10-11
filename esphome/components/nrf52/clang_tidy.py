@@ -277,7 +277,7 @@ def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
     ]
     if not run_command_ok(
         west_cmd,
-        env=get_build_env(),
+        env=get_build_env(None),  # configure only, nothing compiles
         stream_output=True,
         cwd=str(paths["framework_path"]),
     ):

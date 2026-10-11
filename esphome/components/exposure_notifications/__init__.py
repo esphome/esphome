@@ -10,6 +10,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "exposure_notifications"
 
 exposure_notifications_ns = cg.esphome_ns.namespace("exposure_notifications")
 ExposureNotification = exposure_notifications_ns.struct("ExposureNotification")

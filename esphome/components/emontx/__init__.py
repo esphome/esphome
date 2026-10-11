@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
+from esphome.components.uart import DOMAIN as UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMMAND,
@@ -42,13 +44,29 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
+def _synchronous_automation(value: ConfigType) -> ConfigType:
+    """Reject deferring actions: the received line and parsed JSON are only valid while the
+    automation runs, and DelayAction and friends keep the trigger arguments for later."""
+    if automation.has_non_synchronous_actions(value):
+        raise cv.Invalid(
+            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in on_json and "
+            "on_data: the received data is only valid while the automation runs. Copy what you need "
+            "into globals first, then defer in a separate script or automation."
+        )
+    return value
+
+
+def _synchronous_automation_schema() -> cv.All:
+    return cv.All(automation.validate_automation({}), _synchronous_automation)
+
+
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmonTx),
-            cv.Optional(CONF_ON_JSON): automation.validate_automation({}),
-            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
+            cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
+            cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -63,13 +81,13 @@ def final_validate(config: ConfigType) -> None:
     hub_id = str(config[CONF_ID])
     sensor_count = sum(
         1
-        for s in full_config.get("sensor", [])
-        if s.get("platform") == "emontx" and str(s.get(CONF_EMONTX_ID)) == hub_id
+        for s in full_config.get(SENSOR_DOMAIN, [])
+        if s.get("platform") == DOMAIN and str(s.get(CONF_EMONTX_ID)) == hub_id
     )
     _get_data().sensor_counts[hub_id] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
-    for uart_conf in full_config["uart"]:
+    for uart_conf in full_config[UART_DOMAIN]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
             current_buffer_size = uart_conf[CONF_RX_BUFFER_SIZE]
             if current_buffer_size < MINIMUM_RX_BUFFER_SIZE:
@@ -102,10 +120,10 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_JSON,
         "add_on_json_callback",
-        [(cg.JsonObject, "json"), (cg.std_string, "raw_json")],
+        [(cg.JsonObject, "json"), (cg.StringRef, "raw_json")],
     ),
     automation.CallbackAutomation(
-        CONF_ON_DATA, "add_on_data_callback", [(cg.std_string, "data")]
+        CONF_ON_DATA, "add_on_data_callback", [(cg.StringRef, "data")]
     ),
 )
 

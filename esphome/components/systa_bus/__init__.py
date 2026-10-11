@@ -6,6 +6,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mat931"]
+DOMAIN = "systa_bus"
 
 DEPENDENCIES = ["uart"]
 

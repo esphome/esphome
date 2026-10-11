@@ -3,7 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.climate";
+ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {

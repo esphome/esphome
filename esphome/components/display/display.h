@@ -287,13 +287,15 @@ template<typename T> class DisplayWriter {
 // Type alias for Display writer - uses optimized DisplayWriter instead of std::function
 using display_writer_t = DisplayWriter<Display>;
 
+// Callers usually pass `this`; checking a copy keeps GCC's -Wnonnull-compare quiet.
 #define LOG_DISPLAY(prefix, type, obj) \
-  if ((obj) != nullptr) { \
+  if (auto *log_display_obj = (obj); log_display_obj != nullptr) { \
     ESP_LOGCONFIG(TAG, \
                   prefix type "\n" \
                               "%s  Rotations: %d °\n" \
                               "%s  Dimensions: %dpx x %dpx", \
-                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
+                  prefix, log_display_obj->get_rotation(), prefix, log_display_obj->get_width(), \
+                  log_display_obj->get_height()); \
   }
 
 /// Turn the pixel OFF.
@@ -708,7 +710,7 @@ class Display : public PollingComponent {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
-  DisplayRotation get_rotation() const { return this->rotation_; }
+  virtual DisplayRotation get_rotation() const { return this->rotation_; }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
