@@ -56,8 +56,14 @@ INTERRUPT_PIN_OPTIONS = {
 # INT1_CFG high-event bit per axis.
 INT_CFG_HIGH_EVENT = {"x": 0x02, "y": 0x08, "z": 0x20}
 
-# Motion interrupt threshold LSB in mg, per range.
+# Motion interrupt threshold LSB in mg, per range. INT1_THS holds seven bits.
 THRESHOLD_LSB_MG = {"2G": 16, "4G": 32, "8G": 62, "16G": 186}
+THRESHOLD_MAX_REG = 0x7F
+
+
+def _threshold_register(threshold_g: float, range_key: str) -> int:
+    """Return INT1_THS for a threshold in g: nearest step, at least 1 so the pad is not held asserted."""
+    return max(math.floor(threshold_g * 1000 / THRESHOLD_LSB_MG[range_key] + 0.5), 1)
 
 
 def _axes(value: object) -> list[str]:
@@ -105,6 +111,19 @@ def _validate_odr_mode(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_threshold(config: ConfigType) -> ConfigType:
+    if (interrupt := config.get(CONF_INTERRUPT)) is None:
+        return config
+    range_key = config[CONF_ACCELEROMETER_RANGE]
+    max_g = THRESHOLD_MAX_REG * THRESHOLD_LSB_MG[range_key] / 1000
+    if interrupt[CONF_THRESHOLD] > max_g:
+        raise cv.Invalid(
+            f"'threshold' can be at most {max_g:g}g with 'accelerometer_range: {range_key}'",
+            path=[CONF_INTERRUPT, CONF_THRESHOLD],
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     motion_schema(LIS3DHComponent, has_accel=True, has_gyro=False)
     .extend(
@@ -123,6 +142,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(i2c.i2c_device_schema(0x18)),
     _validate_odr_mode,
+    _validate_threshold,
 )
 
 
@@ -135,10 +155,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_operating_mode(config[CONF_OPERATING_MODE]))
 
     if (interrupt := config.get(CONF_INTERRUPT)) is not None:
-        # Nearest step, at least 1: a zero threshold holds the pad asserted.
-        lsb_mg = THRESHOLD_LSB_MG[config[CONF_ACCELEROMETER_RANGE]]
-        threshold = min(
-            max(math.floor(interrupt[CONF_THRESHOLD] * 1000 / lsb_mg + 0.5), 1), 0x7F
+        threshold = _threshold_register(
+            interrupt[CONF_THRESHOLD], config[CONF_ACCELEROMETER_RANGE]
         )
         axes_cfg = 0
         for axis in interrupt[CONF_AXES]:

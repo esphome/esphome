@@ -42,13 +42,8 @@ void LIS3DHComponent::setup() {
     return;
   }
 
-  if (!this->setup_accelerometer_() || !this->setup_temperature_()) {
+  if (!this->setup_accelerometer_() || !this->setup_temperature_() || !this->setup_interrupt_()) {
     ESP_LOGE(TAG, "Failed to configure sensor");
-    this->mark_failed();
-    return;
-  }
-  if (this->interrupt_axes_cfg_ != 0 && !this->setup_interrupt_()) {
-    ESP_LOGE(TAG, "Failed to configure motion interrupt");
     this->mark_failed();
     return;
   }
@@ -77,6 +72,8 @@ bool LIS3DHComponent::setup_temperature_() {
 }
 
 bool LIS3DHComponent::setup_interrupt_() {
+  // Runs even with no interrupt configured: the chip usually stays powered across resets,
+  // so this drops whatever the previous firmware left in the interrupt registers.
   // High-pass filter the interrupt (IA1) input so the ~1 g of gravity is removed
   // from the threshold comparison. The output data registers stay unfiltered
   // (FDS = 0), so acceleration / pitch / roll still report the full gravity vector.
@@ -96,16 +93,18 @@ bool LIS3DHComponent::setup_interrupt_() {
 
   // Route the IA1 engine to the chosen physical pad and set the pad polarity.
   uint8_t ctrl_reg3 = 0;
-  uint8_t ctrl_reg6 = 0;
-  if (this->interrupt_pin_ == LIS3DH_INT_PIN_INT1) {
-    ctrl_reg3 |= LIS3DH_CTRL_REG3_I1_IA1;
-  } else {
-    ctrl_reg6 |= LIS3DH_CTRL_REG6_I2_IA1;
+  uint8_t ctrl_reg6 = this->interrupt_active_high_ ? 0 : LIS3DH_CTRL_REG6_INT_POLARITY;
+  if (this->interrupt_axes_cfg_ != 0) {
+    if (this->interrupt_pin_ == LIS3DH_INT_PIN_INT1) {
+      ctrl_reg3 |= LIS3DH_CTRL_REG3_I1_IA1;
+    } else {
+      ctrl_reg6 |= LIS3DH_CTRL_REG6_I2_IA1;
+    }
   }
-  if (!this->interrupt_active_high_)
-    ctrl_reg6 |= LIS3DH_CTRL_REG6_INT_POLARITY;
   if (!this->write_byte(LIS3DH_REG_CTRL_REG3, ctrl_reg3) || !this->write_byte(LIS3DH_REG_CTRL_REG6, ctrl_reg6))
     return false;
+  if (this->interrupt_axes_cfg_ == 0)
+    return true;
 
   // With the high-pass filter enabled, reading REFERENCE captures the current
   // acceleration as the filter's zero point (removing the standing gravity bias).

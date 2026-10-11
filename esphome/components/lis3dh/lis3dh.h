@@ -125,7 +125,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   uint8_t interrupt_threshold_{0};
   uint8_t interrupt_duration_{0};
   uint8_t interrupt_axes_cfg_{0};
-  bool interrupt_latched_{true};
+  bool interrupt_latched_{false};
   bool interrupt_active_high_{true};
   bool interrupt_high_pass_{false};
 
