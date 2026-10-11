@@ -378,12 +378,12 @@ TEST(DaikinRegression, FrameTimingsAndCarrier) {
 }
 
 struct ReceiveCase {
+  float target;
   uint8_t mode_byte;
   uint8_t temperature;
   uint8_t fan_byte;
   uint8_t swing_byte;
   climate::ClimateMode mode;
-  float target;
   climate::ClimateFanMode fan;
   climate::ClimateSwingMode swing;
 };
@@ -392,15 +392,15 @@ struct ReceiveCase {
 // low nibble, byte 9 horizontal swing low nibble. Fan nibbles: 3 and 4 low, 5 medium, 6 and 7 high,
 // A auto, B quiet.
 static const ReceiveCase RECEIVE_CASES[] = {
-    {0x31, 0x30, 0xA0, 0x00, climate::CLIMATE_MODE_COOL, 24.0f, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF},
-    {0x41, 0x2C, 0x3F, 0x00, climate::CLIMATE_MODE_HEAT, 22.0f, climate::CLIMATE_FAN_LOW,
+    {24.0f, 0x31, 0x30, 0xA0, 0x00, climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF},
+    {22.0f, 0x41, 0x2C, 0x3F, 0x00, climate::CLIMATE_MODE_HEAT, climate::CLIMATE_FAN_LOW,
      climate::CLIMATE_SWING_VERTICAL},
-    {0x01, 0x28, 0x50, 0x0F, climate::CLIMATE_MODE_HEAT_COOL, 20.0f, climate::CLIMATE_FAN_MEDIUM,
+    {20.0f, 0x01, 0x28, 0x50, 0x0F, climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_FAN_MEDIUM,
      climate::CLIMATE_SWING_HORIZONTAL},
-    {0x31, 0x14, 0x7F, 0x0F, climate::CLIMATE_MODE_COOL, 10.0f, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_BOTH},
-    {0x41, 0x3C, 0xB0, 0x00, climate::CLIMATE_MODE_HEAT, 30.0f, climate::CLIMATE_FAN_QUIET, climate::CLIMATE_SWING_OFF},
-    {0x31, 0x24, 0x40, 0x00, climate::CLIMATE_MODE_COOL, 18.0f, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_OFF},
-    {0x31, 0x24, 0x60, 0x00, climate::CLIMATE_MODE_COOL, 18.0f, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_OFF},
+    {10.0f, 0x31, 0x14, 0x7F, 0x0F, climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_BOTH},
+    {30.0f, 0x41, 0x3C, 0xB0, 0x00, climate::CLIMATE_MODE_HEAT, climate::CLIMATE_FAN_QUIET, climate::CLIMATE_SWING_OFF},
+    {18.0f, 0x31, 0x24, 0x40, 0x00, climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_OFF},
+    {18.0f, 0x31, 0x24, 0x60, 0x00, climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_OFF},
 };
 
 TEST(DaikinRegression, DecodesStateFrames) {
@@ -411,8 +411,7 @@ TEST(DaikinRegression, DecodesStateFrames) {
     EXPECT_TRUE(r.receive(state_frame(c.mode_byte, c.temperature, c.fan_byte, c.swing_byte)));
     EXPECT_EQ(r.climate.mode, c.mode);
     EXPECT_FLOAT_EQ(r.climate.target_temperature, c.target);
-    ASSERT_TRUE(r.climate.fan_mode.has_value());
-    EXPECT_EQ(*r.climate.fan_mode, c.fan);
+    EXPECT_EQ(r.climate.fan_mode, c.fan);
     EXPECT_EQ(r.climate.swing_mode, c.swing);
   }
 }
@@ -425,13 +424,13 @@ TEST(DaikinRegression, DecodesDryAndFanOnlyWithoutTouchingTemperature) {
   EXPECT_TRUE(r.receive(state_frame(0x21, 0xC0, 0x7F, 0x0F)));
   EXPECT_EQ(r.climate.mode, climate::CLIMATE_MODE_DRY);
   EXPECT_FLOAT_EQ(r.climate.target_temperature, 24.0f);
-  EXPECT_EQ(*r.climate.fan_mode, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(r.climate.fan_mode, climate::CLIMATE_FAN_HIGH);
   EXPECT_EQ(r.climate.swing_mode, climate::CLIMATE_SWING_BOTH);
   // Fan only carries 0x32; the target still stays at 24
   EXPECT_TRUE(r.receive(state_frame(0x61, 0x32, 0xBF, 0x00)));
   EXPECT_EQ(r.climate.mode, climate::CLIMATE_MODE_FAN_ONLY);
   EXPECT_FLOAT_EQ(r.climate.target_temperature, 24.0f);
-  EXPECT_EQ(*r.climate.fan_mode, climate::CLIMATE_FAN_QUIET);
+  EXPECT_EQ(r.climate.fan_mode, climate::CLIMATE_FAN_QUIET);
   EXPECT_EQ(r.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 }
 
@@ -443,7 +442,7 @@ TEST(DaikinRegression, DecodesPowerOffAsOff) {
   EXPECT_TRUE(r.receive(state_frame(0x30, 0x34, 0x50, 0x00)));
   EXPECT_EQ(r.climate.mode, climate::CLIMATE_MODE_OFF);
   EXPECT_FLOAT_EQ(r.climate.target_temperature, 24.0f);
-  EXPECT_EQ(*r.climate.fan_mode, climate::CLIMATE_FAN_MEDIUM);
+  EXPECT_EQ(r.climate.fan_mode, climate::CLIMATE_FAN_MEDIUM);
 }
 
 TEST(DaikinRegression, RejectsBadChecksum) {
@@ -454,7 +453,7 @@ TEST(DaikinRegression, RejectsBadChecksum) {
   EXPECT_FALSE(r.receive(frame));
   EXPECT_EQ(r.climate.mode, climate::CLIMATE_MODE_COOL);
   EXPECT_FLOAT_EQ(r.climate.target_temperature, 24.0f);
-  EXPECT_EQ(*r.climate.fan_mode, climate::CLIMATE_FAN_AUTO);
+  EXPECT_EQ(r.climate.fan_mode, climate::CLIMATE_FAN_AUTO);
 }
 
 TEST(DaikinRegression, RejectsWrongHeaderByte) {
