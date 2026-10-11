@@ -133,34 +133,32 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   void loop_serial_();
   void loop_step_dir_();
 
-  uint8_t address_{0};
   GPIOPin *enn_pin_{nullptr};
   GPIOPin *step_pin_{nullptr};
   GPIOPin *dir_pin_{nullptr};
   InternalGPIOPin *index_pin_{nullptr};
   uint32_t clock_frequency_{12000000};
-  optional<float> rsense_{};
-  optional<bool> vsense_{};
-  optional<uint8_t> ottrim_{};
-  optional<float> initial_run_current_{};
-  optional<float> initial_hold_current_{};
-  uint16_t initial_microsteps_{16};
-  bool analog_current_scale_{false};
-
-  bool enabled_{false};
-  bool vsense_active_{false};
-  uint8_t toff_{3};
-  uint8_t version_{0};
-  int8_t direction_{0};
-  bool step_state_{false};
-  IndexPulseStore index_store_{};
-  HighFrequencyLoopRequester high_freq_;
-
   // Write-only registers shared by all family members, with their power-on values
   uint32_t ihold_irun_{0x00071703};
   uint32_t tpowerdown_{0x14};
   uint32_t tpwmthrs_{0};
   uint32_t vactual_reg_{0};
+  optional<float> rsense_{};
+  optional<float> initial_run_current_{};
+  optional<float> initial_hold_current_{};
+  IndexPulseStore index_store_{};
+  uint16_t initial_microsteps_{16};
+  optional<bool> vsense_{};
+  optional<uint8_t> ottrim_{};
+  uint8_t address_{0};
+  uint8_t toff_{3};
+  uint8_t version_{0};
+  int8_t direction_{0};
+  bool analog_current_scale_{false};
+  bool enabled_{false};
+  bool vsense_active_{false};
+  bool step_state_{false};
+  HighFrequencyLoopRequester high_freq_;
 };
 
 }  // namespace esphome::tmc22xx
