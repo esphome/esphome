@@ -90,7 +90,7 @@ CANBUS_SCHEMA = cv.Schema(
         cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
-        cv.Optional(CONF_MAX_FRAMES_PER_LOOP, default=50): cv.positive_int,
+        cv.Optional(CONF_MAX_FRAMES_PER_LOOP, default=50): cv.positive_not_null_int,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),

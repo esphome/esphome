@@ -103,7 +103,8 @@ void Canbus::loop() {
   }
 
   if (message_counter == this->max_frames_per_loop_) {
-    ESP_LOGW(TAG, "Reached max_frames_per_loop=%" PRIu32 ", deferring remaining CAN frames",
+    ESP_LOGW(TAG,
+             "Reached max_frames_per_loop=%" PRIu32 ", deferring remaining CAN frames. Some frames might be dropped",
              this->max_frames_per_loop_);
   }
 }
