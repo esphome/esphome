@@ -148,7 +148,7 @@ void CS5460AComponent::schedule_next_check_() {
      */
     if (time_left > -15000) {
       time_left = 1000;
-      this->status_momentary_warning("warning", 1000);
+      this->status_momentary_warning(1000);
     } else {
       ESP_LOGCONFIG(TAG, "Device officially stuck, resetting");
       this->cancel_timeout(STATUS_CHECK_TIMEOUT_ID);
@@ -179,67 +179,67 @@ bool CS5460AComponent::check_status_() {
   if (status & (1 << 2)) {
     clear |= 1 << 2;
     ESP_LOGE(TAG, "Low supply detected");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 3)) {
     clear |= 1 << 3;
     ESP_LOGE(TAG, "Modulator oscillation on current channel");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 4)) {
     clear |= 1 << 4;
     ESP_LOGE(TAG, "Modulator oscillation on voltage channel");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 5)) {
     clear |= 1 << 5;
     ESP_LOGE(TAG, "Watch-dog timeout");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 11)) {
     clear |= 1 << 11;
     ESP_LOGE(TAG, "EOUT Energy Accumulation Register out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 12)) {
     clear |= 1 << 12;
     ESP_LOGE(TAG, "Energy out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 13)) {
     clear |= 1 << 13;
     ESP_LOGE(TAG, "RMS voltage out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 14)) {
     clear |= 1 << 14;
     ESP_LOGE(TAG, "RMS current out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 15)) {
     clear |= 1 << 15;
     ESP_LOGE(TAG, "Power calculation out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 16)) {
     clear |= 1 << 16;
     ESP_LOGE(TAG, "Voltage out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 17)) {
     clear |= 1 << 17;
     ESP_LOGE(TAG, "Current out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 19)) {

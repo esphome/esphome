@@ -1059,7 +1059,7 @@ class ListEntitiesLightResponse final : public InfoResponseProtoMessage {
   const light::ColorModeMask *supported_color_modes{};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
-  const FixedVector<const char *> *effects{};
+  const light::LightEffectNames *effects{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
