@@ -392,10 +392,35 @@ def test_ssd1681_defaults_and_driver_class(
                 "id": "test_display",
                 "model": name,
                 "dc_pin": 21,
+                "reset_pin": 23,
                 "full_update_every": 20,
             }
         )
         assert model.get_dimensions(config) == (200, 200)
+
+
+def test_ssd1681_needs_reset_pin(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The SSD1681 sleeps after every update and only a hardware reset wakes it, so reset_pin is required."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    for full_update_every in (1, 20):
+        with pytest.raises(cv.Invalid, match="reset_pin"):
+            run_schema_validation(
+                {
+                    "id": "test_display",
+                    "model": "ssd1681",
+                    "dc_pin": 21,
+                    "full_update_every": full_update_every,
+                }
+            )
 
 
 def test_ssd1681_dimensions_over_controller_limit_rejected(
