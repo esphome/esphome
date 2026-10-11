@@ -43,6 +43,7 @@ CODEOWNERS = ["@youkorr"]
 # Not "i2c": a USB camera is not on a bus, and a UVC-only board has no reason to
 # declare one. The MIPI-CSI path needs it, and _validate_i2c_bus asks for it.
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp_video_camera"
 AUTO_LOAD = ["camera"]
 
 esp_video_camera_ns = cg.esphome_ns.namespace("esp_video_camera")

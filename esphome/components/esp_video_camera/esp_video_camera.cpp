@@ -47,7 +47,7 @@ extern "C" {
 
 namespace esphome::esp_video_camera {
 
-static const char *const TAG = "esp_video_camera";
+ESPHOME_LOG_TAG(TAG, "esp_video_camera");
 
 // How long setup() waits for esp_video_init() on core 0 before giving up.
 static constexpr uint32_t INIT_TIMEOUT_MS = 10000;
