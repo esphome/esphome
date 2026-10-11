@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.samsung36";
+ESPHOME_LOG_TAG(TAG, "remote.samsung36");
 
 static constexpr uint8_t NBITS = 78;
 

@@ -239,8 +239,8 @@ class ExponentialMovingAverageFilter : public Filter {
 
   optional<float> new_value(float value) override;
 
-  void set_send_every(uint16_t send_every);
-  void set_alpha(float alpha);
+  void set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
+  void set_alpha(float alpha) { this->alpha_ = alpha; }
 
  protected:
   float accumulator_{NAN};
@@ -477,6 +477,19 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   float get_output_value() override { return this->value_.value(); }
   TemplatableFn<float> value_;  // 4 bytes (configured output value, can be lambda)
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
+};
+
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` (NaN only) with the
+/// same period, as one object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  explicit TimeoutThrottleFilter(uint32_t time_period) : TimeoutFilterLast(time_period) {}
+
+  optional<float> new_value(float value) override;
+  void loop() override;
+
+ protected:
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
 };
 
 class DebounceFilter : public Filter {

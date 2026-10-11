@@ -5,7 +5,6 @@
 #include <utility>
 
 #include "esphome/components/display/display_buffer.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -37,6 +36,9 @@ class HUB75Display final : public display::Display {
   // Brightness control (runtime mutable)
   void set_brightness(uint8_t brightness);
 
+  void set_rotation(display::DisplayRotation rotation) override;
+  display::DisplayRotation get_rotation() const override;
+
  protected:
   // Display internal methods
   int get_width_internal() override { return this->driver_ != nullptr ? this->driver_->get_width() : 0; }
@@ -44,18 +46,11 @@ class HUB75Display final : public display::Display {
 
   // Member variables
   Hub75Driver *driver_{nullptr};
-  Hub75Config config_;  // Immutable configuration
+  Hub75Config config_;  // Fixed after setup(); only the rotation can change before the driver exists
 
   // Runtime state (mutable)
   uint8_t brightness_{128};
   bool enabled_{false};
-};
-
-template<typename... Ts> class SetBrightnessAction final : public Action<Ts...>, public Parented<HUB75Display> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, brightness)
-
-  void play(const Ts &...x) override { this->parent_->set_brightness(this->brightness_.value(x...)); }
 };
 
 }  // namespace esphome::hub75

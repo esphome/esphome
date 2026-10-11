@@ -3,7 +3,7 @@
 
 namespace esphome::copy {
 
-static const char *const TAG = "copy.select";
+ESPHOME_LOG_TAG(TAG, "copy.select");
 
 void CopySelect::setup() {
   source_->add_on_state_callback([this](size_t index) { this->publish_state(index); });
