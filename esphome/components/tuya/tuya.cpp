@@ -44,7 +44,8 @@ void Tuya::setup() {
 #ifdef USE_TIME
   if (this->time_id_ != nullptr && this->force_time_sync_) {
     this->register_local_time_sync_callback_();
-    this->set_interval(FORCE_TIME_SYNC_INTERVAL_ID, FORCE_TIME_SYNC_CHECK_INTERVAL, [this] { this->check_force_time_sync_(); });
+    this->set_interval(FORCE_TIME_SYNC_INTERVAL_ID, FORCE_TIME_SYNC_CHECK_INTERVAL,
+                       [this] { this->check_force_time_sync_(); });
   }
 #endif
   if (this->status_pin_ != nullptr) {
