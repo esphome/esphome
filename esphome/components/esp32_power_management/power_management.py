@@ -72,13 +72,6 @@ def _validate(config: ConfigType) -> ConfigType:
                 f"Valid options are: {', '.join(valid)}",
                 path=[CONF_MAX_FREQUENCY],
             )
-        if (
-            min_mhz := config.get(CONF_MIN_FREQUENCY)
-        ) is not None and min_mhz > max_mhz:
-            raise cv.Invalid(
-                f"{CONF_MIN_FREQUENCY} must not be greater than {CONF_MAX_FREQUENCY}",
-                path=[CONF_MIN_FREQUENCY],
-            )
     if not config[CONF_ENABLE_LIGHT_SLEEP]:
         for key in (CONF_POWER_DOWN_PERIPHERALS, CONF_POWER_DOWN_FLASH):
             if config.get(key):
@@ -167,10 +160,18 @@ def _final_validate(config: ConfigType) -> ConfigType:
     entries = full_config.get(power_management.DOMAIN, [])
     if sum(entry.get(CONF_PLATFORM) == DOMAIN for entry in entries) > 1:
         raise cv.Invalid(f"Only one {DOMAIN} instance is allowed")
-    if (max_mhz := config.get(CONF_MAX_FREQUENCY)) is not None and (
-        boot_freq := full_config.get(esp32.DOMAIN, {}).get(esp32.CONF_CPU_FREQUENCY)
-    ) is not None:
-        boot_mhz = int(boot_freq[:-3])
+    boot_freq = full_config[esp32.DOMAIN][esp32.CONF_CPU_FREQUENCY]
+    boot_mhz = int(boot_freq[:-3])
+    max_mhz = config.get(CONF_MAX_FREQUENCY)
+    # Without max_frequency the boot frequency is the ceiling esp_pm_configure() gets.
+    if (min_mhz := config.get(CONF_MIN_FREQUENCY)) is not None and min_mhz > (
+        max_mhz if max_mhz is not None else boot_mhz
+    ):
+        raise cv.Invalid(
+            f"{CONF_MIN_FREQUENCY} must not be greater than the maximum frequency",
+            path=[CONF_MIN_FREQUENCY],
+        )
+    if max_mhz is not None:
         if boot_mhz > max_mhz:
             _LOGGER.info(
                 "esp32.%s (%s) is higher than %s (%dMHZ); the CPU will be "

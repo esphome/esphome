@@ -22,7 +22,6 @@ from esphome.components.esp32_power_management.power_management import (
 from esphome.components.openthread.const import CONF_DEVICE_TYPE, CONF_POLL_PERIOD
 from esphome.const import CONF_OPENTHREAD, KEY_FRAMEWORK_VERSION, PlatformFramework
 from esphome.core import CORE, TimePeriodMilliseconds
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -35,11 +34,13 @@ def _set_variant(
     /,
     *,
     framework: PlatformFramework = PlatformFramework.ESP32_IDF,
+    full_config: ConfigType | None = None,
 ) -> None:
     set_core_config(
         framework,
         core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
         platform_data={KEY_VARIANT: variant},
+        full_config=full_config,
     )
 
 
@@ -51,12 +52,6 @@ def _set_variant(
             {CONF_MAX_FREQUENCY: "96MHZ"},
             pytest.raises(cv.Invalid, match="not a valid CPU frequency"),
             id="max_invalid_for_variant",
-        ),
-        pytest.param(
-            VARIANT_ESP32,
-            {CONF_MAX_FREQUENCY: "80MHZ", CONF_MIN_FREQUENCY: "160MHZ"},
-            pytest.raises(cv.Invalid, match="must not be greater than"),
-            id="min_above_max",
         ),
         pytest.param(
             VARIANT_ESP32,
@@ -138,12 +133,13 @@ def test_rejects_arduino_framework(set_core_config: SetCoreConfigCallable) -> No
 def _final_validate_config(
     set_core_config: SetCoreConfigCallable,
     config: ConfigType,
-    full_config: ConfigType,
+    full_config: ConfigType | None = None,
+    boot_frequency: str = "160MHZ",
 ) -> None:
-    _set_variant(set_core_config, VARIANT_ESP32)
-    validated = CONFIG_SCHEMA(config)
-    fv.full_config.set(full_config)
-    _final_validate(validated)
+    """Validate config, then run _final_validate against the given full config."""
+    full_config = {"esp32": {"cpu_frequency": boot_frequency}} | (full_config or {})
+    _set_variant(set_core_config, VARIANT_ESP32, full_config=full_config)
+    _final_validate(CONFIG_SCHEMA(config))
 
 
 def test_rejects_multiple_esp32_power_management_instances(
@@ -176,10 +172,43 @@ def test_boot_frequency_log(
     _final_validate_config(
         set_core_config,
         {CONF_MAX_FREQUENCY: max_frequency},
-        {"esp32": {"cpu_frequency": boot_frequency}},
+        boot_frequency=boot_frequency,
     )
     assert expected in caplog.text
     assert (caplog.text == "") is (expected == "")
+
+
+@pytest.mark.parametrize(
+    ("config", "boot_frequency", "expectation"),
+    [
+        pytest.param(
+            {CONF_MAX_FREQUENCY: "80MHZ", CONF_MIN_FREQUENCY: "160MHZ"},
+            "240MHZ",
+            pytest.raises(cv.Invalid, match="must not be greater than"),
+            id="min_above_max",
+        ),
+        pytest.param(
+            {CONF_MIN_FREQUENCY: "160MHZ"},
+            "80MHZ",
+            pytest.raises(cv.Invalid, match="must not be greater than"),
+            id="min_above_boot_frequency",
+        ),
+        pytest.param(
+            {CONF_MIN_FREQUENCY: "80MHZ"},
+            "80MHZ",
+            nullcontext(),
+            id="min_equal_to_boot_frequency",
+        ),
+    ],
+)
+def test_min_frequency_against_effective_max(
+    set_core_config: SetCoreConfigCallable,
+    config: ConfigType,
+    boot_frequency: str,
+    expectation,
+) -> None:
+    with expectation:
+        _final_validate_config(set_core_config, config, boot_frequency=boot_frequency)
 
 
 def test_rejects_power_down_flash_with_psram(
