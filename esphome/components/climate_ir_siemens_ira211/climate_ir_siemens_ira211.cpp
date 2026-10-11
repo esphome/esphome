@@ -60,6 +60,15 @@ static climate::ClimateFanMode to_climate_fan_mode(IRA211Fan fan) {
   return FANS[0].fan_mode;
 }
 
+void SiemensIRA211Climate::setup() {
+  // The thermostat decides between heating and cooling itself, so one mode stands for both
+  if (this->modes_.count(climate::CLIMATE_MODE_HEAT_COOL)) {
+    this->modes_.erase(climate::CLIMATE_MODE_HEAT);
+    this->modes_.erase(climate::CLIMATE_MODE_COOL);
+  }
+  climate_ir::ClimateIR::setup();
+}
+
 climate::ClimateMode SiemensIRA211Climate::active_mode_() const {
   if (this->modes_.count(climate::CLIMATE_MODE_HEAT_COOL))
     return climate::CLIMATE_MODE_HEAT_COOL;

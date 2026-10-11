@@ -1,6 +1,9 @@
 #pragma once
 
 #include "remote_base.h"
+#include "esphome/core/helpers.h"
+
+#include <cmath>
 
 namespace esphome::remote_base {
 
@@ -30,6 +33,9 @@ enum class IRA211Fan : uint8_t {
   IRA211_FAN_HIGH = 192,
 };
 
+static constexpr float IRA211_MIN_TEMPERATURE = 5.0f;
+static constexpr float IRA211_MAX_TEMPERATURE = 35.0f;
+
 struct IRA211Data {
   IRA211Command command{IRA211Command::IRA211_COMMAND_SYNC};
   uint8_t half_degrees{40};  // target temperature in 0.5 C steps
@@ -37,7 +43,11 @@ struct IRA211Data {
   IRA211Fan fan{IRA211Fan::IRA211_FAN_AUTO};
 
   float get_temperature() const { return this->half_degrees * 0.5f; }
-  void set_temperature(float temperature) { this->half_degrees = static_cast<uint8_t>(temperature * 2.0f + 0.5f); }
+  /// Rounds to the nearest half degree and clamps to the 5 to 35 C range the thermostat accepts.
+  void set_temperature(float temperature) {
+    this->half_degrees =
+        static_cast<uint8_t>(lroundf(clamp(temperature, IRA211_MIN_TEMPERATURE, IRA211_MAX_TEMPERATURE) * 2.0f));
+  }
 
   /// Compares the command and only the fields that command carries.
   bool operator==(const IRA211Data &rhs) const;

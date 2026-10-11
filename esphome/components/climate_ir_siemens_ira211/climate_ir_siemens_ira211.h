@@ -7,6 +7,7 @@ namespace esphome::climate_ir_siemens_ira211 {
 
 class SiemensIRA211Climate final : public climate_ir::ClimateIR {
  public:
+  void setup() override;
   SiemensIRA211Climate()
       : climate_ir::ClimateIR(5.0f, 35.0f, 0.5f, false, false,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,

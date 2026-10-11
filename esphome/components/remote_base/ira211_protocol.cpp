@@ -8,7 +8,7 @@ ESPHOME_LOG_TAG(TAG, "remote.ira211");
 
 static constexpr uint32_t CARRIER_FREQUENCY = 38000;
 static constexpr uint32_t T_US = 800;
-static constexpr uint32_t HEADER_US = 19 * T_US / 2;  // 7600 us, also the end-of-frame gap
+static constexpr uint32_t HEADER_US = 19 * T_US / 2;  // 7600 us, also the gap that separates frames
 
 static constexpr uint8_t DEVICE_ID = 0x66;
 static constexpr uint8_t BITS_PER_PACKET = 10;
@@ -121,6 +121,7 @@ void IRA211Protocol::encode(RemoteTransmitData *dst, const IRA211Data &data) {
   // Every packet ends with a 0 bit, so the frame ends with a space, closed by a trailing mark
   dst->space(run * T_US);
   dst->mark(T_US);
+  dst->space(HEADER_US);
 }
 
 optional<IRA211Data> IRA211Protocol::decode(RemoteReceiveData src) {
