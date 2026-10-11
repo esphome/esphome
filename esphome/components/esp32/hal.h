@@ -9,6 +9,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "esphome/core/main_task.h"
 #include "esphome/core/time_conversion.h"
 
 #ifndef PROGMEM
@@ -31,6 +32,10 @@ __attribute__((always_inline)) inline bool in_isr_context() { return xPortInIsrC
 // NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" int64_t esp_timer_get_time(void);
 
+/// Before setup() stores the handle every task counts as background; the wake is a no-op until then.
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  return xTaskGetCurrentTaskHandle() == esphome_main_task_handle;
+}
 __attribute__((always_inline)) inline void yield() { vPortYield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(esp_timer_get_time()); }

@@ -30,44 +30,32 @@ from .const import (
 
 DEPENDENCIES = ["ld6002b"]
 
-# The ld2450 defaults for a streamed value: hold the last reading for a second so a
-# dropped frame does not read as absence, then rate-limit what reaches the frontend.
-_VALUE_SENSOR_FILTERS = [
-    {
-        "timeout": {
-            "timeout": cv.TimePeriod(milliseconds=1000),
-            "value": "last",
-        }
-    },
-    {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
-]
-
 TARGET_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_X): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_Y): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_Z): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_DOPPLER_INDEX): sensor.sensor_schema(
             accuracy_decimals=0,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CLUSTER_ID): sensor.sensor_schema(
@@ -154,13 +142,9 @@ CONFIG_SCHEMA = (
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
-    if target_count_config := config.get(CONF_TARGET_COUNT):
-        sens = await sensor.new_sensor(target_count_config)
-        cg.add(hub.set_target_count_sensor(sens))
-
-    if point_count_config := config.get(CONF_POINT_COUNT):
-        sens = await sensor.new_sensor(point_count_config)
-        cg.add(hub.set_point_count_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TARGET_COUNT, hub.set_target_count_sensor)
+    await sensors(CONF_POINT_COUNT, hub.set_point_count_sensor)
 
     for i in range(MAX_TARGETS):
         if target_config := config.get(f"target_{i + 1}"):

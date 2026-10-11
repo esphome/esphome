@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.climate";
+ESPHOME_LOG_TAG(TAG, "mqtt.climate");
 
 using namespace esphome::climate;
 
