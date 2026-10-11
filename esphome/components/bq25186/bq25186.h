@@ -33,12 +33,6 @@ class BQ25186Component : public Component, public i2c::I2CDevice {
   }
   bool apply_config(const BQ25186ConfigRegisters &regs);
 
-  bool write_pg_gpo_level(bool level);
-  bool trigger_software_reset();
-  bool trigger_shutdown_mode();
-  bool trigger_ship_mode();
-  bool trigger_hardware_reset();
-
  protected:
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);

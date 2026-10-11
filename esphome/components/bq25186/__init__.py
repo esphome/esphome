@@ -5,7 +5,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WATCHDOG
+from esphome.const import CONF_ID
 from esphome.core import CORE, ID, Lambda
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -43,7 +43,6 @@ CONF_WAKE2_TIMER = "wake2_timer"
 CONF_ENABLE_PUSH_BUTTON = "enable_push_button"
 CONF_SYSTEM_REGULATION = "system_regulation"
 CONF_SYS_MODE = "sys_mode"
-CONF_WATCHDOG_15S_ENABLE = "watchdog_15s_enable"
 CONF_DISABLE_VDPPM = "disable_vdppm"
 CONF_TS_HOT = "ts_hot"
 CONF_TS_COLD = "ts_cold"
@@ -70,6 +69,7 @@ REG_SYS_REG = 0x0A
 REG_TS_CONTROL = 0x0B
 REG_MASK_ID = 0x0C
 REGISTER_COUNT = REG_MASK_ID - REG_VBAT_CTRL + 1
+WATCHDOG_DISABLED = 0x03
 
 TERMINATION_PERCENT_OPTIONS = {"disabled": 0, "5%": 1, "10%": 2, "20%": 3}
 VINDPM_MODE_OPTIONS = {"battery_tracking": 0, "4.5v": 1, "4.7v": 2, "disabled": 3}
@@ -86,12 +86,6 @@ BATTERY_UVLO_OPTIONS = {
 VLOWV_OPTIONS = {"3.0v": 0, "2.8v": 1}
 RECHARGE_THRESHOLD_OPTIONS = {"100mv": 0, "200mv": 1}
 SAFETY_TIMER_OPTIONS = {"3h": 0, "6h": 1, "12h": 2, "disabled": 3}
-WATCHDOG_OPTIONS = {
-    "160s_software_reset": 0,
-    "160s_hardware_reset": 1,
-    "40s_hardware_reset": 2,
-    "disabled": 3,
-}
 LONG_PRESS_DURATION_OPTIONS = {"5s": 0, "10s": 1, "15s": 2, "20s": 3}
 AUTOWAKE_OPTIONS = {"0.5s": 0, "1s": 1, "2s": 2, "4s": 3}
 INPUT_CURRENT_LIMIT_OPTIONS = {
@@ -167,9 +161,6 @@ FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
     (CONF_RECHARGE_THRESHOLD, REG_IC_CTRL, 5, RECHARGE_THRESHOLD_OPTIONS, "100mv"),
     (CONF_DOUBLE_TIMER_DURING_DPM, REG_IC_CTRL, 4, cv.boolean, False),
     (CONF_SAFETY_TIMER, REG_IC_CTRL, 2, SAFETY_TIMER_OPTIONS, "6h"),
-    # With the watchdog running the chip restores its power-on defaults after
-    # 160 s without I2C traffic, which would undo the boot configuration.
-    (CONF_WATCHDOG, REG_IC_CTRL, 0, WATCHDOG_OPTIONS, "disabled"),
     (CONF_LONG_PRESS_DURATION, REG_TMR_ILIM, 6, LONG_PRESS_DURATION_OPTIONS, "10s"),
     (CONF_HW_RESET_REQUIRES_VIN, REG_TMR_ILIM, 5, cv.boolean, False),
     (CONF_AUTOWAKE, REG_TMR_ILIM, 3, AUTOWAKE_OPTIONS, "1s"),
@@ -186,7 +177,6 @@ FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
     (CONF_ENABLE_PUSH_BUTTON, REG_SHIP_RST, 0, cv.boolean, True),
     (CONF_SYSTEM_REGULATION, REG_SYS_REG, 5, SYSTEM_REGULATION_OPTIONS, "4.5v"),
     (CONF_SYS_MODE, REG_SYS_REG, 2, SYS_MODE_OPTIONS, "normal"),
-    (CONF_WATCHDOG_15S_ENABLE, REG_SYS_REG, 1, cv.boolean, False),
     (CONF_DISABLE_VDPPM, REG_SYS_REG, 0, cv.boolean, False),
     (CONF_TS_HOT, REG_TS_CONTROL, 6, TS_HOT_OPTIONS, "60c"),
     (CONF_TS_COLD, REG_TS_CONTROL, 4, TS_COLD_OPTIONS, "0c"),
@@ -224,6 +214,9 @@ _ENCODERS: dict[str, Callable[[Any], int]] = {
 def pack_registers(config: ConfigType) -> list[int]:
     """Pack the validated field values into the VBAT_CTRL..MASK_ID register bytes."""
     regs = [0] * REGISTER_COUNT
+    # Watchdog disabled (IC_CTRL[1:0] = 3): nothing talks to the chip after boot yet, and a running
+    # watchdog restores the power-on defaults after 160 s. Part 2 adds the option with the polling.
+    regs[REG_IC_CTRL - REG_VBAT_CTRL] = WATCHDOG_DISABLED
     for key, register, shift, validator, _ in FIELDS:
         value = config[key]
         if isinstance(validator, dict):

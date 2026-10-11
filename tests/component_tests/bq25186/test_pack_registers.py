@@ -7,7 +7,6 @@ from esphome.components.bq25186 import (
     CONF_FAST_CHARGE_CURRENT,
     CONF_MASK_TS_INTERRUPT,
     CONF_PUSH_BUTTON_LONG_PRESS_ACTION,
-    CONF_WATCHDOG,
     REG_ICHG_CTRL,
     REG_MASK_ID,
     REG_SHIP_RST,
@@ -29,7 +28,6 @@ def _packed(reg: int, config: ConfigType | None = None) -> int:
 
 def test_defaults_match_power_on_values() -> None:
     assert pack_registers(BQ25186_CONFIG_SCHEMA({})) == DEFAULT_REGISTERS
-    assert BQ25186_CONFIG_SCHEMA({})[CONF_WATCHDOG] == "disabled"
 
 
 def test_battery_regulation_voltage_code() -> None:

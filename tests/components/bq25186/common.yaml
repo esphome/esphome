@@ -23,4 +23,3 @@ bq25186:
     address: 0x6B
     configure_on_boot: true
     fast_charge_current: 20mA
-    watchdog: 160s_hardware_reset
