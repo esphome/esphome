@@ -8,6 +8,7 @@
 #include "esphome/components/json/json_util.h"
 
 #include <array>
+#include <atomic>
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -41,6 +42,12 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void send_command(const char *command);
   void send_command(const std::string &command) { this->send_command(command.c_str()); }
 
+  /// Stop reading the UART and sending commands, so another component can use it.
+  /// Atomic, so it can be called from any task. Hold the pause for at least one loop() pass.
+  void set_paused(bool paused) { this->paused_.store(paused, std::memory_order_relaxed); }
+
+  bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
+
 #ifdef USE_SENSOR
   void init_sensors(size_t count) { this->sensors_.init(count); }
   void register_sensor(const char *tag_name, sensor::Sensor *sensor);
@@ -55,7 +62,9 @@ class EmonTx final : public Component, public uart::UARTDevice {
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
   uint16_t buffer_pos_{0};
-  bool discarding_line_{false};  // Set after an overflow until the end of that line
+  std::atomic<bool> paused_{false};
+  bool was_paused_{false};
+  bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
 };
 
