@@ -20,15 +20,7 @@ STORAGE_RTC = "rtc"
 
 
 def rtc_supported() -> bool:
-    """Whether the active platform has an RTC-backed preferences backend.
-
-    Call it at validation time, from a validator or a callable default; while a schema is
-    being built at import time the target is not known yet and it returns False.
-
-    Mirrors the C++ ``SOC_RTC_MEM_SUPPORTED`` guard in the ESP32 backend: the ESP32-C2
-    and -C61 have no RTC memory at all, so RTC storage is unavailable there. Lets a
-    component decide its own storage default (e.g. prefer RTC when it is available).
-    """
+    """Whether the target has RTC-backed preferences (not ESP32-C2/C61); call at validation time."""
     if CORE.is_esp8266:
         return True
     if CORE.is_esp32:
@@ -49,9 +41,7 @@ def _default_storage() -> str:
 
 
 def validate_storage(value: object) -> str:
-    """Validate a bare ``storage:`` field: ``flash`` or ``rtc`` (the latter gated by
-    platform support). Use directly for an option that resolves its own default;
-    use :func:`storage_schema` for the historic per-platform default."""
+    """Validate a ``storage:`` value, ``flash`` or ``rtc`` where supported."""
     value = cv.one_of(STORAGE_FLASH, STORAGE_RTC, lower=True)(value)
     if value == STORAGE_RTC and not rtc_supported():
         raise cv.Invalid(
