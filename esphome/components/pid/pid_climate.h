@@ -26,6 +26,7 @@ class PIDClimate final : public climate::Climate, public Component {
   void set_kd(float kd) { controller_.kd_ = kd; }
   void set_min_integral(float min_integral) { controller_.min_integral_ = min_integral; }
   void set_max_integral(float max_integral) { controller_.max_integral_ = max_integral; }
+  bool set_deadband_thresholds(float threshold_low, float threshold_high);
   void set_output_samples(int in) { controller_.output_samples_ = in; }
   void set_derivative_samples(int in) {
     controller_.derivative_samples_ = in;
@@ -78,6 +79,8 @@ class PIDClimate final : public climate::Climate, public Component {
     default_target_temperature_ = default_target_temperature;
   }
   void start_autotune(std::unique_ptr<PIDAutotuner> &&autotune);
+  /// Build a tuner from the climate.pid.autotune settings and start it.
+  void start_autotune(float noiseband, float positive_output, float negative_output);
   void reset_integral_term();
 
  protected:
@@ -106,61 +109,6 @@ class PIDClimate final : public climate::Climate, public Component {
   float default_target_temperature_;
   std::unique_ptr<PIDAutotuner> autotuner_;
   bool do_publish_ = false;
-};
-
-template<typename... Ts> class PIDAutotuneAction final : public Action<Ts...> {
- public:
-  PIDAutotuneAction(PIDClimate *parent) : parent_(parent) {}
-
-  void set_noiseband(float noiseband) { noiseband_ = noiseband; }
-  void set_positive_output(float positive_output) { positive_output_ = positive_output; }
-  void set_negative_output(float negative_output) { negative_output_ = negative_output; }
-
-  void play(const Ts &...x) {
-    auto tuner = make_unique<PIDAutotuner>();
-    tuner->set_noiseband(this->noiseband_);
-    tuner->set_output_negative(this->negative_output_);
-    tuner->set_output_positive(this->positive_output_);
-    this->parent_->start_autotune(std::move(tuner));
-  }
-
- protected:
-  float noiseband_;
-  float positive_output_;
-  float negative_output_;
-  PIDClimate *parent_;
-};
-
-template<typename... Ts> class PIDResetIntegralTermAction final : public Action<Ts...> {
- public:
-  PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) { this->parent_->reset_integral_term(); }
-
- protected:
-  PIDClimate *parent_;
-};
-
-template<typename... Ts> class PIDSetControlParametersAction final : public Action<Ts...> {
- public:
-  PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) {
-    auto kp = this->kp_.value(x...);
-    auto ki = this->ki_.value(x...);
-    auto kd = this->kd_.value(x...);
-
-    this->parent_->set_kp(kp);
-    this->parent_->set_ki(ki);
-    this->parent_->set_kd(kd);
-  }
-
- protected:
-  TEMPLATABLE_VALUE(float, kp)
-  TEMPLATABLE_VALUE(float, ki)
-  TEMPLATABLE_VALUE(float, kd)
-
-  PIDClimate *parent_;
 };
 
 }  // namespace esphome::pid

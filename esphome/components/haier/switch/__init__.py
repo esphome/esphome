@@ -60,7 +60,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     full_config = fv.full_config.get()
     for switch_type in [CONF_BEEPER, CONF_QUIET_MODE]:
         # Check switches that are only supported for HonClimate
@@ -72,7 +72,6 @@ def _final_validate(config):
                 raise cv.Invalid(
                     f"{switch_type} switch is only supported for hon climate"
                 )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

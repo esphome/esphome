@@ -5,6 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 // On ESP8266 and RP2040 the scheduler-backed MDNS.update() polling window is armed by
 // IP state listener events on whichever network interface is configured.
 #if (defined(USE_ESP8266) || defined(USE_RP2)) && \
@@ -39,12 +40,7 @@ struct MDNSString;
 // Macro to cast string literals to MDNSString* (works on all platforms)
 #define MDNS_STR(name) (reinterpret_cast<const esphome::mdns::MDNSString *>(name))
 
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#define MDNS_STR_ARG(s) ((PGM_P) (s))
-#else
-#define MDNS_STR_ARG(s) (reinterpret_cast<const char *>(s))
-#endif
+#define MDNS_STR_ARG(s) (reinterpret_cast<ESPHOME_PGM_P>(s))
 
 // Service count is calculated at compile time by Python codegen
 // MDNS_SERVICE_COUNT will always be defined
@@ -63,6 +59,9 @@ struct MDNSService {
   const MDNSString *proto;
   TemplatableFn<uint16_t> port;
   FixedVector<MDNSTXTRecord> txt_records;
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  bool enabled{true};
+#endif
 };
 
 class MDNSComponent final : public Component
@@ -110,6 +109,19 @@ class MDNSComponent final : public Component
 
 #ifdef USE_MDNS_STORE_SERVICES
   const StaticVector<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return this->services_; }
+#endif
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#ifndef USE_MDNS_STORE_SERVICES
+#error "USE_MDNS_SUPPORTS_ENABLE_DISABLE requires USE_MDNS_STORE_SERVICES"
+#endif
+#ifdef USE_OPENTHREAD
+#error "USE_MDNS_SUPPORTS_ENABLE_DISABLE is not supported with OpenThread"
+#endif
+  /// Enable or disable a compiled-in service, matched by type and proto (e.g. "_sendspin", "_tcp").
+  /// Only valid once this component is ready. Re-enabling re-reads the port but keeps the boot-time TXT values.
+  /// Returns true if the service is in the requested state afterwards. Blocks briefly on the mDNS task.
+  bool set_service_enabled(const char *service_type, const char *proto, bool enabled);
 #endif
 
   void on_shutdown() override;

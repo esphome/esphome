@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.alarm_control_panel";
+ESPHOME_LOG_TAG(TAG, "mqtt.alarm_control_panel");
 
 using namespace esphome::alarm_control_panel;
 
