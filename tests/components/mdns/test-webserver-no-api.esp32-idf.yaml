@@ -1,0 +1,9 @@
+# web_server without the native api so the version, mac and config_hash
+# TXT records are attached to the web_server _http service.
+wifi:
+  ssid: MySSID
+  password: password1
+
+web_server:
+
+mdns:

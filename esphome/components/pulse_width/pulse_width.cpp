@@ -3,7 +3,7 @@
 
 namespace esphome::pulse_width {
 
-static const char *const TAG = "pulse_width";
+ESPHOME_LOG_TAG(TAG, "pulse_width");
 
 void IRAM_ATTR PulseWidthSensorStore::gpio_intr(PulseWidthSensorStore *arg) {
   const bool new_level = arg->pin_.digital_read();

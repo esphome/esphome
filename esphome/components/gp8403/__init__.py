@@ -2,9 +2,11 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL, CONF_VOLTAGE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz", "@sebydocky"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "gp8403"
 MULTI_CONF = True
 
 gp8403_ns = cg.esphome_ns.namespace("gp8403")
@@ -38,7 +40,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

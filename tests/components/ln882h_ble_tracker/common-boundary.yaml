@@ -1,0 +1,12 @@
+ln882h_ble_tracker:
+  id: ble_tracker
+  scan_parameters:
+    # Boundary coverage: the documented 2.5 ms floor on window (expressible only
+    # via the microsecond-accurate validation), a non-round interval exercising the
+    # 0.625 ms unit conversion without collapsing onto the window's unit count,
+    # and the non-continuous config path.
+    interval: 5000us
+    window: 2500us
+    duration: 5min
+    active: false
+    continuous: false

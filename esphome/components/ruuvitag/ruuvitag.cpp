@@ -1,11 +1,9 @@
 #include "ruuvitag.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::ruuvitag {
 
-static const char *const TAG = "ruuvitag";
+ESPHOME_LOG_TAG(TAG, "ruuvitag");
 
 void RuuviTag::dump_config() {
   ESP_LOGCONFIG(TAG, "RuuviTag");
@@ -23,5 +21,3 @@ void RuuviTag::dump_config() {
 }
 
 }  // namespace esphome::ruuvitag
-
-#endif

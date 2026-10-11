@@ -23,6 +23,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "usb_cdc_acm"
 
 
 def AUTO_LOAD():

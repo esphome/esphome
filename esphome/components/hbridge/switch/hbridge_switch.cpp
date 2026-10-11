@@ -5,7 +5,7 @@
 
 namespace esphome::hbridge {
 
-static const char *const TAG = "switch.hbridge";
+ESPHOME_LOG_TAG(TAG, "switch.hbridge");
 
 float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void HBridgeSwitch::setup() {
@@ -29,8 +29,9 @@ void HBridgeSwitch::dump_config() {
   LOG_PIN("  On Pin: ", this->on_pin_);
   LOG_PIN("  Off Pin: ", this->off_pin_);
   ESP_LOGCONFIG(TAG, "  Pulse length: %" PRId32 " ms", this->pulse_length_);
-  if (this->wait_time_)
+  if (this->wait_time_) {
     ESP_LOGCONFIG(TAG, "  Wait time %" PRId32 " ms", this->wait_time_);
+  }
 }
 
 void HBridgeSwitch::write_state(bool state) {

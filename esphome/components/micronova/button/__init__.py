@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MEMORY_ADDRESS,
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     if custom_button_config := config.get(CONF_CUSTOM_BUTTON):
