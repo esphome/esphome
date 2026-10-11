@@ -95,15 +95,6 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   const bool hisense_arg = this->is_hisense_arg_();
-  if (hisense_arg) {
-    // The unit runs these fan speeds in dry and fan-only, so show them rather than the request
-    if (this->mode == climate::CLIMATE_MODE_DRY) {
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    } else if (this->mode == climate::CLIMATE_MODE_FAN_ONLY &&
-               this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO) == climate::CLIMATE_FAN_AUTO) {
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    }
-  }
 
   // Temperature
   auto temp = (uint8_t) roundf(clamp(this->target_temperature, this->temperature_min_(), this->temperature_max_()));
@@ -203,6 +194,15 @@ void WhirlpoolClimate::encode_hisense_arg_(uint8_t *remote_state, bool power_tog
     case climate::CLIMATE_MODE_OFF:
       // The remote keeps the cool code in the power-off frame
       remote_state[3] = (remote_state[3] & 0xF0) | WHIRLPOOL_COOL;
+      break;
+    case climate::CLIMATE_MODE_DRY:
+      // The unit runs these fan speeds itself; the user's choice is kept for the next mode change
+      remote_state[2] &= ~WHIRLPOOL_FAN_MASK;
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      if ((remote_state[2] & WHIRLPOOL_FAN_MASK) == WHIRLPOOL_FAN_AUTO) {
+        remote_state[2] |= WHIRLPOOL_FAN_MED;
+      }
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
       // Auto sends the target as one of four range codes in byte 2 bits 6:4 instead of the temperature nibble.

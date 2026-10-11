@@ -204,13 +204,12 @@ TEST(WhirlpoolHisenseArg, ModeSpecificFanAndTemperature) {
   Frame frame = f.last_frame();
   EXPECT_EQ(frame[2] & 0x03, 0) << "dry forces fan auto";
   EXPECT_EQ(frame[3], 0x83);
-  EXPECT_EQ(f.climate.fan_mode, climate::CLIMATE_FAN_AUTO) << "the entity shows the fan the unit runs";
+  EXPECT_EQ(f.climate.fan_mode, climate::CLIMATE_FAN_HIGH) << "the user's choice survives the dry frame";
 
   f.command(climate::CLIMATE_MODE_FAN_ONLY, 20, climate::CLIMATE_FAN_AUTO);
   frame = f.last_frame();
   EXPECT_EQ(frame[2] & 0x03, 2) << "fan-only with fan auto sends medium";
   EXPECT_EQ(frame[3], 0x74) << "fixed temperature nibble 7, fan mode 4";
-  EXPECT_EQ(f.climate.fan_mode, climate::CLIMATE_FAN_MEDIUM);
 
   f.command(climate::CLIMATE_MODE_FAN_ONLY, 20, climate::CLIMATE_FAN_HIGH);
   EXPECT_EQ(f.last_frame()[2] & 0x03, 1);
