@@ -64,30 +64,38 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _final_validate(config: ConfigType) -> None:
-    """Each polygon zone must have exactly one presence binary sensor."""
-    references: dict[str, int] = {}
+    """Each polygon zone must have exactly one presence binary sensor, on the same LD2450."""
+    # Polygon zone id -> the LD2450 id of each presence binary sensor that uses it
+    references: dict[str, list[str]] = {}
     for binary_sensor_conf in fv.full_config.get().get("binary_sensor", []):
         if binary_sensor_conf.get(CONF_PLATFORM) != "ld2450":
             continue
+        hub_id = binary_sensor_conf[CONF_LD2450_ID].id
         for presence_conf in binary_sensor_conf.get(CONF_POLYGON_ZONES, []):
             zone_id = presence_conf[CONF_POLYGON_ZONE_ID].id
-            references[zone_id] = references.get(zone_id, 0) + 1
+            references.setdefault(zone_id, []).append(hub_id)
 
+    zone_hub_id = config[CONF_LD2450_ID].id
     for index, zone_conf in enumerate(config[CONF_POLYGON_ZONES]):
         zone_id = zone_conf[CONF_ID].id
-        count = references.get(zone_id, 0)
-        if count == 1:
-            continue
-        problem = (
-            "has no presence binary sensor"
-            if count == 0
-            else "is used by more than one presence binary sensor"
-        )
-        raise cv.Invalid(
-            f"Polygon zone '{zone_id}' {problem}; each zone needs exactly one, under "
-            f"'binary_sensor: - platform: ld2450' -> '{CONF_POLYGON_ZONES}'",
-            path=[CONF_POLYGON_ZONES, index],
-        )
+        hub_ids = references.get(zone_id, [])
+        if len(hub_ids) != 1:
+            problem = (
+                "has no presence binary sensor"
+                if not hub_ids
+                else "is used by more than one presence binary sensor"
+            )
+            raise cv.Invalid(
+                f"Polygon zone '{zone_id}' {problem}; each zone needs exactly one, under "
+                f"'binary_sensor: - platform: ld2450' -> '{CONF_POLYGON_ZONES}'",
+                path=[CONF_POLYGON_ZONES, index],
+            )
+        if hub_ids[0] != zone_hub_id:
+            raise cv.Invalid(
+                f"Polygon zone '{zone_id}' belongs to LD2450 '{zone_hub_id}', but its presence "
+                f"binary sensor is under LD2450 '{hub_ids[0]}'; use the same '{CONF_LD2450_ID}'",
+                path=[CONF_POLYGON_ZONES, index],
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

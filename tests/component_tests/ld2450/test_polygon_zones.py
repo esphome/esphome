@@ -20,6 +20,7 @@ from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
 HUB_ID = "ld2450_hub"
+OTHER_HUB_ID = "ld2450_other"
 
 
 def _text_config(*zone_ids: str) -> ConfigType:
@@ -33,11 +34,12 @@ def _text_config(*zone_ids: str) -> ConfigType:
     }
 
 
-def _binary_sensors(*zone_ids: str) -> list[ConfigType]:
+def _binary_sensors(*zone_ids: str, hub_id: str = HUB_ID) -> list[ConfigType]:
     """A binary sensor platform list with one presence sensor per given zone reference."""
     return [
         {
             CONF_PLATFORM: "ld2450",
+            "ld2450_id": ID(hub_id, is_declaration=False, type="ld2450"),
             CONF_POLYGON_ZONES: [
                 {CONF_POLYGON_ZONE_ID: ID(zone_id, is_declaration=False)}
                 for zone_id in zone_ids
@@ -120,3 +122,22 @@ def test_zone_without_id_is_rejected(
 
     with pytest.raises(cv.Invalid, match=r"^'id' is required, so the zone's presence"):
         TEXT_CONFIG_SCHEMA({CONF_POLYGON_ZONES: [{CONF_NAME: "Couch Zone Polygon"}]})
+
+
+def test_presence_on_another_ld2450_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The zone's own LD2450 drives its presence, so the sensor must name the same one."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={"binary_sensor": _binary_sensors("couch", hub_id=OTHER_HUB_ID)},
+    )
+
+    with pytest.raises(
+        cv.Invalid,
+        match=(
+            r"^Polygon zone 'couch' belongs to LD2450 'ld2450_hub', but its presence binary "
+            r"sensor is under LD2450 'ld2450_other'; .* @ data\['polygon_zones'\]\[0\]$"
+        ),
+    ):
+        TEXT_FINAL_VALIDATE_SCHEMA(_text_config("couch"))
