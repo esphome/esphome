@@ -213,6 +213,10 @@ climate:
 
 - **supports_dry** (*Optional*, boolean): Enables setting dry mode for this unit. Defaults to `false`.
 - **supports_fan_only** (*Optional*, boolean): Enables setting fan only mode for this unit. Confirm that mode is supported on your remote. Defaults to `false`.
+- **fahrenheit_compatibility** (*Optional*, boolean): Send the temperature codes a Mitsubishi remote set to Fahrenheit
+  uses. These codes add a half degree bit, so every whole degree from 61°F to 88°F reaches the unit unchanged instead
+  of rounding to the nearest Celsius step; targets outside that range are clamped to it. Enable this when you set the
+  target temperature in Fahrenheit, for example when Home Assistant uses imperial units. Defaults to `false`.
 
 - **horizontal_default** (*Optional*, string): What to default to when the AC unit's horizontal direction is *not* set to swing. Defaults to `middle`.
 
