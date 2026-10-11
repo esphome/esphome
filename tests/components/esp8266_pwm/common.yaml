@@ -1,3 +1,13 @@
+esphome:
+  on_boot:
+    then:
+      - output.esp8266_pwm.set_frequency:
+          id: out
+          frequency: 100Hz
+      - output.esp8266_pwm.set_frequency:
+          id: out2
+          frequency: !lambda return 200.0f;
+
 output:
   - platform: esp8266_pwm
     id: out

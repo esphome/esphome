@@ -3,7 +3,7 @@
 
 namespace esphome::copy {
 
-static const char *const TAG = "copy.fan";
+ESPHOME_LOG_TAG(TAG, "copy.fan");
 
 void CopyFan::setup() {
   // Copy preset modes once from source fan — stored on Fan base class

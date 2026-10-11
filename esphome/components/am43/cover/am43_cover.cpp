@@ -5,7 +5,7 @@
 
 namespace esphome::am43 {
 
-static const char *const TAG = "am43_cover";
+ESPHOME_LOG_TAG(TAG, "am43_cover");
 
 using namespace esphome::cover;
 

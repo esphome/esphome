@@ -1,0 +1,6 @@
+packages:
+  espectre: !include common.yaml
+
+espectre:
+  csi_capture_profile: lltf
+  traffic_generator_mode: wifi_raw
