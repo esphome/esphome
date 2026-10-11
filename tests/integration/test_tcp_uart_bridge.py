@@ -41,12 +41,14 @@ async def test_tcp_uart_bridge(
     service_byte_ok = asyncio.Event()
     reconnect_echo_ok = asyncio.Event()
     sessions = 0
+    writers: list[asyncio.StreamWriter] = []
 
     async def handle(
         reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         nonlocal sessions
         sessions += 1
+        writers.append(writer)
         if sessions == 1:
             writer.write(GREETING)
             await writer.drain()
@@ -98,5 +100,9 @@ async def test_tcp_uart_bridge(
                 reconnect_echo_ok, 15.0, "Bridge did not reconnect and echo again"
             )
     finally:
+        # On Python 3.12 wait_closed() waits for every connection the handlers
+        # left open; nothing else closes them once the device has exited.
+        for writer in writers:
+            writer.close()
         server.close()
         await server.wait_closed()

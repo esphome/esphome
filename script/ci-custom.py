@@ -1065,15 +1065,13 @@ HEAP_ALLOCATING_HELPERS = {
     r"str_sprintf|"
     r"str_snprintf|"
     r"value_accuracy_to_string"
-    r")\s*\(" + CPP_RE_EOL,
+    # Explicit template arguments at any nesting depth, e.g. format_hex<std::array<uint8_t, 4>>(
+    r")\s*(?:<[^;{}()\n]*>\s*)?\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves
         "esphome/core/alloc_helpers.h",
         "esphome/core/alloc_helpers.cpp",
-        # Backward compatibility re-exports (remove before 2026.11.0)
-        "esphome/core/helpers.h",
-        "esphome/core/helpers.cpp",
         # Vendored third-party library
         "esphome/components/http_request/httplib.h",
     ],
@@ -1126,7 +1124,6 @@ def lint_no_sprintf(fname, match):
         # Vendored library
         "esphome/components/http_request/httplib.h",
         # Deprecated helpers that return std::string
-        "esphome/core/helpers.cpp",
         "esphome/core/alloc_helpers.cpp",
         # The using declaration itself
         "esphome/core/helpers.h",
@@ -1277,12 +1274,6 @@ def lint_no_std_nothrow(fname, match):
     r"\s*(?:=\s*\{?|[{(])\s*\"",
     prefilter="TAG",
     include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
-    # Deprecated components, converted in a follow-up PR
-    exclude=[
-        "esphome/components/st7735/*",
-        "esphome/components/st7789v/*",
-        "esphome/components/waveshare_epaper/*",
-    ],
 )
 def lint_log_tag_macro(fname, match):
     return (
