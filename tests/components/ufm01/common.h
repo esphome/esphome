@@ -197,6 +197,8 @@ class TestableUFM01 : public UFM01Component {
     this->meter_id_published_ = false;
     this->software_version_published_ = false;
     this->software_version_read_pending_ = false;
+    this->software_version_failures_ = 0;
+    this->meter_id_invalid_logged_ = false;
     this->last_software_version_attempt_ms_ = 0;
     this->startup_phase_ = StartupPhase::WAIT;
     this->pending_clear_action_ = nullptr;

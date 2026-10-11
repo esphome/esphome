@@ -139,4 +139,35 @@ TEST_F(UFM01Test, ActiveStreamRetriesSoftwareVersionRead) {
   this->expect_written(GET_SOFTWARE_VERSION);
 }
 
+TEST_F(UFM01Test, ActiveStreamGivesUpSoftwareVersionAfterRepeatedFailures) {
+  this->attach_diagnostic_text_sensors();
+  this->ufm01_.set_operating_mode(OperatingMode::ACTIVE_STREAM);
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    this->ufm01_.loop_active_stream();
+    this->expect_written(GET_SOFTWARE_VERSION);
+    this->mock_uart_.written_data.clear();
+    this->advance(2000);
+    this->ufm01_.loop_active_stream();
+    this->advance(30000);
+  }
+
+  this->ufm01_.loop_active_stream();
+
+  EXPECT_TRUE(this->mock_uart_.written_data.empty());
+  EXPECT_FALSE(this->ufm01_.software_version_published());
+}
+
+TEST_F(UFM01Test, InvalidMeterIdLeavesSensorUnknown) {
+  this->attach_diagnostic_text_sensors();
+  auto frame = make_active_frame();
+  frame[2] = 0xAB;
+  frame[30] = checksum(frame, 0, 30);
+  this->mock_uart_.enqueue(frame);
+
+  EXPECT_TRUE(this->ufm01_.process_active_stream());
+
+  EXPECT_FALSE(this->ufm01_.meter_id_published());
+  EXPECT_FALSE(this->meter_id_text_sensor_.has_state());
+}
+
 }  // namespace esphome::ufm01::testing

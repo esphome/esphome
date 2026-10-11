@@ -24,6 +24,7 @@ static constexpr uint32_t ACTIVE_STALE_MS = 5000;
 static constexpr uint32_t PASSIVE_READ_TIMEOUT_MS = 1000;
 static constexpr uint32_t SOFTWARE_VERSION_READ_TIMEOUT_MS = 2000;
 static constexpr uint32_t SOFTWARE_VERSION_RETRY_MS = 30000;
+static constexpr uint8_t SOFTWARE_VERSION_MAX_ATTEMPTS = 3;
 static constexpr uint32_t ACTIVE_FRAME_TIMEOUT_MS = 3000;
 // After this many consecutive passive poll failures, re-run the reset/startup sequence
 static constexpr uint8_t PASSIVE_FAIL_ESCALATE_COUNT = 8;
@@ -354,8 +355,13 @@ void UFM01Component::publish_meter_id_from_frame_(const uint8_t data[FRAME_SIZE]
     return;
 
   char meter_id_str[DEVICE_ID_STRING_LENGTH + 1];
-  if (!bcd_to_digits(&data[FRAME_DEVICE_ID_INDEX], DEVICE_ID_LENGTH, meter_id_str))
+  if (!bcd_to_digits(&data[FRAME_DEVICE_ID_INDEX], DEVICE_ID_LENGTH, meter_id_str)) {
+    if (!this->meter_id_invalid_logged_) {
+      ESP_LOGW(TAG, "Meter ID in frame is zero or not BCD, leaving the sensor unknown");
+      this->meter_id_invalid_logged_ = true;
+    }
     return;
+  }
 
   this->meter_id_text_sensor_->publish_state(meter_id_str);
   this->meter_id_published_ = true;
@@ -410,20 +416,25 @@ ReadResult UFM01Component::continue_software_version_read_(uint32_t now) {
   return ReadResult::READ_RESULT_SUCCESS;
 }
 
-void UFM01Component::finish_software_version_read_(uint32_t now) {
+void UFM01Component::finish_software_version_read_(ReadResult result, uint32_t now) {
   this->software_version_read_pending_ = false;
   this->last_software_version_attempt_ms_ = now;
+  if (result == ReadResult::READ_RESULT_FAILURE &&
+      ++this->software_version_failures_ == SOFTWARE_VERSION_MAX_ATTEMPTS) {
+    ESP_LOGW(TAG, "Software version not read after %u attempts, giving up", SOFTWARE_VERSION_MAX_ATTEMPTS);
+  }
 }
 
 // Returns true while a software version read owns the UART, so the caller skips its own work
 bool UFM01Component::service_software_version_(uint32_t now) {
   if (this->software_version_read_pending_) {
-    if (this->continue_software_version_read_(now) != ReadResult::READ_RESULT_PENDING)
-      this->finish_software_version_read_(now);
+    const ReadResult result = this->continue_software_version_read_(now);
+    if (result != ReadResult::READ_RESULT_PENDING)
+      this->finish_software_version_read_(result, now);
     return true;
   }
   if (this->software_version_text_sensor_ == nullptr || this->software_version_published_ ||
-      this->passive_read_pending_)
+      this->software_version_failures_ >= SOFTWARE_VERSION_MAX_ATTEMPTS || this->passive_read_pending_)
     return false;
   if (this->last_software_version_attempt_ms_ != 0 &&
       now - this->last_software_version_attempt_ms_ < SOFTWARE_VERSION_RETRY_MS)
@@ -678,7 +689,8 @@ void UFM01Component::loop_startup_(uint32_t now) {
       if (elapsed < POST_RESET_DELAY_MS)
         return;
 #ifdef USE_UFM01_SOFTWARE_VERSION
-      if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
+      if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_ &&
+          this->software_version_failures_ < SOFTWARE_VERSION_MAX_ATTEMPTS) {
         this->start_software_version_read_(now);
         this->set_startup_phase_(StartupPhase::SOFTWARE_VERSION_WAIT_REPLY, now);
         return;
@@ -689,21 +701,20 @@ void UFM01Component::loop_startup_(uint32_t now) {
       return;
 
 #ifdef USE_UFM01_SOFTWARE_VERSION
-    case StartupPhase::SOFTWARE_VERSION_WAIT_REPLY:
-      switch (this->continue_software_version_read_(now)) {
-        case ReadResult::READ_RESULT_PENDING:
-          return;
-        case ReadResult::READ_RESULT_SUCCESS:
-          ESP_LOGD(TAG, "Software version read during startup");
-          break;
-        case ReadResult::READ_RESULT_FAILURE:
-          ESP_LOGW(TAG, "Software version read failed during startup, continuing");
-          break;
+    case StartupPhase::SOFTWARE_VERSION_WAIT_REPLY: {
+      const ReadResult result = this->continue_software_version_read_(now);
+      if (result == ReadResult::READ_RESULT_PENDING)
+        return;
+      if (result == ReadResult::READ_RESULT_SUCCESS) {
+        ESP_LOGD(TAG, "Software version read during startup");
+      } else {
+        ESP_LOGW(TAG, "Software version read failed during startup, continuing");
       }
-      this->finish_software_version_read_(now);
+      this->finish_software_version_read_(result, now);
       this->send_command_no_wait_(ACTIVE_MODE);
       this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME, now);
       return;
+    }
 #endif
 
     case StartupPhase::ACTIVE_WAIT_FRAME:

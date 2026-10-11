@@ -126,7 +126,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
 #ifdef USE_UFM01_SOFTWARE_VERSION
   void start_software_version_read_(uint32_t now);
   ReadResult continue_software_version_read_(uint32_t now);
-  void finish_software_version_read_(uint32_t now);
+  void finish_software_version_read_(ReadResult result, uint32_t now);
   bool service_software_version_(uint32_t now);
 #endif
 
@@ -169,9 +169,11 @@ class UFM01Component : public uart::UARTDevice, public Component {
 #ifdef USE_UFM01_SOFTWARE_VERSION
   bool software_version_published_{false};
   bool software_version_read_pending_{false};
+  uint8_t software_version_failures_{0};
 #endif
 #ifdef USE_UFM01_METER_ID
   bool meter_id_published_{false};
+  bool meter_id_invalid_logged_{false};
 #endif
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   bool pending_clear_sent_{false};

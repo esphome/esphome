@@ -18,8 +18,11 @@ class ClearAccumulatedFlowAction final : public Action<Ts...>, public ClearAccum
   explicit ClearAccumulatedFlowAction(UFM01Component *parent) : parent_(parent) {}
 
   void play_complex(const Ts &...x) override {
-    if (!this->parent_->request_clear_accumulated_flow_(this))
+    // A refused request continues the chain like the two timeouts do
+    if (!this->parent_->request_clear_accumulated_flow_(this)) {
+      this->play_next_(x...);
       return;
+    }
     this->num_running_++;
     this->args_ = std::make_tuple(x...);
   }
