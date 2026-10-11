@@ -7,7 +7,7 @@ namespace esphome::epaper_spi {
 /**
  * Intermediate base for panels with a 4-bit-per-pixel native buffer layout (2 pixels per byte).
  *
- * Owns buffer sizing, fill()/clear()/draw_pixel_at() and the chunked SPI transfer loop shared by
+ * Owns buffer sizing, fill()/draw_pixel_at() and the chunked SPI transfer loop shared by
  * this family of controllers. Concrete subclasses supply only their RGB -> 4-bit color mapping via
  * color_to_native() plus their IC-specific power/refresh/sleep command sequences.
  */
@@ -20,7 +20,6 @@ class EPaper4bpp : public EPaperBase {
   }
 
   void fill(Color color) override;
-  void clear() override;
 
  protected:
   void draw_pixel_at(int x, int y, Color color) override;

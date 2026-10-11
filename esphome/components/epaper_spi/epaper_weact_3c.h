@@ -23,7 +23,6 @@ class EPaperWeAct3C : public EPaperBase {
   }
 
   void fill(Color color) override;
-  void clear() override;
 
  protected:
   void set_window_();
