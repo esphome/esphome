@@ -44,20 +44,11 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
-def _synchronous_automation(value: ConfigType) -> ConfigType:
-    """Reject deferring actions: the received line and parsed JSON are only valid while the
-    automation runs, and DelayAction and friends keep the trigger arguments for later."""
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in on_json and "
-            "on_data: the received data is only valid while the automation runs. Copy what you need "
-            "into globals first, then defer in a separate script or automation."
-        )
-    return value
-
-
 def _synchronous_automation_schema() -> cv.All:
-    return cv.All(automation.validate_automation({}), _synchronous_automation)
+    # The received line and the parsed JSON document only live while the callbacks run.
+    return automation.validate_synchronous_automation(
+        "on_json and on_data", "the received data"
+    )
 
 
 # Main configuration schema

@@ -13,7 +13,8 @@ struct HaierData {
 
 class HaierProtocol : public RemoteProtocol<HaierData> {
  public:
-  void encode(RemoteTransmitData *dst, const HaierData &data);
+  void encode(RemoteTransmitData *dst, const HaierData &data) { this->encode(dst, data.data.data(), data.data.size()); }
+  void encode(RemoteTransmitData *dst, const uint8_t *data, size_t len);
   optional<HaierData> decode(RemoteReceiveData src);
   void dump(const HaierData &data);
 
@@ -28,9 +29,7 @@ template<typename... Ts> class HaierAction : public RemoteTransmitterActionBase<
   TEMPLATABLE_BYTES(code)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    HaierData data{};
-    data.data = this->code_.value(x...);
-    HaierProtocol().encode(dst, data);
+    this->code_.visit([dst](const uint8_t *data, size_t len) { HaierProtocol().encode(dst, data, len); }, x...);
   }
 };
 
