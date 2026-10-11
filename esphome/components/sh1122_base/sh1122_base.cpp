@@ -41,25 +41,25 @@ void SH1122::setup() {
   this->command2(SH1122_SETMULTIPLEXRATIO, 0x3F);
   this->command2(SH1122_SETDISPLAYOFFSET, 0x00);
   this->command2(SH1122_SETROWADDRESS, 0x00);
-  this->command(SH1122_SETDISPLAYSTARTLINE | 32);  // the panel's rows start half way down the 128 line RAM
-  this->command(SH1122_SETDISCHARGEVSLLEVEL);
+  this->command_(SH1122_SETDISPLAYSTARTLINE | 32);  // the panel's rows start half way down the 128 line RAM
+  this->command_(SH1122_SETDISCHARGEVSLLEVEL);
   this->command2(SH1122_DCDCSETTING, 0x81);
-  this->command(SH1122_SETSEGMENTREMAP | 0x01);   // column 0 on the right
-  this->command(SH1122_SETSCANDIRECTION | 0x08);  // rows scanned bottom up
+  this->command_(SH1122_SETSEGMENTREMAP | 0x01);   // column 0 on the right
+  this->command_(SH1122_SETSCANDIRECTION | 0x08);  // rows scanned bottom up
   this->command2(SH1122_SETDISCHARGEPRECHARGEPERIOD, 0x28);
   this->command2(SH1122_SETVCOMDESELECTLEVEL, 0x35);
   this->command2(SH1122_SETVSEGMLEVEL, 0x35);
-  this->command(SH1122_SETNORMALDISPLAY);
-  this->command(SH1122_SETHIGHCOLUMNADDRESS);
-  this->command(SH1122_SETLOWCOLUMNADDRESS);
-  this->command(SH1122_SETDISPLAYOFFON);
+  this->command_(SH1122_SETNORMALDISPLAY);
+  this->command_(SH1122_SETHIGHCOLUMNADDRESS);
+  this->command_(SH1122_SETLOWCOLUMNADDRESS);
+  this->command_(SH1122_SETDISPLAYOFFON);
   this->set_brightness(this->brightness_);
   this->display();  // the buffer starts cleared; push it so no power-on garbage shows
   this->turn_on();
 }
 void SH1122::display() {
-  this->command(SH1122_SETHIGHCOLUMNADDRESS);
-  this->command(SH1122_SETLOWCOLUMNADDRESS);
+  this->command_(SH1122_SETHIGHCOLUMNADDRESS);
+  this->command_(SH1122_SETLOWCOLUMNADDRESS);
   this->command2(SH1122_SETROWADDRESS, 0x00);
 
   this->write_display_data();
@@ -73,11 +73,11 @@ void SH1122::set_brightness(float brightness) {
   this->command2(SH1122_SETCONTRASTCURRENT, int(SH1122_MAX_CONTRAST * (this->brightness_)));
 }
 void SH1122::turn_on() {
-  this->command(SH1122_SETDISPLAYON);
+  this->command_(SH1122_SETDISPLAYON);
   this->is_on_ = true;
 }
 void SH1122::turn_off() {
-  this->command(SH1122_SETDISPLAYOFF);
+  this->command_(SH1122_SETDISPLAYOFF);
   this->is_on_ = false;
 }
 int SH1122::get_height_internal() {
