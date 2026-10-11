@@ -288,7 +288,7 @@ def test_section_created_under_its_page_not_the_menu(main_cpp: str) -> None:
 
 
 def test_ungrouped_widget_created_directly_under_page(main_cpp: str) -> None:
-    assert "advanced_button = lv_btn_create(main_page);" in main_cpp
+    assert "advanced_button = lv_button_create(main_page);" in main_cpp
 
 
 def test_root_page_and_sidebar_page_set_at_boot(main_cpp: str) -> None:
