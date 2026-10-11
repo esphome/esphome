@@ -1,0 +1,6 @@
+packages:
+  common: !include common.yaml
+
+mqtt:
+  broker: test.mosquitto.org
+  verify_ssl: false

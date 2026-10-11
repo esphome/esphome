@@ -8,6 +8,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_MQTT_CERT_BUNDLE
+#include "esp_crt_bundle.h"
+#endif
+
 namespace esphome::mqtt {
 
 ESPHOME_LOG_TAG(TAG, "mqtt");
@@ -39,18 +43,22 @@ bool MQTTBackendESP32::initialize_() {
   if (!this->client_id_.empty()) {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
-  if (ca_certificate_.has_value()) {
-    mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
-    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
-
-    if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
-      mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
-      mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
-    }
-  } else {
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+#ifdef USE_MQTT_TLS
+  mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+  mqtt_cfg_.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
+  if (this->ca_certificate_.has_value()) {
+    mqtt_cfg_.broker.verification.certificate = this->ca_certificate_.value().c_str();
   }
+#ifdef USE_MQTT_CERT_BUNDLE
+  mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
+  if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
+    mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
+    mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
+  }
+#else
+  mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+#endif
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
@@ -60,7 +68,11 @@ bool MQTTBackendESP32::initialize_() {
 #if defined(USE_MQTT_IDF_ENQUEUE)
     // Create the task only after MQTT client is initialized successfully
     // Use larger stack size when TLS is enabled
-    size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
+#ifdef USE_MQTT_TLS
+    constexpr size_t stack_size = TASK_STACK_SIZE_TLS;
+#else
+    constexpr size_t stack_size = TASK_STACK_SIZE;
+#endif
     xTaskCreate(esphome_mqtt_task, "esphome_mqtt", stack_size, (void *) this, TASK_PRIORITY, &this->task_handle_);
     if (this->task_handle_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create MQTT task");

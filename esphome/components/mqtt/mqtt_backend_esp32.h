@@ -215,6 +215,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void loop() final;
 
   void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }
+  bool has_ca_certificate() const { return this->ca_certificate_.has_value(); }
   void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }
   void set_cl_key(const std::string &key) { cl_key_ = key; }
   void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
