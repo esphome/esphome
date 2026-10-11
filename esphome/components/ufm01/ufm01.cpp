@@ -378,7 +378,7 @@ void UFM01Component::publish_stale_flow_and_temperature_() {
 #endif
 }
 
-#if defined(USE_UFM01_METER_ID)
+#ifdef USE_UFM01_METER_ID
 void UFM01Component::publish_meter_id_from_frame_(const uint8_t data[FRAME_SIZE]) {
   if (this->meter_id_text_sensor_ == nullptr || this->meter_id_published_)
     return;
@@ -415,8 +415,8 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
   if (this->software_version_index_ < SOFTWARE_VERSION_RESPONSE_SIZE) {
     if (millis() - this->software_version_start_ms_ < SOFTWARE_VERSION_READ_TIMEOUT_MS)
       return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING;
-    ESP_LOGD(TAG, "software version read timeout (%zu/%zu bytes)", this->software_version_index_,
-             SOFTWARE_VERSION_RESPONSE_SIZE);
+    ESP_LOGD(TAG, "software version read timeout (%u/%u bytes)", this->software_version_index_,
+             static_cast<unsigned>(SOFTWARE_VERSION_RESPONSE_SIZE));
     return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE;
   }
 
@@ -442,7 +442,7 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
 #endif  // USE_UFM01_SOFTWARE_VERSION
 
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
-#if defined(USE_UFM01_METER_ID)
+#ifdef USE_UFM01_METER_ID
   this->publish_meter_id_from_frame_(data);
 #endif
   bool empty_tube = read_empty_tube(data);
@@ -579,6 +579,13 @@ void UFM01Component::note_passive_poll_result_(PassiveReadResult result) {
 }
 
 #ifdef USE_UFM01_SOFTWARE_VERSION
+void UFM01Component::poll_software_version_read_() {
+  if (this->continue_software_version_read_() == SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING)
+    return;
+  this->software_version_read_pending_ = false;
+  this->last_software_version_attempt_ms_ = millis();
+}
+
 void UFM01Component::try_pending_software_version_read_() {
   if (this->software_version_text_sensor_ == nullptr || this->software_version_published_ ||
       this->software_version_read_pending_ || this->passive_read_pending_)
@@ -600,7 +607,7 @@ size_t UFM01Component::passive_expected_frame_size_() const {
 }
 
 void UFM01Component::start_passive_read_() {
-#if defined(USE_UFM01_METER_ID)
+#ifdef USE_UFM01_METER_ID
   if (this->meter_id_text_sensor_ != nullptr && !this->meter_id_published_) {
     this->passive_expects_id_ = true;
     this->send_command_no_wait_(READ_SENSOR_DATA_WITH_ID);
@@ -798,15 +805,7 @@ void UFM01Component::loop_startup_() {
 void UFM01Component::loop_active_stream_() {
 #ifdef USE_UFM01_SOFTWARE_VERSION
   if (this->software_version_read_pending_) {
-    switch (this->continue_software_version_read_()) {
-      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
-        return;
-      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS:
-      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE:
-        this->software_version_read_pending_ = false;
-        this->last_software_version_attempt_ms_ = millis();
-        break;
-    }
+    this->poll_software_version_read_();
     return;
   }
 #endif
@@ -839,15 +838,7 @@ void UFM01Component::loop_entering_passive_() {
 void UFM01Component::loop_passive_poll_() {
 #ifdef USE_UFM01_SOFTWARE_VERSION
   if (this->software_version_read_pending_) {
-    switch (this->continue_software_version_read_()) {
-      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
-        return;
-      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS:
-      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE:
-        this->software_version_read_pending_ = false;
-        this->last_software_version_attempt_ms_ = millis();
-        break;
-    }
+    this->poll_software_version_read_();
     return;
   }
 #endif

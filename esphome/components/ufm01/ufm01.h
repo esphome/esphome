@@ -60,20 +60,16 @@ enum class OperatingMode : uint8_t {
 };
 
 enum class StartupPhase : uint8_t {
-  WAIT = 0,
-  RESET_WAIT_ACK = 1,
-  RESET_RETRY_WAIT = 2,
-  POST_RESET_WAIT = 3,
+  WAIT,
+  RESET_WAIT_ACK,
+  RESET_RETRY_WAIT,
+  POST_RESET_WAIT,
 #ifdef USE_UFM01_SOFTWARE_VERSION
-  SOFTWARE_VERSION_WAIT_REPLY = 4,
-  ACTIVE_WAIT_FRAME = 5,
-  SET_PASSIVE_WAIT_ACK = 6,
-  PASSIVE_WAIT_REPLY = 7,
-#else
-  ACTIVE_WAIT_FRAME = 4,
-  SET_PASSIVE_WAIT_ACK = 5,
-  PASSIVE_WAIT_REPLY = 6,
+  SOFTWARE_VERSION_WAIT_REPLY,
 #endif
+  ACTIVE_WAIT_FRAME,
+  SET_PASSIVE_WAIT_ACK,
+  PASSIVE_WAIT_REPLY,
 };
 
 enum class PassiveReadResult : uint8_t {
@@ -136,6 +132,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
 #ifdef USE_UFM01_SOFTWARE_VERSION
   void start_software_version_read_();
   SoftwareVersionReadResult continue_software_version_read_();
+  void poll_software_version_read_();
 #endif
 
   void loop_startup_();
@@ -171,7 +168,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   bool software_version_read_pending_{false};
   uint32_t last_software_version_attempt_ms_{0};
   uint32_t software_version_start_ms_{0};
-  size_t software_version_index_{0};
+  uint8_t software_version_index_{0};
   uint8_t software_version_frame_[SOFTWARE_VERSION_RESPONSE_SIZE];
 #endif
 #ifdef USE_UFM01_METER_ID

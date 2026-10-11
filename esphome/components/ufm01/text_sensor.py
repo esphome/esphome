@@ -23,14 +23,12 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    ufm01_component = await cg.get_variable(config[CONF_UFM01_ID])
-
-    if meter_id_config := config.get(CONF_METER_ID):
-        sens = await text_sensor.new_text_sensor(meter_id_config)
-        cg.add(ufm01_component.set_meter_id_text_sensor(sens))
+    hub = await cg.get_variable(config[CONF_UFM01_ID])
+    sensors = text_sensor.sub_text_sensors(config)
+    if await sensors(CONF_METER_ID, hub.set_meter_id_text_sensor) is not None:
         cg.add_define("USE_UFM01_METER_ID")
-
-    if software_version_config := config.get(CONF_SOFTWARE_VERSION):
-        sens = await text_sensor.new_text_sensor(software_version_config)
-        cg.add(ufm01_component.set_software_version_text_sensor(sens))
+    if (
+        await sensors(CONF_SOFTWARE_VERSION, hub.set_software_version_text_sensor)
+        is not None
+    ):
         cg.add_define("USE_UFM01_SOFTWARE_VERSION")
