@@ -1,0 +1,11 @@
+# Compile with OTA rollback support active (ota + safe_mode on ESP-IDF, the
+# default) but boot_is_good_on_shutdown disabled, so an orderly shutdown does
+# not confirm the app image; only boot_is_good_after / mark_successful do.
+packages:
+  safe_mode: !include common-enabled.yaml
+
+safe_mode:
+  boot_is_good_on_shutdown: false
+
+ota:
+  - platform: esphome

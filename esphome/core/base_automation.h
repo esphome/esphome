@@ -11,6 +11,7 @@
 
 #include <array>
 #include <list>
+#include <type_traits>
 #include <vector>
 
 namespace esphome {
@@ -180,7 +181,9 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
 
 template<typename... Ts> class DelayAction : public Action<Ts...> {
  public:
-  explicit DelayAction() = default;
+  // User provided, not "= default": `new(p) DelayAction()` would zero-fill .bss that is already zero.
+  // constexpr and noexcept keep the rest of the implicit constructor's contract.
+  constexpr explicit DelayAction() noexcept {}
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
@@ -248,6 +251,21 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
 
  protected:
   void (*f_)(Ts...);
+};
+
+/// Runs one codegen-generated function that has the parent and every field baked in. The
+/// function is a template argument, so play() calls it directly and the object is just the
+/// Action base. Args pass by const reference so a std::string arg is never copied;
+/// StatelessLambdaAction keeps by-value parameters because user `lambda:` code owns them.
+template<auto Fn, typename... Ts> class ApplyAction final : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override { Fn(x...); }
+};
+
+/// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
+template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<Ts...> {
+ public:
+  bool check(const Ts &...x) override { return Fn(x...); }
 };
 
 /// Simple continuation action that calls play_next_ on a parent action.

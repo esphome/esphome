@@ -7,7 +7,9 @@
 
 namespace esphome::combination {
 
-static const char *const TAG = "combination";
+ESPHOME_LOG_TAG(TAG, "combination");
+
+static constexpr uint32_t NEW_VALUE_DEFER_ID = 0;
 
 void CombinationComponent::log_config_(const LogString *combo_type) {
   LOG_SENSOR("", "Combination Sensor:", this);
@@ -43,8 +45,9 @@ void CombinationNoParameterComponent::setup() {
   for (const auto &sensor : this->sensors_) {
     // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
     // repeatedly in the same loop if multiple source senors update.
-    sensor->add_on_state_callback(
-        [this](float value) -> void { this->defer("update", [this, value]() { this->handle_new_value(value); }); });
+    sensor->add_on_state_callback([this](float value) -> void {
+      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
+    });
   }
 }
 
@@ -119,8 +122,9 @@ void LinearCombinationComponent::setup() {
   for (auto &source : this->sensor_sources_) {
     // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
     // repeatedly in the same loop if multiple source senors update.
-    source.sensor->add_on_state_callback(
-        [this](float value) -> void { this->defer("update", [this, value]() { this->handle_new_value(value); }); });
+    source.sensor->add_on_state_callback([this](float value) -> void {
+      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
+    });
   }
 }
 

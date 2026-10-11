@@ -7,7 +7,7 @@
 
 namespace esphome::datetime {
 
-static const char *const TAG = "datetime.datetime_entity";
+ESPHOME_LOG_TAG(TAG, "datetime.datetime_entity");
 
 void DateTimeEntity::publish_state() {
   if (this->year_ == 0 || this->month_ == 0 || this->day_ == 0) {
@@ -52,8 +52,6 @@ void DateTimeEntity::publish_state() {
   ControllerRegistry::notify_datetime_update(this);
 #endif
 }
-
-DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
 ESPTime DateTimeEntity::state_as_esptime() const {
   ESPTime obj;

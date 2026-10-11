@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_OPEN_DURATION,
     CONF_STOP_ACTION,
 )
+from esphome.types import ConfigType
 
 from .. import time_based_ns
 
@@ -36,7 +37,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
 

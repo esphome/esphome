@@ -1,0 +1,8 @@
+packages:
+  espectre: !include common.yaml
+
+espectre:
+  traffic_generator_mode: external
+  csi_traffic_multicast_group: 239.255.0.1
+  motion_on_hits: 2
+  motion_off_hits: 5
