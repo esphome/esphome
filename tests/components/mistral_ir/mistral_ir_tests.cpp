@@ -87,8 +87,9 @@ struct Fixture {
     // The test main does not construct App as generated code does
     static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
     (void) APP_CONSTRUCTED;
-    static const char NAME[] = "test_mistral_ir";
-    App.pre_setup(NAME, sizeof(NAME) - 1, "", 0);
+    static char name[] = "test_mistral_ir";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     this->climate.set_transmitter(&this->transmitter);
     static_cast<Component &>(this->climate).setup();
   }
