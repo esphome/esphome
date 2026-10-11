@@ -54,6 +54,27 @@ Can also be enabled via environment variable `ESPHOME_VERBOSE=true`.
 
 Please see [command line substitutions](/components/substitutions#command-line-substitutions) for details.
 
+### `--error-format` Option
+
+**`--error-format FORMAT`**
+: Selects how configuration errors are shown. Supported values are:
+
+* `yaml` (default): show each error inside a copy of the failing part of the configuration.
+* `line`: print one line per error in the form `file:line:column: error: message`.
+
+Values are not case-sensitive. Can also be set via environment variable `ESPHOME_ERROR_FORMAT`. The command line
+option takes precedence.
+
+The `line` format is the same one compilers use, so editors, IDE terminals and CI tools can link each error to its
+place in the YAML file. Errors in a package or included file give the location in that file. Extra information
+is printed on following lines flagged with `note:`, for example where a file with a YAML syntax error was included:
+
+```text
+common/wifi.yaml:3:11: error: expected ',' or ']', but got ':'
+common/wifi.yaml:2:9: note: while parsing a flow sequence
+livingroom.yaml:6:3: note: included from here
+```
+
 <span id="cli-toolchain"></span>
 ### `--toolchain` Option
 
