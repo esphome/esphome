@@ -1,19 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 import logging
 from typing import Any, Literal, NamedTuple
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
+
+from .helpers import PduBuffer
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,10 +52,24 @@ MULTI_CONF = True
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_MODBUS_ID = "modbus_id"
+CONF_PDU = "pdu"
+CONF_REQUEST = "request"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
 MODBUS_ROLES = ["client", "server"]
+
+
+@dataclass
+class ModbusData:
+    send_response: bool = False
+
+
+def _get_data() -> ModbusData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ModbusData()
+    return CORE.data[DOMAIN]
+
 
 # The client hub takes these times as 16-bit milliseconds; a Modbus timeout is far shorter anyway.
 _HUB_TIME_PERIOD = cv.All(
@@ -169,6 +187,57 @@ def reject_broadcast_options_for_unicast(
         return config
 
     return validator
+
+
+def synchronous_handler(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
+    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
+
+    def validator(value: ConfigType) -> ConfigType:
+        if automation.has_non_synchronous_actions(value):
+            raise cv.Invalid(
+                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in {component} "
+                "handlers: the request/response data is only valid while the handler runs. Copy what you "
+                "need into globals first, then defer in a separate script or automation."
+            )
+        return value
+
+    return validator
+
+
+# A PDU handed to an automation undecoded, as a span that dies when the handler returns.
+PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+
+# Each hub holds the on_request callbacks of the blocks attached to it. The count is the most on any one hub.
+_request_on_request_slot = cg.slot_counter("MODBUS_ON_REQUEST_COUNT")
+
+
+async def register_on_request_automation(hub: MockObj, config: ConfigType) -> None:
+    """Run an automation for every request the hub reads (server) or sends (client).
+
+    The callback storage on the hubs is compiled in only when an automation is attached.
+    """
+    _request_on_request_slot(str(hub))
+    await automation.build_callback_automation(
+        hub,
+        "add_on_request_callback",
+        [(cg.uint8, "address"), (PDU_SPAN, "request")],
+        config,
+    )
+
+
+_request_on_response_slot = cg.slot_counter("MODBUS_ON_RESPONSE_COUNT")
+
+
+async def register_on_response_automation(hub: MockObj, config: ConfigType) -> None:
+    """Run an automation for every response the hub gets (client) or sees from another device (server)."""
+    _request_on_response_slot(str(hub))
+    await automation.build_callback_automation(
+        hub,
+        "add_on_response_callback",
+        [(cg.uint8, "address"), (PDU_SPAN, "request"), (PDU_SPAN, "response")],
+        config,
+    )
 
 
 def reject_inapplicable_command_options(
@@ -311,6 +380,9 @@ async def to_code(config: ConfigType) -> None:
         pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(pin))
 
+    if _get_data().send_response:
+        cg.add_define("USE_MODBUS_SEND_RESPONSE")
+
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
@@ -403,3 +475,41 @@ async def register_modbus_device(var: MockObj, config: ConfigType) -> None:
         "instead. Will be removed in 2026.12.0"
     )
     return await register_modbus_client_device(var, config)
+
+
+def _enable_send_response(config: ConfigType) -> ConfigType:
+    # send_peer_response() only exists with the define; to_code emits it from this fact.
+    _get_data().send_response = True
+    return config
+
+
+def _pdu_literal(config: ConfigType, value: list[int]) -> str:
+    return f"std::array<uint8_t, {len(value)}>{{{', '.join(str(b) for b in value)}}}"
+
+
+automation.register_apply_action(
+    "modbus.send_response",
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_MODBUS_ID): cv.use_id(ModbusServer),
+            cv.Required(CONF_ADDRESS): cv.templatable(_validate_server_address),
+            # The request being answered; the reply is dropped unless the hub still waits for it.
+            cv.Required(CONF_REQUEST): cv.returning_lambda,
+            cv.Required(CONF_PDU): cv.templatable(
+                cv.All(
+                    cv.ensure_list(cv.hex_uint8_t),
+                    cv.Length(min=1, max=MAX_PDU_SIZE),
+                )
+            ),
+        }
+    ).add_extra(_enable_send_response),
+    automation.ApplyCall(
+        "send_peer_response({}, {}, {})",
+        (
+            (CONF_ADDRESS, cg.uint8),
+            (CONF_REQUEST, PDU_SPAN),
+            (CONF_PDU, PduBuffer, _pdu_literal),
+        ),
+    ),
+    id_key=CONF_MODBUS_ID,
+)

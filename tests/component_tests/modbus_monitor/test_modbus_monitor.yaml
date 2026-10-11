@@ -1,0 +1,51 @@
+---
+esphome:
+  name: test
+
+logger:
+
+esp32:
+  board: nodemcu-32s
+
+uart:
+  - id: server_uart
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 9600
+  - id: client_uart
+    tx_pin: GPIO18
+    rx_pin: GPIO19
+    baud_rate: 9600
+  - id: plain_uart
+    tx_pin: GPIO21
+    rx_pin: GPIO22
+    baud_rate: 9600
+
+modbus:
+  - id: server_hub
+    uart_id: server_uart
+    role: server
+  - id: client_hub
+    uart_id: client_uart
+  - id: plain_hub
+    uart_id: plain_uart
+
+modbus_monitor:
+  - modbus_id: server_hub
+    on_request:
+      - lambda: |-
+          ESP_LOGD("test", "Request to %u, function 0x%02X", address, request[0]);
+      - modbus.send_response:
+          modbus_id: server_hub
+          address: 0x0A
+          request: !lambda return request;
+          pdu: [0x03, 0x02, 0x00, 0x01]
+  - modbus_id: server_hub
+    on_request:
+      - logger.log: "second"
+  - modbus_id: client_hub
+    on_request:
+      - logger.log: "sent"
+  - modbus_id: client_hub
+    on_response:
+      - logger.log: "received"
