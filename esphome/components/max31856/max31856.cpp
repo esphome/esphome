@@ -5,7 +5,9 @@
 
 namespace esphome::max31856 {
 
-static const char *const TAG = "max31856";
+ESPHOME_LOG_TAG(TAG, "max31856");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 
@@ -23,8 +25,10 @@ void MAX31856Sensor::setup() {
 void MAX31856Sensor::dump_config() {
   LOG_SENSOR("", "MAX31856", this);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Mains Filter: %s",
-                (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
+  ESP_LOGCONFIG(
+      TAG, "  Mains Filter: %s",
+      (filter_ == FILTER_60HZ ? LOG_STR_LITERAL("60 Hz")
+                              : (filter_ == FILTER_50HZ ? LOG_STR_LITERAL("50 Hz") : LOG_STR_LITERAL("Unknown!"))));
   if (this->thermocouple_type_ < 0 || this->thermocouple_type_ > 7) {
     ESP_LOGCONFIG(TAG, "  Thermocouple Type: Unknown");
   } else {
@@ -40,7 +44,7 @@ void MAX31856Sensor::update() {
   this->one_shot_temperature_();
 
   // Datasheet max conversion time for 1 shot is 155ms for 60Hz / 185ms for 50Hz
-  this->set_timeout("MAX31856Sensor::read_thermocouple_temperature_", filter_ == FILTER_60HZ ? 155 : 185,
+  this->set_timeout(READ_TIMEOUT_ID, filter_ == FILTER_60HZ ? 155 : 185,
                     [this]() { this->read_thermocouple_temperature_(); });
 }
 

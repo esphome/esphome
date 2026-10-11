@@ -5,6 +5,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "one_wire"
 
 IS_PLATFORM_COMPONENT = True
 

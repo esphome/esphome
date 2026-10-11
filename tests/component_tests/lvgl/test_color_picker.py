@@ -375,7 +375,10 @@ class TestColorPickerSliderStyles:
             "LV_PART_KNOB",
             # ...while a part combined with a state is cast to the type LVGL takes, which is
             # wide enough for both. A state alone would not be.
-            "(lv_style_selector_t)((int)LV_PART_KNOB|(int)LV_STATE_PRESSED)",
+            (
+                "(static_cast<lv_style_selector_t>(LV_STATE_PRESSED) | "
+                "static_cast<lv_style_selector_t>(LV_PART_KNOB))"
+            ),
         ],
     )
     def test_named_style_reaches_every_slider(

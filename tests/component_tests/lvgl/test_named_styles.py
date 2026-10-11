@@ -44,7 +44,10 @@ class TestNamedStyleSelectors:
             "LV_PART_KNOB",
             # A part with a state, cast to the type LVGL takes, which is wide enough for
             # both. The state type alone would drop the part.
-            "(lv_style_selector_t)((int)LV_PART_KNOB|(int)LV_STATE_PRESSED)",
+            (
+                "(static_cast<lv_style_selector_t>(LV_STATE_PRESSED) | "
+                "static_cast<lv_style_selector_t>(LV_PART_KNOB))"
+            ),
         }
 
     def test_a_combined_selector_is_not_narrowed_to_a_state(

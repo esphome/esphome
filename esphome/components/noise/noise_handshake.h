@@ -36,9 +36,10 @@ class NoiseResponderHandshake {
   NoiseResponderHandshake(const NoiseResponderHandshake &) = delete;
   NoiseResponderHandshake &operator=(const NoiseResponderHandshake &) = delete;
 
-  /// Create and start the handshake with the given PSK and prologue. A
-  /// repeated call frees the previous handshake state and starts over.
-  [[nodiscard]] int init(const psk_t &psk, const uint8_t *prologue, size_t prologue_len);
+  /// Create and start the handshake with the context's PSK and the prologue.
+  /// A repeated call frees the previous handshake state and starts over. A
+  /// spare ephemeral key, when one is ready, is used instead of generating.
+  [[nodiscard]] int init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len);
   /// ACTION_FAILED is the catch-all: returned before init(), after split()
   /// has released the state, and when noise-c reports a failed handshake.
   [[nodiscard]] Action action() const;

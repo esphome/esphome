@@ -7,7 +7,6 @@
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/sensor/sensor.h"
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::sound_level {
@@ -57,16 +56,6 @@ class SoundLevelComponent final : public Component {
   uint32_t sample_count_{0};
 
   uint32_t measurement_duration_ms_;
-};
-
-template<typename... Ts> class StartAction final : public Action<Ts...>, public Parented<SoundLevelComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->start(); }
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<SoundLevelComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 }  // namespace esphome::sound_level

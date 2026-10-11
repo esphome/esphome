@@ -11,7 +11,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/static_task.h"
 
-#include <ducking.h>  // esp-audio-libs
+#include <gain.h>  // esp-audio-libs
 
 #include <freertos/event_groups.h>
 
@@ -107,12 +107,12 @@ class SourceSpeaker final : public speaker::Speaker, public Component {
   bool stop_gracefully_{false};
 
   bool pause_state_{false};
+  std::atomic<bool> has_contributed_{false};  // Tracks if source has contributed during this session
 
-  esp_audio_libs::ducking::DuckingState ducking_state_{};
+  esp_audio_libs::gain::GainRamp ducking_ramp_;
 
   std::atomic<uint32_t> pending_playback_frames_{0};
   std::atomic<uint32_t> playback_delay_frames_{0};  // Frames in output pipeline when this source started contributing
-  std::atomic<bool> has_contributed_{false};        // Tracks if source has contributed during this session
 
   EventGroupHandle_t event_group_{nullptr};
   uint32_t stopping_start_ms_{0};

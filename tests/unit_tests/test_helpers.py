@@ -1,3 +1,4 @@
+import errno
 import io
 import logging
 import os
@@ -5,7 +6,7 @@ from pathlib import Path
 import socket
 import stat
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 from hypothesis import given, settings
@@ -91,6 +92,21 @@ def test_cpp_string_escape(string, expected):
     actual = helpers.cpp_string_escape(string)
 
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "string, expected",
+    (
+        ("foo", 'u"foo"'),
+        ("foo\nbar", 'u"foo\\012bar"'),
+        ("foo\\bar", 'u"foo\\134bar"'),
+        ('foo "bar"', 'u"foo \\042bar\\042"'),
+        ("caf\u00e9", 'u"caf\\U000000E9"'),
+        ("foo 🐍", 'u"foo \\U0001F40D"'),
+    ),
+)
+def test_cpp_u16string_escape(string: str, expected: str) -> None:
+    assert helpers.cpp_u16string_escape(string) == expected
 
 
 @pytest.mark.parametrize(
@@ -966,6 +982,77 @@ def test_copy_file_if_changed_nonexistent_source(tmp_path: Path) -> None:
         helpers.copy_file_if_changed(src, dst)
 
 
+def test_rmtree_removes_tree(tmp_path: Path) -> None:
+    """Test rmtree removes a populated directory tree."""
+    target = tmp_path / "target"
+    (target / "sub").mkdir(parents=True)
+    (target / "sub" / "file.txt").write_text("content")
+
+    helpers.rmtree(target)
+    assert not target.exists()
+
+
+def test_rmtree_nonexistent_path(tmp_path: Path) -> None:
+    """Test rmtree on an already-removed path is a no-op."""
+    helpers.rmtree(tmp_path / "gone")
+
+
+def test_rmtree_retries_when_directory_repopulated(tmp_path: Path) -> None:
+    """Test rmtree retries when a file appears mid-delete (Finder .DS_Store race)."""
+    target = tmp_path / "target"
+    (target / "sub").mkdir(parents=True)
+    real_rmdir = os.rmdir
+    repopulated = False
+
+    def racy_rmdir(path, **kwargs):
+        nonlocal repopulated
+        if not repopulated and Path(path).name == "target":
+            repopulated = True
+            (target / ".DS_Store").write_text("x")  # Finder wins the race
+        real_rmdir(path, **kwargs)
+
+    with patch("os.rmdir", side_effect=racy_rmdir), patch("time.sleep"):
+        helpers.rmtree(target)
+    assert repopulated
+    assert not target.exists()
+
+
+def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
+    """Test rmtree gives up on a persistent ENOTEMPTY once attempts run out."""
+    target = tmp_path / "target"
+    target.mkdir()
+    errs = [
+        OSError(errno.ENOTEMPTY, "Directory not empty", str(target))
+        for _ in range(helpers.RMTREE_MAX_ATTEMPTS)
+    ]
+
+    with (
+        patch("shutil.rmtree", side_effect=errs) as mock_rmtree,
+        patch("time.sleep") as mock_sleep,
+        pytest.raises(OSError, match="Directory not empty") as excinfo,
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == helpers.RMTREE_MAX_ATTEMPTS
+    assert mock_sleep.call_args_list == [call(0.05), call(0.1)]
+    # Final failure chains to the last retried race
+    assert excinfo.value is errs[-1]
+    assert excinfo.value.__cause__ is errs[-2]
+
+
+def test_rmtree_does_not_retry_other_oserror(tmp_path: Path) -> None:
+    """Test rmtree raises non-ENOTEMPTY errors immediately."""
+    target = tmp_path / "target"
+    target.mkdir()
+    err = OSError(errno.EACCES, "Permission denied", str(target))
+
+    with (
+        patch("shutil.rmtree", side_effect=err) as mock_rmtree,
+        pytest.raises(OSError, match="Permission denied"),
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == 1
+
+
 def test_resolve_ip_address_sorting() -> None:
     """Test that results are sorted by preference."""
     # Create multiple address infos with different preferences
@@ -1054,6 +1141,26 @@ def test_resolve_ip_address_cache_miss() -> None:
         # Should call resolver since test.local is not in cache
         MockResolver.assert_called_once_with(["test.local"], 6053)
         assert len(result) == 1
+        assert result[0][4][0] == "192.168.1.100"
+
+
+@pytest.mark.parametrize("hostname", ["test.local", "example.com"])
+def test_resolve_ip_address_empty_cache_entry_falls_back(hostname: str) -> None:
+    """An empty CLI cache entry must use normal DNS or mDNS resolution."""
+    cache = AddressCache.from_cli_args([f"{hostname}="], [f"{hostname}="])
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        MockResolver.return_value.resolve.return_value = [mock_addr_info]
+
+        result = helpers.resolve_ip_address(hostname, 6053, address_cache=cache)
+
+        MockResolver.assert_called_once_with([hostname], 6053)
         assert result[0][4][0] == "192.168.1.100"
 
 
@@ -1178,3 +1285,20 @@ def test_get_usable_cpu_count_sources() -> None:
     mock_os_unknown = types.SimpleNamespace(cpu_count=lambda: None)
     with patch("esphome.helpers.os", mock_os_unknown):
         assert helpers.get_usable_cpu_count() == 1
+
+
+def test_zstd_module_falls_back_to_the_backport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Before Python 3.14 the standard library has no zstd, so the backport is used."""
+    backport = object()
+
+    def import_module(name: str) -> object:
+        if name == "compression.zstd":
+            raise ImportError(name)
+        assert name == "backports.zstd"
+        return backport
+
+    monkeypatch.setattr(helpers.importlib, "import_module", import_module)
+
+    assert helpers.zstd_module() is backport

@@ -26,7 +26,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
@@ -41,7 +41,11 @@ MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
   char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
   get_mac_address_into_buffer(mac_addr);
-  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
+  const StringRef &name = App.get_name();
+  char client_id[MAX_NAME_WITH_SUFFIX_SIZE];
+  size_t len = make_name_with_suffix_to(client_id, sizeof(client_id), name.c_str(), name.size(), '-', mac_addr,
+                                        MAC_ADDRESS_BUFFER_SIZE - 1);
+  this->credentials_.client_id.assign(client_id, len);
 }
 
 // Connection
@@ -435,7 +439,7 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Subscribe failed for topic='%s'. Will retry", topic);
-    this->status_momentary_warning("subscribe", 1000);
+    this->status_momentary_warning(1000);
   }
   return ret != 0;
 }
@@ -495,7 +499,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   } else {
     delay(5);
     ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());
-    this->status_momentary_warning("unsubscribe", 1000);
+    this->status_momentary_warning(1000);
   }
 
   auto it = subscriptions_.begin();
@@ -549,7 +553,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
       ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
-      this->status_momentary_warning("publish", 1000);
+      this->status_momentary_warning(1000);
     }
   }
   return ret != 0;

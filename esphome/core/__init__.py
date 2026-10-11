@@ -30,6 +30,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    ErrorFormat,
     Toolchain,
 )
 
@@ -52,8 +53,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
-KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+# Key for the controllers (APIServer, WebServer) that receive entity state updates
+KEY_CONTROLLER_REGISTRY_CONTROLLERS = "controller_registry_controllers"
 
 # CORE.data key for the "is_rp2040 deprecation warning already fired this
 # run" flag. Mirrors the ``cv.only_on_rp2040`` dedupe pattern; cleared
@@ -385,7 +386,9 @@ class Lambda:
 
 
 class ID:
-    def __init__(self, id, is_declaration=False, type=None, is_manual=None):
+    def __init__(
+        self, id, is_declaration=False, type=None, is_manual=None, match_config=None
+    ):
         self.id = id
         if is_manual is None:
             self.is_manual = id is not None
@@ -393,6 +396,10 @@ class ID:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
         self.type: MockObjClass | None = type
+        # When set, an unnamed (id=None) searching ID is disambiguated among same-type
+        # candidates by matching these key/value pairs against each candidate's own
+        # declared config, instead of requiring exactly one candidate to exist.
+        self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -431,6 +438,7 @@ class ID:
             is_declaration=self.is_declaration,
             type=self.type,
             is_manual=self.is_manual,
+            match_config=self.match_config,
         )
 
 
@@ -589,6 +597,8 @@ class EsphomeCore:
         self.vscode = False
         # True if running in testing mode (disables validation checks for grouped testing)
         self.testing_mode = False
+        # True if this build skips the bootloader and factory image (OTA only)
+        self.skip_bootloader = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
@@ -672,6 +682,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # How configuration errors are printed
+        self.error_format: ErrorFormat = ErrorFormat.YAML
         # A list of all known ID classes
         self.id_classes = {}
         # The current component being processed during validation
@@ -692,6 +704,7 @@ class EsphomeCore:
         from esphome.pins import PIN_SCHEMA_REGISTRY
 
         self.dashboard = False
+        self.skip_bootloader = False
         self.name = None
         self.friendly_name = None
         self.area = None
@@ -715,6 +728,7 @@ class EsphomeCore:
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
+        self.loaded_platforms = set()
         self.component_ids = set()
         self.platform_counts = defaultdict(int)
         self.unique_ids = {}
@@ -723,6 +737,7 @@ class EsphomeCore:
         self._config_hash = None
         self.skip_external_update = False
         self.toolchain = None
+        self.error_format = ErrorFormat.YAML
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -783,7 +798,8 @@ class EsphomeCore:
         can compare a locally computed hash against the one a device
         advertises. Machine-local data is kept out of the input: build_path
         (which embeds ESPHOME_BUILD_PATH and OS path separators) is excluded,
-        and Path values are dumped relative to the config directory.
+        and Path values are dumped relative to the config directory, with
+        the data directory always at its default ``.esphome`` location.
         """
         if self._config_hash is None:
             from esphome import yaml_util
@@ -794,11 +810,15 @@ class EsphomeCore:
                 esphome_conf = dict(esphome_conf)
                 esphome_conf.pop(CONF_BUILD_PATH, None)
                 config[CONF_ESPHOME] = esphome_conf
+            relative_to = data_dir = None
+            if self.config_path is not None:
+                relative_to, data_dir = self.config_dir, self.data_dir
             config_str = yaml_util.dump(
                 config,
                 show_secrets=True,
                 sort_keys=True,
-                relative_to=self.config_dir if self.config_path is not None else None,
+                relative_to=relative_to,
+                data_dir=data_dir,
             )
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash
@@ -989,6 +1009,12 @@ class EsphomeCore:
         """The native ESP8266 Arduino build toolchain (unlike
         ``using_arduino``, which is the target framework)."""
         return self.toolchain == Toolchain.ARDUINO
+
+    @property
+    def using_toolchain_host(self):
+        """The native host build toolchain: the system compiler driven by
+        ninja (the only toolchain the host platform serves)."""
+        return self.toolchain == Toolchain.HOST
 
     @property
     def using_native_toolchain(self):
@@ -1203,10 +1229,9 @@ class EsphomeCore:
         if not self.platform_counts[platform_name]:
             self.platform_counts[platform_name] = 1
 
-    def register_controller(self) -> None:
-        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
-        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
-        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
+    def register_controller(self, controller: "MockObj") -> None:
+        """Register a controller that receives every entity state update."""
+        self.data.setdefault(KEY_CONTROLLER_REGISTRY_CONTROLLERS, []).append(controller)
 
     @property
     def cpp_main_section(self):

@@ -3,7 +3,9 @@
 
 namespace esphome::tsl2561 {
 
-static const char *const TAG = "tsl2561";
+ESPHOME_LOG_TAG(TAG, "tsl2561");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 static const uint8_t TSL2561_COMMAND_BIT = 0x80;
 static const uint8_t TSL2561_WORD_BIT = 0x20;
@@ -60,7 +62,7 @@ void TSL2561Sensor::update() {
   // Make sure the data is there when we will read it.
   auto timeout = static_cast<uint32_t>(this->get_integration_time_ms_() + 20);
 
-  this->set_timeout("illuminance", timeout, [this]() { this->read_data_(); });
+  this->set_timeout(READ_TIMEOUT_ID, timeout, [this]() { this->read_data_(); });
 }
 
 float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
@@ -145,8 +147,6 @@ float TSL2561Sensor::get_integration_time_ms_() {
 void TSL2561Sensor::set_integration_time(TSL2561IntegrationTime integration_time) {
   this->integration_time_ = integration_time;
 }
-void TSL2561Sensor::set_gain(TSL2561Gain gain) { this->gain_ = gain; }
-void TSL2561Sensor::set_is_cs_package(bool package_cs) { this->package_cs_ = package_cs; }
 
 bool TSL2561Sensor::tsl2561_write_byte(uint8_t a_register, uint8_t value) {
   return this->write_byte(a_register | TSL2561_COMMAND_BIT, value);

@@ -5,7 +5,7 @@ from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
-from esphome.config_validation import Invalid, Schema
+from esphome.config_validation import Schema
 from esphome.const import (
     CONF_DEFAULT,
     CONF_GROUP,
@@ -17,11 +17,12 @@ from esphome.const import (
 )
 from esphome.core import ID, EsphomeError, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, call_lambda
 from esphome.schema_extractors import EnableSchemaExtraction
 from esphome.types import Expression
 
 from ..defines import (
+    CONF_DEBUG_OUTLINE,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
     CONF_FLEX_ALIGN_TRACK,
@@ -44,13 +45,13 @@ from ..defines import (
     LValidator,
     add_lv_use,
     add_warning,
-    call_lambda,
+    get_options,
+    get_part_state_selector,
     get_styles_used,
-    get_theme_widget_map,
     get_widget_map,
-    get_widgets_completed,
     join_enums,
     literal,
+    next_debug_outline_color,
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
@@ -195,16 +196,25 @@ class WidgetType:
         w = Widget.create(wid, var, self, config)
         apply_theme_styles(w)
         await set_obj_properties(w, config)
+        apply_debug_outline(w)
         await add_widgets(w, config)
         await self.to_code(w, config)
         return w
 
-    async def to_code(self, w: "Widget", config: dict):
+    async def to_code(self, w: "Widget", config: dict) -> None:
         """
-        Update a widget, also called when creating
+        Generate code for widget properties and actions.
         :param config:
         :return:
         """
+
+    async def update_to_code(self, w: "Widget", config: dict) -> None:
+        """
+        Update a widget. Defaults to calling to_code, but can be overridden
+        :param w: The widget to update
+        :param config: The configuration for the update
+        """
+        await self.to_code(w, config)
 
     async def obj_creator(self, parent: MockObj, config: dict):
         """
@@ -292,10 +302,26 @@ class WidgetType:
 
 def apply_theme_styles(w: "Widget") -> None:
     """Apply the current theme's styles for this widget's type"""
-    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
+    from ..styles import get_widget_theme_styles
+
+    for style, part, state in get_widget_theme_styles(w.type.name):
         for target, target_part in w.type.part_targets(w, part):
-            for state, style in states.items():
-                target.add_style(style, style_selector(target_part, state))
+            target.add_style(style, get_part_state_selector(target_part, state))
+
+
+def apply_debug_outline(w: "Widget") -> None:
+    """
+    When `debug_outline` is set, outline this widget in the next palette colour.
+    An outline is drawn outside the widget's own box, so it doesn't take up layout
+    space and doesn't touch the widget's own `border_*` style, unlike a border.
+    """
+    if not get_options().get(CONF_DEBUG_OUTLINE):
+        return
+    r, g, b = next_debug_outline_color()
+    w.set_style("outline_width", 1)
+    w.set_style("outline_pad", 0)
+    w.set_style("outline_color", f"lv_color_make({r}, {g}, {b})")
+    w.set_style("outline_opa", "LV_OPA_COVER")
 
 
 class Widget:
@@ -351,11 +377,6 @@ class Widget:
         return lv_obj.remove_flag(self.obj, literal(flag))
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
-        # The selector may arrive as a generated expression rather than a plain name, so it
-        # is rendered first: testing an expression for the "|" directly always succeeds.
-        state = str(state)
-        if "|" in state:
-            state = f"(lv_style_selector_t)({state})"
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(
@@ -488,10 +509,6 @@ def get_widget_generator(wid):
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if get_widgets_completed():
-            raise Invalid(
-                f"Widget {wid} not found, yet all widgets should be defined by now"
-            )
         yield
 
 
@@ -499,19 +516,6 @@ async def get_widget_(wid):
     if obj := get_widget_map().get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
-
-
-def widgets_wait_generator():
-    while True:
-        if get_widgets_completed():
-            return
-        yield
-
-
-async def wait_for_widgets():
-    if get_widgets_completed():
-        return
-    await FakeAwaitable(widgets_wait_generator())
 
 
 async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
@@ -553,24 +557,6 @@ def collect_states(config):
         if state in config:
             states[state] = collect_props(config[state])
     return states
-
-
-def style_selector(part: str, state: str):
-    """
-    Combine a part and a state into the selector a style is applied with. LVGL takes the two
-    or-ed together, but the default state and the main part are both zero, so naming either
-    of them adds nothing.
-    :param part: The part name, e.g. "knob"
-    :param state: The state name, e.g. "pressed"
-    :return:
-    """
-    part = "LV_PART_" + part.upper()
-    state = "LV_STATE_" + state.upper()
-    if state == "LV_STATE_DEFAULT":
-        return literal(part)
-    if part == "LV_PART_MAIN":
-        return literal(state)
-    return join_enums((state, part))
 
 
 def _misplaced_obj_properties(config):
@@ -718,7 +704,7 @@ async def set_obj_properties(w: Widget, config):
                             )
                     values.append((remap_property(prop), value))
                 for target, target_part in targets:
-                    lv_state = style_selector(target_part, state)
+                    lv_state = get_part_state_selector(target_part, state)
                     for style_id in style_ids:
                         target.add_style(style_id, lv_state)
                     for prop_r, value in values:

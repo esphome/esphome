@@ -286,7 +286,7 @@ def test_add_text_with_index_moves_before_firing_on_add(main_cpp: str) -> None:
 
 
 def test_add_button_with_checkable_flag(main_cpp: str) -> None:
-    assert "lv_obj_t *dyn_button_VAR_ = lv_btn_create(test_list);" in main_cpp
+    assert "lv_obj_t *dyn_button_VAR_ = lv_button_create(test_list);" in main_cpp
     assert (
         "lv_obj_add_flag(dyn_button_VAR_, (lv_obj_flag_t)(LV_OBJ_FLAG_CHECKABLE));"
         in main_cpp
