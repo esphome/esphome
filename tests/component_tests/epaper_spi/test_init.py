@@ -516,6 +516,22 @@ def test_uc8179_e1001_code_generation(
     assert "97, 4, 3, 32, 1, 224" in main_cpp
 
 
+def test_uc8279_x4pro_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Xteink X4 Pro generates the UC8279 driver with the panel's gate offset and gate count."""
+    main_cpp = generate_main(component_config_path("uc8279_x4pro_test.yaml"))
+
+    assert "epaper_spi::EPaperUC8279" in main_cpp
+    # 800 sources, 480 rows, and the panel on the last 480 of 600 gates
+    assert re.search(r'"XTEINK-X4PRO",\s*800,\s*480,.*?,\s*120\)', main_cpp, re.DOTALL)
+    resolution = next(
+        cmd for cmd in MODELS["XTEINK-X4PRO"].get_init_sequence({}) if cmd[0] == 0x61
+    )
+    assert resolution == (0x61, 0x03, 0x20, 0x02, 0x58)
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
