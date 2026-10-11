@@ -1,0 +1,19 @@
+climate:
+  - platform: midea
+    id: midea_purifier_climate
+    name: Midea Purifier Climate
+
+switch:
+  - platform: midea
+    midea_id: midea_purifier_climate
+    purifier:
+      id: midea_purifier
+      name: Purifier
+
+button:
+  - platform: template
+    name: Midea Purifier Commands
+    on_press:
+      - switch.turn_on: midea_purifier
+      - switch.turn_off: midea_purifier
+      - switch.toggle: midea_purifier

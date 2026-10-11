@@ -33,12 +33,15 @@ from esphome.const import (
     UNIT_WATT,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
+AUTO_LOAD = ["sensor"]
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
-AUTO_LOAD = ["sensor"]
+
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
+
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
@@ -190,7 +193,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -218,14 +221,15 @@ async def to_code(config):
     await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
     await sensors(CONF_POWER_USAGE, var.set_power_sensor)
     await sensors(CONF_HUMIDITY_SETPOINT, var.set_humidity_setpoint_sensor)
+
     # MideaUART uses the Arduino WiFi API for the network-notify frame
     # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
     # library talks to esp_wifi directly, so no library entry is needed.
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
-    # Using the repository until a release containing ESP-IDF support is published
+    # Temporary fork pin until purifier support is accepted upstream in MideaUART.
     cg.add_library(
         name="MideaUART",
         version=None,
-        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+        repository="https://github.com/m4rkireland/MideaUART.git#2e65f70ed12e507c69d9662b524d3027ac051960",
     )
