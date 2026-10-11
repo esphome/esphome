@@ -13,7 +13,14 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME, CONF_ON_START
+from esphome.const import (
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_MODEL,
+    CONF_NAME,
+    CONF_ON_START,
+    CONF_POLLING_INTERVAL,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -25,6 +32,7 @@ from .const import (
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
+    CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
@@ -35,7 +43,6 @@ from .const import (
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
     CONF_MAX_EP_NUMBER_ZEPHYR,
-    CONF_SLEEPY,
     CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
 )
@@ -128,8 +135,11 @@ NUMBER_SCHEMA = (
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:
-    if config.get(CONF_ROUTER) and config.get(CONF_SLEEPY):
-        raise cv.Invalid("router and sleepy are mutually exclusive")
+    if config.get(CONF_ROUTER):
+        if config.get(CONF_SLEEPY):
+            raise cv.Invalid("router and sleepy are mutually exclusive")
+        if config.get(CONF_POLLING_INTERVAL):
+            raise cv.Invalid(f"{CONF_POLLING_INTERVAL} is only valid for end devices.")
     return config
 
 
@@ -160,8 +170,16 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.requires_component("nrf52"),
             ),
-            cv.OnlyWith(CONF_SLEEPY, "nrf52", default=False): cv.All(
+            cv.Optional(CONF_SLEEPY, default=False): cv.All(
                 cv.boolean,
+            ),
+            cv.Optional(CONF_POLLING_INTERVAL): cv.All(
+                cv.requires_component(ESP32_DOMAIN),
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriodMilliseconds(milliseconds=200),
+                    max=cv.TimePeriodMinutes(minutes=60),  # 1 hour
+                ),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),

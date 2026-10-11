@@ -21,6 +21,7 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import time
@@ -83,7 +84,9 @@ def show_disk_space_if_ci(esphome_command: str) -> None:
     print("=" * 80)
     # Use sys.stdout.flush() to ensure output appears immediately
     sys.stdout.flush()
-    subprocess.run(["df", "-h"], check=False, stdout=sys.stdout, stderr=sys.stderr)
+    # Windows has no df
+    if df := shutil.which("df"):
+        subprocess.run([df, "-h"], check=False, stdout=sys.stdout, stderr=sys.stderr)
     print("=" * 80 + "\n")
     sys.stdout.flush()
 
