@@ -1,0 +1,22 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: test
+  password: password1
+
+udp:
+  addresses:
+    - 10.0.0.1
+
+button:
+  - platform: template
+    name: send
+    on_press:
+      - udp.write: [0xAA, 0x55, 0x01, 0x02]
+      - udp.write: [0xAA, 0x55, 0x01, 0x02]
+      - udp.write: ""
+      - udp.write: !lambda return {0x10, 0x20};

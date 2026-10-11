@@ -4,7 +4,7 @@
 
 namespace esphome::rotary_encoder {
 
-static const char *const TAG = "rotary_encoder";
+ESPHOME_LOG_TAG(TAG, "rotary_encoder");
 
 // based on https://github.com/jkDesignDE/MechInputs/blob/master/QEIx4.cpp
 static const uint8_t STATE_LUT_MASK = 0x1C;  // clears upper counter increment/decrement bits and pin states

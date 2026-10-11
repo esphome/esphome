@@ -9,8 +9,10 @@ import subprocess
 
 from esphome import pins
 from esphome.build_helpers import pch
+from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
@@ -26,6 +28,7 @@ from esphome.components.zephyr.const import (
     CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_SYSBUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -76,6 +79,7 @@ from .framework import (
     get_build_paths,
     setup_platformio_python_env,
     toolchain_tool,
+    wanted_west_projects,
 )
 
 # force import gpio to register pin schema
@@ -83,6 +87,7 @@ from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
+DOMAIN = "nrf52"
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
@@ -122,9 +127,35 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
+        sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+        if CORE.testing_mode:
+            sections = _testing_mode_sections(sections)
+        zephyr_add_pm_static(sections)
 
     return config
+
+
+# In testing mode, fake a larger flash to allow linking grouped component
+# tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
+# which an openthread config alone fills; CI images are never flashed.
+NRF52840_FLASH_SIZE = 0x100000
+TESTING_FLASH_SIZE = 0x400000
+
+
+def _testing_mode_sections(sections: list[Section]) -> list[Section]:
+    """Move a bootloader pinned to the end of the real flash to the end of the
+    faked one, so the partition manager still sees a single gap for the app."""
+    return [
+        Section(
+            section.name,
+            section.address + TESTING_FLASH_SIZE - NRF52840_FLASH_SIZE,
+            section.size,
+            section.region,
+        )
+        if section.end_address == NRF52840_FLASH_SIZE
+        else section
+        for section in sections
+    ]
 
 
 _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
@@ -377,6 +408,15 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_to_code(config)
 
+    if CORE.testing_mode:
+        zephyr_add_overlay(
+            f"""
+                &flash0 {{
+                    reg = <0x0 {TESTING_FLASH_SIZE:#x}>;
+                }};
+            """
+        )
+
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -584,7 +624,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     raise EsphomeError("Not implemented yet")
                 check_and_install()
                 paths = get_build_paths()
-                env = get_build_env()
+                env = get_build_env(None)  # no compile, just nrfutil
                 build_dir = CORE.relative_pioenvs_path(CORE.name)
                 dfu_package = build_dir / "firmware.zip"
                 if not dfu_package.is_file():
@@ -666,7 +706,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if not CORE.using_toolchain_platformio:
             check_and_install()
             paths = get_build_paths()
-            env = get_build_env()
+            env = get_build_env(resolve_ccache_path())  # west flash may rebuild
             build_dir = CORE.relative_pioenvs_path(CORE.name)
             west_cmd = [
                 str(paths["python_executable"]),
@@ -692,13 +732,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return True  # Handled: PYOCD upload
 
     # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_mac_address
+    from .ble_logger import is_ble_address
     from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
 
-    if is_mac_address(host):
+    if is_ble_address(host):
         mcumgr_device = host
 
     if mcumgr_device:
@@ -713,7 +753,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     address = devices[0]
-    from .ble_logger import is_mac_address, logger_connect, logger_scan
+    from .ble_logger import is_ble_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
         ble_device = asyncio.run(logger_scan(CORE.name))
@@ -722,7 +762,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
         else:
             return True
 
-    if is_mac_address(address):
+    if is_ble_address(address):
         asyncio.run(logger_connect(address))
         return True
     return False
@@ -795,7 +835,7 @@ _PCH_CMAKE_LINES = [
     "set(esphome_kept_options)",
     "set(esphome_pch_headers)",
     "foreach(option IN LISTS esphome_options)",
-    '  if(option MATCHES "imacros> (.+)$")',
+    '  if(option MATCHES "imacros> ([^>]+)")',
     '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
     "    list(APPEND esphome_kept_options",
     '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
@@ -821,19 +861,22 @@ _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
 
 def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
-    """Write the checksum ccache reads in place of the .gch. The app binary
-    dir only exists after the first configure; sysbuild nests it."""
-    app_dir = build_dir / "zephyr"
-    if not (app_dir / "CMakeCache.txt").is_file():
-        app_dir = build_dir
-    if not (app_dir / "CMakeCache.txt").is_file():
-        return
+    """Write the checksum ccache reads in place of the .gch; before the
+    first build too, or its compiles hash the path laden .gch instead.
+    The app image dir follows the SDK version, like get_elf_path;
+    2.9.2+ always wraps the build in sysbuild."""
+    app_dir = build_dir
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+        app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
         (
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             zephyr_data()[KEY_BOARD],
+            # Kconfig inputs that reach autoconf.h without a .conf line
+            ",".join(sorted(wanted_west_projects())),
+            str(zephyr_data().get(KEY_SYSBUILD)),
             # What the Zephyr configuration is generated from
             *(
                 path.read_text(encoding="utf-8")
@@ -949,7 +992,10 @@ def run_compile(args, config: ConfigType) -> bool:
     check_and_install()
 
     paths = get_build_paths()
-    env = get_build_env()
+    # Depend mode in the shared ccache settings keeps the .gch sound
+    # across Kconfig flips.
+    ccache = resolve_ccache_path()
+    env = get_build_env(ccache)
 
     pch_on = _pch_usable()
     cmake_lists_changed = _generate_cmake_lists(pch_on)
@@ -976,11 +1022,6 @@ def run_compile(args, config: ConfigType) -> bool:
 
     if pch_on:
         pch.log_pch_in_use()
-        # Zephyr turns ccache on by itself when it is installed
-        env.update(pch.ccache_pch_env())
-        # Depend mode, or a Kconfig flip reuses a stale .gch: autoconf.h is
-        # all #defines, which vanish from the preprocessed creation hash.
-        env.setdefault("CCACHE_DEPEND", "1")
         _write_pch_checksum(build_dir, source_dir)
 
     west_cmd = _west_build_command(

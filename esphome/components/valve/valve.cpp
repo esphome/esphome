@@ -8,7 +8,7 @@
 
 namespace esphome::valve {
 
-static const char *const TAG = "valve";
+ESPHOME_LOG_TAG(TAG, "valve");
 
 const float VALVE_OPEN = 1.0f;
 const float VALVE_CLOSED = 0.0f;

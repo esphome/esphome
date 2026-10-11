@@ -12,6 +12,12 @@
 // libretiny component's API.
 namespace esphome::libretiny {}  // namespace esphome::libretiny
 
+#if defined(USE_LN882X) && !defined(CLANG_TIDY)  // clang-tidy runs without the PlatformIO flags
+// Fail the build if the -fshort-enums swap in __init__.py stops working.
+enum Ln882xEnumSizeCheck { LN882X_ENUM_SIZE_CHECK };
+static_assert(sizeof(Ln882xEnumSizeCheck) == 1, "LN882x must build with -fshort-enums to match the SDK");
+#endif
+
 namespace esphome {
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),

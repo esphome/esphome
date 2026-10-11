@@ -7,7 +7,7 @@
 
 namespace esphome::alpha3 {
 
-static const char *const TAG = "alpha3";
+ESPHOME_LOG_TAG(TAG, "alpha3");
 
 void Alpha3::dump_config() {
   ESP_LOGCONFIG(TAG, "ALPHA3");

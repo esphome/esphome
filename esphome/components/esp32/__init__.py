@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import itertools
 import logging
 import os
@@ -15,7 +15,6 @@ from esphome.components.const import (
     CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
     CONF_IGNORE_NOT_FOUND,
 )
-from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -57,7 +56,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf.component import generate_idf_components
+from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -76,6 +75,7 @@ from .const import (
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
     KEY_IDF_VERSION,
+    KEY_MBEDTLS_SDKCONFIG,
     KEY_NETWORK_SDKCONFIG,
     KEY_PATH,
     KEY_REF,
@@ -105,6 +105,7 @@ from .gpio import esp32_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp32"
 IS_TARGET_PLATFORM = True
 
 CONF_ASSERTION_LEVEL = "assertion_level"
@@ -237,7 +238,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
     "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
-    "esp-tls",  # TLS wrapper - re-included by http_request, mqtt, web_server_idf
+    "esp-tls",  # TLS wrapper - re-included by request_tls()
     "esp_adc",  # ADC driver - only needed by adc component
     "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
@@ -550,9 +551,88 @@ assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
 
+_SDKCONFIG_CPU_FREQUENCY_OPTION = "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ"
+_SDKCONFIG_CPU_FREQUENCY_PREFIX = f"{_SDKCONFIG_CPU_FREQUENCY_OPTION}_"
+# Older IDF versions named the CPU frequency options after the chip
+_LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS = frozenset(
+    {VARIANT_ESP32, VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3}
+)
+
+
+def _get_sdkconfig_cpu_frequencies(
+    sdkconfig_options: dict[str, str], variant: str
+) -> tuple[set[int], set[int]]:
+    """Return the CPU frequencies in MHz that sdkconfig_options selects and disables."""
+    # (integer option, choice option prefix) pairs that can carry a frequency
+    keys = [(_SDKCONFIG_CPU_FREQUENCY_OPTION, _SDKCONFIG_CPU_FREQUENCY_PREFIX)]
+    if variant in _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS:
+        keys.append(
+            (
+                f"CONFIG_{variant}_DEFAULT_CPU_FREQ_MHZ",
+                f"CONFIG_{variant}_DEFAULT_CPU_FREQ_",
+            )
+        )
+    selected: set[int] = set()
+    disabled: set[int] = set()
+    for integer_key, choice_prefix in keys:
+        if (value := sdkconfig_options.get(integer_key)) is not None:
+            try:
+                selected.add(int(value))
+            except ValueError as err:
+                raise cv.Invalid(
+                    f"{integer_key} must be an integer MHz value",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                ) from err
+        for name, value in sdkconfig_options.items():
+            mhz = name.removeprefix(choice_prefix)
+            if mhz == name or not mhz.isdigit():
+                continue
+            if value.lower() == "y":
+                selected.add(int(mhz))
+            elif value.lower() == "n":
+                disabled.add(int(mhz))
+            else:
+                raise cv.Invalid(
+                    f"{name} must be y or n",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                )
+    return selected, disabled
+
+
 def set_core_data(config):
-    cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
+    cpu_frequency = config.get(CONF_CPU_FREQUENCY)
     variant = config[CONF_VARIANT]
+    sdkconfig_path = [CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS]
+    selected, disabled = _get_sdkconfig_cpu_frequencies(
+        config[CONF_FRAMEWORK][CONF_SDKCONFIG_OPTIONS], variant
+    )
+    if len(selected) > 1:
+        conflicting = ", ".join(f"{mhz}MHz" for mhz in sorted(selected))
+        raise cv.Invalid(
+            f"sdkconfig_options contains conflicting CPU frequencies ({conflicting})",
+            path=sdkconfig_path,
+        )
+    sdkconfig_cpu_frequency = f"{selected.pop()}MHZ" if selected else None
+    if cpu_frequency is None and sdkconfig_cpu_frequency is not None:
+        if sdkconfig_cpu_frequency not in CPU_FREQUENCIES[variant]:
+            raise cv.Invalid(
+                f"sdkconfig_options selects {sdkconfig_cpu_frequency}, which {variant} does not support",
+                path=sdkconfig_path,
+            )
+        _LOGGER.warning(
+            "sdkconfig_options contains a CPU frequency setting; using %s. "
+            "Set 'esp32.cpu_frequency' to configure it directly.",
+            sdkconfig_cpu_frequency,
+        )
+        cpu_frequency = sdkconfig_cpu_frequency
+    elif (
+        sdkconfig_cpu_frequency is not None and sdkconfig_cpu_frequency != cpu_frequency
+    ):
+        raise cv.Invalid(
+            f"esp32.cpu_frequency ({cpu_frequency}) conflicts with sdkconfig_options "
+            f"({sdkconfig_cpu_frequency})",
+            path=sdkconfig_path,
+        )
     # if not specified in config, default to the maximum supported frequency
     # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
@@ -561,12 +641,17 @@ def set_core_data(config):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
-        config[CONF_CPU_FREQUENCY] = cpu_frequency
     elif cpu_frequency not in CPU_FREQUENCIES[variant]:
         raise cv.Invalid(
             f"Invalid CPU frequency '{cpu_frequency}' for {config[CONF_VARIANT]}",
             path=[CONF_CPU_FREQUENCY],
         )
+    if int(cpu_frequency[:-3]) in disabled:
+        raise cv.Invalid(
+            f"sdkconfig_options disables the selected CPU frequency ({cpu_frequency})",
+            path=sdkconfig_path,
+        )
+    config[CONF_CPU_FREQUENCY] = cpu_frequency
 
     if variant == VARIANT_ESP32P4 and cpu_frequency == "400MHZ":
         _LOGGER.warning(
@@ -742,9 +827,10 @@ def is_idf_sdkconfig_option_enabled(name: str) -> bool:
 def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
     """Set an sdkconfig option unless it is already set.
 
-    For the FINAL priority reconcile jobs: they run after every to_code,
-    including the user's sdkconfig_options, and must not override an
-    existing value.
+    User sdkconfig_options take precedence regardless of to_code order:
+    esp32.to_code applies them unconditionally, and this helper preserves
+    values that are already set. FINAL priority reconcile jobs use the same
+    guard because they run after every to_code, including the user's options.
     """
     if name not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
         add_idf_sdkconfig_option(name, value)
@@ -809,6 +895,97 @@ def request_software_coexistence() -> None:
     _network_sdkconfig().software_coexistence = True
     # Callers include esp_coexist.h directly.
     include_builtin_idf_component("esp_coex")
+
+
+@dataclass
+class MbedtlsSdkconfigData:
+    """Inputs for the mbedTLS sdkconfig flags, reconciled at FINAL.
+
+    Components call the require_mbedtls_*() helpers (and request_tls(), which
+    sets tls_required and also un-excludes the esp-tls component) rather than
+    writing the CONFIG_MBEDTLS_* flags directly; _reconcile_mbedtls_sdkconfig()
+    decides the final values once every to_code has run.
+    """
+
+    ecp_required: bool = False  # ECDH/ECDSA without TLS (openthread SRP host key)
+    tls_required: bool = False  # mbedTLS TLS role needed without the esp-tls wrapper
+    tls_server_required: bool = False  # server-side TLS/DTLS handshake
+    tls_extras_required: set[str] = field(default_factory=set)  # kept TLS extras
+    peer_cert_required: bool = False  # keep the peer certificate after the handshake
+    pkcs7_required: bool = False  # PKCS#7 parsing
+    sha512_required: bool = False  # SHA-384/SHA-512
+    # esp32 advanced disable_mbedtls_* options
+    disable_tls: bool = True
+    disable_tls_server: bool = True
+    disable_tls_extras: bool = True
+    disable_peer_cert: bool = True
+    disable_pkcs7: bool = True
+
+
+def _mbedtls_sdkconfig() -> MbedtlsSdkconfigData:
+    data = CORE.data[KEY_ESP32]
+    if KEY_MBEDTLS_SDKCONFIG not in data:
+        data[KEY_MBEDTLS_SDKCONFIG] = MbedtlsSdkconfigData()
+    return data[KEY_MBEDTLS_SDKCONFIG]
+
+
+# IDF components that reference esp_tls symbols from their own code, so
+# re-including any of them is an implicit TLS request.
+_ESP_TLS_LINKING_COMPONENTS = (
+    "esp-tls",
+    "esp_http_client",
+    "esp_https_ota",
+    "esp_https_server",
+    "esp_local_ctrl",
+    "mqtt",
+)
+
+
+def _mbedtls_tls_required() -> bool:
+    """TLS stays in the build: requested, or an esp_tls-linking component was re-included.
+
+    The exclusion-set signal keeps external components working whose only
+    obligation before request_tls() existed was include_builtin_idf_component()
+    of esp-tls or of a component that links it (esp_http_client, IDF mqtt).
+    """
+    if _mbedtls_sdkconfig().tls_required:
+        return True
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    return any(name not in excluded for name in _ESP_TLS_LINKING_COMPONENTS)
+
+
+def _mbedtls_tls_compiled_out() -> bool:
+    """True when this build removes the TLS stack from mbedTLS entirely."""
+    return (
+        not CORE.using_arduino
+        and _mbedtls_sdkconfig().disable_tls
+        and not _mbedtls_tls_required()
+    )
+
+
+def require_mbedtls_tls() -> None:
+    """Keep the mbedTLS TLS stack without compiling the esp-tls wrapper.
+
+    For code that talks to mbedTLS directly (wpa_supplicant's EAP client).
+    Components that use esp_tls call request_tls() instead.
+    """
+    _mbedtls_sdkconfig().tls_required = True
+
+
+def request_tls() -> None:
+    """Request the mbedTLS TLS stack and the esp-tls wrapper.
+
+    Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
+    hashes, AES and RSA stay available.
+    """
+    require_mbedtls_tls()
+    include_builtin_idf_component("esp-tls")
+
+
+def request_http_client() -> None:
+    """Request ESP-IDF's HTTP client; it links esp_tls even for plain http."""
+    include_builtin_idf_component("esp_http_client")
+    request_tls()
 
 
 def add_idf_component(
@@ -1846,6 +2023,7 @@ CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
 CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
 CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"
 CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
+CONF_DISABLE_MBEDTLS_TLS = "disable_mbedtls_tls"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
 CONF_DISABLE_MBEDTLS_TLS_SERVER = "disable_mbedtls_tls_server"
 CONF_DISABLE_MBEDTLS_TLS_EXTRAS = "disable_mbedtls_tls_extras"
@@ -1861,12 +2039,7 @@ KEY_VFS_TERMIOS_REQUIRED = "vfs_termios_required"
 # Feature requirement tracking - components can call require_* functions to re-enable
 # These are stored in CORE.data[KEY_ESP32] dict
 KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
-KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
-KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
-KEY_MBEDTLS_TLS_SERVER_REQUIRED = "mbedtls_tls_server_required"
-KEY_MBEDTLS_TLS_EXTRAS_REQUIRED = "mbedtls_tls_extras_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
-KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
 KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED = "libc_picolibc_newlib_compat_required"
 
@@ -1905,6 +2078,9 @@ def require_certificate_bundle() -> None:
     certificates (http_request, audio streaming) call this so the bundle is
     compiled and gen_crt_bundle runs only when something uses it.
     """
+    # esp_crt_bundle.c lives in the mbedtls component and calls
+    # mbedtls_ssl_conf_*, so a bundle needs the TLS role but not esp-tls.
+    require_mbedtls_tls()
     CORE.data[KEY_ESP32][KEY_CERT_BUNDLE] = True
 
 
@@ -1930,33 +2106,37 @@ def require_usb_serial_jtag_secondary() -> None:
     CORE.data[KEY_ESP32][KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED] = True
 
 
-def require_mbedtls_peer_cert() -> None:
-    """Mark that mbedTLS peer certificate retention is required by a component.
+def require_mbedtls_ecp() -> None:
+    """Keep mbedTLS elliptic curve support (ECDH/ECDSA) without requesting TLS.
 
-    Call this from components that need access to the peer certificate after
-    the TLS handshake is complete. This prevents CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
-    from being disabled.
+    Call this from components that sign or verify with ECDSA outside a TLS
+    handshake (openthread's SRP host key). WiFi, Bluetooth and secure boot
+    select it through Kconfig on their own.
     """
-    CORE.data[KEY_ESP32][KEY_MBEDTLS_PEER_CERT_REQUIRED] = True
+    _mbedtls_sdkconfig().ecp_required = True
+
+
+def require_mbedtls_peer_cert() -> None:
+    """Keep the peer certificate after the TLS handshake (CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE).
+
+    A user sdkconfig_options value takes precedence.
+    """
+    _mbedtls_sdkconfig().peer_cert_required = True
 
 
 def require_mbedtls_pkcs7() -> None:
-    """Mark that mbedTLS PKCS#7 support is required by a component.
-
-    Call this from components that need PKCS#7 certificate validation.
-    This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
-    """
-    CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
+    """Keep mbedTLS PKCS#7 support (CONFIG_MBEDTLS_PKCS7_C). A user sdkconfig_options value takes precedence."""
+    _mbedtls_sdkconfig().pkcs7_required = True
 
 
 def require_mbedtls_tls_server() -> None:
-    """Mark that the mbedTLS server-side TLS/DTLS handshake is required.
+    """Widen the TLS role to include the server-side handshake.
 
-    Call this from components that accept TLS connections (OpenThread's DTLS
-    commissioner does). This prevents CONFIG_MBEDTLS_TLS_CLIENT_ONLY from
-    being selected.
+    Only affects builds where TLS is compiled in; it prevents
+    CONFIG_MBEDTLS_TLS_CLIENT_ONLY from being selected. A component that
+    actually opens or accepts TLS/DTLS sessions must also call request_tls().
     """
-    CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] = True
+    _mbedtls_sdkconfig().tls_server_required = True
 
 
 def require_mbedtls_tls_extras(options: Iterable[str] | None = None) -> None:
@@ -1969,18 +2149,14 @@ def require_mbedtls_tls_extras(options: Iterable[str] | None = None) -> None:
     servers ESPHome cannot vet (wpa_supplicant's EAP client). A user-supplied
     sdkconfig_options value is never overridden either.
     """
-    required = CORE.data[KEY_ESP32].setdefault(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
-    required.update(MBEDTLS_TLS_EXTRA_OPTIONS if options is None else options)
+    _mbedtls_sdkconfig().tls_extras_required.update(
+        MBEDTLS_TLS_EXTRA_OPTIONS if options is None else options
+    )
 
 
 def require_mbedtls_sha512() -> None:
-    """Mark that mbedTLS SHA-384/SHA-512 support is required by a component.
-
-    Call this from components that need to verify TLS certificates or signatures
-    using SHA-384 or SHA-512 algorithms. This prevents CONFIG_MBEDTLS_SHA384_C
-    and CONFIG_MBEDTLS_SHA512_C from being disabled.
-    """
-    CORE.data[KEY_ESP32][KEY_MBEDTLS_SHA512_REQUIRED] = True
+    """Keep mbedTLS SHA-384/SHA-512 (CONFIG_MBEDTLS_SHA384_C / CONFIG_MBEDTLS_SHA512_C)."""
+    _mbedtls_sdkconfig().sha512_required = True
 
 
 def idf_version() -> cv.Version:
@@ -2134,6 +2310,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_DEV_NULL_VFS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_TLS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_TLS_SERVER, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_TLS_EXTRAS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
@@ -2499,33 +2676,102 @@ MBEDTLS_TLS_ROLE_OPTIONS = (
 )
 
 
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _reconcile_mbedtls_tls_sdkconfig(
-    disable_tls_server: bool, disable_tls_extras: bool
-) -> None:
-    """Trim mbedTLS to what a TLS client needs unless a component asked otherwise.
+# User sdkconfig_options that mean "keep TLS on" when set to y. The
+# OpenThread entries compile its DTLS secure transport in, which links
+# mbedtls_ssl_*.
+_MBEDTLS_TLS_ON_OPTIONS = (
+    "CONFIG_MBEDTLS_TLS_ENABLED",
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
+    "CONFIG_MBEDTLS_TLS_SERVER_ONLY",
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_OPENTHREAD_COMMISSIONER",
+    "CONFIG_OPENTHREAD_JOINER",
+    "CONFIG_OPENTHREAD_BORDER_AGENT_ENABLE",
+    # Border router defaults the border agent (and its DTLS) on.
+    "CONFIG_OPENTHREAD_BORDER_ROUTER",
+    # Enterprise WiFi selects TLS back on (see the TLS-off block).
+    "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
+)
+# Any user option under these prefixes only makes sense with TLS compiled in.
+_TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")
 
-    Runs at FINAL priority so every require_mbedtls_tls_server() and
-    require_mbedtls_tls_extras() call has happened. Only the server-side
-    handshake (~7 KB) is a separate option; nothing in ESPHome accepts TLS
-    connections, but OpenThread's DTLS commissioner does. A user-supplied
-    sdkconfig_options value always wins; for the TLS role choice, any member
-    the user set leaves the whole choice alone so the pair cannot conflict.
+
+def _user_sdkconfig_wants_tls(options: dict[str, Any]) -> bool:
+    """True when sdkconfig_options turn TLS on or tune something under it; an `n` is never a request."""
+    return any(
+        (name in _MBEDTLS_TLS_ON_OPTIONS and value == "y")
+        or (name == "CONFIG_MBEDTLS_TLS_DISABLED" and value == "n")
+        or (name.startswith(_TLS_OPTION_PREFIXES) and value != "n")
+        for name, value in options.items()
+    )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_mbedtls_sdkconfig() -> None:
+    """Reconcile the mbedTLS sdkconfig flags after every request_tls() / require_mbedtls_*() call.
+
+    mbedtls cannot be excluded from an IDF build (bootloader_support needs its
+    SHA-256), but with no TLS user the ssl_*.c sources and the TLS-only crypto
+    compile to empty objects. When TLS stays in, it is trimmed to the client
+    role and the legacy handshake extras are dropped. User sdkconfig_options
+    win; a user-chosen TLS role leaves the whole choice alone.
     """
-    data = CORE.data[KEY_ESP32]
-    sdkconfig = data[KEY_SDKCONFIG_OPTIONS]
-    if (
-        disable_tls_server
-        and not data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False)
-        and not any(option in sdkconfig for option in MBEDTLS_TLS_ROLE_OPTIONS)
+    data = _mbedtls_sdkconfig()
+    idf6 = idf_version() >= cv.Version(6, 0, 0)
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+
+    if _mbedtls_tls_compiled_out():
+        # IDF 6 made CONFIG_MBEDTLS_TLS_ENABLED a normal bool; on IDF 5 it has
+        # no prompt and is only reachable through the "None" TLS role choice.
+        if idf6:
+            set_idf_sdkconfig_default("CONFIG_MBEDTLS_TLS_ENABLED", False)
+        else:
+            set_idf_sdkconfig_default("CONFIG_MBEDTLS_TLS_DISABLED", True)
+        # Enterprise WiFi selects TLS back on; wifi writes this itself, but
+        # esp_wifi can also be in the build without a wifi: block (openthread).
+        set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
+        # WiFi (ESP_WIFI_MBEDTLS_CRYPTO) and Bluetooth deliberately stay on
+        # the select-wins path: an unconditional request from request_wifi()
+        # would defeat the ECP trim for users who disable that select.
+        if not data.ecp_required:
+            set_idf_sdkconfig_default("CONFIG_MBEDTLS_ECP_C", False)
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_WRITE_C", False)
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CRL_PARSE_C", False)
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CSR_PARSE_C", False)
+    elif (
+        # TLS stays in: trim it to the client role unless a component accepts
+        # TLS connections or the user already chose a role.
+        data.disable_tls_server
+        and not data.tls_server_required
+        and not any(option in opts for option in MBEDTLS_TLS_ROLE_OPTIONS)
     ):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT", False)
-    if disable_tls_extras:
-        required = data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
+
+    # The extras run either way: CCM and deterministic ECDSA are plain
+    # crypto, not TLS-gated, so they matter even with TLS compiled out.
+    if data.disable_tls_extras:
         for option in MBEDTLS_TLS_EXTRA_OPTIONS:
-            if option not in required:
+            if option not in data.tls_extras_required:
                 set_idf_sdkconfig_default(option, False)
+
+    # Keeping the peer certificate costs ~4KB heap per connection.
+    if data.peer_cert_required:
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
+    elif data.disable_peer_cert:
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
+
+    if data.pkcs7_required:
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_PKCS7_C", True)
+    elif data.disable_pkcs7:
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_PKCS7_C", False)
+
+    # SHA-384 shares the SHA-512 compression function, so both go together.
+    # Only IDF 6.0's PSA engine links a ~3KB software fallback for them; on
+    # IDF 5 they are a single hardware-only option with no code size cost.
+    if idf6 and not data.sha512_required:
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA384_C", False)
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA512_C", False)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2763,6 +3009,11 @@ async def to_code(config):
     # produce reproducible outputs and downstream tooling can reuse artifacts.
     add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
 
+    # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
+    cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
+    cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -2873,6 +3124,8 @@ async def to_code(config):
             "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
+        # Work around ESP-IDF bug: see https://github.com/espressif/esp-idf/issues/19020
+        add_idf_sdkconfig_option("CONFIG_ESP_MAIN_TASK_STACK_SIZE", 8192)
 
     # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
     # understand %zu or %lld and crashes on any %s that follows one.
@@ -2909,6 +3162,10 @@ async def to_code(config):
 
     # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
     add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
+
+    # Main loop wakes use notification index 1; index 0 stays free for ESP-IDF waits
+    # such as pthread_join(), which a stray main-loop wake would otherwise end early.
+    add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES", 2)
 
     # Place non-ISR FreeRTOS functions into flash instead of IRAM
     # This saves up to 8KB of IRAM. ISR-safe functions (FromISR variants) stay in IRAM.
@@ -2965,7 +3222,7 @@ async def to_code(config):
 
     # Set default CPU frequency
     add_idf_sdkconfig_option(
-        f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{config[CONF_CPU_FREQUENCY][:-3]}", True
+        f"{_SDKCONFIG_CPU_FREQUENCY_PREFIX}{config[CONF_CPU_FREQUENCY][:-3]}", True
     )
 
     # Apply LWIP optimization settings
@@ -3147,6 +3404,10 @@ async def to_code(config):
 
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)
+        if scheme in (SIGNING_SCHEME_ECDSA256, SIGNING_SCHEME_ECDSA_V1):
+            # SECURE_SIGNED_APPS selects ECP in Kconfig anyway; requesting it
+            # keeps the resolved sdkconfig consistent with what ESPHome wrote.
+            require_mbedtls_ecp()
 
         if CONF_SIGNING_KEY in signed_ota:
             # Private key mode — auto-sign binaries during build
@@ -3217,38 +3478,6 @@ async def to_code(config):
     if advanced[CONF_DISABLE_DEV_NULL_VFS]:
         add_idf_sdkconfig_option("CONFIG_VFS_INITIALIZE_DEV_NULL", False)
 
-    # Disable keeping peer certificate after TLS handshake
-    # Saves ~4KB heap per connection, but prevents certificate inspection after handshake
-    # Components that need it can call require_mbedtls_peer_cert()
-    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PEER_CERT_REQUIRED, False):
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
-    elif advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]:
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
-
-    # Disable PKCS#7 support in mbedTLS
-    # Only needed for specific certificate validation scenarios
-    # Components that need it can call require_mbedtls_pkcs7()
-    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PKCS7_REQUIRED, False):
-        # Component called require_mbedtls_pkcs7() - enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", True)
-    elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
-
-    # Disable SHA-384 and SHA-512 in mbedTLS
-    # ESPHome doesn't use either algorithm. SHA-384 shares the same
-    # compression function as SHA-512 (mbedtls_internal_sha512_process),
-    # so both must be disabled to eliminate the ~3KB software fallback
-    # that IDF 6.0's PSA parallel engine always links in.
-    # On IDF < 6.0 these are a single config and hardware-only (no
-    # software fallback), so there was no code size cost to leaving
-    # them enabled.
-    # Components that need SHA-384/SHA-512 can call require_mbedtls_sha512()
-    if idf_version() >= cv.Version(6, 0, 0) and not CORE.data[KEY_ESP32].get(
-        KEY_MBEDTLS_SHA512_REQUIRED, False
-    ):
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
-
     # FINAL priority: runs after every require_libc_picolibc_newlib_compat() call
     CORE.add_job(_set_libc_picolibc_newlib_compat)
 
@@ -3258,12 +3487,14 @@ async def to_code(config):
     # FINAL priority: runs after every require_certificate_bundle() call
     CORE.add_job(_reconcile_certificate_bundle_sdkconfig)
 
-    # FINAL priority: runs after every require_mbedtls_tls_*() call
-    CORE.add_job(
-        _reconcile_mbedtls_tls_sdkconfig,
-        advanced[CONF_DISABLE_MBEDTLS_TLS_SERVER],
-        advanced[CONF_DISABLE_MBEDTLS_TLS_EXTRAS],
-    )
+    # FINAL priority: runs after every request_tls() / require_mbedtls_*() call
+    mbedtls = _mbedtls_sdkconfig()
+    mbedtls.disable_tls = advanced[CONF_DISABLE_MBEDTLS_TLS]
+    mbedtls.disable_tls_server = advanced[CONF_DISABLE_MBEDTLS_TLS_SERVER]
+    mbedtls.disable_tls_extras = advanced[CONF_DISABLE_MBEDTLS_TLS_EXTRAS]
+    mbedtls.disable_peer_cert = advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]
+    mbedtls.disable_pkcs7 = advanced[CONF_DISABLE_MBEDTLS_PKCS7]
+    CORE.add_job(_reconcile_mbedtls_sdkconfig)
 
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
@@ -3296,6 +3527,8 @@ async def to_code(config):
     # so it still gets the CMN variant pinned.
     if conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") == "y":
         require_certificate_bundle()
+    if _user_sdkconfig_wants_tls(conf[CONF_SDKCONFIG_OPTIONS]):
+        request_tls()
 
     # Components from YAML are added in a separate coroutine with FINAL priority
     # Schedule it to run after all other components
@@ -3537,6 +3770,30 @@ def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
 
+    converted: list[IDFComponent] = []
+    if CORE.using_toolchain_esp_idf:
+        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
+        # PlatformIO resolves the whole dependency tree at once -- deduplicating
+        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
+        # and esp_wireguard) to a single version instead of clashing
+        # override_path entries.
+        libraries = [
+            library
+            for name, library in CORE.platformio_libraries.items()
+            # Don't process arduino libraries
+            if name not in ARDUINO_DISABLED_LIBRARIES
+        ]
+        # A library also declared as a managed component is not converted too, or
+        # IDF sees the same requirement twice; converted components reach it through
+        # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
+        managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
+        converted = generate_idf_components(libraries, managed=managed)
+    # IDF names a component after its directory and a later registration of the
+    # same name replaces the earlier one, so a stub beside a converted library of
+    # the same name (espressif/libsodium vs esphome/libsodium) would win or lose
+    # on path order. Such a stub points at the converted library instead.
+    converted_by_name = {component.path.name: component for component in converted}
+
     # For Arduino builds, override unused managed components from the Arduino framework
     # by pointing them to empty stub directories using override_path
     # This prevents the IDF component manager from downloading the real components
@@ -3560,8 +3817,17 @@ def _write_idf_component_yml():
         # always writes, and ninja keeps triggering CMake re-runs on
         # otherwise-cached rebuilds.
         for component_name in sorted(components_to_stub):
+            stub_name = _idf_component_stub_name(component_name)
+            stub_path = stubs_dir / stub_name
+            if (component := converted_by_name.get(stub_name)) is not None:
+                if stub_path.exists():
+                    rmtree(stub_path)
+                dependencies[_idf_component_dep_name(component_name)] = {
+                    "version": "*",
+                    "override_path": str(component.path),
+                }
+                continue
             # Create stub directory with minimal CMakeLists.txt
-            stub_path = stubs_dir / _idf_component_stub_name(component_name)
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
@@ -3603,26 +3869,10 @@ def _write_idf_component_yml():
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
-    if CORE.using_toolchain_esp_idf:
-        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
-        # PlatformIO resolves the whole dependency tree at once -- deduplicating
-        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
-        # and esp_wireguard) to a single version instead of clashing
-        # override_path entries.
-        libraries = [
-            library
-            for name, library in CORE.platformio_libraries.items()
-            # Don't process arduino libraries
-            if name not in ARDUINO_DISABLED_LIBRARIES
-        ]
-        # A library also declared as a managed component is not converted too, or
-        # IDF sees the same requirement twice; converted components reach it through
-        # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
-        managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
-        for component in generate_idf_components(libraries, managed=managed):
-            dependencies[component.get_sanitized_name()] = {
-                "override_path": str(component.path)
-            }
+    for component in converted:
+        dependencies[component.get_sanitized_name()] = {
+            "override_path": str(component.path)
+        }
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
@@ -3800,10 +4050,3 @@ def process_stacktrace(config, line, backtrace_state):
             _decode_pc(config, addr.group())
 
     return backtrace_state
-
-
-# gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
-# are instantiated solely by the pin schema codegen (esp32_pin_to_code)
-FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO"}
-)

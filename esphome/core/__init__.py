@@ -30,6 +30,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    ErrorFormat,
     Toolchain,
 )
 
@@ -385,7 +386,9 @@ class Lambda:
 
 
 class ID:
-    def __init__(self, id, is_declaration=False, type=None, is_manual=None):
+    def __init__(
+        self, id, is_declaration=False, type=None, is_manual=None, match_config=None
+    ):
         self.id = id
         if is_manual is None:
             self.is_manual = id is not None
@@ -393,6 +396,10 @@ class ID:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
         self.type: MockObjClass | None = type
+        # When set, an unnamed (id=None) searching ID is disambiguated among same-type
+        # candidates by matching these key/value pairs against each candidate's own
+        # declared config, instead of requiring exactly one candidate to exist.
+        self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -431,6 +438,7 @@ class ID:
             is_declaration=self.is_declaration,
             type=self.type,
             is_manual=self.is_manual,
+            match_config=self.match_config,
         )
 
 
@@ -674,6 +682,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # How configuration errors are printed
+        self.error_format: ErrorFormat = ErrorFormat.YAML
         # A list of all known ID classes
         self.id_classes = {}
         # The current component being processed during validation
@@ -727,6 +737,7 @@ class EsphomeCore:
         self._config_hash = None
         self.skip_external_update = False
         self.toolchain = None
+        self.error_format = ErrorFormat.YAML
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager

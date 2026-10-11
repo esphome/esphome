@@ -1,0 +1,52 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+select:
+  - platform: template
+    id: mode
+    optimistic: true
+    options: [one, two, three]
+
+button:
+  - platform: template
+    name: A
+    on_press:
+      - if:
+          condition:
+            select.is:
+              id: mode
+              options: [one, two]
+          then:
+            - logger.log: a
+  - platform: template
+    name: B
+    on_press:
+      - if:
+          condition:
+            select.is:
+              id: mode
+              options: [one, two]
+          then:
+            - logger.log: b
+  - platform: template
+    name: C
+    on_press:
+      - if:
+          condition:
+            select.is:
+              id: mode
+              options: three
+          then:
+            - logger.log: c
+      - if:
+          condition:
+            select.is:
+              id: mode
+              lambda: return current == "two";
+          then:
+            - logger.log: d
+
+logger:
