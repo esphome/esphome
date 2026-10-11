@@ -15,10 +15,10 @@ static constexpr size_t RX_BUFFER_SIZE = 96;
 class LD2410S : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(presence)
-  SUB_BINARY_SENSOR(calibration_running)
 #endif
 
  public:
+  void setup() override { this->status_set_warning(); }  // cleared once the module acknowledged the init sequence
   void loop() override;
   void dump_config() override;
 
@@ -38,7 +38,6 @@ class LD2410S : public Component, public uart::UARTDevice {
   void send_command_(uint16_t command);
   void set_init_done_(bool done);
   void publish_presence_(bool presence);
-  void publish_calibration_running_(bool running);
 
   uint32_t next_send_at_{0};
   uint16_t rx_len_{0};
