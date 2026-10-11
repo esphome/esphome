@@ -287,10 +287,10 @@ void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const c
       handle_qmn_(message);
       break;
     case POLLING_QET:
-      handle_qet_(message);
+      handle_single_int_(message, this->last_qet_, this->total_pv_generated_energy_);
       break;
     case POLLING_QLT:
-      handle_qlt_(message);
+      handle_single_int_(message, this->last_qlt_, this->total_output_load_energy_);
       break;
     default:
       break;
@@ -694,24 +694,15 @@ void Pipsolar::handle_qmn_(const char *message) {
   }
 }
 
-void Pipsolar::handle_qet_(const char *message) {
-  if (this->last_qet_) {
-    this->last_qet_->publish_state(message);
+// QET and QLT each answer with one integer
+void Pipsolar::handle_single_int_(const char *message, text_sensor::TextSensor *raw, sensor::Sensor *value) {
+  if (raw) {
+    raw->publish_state(message);
   }
 
   size_t pos = 0;
   this->skip_start_(message, &pos);
-  this->read_int_sensor_(message, &pos, this->total_pv_generated_energy_);
-}
-
-void Pipsolar::handle_qlt_(const char *message) {
-  if (this->last_qlt_) {
-    this->last_qlt_->publish_state(message);
-  }
-
-  size_t pos = 0;
-  this->skip_start_(message, &pos);
-  this->read_int_sensor_(message, &pos, this->total_output_load_energy_);
+  this->read_int_sensor_(message, &pos, value);
 }
 
 void Pipsolar::skip_start_(const char *message, size_t *pos) {

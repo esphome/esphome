@@ -14,7 +14,6 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ICON_BATTERY,
-    ICON_COUNTER,
     ICON_CURRENT_AC,
     ICON_FLASH,
     ICON_GAUGE,
@@ -329,14 +328,12 @@ TYPES = {
     ),
     CONF_TOTAL_PV_GENERATED_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT_HOURS,
-        icon=ICON_SOLAR_POWER,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
     CONF_TOTAL_OUTPUT_LOAD_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT_HOURS,
-        icon=ICON_COUNTER,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,

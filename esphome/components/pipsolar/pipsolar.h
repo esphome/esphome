@@ -223,8 +223,7 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   void handle_qpiws_(const char *message);
   void handle_qt_(const char *message);
   void handle_qmn_(const char *message);
-  void handle_qet_(const char *message);
-  void handle_qlt_(const char *message);
+  void handle_single_int_(const char *message, text_sensor::TextSensor *raw, sensor::Sensor *value);
 
   void skip_start_(const char *message, size_t *pos);
   void skip_field_(const char *message, size_t *pos);
