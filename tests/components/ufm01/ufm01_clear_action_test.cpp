@@ -2,8 +2,6 @@
 
 namespace esphome::ufm01::testing {
 
-#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-
 class MockClearAction : public ClearAccumulatedFlowActionInterface {
  public:
   void complete() override { this->completed = true; }
@@ -19,9 +17,7 @@ TEST_F(UFM01Test, ClearAccumulatedFlowSendsCommand) {
   EXPECT_TRUE(this->mock_uart_.written_data.empty());
   this->ufm01_.loop_pending_clear_action();
 
-  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
-  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5A);
-  EXPECT_EQ(this->mock_uart_.written_data[4], 0xFD);
+  this->expect_written(CLEAR_ACCUMULATED_FLOW);
   EXPECT_FALSE(action.completed);
 }
 
@@ -42,8 +38,11 @@ TEST_F(UFM01Test, ClearAccumulatedFlowCompletesOnTimeout) {
   this->ufm01_.set_operating_mode(OperatingMode::ACTIVE_STREAM);
   this->ufm01_.request_clear_accumulated_flow(&action);
   this->ufm01_.loop_pending_clear_action();
-  this->ufm01_.set_pending_clear_start_ms(millis() - 2000);
+  this->advance(400);
+  this->ufm01_.loop_pending_clear_action();
+  ASSERT_FALSE(action.completed);
 
+  this->advance(200);
   this->ufm01_.loop_pending_clear_action();
 
   EXPECT_TRUE(action.completed);
@@ -70,17 +69,14 @@ TEST_F(UFM01Test, ClearWaitsForPendingPassiveRead) {
   this->ufm01_.loop_pending_clear_action();
   EXPECT_TRUE(this->mock_uart_.written_data.empty());
 
-  auto frame = make_passive_frame();
-  this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin(), frame.end()));
+  this->mock_uart_.enqueue(make_passive_frame());
   this->ufm01_.loop_passive_poll();
   this->ufm01_.loop_pending_clear_action();
 
-  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
-  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5A);
+  this->expect_written(CLEAR_ACCUMULATED_FLOW);
   EXPECT_FALSE(action.completed);
 }
 
-#ifdef USE_UFM01_SOFTWARE_VERSION
 TEST_F(UFM01Test, ClearWaitsForPendingSoftwareVersionRead) {
   MockClearAction action;
   this->ufm01_.set_operating_mode(OperatingMode::ACTIVE_STREAM);
@@ -91,16 +87,13 @@ TEST_F(UFM01Test, ClearWaitsForPendingSoftwareVersionRead) {
   this->ufm01_.loop_pending_clear_action();
   EXPECT_TRUE(this->mock_uart_.written_data.empty());
 
-  auto response = make_software_version_response();
-  this->mock_uart_.enqueue(std::vector<uint8_t>(response.begin(), response.end()));
+  this->mock_uart_.enqueue(make_software_version_response());
   this->ufm01_.loop_active_stream();
   this->ufm01_.loop_pending_clear_action();
 
-  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
-  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5A);
+  this->expect_written(CLEAR_ACCUMULATED_FLOW);
   EXPECT_FALSE(action.completed);
 }
-#endif
 
 TEST_F(UFM01Test, ClearWaitsDuringStartup) {
   MockClearAction action;
@@ -116,9 +109,9 @@ TEST_F(UFM01Test, ClearWaitsDuringStartup) {
 
 TEST_F(UFM01Test, ClearTimesOutWhileWaitingForIdle) {
   MockClearAction action;
-  this->ufm01_.set_operating_mode(OperatingMode::ENTERING_PASSIVE);
+  this->ufm01_.set_operating_mode(OperatingMode::STARTUP);
   this->ufm01_.request_clear_accumulated_flow(&action);
-  this->ufm01_.set_pending_clear_start_ms(millis() - 20000);
+  this->advance(20000);
 
   this->ufm01_.loop_pending_clear_action();
 
@@ -137,7 +130,5 @@ TEST_F(UFM01Test, CancelPendingClearDoesNotSend) {
   EXPECT_TRUE(this->mock_uart_.written_data.empty());
   EXPECT_FALSE(action.completed);
 }
-
-#endif  // USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
 
 }  // namespace esphome::ufm01::testing

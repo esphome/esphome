@@ -18,38 +18,22 @@ class ClearAccumulatedFlowAction final : public Action<Ts...>, public ClearAccum
   explicit ClearAccumulatedFlowAction(UFM01Component *parent) : parent_(parent) {}
 
   void play_complex(const Ts &...x) override {
-    if (this->waiting_)
+    if (!this->parent_->request_clear_accumulated_flow_(this))
       return;
     this->num_running_++;
-    this->waiting_ = true;
     this->args_ = std::make_tuple(x...);
-    if (!this->parent_->request_clear_accumulated_flow_(this)) {
-      this->waiting_ = false;
-      this->num_running_--;
-    }
   }
 
-  void complete() override {
-    if (!this->waiting_)
-      return;
-    this->waiting_ = false;
-    this->play_next_tuple_(this->args_);
-  }
+  void complete() override { this->play_next_tuple_(this->args_); }
 
  protected:
   void play(const Ts &...) override { /* unused; see play_complex */
   }
 
-  void stop() override {
-    if (!this->waiting_)
-      return;
-    this->waiting_ = false;
-    this->parent_->cancel_pending_clear_action_(this);
-  }
+  void stop() override { this->parent_->cancel_pending_clear_action_(this); }
 
   UFM01Component *parent_;
   std::tuple<Ts...> args_{};
-  bool waiting_{false};
 };
 
 }  // namespace esphome::ufm01

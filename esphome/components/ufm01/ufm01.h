@@ -8,10 +8,8 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-#if defined(USE_UFM01_METER_ID) || defined(USE_UFM01_SOFTWARE_VERSION)
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
-#endif
 #endif
 #include "esphome/components/uart/uart.h"
 
@@ -55,8 +53,7 @@ static constexpr size_t SOFTWARE_VERSION_STRING_LENGTH = 8;
 enum class OperatingMode : uint8_t {
   STARTUP = 0,
   ACTIVE_STREAM = 1,
-  ENTERING_PASSIVE = 2,  // SET_PASSIVE_MODE sent, waiting for ACK
-  PASSIVE_POLL = 3,
+  PASSIVE_POLL = 2,
 };
 
 enum class StartupPhase : uint8_t {
@@ -72,16 +69,10 @@ enum class StartupPhase : uint8_t {
   PASSIVE_WAIT_REPLY,
 };
 
-enum class PassiveReadResult : uint8_t {
-  PASSIVE_READ_RESULT_PENDING = 0,
-  PASSIVE_READ_RESULT_SUCCESS = 1,
-  PASSIVE_READ_RESULT_FAILURE = 2,
-};
-
-enum class SoftwareVersionReadResult : uint8_t {
-  SOFTWARE_VERSION_READ_RESULT_PENDING = 0,
-  SOFTWARE_VERSION_READ_RESULT_SUCCESS = 1,
-  SOFTWARE_VERSION_READ_RESULT_FAILURE = 2,
+enum class ReadResult : uint8_t {
+  READ_RESULT_PENDING = 0,
+  READ_RESULT_SUCCESS = 1,
+  READ_RESULT_FAILURE = 2,
 };
 
 class UFM01Component : public uart::UARTDevice, public Component {
@@ -119,75 +110,74 @@ class UFM01Component : public uart::UARTDevice, public Component {
   bool request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
   void cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action);
   bool can_start_clear_action_() const;
+  void clear_pending_();
+  void loop_pending_clear_action_(uint32_t now);
+  void finish_pending_clear_action_();
 #endif
   void send_command_no_wait_(const std::array<uint8_t, 7> &command);
   bool consume_ack_();
   void flush_rx_();
-  bool process_active_stream_();
-  void on_active_frame_(uint8_t data[FRAME_SIZE]);
+  bool process_active_stream_(uint32_t now);
+  void on_active_frame_(uint8_t data[FRAME_SIZE], uint32_t now);
 #ifdef USE_UFM01_METER_ID
   void publish_meter_id_from_frame_(const uint8_t data[FRAME_SIZE]);
 #endif
   void publish_stale_flow_and_temperature_();
 #ifdef USE_UFM01_SOFTWARE_VERSION
-  void start_software_version_read_();
-  SoftwareVersionReadResult continue_software_version_read_();
-  void poll_software_version_read_();
+  void start_software_version_read_(uint32_t now);
+  ReadResult continue_software_version_read_(uint32_t now);
+  void finish_software_version_read_(uint32_t now);
+  bool service_software_version_(uint32_t now);
 #endif
 
-  void loop_startup_();
-  void loop_active_stream_();
-  void loop_entering_passive_();
-  void loop_passive_poll_();
-#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-  void loop_pending_clear_action_();
-  void finish_pending_clear_action_();
-#endif
-  void set_startup_phase_(StartupPhase phase);
-  void enter_active_stream_(const char *reason);
-  void enter_passive_from_stale_();
-  void restart_startup_(const char *reason);
-  void start_passive_read_();
-  PassiveReadResult continue_passive_read_();
-  void note_passive_poll_result_(PassiveReadResult result);
-#ifdef USE_UFM01_SOFTWARE_VERSION
-  void try_pending_software_version_read_();
-#endif
-  size_t passive_expected_frame_size_() const;
+  void loop_startup_(uint32_t now);
+  void loop_active_stream_(uint32_t now);
+  void loop_passive_poll_(uint32_t now);
+  void set_mode_(OperatingMode mode, uint32_t now);
+  void set_startup_phase_(StartupPhase phase, uint32_t now);
+  void send_reset_(const LogString *status, uint32_t now);
+  void enter_active_stream_(const LogString *reason, uint32_t now);
+  void enter_passive_from_stale_(uint32_t now);
+  void restart_startup_(const LogString *reason, uint32_t now);
+  void start_passive_read_(uint32_t now);
+  ReadResult continue_passive_read_(uint32_t now);
+  void note_passive_poll_result_(bool success, uint32_t now);
 
-  OperatingMode operating_mode_{OperatingMode::STARTUP};
-  StartupPhase startup_phase_{StartupPhase::WAIT};
   uint32_t phase_start_ms_{0};
   uint32_t startup_wait_ms_{0};
-  bool reset_retried_{false};
   uint32_t last_valid_frame_ms_{0};
   uint32_t last_poll_ms_{0};
-  uint8_t consecutive_passive_failures_{0};
+  // Shared by the passive read and the software version read, which never overlap
+  uint32_t passive_start_ms_{0};
 #ifdef USE_UFM01_SOFTWARE_VERSION
-  bool software_version_published_{false};
-  bool software_version_read_pending_{false};
   uint32_t last_software_version_attempt_ms_{0};
-  uint32_t software_version_start_ms_{0};
-  uint8_t software_version_index_{0};
-  uint8_t software_version_frame_[SOFTWARE_VERSION_RESPONSE_SIZE];
 #endif
-#ifdef USE_UFM01_METER_ID
-  bool meter_id_published_{false};
-  bool passive_expects_id_{false};
-#endif
-
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   ClearAccumulatedFlowActionInterface *pending_clear_action_{nullptr};
   uint32_t pending_clear_start_ms_{0};
+#endif
+  int32_t read_index_{0};
+
+  OperatingMode operating_mode_{OperatingMode::STARTUP};
+  StartupPhase startup_phase_{StartupPhase::WAIT};
+  bool reset_retried_{false};
+  bool passive_read_pending_{false};
+  uint8_t consecutive_passive_failures_{0};
+  uint8_t passive_index_{0};
+  uint8_t passive_expected_size_{PASSIVE_FRAME_SIZE};
+  uint8_t passive_start_byte_2_{0};
+#ifdef USE_UFM01_SOFTWARE_VERSION
+  bool software_version_published_{false};
+  bool software_version_read_pending_{false};
+#endif
+#ifdef USE_UFM01_METER_ID
+  bool meter_id_published_{false};
+#endif
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   bool pending_clear_sent_{false};
 #endif
 
-  bool passive_read_pending_{false};
-  uint32_t passive_start_ms_{0};
-  size_t passive_index_{0};
   uint8_t passive_frame_[PASSIVE_FRAME_MAX_SIZE];
-
-  int32_t read_index_ = 0;
   uint8_t data_[FRAME_SIZE];
 
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
