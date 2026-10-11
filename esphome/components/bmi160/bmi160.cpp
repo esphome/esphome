@@ -4,7 +4,7 @@
 
 namespace esphome::bmi160 {
 
-static const char *const TAG = "bmi160";
+ESPHOME_LOG_TAG(TAG, "bmi160");
 static constexpr uint32_t GYRO_WAKEUP_TIMEOUT_MS = 100;
 
 const uint8_t BMI160_REGISTER_CHIPID = 0x00;

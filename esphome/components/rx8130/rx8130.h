@@ -18,14 +18,4 @@ class RX8130Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void stop_(bool stop);
 };
 
-template<typename... Ts> class WriteAction final : public Action<Ts...>, public Parented<RX8130Component> {
- public:
-  void play(const Ts... x) override { this->parent_->write_time(); }
-};
-
-template<typename... Ts> class ReadAction final : public Action<Ts...>, public Parented<RX8130Component> {
- public:
-  void play(const Ts... x) override { this->parent_->read_time(); }
-};
-
 }  // namespace esphome::rx8130

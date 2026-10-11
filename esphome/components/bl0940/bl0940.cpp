@@ -4,7 +4,7 @@
 
 namespace esphome::bl0940 {
 
-static const char *const TAG = "bl0940";
+ESPHOME_LOG_TAG(TAG, "bl0940");
 
 static const uint8_t BL0940_FULL_PACKET = 0xAA;
 static const uint8_t BL0940_PACKET_HEADER = 0x55;  // 0x58 according to en doc but 0x55 in cn doc
