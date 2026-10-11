@@ -2451,7 +2451,7 @@ class AddressRecordingDevice : public ModbusClientDevice {
   }
   bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) override {
     this->no_response_ = address;
-    return false;
+    return this->retry_;
   }
   void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) override { this->not_sent_ = address; }
   int sent_{-1};
@@ -2459,6 +2459,7 @@ class AddressRecordingDevice : public ModbusClientDevice {
   int error_{-1};
   int no_response_{-1};
   int not_sent_{-1};
+  bool retry_{false};
 };
 }  // namespace
 
@@ -2507,5 +2508,41 @@ TEST(ModbusClientHubAddress, CallbacksReportTheRequestAddressAfterSetAddress) {
     hub.sweep_for_test();
     EXPECT_EQ(device.not_sent_, 0x06);
   }
+}
+
+// A granted retry resends the same frame, so the retry's callbacks keep the original address too.
+TEST(ModbusClientHubAddress, GrantedRetryKeepsTheRequestAddress) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  AddressRecordingDevice device(&hub, 0x04);
+  device.retry_ = true;
+  ASSERT_TRUE(device.queue_pdu(read_pdu()));
+  device.set_address(0x05);
+  hub.send_next_for_test();
+  hub.timeout_waiting();
+  EXPECT_EQ(device.no_response_, 0x04);
+
+  device.sent_ = -1;
+  hub.send_next_for_test();
+  EXPECT_EQ(device.sent_, 0x04);
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x04, ok_response);
+  EXPECT_EQ(device.response_, 0x04);
+}
+
+// A broadcast reports address 0 from on_sent, its only callback.
+TEST(ModbusClientHubAddress, BroadcastReportsAddressZero) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  AddressRecordingDevice device(&hub, BROADCAST_ADDRESS);
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};
+  ASSERT_TRUE(device.queue_pdu(write));
+  device.set_address(0x05);
+  hub.send_next_for_test();
+  EXPECT_EQ(device.sent_, BROADCAST_ADDRESS);
 }
 }  // namespace esphome::modbus::testing

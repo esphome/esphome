@@ -439,6 +439,7 @@ class ModbusClientDevice {
   }
   /// Overloads of the hooks above with the device address of the request first, taken from the request frame, so it
   /// stays correct after set_address(). The hub calls these; the defaults forward to the hooks above.
+  /// Override one form per hook: overriding an address form drops its forward, so the other form is no longer called.
   virtual void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
                            std::span<const uint8_t> response_pdu) {
     this->on_response(request_pdu, response_pdu);
