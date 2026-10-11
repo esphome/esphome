@@ -1364,7 +1364,8 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
 
       this->decode_mode_fan_temperature_(message);
-      if (this->model_ == MODEL_SEIYA && message_length == SEIYA_MESSAGE_LENGTH) {
+      // The marker byte tells a Seiya frame from another checksum-valid 11 byte frame within receiver tolerance
+      if (this->model_ == MODEL_SEIYA && message_length == SEIYA_MESSAGE_LENGTH && message[8] == SEIYA_FEATURE_MARKER) {
         this->seiya_decode_swing_(message[9]);
       }
   }
