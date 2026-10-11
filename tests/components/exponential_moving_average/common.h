@@ -8,6 +8,8 @@
 #include <string>
 
 #include "esphome/components/exponential_moving_average/exponential_moving_average_sensor.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 #ifdef USE_HOST
 #include "esphome/components/host/preferences.h"
@@ -34,6 +36,8 @@ class ExponentialMovingAverageTest : public ::testing::Test {
     host::setup_preferences();
 #endif
     global_preferences->reset();
+    // The tests pass explicit timestamps that assume the loop clock starts at zero
+    LoopBlockingGuard clock(nullptr, LOG_STR("test"), 0);
   }
 
   void TearDown() override {
