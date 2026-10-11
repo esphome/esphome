@@ -7,7 +7,7 @@
 
 namespace esphome::tof10120 {
 
-static const char *const TAG = "tof10120";
+ESPHOME_LOG_TAG(TAG, "tof10120");
 static const uint8_t TOF10120_READ_DISTANCE_CMD[] = {0x00};
 static const uint8_t TOF10120_DEFAULT_DELAY = 30;
 

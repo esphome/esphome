@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
+class MQTTBinarySensorComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct a MQTTBinarySensorComponent.
    *

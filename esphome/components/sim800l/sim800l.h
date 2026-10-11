@@ -46,7 +46,7 @@ enum State {
   STATE_RECEIVED_USSD
 };
 
-class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
+class Sim800LComponent final : public uart::UARTDevice, public PollingComponent {
  public:
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
@@ -118,69 +118,6 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   CallbackManager<void()> call_connected_callback_;
   CallbackManager<void()> call_disconnected_callback_;
   CallbackManager<void(std::string)> ussd_received_callback_;
-};
-
-template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
- public:
-  Sim800LSendSmsAction(Sim800LComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, recipient)
-  TEMPLATABLE_VALUE(std::string, message)
-
-  void play(const Ts &...x) {
-    auto recipient = this->recipient_.value(x...);
-    auto message = this->message_.value(x...);
-    this->parent_->send_sms(recipient, message);
-  }
-
- protected:
-  Sim800LComponent *parent_;
-};
-
-template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
- public:
-  Sim800LSendUssdAction(Sim800LComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, ussd)
-
-  void play(const Ts &...x) {
-    auto ussd_code = this->ussd_.value(x...);
-    this->parent_->send_ussd(ussd_code);
-  }
-
- protected:
-  Sim800LComponent *parent_;
-};
-
-template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
- public:
-  Sim800LDialAction(Sim800LComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, recipient)
-
-  void play(const Ts &...x) {
-    auto recipient = this->recipient_.value(x...);
-    this->parent_->dial(recipient);
-  }
-
- protected:
-  Sim800LComponent *parent_;
-};
-template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
- public:
-  Sim800LConnectAction(Sim800LComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) { this->parent_->connect(); }
-
- protected:
-  Sim800LComponent *parent_;
-};
-
-template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
- public:
-  Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) { this->parent_->disconnect(); }
-
- protected:
-  Sim800LComponent *parent_;
 };
 
 }  // namespace esphome::sim800l

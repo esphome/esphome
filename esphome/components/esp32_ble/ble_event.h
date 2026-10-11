@@ -207,7 +207,7 @@ class BLEEvent {
         StatusOnlyData scan_complete;  // 1 byte
         // Advertising complete events all have same structure
         // Used by: esp32_ble_beacon, esp32_ble server components
-        // ADV_DATA_SET, SCAN_RSP_DATA_SET, ADV_DATA_RAW_SET, ADV_START, ADV_STOP
+        // ADV_DATA_SET, SCAN_RSP_DATA_SET, ADV_DATA_RAW_SET, SCAN_RSP_DATA_RAW_SET, ADV_START, ADV_STOP
         StatusOnlyData adv_complete;  // 1 byte
         // RSSI complete event
         // Used by: ble_client (ble_rssi_sensor component)
@@ -323,6 +323,9 @@ class BLEEvent {
         break;
       case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:  // Used by: esp32_ble_beacon
         this->event_.gap.adv_complete.status = p->adv_data_raw_cmpl.status;
+        break;
+      case ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT:  // Used by: raw advertisers with scan response
+        this->event_.gap.adv_complete.status = p->scan_rsp_data_raw_cmpl.status;
         break;
       case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:  // Used by: esp32_ble_beacon
         this->event_.gap.adv_complete.status = p->adv_start_cmpl.status;

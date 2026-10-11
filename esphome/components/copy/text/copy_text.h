@@ -5,7 +5,7 @@
 
 namespace esphome::copy {
 
-class CopyText : public text::Text, public Component {
+class CopyText final : public text::Text, public Component {
  public:
   void set_source(text::Text *source) { source_ = source; }
   void setup() override;

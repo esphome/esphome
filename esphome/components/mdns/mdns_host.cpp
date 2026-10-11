@@ -12,7 +12,7 @@ namespace esphome::mdns {
 
 void MDNSComponent::setup() {
 #ifdef USE_MDNS_STORE_SERVICES
-#ifdef USE_API
+#ifdef USE_MDNS_DEVICE_INFO_TXT
   get_mac_address_into_buffer(this->mac_address_);
   char *mac_ptr = this->mac_address_;
   format_hex_to(this->config_hash_str_, App.get_config_hash());

@@ -6,7 +6,7 @@
 
 namespace esphome::aic3204 {
 
-static const char *const TAG = "aic3204";
+ESPHOME_LOG_TAG(TAG, "aic3204");
 
 #define ERROR_CHECK(err, msg) \
   if (!(err)) { \

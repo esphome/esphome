@@ -7,6 +7,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2c"]
@@ -47,17 +48,12 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_AMBIENT in config:
-        sens = await sensor.new_sensor(config[CONF_AMBIENT])
-        cg.add(var.set_ambient_sensor(sens))
-
-    if CONF_OBJECT in config:
-        sens = await sensor.new_sensor(config[CONF_OBJECT])
-        cg.add(var.set_object_sensor(sens))
-
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_AMBIENT, var.set_ambient_sensor)
+    if await sensors(CONF_OBJECT, var.set_object_sensor):
         cg.add(var.set_emissivity(config[CONF_OBJECT][CONF_EMISSIVITY]))

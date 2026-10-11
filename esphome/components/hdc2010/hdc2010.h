@@ -6,7 +6,7 @@
 
 namespace esphome::hdc2010 {
 
-class HDC2010Component : public PollingComponent, public i2c::I2CDevice {
+class HDC2010Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature) { this->temperature_sensor_ = temperature; }
 

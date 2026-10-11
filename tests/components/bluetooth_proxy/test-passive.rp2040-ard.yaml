@@ -1,0 +1,11 @@
+# Advertisement-only proxy on rp2 by explicit choice. Variant tests compile
+# as their own builds when this component is tested individually; under CI
+# batch grouping the active default build is what runs, so this fixture's
+# guarantee is the individual run plus config validation.
+packages:
+  common: !include common.yaml
+
+rp2_ble_tracker:
+
+bluetooth_proxy:
+  active: false

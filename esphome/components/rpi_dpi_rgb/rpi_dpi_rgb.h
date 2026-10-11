@@ -18,7 +18,7 @@ namespace esphome::rpi_dpi_rgb {
 
 constexpr static const char *const TAG = "rpi_dpi_rgb";
 
-class RpiDpiRgb : public display::Display {
+class RpiDpiRgb final : public display::Display {
  public:
   void update() override { this->do_update_(); }
   void setup() override;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
@@ -92,7 +91,7 @@ enum GrowAuraLEDColor {
   WHITE = 0x07,
 };
 
-class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevice {
+class FingerprintGrowComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void update() override;
   void setup() override;
@@ -207,70 +206,6 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   CallbackManager<void(uint8_t, uint16_t)> enrollment_scan_callback_;
   CallbackManager<void(uint16_t)> enrollment_done_callback_;
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
-};
-
-template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, finger_id)
-  TEMPLATABLE_VALUE(uint8_t, num_scans)
-
-  void play(const Ts &...x) override {
-    auto finger_id = this->finger_id_.value(x...);
-    auto num_scans = this->num_scans_.value(x...);
-    if (num_scans) {
-      this->parent_->enroll_fingerprint(finger_id, num_scans);
-    } else {
-      this->parent_->enroll_fingerprint(finger_id, 2);
-    }
-  }
-};
-
-template<typename... Ts>
-class CancelEnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->finish_enrollment(1); }
-};
-
-template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, finger_id)
-
-  void play(const Ts &...x) override {
-    auto finger_id = this->finger_id_.value(x...);
-    this->parent_->delete_fingerprint(finger_id);
-  }
-};
-
-template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->delete_all_fingerprints(); }
-};
-
-template<typename... Ts> class LEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
- public:
-  TEMPLATABLE_VALUE(bool, state)
-
-  void play(const Ts &...x) override {
-    auto state = this->state_.value(x...);
-    this->parent_->led_control(state);
-  }
-};
-
-template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, state)
-  TEMPLATABLE_VALUE(uint8_t, speed)
-  TEMPLATABLE_VALUE(uint8_t, color)
-  TEMPLATABLE_VALUE(uint8_t, count)
-
-  void play(const Ts &...x) override {
-    auto state = this->state_.value(x...);
-    auto speed = this->speed_.value(x...);
-    auto color = this->color_.value(x...);
-    auto count = this->count_.value(x...);
-
-    this->parent_->aura_led_control(state, speed, color, count);
-  }
 };
 
 }  // namespace esphome::fingerprint_grow

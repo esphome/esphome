@@ -12,7 +12,7 @@ class GT911ButtonListener {
   virtual void update_button(uint8_t index, bool state) = 0;
 };
 
-class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   /// @brief Initialize the GT911 touchscreen.
   ///

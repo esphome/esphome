@@ -6,7 +6,7 @@
 
 namespace esphome::mcp47a1 {
 
-class MCP47A1 : public Component, public output::FloatOutput, public i2c::I2CDevice {
+class MCP47A1 final : public Component, public output::FloatOutput, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void write_state(float state) override;

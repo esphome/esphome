@@ -42,7 +42,7 @@ struct ES8311Coefficient {
   uint8_t dac_osr;   // dac osr
 };
 
-class ES8311 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
+class ES8311 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
   /////////////////////////
   // Component overrides //

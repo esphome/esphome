@@ -2,10 +2,12 @@ import esphome.codegen as cg
 from esphome.components import pn532, spi
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn532"]
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 DEPENDENCIES = ["spi"]
+DOMAIN = "pn532_spi"
 MULTI_CONF = True
 
 pn532_spi_ns = cg.esphome_ns.namespace("pn532_spi")
@@ -20,7 +22,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await pn532.setup_pn532(var, config)
     await spi.register_spi_device(var, config)

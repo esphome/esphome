@@ -23,7 +23,7 @@ enum HLW8012SensorModels {
 #define USE_PCNT false
 #endif
 
-class HLW8012Component : public PollingComponent {
+class HLW8012Component final : public PollingComponent {
  public:
   HLW8012Component()
       : cf_store_(*pulse_counter::get_storage(USE_PCNT)), cf1_store_(*pulse_counter::get_storage(USE_PCNT)) {}
