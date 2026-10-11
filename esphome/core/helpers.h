@@ -15,6 +15,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <numeric>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -882,10 +883,7 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 /// Add up the bytes of \p data with size \p len, truncated to 8 bits: the checksum many serial and IR
 /// protocols use.
 constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
-  for (size_t i = 0; i < len; i++) {
-    sum += data[i];
-  }
-  return sum;
+  return std::accumulate(data, data + len, sum);
 }
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
