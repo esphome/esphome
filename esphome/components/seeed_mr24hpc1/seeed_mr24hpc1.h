@@ -153,6 +153,7 @@ class MR24HPC1Component final : public Component,
   int sg_start_query_data_;
   bool check_dev_inf_sign_;
   bool poll_time_base_func_check_;
+  bool module_ready_{false};
 
   void update_();
   void r24_split_data_frame_(uint8_t value);

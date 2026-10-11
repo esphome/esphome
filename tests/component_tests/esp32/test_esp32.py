@@ -30,6 +30,7 @@ from esphome.components.esp32 import (
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
     _user_sdkconfig_wants_tls,
+    allow_insecure_tls,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
@@ -2400,3 +2401,20 @@ def test_nvs_cache_in_psram_explicit_true_on_valid_board_is_quiet(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is True
     assert "nvs_cache_in_psram" not in caplog.text
+
+
+def test_allow_insecure_tls_only_switches_the_flags_on(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A component that verifies certificates must not undo another one's request."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {}}
+
+    allow_insecure_tls()
+    # A second caller, or a verifying component that no longer touches the flags, leaves them on
+    allow_insecure_tls()
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == {
+        "CONFIG_ESP_TLS_INSECURE": True,
+        "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY": True,
+    }
