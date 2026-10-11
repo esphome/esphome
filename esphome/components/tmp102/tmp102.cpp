@@ -29,10 +29,8 @@ static float decode_limit(uint16_t raw, bool extended) {
 }
 
 void TMP102Component::setup() {
-  if (!this->configure_) {
-    this->setup_complete_ = true;
+  if (!this->configure_)
     return;
-  }
   ESP_LOGCONFIG(TAG, "Setting up TMP102...");
   if (!this->write_register_(TMP102_REGISTER_CONFIGURATION, this->config_) ||
       !this->write_register_(TMP102_REGISTER_HIGH_LIMIT, this->high_limit_) ||
@@ -40,7 +38,6 @@ void TMP102Component::setup() {
     this->mark_failed();
     return;
   }
-  this->setup_complete_ = true;
 }
 #endif
 
@@ -85,7 +82,12 @@ void TMP102Component::dump_config() {
 }
 
 void TMP102Component::update() {
-#ifndef USE_TMP102_CONFIGURE
+#ifdef USE_TMP102_CONFIGURE
+  if (this->configure_) {
+    this->update_configured_();
+    return;
+  }
+#endif
   if (this->write(&TMP102_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
@@ -104,25 +106,11 @@ void TMP102Component::update() {
     this->publish_state(temperature);
     this->status_clear_warning();
   });
-#else
-  if (!this->configure_) {
-    if (this->write(&TMP102_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      return;
-    }
-    this->set_timeout(READ_TEMP_TIMEOUT_ID, 50, [this]() {
-      int16_t raw_temperature;
-      if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
-        this->status_set_warning();
-        return;
-      }
-      raw_temperature = i2c::i2ctohs(raw_temperature) >> 4;
-      this->publish_state(raw_temperature * TMP102_CONVERSION_FACTOR);
-      this->status_clear_warning();
-    });
-    return;
-  }
-  if (!this->setup_complete_ || this->conversion_pending_)
+}
+
+#ifdef USE_TMP102_CONFIGURE
+void TMP102Component::update_configured_() {
+  if (this->conversion_pending_)
     return;
   this->conversion_pending_ = true;
   if (!this->check_configuration_()) {
@@ -143,10 +131,8 @@ void TMP102Component::update() {
     this->read_temperature_();
     this->conversion_pending_ = false;
   }
-#endif
 }
 
-#ifdef USE_TMP102_CONFIGURE
 bool TMP102Component::write_register_(uint8_t reg, uint16_t value) {
   uint8_t frame[3] = {reg, static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value)};
   if (this->write(frame, 3) == i2c::ERROR_OK)

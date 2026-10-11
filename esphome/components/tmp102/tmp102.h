@@ -29,13 +29,13 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   bool write_register_(uint8_t reg, uint16_t value);
   bool check_configuration_();
   void read_temperature_();
+  void update_configured_();
 
   uint16_t config_{0x0080};
   uint16_t high_limit_{0x5000};
   uint16_t low_limit_{0x4B00};
   uint8_t configured_limits_{0};
   bool configure_{false};
-  bool setup_complete_{false};
   bool conversion_pending_{false};
 #endif
 };

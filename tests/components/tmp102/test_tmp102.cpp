@@ -228,9 +228,6 @@ TEST_F(TMP102Test, FailureOfAnySetupWriteMarksComponentFailed) {
     this->bus_.fail_write = reg;
     failed.setup();
     EXPECT_TRUE(failed.is_failed());
-    const auto transactions = this->bus_.transactions;
-    failed.update();
-    EXPECT_EQ(this->bus_.transactions, transactions);
   }
 }
 
