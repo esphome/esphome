@@ -125,6 +125,17 @@ on_...:
     - zigbee.factory_reset
 ```
 
+### `zigbee.report` Action (`ESP32` only)
+
+This [action](/automations/actions#config-action) triggers a report of all attributes of
+components with `report: enable` or `report: force`.
+
+```yaml
+on_...:
+  then:
+    - zigbee.report
+```
+
 
 ## Zigbee Component Base Configuration
 
@@ -140,10 +151,11 @@ Zigbee can have some overrides for specific options.
 
 Only on `ESP32`:
 
-- **report** (*Optional*, enum): How the state is reported. One of `default` or `force`. `default` activates reporting with default settings
-  and uses the configuration from the coordinator if possible. `force` sends manual reports for every change to the coordinator.
-  On `nRF52` the coordinator configuration is always used.
-  Defaults to `default`.
+- **report** (*Optional*, enum): How the state is reported. One of `default`, `enable`, or `force`. `default` activates
+  reporting of all reportable attributes with default settings and uses the configuration from the coordinator if
+  possible. `enable` is the same but additionally activates manual reporting through the `zigbee.report` action.
+  `force` sends manual reports for every change to the coordinator and enables manual reporting. On `nRF52` the
+  coordinator configuration is always used. Defaults to `default`.
 
 > [!NOTE]
 > ZHA sets the minimum reporting interval to 30 seconds for some sensor devices. If a faster response is needed set `report` to `force`.
