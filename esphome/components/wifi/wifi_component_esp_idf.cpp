@@ -908,17 +908,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
           if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
             ESP_LOGW(TAG, "esp_netif_dhcps_stop failed: %s", esp_err_to_name(err));
           }
-          uint8_t offer_dns = OFFER_DNS;  // advertise a DNS server to AP clients
-          err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns,
-                                       sizeof(offer_dns));
+          this->apply_sta_dns_to_ap_();
+          err = esp_netif_dhcps_start(s_ap_netif);
           if (err != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to offer DNS to AP clients: %s", esp_err_to_name(err));
+            ESP_LOGW(TAG, "esp_netif_dhcps_start failed: %s", esp_err_to_name(err));
           }
-          err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
-          if (err != ESP_OK) {
-            ESP_LOGW(TAG, "esp_netif_set_dns_info failed: %s", esp_err_to_name(err));
-          }
-          esp_netif_dhcps_start(s_ap_netif);
         }
       }
       esp_netif_set_default_netif(s_sta_netif);
@@ -1143,6 +1137,34 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 }
 
 #ifdef USE_WIFI_AP
+#ifdef USE_WIFI_AP_NAPT
+/// Hand the station's DNS server to AP clients, so queries they send to the address
+/// DHCP gives them are actually answered. Must be called while the AP's DHCP server
+/// is stopped: a change made while it runs does not reach already-configured clients.
+/// Deliberately neither stops nor starts that server - wifi_ap_ip_config_ starts it
+/// after this returns. Returns false when the station has no resolver yet, which is
+/// the normal case when the AP starts before the station connects; the caller retries
+/// on IP_EVENT_STA_GOT_IP.
+bool WiFiComponent::apply_sta_dns_to_ap_() {
+  esp_netif_dns_info_t sta_dns{};
+  if (s_sta_netif == nullptr || s_ap_netif == nullptr ||
+      esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &sta_dns) != ESP_OK || sta_dns.ip.u_addr.ip4.addr == 0) {
+    return false;
+  }
+  uint8_t offer_dns = OFFER_DNS;  // advertise a DNS server to AP clients
+  esp_err_t err =
+      esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns, sizeof(offer_dns));
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to offer DNS to AP clients: %s", esp_err_to_name(err));
+  }
+  err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "esp_netif_set_dns_info failed: %s", esp_err_to_name(err));
+  }
+  return true;
+}
+#endif  // USE_WIFI_AP_NAPT
+
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   esp_err_t err;
 
@@ -1222,21 +1244,8 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // the AP's own IP is the DNS server and no resolver answers there.
   // When the station has no DNS yet (AP started before STA connects) the
   // server is refreshed on IP_EVENT_STA_GOT_IP below.
-  if (this->ap_napt_ && s_sta_netif != nullptr) {
-    esp_netif_dns_info_t sta_dns{};
-    if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &sta_dns) == ESP_OK &&
-        sta_dns.ip.u_addr.ip4.addr != 0) {
-      uint8_t offer_dns = OFFER_DNS;  // advertise a DNS server to AP clients
-      err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns,
-                                   sizeof(offer_dns));
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to offer DNS to AP clients: %s", esp_err_to_name(err));
-      }
-      err = esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "esp_netif_set_dns_info failed: %s", esp_err_to_name(err));
-      }
-    }
+  if (this->ap_napt_) {
+    this->apply_sta_dns_to_ap_();
   }
 #endif
 

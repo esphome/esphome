@@ -695,6 +695,9 @@ class WiFiComponent final : public Component {
   void setup_ap_config_();
   /// End the captive portal and turn the AP off.
   void disable_ap_();
+  /// End the captive portal, leaving the AP in place. Does nothing when no portal
+  /// is being served right now.
+  void stop_captive_portal_();
 #ifdef USE_WIFI_AP_EXCLUSIVE
   /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
   void pause_exclusive_ap_();
@@ -803,6 +806,11 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_AP
   bool wifi_ap_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
+#ifdef USE_WIFI_AP_NAPT
+  /// Advertise the station's DNS server to AP clients; see the definition in
+  /// wifi_component_esp_idf.cpp for the contract.
+  bool apply_sta_dns_to_ap_();
+#endif  // USE_WIFI_AP_NAPT
 #ifdef USE_CAPTIVE_PORTAL
   /// Bring up the captive portal on the AP that has just started.
   void start_captive_portal_();

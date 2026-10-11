@@ -406,6 +406,13 @@ static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 /// loop runs.
 static constexpr uint32_t WIFI_AP_COEXIST_RETRY_MS = 5000;
 #endif
+#if defined(USE_WIFI_APSTA) && defined(USE_CAPTIVE_PORTAL)
+/// How long the station must stay disconnected in coexist mode before the captive
+/// portal is served again. Long enough that a roaming scan or a brief drop does not
+/// restart it; short enough that a lost upstream or a wrong password can be
+/// corrected over the AP without a reboot.
+static constexpr uint32_t WIFI_PORTAL_REOPEN_DELAY_MS = 10000;
+#endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
 /// Longer interval gives users time to configure WiFi without constant connection attempts
@@ -965,6 +972,19 @@ void WiFiComponent::loop() {
 #endif
       }
     }
+#if defined(USE_WIFI_APSTA) && defined(USE_CAPTIVE_PORTAL)
+    // A coexist AP stays up for the whole uptime, so the portal is the one thing
+    // that follows the station: it is ended when the station connects (see
+    // check_connecting_finished) and served again while the station is down, so a
+    // lost upstream or a wrong password can be corrected without a reboot. Only a
+    // change is acted on, and only after the station has been down for a while, so a
+    // roaming scan or a brief drop does not restart the DNS server and the HTTP
+    // listener.
+    if (this->ap_coexist_ && this->ap_setup_ && !this->is_connected() && !provisioning_closed &&
+        !this->is_captive_portal_active_() && now - this->last_connected_ > WIFI_PORTAL_REOPEN_DELAY_MS) {
+      this->start_captive_portal_();
+    }
+#endif  // USE_WIFI_APSTA && USE_CAPTIVE_PORTAL
 #endif  // USE_WIFI_AP
 
 #ifdef USE_IMPROV_BLE
@@ -1139,12 +1159,17 @@ void WiFiComponent::pause_exclusive_ap_() {
 }
 #endif
 
-void WiFiComponent::disable_ap_() {
+void WiFiComponent::stop_captive_portal_() {
 #ifdef USE_CAPTIVE_PORTAL
   if (this->is_captive_portal_active_()) {
     captive_portal::global_captive_portal->end();
   }
 #endif
+}
+
+void WiFiComponent::disable_ap_() {
+  // End the portal before the AP goes away: it is served on the AP's address.
+  this->stop_captive_portal_();
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
 }
@@ -1767,6 +1792,10 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
       if (this->ap_coexist_) {
         // Coexistence mode: AP stays up permanently; do not disable after STA connects.
         ESP_LOGD(TAG, "STA connected; AP remains active (coexist mode)");
+        // The portal must not stay up: it answers every GET from anywhere without
+        // authentication, hands out the stored credentials over /wifisave, and while
+        // it is active the retries below stay in their slow, scan-free lane.
+        this->stop_captive_portal_();
       } else {
 #endif
         this->disable_ap_();
