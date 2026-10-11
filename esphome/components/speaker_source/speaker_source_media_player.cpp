@@ -11,7 +11,7 @@ namespace esphome::speaker_source {
 
 static constexpr uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 
-static const char *const TAG = "speaker_source_media_player";
+ESPHOME_LOG_TAG(TAG, "speaker_source_media_player");
 
 // SourceBinding method implementations (defined here because SpeakerSourceMediaPlayer is forward-declared in the
 // header)
@@ -196,10 +196,19 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
       vTaskDelay(pdMS_TO_TICKS(timeout_ms));
       return 0;
     }
+    // Reserve frames before the speaker can play them and report their progress,
+    // then release the portion it did not accept.
+    const uint32_t reserved_frames = stream_info.bytes_to_frames(length);
+    ps.pending_frames.fetch_add(reserved_frames, std::memory_order_relaxed);
     size_t bytes_written = ps.speaker->play(data, length, pdMS_TO_TICKS(timeout_ms));
-    if (bytes_written > 0) {
-      // Track frames sent to speaker for this source
-      ps.pending_frames.fetch_add(stream_info.bytes_to_frames(bytes_written), std::memory_order_relaxed);
+    const uint32_t unused_frames = reserved_frames - stream_info.bytes_to_frames(bytes_written);
+    if (unused_frames > 0) {
+      // The main loop may reset pending_frames while play() is blocked.
+      // Clamp the release so that a concurrent reset cannot cause underflow.
+      uint32_t pending = ps.pending_frames.load(std::memory_order_relaxed);
+      while (!ps.pending_frames.compare_exchange_weak(pending, pending - std::min(pending, unused_frames),
+                                                      std::memory_order_relaxed)) {
+      }
     }
     return bytes_written;
   }
@@ -809,8 +818,11 @@ void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
 }
 
 void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
-  // Remap the volume to fit within the configured limits
-  float bounded_volume = remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
+  // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
+  // the speaker silences it, otherwise volume_min would make it audible.
+  float bounded_volume = (volume < speaker::SILENT_VOLUME_THRESHOLD)
+                             ? 0.0f
+                             : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
 
   for (auto &ps : this->pipelines_) {
     if (ps.is_configured()) {
@@ -829,15 +841,6 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
     }
   }
 
-  // Turn on the mute state if the volume is effectively zero, off otherwise.
-  // Pass publish=false to avoid saving twice.
-  if (volume < 0.001f) {
-    this->set_mute_state_(true, false);
-  } else {
-    this->set_mute_state_(false, false);
-  }
-
-  // Save after mute mutation so the restored state has the correct is_muted_ value
   if (publish) {
     this->save_volume_restore_state_();
   }

@@ -9,6 +9,7 @@ from esphome.const import (
     ICON_BLUETOOTH,
     ICON_PULSE,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
@@ -35,13 +36,8 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
-    ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if engineering_mode_config := config.get(CONF_ENGINEERING_MODE):
-        s = await switch.new_switch(engineering_mode_config)
-        await cg.register_parented(s, config[CONF_LD2410_ID])
-        cg.add(ld2410_component.set_engineering_mode_switch(s))
-    if bluetooth_config := config.get(CONF_BLUETOOTH):
-        s = await switch.new_switch(bluetooth_config)
-        await cg.register_parented(s, config[CONF_LD2410_ID])
-        cg.add(ld2410_component.set_bluetooth_switch(s))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2410_ID])
+    switches = switch.sub_switches(config, parent=hub)
+    await switches(CONF_ENGINEERING_MODE, hub.set_engineering_mode_switch)
+    await switches(CONF_BLUETOOTH, hub.set_bluetooth_switch)

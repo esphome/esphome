@@ -1,4 +1,4 @@
-#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -197,4 +197,4 @@ void AirConditioner::do_display_toggle() {
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

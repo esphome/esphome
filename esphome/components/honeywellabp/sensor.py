@@ -10,6 +10,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 CODEOWNERS = ["@RubyBailey"]
@@ -50,19 +51,14 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    if CONF_PRESSURE in config:
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
         conf = config[CONF_PRESSURE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_pressure_sensor(sens))
         cg.add(var.set_honeywellabp_min_pressure(conf[CONF_MIN_PRESSURE]))
         cg.add(var.set_honeywellabp_max_pressure(conf[CONF_MAX_PRESSURE]))
-
-    if CONF_TEMPERATURE in config:
-        conf = config[CONF_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_temperature_sensor(sens))
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

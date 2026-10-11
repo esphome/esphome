@@ -14,12 +14,18 @@ esphome:
 
 uart:
   - id: uart_id
-    tx_pin: 17
+    tx_pin:
+      number: 17
+      mode:
+        pullup: true
+        output: true
+      hold_state: true
     rx_pin: 16
     flow_control_pin: 4
     baud_rate: 9600
     data_bits: 8
     rx_buffer_size: 512
+    tx_buffer_size: 512
     rx_full_threshold: 10
     rx_timeout: 1
     parity: EVEN
@@ -28,6 +34,7 @@ uart:
     tx_pin: 21
     rx_pin: 22
     baud_rate: 115200
+    clock_source: REF_TICK
     debug:
       debug_prefix: "[UART1] "
   - id: uart_debug_custom

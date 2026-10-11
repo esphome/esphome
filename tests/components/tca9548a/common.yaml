@@ -2,9 +2,13 @@ tca9548a:
   - id: multiplex0
     i2c_id: i2c_bus
     address: 0x70
+    frequency: 400 kHz
     channels:
       - bus_id: multiplex0_chan0
         channel: 0
+      - bus_id: multiplex0_chan1
+        channel: 1
+        frequency: 1 MHz
   - id: multiplex1
     i2c_id: i2c_bus
     address: 0x71

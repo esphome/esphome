@@ -16,7 +16,9 @@
  * blocking each other.
  *
  * This is a Single-Producer Single-Consumer (SPSC) lock-free ring buffer.
- * Available on platforms with FreeRTOS support (ESP32, LibreTiny).
+ * Available on multi-threaded platforms (ESP32, LibreTiny) where another task
+ * produces or consumes, and on single-threaded platforms (RP2) where the
+ * producer runs in interrupt context.
  *
  * Common use cases:
  * - BLE events: BLE task produces, main loop consumes
@@ -29,15 +31,25 @@
 namespace esphome {
 
 namespace lockfree_internal {
-#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
-// Platforms whose cores lack atomic read-modify-write instructions (currently
-// the ARMv5TE BK72xx SoCs — no LDREX/STREX, no libatomic; other LibreTiny
-// chips such as LN882x/RTL87xx are ARMv7-M and keep std::atomic). For this
-// queue's SPSC contract RMW atomics are not needed: aligned 8/16-bit loads and
-// stores are single instructions on these cores, so torn reads cannot occur,
-// and on a single in-order core a compiler barrier supplies all the
-// acquire/release ordering the algorithm requires. Each index has exactly one
-// writer (head_: consumer, tail_: producer). The dropped counter's
+#if defined(ESPHOME_THREAD_MULTI_NO_ATOMICS) || defined(ESPHOME_THREAD_SINGLE)
+// Platforms where std::atomic RMW operations are unavailable or unnecessary:
+//  - ESPHOME_THREAD_MULTI_NO_ATOMICS: cores lacking atomic read-modify-write
+//    instructions (currently the ARMv5TE BK72xx SoCs — no LDREX/STREX, no
+//    libatomic; other LibreTiny chips such as LN882x/RTL87xx are ARMv7-M and
+//    keep std::atomic).
+//  - ESPHOME_THREAD_SINGLE: every platform on this model (ESP8266, RP2,
+//    nRF52) runs everything on one core (the chip may have more — RP2 is
+//    dual-core, but ESPHome and its interrupt producers stay on core 0), so
+//    the only possible concurrency is same-core interrupt preemption (on RP2
+//    the BTstack packet handler runs in the CYW43 async-context low-priority
+//    IRQ on the core that initialized it, core 0). Using plain accesses here
+//    also avoids __atomic_* library calls on RP2040 (Cortex-M0+, no
+//    LDREX/STREX).
+// For this queue's SPSC contract RMW atomics are not needed: aligned 8/16-bit
+// loads and stores are single instructions on these cores, so torn reads
+// cannot occur, and on a single in-order core a compiler barrier supplies all
+// the acquire/release ordering the algorithm requires. Each index has exactly
+// one writer (head_: consumer, tail_: producer). The dropped counter's
 // increment/exchange pair is not atomic here — a concurrent reset can lose
 // counts — which is acceptable for a diagnostic drop counter.
 #define ESPHOME_LFQ_COMPILER_BARRIER() __asm__ __volatile__("" ::: "memory")
