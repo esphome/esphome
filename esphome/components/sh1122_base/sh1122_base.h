@@ -4,10 +4,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace sh1122_base {
+namespace esphome::sh1122_base {
 
-enum SH1122Model {
+enum SH1122Model : uint8_t {
   SH1122_MODEL_256_64 = 0,
 };
 
@@ -23,7 +22,7 @@ class SH1122 : public display::DisplayBuffer {
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void init_brightness(float brightness) { this->brightness_ = brightness; }
   void set_brightness(float brightness);
-  bool is_on();
+  bool is_on() { return this->is_on_; }
   void turn_on();
   void turn_off();
 
@@ -33,10 +32,14 @@ class SH1122 : public display::DisplayBuffer {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_GRAYSCALE; }
 
  protected:
-  virtual void command(uint8_t value) = 0;
-  virtual void command2(uint8_t value, uint8_t data) = 0;
-  virtual void data(uint8_t value) = 0;
+  /// Sends a command byte and its arguments; the SH1122 takes command arguments with D/C low as well
+  virtual void write_command_(const uint8_t *bytes, size_t len) = 0;
   virtual void write_display_data() = 0;
+  void command(uint8_t value) { this->write_command_(&value, 1); }
+  void command2(uint8_t value, uint8_t data) {
+    const uint8_t bytes[2] = {value, data};
+    this->write_command_(bytes, 2);
+  }
   void init_reset_();
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
@@ -46,11 +49,10 @@ class SH1122 : public display::DisplayBuffer {
   size_t get_buffer_length_();
   const char *model_str_();
 
-  SH1122Model model_{SH1122_MODEL_256_64};
   GPIOPin *reset_pin_{nullptr};
-  bool is_on_{false};
   float brightness_{1.0};
+  SH1122Model model_{SH1122_MODEL_256_64};
+  bool is_on_{false};
 };
 
-}  // namespace sh1122_base
-}  // namespace esphome
+}  // namespace esphome::sh1122_base

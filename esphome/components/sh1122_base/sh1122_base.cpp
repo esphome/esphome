@@ -2,36 +2,36 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sh1122_base {
+#include <cstring>
 
-static const char *const TAG = "sh1122";
+namespace esphome::sh1122_base {
 
-static const uint8_t SH1122_MAX_CONTRAST = 255;
-static const uint8_t SH1122_COLORMASK = 0x0f;
-static const uint8_t SH1122_COLORSHIFT = 4;
-static const uint8_t SH1122_PIXELSPERBYTE = 2;
+ESPHOME_LOG_TAG(TAG, "sh1122");
 
-static const uint8_t SH1122_SETLOWCOLUMNADDRESS = 0x00;
-static const uint8_t SH1122_SETHIGHCOLUMNADDRESS = 0x10;
-static const uint8_t SH1122_SETDISCHARGEVSLLEVEL = 0x30;
-static const uint8_t SH1122_SETDISPLAYSTARTLINE = 0x40;
-static const uint8_t SH1122_SETCONTRASTCURRENT = 0x81;
-static const uint8_t SH1122_SETSEGMENTREMAP = 0xA0;
-static const uint8_t SH1122_SETDISPLAYOFFON = 0xA4;
-static const uint8_t SH1122_SETNORMALDISPLAY = 0xA6;
-static const uint8_t SH1122_SETREVERSEDISPLAY = 0xA7;
-static const uint8_t SH1122_SETMULTIPLEXRATIO = 0xA8;
-static const uint8_t SH1122_DCDCSETTING = 0xAD;
-static const uint8_t SH1122_SETDISPLAYOFF = 0xAE;
-static const uint8_t SH1122_SETDISPLAYON = 0xAF;
-static const uint8_t SH1122_SETROWADDRESS = 0xB0;
-static const uint8_t SH1122_SETSCANDIRECTION = 0xC0;
-static const uint8_t SH1122_SETDISPLAYOFFSET = 0xD3;
-static const uint8_t SH1122_SETCLOCKDIVIDER = 0xD5;
-static const uint8_t SH1122_SETDISCHARGEPRECHARGEPERIOD = 0xD9;
-static const uint8_t SH1122_SETVCOMDESELECTLEVEL = 0xDB;
-static const uint8_t SH1122_SETVSEGMLEVEL = 0xDC;
+static constexpr uint8_t SH1122_MAX_CONTRAST = 255;
+static constexpr uint8_t SH1122_COLORMASK = 0x0f;
+static constexpr uint8_t SH1122_COLORSHIFT = 4;
+static constexpr uint8_t SH1122_PIXELSPERBYTE = 2;
+
+static constexpr uint8_t SH1122_SETLOWCOLUMNADDRESS = 0x00;
+static constexpr uint8_t SH1122_SETHIGHCOLUMNADDRESS = 0x10;
+static constexpr uint8_t SH1122_SETDISCHARGEVSLLEVEL = 0x30;
+static constexpr uint8_t SH1122_SETDISPLAYSTARTLINE = 0x40;
+static constexpr uint8_t SH1122_SETCONTRASTCURRENT = 0x81;
+static constexpr uint8_t SH1122_SETSEGMENTREMAP = 0xA0;
+static constexpr uint8_t SH1122_SETDISPLAYOFFON = 0xA4;
+static constexpr uint8_t SH1122_SETNORMALDISPLAY = 0xA6;
+static constexpr uint8_t SH1122_SETMULTIPLEXRATIO = 0xA8;
+static constexpr uint8_t SH1122_DCDCSETTING = 0xAD;
+static constexpr uint8_t SH1122_SETDISPLAYOFF = 0xAE;
+static constexpr uint8_t SH1122_SETDISPLAYON = 0xAF;
+static constexpr uint8_t SH1122_SETROWADDRESS = 0xB0;
+static constexpr uint8_t SH1122_SETSCANDIRECTION = 0xC0;
+static constexpr uint8_t SH1122_SETDISPLAYOFFSET = 0xD3;
+static constexpr uint8_t SH1122_SETCLOCKDIVIDER = 0xD5;
+static constexpr uint8_t SH1122_SETDISCHARGEPRECHARGEPERIOD = 0xD9;
+static constexpr uint8_t SH1122_SETVCOMDESELECTLEVEL = 0xDB;
+static constexpr uint8_t SH1122_SETVSEGMLEVEL = 0xDC;
 
 void SH1122::setup() {
   this->init_internal_(this->get_buffer_length_());
@@ -41,11 +41,11 @@ void SH1122::setup() {
   this->command2(SH1122_SETMULTIPLEXRATIO, 0x3F);
   this->command2(SH1122_SETDISPLAYOFFSET, 0x00);
   this->command2(SH1122_SETROWADDRESS, 0x00);
-  this->command(SH1122_SETDISPLAYSTARTLINE | 32);
+  this->command(SH1122_SETDISPLAYSTARTLINE | 32);  // the panel's rows start half way down the 128 line RAM
   this->command(SH1122_SETDISCHARGEVSLLEVEL);
   this->command2(SH1122_DCDCSETTING, 0x81);
-  this->command(SH1122_SETSEGMENTREMAP | 0x01);
-  this->command(SH1122_SETSCANDIRECTION | 0x08);
+  this->command(SH1122_SETSEGMENTREMAP | 0x01);   // column 0 on the right
+  this->command(SH1122_SETSCANDIRECTION | 0x08);  // rows scanned bottom up
   this->command2(SH1122_SETDISCHARGEPRECHARGEPERIOD, 0x28);
   this->command2(SH1122_SETVCOMDESELECTLEVEL, 0x35);
   this->command2(SH1122_SETVSEGMLEVEL, 0x35);
@@ -53,15 +53,14 @@ void SH1122::setup() {
   this->command(SH1122_SETHIGHCOLUMNADDRESS);
   this->command(SH1122_SETLOWCOLUMNADDRESS);
   this->command(SH1122_SETDISPLAYOFFON);
-  set_brightness(this->brightness_);
-  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();           // ...write buffer, which actually clears the display's memory
-  this->turn_on();           // display ON
+  this->set_brightness(this->brightness_);
+  this->display();  // the buffer starts cleared; push it so no power-on garbage shows
+  this->turn_on();
 }
 void SH1122::display() {
-  this->command(SH1122_SETHIGHCOLUMNADDRESS);  // set column address
+  this->command(SH1122_SETHIGHCOLUMNADDRESS);
   this->command(SH1122_SETLOWCOLUMNADDRESS);
-  this->command2(SH1122_SETROWADDRESS, 0x00);  // set row address
+  this->command2(SH1122_SETROWADDRESS, 0x00);
 
   this->write_display_data();
 }
@@ -71,10 +70,8 @@ void SH1122::update() {
 }
 void SH1122::set_brightness(float brightness) {
   this->brightness_ = clamp(brightness, 0.0F, 1.0F);
-  // now write the new brightness level to the display
   this->command2(SH1122_SETCONTRASTCURRENT, int(SH1122_MAX_CONTRAST * (this->brightness_)));
 }
-bool SH1122::is_on() { return this->is_on_; }
 void SH1122::turn_on() {
   this->command(SH1122_SETDISPLAYON);
   this->is_on_ = true;
@@ -103,24 +100,24 @@ size_t SH1122::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / SH1122_PIXELSPERBYTE;
 }
 void HOT SH1122::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
+  const int width = this->get_width_internal();
+  if (x >= width || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
-  uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
-  // where should the bits go in the big buffer array? math...
-  uint16_t pos = (x / SH1122_PIXELSPERBYTE) + (y * this->get_width_internal() / SH1122_PIXELSPERBYTE);
-  uint8_t shift = (1u - (x % SH1122_PIXELSPERBYTE)) * SH1122_COLORSHIFT;
-  // ensure 'color4' is valid (only 4 bits aka 1 nibble) and shift the bits left when necessary
-  color4 = (color4 & SH1122_COLORMASK) << shift;
-  // first mask off the nibble we must change...
-  this->buffer_[pos] &= (~SH1122_COLORMASK >> shift);
-  // ...then lay the new nibble back on top. done!
-  this->buffer_[pos] |= color4;
+  // Two pixels per byte, the left one in the high nibble
+  const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color) & SH1122_COLORMASK;
+  const uint16_t pos = (x / SH1122_PIXELSPERBYTE) + (y * width / SH1122_PIXELSPERBYTE);
+  const uint8_t shift = (1u - (x % SH1122_PIXELSPERBYTE)) * SH1122_COLORSHIFT;
+  this->buffer_[pos] = (this->buffer_[pos] & (static_cast<uint8_t>(~SH1122_COLORMASK) >> shift)) | (color4 << shift);
 }
 void SH1122::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
   const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
-  uint8_t fill = (color4 & SH1122_COLORMASK) | ((color4 & SH1122_COLORMASK) << SH1122_COLORSHIFT);
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-    this->buffer_[i] = fill;
+  const uint8_t fill = (color4 & SH1122_COLORMASK) | ((color4 & SH1122_COLORMASK) << SH1122_COLORSHIFT);
+  memset(this->buffer_, fill, this->get_buffer_length_());
 }
 void SH1122::init_reset_() {
   if (this->reset_pin_ != nullptr) {
@@ -143,5 +140,4 @@ const char *SH1122::model_str_() {
   }
 }
 
-}  // namespace sh1122_base
-}  // namespace esphome
+}  // namespace esphome::sh1122_base
