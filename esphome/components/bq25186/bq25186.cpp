@@ -64,9 +64,10 @@ void BQ25186Component::setup() {
     return;
   }
 
-  if (this->configure_on_boot_ && !this->apply_config(this->setup_regs_)) {
-    this->mark_failed(LOG_STR("Configuration write failed"));
-  }
+  // A failed write only sets the warning status: the chip has identified itself, so a later
+  // apply_configuration may retry
+  if (this->configure_on_boot_)
+    this->apply_config(this->setup_regs_);
 }
 
 void BQ25186Component::dump_config() {
