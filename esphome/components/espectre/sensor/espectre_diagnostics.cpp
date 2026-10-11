@@ -7,7 +7,7 @@
 
 namespace esphome::espectre {
 
-static const char *const TAG = "espectre.sensor";
+ESPHOME_LOG_TAG(TAG, "espectre.sensor");
 
 static void publish_diagnostic(sensor::Sensor *sensor, const ::espectre::RuntimeDiagnosticsSample *sample,
                                float ::espectre::RuntimeDiagnosticsSample::*field, float scale = 1.0f) {

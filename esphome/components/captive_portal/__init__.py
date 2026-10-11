@@ -3,6 +3,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components import web_server_base, wifi
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -34,6 +35,7 @@ def AUTO_LOAD() -> list[str]:
 
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "captive_portal"
 
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
@@ -63,7 +65,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
-    wifi_conf = full_config.get("wifi")
+    wifi_conf = full_config.get(WIFI_DOMAIN)
 
     if wifi_conf is None:
         # This shouldn't happen due to DEPENDENCIES = ["wifi"], but check anyway

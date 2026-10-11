@@ -7,6 +7,7 @@ CONF_SCALE = "scale"
 CONF_ECC = "ecc"
 
 CODEOWNERS = ["@wjtje"]
+DOMAIN = "qr_code"
 
 DEPENDENCIES = ["display"]
 MULTI_CONF = True

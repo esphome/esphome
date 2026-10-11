@@ -188,6 +188,7 @@ esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/esp_ldo/* @clydebarrow
 esphome/components/espectre/* @francescopace
+esphome/components/esphome/ota/* @esphome/core
 esphome/components/espnow/* @jesserockz
 esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
@@ -518,6 +519,7 @@ esphome/components/sound_level/* @kahrendt
 esphome/components/spa06_base/* @danielkent-net
 esphome/components/spa06_i2c/* @danielkent-net
 esphome/components/spa06_spi/* @danielkent-net
+esphome/components/spd2010/* @grischard
 esphome/components/speaker/* @jesserockz @kahrendt
 esphome/components/speaker/media_player/* @kahrendt @synesthesiam
 esphome/components/speaker_source/* @kahrendt
@@ -568,7 +570,7 @@ esphome/components/tca9555/* @mobrembski
 esphome/components/tcl112/* @glmnet
 esphome/components/tcp_uart/* @Bascht74
 esphome/components/tee501/* @Stock-M
-esphome/components/teleinfo/* @0hax
+esphome/components/teleinfo/* @0hax @FredM67
 esphome/components/tem3200/* @bakerkj
 esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter

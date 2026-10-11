@@ -13,7 +13,7 @@
 
 namespace esphome::ir_rf_base {
 
-static const char *const TAG = "ir_rf";
+ESPHOME_LOG_TAG(TAG, "ir_rf");
 
 #if defined(USE_API) && defined(USE_IR_RF)
 // A missing completion is answered as failed this long after the frame should have left the

@@ -405,10 +405,14 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   /// Check if this holds a static string (const char* stored without allocation)
   /// The pointer is always directly readable (RAM or flash-mapped).
   /// Returns false for FLASH_STRING (PROGMEM on ESP8266, requires _P functions).
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Read the value with ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
   /// Get the static string pointer (only valid if is_static_string() returns true)
   /// The pointer is always directly readable — FLASH_STRING uses a separate type.
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Use ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   const char *get_static_string() const { return this->static_str_; }
 
   /// Check if the string value is empty without allocating.

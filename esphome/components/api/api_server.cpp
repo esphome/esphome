@@ -23,7 +23,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api";
+ESPHOME_LOG_TAG(TAG, "api");
 
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -500,6 +500,15 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
     if (!c->send_message(msg)) {
       API_LOG_MSG_DROPPED(TAG, "Home ID notification");
     }
+  }
+}
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+void APIServer::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
+  for (auto &c : this->active_clients()) {
+    if (c->flags_.serial_proxy_identity_subscription)
+      c->send_serial_proxy_identity(msg);
   }
 }
 #endif
