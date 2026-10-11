@@ -15,6 +15,12 @@ static uint8_t sum_bytes(const uint8_t *data, size_t len) {
   return sum;
 }
 
+void DaikinClimate::setup() {
+  climate_ir::ClimateIR::setup();
+  // A boost preset restored from flash gets its timer too
+  this->update_boost_timer_(false);
+}
+
 void DaikinClimate::control(const climate::ClimateCall &call) {
   const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
   climate_ir::ClimateIR::control(call);
@@ -190,6 +196,8 @@ void DaikinClimate::update_boost_timer_(bool was_boost) {
 }
 
 void DaikinClimate::cancel_boost_mode_() {
+  if (this->preset != climate::CLIMATE_PRESET_BOOST)
+    return;
   ESP_LOGD(TAG, "Boost ended");
   this->preset = climate::CLIMATE_PRESET_NONE;
   this->publish_state();
@@ -321,9 +329,12 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   if (frame_size == DAIKIN_COMFORT_FRAME_SIZE) {
-    // The state frame that follows publishes the whole update
-    this->preset =
-        (frame[6] & DAIKIN_PRESET_COMFORT_ON) ? climate::CLIMATE_PRESET_COMFORT : climate::CLIMATE_PRESET_NONE;
+    // Only enter or leave comfort here, so the state frame that follows still sees the previous preset
+    if (frame[6] & DAIKIN_PRESET_COMFORT_ON) {
+      this->preset = climate::CLIMATE_PRESET_COMFORT;
+    } else if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
+      this->preset = climate::CLIMATE_PRESET_NONE;
+    }
     return true;
   }
   return this->parse_state_frame_(frame);

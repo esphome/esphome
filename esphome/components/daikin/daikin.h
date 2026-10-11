@@ -64,6 +64,7 @@ class DaikinClimate final : public climate_ir::ClimateIR {
              climate::CLIMATE_PRESET_SLEEP, climate::CLIMATE_PRESET_ACTIVITY, climate::CLIMATE_PRESET_NONE}) {}
 
  protected:
+  void setup() override;
   void control(const climate::ClimateCall &call) override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
