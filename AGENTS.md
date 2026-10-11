@@ -198,7 +198,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         constant arrays, and in-class `std::array` initializers (a `.rodata` template plus a copy). Mark the
         table `PROGMEM` and read it with `progmem_memcpy()` or `progmem_read_byte()` (`esphome/core/hal.h`);
         for a table of structs copy the whole entry out and return the copy, never a pointer into flash.
-        The helpers are plain `memcpy` on other platforms, so no `#ifdef` is needed. Declare log tags with
+        On other platforms they are a plain `memcpy` and dereference, so no `#ifdef` is needed. Declare log tags with
         `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
         `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
         a `TEMPLATABLE_BYTES` field so a static code stays in flash.
@@ -638,7 +638,7 @@ file does, and it is the authority when they disagree. The most useful starting 
             name: My Sensor
         ```
         Components that define buses directly are flagged as "NEEDS MIGRATION" and cannot be grouped, increasing CI build time.
-        `!extend` and `!remove` in a test YAML also make the component ungroupable; add a standalone entity with its own id instead.
+        `!extend` and `!remove` in a `test.*.yaml` also make the component ungroupable; add a standalone entity with its own id instead.
 
     *   **Testing All Components Together:** To verify that all components can be tested together without ID conflicts or configuration issues, use:
         ```bash
