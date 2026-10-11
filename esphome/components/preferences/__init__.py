@@ -7,6 +7,7 @@ from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "preferences"
 
 preferences_ns = cg.esphome_ns.namespace("preferences")
 IntervalSyncer = preferences_ns.class_("IntervalSyncer", cg.PollingComponent)

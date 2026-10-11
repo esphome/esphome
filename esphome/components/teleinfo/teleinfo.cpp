@@ -3,7 +3,7 @@
 
 namespace esphome::teleinfo {
 
-static const char *const TAG = "teleinfo";
+ESPHOME_LOG_TAG(TAG, "teleinfo");
 
 /* Helpers */
 static int get_field(char *dest, char *buf_start, char *buf_end, int sep, int max_len) {
@@ -24,12 +24,12 @@ static int get_field(char *dest, char *buf_start, char *buf_end, int sep, int ma
 /* TeleInfo methods */
 bool TeleInfo::check_crc_(const char *grp, const char *grp_end) {
   int grp_len = grp_end - grp;
+  if (grp_len < this->checksum_area_end_) {
+    ESP_LOGE(TAG, "Empty or too short group");
+    return false;
+  }
   uint8_t raw_crc = grp[grp_len - 1];
-  uint8_t crc_tmp = 0;
-  int i;
-
-  for (i = 0; i < grp_len - checksum_area_end_; i++)
-    crc_tmp += grp[i];
+  uint8_t crc_tmp = sum_bytes(reinterpret_cast<const uint8_t *>(grp), grp_len - this->checksum_area_end_);
 
   crc_tmp &= 0x3F;
   crc_tmp += 0x20;
@@ -116,8 +116,7 @@ void TeleInfo::loop() {
        * 0xa | Tag | 0x9 | Timestamp | 0x9 | 0x9 | CRC | 0xd
        *
        */
-      while ((buf_finger = static_cast<char *>(memchr(buf_finger, (int) 0xa, buf_index_ - 1))) &&
-             ((buf_finger - buf_) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
+      while ((buf_finger = static_cast<char *>(memchr(buf_finger, (int) 0xa, buf_end - buf_finger)))) {
         /*
          * Make sure timesamp is nullified between each tag as some tags don't
          * have a timestamp
@@ -168,8 +167,8 @@ void TeleInfo::loop() {
           continue;
         }
 
-        /* Advance buf_finger to end of group */
-        buf_finger += field_len + 1 + 1 + 1;
+        /* Resume after the group's 0xd; grp_end < buf_end, so this stays in bounds. */
+        buf_finger = grp_end + 1;
 
         publish_value_(std::string(tag_), std::string(val_));
       }
@@ -184,10 +183,7 @@ void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
     element->publish_val(val);
   }
 }
-void TeleInfo::dump_config() {
-  ESP_LOGCONFIG(TAG, "TeleInfo:");
-  this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
-}
+void TeleInfo::dump_config() { ESP_LOGCONFIG(TAG, "TeleInfo:"); }
 TeleInfo::TeleInfo(bool historical_mode) {
   if (historical_mode) {
     /*
@@ -195,11 +191,9 @@ TeleInfo::TeleInfo(bool historical_mode) {
      */
     checksum_area_end_ = 2;
     separator_ = 0x20;
-    baud_rate_ = 1200;
   } else {
     checksum_area_end_ = 1;
     separator_ = 0x9;
-    baud_rate_ = 9600;
   }
 }
 void TeleInfo::register_teleinfo_listener(TeleInfoListener *listener) { teleinfo_listeners_.push_back(listener); }

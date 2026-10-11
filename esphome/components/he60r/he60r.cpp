@@ -6,7 +6,7 @@
 
 namespace esphome::he60r {
 
-static const char *const TAG = "he60r.cover";
+ESPHOME_LOG_TAG(TAG, "he60r.cover");
 static const uint8_t QUERY_BYTE = 0x38;
 static const uint8_t TOGGLE_BYTE = 0x30;
 
@@ -38,7 +38,6 @@ CoverTraits HE60rCover::get_traits() {
 
 void HE60rCover::dump_config() {
   LOG_COVER("", "HE60R Cover", this);
-  this->check_uart_settings(1200, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",

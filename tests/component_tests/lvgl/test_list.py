@@ -286,7 +286,7 @@ def test_add_text_with_index_moves_before_firing_on_add(main_cpp: str) -> None:
 
 
 def test_add_button_with_checkable_flag(main_cpp: str) -> None:
-    assert "lv_obj_t *dyn_button_VAR_ = lv_btn_create(test_list);" in main_cpp
+    assert "lv_obj_t *dyn_button_VAR_ = lv_button_create(test_list);" in main_cpp
     assert (
         "lv_obj_add_flag(dyn_button_VAR_, (lv_obj_flag_t)(LV_OBJ_FLAG_CHECKABLE));"
         in main_cpp
@@ -310,7 +310,7 @@ def test_add_nested_hierarchy_with_compound_child(main_cpp: str) -> None:
     assert (
         "lv_obj_t *dyn_label_1_VAR_ = lv_label_create(dyn_obj_VAR_);\n"
         "            lv_obj_add_style(dyn_label_1_VAR_, _lv_theme_style_label_main_default, "
-        "(lv_state_t)(LV_PART_MAIN));\n"
+        "LV_PART_MAIN);\n"
         '            lv_label_set_text(dyn_label_1_VAR_, "Nested");'
     ) in main_cpp
 
@@ -321,7 +321,7 @@ def test_add_applies_theme_styles_to_dynamic_widget(main_cpp: str) -> None:
     """
     assert (
         "lv_obj_add_style(dyn_label_1_VAR_, _lv_theme_style_label_main_default, "
-        "(lv_state_t)(LV_PART_MAIN));"
+        "LV_PART_MAIN);"
     ) in main_cpp
     assert "LvDropdownType *dyn_dropdown_1_VAR_ = new LvDropdownType();" in main_cpp
     assert "lv_dropdown_create(dyn_obj_VAR_)" in main_cpp
@@ -343,7 +343,7 @@ def test_add_nested_same_type_child_does_not_shadow_parent(main_cpp: str) -> Non
     assert (
         "lv_obj_t *dyn_label_2_VAR_ = lv_label_create(dyn_obj_1_VAR_);\n"
         "                lv_obj_add_style(dyn_label_2_VAR_, _lv_theme_style_label_main_default, "
-        "(lv_state_t)(LV_PART_MAIN));\n"
+        "LV_PART_MAIN);\n"
         '                lv_label_set_text(dyn_label_2_VAR_, "Grandchild");'
     ) in main_cpp
 

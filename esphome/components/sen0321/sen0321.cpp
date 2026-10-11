@@ -4,7 +4,7 @@
 
 namespace esphome::sen0321_sensor {
 
-static const char *const TAG = "sen0321_sensor.sensor";
+ESPHOME_LOG_TAG(TAG, "sen0321_sensor.sensor");
 
 void Sen0321Sensor::setup() {
   if (!this->write_byte(SENSOR_MODE_REGISTER, SENSOR_MODE_AUTO)) {

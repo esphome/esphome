@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import heapq
 import os
 from pathlib import Path
 import queue
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from typing import Any
 
 import click
@@ -277,10 +279,21 @@ def clang_options(idedata, environment):
 
 pids = set()
 
+# Generated files the static analyzer is skipped on. The analyzer inlines the
+# small dump helpers into every generated dump function and takes
+# over 200 s on this file in CI, 99% of its clang-tidy time; any finding there
+# would be fixed in script/api_protobuf anyway. The other checks still run.
+ANALYZER_SKIPPED_FILES: frozenset[str] = frozenset(
+    {"esphome/components/api/api_pb2_dump.cpp"}
+)
 
-def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
+
+def run_tidy(
+    executable, args, options, tmpdir, path_queue, lock, failed_files, timings
+):
     while True:
         path = path_queue.get()
+        started = time.monotonic()
         invocation = [executable]
 
         if tmpdir is not None:
@@ -297,16 +310,22 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
+        disabled_checks = []
         if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
             # MMIO peripheral access on these bare-metal platforms is all
             # fixed-address.
             # bugprone-pointer-arithmetic-on-polymorphic-object (and its
             # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
             # recursion on lvgl_esphome.h under the RP2 defines.
-            invocation.append(
-                "--checks=-clang-analyzer-core.FixedAddressDereference,"
-                "-bugprone-pointer-arithmetic-on-polymorphic-object,-cert-ctr56-cpp"
-            )
+            disabled_checks += [
+                "-clang-analyzer-core.FixedAddressDereference",
+                "-bugprone-pointer-arithmetic-on-polymorphic-object",
+                "-cert-ctr56-cpp",
+            ]
+        if os.path.normpath(path) in ANALYZER_SKIPPED_FILES:
+            disabled_checks.append("-clang-analyzer-*")
+        if disabled_checks:
+            invocation.append("--checks=" + ",".join(disabled_checks))
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")
@@ -319,8 +338,9 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
             check=False,
             close_fds=False,
         )
-        if proc.returncode != 0:
-            with lock:
+        with lock:
+            timings.append((time.monotonic() - started, path))
+            if proc.returncode != 0:
                 print_error_for_file(path, proc.stdout)
                 failed_files.append(path)
         path_queue.task_done()
@@ -333,8 +353,27 @@ def progress_bar_show(value):
 
 
 def split_list(a, n):
-    k, m = divmod(len(a), n)
-    return [a[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
+    """Deal the sorted files out to n splits in turn.
+
+    Contiguous slices put whole directories on one split; expensive
+    neighbours such as esphome/core then land together and that split takes
+    several times longer than the others. Dealing spreads them out.
+    """
+    return [a[i::n] for i in range(n)]
+
+
+SLOWEST_FILES_SHOWN = 15
+
+
+def print_slowest_files(timings):
+    """Print the files clang-tidy spent the longest on, so the splits can be
+    rebalanced from CI logs."""
+    if not timings:
+        return
+    total = sum(seconds for seconds, _ in timings)
+    print(f"\nclang-tidy spent {total:.0f} s on {len(timings)} files; slowest:")
+    for seconds, path in heapq.nlargest(SLOWEST_FILES_SHOWN, timings):
+        print(f"  {seconds:6.1f} s  {path}")
 
 
 def main():
@@ -458,6 +497,7 @@ def main():
         tmpdir = tempfile.mkdtemp()
 
     failed_files = []
+    timings = []
     try:
         executable = get_binary("clang-tidy", 22)
         task_queue = queue.Queue(args.jobs)
@@ -473,6 +513,7 @@ def main():
                     task_queue,
                     lock,
                     failed_files,
+                    timings,
                 ),
             )
             t.daemon = True
@@ -487,6 +528,7 @@ def main():
 
         # Wait for all threads to be done.
         task_queue.join()
+        print_slowest_files(timings)
 
     except FileNotFoundError:
         return 1

@@ -5,7 +5,7 @@
 
 namespace esphome::uptime {
 
-static const char *const TAG = "uptime.sensor";
+ESPHOME_LOG_TAG(TAG, "uptime.sensor");
 
 void UptimeSecondsSensor::update() {
   const uint64_t uptime = millis_64();
