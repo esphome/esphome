@@ -168,8 +168,6 @@ void ST25R::process_state_() {
         this->state_ = STATE_ANTICOL;
         this->last_state_change_ = now;
       } else if (now - this->last_state_change_ > 100) {
-        this->read_register(ST25R_REG_IRQ_TIMER);
-        this->read_register(ST25R_REG_IRQ_ERROR);
         this->finish_scan_();
       }
       break;

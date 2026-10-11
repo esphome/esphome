@@ -11,7 +11,6 @@ CODEOWNERS = ["@JohnMcLear"]
 DOMAIN = "st25r"
 MULTI_CONF = True
 
-CONF_ST25R_ID = "st25r_id"
 CONF_RF_POWER = "rf_power"
 
 st25r_ns = cg.esphome_ns.namespace("st25r")
