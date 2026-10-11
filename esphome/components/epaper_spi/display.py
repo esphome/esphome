@@ -6,6 +6,7 @@ from typing import Any
 from esphome import automation, core, pins, preferences
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.const import CONF_HOLD_STATE
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
 from esphome.components.mipi import (
     flatten_sequence,
@@ -228,6 +229,11 @@ def customise_schema(config):
             "Only useful with partial updates; set full_update_every above 1",
             path=[CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP],
         )
+    if config.get(CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP) == PANEL:
+        # The display keeps its image only while it stays powered through the deep sleep
+        for pin in config.get(CONF_ENABLE_PIN, []):
+            if CONF_HOLD_STATE in pin:
+                pin[CONF_HOLD_STATE] = True
     width, height = model.get_dimensions(config)
     if width % (width_multiple := model.get_default("width_multiple", 1)):
         raise cv.Invalid(

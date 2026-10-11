@@ -7,9 +7,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
-#include <driver/gpio.h>
 #include <esp_system.h>
-#include <soc/soc_caps.h>
 #ifdef EPAPER_SPI_IMAGE_STORE_SIZE
 #include <esp_attr.h>
 #include <miniz.h>
@@ -42,7 +40,6 @@ void EPaperBase::setup() {
   }
   this->setup_pins_();
   this->spi_setup();
-  this->release_pins_();
   this->load_sleep_state_();
 }
 
@@ -193,35 +190,6 @@ bool EPaperBase::restore_image_() {
 }
 #endif
 
-// Keeps the reset and enable pins at their levels while the controller sleeps and boots, so the
-// panel is neither reset nor unpowered. Released again in setup().
-// Keeps the enable pins at their levels while the controller sleeps and boots, so the panel stays
-// powered. Released again in setup().
-void EPaperBase::hold_pins_() const {
-#ifdef USE_ESP32
-  bool held = false;
-  for (auto *pin : this->enable_pins_) {
-    if (pin->is_internal()) {
-      gpio_hold_en(gpio_num_t(static_cast<InternalGPIOPin *>(pin)->get_pin()));
-      held = true;
-    }
-  }
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
-  if (held)
-    gpio_deep_sleep_hold_en();
-#endif
-#endif
-}
-
-void EPaperBase::release_pins_() const {
-#ifdef USE_ESP32
-  for (auto *pin : this->enable_pins_) {
-    if (pin->is_internal())
-      gpio_hold_dis(gpio_num_t(static_cast<InternalGPIOPin *>(pin)->get_pin()));
-  }
-#endif
-}
-
 // Runs before the controller sleeps or reboots, after on_safe_shutdown(): finish an update in flight,
 // then note that the panel holds its image, so the first update after a wake is partial.
 bool EPaperBase::teardown() {
@@ -243,10 +211,8 @@ bool EPaperBase::teardown() {
     return true;
   }
 #endif
-  if (this->panel_holds_image_ && this->image_survives_sleep()) {
+  if (this->panel_holds_image_ && this->image_survives_sleep())
     this->save_sleep_state_(true);
-    this->hold_pins_();
-  }
   return true;
 }
 

@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.const import CONF_HOLD_STATE
 from esphome.components.epaper_spi.display import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
@@ -700,6 +701,32 @@ def test_partial_update_after_deep_sleep_needs_partial_updates(
                 "partial_update_after_deep_sleep": "panel",
             }
         )
+
+
+def test_partial_update_after_deep_sleep_holds_the_enable_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """With the panel keeping its image, its enable pins hold their level through the deep sleep."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    base = {
+        "id": "test_display",
+        "model": "ssd1681",
+        "dc_pin": 21,
+        "enable_pin": [{"number": 25, "inverted": True}, 26],
+        "full_update_every": 20,
+    }
+    config = run_schema_validation(base)
+    assert not any(pin[CONF_HOLD_STATE] for pin in config[CONF_ENABLE_PIN])
+
+    config = run_schema_validation({**base, "partial_update_after_deep_sleep": "panel"})
+    assert all(pin[CONF_HOLD_STATE] for pin in config[CONF_ENABLE_PIN])
 
 
 def test_partial_update_after_deep_sleep_needs_a_model_that_supports_it(

@@ -198,8 +198,6 @@ class EPaperBase : public Display,
   SleepState stored_image_{};
   bool image_in_rtc_memory_{};  // this display owns the image store
 #endif
-  void hold_pins_() const;
-  void release_pins_() const;
   ESPPreferenceObject sleep_state_;
   uint32_t sleep_state_hash_{};
   bool parked_{};
