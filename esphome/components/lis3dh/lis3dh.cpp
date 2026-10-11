@@ -165,7 +165,6 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
     this->status_set_warning(LOG_STR("Failed to read acceleration data"));
     return false;
   }
-  this->status_clear_warning();
 
   float scale;
   progmem_memcpy(&scale, &SCALE_G[this->range_], sizeof(scale));
@@ -179,20 +178,22 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
   data.acceleration[motion::Y_AXIS] = raw_y * scale;
   data.acceleration[motion::Z_AXIS] = raw_z * scale;
 
-  if (!this->temperature_callback_.empty())
-    this->publish_temperature_();
+  if (this->temperature_callback_.empty() || this->publish_temperature_())
+    this->status_clear_warning();
   return true;
 }
 
-void LIS3DHComponent::publish_temperature_() {
+bool LIS3DHComponent::publish_temperature_() {
   uint8_t raw[2];
   if (!this->read_bytes(LIS3DH_REG_OUT_ADC3_L | LIS3DH_AUTO_INCREMENT, raw, 2)) {
-    ESP_LOGW(TAG, "Failed to read temperature data");
-    return;
+    this->status_set_warning(LOG_STR("Failed to read temperature data"));
+    return false;
   }
-  // The temperature occupies the high byte as a signed, relative value (~1 °C per count).
-  float temperature = (int8_t) raw[1] + LIS3DH_TEMP_REFERENCE_C;
+  // Signed, left-justified, relative value with 1 °C per count of the high byte; the
+  // low byte carries the fractional bits in the modes that have them.
+  float temperature = (int16_t) encode_uint16(raw[1], raw[0]) / 256.0f + LIS3DH_TEMP_REFERENCE_C;
   this->temperature_callback_.call(temperature);
+  return true;
 }
 
 }  // namespace esphome::lis3dh

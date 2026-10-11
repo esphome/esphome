@@ -7,14 +7,32 @@ import pytest
 from esphome.components.lis3dh.motion import (
     CONF_ACCELEROMETER_ODR,
     CONF_ACCELEROMETER_RANGE,
+    CONF_DURATION,
+    CONF_HIGH_PASS_FILTER,
     CONF_INTERRUPT,
     CONF_OPERATING_MODE,
     CONF_THRESHOLD,
+    _duration_register,
     _threshold_register,
+    _validate_interrupt,
     _validate_odr_mode,
-    _validate_threshold,
 )
 import esphome.config_validation as cv
+from esphome.core import TimePeriod
+
+
+def _interrupt_config(
+    range_key: str, odr_key: str, threshold_g: float, duration_ms: int
+) -> dict:
+    return {
+        CONF_ACCELEROMETER_RANGE: range_key,
+        CONF_ACCELEROMETER_ODR: odr_key,
+        CONF_INTERRUPT: {
+            CONF_THRESHOLD: threshold_g,
+            CONF_DURATION: TimePeriod(milliseconds=duration_ms),
+            CONF_HIGH_PASS_FILTER: True,
+        },
+    }
 
 
 @pytest.mark.parametrize("mode", ["NORMAL", "HIGH_RESOLUTION"])
@@ -60,15 +78,43 @@ def test_threshold_register(threshold_g: float, range_key: str, expected: int) -
 )
 def test_threshold_above_range_is_rejected(threshold_g: float, range_key: str) -> None:
     """A threshold the range cannot represent would never fire, so it fails validation."""
-    config = {
-        CONF_ACCELEROMETER_RANGE: range_key,
-        CONF_INTERRUPT: {CONF_THRESHOLD: threshold_g},
-    }
-    with pytest.raises(cv.Invalid, match="at most"):
-        _validate_threshold(config)
+    config = _interrupt_config(range_key, "100HZ", threshold_g, 0)
+    with pytest.raises(cv.Invalid, match="'threshold' can be at most"):
+        _validate_interrupt(config)
 
 
 def test_threshold_within_range_is_accepted() -> None:
     """The largest representable threshold is still valid."""
-    config = {CONF_ACCELEROMETER_RANGE: "2G", CONF_INTERRUPT: {CONF_THRESHOLD: 2.032}}
-    assert _validate_threshold(config) is config
+    config = _interrupt_config("2G", "100HZ", 2.032, 0)
+    assert _validate_interrupt(config) is config
+
+
+@pytest.mark.parametrize(
+    ("duration_ms", "odr_key", "expected"),
+    [
+        (0, "100HZ", 0),
+        (20, "100HZ", 2),
+        (1, "1620HZ", 2),
+        (10000, "1HZ", 10),
+        (4, "100HZ", 0),
+    ],
+)
+def test_duration_register(duration_ms: int, odr_key: str, expected: int) -> None:
+    """INT1_DURATION is the nearest number of samples at the data rate."""
+    assert _duration_register(duration_ms, odr_key) == expected
+
+
+@pytest.mark.parametrize(
+    ("duration_ms", "odr_key"), [(1280, "100HZ"), (128000, "1HZ"), (79, "1620HZ")]
+)
+def test_duration_above_register_is_rejected(duration_ms: int, odr_key: str) -> None:
+    """A duration that needs more than 127 samples fails validation."""
+    config = _interrupt_config("2G", odr_key, 1.1, duration_ms)
+    with pytest.raises(cv.Invalid, match="'duration' can be at most"):
+        _validate_interrupt(config)
+
+
+def test_duration_at_register_limit_is_accepted() -> None:
+    """127 samples is the largest INT1_DURATION value."""
+    config = _interrupt_config("2G", "100HZ", 1.1, 1270)
+    assert _validate_interrupt(config) is config

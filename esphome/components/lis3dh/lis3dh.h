@@ -114,7 +114,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   bool setup_accelerometer_();
   bool setup_temperature_();
   bool setup_interrupt_();
-  void publish_temperature_();
+  bool publish_temperature_();
 
   LIS3DHRange range_{LIS3DH_RANGE_2G};
   LIS3DHDataRate data_rate_{LIS3DH_DATA_RATE_100HZ};

@@ -14,7 +14,7 @@ motion:
     interrupt:
       pin: INT1
       threshold: 1.1g
-      duration: 0
+      duration: 0ms
       axes: [x, y, z]
       latched: true
       active_high: true
@@ -33,7 +33,7 @@ motion:
     interrupt:
       pin: INT2
       threshold: 0.05g
-      duration: 2
+      duration: 1ms
       axes: [z]
       latched: false
       active_high: false

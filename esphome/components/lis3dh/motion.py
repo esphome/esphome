@@ -1,3 +1,4 @@
+import logging
 import math
 
 import esphome.codegen as cg
@@ -9,6 +10,8 @@ from esphome.const import CONF_DURATION, CONF_INTERRUPT, CONF_PIN, CONF_THRESHOL
 from esphome.types import ConfigType
 
 from . import LIS3DHComponent, lis3dh_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_OPERATING_MODE = "operating_mode"
 CONF_AXES = "axes"
@@ -40,6 +43,20 @@ DATA_RATE_OPTIONS = {
     "1344HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_1344HZ,
 }
 
+# Samples per second for each data rate key; INT1_DURATION counts samples.
+ODR_HZ = {
+    "1HZ": 1,
+    "10HZ": 10,
+    "25HZ": 25,
+    "50HZ": 50,
+    "100HZ": 100,
+    "200HZ": 200,
+    "400HZ": 400,
+    "1620HZ": 1620,
+    "1344HZ": 1344,
+}
+DURATION_MAX_REG = 0x7F
+
 LIS3DHOperatingMode = lis3dh_ns.enum("LIS3DHOperatingMode")
 OPERATING_MODE_OPTIONS = {
     "LOW_POWER": LIS3DHOperatingMode.LIS3DH_MODE_LOW_POWER,
@@ -66,6 +83,11 @@ def _threshold_register(threshold_g: float, range_key: str) -> int:
     return max(math.floor(threshold_g * 1000 / THRESHOLD_LSB_MG[range_key] + 0.5), 1)
 
 
+def _duration_register(duration_ms: int, odr_key: str) -> int:
+    """Return INT1_DURATION for a time in ms: the nearest number of samples at the data rate."""
+    return math.floor(duration_ms * ODR_HZ[odr_key] / 1000 + 0.5)
+
+
 def _axes(value: object) -> list[str]:
     value = cv.All(cv.ensure_list(cv.one_of(*AXES, lower=True)), cv.Length(min=1))(
         value
@@ -84,7 +106,7 @@ INTERRUPT_SCHEMA = cv.Schema(
         cv.Optional(CONF_THRESHOLD, default="1.1g"): cv.All(
             cv.float_with_unit("acceleration", "(g|G)?"), cv.positive_float
         ),
-        cv.Optional(CONF_DURATION, default=0): cv.int_range(min=0, max=127),
+        cv.Optional(CONF_DURATION, default="0ms"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_AXES, default=AXES): _axes,
         cv.Optional(CONF_LATCHED, default=True): cv.boolean,
         cv.Optional(CONF_ACTIVE_HIGH, default=True): cv.boolean,
@@ -111,15 +133,30 @@ def _validate_odr_mode(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_threshold(config: ConfigType) -> ConfigType:
+def _validate_interrupt(config: ConfigType) -> ConfigType:
     if (interrupt := config.get(CONF_INTERRUPT)) is None:
         return config
     range_key = config[CONF_ACCELEROMETER_RANGE]
+    threshold = interrupt[CONF_THRESHOLD]
     max_g = THRESHOLD_MAX_REG * THRESHOLD_LSB_MG[range_key] / 1000
-    if interrupt[CONF_THRESHOLD] > max_g:
+    if threshold > max_g:
         raise cv.Invalid(
             f"'threshold' can be at most {max_g:g}g with 'accelerometer_range: {range_key}'",
             path=[CONF_INTERRUPT, CONF_THRESHOLD],
+        )
+    if not interrupt[CONF_HIGH_PASS_FILTER] and threshold <= 1.0:
+        _LOGGER.warning(
+            "lis3dh: a threshold of %sg or less includes gravity and may keep the interrupt "
+            "asserted at rest; set 'high_pass_filter: true' to compare against motion only",
+            threshold,
+        )
+    odr_key = config[CONF_ACCELEROMETER_ODR]
+    duration_ms = interrupt[CONF_DURATION].total_milliseconds
+    if _duration_register(duration_ms, odr_key) > DURATION_MAX_REG:
+        max_ms = math.floor(DURATION_MAX_REG * 1000 / ODR_HZ[odr_key])
+        raise cv.Invalid(
+            f"'duration' can be at most {max_ms}ms with 'accelerometer_odr: {odr_key}'",
+            path=[CONF_INTERRUPT, CONF_DURATION],
         )
     return config
 
@@ -142,7 +179,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(i2c.i2c_device_schema(0x18)),
     _validate_odr_mode,
-    _validate_threshold,
+    _validate_interrupt,
 )
 
 
@@ -165,7 +202,10 @@ async def to_code(config: ConfigType) -> None:
             var.set_interrupt(
                 interrupt[CONF_PIN],
                 threshold,
-                interrupt[CONF_DURATION],
+                _duration_register(
+                    interrupt[CONF_DURATION].total_milliseconds,
+                    config[CONF_ACCELEROMETER_ODR],
+                ),
                 axes_cfg,
                 interrupt[CONF_LATCHED],
                 interrupt[CONF_ACTIVE_HIGH],
