@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
@@ -8,7 +9,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # transmitter's code generation runs and the host build cannot link it.
     manifest.auto_load = ["climate_ir", "climate"]
 
-    async def to_code_testing(config):
+    async def to_code_testing(config: ConfigType) -> None:
         # Compiles in the Hisense ARG model, which climate.py adds only when it is configured
         cg.add_define("USE_WHIRLPOOL_HISENSE_ARG")
 
