@@ -36,8 +36,8 @@ class HUB75Display final : public display::Display {
   // Brightness control (runtime mutable)
   void set_brightness(uint8_t brightness);
 
-  void set_rotation(display::DisplayRotation rotation);
-  display::DisplayRotation get_rotation() const;
+  void set_rotation(display::DisplayRotation rotation) override;
+  display::DisplayRotation get_rotation() const override;
 
  protected:
   // Display internal methods

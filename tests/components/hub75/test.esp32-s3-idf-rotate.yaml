@@ -37,3 +37,10 @@ display:
       }
 
 <<: !include common.yaml
+
+script:
+  - id: rotate_hub75
+    then:
+      - lambda: |-
+          id(my_hub75).set_rotation(display::DISPLAY_ROTATION_180_DEGREES);
+          ESP_LOGD("test", "rotation now %d", static_cast<int>(id(my_hub75).get_rotation()));

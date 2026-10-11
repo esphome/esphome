@@ -710,7 +710,7 @@ class Display : public PollingComponent {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
-  DisplayRotation get_rotation() const { return this->rotation_; }
+  virtual DisplayRotation get_rotation() const { return this->rotation_; }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.

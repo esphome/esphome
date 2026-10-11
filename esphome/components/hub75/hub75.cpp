@@ -203,7 +203,7 @@ void HUB75Display::set_brightness(uint8_t brightness) {
 }
 
 void HUB75Display::set_rotation(display::DisplayRotation rotation) {
-  if (!driver_) [[unlikely]]
+  if (this->driver_ == nullptr) [[unlikely]]
     return;
 
   Hub75Rotation hub75_rotation;
@@ -225,14 +225,14 @@ void HUB75Display::set_rotation(display::DisplayRotation rotation) {
       return;
   }
 
-  driver_->set_rotation(hub75_rotation);
+  this->driver_->set_rotation(hub75_rotation);
 }
 
 display::DisplayRotation HUB75Display::get_rotation() const {
-  if (!driver_) [[unlikely]]
+  if (this->driver_ == nullptr) [[unlikely]]
     return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
 
-  Hub75Rotation hub75_rotation = driver_->get_rotation();
+  Hub75Rotation hub75_rotation = this->driver_->get_rotation();
   switch (hub75_rotation) {
     case Hub75Rotation::ROTATE_0:
       return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
