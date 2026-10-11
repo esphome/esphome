@@ -27,10 +27,10 @@ static const char *regression_method_name(uint8_t method) {
   }
 }
 
-void MQGasSensor::publish_log_(LogLevel level, const char *message) {
+void MQGasSensor::publish_log_(LogSeverity level, const char *message) {
   if (this->log_sensor_ == nullptr)
     return;
-  if (level == LOG_LEVEL_DEBUG) {
+  if (level == LOG_SEVERITY_DEBUG) {
     // The per-update line: at a 1 s update interval a text state per second would
     // flood the Home Assistant recorder, so it is mirrored at most every
     // LOG_SENSOR_DEBUG_INTERVAL_MS (the console log keeps every line).
@@ -42,7 +42,7 @@ void MQGasSensor::publish_log_(LogLevel level, const char *message) {
   this->log_sensor_->publish_state(message);
 }
 
-void MQGasSensor::log_message_(LogLevel level, const char *format, ...) {
+void MQGasSensor::log_message_(LogSeverity level, const char *format, ...) {
   char message[LOG_BUFFER_SIZE];
   const int prefix = std::snprintf(message, sizeof(message), "'%s %s': ", this->type_.c_str(), this->gas_.c_str());
   if (prefix > 0) {
@@ -54,13 +54,13 @@ void MQGasSensor::log_message_(LogLevel level, const char *format, ...) {
   }
 
   switch (level) {
-    case LOG_LEVEL_ERROR:
+    case LOG_SEVERITY_ERROR:
       ESP_LOGE(TAG, "%s", message);
       break;
-    case LOG_LEVEL_WARN:
+    case LOG_SEVERITY_WARN:
       ESP_LOGW(TAG, "%s", message);
       break;
-    case LOG_LEVEL_INFO:
+    case LOG_SEVERITY_INFO:
       ESP_LOGI(TAG, "%s", message);
       break;
     default:
@@ -83,26 +83,26 @@ void MQGasSensor::setup() {
   this->r0_pref_ = this->make_entity_preference<float>(R0_PREFERENCE_VERSION);
 
   if (this->source_ == nullptr) {
-    this->log_message_(LOG_LEVEL_ERROR, "no voltage source configured");
+    this->log_message_(LOG_SEVERITY_ERROR, "no voltage source configured");
     this->mark_failed();
     return;
   }
 
   if (this->r0_configured_) {
-    this->log_message_(LOG_LEVEL_INFO, "using the R0 from the configuration (%.4f kOhm)", this->r0_);
+    this->log_message_(LOG_SEVERITY_INFO, "using the R0 from the configuration (%.4f kOhm)", this->r0_);
   } else if (this->persist_ && this->load_r0_()) {
-    this->log_message_(LOG_LEVEL_INFO, "restored R0 from flash (%.4f kOhm)", this->r0_);
+    this->log_message_(LOG_SEVERITY_INFO, "restored R0 from flash (%.4f kOhm)", this->r0_);
   }
 
   if (this->warmup_time_ > 0) {
     this->warmup_end_ = App.get_loop_component_start_time() + this->warmup_time_;
-    this->log_message_(LOG_LEVEL_INFO, "warm-up/burn-in of %" PRIu32 " s - no readings published before that",
+    this->log_message_(LOG_SEVERITY_INFO, "warm-up/burn-in of %" PRIu32 " s - no readings published before that",
                        this->warmup_time_ / 1000);
   }
 
   if (this->calibration_enabled_) {
     if (this->has_r0()) {
-      this->log_message_(LOG_LEVEL_INFO,
+      this->log_message_(LOG_SEVERITY_INFO,
                          "R0 already known (%.4f kOhm) - automatic calibration skipped, call "
                          "request_calibration() (or clear the stored R0) to recalibrate",
                          this->r0_);
@@ -110,12 +110,12 @@ void MQGasSensor::setup() {
       const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
       this->calibration_due_ = App.get_loop_component_start_time() + delay;
       this->calibration_pending_ = true;
-      this->log_message_(LOG_LEVEL_INFO, "R0 calibration scheduled in %" PRIu32 " s - the sensor must be in clean air",
-                         delay / 1000);
+      this->log_message_(LOG_SEVERITY_INFO,
+                         "R0 calibration scheduled in %" PRIu32 " s - the sensor must be in clean air", delay / 1000);
     }
   } else if (!this->has_r0()) {
-    this->log_message_(LOG_LEVEL_WARN, "no R0 available, set 'r0:' or 'calibration:' - the PPM value stays "
-                                       "unknown until then");
+    this->log_message_(LOG_SEVERITY_WARN, "no R0 available, set 'r0:' or 'calibration:' - the PPM value stays "
+                                          "unknown until then");
   }
 }
 
@@ -188,8 +188,8 @@ float MQGasSensor::compute_correction_() {
   if (this->temperature_source_ == nullptr || this->humidity_source_ == nullptr) {
     if (!this->warned_correction_) {
       this->warned_correction_ = true;
-      this->log_message_(LOG_LEVEL_WARN, "temperature/humidity correction is enabled but a source is missing - "
-                                         "publishing the uncorrected value");
+      this->log_message_(LOG_SEVERITY_WARN, "temperature/humidity correction is enabled but a source is missing - "
+                                            "publishing the uncorrected value");
     }
     return 1.0f;
   }
@@ -201,7 +201,7 @@ float MQGasSensor::compute_correction_() {
   if (!std::isfinite(temperature) || !std::isfinite(humidity)) {
     if (!this->warned_correction_) {
       this->warned_correction_ = true;
-      this->log_message_(LOG_LEVEL_WARN,
+      this->log_message_(LOG_SEVERITY_WARN,
                          "no valid temperature/humidity reading yet (T=%.1f, RH=%.1f) - "
                          "publishing the uncorrected value",
                          temperature, humidity);
@@ -243,7 +243,8 @@ void MQGasSensor::update() {
     // The persisted R0 is about to change: never keep a value that was computed
     // with the previous one.  The message also reaches `log_sensor:`.
     this->publish_state(NAN);
-    this->log_message_(LOG_LEVEL_DEBUG, "update skipped, a calibration is running - the sensor must be in clean air");
+    this->log_message_(LOG_SEVERITY_DEBUG,
+                       "update skipped, a calibration is running - the sensor must be in clean air");
     return;
   }
 
@@ -256,7 +257,7 @@ void MQGasSensor::update() {
     if (!this->warmup_notified_) {
       this->warmup_notified_ = true;
       this->publish_state(NAN);
-      this->log_message_(LOG_LEVEL_INFO, "warming up, %" PRIu32 " s to go", (this->warmup_end_ - now) / 1000);
+      this->log_message_(LOG_SEVERITY_INFO, "warming up, %" PRIu32 " s to go", (this->warmup_end_ - now) / 1000);
     }
     return;
   }
@@ -264,7 +265,7 @@ void MQGasSensor::update() {
   if (!this->has_r0()) {
     if (!this->warned_no_r0_) {
       this->warned_no_r0_ = true;
-      this->log_message_(LOG_LEVEL_WARN, "R0 unknown - publish 'calibration:' or 'r0:' in the configuration");
+      this->log_message_(LOG_SEVERITY_WARN, "R0 unknown - publish 'calibration:' or 'r0:' in the configuration");
     }
     this->publish_state(NAN);
     return;
@@ -274,7 +275,7 @@ void MQGasSensor::update() {
   if (!std::isfinite(this->sensor_voltage_) || this->sensor_voltage_ <= 0.01f) {
     if (!this->warned_voltage_) {
       this->warned_voltage_ = true;
-      this->log_message_(LOG_LEVEL_WARN,
+      this->log_message_(LOG_SEVERITY_WARN,
                          "analog output reads %.4f V - open circuit, missing supply or bad "
                          "divider? check the AO wiring (RS would be invalid)",
                          this->sensor_voltage_);
@@ -293,7 +294,7 @@ void MQGasSensor::update() {
   const float ppm = this->read_ppm_();
 
   this->log_reading_(ppm);
-  this->log_message_(LOG_LEVEL_DEBUG, "V=%.4f V, RS=%.4f kOhm, ratio=%.4f (correction=%.4f) -> %.1f ppm",
+  this->log_message_(LOG_SEVERITY_DEBUG, "V=%.4f V, RS=%.4f kOhm, ratio=%.4f (correction=%.4f) -> %.1f ppm",
                      this->sensor_voltage_, this->rs_, this->ratio_, this->correction_, ppm);
 
   this->publish_diagnostics_();
@@ -312,17 +313,17 @@ void MQGasSensor::set_calibration(bool enabled, float ratio_in_clean_air, uint32
 
 void MQGasSensor::request_calibration() {
   if (this->calibrating_) {
-    this->log_message_(LOG_LEVEL_WARN, "calibration already running");
+    this->log_message_(LOG_SEVERITY_WARN, "calibration already running");
     return;
   }
   if (this->calibration_pending_) {
     const uint32_t now = App.get_loop_component_start_time();
-    this->log_message_(LOG_LEVEL_WARN, "calibration already requested - starting in %" PRIu32 " s",
+    this->log_message_(LOG_SEVERITY_WARN, "calibration already requested - starting in %" PRIu32 " s",
                        (this->calibration_due_ > now ? this->calibration_due_ - now : 0) / 1000);
     return;
   }
   if (!(this->ratio_in_clean_air_ > 0.0f)) {
-    this->log_message_(LOG_LEVEL_ERROR, "cannot calibrate without a valid 'ratio_in_clean_air'");
+    this->log_message_(LOG_SEVERITY_ERROR, "cannot calibrate without a valid 'ratio_in_clean_air'");
     return;
   }
 
@@ -333,10 +334,11 @@ void MQGasSensor::request_calibration() {
   // is deferred until the warm-up/burn-in window of this sensor has ended.
   if (this->warmup_time_ > 0 && now < this->warmup_end_) {
     this->calibration_due_ = this->warmup_end_;
-    this->log_message_(LOG_LEVEL_INFO, "calibration requested - waiting for the warm-up window to end (%" PRIu32 " s)",
+    this->log_message_(LOG_SEVERITY_INFO,
+                       "calibration requested - waiting for the warm-up window to end (%" PRIu32 " s)",
                        (this->warmup_end_ - now) / 1000);
   } else {
-    this->log_message_(LOG_LEVEL_INFO, "calibration requested - keep the sensor in clean air");
+    this->log_message_(LOG_SEVERITY_INFO, "calibration requested - keep the sensor in clean air");
   }
 }
 
@@ -370,7 +372,7 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_attempts_ = 0;
   this->calibration_sum_ = 0.0f;
 
-  this->log_message_(LOG_LEVEL_INFO,
+  this->log_message_(LOG_SEVERITY_INFO,
                      "calibrating R0 (RS/R0 in clean air = %.2f), %" PRIu32 " samples - keep the sensor in clean air",
                      this->ratio_in_clean_air_, this->calibration_samples_);
 }
@@ -402,7 +404,7 @@ void MQGasSensor::finish_calibration_() {
   const uint32_t valid = this->calibration_count_;
 
   if (valid == 0) {
-    this->log_message_(LOG_LEVEL_ERROR,
+    this->log_message_(LOG_SEVERITY_ERROR,
                        "calibration failed, none of the %" PRIu32
                        " samples produced a valid RS - check the AO wiring and the supply",
                        attempts);
@@ -411,7 +413,7 @@ void MQGasSensor::finish_calibration_() {
 
   const float r0 = this->calibration_sum_ / static_cast<float>(valid);
   if (!std::isfinite(r0) || r0 <= 0.0f) {
-    this->log_message_(LOG_LEVEL_ERROR, "calibration produced an invalid R0 (%.6f)", r0);
+    this->log_message_(LOG_SEVERITY_ERROR, "calibration produced an invalid R0 (%.6f)", r0);
     return;
   }
 
@@ -419,22 +421,23 @@ void MQGasSensor::finish_calibration_() {
   if (this->persist_)
     this->save_r0_();
 
-  this->log_message_(LOG_LEVEL_INFO, "R0 = %.4f kOhm (%" PRIu32 "/%" PRIu32 " samples valid)%s", this->r0_, valid,
+  this->log_message_(LOG_SEVERITY_INFO, "R0 = %.4f kOhm (%" PRIu32 "/%" PRIu32 " samples valid)%s", this->r0_, valid,
                      attempts, this->persist_ ? LOG_STR_LITERAL(", stored in flash") : "");
   if (!this->persist_) {
-    this->log_message_(LOG_LEVEL_INFO, "hard-code 'r0: %.4f' in the YAML to skip the calibration at boot", this->r0_);
+    this->log_message_(LOG_SEVERITY_INFO, "hard-code 'r0: %.4f' in the YAML to skip the calibration at boot",
+                       this->r0_);
   }
 }
 
 void MQGasSensor::save_r0_() {
   if (!this->r0_pref_.save(&this->r0_)) {
-    this->log_message_(LOG_LEVEL_WARN, "could not store R0 in flash");
+    this->log_message_(LOG_SEVERITY_WARN, "could not store R0 in flash");
     return;
   }
   if (!global_preferences->sync()) {
-    this->log_message_(LOG_LEVEL_WARN, "R0 stored but the flash sync failed (will be written later)");
+    this->log_message_(LOG_SEVERITY_WARN, "R0 stored but the flash sync failed (will be written later)");
   }
-  this->log_message_(LOG_LEVEL_DEBUG, "R0 %.4f kOhm saved", this->r0_);
+  this->log_message_(LOG_SEVERITY_DEBUG, "R0 %.4f kOhm saved", this->r0_);
 }
 
 bool MQGasSensor::load_r0_() {
