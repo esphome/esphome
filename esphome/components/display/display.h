@@ -7,6 +7,8 @@
 
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include "esphome/core/log.h"
 #include "display_color_utils.h"
@@ -173,7 +175,6 @@ enum RegularPolygonDrawing {
 
 class Display;
 class DisplayPage;
-class DisplayOnPageChangeTrigger;
 
 /** Optimized display writer that uses function pointers for stateless lambdas.
  *
@@ -702,7 +703,11 @@ class Display : public PollingComponent {
 
   const DisplayPage *get_active_page() const { return this->page_; }
 
-  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  template<typename F> void add_on_page_change_callback(F &&callback) {
+    this->page_change_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
   /// Internal method to set the display rotation with.
   virtual void set_rotation(DisplayRotation rotation);
@@ -809,8 +814,9 @@ class Display : public PollingComponent {
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   display_writer_t writer_{};
   DisplayPage *page_{nullptr};
-  DisplayPage *previous_page_{nullptr};
-  std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  StaticCallbackManager<DISPLAY_PAGE_CHANGE_CALLBACK_COUNT, void(DisplayPage *, DisplayPage *)> page_change_callback_;
+#endif
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
   uint8_t wdt_pixel_counter_{0};
@@ -848,18 +854,6 @@ template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...
       page->show();
     }
   }
-};
-
-class DisplayOnPageChangeTrigger final : public Trigger<DisplayPage *, DisplayPage *> {
- public:
-  explicit DisplayOnPageChangeTrigger(Display *parent) { parent->add_on_page_change_trigger(this); }
-  void process(DisplayPage *from, DisplayPage *to);
-  void set_from(DisplayPage *p) { this->from_ = p; }
-  void set_to(DisplayPage *p) { this->to_ = p; }
-
- protected:
-  DisplayPage *from_{nullptr};
-  DisplayPage *to_{nullptr};
 };
 
 const LogString *text_align_to_string(TextAlign textalign);

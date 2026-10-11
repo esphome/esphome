@@ -53,6 +53,7 @@ lvgl:
   id: lvgl_id
   rotation: 90
   log_level: debug
+  check_args: true
   resume_on_input: true
   paused: true
   update_when_display_idle: true
@@ -976,6 +977,16 @@ lvgl:
         - spinner:
             align: right_mid
             send_draw_task_events: true
+            event_trickle: true
+            state_trickle: true
+            radio_button: true
+            flex_in_new_track: !lambda return true;
+        - spinner:
+            align: top_mid
+            layout_1: true
+            layout_2: true
+            widget_1: !lambda return false;
+            widget_2: false
         - image:
             id: lv_image
             src: cat_image
