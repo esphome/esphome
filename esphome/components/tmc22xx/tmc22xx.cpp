@@ -51,7 +51,7 @@ void TMC22XXStepper::setup() {
   auto version = this->read_field(VERSION);
   if (!version.has_value()) {
     ESP_LOGE(TAG, "No response from driver at address %u", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->version_ = *version;
@@ -312,8 +312,10 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
   uint8_t echo[DATAGRAM_SIZE];
   if (!this->read_array(echo, DATAGRAM_SIZE) || memcmp(echo, datagram, DATAGRAM_SIZE) != 0) {
     ESP_LOGW(TAG, "No echo writing register 0x%02X", reg);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
+  this->status_clear_warning();
 
   if (uint32_t *shadow = this->shadow_register(reg))
     *shadow = value;
@@ -334,16 +336,22 @@ optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
   uint8_t reply[DATAGRAM_SIZE];
   if (!this->read_array(reply, READ_REQUEST_SIZE) || !this->read_array(reply, DATAGRAM_SIZE)) {
     ESP_LOGV(TAG, "No reply reading register 0x%02X", reg);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};
   }
   if (reply[0] != SYNC_BYTE || reply[1] != MASTER_ADDRESS || reply[2] != reg || reply[7] != crc8(reply, 7)) {
     ESP_LOGV(TAG, "Invalid reply reading register 0x%02X", reg);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};
   }
+  this->status_clear_warning();
   return encode_uint32(reply[3], reply[4], reply[5], reply[6]);
 }
 
 bool TMC22XXStepper::write_field(const RegisterField &field, uint32_t value) {
+  // Skip the UART timeout when the driver never answered during setup
+  if (this->is_failed())
+    return false;
   auto data = this->read_register(field.reg);
   if (!data.has_value())
     return false;
