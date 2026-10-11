@@ -10,32 +10,45 @@ ESPHOME_LOG_TAG(TAG, "tinyusb_keyboard");
 
 void TinyUSBKeyboard::dump_config() { ESP_LOGCONFIG(TAG, "TinyUSB Keyboard"); }
 
-bool TinyUSBKeyboard::ready_() {
-  if (tud_ready()) {
-    return true;
-  }
-  ESP_LOGW(TAG, "USB host not ready, dropping report");
-  return false;
+void TinyUSBKeyboard::set_keyboard_(uint8_t keycode, uint8_t modifiers) {
+  this->keycode_ = keycode;
+  this->modifiers_ = modifiers;
+  this->keyboard_pending_ = true;
+  this->flush_();
 }
 
-void TinyUSBKeyboard::press_key(uint8_t keycode, uint8_t modifiers) {
-  uint8_t keycodes[6] = {keycode};
-  if (this->ready_()) {
-    tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifiers, keycodes);
+void TinyUSBKeyboard::set_consumer_(uint16_t usage) {
+  this->usage_ = usage;
+  this->consumer_pending_ = true;
+  this->flush_();
+}
+
+void TinyUSBKeyboard::flush_() {
+  if (!tud_ready()) {
+    // Nothing is listening; the state is sent once a host configures the device
+    this->enable_loop();
+    return;
+  }
+  // tud_hid_*_report() returns false while the endpoint still holds the previous report, which is
+  // what happens for a press and a release in one action list. Keep retrying so the release gets out.
+  if (this->keyboard_pending_) {
+    uint8_t keycodes[6] = {this->keycode_};
+    if (tud_hid_keyboard_report(REPORT_ID_KEYBOARD, this->modifiers_, keycodes)) {
+      this->keyboard_pending_ = false;
+    }
+  }
+  if (this->consumer_pending_ && !this->keyboard_pending_ &&
+      tud_hid_report(REPORT_ID_CONSUMER, &this->usage_, sizeof(this->usage_))) {
+    this->consumer_pending_ = false;
+  }
+  if (this->keyboard_pending_ || this->consumer_pending_) {
+    this->enable_loop();
+  } else {
+    this->disable_loop();
   }
 }
 
-void TinyUSBKeyboard::release_keys() {
-  if (this->ready_()) {
-    tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, nullptr);
-  }
-}
-
-void TinyUSBKeyboard::press_media(uint16_t usage) {
-  if (this->ready_()) {
-    tud_hid_report(REPORT_ID_CONSUMER, &usage, sizeof(usage));
-  }
-}
+void TinyUSBKeyboard::loop() { this->flush_(); }
 
 }  // namespace esphome::tinyusb_keyboard
 

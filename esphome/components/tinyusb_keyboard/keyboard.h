@@ -16,7 +16,9 @@ static constexpr uint8_t REPORT_ID_CONSUMER = 2;
 static constexpr uint8_t ENDPOINT_IN = 0x81;
 static constexpr uint8_t POLL_INTERVAL_MS = 10;
 
-// One HID interface carrying a boot keyboard and a consumer control (media keys), told apart by report id
+// One HID interface carrying a keyboard and a consumer control (media keys), told apart by report id.
+// Report ids rule out the boot protocol, so the interface declares no boot protocol, as TinyUSB's
+// composite example does.
 inline constexpr uint8_t HID_REPORT_DESCRIPTOR[] = {
     TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_ID_KEYBOARD)),
     TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(REPORT_ID_CONSUMER)),
@@ -25,24 +27,35 @@ inline constexpr uint8_t HID_REPORT_DESCRIPTOR[] = {
 // esp_tinyusb ships default configuration descriptors for CDC, MSC and NCM only, so the keyboard supplies its own
 inline constexpr uint8_t CONFIGURATION_DESCRIPTOR[] = {
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
-    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_KEYBOARD, sizeof(HID_REPORT_DESCRIPTOR), ENDPOINT_IN,
-                       CFG_TUD_HID_EP_BUFSIZE, POLL_INTERVAL_MS),
+    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(HID_REPORT_DESCRIPTOR), ENDPOINT_IN, CFG_TUD_HID_EP_BUFSIZE,
+                       POLL_INTERVAL_MS),
 };
 
 class TinyUSBKeyboard final : public Component {
  public:
+  void setup() override { this->disable_loop(); }
+  void loop() override;
   void dump_config() override;
 
   /// Press one key (HID usage id) with the given modifier bitmask; every other key is reported released.
-  void press_key(uint8_t keycode, uint8_t modifiers);
-  void release_keys();
+  void press_key(uint8_t keycode, uint8_t modifiers) { this->set_keyboard_(keycode, modifiers); }
+  void release_keys() { this->set_keyboard_(0, 0); }
   /// Press one consumer control usage, for example 0xE9 for volume up.
-  void press_media(uint16_t usage);
-  void release_media() { this->press_media(0); }
+  void press_media(uint16_t usage) { this->set_consumer_(usage); }
+  void release_media() { this->set_consumer_(0); }
 
  protected:
-  /// False, with a warning, while no host has configured the device.
-  bool ready_();
+  void set_keyboard_(uint8_t keycode, uint8_t modifiers);
+  void set_consumer_(uint16_t usage);
+  /// Sends whatever changed; a report the endpoint cannot take yet is retried from loop()
+  void flush_();
+
+  // The wanted state of each report, resent until the endpoint accepts it so a release is never lost
+  uint16_t usage_{0};
+  uint8_t keycode_{0};
+  uint8_t modifiers_{0};
+  bool keyboard_pending_{false};
+  bool consumer_pending_{false};
 };
 
 }  // namespace esphome::tinyusb_keyboard

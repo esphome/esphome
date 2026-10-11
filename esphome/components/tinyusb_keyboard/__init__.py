@@ -54,8 +54,18 @@ CONFIG_SCHEMA = cv.All(
     ),
 )
 
-# A keyboard usage id as a number, or a single lowercase letter or digit
-key_code = cv.Any(cv.enum(KEY_CODES), cv.uint8_t)
+_KEY_CODE = cv.Any(cv.enum(KEY_CODES), cv.int_range(min=10, max=255))
+
+
+def key_code(value: object) -> int:
+    """A single lowercase letter or digit, or a keyboard usage id.
+
+    Usage ids 0 to 9 are never typed keys (error codes and the letters a to f), so an unquoted
+    digit is read as that digit.
+    """
+    if isinstance(value, int) and 0 <= value <= 9:
+        value = str(value)
+    return _KEY_CODE(value)
 
 
 async def to_code(config: ConfigType) -> None:
