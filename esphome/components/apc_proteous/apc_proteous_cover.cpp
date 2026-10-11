@@ -95,7 +95,9 @@ void APCProteousCover::parse_response_() {
     if (this->position != new_position) {
       this->position = new_position;
       state_changed = true;
-      if (this->target_position_.has_value() && this->current_operation != COVER_OPERATION_IDLE &&
+      // Until the controller has confirmed motion in the commanded direction, current_operation may
+      // still show the previous one, so a reversing partial move must not be judged against it
+      if (this->target_position_.has_value() && this->pending_command_ == nullptr &&
           ((this->current_operation == COVER_OPERATION_OPENING && this->position >= *this->target_position_) ||
            (this->current_operation == COVER_OPERATION_CLOSING && this->position <= *this->target_position_))) {
         ESP_LOGD(TAG, "Target position %.2f reached", *this->target_position_);
