@@ -12,3 +12,8 @@ sendspin:
   static_pairing_code: "01234567"
   # Covers the hub's unpaired access option, which is only valid without an unpaired access switch.
   unpaired_access: false
+
+# Builds the API request for the Sendspin pairing token.
+api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=

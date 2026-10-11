@@ -477,6 +477,16 @@ LV_LOG_LEVELS = {
     "NONE": "NONE",
 }
 
+# Log output for failed LVGL argument checks, chosen from the LVGL log level
+LV_CHECK_ARG_LOG_MODES = {
+    "VERBOSE": "VERBOSE",
+    "DEBUG": "VERBOSE",
+    "INFO": "MINIMAL",
+    "WARN": "MINIMAL",
+    "ERROR": "NONE",
+    "NONE": "NONE",
+}
+
 LV_LONG_MODES = LvConstant(
     "LV_LABEL_LONG_",
     "WRAP",
@@ -606,13 +616,20 @@ OBJ_FLAGS = (
     "ignore_layout",
     "floating",
     "overflow_visible",
+    "send_draw_task_events",
+    "event_trickle",
+    "state_trickle",
+    "radio_button",
+    "flex_in_new_track",
     "layout_1",
     "layout_2",
-    "send_draw_task_events",
     "widget_1",
     "widget_2",
 )
-LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
+# Flags whose lv_obj_set_<flag>() setter has a different name
+FLAG_SETTER_ALIASES = {"layout_1": "flex_in_new_track"}
+# Custom flags that have no lv_obj_set_<flag>() setter
+CUSTOM_FLAGS = ("layout_2", "widget_1", "widget_2")
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
@@ -703,6 +720,7 @@ CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
 CONF_BUTTONS = "buttons"
 CONF_CHANGE_RATE = "change_rate"
+CONF_CLICKABLE = "clickable"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_END = "color_end"
 CONF_COLOR_START = "color_start"
@@ -727,6 +745,7 @@ CONF_FLEX_ALIGN_CROSS = "flex_align_cross"
 CONF_FLEX_ALIGN_TRACK = "flex_align_track"
 CONF_FLEX_GROW = "flex_grow"
 CONF_FREEZE = "freeze"
+CONF_CHECK_ARGS = "check_args"
 CONF_DARK_MODE = "dark_mode"
 CONF_FULL_REFRESH = "full_refresh"
 CONF_GRADIENTS = "gradients"
@@ -795,6 +814,7 @@ CONF_SCALE = "scale"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SCROLL_DIR = "scroll_dir"
+CONF_SCROLLABLE = "scrollable"
 CONF_SCROLL_SNAP_X = "scroll_snap_x"
 CONF_SCROLL_SNAP_Y = "scroll_snap_y"
 CONF_SELECTED_INDEX = "selected_index"
@@ -891,7 +911,8 @@ def get_part_state_selector(part: str, state: str) -> MockObj:
 
 # fmt: off
 LV_COLOR_FORMATS = (
-    "RGB565", "SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "PREMULTIPLIED", "L8", "AL88", "A8", "I1",
+    "RGB565", "RGB565_SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "ARGB8888_PREMULTIPLIED", "L8", "AL88",
+    "A8", "I1",
 )
 
 LV_DEFINES = (

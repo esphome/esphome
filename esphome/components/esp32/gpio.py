@@ -5,6 +5,7 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -248,6 +249,7 @@ ESP32_PIN_SCHEMA = cv.All(
                 cv.float_with_unit("current", "mA", optional_unit=True),
                 cv.enum(DRIVE_STRENGTHS),
             ),
+            cv.Optional(CONF_HOLD_STATE, default=False): cv.boolean,
         }
     ),
     validate_gpio_pin,
@@ -257,7 +259,6 @@ ESP32_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP32, ESP32_PIN_SCHEMA)
 async def esp32_pin_to_code(config):
-    cg.add_define("USE_ESP32_INTERNAL_GPIO")
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
@@ -267,7 +268,11 @@ async def esp32_pin_to_code(config):
         cg.add(var.set_inverted(True))
     if CONF_DRIVE_STRENGTH in config:
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    flags = pins.gpio_flags_expr(config[CONF_MODE])
+    if config[CONF_HOLD_STATE]:
+        flags = flags | cg.gpio_Flags.FLAG_HOLD
+        cg.add_define("USE_GPIO_HOLD")
+    cg.add(var.set_flags(flags))
     return var
 
 

@@ -8,6 +8,8 @@ namespace esphome::bmp280_base {
 
 ESPHOME_LOG_TAG(TAG, "bmp280.sensor");
 
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
+
 static const uint8_t BMP280_REGISTER_STATUS = 0xF3;
 static const uint8_t BMP280_REGISTER_CONTROL = 0xF4;
 static const uint8_t BMP280_REGISTER_CONFIG = 0xF5;
@@ -166,7 +168,7 @@ void BMP280Component::update() {
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
 
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ceilf(meas_time)), [this]() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
     if (std::isnan(temperature)) {
