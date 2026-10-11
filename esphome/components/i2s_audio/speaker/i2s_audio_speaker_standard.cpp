@@ -113,6 +113,7 @@ void I2SAudioSpeaker::run_speaker_task() {
   const size_t dma_buffer_input_bytes = this->current_stream_info_.frames_to_bytes(frames_per_dma_buffer);
 
   bool successful_setup = false;
+  bool restart_task = false;
 
   std::unique_ptr<audio::RingBufferAudioSource> audio_source;
 
@@ -213,6 +214,7 @@ void I2SAudioSpeaker::run_speaker_task() {
 
       if (this->audio_stream_info_ != this->current_stream_info_) {
         // Audio stream info changed, stop the speaker task so it will restart with the proper settings.
+        restart_task = true;
         ESP_LOGV(TAG, "Exiting: stream info changed");
         break;
       }
@@ -228,6 +230,7 @@ void I2SAudioSpeaker::run_speaker_task() {
         pending_real_buffers = 0;
         resync_needed = false;
         if (!resynced) {
+          restart_task = true;
           ESP_LOGE(TAG, "DMA lockstep resync failed, restarting speaker task");
           break;
         }
@@ -371,6 +374,9 @@ void I2SAudioSpeaker::run_speaker_task() {
     }
   }
 
+  if (successful_setup && !restart_task) {
+    xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_AUDIO_ENDED);
+  }
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
 
   audio_source.reset();

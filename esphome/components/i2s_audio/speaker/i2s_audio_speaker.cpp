@@ -26,6 +26,7 @@ static constexpr float SOFTWARE_VOLUME_MIN_DB = -49.0f;
 
 // Rate at which the software gain moves toward a new target.
 static constexpr uint32_t GAIN_RAMP_MS_PER_DB = 1;
+static constexpr uint32_t AUDIO_END_MUTE_HOLD_MS = 50;
 
 void I2SAudioSpeakerBase::setup() {
   this->event_group_ = xEventGroupCreate();
@@ -100,11 +101,24 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_STOPPING;
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPED) {
+    if (this->speaker_task_handle_ != nullptr) {
+      vTaskDelete(this->speaker_task_handle_);
+      this->speaker_task_handle_ = nullptr;
+    }
+    if ((event_group_bits & SpeakerEventGroupBits::TASK_AUDIO_ENDED) && !this->audio_end_waiting_ &&
+        !this->audio_end_callback_.empty()) {
+      this->audio_end_callback_.call();
+      this->audio_end_started_ms_ = App.get_loop_component_start_time();
+      this->audio_end_waiting_ = true;
+    }
+    // Keep BCLK/LRCK running while the codec mutes. Delayed automation actions
+    // can run during this hold; no delay blocks the main loop.
+    if (this->audio_end_waiting_ &&
+        App.get_loop_component_start_time() - this->audio_end_started_ms_ < AUDIO_END_MUTE_HOLD_MS) {
+      return;
+    }
+    this->audio_end_waiting_ = false;
     ESP_LOGD(TAG, "Stopped");
-
-    vTaskDelete(this->speaker_task_handle_);
-    this->speaker_task_handle_ = nullptr;
-
     this->stop_i2s_driver_();
     // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
     // the top of loop(): the audio source's task can raise a start at any point above, including
