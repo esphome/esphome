@@ -8,6 +8,8 @@ BYTE_ORDER_BIG = "big_endian"
 
 CONF_ACCELEROMETER_ODR = "accelerometer_odr"
 CONF_ACCELEROMETER_RANGE = "accelerometer_range"
+CONF_ADC_AVERAGING = "adc_averaging"
+CONF_ADC_TIME = "adc_time"
 CONF_ALLOWED_IPS = "allowed_ips"
 CONF_AQI = "aqi"
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
