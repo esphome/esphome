@@ -42,8 +42,8 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
     let message = `${TOO_BIG_MARKER}\n### 📦 Pull Request Size\n\n`;
 
     message +=
-      `Hey @${prAuthor}, thanks for the contribution! Just a heads up, ` +
-      `this PR is on the large side `;
+      `Hey @${prAuthor}, thanks for the contribution. This PR is on the ` +
+      `large side `;
 
     if (tooManyLabels && tooManyChanges) {
       message +=
