@@ -10,6 +10,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace esphome::ld2412 {
@@ -873,7 +874,10 @@ void LD2412Component::gate_query_timeout_(bool motion) {
   }
 }
 
-void LD2412Component::set_gate_threshold(bool motion) {
+void LD2412Component::set_gate_threshold(number::Number *n) {
+  // The number carries no group of its own; 14 pointer compares on a user write are cheaper than a flag per number
+  const auto &motion_numbers = this->gate_move_thresholds_.numbers;
+  const bool motion = std::find(motion_numbers.begin(), motion_numbers.end(), n) != motion_numbers.end();
   this->set_config_mode_(true);
   this->send_gate_thresholds_(motion);
   this->set_config_mode_(false);

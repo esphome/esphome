@@ -91,7 +91,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
     this->gate_still_thresholds_.numbers[gate] = n;
   }
-  void set_gate_threshold(bool motion);
+  void set_gate_threshold(number::Number *n);
   void get_gate_threshold();
 #endif
 #ifdef USE_SENSOR
