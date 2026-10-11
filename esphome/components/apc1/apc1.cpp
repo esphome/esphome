@@ -1,5 +1,6 @@
 #include "apc1.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -173,6 +174,18 @@ void APC1Component::parse_frame_(uint16_t total_len) {
   }
 }
 
+// One message per error bit, bit 0 first. Not LOG_STR: a table of those is filled in at runtime.
+static const char ERROR_FAN_RESTART[] PROGMEM = "Fan restart error (too many restarts)";
+static const char ERROR_FAN_SPEED_LOW[] PROGMEM = "Fan speed low";
+static const char ERROR_PHOTODIODE[] PROGMEM = "Photodiode fault";
+static const char ERROR_FAN_STOPPED[] PROGMEM = "Fan stopped / startup error";
+static const char ERROR_LASER[] PROGMEM = "Laser fault";
+static const char ERROR_VOC[] PROGMEM = "VOC sensor fault";
+static const char ERROR_RHT[] PROGMEM = "RHT sensor fault";
+static const char *const ERROR_BITS[] PROGMEM = {
+    ERROR_FAN_RESTART, ERROR_FAN_SPEED_LOW, ERROR_PHOTODIODE, ERROR_FAN_STOPPED, ERROR_LASER, ERROR_VOC, ERROR_RHT,
+};
+
 void APC1Component::parse_measurement_frame_() {
   const uint32_t now = App.get_loop_component_start_time();
   this->last_valid_frame_ = now;
@@ -180,19 +193,9 @@ void APC1Component::parse_measurement_frame_() {
   uint8_t error_code = this->rx_buffer_[APC1_MEASUREMENT_OFFSET_ERROR_CODE];
   if (error_code != this->last_error_code_) {
     if (error_code != 0) {
-      // One message per error bit, bit 0 first
-      static const LogString *const ERROR_BITS[] = {
-          LOG_STR("Fan restart error (too many restarts)"),
-          LOG_STR("Fan speed low"),
-          LOG_STR("Photodiode fault"),
-          LOG_STR("Fan stopped / startup error"),
-          LOG_STR("Laser fault"),
-          LOG_STR("VOC sensor fault"),
-          LOG_STR("RHT sensor fault"),
-      };
       for (size_t bit = 0; bit < std::size(ERROR_BITS); bit++) {
         if (error_code & (1 << bit)) {
-          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ERROR_BITS[bit]));
+          ESP_LOGW(TAG, "APC1: %s", progmem_read_ptr(&ERROR_BITS[bit]));
         }
       }
       this->status_set_warning(LOG_STR("Sensor reported hardware error"));
