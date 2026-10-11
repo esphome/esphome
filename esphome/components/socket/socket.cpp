@@ -2,6 +2,9 @@
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 #include <cerrno>
 #include <cstring>
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+#include <sys/select.h>
+#endif
 #include <string>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -75,6 +78,25 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 #endif
 #endif
 
+bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out) {
+  if (addr->sa_family == AF_INET) {
+    *out = reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr;
+    return true;
+  }
+#if USE_NETWORK_IPV6
+  if (addr->sa_family == AF_INET6) {
+    // ::ffff:a.b.c.d; s6_addr is the portable byte view on every stack.
+    static constexpr uint8_t V4_MAPPED_PREFIX[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
+    const uint8_t *bytes = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr.s6_addr;
+    if (memcmp(bytes, V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX)) == 0) {
+      memcpy(out, bytes + sizeof(V4_MAPPED_PREFIX), sizeof(*out));
+      return true;
+    }
+  }
+#endif
+  return false;
+}
+
 // Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf) {
   if (addr_ptr->sa_family == AF_INET && len >= sizeof(const struct sockaddr_in)) {
@@ -85,29 +107,10 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 #if USE_NETWORK_IPV6
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
-#ifdef USE_HOST
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
-    if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr) &&
-        esphome_inet_ntop4(&addr->sin6_addr.s6_addr[12], buf.data(), buf.size()) != nullptr) {
+    uint32_t v4;
+    // Format a v4 mapped peer as plain IPv4.
+    if (sockaddr_to_ipv4(addr_ptr, &v4) && esphome_inet_ntop4(&v4, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
-    }
-#elif defined(USE_ZEPHYR)
-    // Format IPv4-mapped IPv6 addresses as regular IPv4. Zephyr uses the standard POSIX
-    // s6_addr layout (not the LWIP union) but provides no IN6_IS_ADDR_V4MAPPED macro, so
-    // detect the ::ffff:0:0/96 prefix directly on the address words.
-    if (addr->sin6_addr.s6_addr32[0] == 0 && addr->sin6_addr.s6_addr32[1] == 0 &&
-        addr->sin6_addr.s6_addr32[2] == htonl(0xFFFF) &&
-        esphome_inet_ntop4(&addr->sin6_addr.s6_addr32[3], buf.data(), buf.size()) != nullptr) {
-      return strlen(buf.data());
-    }
-#elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
-    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
-        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
-        esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
-      return strlen(buf.data());
-    }
-#endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
   }
@@ -165,7 +168,10 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 #else
     // Use LWIP-specific functions
     ip6_addr_t ip6;
-    inet6_aton(ip_address, &ip6);
+    if (inet6_aton(ip_address, &ip6) == 0) {
+      errno = EINVAL;
+      return 0;
+    }
     memcpy(server->sin6_addr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
 #endif
     return sizeof(sockaddr_in6);
@@ -194,6 +200,47 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
 }
+
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+ConnectPollResult poll_connect(Socket &sock, int &err_out) {
+  int fd = sock.get_fd();
+  if (fd < 0 || fd >= FD_SETSIZE) {
+    // FD_SET on either is undefined behavior
+    err_out = EBADF;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
+  }
+  // Connect completion is a write event; the main loop only selects on reads
+  fd_set writefds;
+  FD_ZERO(&writefds);
+  FD_SET(fd, &writefds);
+  struct timeval tv = {0, 0};
+#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
+  // LWIP_COMPAT_SOCKETS may be off (LibreTiny), so use the lwip symbol directly
+  int ret = lwip_select(fd + 1, nullptr, &writefds, nullptr, &tv);
+#else
+  // Global-scope select: the entity namespace esphome::select shadows it here
+  int ret = ::select(fd + 1, nullptr, &writefds, nullptr, &tv);
+#endif
+  if (ret < 0) {
+    err_out = errno;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
+  }
+  if (ret == 0) {
+    return ConnectPollResult::CONNECT_POLL_RESULT_PENDING;
+  }
+  int error = 0;
+  socklen_t len = sizeof(error);
+  if (sock.getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
+    err_out = errno;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
+  }
+  if (error != 0) {
+    err_out = error;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
+  }
+  return ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED;
+}
+#endif
 
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port) {
 #if USE_NETWORK_IPV6

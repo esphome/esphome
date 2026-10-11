@@ -15,6 +15,8 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+DOMAIN = "endstop"
+
 endstop_ns = cg.esphome_ns.namespace("endstop")
 
 ENDSTOP_SCHEMA = cv.Schema(

@@ -12,13 +12,13 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@ximex"]
+DOMAIN = "rtttl"
 CONF_RTTTL = "rtttl"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
 rtttl_ns = cg.esphome_ns.namespace("rtttl")
 
 Rtttl = rtttl_ns.class_("Rtttl", cg.Component)
-IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
 MULTI_CONF = True
 
@@ -120,12 +120,12 @@ automation.register_apply_action(
 )
 
 
-automation.register_parented_condition(
+automation.register_apply_condition(
     "rtttl.is_playing",
-    IsPlayingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(Rtttl),
         }
     ),
+    "is_playing()",
 )

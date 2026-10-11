@@ -20,7 +20,7 @@ static const uint8_t PMWCS3_REG_RES = 0x0B;
 static const uint8_t PMWCS3_REG_RC = 0x0C;
 static const uint8_t PMWCS3_REG_RT = 0x0D;
 
-static const char *const TAG = "pmwcs3";
+ESPHOME_LOG_TAG(TAG, "pmwcs3");
 
 void PMWCS3Component::new_i2c_address(uint8_t address) {
   if (!this->write_byte(PMWCS3_SET_I2C_ADDRESS, address)) {

@@ -9,6 +9,7 @@ from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
 
 CODEOWNERS = ["@hepter"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "ld6002b"
 MULTI_CONF = True
 
 ld6002b_ns = cg.esphome_ns.namespace("ld6002b")

@@ -21,6 +21,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
+DOMAIN = "udp"
 
 MULTI_CONF = True
 udp_ns = cg.esphome_ns.namespace("udp")
@@ -124,7 +125,15 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_broadcast_port(conf_port[CONF_BROADCAST_PORT]))
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
-    cg.add(var.set_addresses([str(addr) for addr in config[CONF_ADDRESSES]]))
+    # Shared flash table ended by nullptr, so the component stores only a pointer.
+    if addresses := [str(addr) for addr in config[CONF_ADDRESSES]]:
+        cg.add(
+            var.set_addresses(
+                cg.shared_progmem_array(
+                    "udp_addresses", cg.const_char_ptr, [*addresses, cg.nullptr]
+                )
+            )
+        )
     for conf in config.get(CONF_ON_RECEIVE, []):
         trigger_id = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         trigger = await automation.build_automation(trigger_id, trigger_argtype, conf)
@@ -176,16 +185,7 @@ async def udp_write_to_code(
     udp_var = await cg.get_variable(config[CONF_ID])
     await cg.register_parented(var, udp_var)
     cg.add(udp_var.set_should_broadcast())
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "udp_data"
+    )
     return var

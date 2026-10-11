@@ -2,13 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, improv_base, output
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_ON_START,
-    CONF_ON_STATE,
-    CONF_TRIGGER_ID,
-    PLATFORM_ESP32,
-)
+from esphome.const import CONF_ID, CONF_ON_START, CONF_ON_STATE, PLATFORM_ESP32
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -31,6 +25,7 @@ def AUTO_LOAD() -> list[str]:
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["wifi"]
+DOMAIN = "improv_ble"
 
 # Legacy top-level YAML key that routes here; esphome/loader.py and
 # esphome/config.py handle the warning and the key rename.
@@ -58,20 +53,35 @@ State = improv_ns.enum("State")
 
 improv_ble_ns = cg.esphome_ns.namespace("improv_ble")
 ImprovBLEComponent = improv_ble_ns.class_("ImprovBLEComponent", cg.Component)
-ImprovBLEProvisionedTrigger = improv_ble_ns.class_(
-    "ImprovBLEProvisionedTrigger", automation.Trigger.template()
-)
-ImprovBLEProvisioningTrigger = improv_ble_ns.class_(
-    "ImprovBLEProvisioningTrigger", automation.Trigger.template()
-)
-ImprovBLEStartTrigger = improv_ble_ns.class_(
-    "ImprovBLEStartTrigger", automation.Trigger.template()
-)
-ImprovBLEStateTrigger = improv_ble_ns.class_(
-    "ImprovBLEStateTrigger", automation.Trigger.template()
-)
-ImprovBLEStoppedTrigger = improv_ble_ns.class_(
-    "ImprovBLEStoppedTrigger", automation.Trigger.template()
+
+_STATE_PARAMS = [(State, "state"), (Error, "error")]
+_NOT_FAILED = "!{parent}->is_failed()"
+
+
+def _state_automation(
+    conf_key: str, args: list, states: str | None
+) -> automation.CallbackAutomation:
+    # Every automation hangs off the state callback and is silent while the component has failed.
+    return automation.CallbackAutomation(
+        conf_key,
+        "add_on_state_callback",
+        args,
+        params=_STATE_PARAMS,
+        forward=[name for _, name in args],
+        when=_NOT_FAILED if states is None else f"({states}) && {_NOT_FAILED}",
+    )
+
+
+_CALLBACK_AUTOMATIONS = (
+    _state_automation(CONF_ON_PROVISIONED, [], "state == improv::STATE_PROVISIONED"),
+    _state_automation(CONF_ON_PROVISIONING, [], "state == improv::STATE_PROVISIONING"),
+    _state_automation(
+        CONF_ON_START,
+        [],
+        "state == improv::STATE_AUTHORIZED || state == improv::STATE_AWAITING_AUTHORIZATION",
+    ),
+    _state_automation(CONF_ON_STATE, _STATE_PARAMS, None),
+    _state_automation(CONF_ON_STOP, [], "state == improv::STATE_STOPPED"),
 )
 
 
@@ -92,41 +102,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_WIFI_TIMEOUT, default=DEFAULT_WIFI_TIMEOUT
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_PROVISIONED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ImprovBLEProvisionedTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_PROVISIONING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ImprovBLEProvisioningTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_START): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ImprovBLEStartTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ImprovBLEStateTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_STOP): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ImprovBLEStoppedTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_PROVISIONED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PROVISIONING): automation.validate_automation({}),
+            cv.Optional(CONF_ON_START): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STOP): automation.validate_automation({}),
         }
     )
     .extend(improv_base.IMPROV_SCHEMA)
@@ -163,28 +143,6 @@ async def to_code(config: ConfigType) -> None:
         status_indicator = await cg.get_variable(config[CONF_STATUS_INDICATOR])
         cg.add(var.set_status_indicator(status_indicator))
 
-    use_state_callback = False
-    for conf in config.get(CONF_ON_PROVISIONED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_PROVISIONING, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_START, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(State, "state"), (Error, "error")], conf
-        )
-        use_state_callback = True
-    for conf in config.get(CONF_ON_STOP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    if use_state_callback:
+    if any(config.get(entry.conf_key) for entry in _CALLBACK_AUTOMATIONS):
         cg.add_define("USE_IMPROV_BLE_STATE_CALLBACK")
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
