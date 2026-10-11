@@ -67,6 +67,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         - Function-local constants: `lower_snake_case`
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
+        - Device components are named brand plus model (`siemens_ira211`), without a protocol-family prefix
         - Enumerator names: prefix every value of an `enum class` with the enum name converted to
           `UPPER_SNAKE_CASE` (e.g. `UARTFlushResult::UART_FLUSH_RESULT_SUCCESS`). Never use bare
           names like `SUCCESS`, `FAILURE`, `OK`, or `FAIL`: platform SDK headers define macros with
@@ -193,10 +194,18 @@ file does, and it is the authority when they disagree. The most useful starting 
         // Bad - this is exactly what the base class already does
         float get_setup_priority() const override { return setup_priority::DATA; }
         ```
-    *   **Lookup tables and status strings in flash:** on ESP8266 a `const` table, `static const` array or
-        `std::array` member initializer lives in RAM. Mark such tables `PROGMEM` and read them with
-        `progmem_memcpy()` or `progmem_read_byte()` (`esphome/core/hal.h`). Pass status text as `LOG_STR`,
-        e.g. `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, not as a `const char *`.
+    *   **Constant data lives in RAM on ESP8266** unless marked `PROGMEM`: `const` tables, class-scope
+        constant arrays, and in-class `std::array` initializers (a `.rodata` template plus a copy). Mark the
+        table `PROGMEM` and read it with `progmem_memcpy()` or `progmem_read_byte()` (`esphome/core/hal.h`);
+        for a table of structs copy the whole entry out and return the copy, never a pointer into flash.
+        The helpers are plain `memcpy` on other platforms, so no `#ifdef` is needed. Declare log tags with
+        `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
+        a `TEMPLATABLE_BYTES` field so a static code stays in flash.
+    *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
+        sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+    *   **Fixed platform facts compile to nothing:** gate on `#ifdef USE_ESP8266` and friends, not on a
+        runtime check of something the build already knows.
     *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
         can be stored in flash rather than RAM.
         ```cpp
@@ -629,6 +638,7 @@ file does, and it is the authority when they disagree. The most useful starting 
             name: My Sensor
         ```
         Components that define buses directly are flagged as "NEEDS MIGRATION" and cannot be grouped, increasing CI build time.
+        `!extend` and `!remove` in a test YAML also make the component ungroupable; add a standalone entity with its own id instead.
 
     *   **Testing All Components Together:** To verify that all components can be tested together without ID conflicts or configuration issues, use:
         ```bash
