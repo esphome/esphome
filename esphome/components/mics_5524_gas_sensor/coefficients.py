@@ -1,0 +1,137 @@
+"""Data tables for the ``mics_5524_gas_sensor`` platform.
+
+The conversion is the vendor model of the `DFRobot_MICS` library (MIT), which is
+what the "Fermion" analog breakout and its clones are sold for:
+``x = VCC - V_AO``, ``ratio = x / x_air`` (~1.0 in clean air, drops with gas),
+``ppm = (threshold - ratio) / gain`` clamped to the gas range.  ``x_air`` is
+sampled during the clean-air calibration, so the board's load resistor and its
+divider ratio do not matter.  Source: ``DFRobot_MICS.cpp`` (``getGasData()`` and
+the per-gas helpers), cross-checked against ``python/raspberrypi/DFRobot_MICS.py``.
+
+Every MQ/MiCS gas sensor responds to several reducing gases at once and the
+MiCS-5524 has a single analog output, so a reading is a mixture of CO, H2,
+ethanol, ammonia and methane: it cannot say which of them is present.
+
+The table is resolved at code generation time, so a wrong ``gas:`` fails the build
+instead of producing nonsense.
+"""
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class VendorCurve:
+    """Constants of the DFRobot vendor model for one gas."""
+
+    threshold: float  #: ratio at/below which the gas counts as detected
+    gain: float  #: ppm per unit ratio (the vendor's step size)
+    min_ppm: float  #: below this the vendor reports 0 ppm
+    max_ppm: float  #: upper end of the measuring range
+
+
+@dataclass(frozen=True)
+class GasDefinition:
+    """One gas of the MiCS-5524, with the constants of the vendor model."""
+
+    label: str
+    vendor: VendorCurve
+
+
+#: Per-gas constants: the DFRobot_MICS `getGasData()` thresholds/gains and the
+#: measuring ranges the vendor documents for them (the Fermion module reaches
+#: 1000 ppm for CO and H2, the trace / early-warning band this project uses).
+GASES: dict[str, GasDefinition] = {
+    "CO": GasDefinition(label="CO", vendor=VendorCurve(0.425, 0.000405, 1.0, 1000.0)),
+    "H2": GasDefinition(label="H2", vendor=VendorCurve(0.279, 0.00026, 1.0, 1000.0)),
+    "NH3": GasDefinition(label="NH3", vendor=VendorCurve(0.8, 0.0015, 10.0, 500.0)),
+    "C2H5OH": GasDefinition(
+        label="C2H5OH", vendor=VendorCurve(0.306, 0.00057, 10.0, 500.0)
+    ),
+    "CH4": GasDefinition(
+        label="CH4", vendor=VendorCurve(0.786, 0.000023, 1000.0, 25000.0)
+    ),
+}
+
+#: Friendly aliases accepted by ``gas:`` (the two references name gases differently).
+GAS_ALIASES: dict[str, str] = {
+    "CARBONMONOXIDE": "CO",
+    "CO": "CO",
+    "HYDROGEN": "H2",
+    "H2": "H2",
+    "AMMONIA": "NH3",
+    "NH3": "NH3",
+    "ETHANOL": "C2H5OH",
+    "ALCOHOL": "C2H5OH",
+    "C2H5OH": "C2H5OH",
+    "METHANE": "CH4",
+    "CH4": "CH4",
+}
+
+
+def normalize_gas(value: str) -> str:
+    """``"h2"`` / ``"h-2"`` -> ``"H2"``; ``"ethanol"`` stays upper case."""
+    return str(value).strip().upper().replace("-", "").replace(" ", "")
+
+
+def resolve_gas_key(value: str) -> str:
+    """Map a user supplied gas name to a key of :data:`GASES`.
+
+    Accepts the vendor keys and the datasheet names (``hydrogen``, ``methane``,
+    ``ethanol``/``alcohol``, ``ammonia``, ``carbon monoxide``).
+    """
+    normalized = normalize_gas(value)
+    return GAS_ALIASES.get(normalized, normalized)
+
+
+def gas_keys() -> list[str]:
+    """Canonical gas keys, ordered as in the vendor documentation."""
+    return list(GASES)
+
+
+def label_for(gas_key: str) -> str:
+    """Friendly label of a gas key (``H2`` -> ``H2``)."""
+    return GASES[gas_key].label
+
+
+@dataclass(frozen=True)
+class ResolvedGas:
+    """Fully resolved gas configuration handed to the C++ component."""
+
+    gas: str
+    label: str
+    threshold: float  #: ratio at/below which the gas counts as detected
+    gain: float  #: ppm per unit ratio
+    vendor_min_ppm: float  #: below this the vendor reports 0
+    vendor_max_ppm: float  #: upper end of the vendor's own range
+    min_ppm: float
+    max_ppm: float
+
+
+def resolve_gas(
+    gas: str,
+    *,
+    min_ppm: float | None = None,
+    max_ppm: float | None = None,
+) -> ResolvedGas:
+    """Merge the built-in table of `gas` with explicit YAML overrides.
+
+    Raises :class:`ValueError` for an unknown gas.
+    """
+    if gas not in GASES:
+        raise ValueError(
+            f"unknown gas '{gas}', expected one of: {', '.join(gas_keys())}"
+        )
+
+    definition = GASES[gas]
+    curve = definition.vendor
+
+    return ResolvedGas(
+        gas=gas,
+        label=definition.label,
+        threshold=curve.threshold,
+        gain=curve.gain,
+        vendor_min_ppm=curve.min_ppm,
+        vendor_max_ppm=curve.max_ppm,
+        min_ppm=float(0.0 if min_ppm is None else min_ppm),
+        max_ppm=float(curve.max_ppm if max_ppm is None else max_ppm),
+    )

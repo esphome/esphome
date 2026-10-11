@@ -1,0 +1,30 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mics_5524_adc
+    name: MiCS-5524 AO
+    pin: GPIO34
+
+  - platform: mics_5524_gas_sensor
+    id: mics_5524_co
+    name: MiCS-5524 CO
+    gas: carbon monoxide
+    voltage: mics_5524_adc
+    voltage_multiplier: 1.5
+    min_ppm: 1.0
+    max_ppm: 500.0
+    calibration:
+      delay: 5s
+      sample_count: 3
+
+  - platform: mics_5524_gas_sensor
+    id: mics_5524_h2
+    name: MiCS-5524 H2
+    gas: h2
+    voltage: mics_5524_adc
+    air_reference: 3.6
