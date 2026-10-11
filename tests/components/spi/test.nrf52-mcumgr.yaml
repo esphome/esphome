@@ -1,2 +1,0 @@
-packages:
-  spi: !include ../../test_build_components/common/spi/nrf52.yaml
