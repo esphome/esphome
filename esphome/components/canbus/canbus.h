@@ -82,6 +82,7 @@ class Canbus : public Component {
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
+  void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
 
   void add_trigger(CanbusTrigger *trigger);
   /**
@@ -100,8 +101,9 @@ class Canbus : public Component {
   template<typename... Ts> friend class CanbusSendAction;
   std::vector<CanbusTrigger *> triggers_{};
   uint32_t can_id_;
-  bool use_extended_id_;
-  CanSpeed bit_rate_;
+  uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
+  CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
+  bool use_extended_id_{false};
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
