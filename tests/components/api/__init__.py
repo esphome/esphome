@@ -1,5 +1,11 @@
+from pathlib import Path
+
 import esphome.codegen as cg
+from esphome.const import CONF_ESPHOME, CONF_INCLUDES
+from esphome.core import CORE
 from tests.testing_helpers import ComponentManifestOverride
+
+TESTS_DIR = Path(__file__).parent
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
@@ -10,16 +16,18 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_API_PLAINTEXT")
         # Linked wizard inputs only exist next to homeassistant entities, which need this
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
-        # test_wizard.cpp supplies the tables that codegen emits for a real build
-        for define in (
-            "USE_API_WIZARD",
-            "USE_API_WIZARD_INPUTS",
-            "USE_API_WIZARD_LINKED_INPUTS",
-            "USE_API_WIZARD_STANDALONE_INPUTS",
-        ):
-            cg.add_define(define)
-        cg.add_define("API_WIZARD_DATA_SIZE", 200)
-        cg.add_define("API_WIZARD_INPUT_COUNT", 2)
+        # test_wizard.cpp supplies the tables that codegen emits for a real build;
+        # it is only compiled when api's own tests are, not when api is a dependency
+        if any(Path(p) == TESTS_DIR for p in CORE.config[CONF_ESPHOME][CONF_INCLUDES]):
+            for define in (
+                "USE_API_WIZARD",
+                "USE_API_WIZARD_INPUTS",
+                "USE_API_WIZARD_LINKED_INPUTS",
+                "USE_API_WIZARD_STANDALONE_INPUTS",
+            ):
+                cg.add_define(define)
+            cg.add_define("API_WIZARD_DATA_SIZE", 200)
+            cg.add_define("API_WIZARD_INPUT_COUNT", 2)
         cg.add_define("API_MAX_SEND_QUEUE", 8)
         cg.add_define("MAX_API_CONNECTIONS", 1)
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")

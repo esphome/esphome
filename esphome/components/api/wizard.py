@@ -11,6 +11,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION
+from esphome.components.homeassistant import DOMAIN as HOMEASSISTANT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -265,7 +266,7 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
         fv.full_config.get(), conf[CONF_ENTITY]
     )
     if (
-        declaration.get(CONF_PLATFORM) != "homeassistant"
+        declaration.get(CONF_PLATFORM) != HOMEASSISTANT_DOMAIN
         or domain not in WIZARD_INPUT_DOMAINS
     ):
         raise cv.Invalid(
