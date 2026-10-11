@@ -13,7 +13,10 @@ struct MirageData {
 
 class MirageProtocol : public RemoteProtocol<MirageData> {
  public:
-  void encode(RemoteTransmitData *dst, const MirageData &data);
+  void encode(RemoteTransmitData *dst, const MirageData &data) {
+    this->encode(dst, data.data.data(), data.data.size());
+  }
+  void encode(RemoteTransmitData *dst, const uint8_t *data, size_t len);
   optional<MirageData> decode(RemoteReceiveData src);
   void dump(const MirageData &data);
 
@@ -28,9 +31,7 @@ template<typename... Ts> class MirageAction : public RemoteTransmitterActionBase
   TEMPLATABLE_BYTES(code)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    MirageData data{};
-    data.data = this->code_.value(x...);
-    MirageProtocol().encode(dst, data);
+    this->code_.visit([dst](const uint8_t *data, size_t len) { MirageProtocol().encode(dst, data, len); }, x...);
   }
 };
 
