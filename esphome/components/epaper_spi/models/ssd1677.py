@@ -14,10 +14,12 @@ MONOCHROME = "monochrome"
 
 
 class SSD1677(EpaperModel):
+    class_name = "EPaperSSD1677"
+
     def __init__(
         self,
         name: str,
-        class_name: str = "EPaperSSD1677",
+        class_name: str | None = None,
         data_rate: str = "20MHz",
         border_waveform: int = 0x01,
         **defaults: Any,

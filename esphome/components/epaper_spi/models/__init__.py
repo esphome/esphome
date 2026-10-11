@@ -10,19 +10,25 @@ from esphome.types import ConfigType
 class EpaperModel:
     models: dict[str, Self] = {}
 
+    # The C++ driver class; a subclass sets it for all its models, or one model passes class_name.
+    class_name: str = ""
+
     # Whether the driver manages chip-select itself instead of via the SPI bus.
     manages_cs: bool = False
 
     def __init__(
         self,
         name: str,
-        class_name: str,
+        class_name: str | None = None,
         initsequence=(),
         **defaults,
     ):
+        if class_name is not None:
+            self.class_name = class_name
+        if not self.class_name:
+            raise ValueError(f"Model {name} has no class_name")
         name = name.upper()
         self.name = name
-        self.class_name = class_name
         self.initsequence = initsequence
         self.defaults = defaults
         EpaperModel.models[name] = self
@@ -96,11 +102,14 @@ class EpaperModel:
         :param kwargs:
         :return:
         """
+        class_name = kwargs.pop("class_name", self.class_name)
         initsequence = list(kwargs.pop("initsequence", self.initsequence) or ())
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
         defaults.update(kwargs)
-        return self.__class__(name, initsequence=tuple(initsequence), **defaults)
+        return self.__class__(
+            name, class_name=class_name, initsequence=tuple(initsequence), **defaults
+        )
 
     def check_requirements(self) -> None:
         """
