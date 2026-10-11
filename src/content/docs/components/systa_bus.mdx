@@ -15,7 +15,7 @@ protocol.
 | ------------------------- | --------------- |
 | PARADIGMA SystaSolar Aqua | `systasolar_aqua` |
 
-Use the config value as the `model` option of your `sensor` entries.
+Use the config value as the `model` option of your `sensor` and `text_sensor` entries.
 
 ## Hardware Connection
 
@@ -100,10 +100,32 @@ Sensors for **systasolar_aqua**:
 > possibly every second. If you are concerned about the load on the receiving database, you can add a
 > `throttle` filter to the sensors.
 
+## Text Sensor
+
+```yaml
+# Example configuration entry
+text_sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    error_code:
+      name: Error Code
+```
+
+### Configuration Variables
+
+- **model** (**Required**, string): The model of the connected controller. Choose one of the config values
+  listed in the table of supported models above.
+
+Text Sensors for **systasolar_aqua**:
+
+- **error_code** (*Optional*): Error code as displayed on the controller, `--` if no error is reported.
+  All options from [Text Sensor](/components/text_sensor/).
+
 ## See Also
 
 - [UART Bus](/components/uart/)
 - [Sensor Component](/components/sensor/)
+- [Text Sensor Component](/components/text_sensor/)
 - [Aqua II data format (German)](https://ringwelt.de/homeautomation/heizungsanlage/datenformat.html)
 
 [falstad]: https://www.falstad.com/circuit/circuitjs.html?ctz=DwYwlgTgBAZgvAIgAwKgFwM6IEwDokCMAbAdgJxIDM22ArABxJEAstApgLQDsqYIizXHWwEk9bEklNsXMqhAAjRLRRQADkoTNKqAG4RlqALaZlnAgQQA+AFBQowXVAAeiDhPpQyRKO7G-iVHhkVAB3YOwggwQCFSljAENnXUMAelt7Rxc3DyhsZiRfXO8gxFVwssTknEj0uwdQ7IQ-Tw5iX28AolKQusyAcyaWvIKi-zpu2Eq+hxAm-MLOylpsL0ng1X4EIlx6TnpeFOR8QlQMaNVdABMcAiFKQi4C+hVmLh4Z4GhXBGXVzuYLDWPVU0TekgQnyuTUBzDy+SgsOBUxCUCMAHtEAQAHIFJDMSEZBowoGdFaeEoolCfOY-Ii0HyMKD0nw0AlU+SIHZ7DgHKBgI5IE6WKDnMq4EXXcVIWisB60ahEIiUMi0LikWiE+rARo-NU+CyrfXw9kbLWZXXKLishEsk0g83EukMk1QLgre0cz6WhALNYjQocagOz7fLkuoOrP2Rh1QMFcCGfNBNcn+42Us3qAB2WNQCjYtzkaMxCCubBgCQArgAbNB6fPi2hkOhMF6xJgEQGRKC6BRbIUsBMq+iMCREeiUZhyb0p61QJl2xghonABIYVY-NqMwOdJco7sQdE532g9EwYKiKRXiHoAAWOFwms+Tk37Wj7U7psqUAqvqiAkYVQjCSI4nxXH0tygT9fFJdZpnAoZOkgjhOhYZdtWhH5SApVlRgzb8MSxXFJAJT4AHk1DQdEQHRSs1GrNgwwQd1Vmw+dqCg7A+Qvax6kyZNewLZpKHwZgCBVSdqDISgVW7Xt+yEBgmyICQGCIdUiCYdkwB+WoV1SCiqJouiGIgFcXyxJAET+KCrLhNCUUCH9M2A6pflwHRQyaehmE8Ahm3nXyoD+WN40TFdBiwuzgo9URrPHdCLSaFioM0t0PTZRKnUQHzPBsuK4RCr0EJ+FKFxdPczRnKLbThXLmS-XoSpyoL-NWehOjarKdW81quMCzwHKq5qEHqtqBtS1Rhu1H0UrYsqpvg7VnCaChaDySQvA4iQdA5UUwBwVQ0CEgAlAANR0ep+JE2SgY1MuKmaYU8W6bvybqILfUZhgWD7EJ8JDijgpqntfXDCiC37HqSsH5whzxKqWmHwx8SNmQqxaQeRrQEfh5FpuxyGEUhgpupW508g-fzKaLTMMAOk9UGOxAACEAFUAGVfEu8muQNAg-IeTiRTphmJCZoT2a5gBqS6FCGagCF8F1KCVrieGhhxeeE0hfCFto1SKDXRcOiXEA59FqwSaAAGEjzQQ9q1MnmUzIZX1poN2OBWWN6dN9AhLtrNdEY47bcgEBKzAOtPm1jrKGC5h-koPLWF9sWjqEgBxbEABEXZ+DqAaV6T1rIRrVD9xmA8QSgADVPJXbW3j85U7roVLgcrhnSDNmJiKQD4m5TFVmS4O76B8BN06xbtmd9bEaBoAvEC4egldEN317dw0Z5iOehIABRt9eh9BgD-TY-CsYceW9VWbgKUNlUK5XmIVPnKMkC3zU9qr3ua79zxGfTI6IoBsGPHyDAagco9GcBIKyqAYEhCJJkNQPZvwYAUisBUa9B75AkOQSgICHCpHRLYYAqRwBmRsEAA
