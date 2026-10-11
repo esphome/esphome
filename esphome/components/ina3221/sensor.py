@@ -89,10 +89,18 @@ def validate_adc_time(value: Any) -> int:
 def validate_alert_limits(config: ConfigType) -> ConfigType:
     shunt = config[CONF_SHUNT_RESISTANCE]
     for key in (CONF_WARNING_CURRENT_LIMIT, CONF_CRITICAL_CURRENT_LIMIT):
-        if (limit := config.get(key)) is not None and limit * shunt > ALERT_LIMIT_MAX_V:
+        if (limit := config.get(key)) is None:
+            continue
+        if limit * shunt > ALERT_LIMIT_MAX_V:
             raise cv.Invalid(
                 f"{key} times shunt_resistance exceeds the "
                 f"{ALERT_LIMIT_MAX_V * 1000:.1f} mV alert range",
+                path=[key],
+            )
+        if alert_limit_register(limit, shunt) == 0:
+            raise cv.Invalid(
+                f"{key} times shunt_resistance is below the "
+                f"{ALERT_LIMIT_LSB_V * 1e6:.0f} µV alert resolution",
                 path=[key],
             )
     return config
