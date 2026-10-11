@@ -6,6 +6,7 @@ import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.network import (
     add_use_address,
+    final_validate_no_manual_ip_if_ipv6_only,
     get_network_priority,
     get_priority_interfaces_from_full_config,
     ip_address_literal,
@@ -835,6 +836,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     """Final validation for Ethernet component."""
+    final_validate_no_manual_ip_if_ipv6_only(config)
     # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
     if "wifi" in fv.full_config.get():
         priority_ifaces = get_priority_interfaces_from_full_config(fv.full_config.get())

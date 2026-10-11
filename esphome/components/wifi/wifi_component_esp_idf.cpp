@@ -35,6 +35,10 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#ifdef USE_NETWORK_IPV6_ONLY
+#include <esp_netif_net_stack.h>
+#include "lwip/dhcp6.h"
+#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -584,6 +588,15 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
       sntp_servermode_dhcp(false);
     }
 
+#ifdef USE_NETWORK_IPV6_ONLY
+    // Keep the DHCPv4 client stopped. esp_netif then makes this netif the default route on link-up.
+    (void) dhcp_status;
+    err = esp_netif_dhcpc_stop(s_sta_netif);
+    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+      ESP_LOGV(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(err));
+    }
+    return true;
+#else
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
       err = esp_netif_dhcpc_start(s_sta_netif);
@@ -593,6 +606,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
       return err == ESP_OK;
     }
     return true;
+#endif  // USE_NETWORK_IPV6_ONLY
   }
 
   esp_netif_ip_info_t info;  // struct of ip4_addr_t with ip, netmask, gw
@@ -834,6 +848,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
       ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
     }
+#if defined(USE_NETWORK_IPV6_ONLY) && LWIP_IPV6_DHCP6
+    // Stateless DHCPv6 for DNS servers; esp_netif never starts it.
+    if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
+      LwIPLock lock;
+      dhcp6_enable_stateless(netif);
+    }
+#endif
 #endif /* USE_NETWORK_IPV6 */
     if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
       // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
@@ -896,8 +917,17 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
+    if (it.esp_netif != s_sta_netif) {
+      return;  // another interface's address (AP netif, or ethernet alongside wifi)
+    }
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
-    this->num_ipv6_addresses_++;
+    // Count the addresses on the interface, not the events: a roam re-creates the
+    // link-local and fires another event for the same address. Never count down
+    // while associated: a roam briefly clears every address before SLAAC re-adds
+    // them, and that must not read as a lost connection. wifi_sta_connect_() resets.
+    struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+    auto count = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, if_ip6s));
+    this->num_ipv6_addresses_ = std::max(this->num_ipv6_addresses_, count);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
@@ -1045,6 +1075,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
+#ifdef USE_NETWORK_IPV6_ONLY
+  // Validation guarantees USE_NETWORK_MIN_IPV6_ADDR_COUNT >= 1.
+  if (s_sta_connected && this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
+    return WiFiSTAConnectStatus::CONNECTED;
+  }
+#else
   if (s_sta_connected && this->got_ipv4_address_) {
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
@@ -1052,8 +1088,9 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
     }
 #else
     return WiFiSTAConnectStatus::CONNECTED;
-#endif /* USE_NETWORK_IPV6 */
+#endif  /* USE_NETWORK_IPV6 */
   }
+#endif  // USE_NETWORK_IPV6_ONLY
   if (s_sta_connect_error) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   }
