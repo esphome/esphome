@@ -628,7 +628,7 @@ void LD2450Component::handle_periodic_data_() {
     }
   }
 #endif
-#ifdef USE_SENSOR
+#ifdef USE_BINARY_SENSOR
   // For presence timeout check
   if (target_count > 0) {
     this->presence_millis_ = App.get_loop_component_start_time();
