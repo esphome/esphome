@@ -1,0 +1,71 @@
+motion:
+  - platform: lis3dh
+    id: lis3dh_main
+    i2c_id: i2c_bus
+    address: 0x18
+    # Full-scale range: 2G | 4G | 8G | 16G
+    accelerometer_range: 2G
+    # Output data rate: 1HZ | 10HZ | 25HZ | 50HZ | 100HZ | 200HZ | 400HZ | 1620HZ | 1344HZ
+    accelerometer_odr: 100HZ
+    # Resolution / power mode: LOW_POWER | NORMAL | HIGH_RESOLUTION
+    operating_mode: HIGH_RESOLUTION
+    axis_map:
+      x: y
+      y: x
+      z: -z
+    # Motion (activity) interrupt - keeps the INT pad asserted while moving so it
+    # can be used as the deep_sleep wakeup_pin.
+    interrupt:
+      pin: INT1
+      threshold: 1.1g
+      duration: 0
+      axes: [x, y, z]
+      latched: true
+      active_high: true
+      high_pass_filter: false
+
+  # A second device covering the other side of each option: low power mode with
+  # the rate that only exists there, routed to INT2, active low, unlatched, and
+  # with the high-pass filter on.
+  - platform: lis3dh
+    id: lis3dh_low_power
+    i2c_id: i2c_bus
+    address: 0x19
+    accelerometer_range: 16G
+    accelerometer_odr: 1620HZ
+    operating_mode: LOW_POWER
+    interrupt:
+      pin: INT2
+      threshold: 0.05g
+      duration: 2
+      axes: [z]
+      latched: false
+      active_high: false
+      high_pass_filter: true
+
+sensor:
+  - platform: lis3dh
+    lis3dh_id: lis3dh_main
+    type: temperature
+    name: "LIS3DH Temperature"
+
+  - platform: motion
+    motion_id: lis3dh_main
+    type: acceleration_x
+    name: "Accel X"
+  - platform: motion
+    motion_id: lis3dh_main
+    type: acceleration_y
+    name: "Accel Y"
+  - platform: motion
+    motion_id: lis3dh_main
+    type: acceleration_z
+    name: "Accel Z"
+  - platform: motion
+    motion_id: lis3dh_main
+    type: pitch
+    name: "Pitch"
+  - platform: motion
+    motion_id: lis3dh_main
+    type: roll
+    name: "Roll"
