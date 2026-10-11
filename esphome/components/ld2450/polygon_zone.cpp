@@ -31,7 +31,10 @@ void PolygonZone::dump_config() {
 
 void PolygonZone::control(const std::string &value) {
   if (this->polygon_.parse(value.c_str(), value.size())) {
-    this->pref_.save(&this->polygon_);
+    if (!this->pref_.save(&this->polygon_)) {
+      // On ESP8266, preference storage is small and can run out with several zones
+      ESP_LOGW(TAG, "'%s': could not save the polygon; it will be lost on reboot", this->get_name().c_str());
+    }
     // A target seen inside the previous polygon must not keep the new one on
     this->last_inside_ms_ = 0;
     if (this->polygon_.empty())
