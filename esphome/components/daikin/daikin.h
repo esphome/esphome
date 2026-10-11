@@ -35,6 +35,8 @@ const uint8_t DAIKIN_PRESET_ECONO_ON = 0x04;
 const uint8_t DAIKIN_PRESET_SENSOR_ON = 0x02;
 // The unit leaves powerful mode by itself after 20 minutes; mirror that in the entity
 const uint32_t DAIKIN_BOOST_DURATION_MS = 20 * 60 * 1000;
+// The three frames of one transmission arrive well inside this window
+const uint32_t DAIKIN_TRANSMISSION_MS = 1000;
 
 // IR Transmission
 const uint32_t DAIKIN_IR_FREQUENCY = 38000;
@@ -82,6 +84,7 @@ class DaikinClimate final : public climate_ir::ClimateIR {
   /// What the 0xC5 frame of the current transmission said about comfort, applied by the state frame
   enum class PendingComfort : uint8_t { UNKNOWN, OFF, ON };
   PendingComfort pending_comfort_{PendingComfort::UNKNOWN};
+  uint32_t pending_comfort_at_{0};
 };
 
 }  // namespace esphome::daikin

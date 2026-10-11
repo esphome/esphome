@@ -1,5 +1,6 @@
 #include "daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/application.h"
 
 namespace esphome::daikin {
 
@@ -263,7 +264,10 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   }
 
   // Comfort lives in the first frame, recorded as pending until this frame proves the transmission valid
-  const PendingComfort comfort = this->pending_comfort_;
+  // A comfort frame whose own state frame never came must not attach to a later transmission
+  const uint32_t now = App.get_loop_component_start_time();
+  const PendingComfort comfort =
+      now - this->pending_comfort_at_ <= DAIKIN_TRANSMISSION_MS ? this->pending_comfort_ : PendingComfort::UNKNOWN;
   this->pending_comfort_ = PendingComfort::UNKNOWN;
   if (frame[13] & DAIKIN_PRESET_POWERFUL_ON) {
     this->preset = climate::CLIMATE_PRESET_BOOST;
@@ -334,6 +338,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (frame_size == DAIKIN_COMFORT_FRAME_SIZE) {
     // Nothing changes yet: the state frame that follows applies it once it has passed its own checksum
     this->pending_comfort_ = (frame[6] & DAIKIN_PRESET_COMFORT_ON) ? PendingComfort::ON : PendingComfort::OFF;
+    this->pending_comfort_at_ = App.get_loop_component_start_time();
     return true;
   }
   return this->parse_state_frame_(frame);
