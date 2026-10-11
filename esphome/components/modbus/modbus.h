@@ -437,6 +437,20 @@ class ModbusClientDevice {
     return this->on_modbus_no_response();
 #pragma GCC diagnostic pop
   }
+  /// Overloads of the hooks above with the device address of the request first, taken from the request frame, so it
+  /// stays correct after set_address(). The hub calls these; the defaults forward to the hooks above.
+  virtual void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
+                           std::span<const uint8_t> response_pdu) {
+    this->on_response(request_pdu, response_pdu);
+  }
+  virtual void on_error(uint8_t address, std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
+    this->on_error(request_pdu, exception_code);
+  }
+  virtual void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_not_sent(request_pdu); }
+  virtual void on_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_sent(request_pdu); }
+  virtual bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) {
+    return this->on_no_response(request_pdu);
+  }
   // Remove before 2027.2.0
   ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")
   virtual void on_modbus_not_sent() {}
