@@ -57,12 +57,22 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
     }
 
     message += `, which makes it harder for maintainers to review.\n\n`;
+    let condition;
+    if (tooManyLabels && tooManyChanges) {
+      condition =
+        `is under ${TOO_BIG_THRESHOLD} lines (excluding tests) and touches ` +
+        `at most ${MAX_LABELS} components/areas`;
+    } else if (tooManyLabels) {
+      condition = `touches at most ${MAX_LABELS} components/areas`;
+    } else {
+      condition = `is under ${TOO_BIG_THRESHOLD} lines (excluding tests)`;
+    }
     message +=
-      `**This PR will not be reviewed until it is under ${TOO_BIG_THRESHOLD} ` +
-      `lines (excluding tests).** We know that is not what you want to hear ` +
-      `after this much work, and we want to be upfront so you do not wait ` +
-      `for a review that is not coming: please split the change. The label ` +
-      `is removed automatically once the PR is under the cap.\n\n`;
+      `**This PR will not be reviewed until it ${condition}.** We know ` +
+      `that is not what you want to hear after this much work, and we want ` +
+      `to be upfront so you do not wait for a review that is not coming: ` +
+      `please split the change. The label is removed automatically once ` +
+      `the PR ${condition}.\n\n`;
     message +=
       `A maintainer can add the \`mega-pr\` label after a conversation in ` +
       `\`#devs\` on [Discord](https://esphome.io/chat) for a change that ` +
@@ -219,6 +229,7 @@ async function handleMaintainerAccessComment(github, context, maintainerAccess) 
 }
 
 module.exports = {
+  generateReviewMessages,
   handleReviews,
   handleMaintainerAccessComment
 };
