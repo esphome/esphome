@@ -10,6 +10,8 @@ namespace esphome::scd30 {
 
 ESPHOME_LOG_TAG(TAG, "scd30");
 
+static constexpr uint32_t STATUS_CHECK_INTERVAL_ID = 0;
+
 static const uint16_t SCD30_CMD_GET_FIRMWARE_VERSION = 0xd100;
 static const uint16_t SCD30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
 static const uint16_t SCD30_CMD_ALTITUDE_COMPENSATION = 0x5102;
@@ -107,7 +109,7 @@ void SCD30Component::setup() {
   }
 
   // check each 500ms if data is ready, and read it in that case
-  this->set_interval("status-check", 500, [this]() {
+  this->set_interval(STATUS_CHECK_INTERVAL_ID, 500, [this]() {
     if (this->is_data_ready_())
       this->update();
   });

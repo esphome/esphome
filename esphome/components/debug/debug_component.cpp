@@ -58,7 +58,7 @@ void DebugComponent::loop() {
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
     ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
-    this->status_momentary_warning("heap", 1000);
+    this->status_momentary_warning(1000);
   }
 
 #ifdef USE_SENSOR

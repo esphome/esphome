@@ -17,6 +17,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@hwstar", "@clydebarrow", "@bdraco"]
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pca9554"
 MULTI_CONF = True
 CONF_PIN_COUNT = "pin_count"
 pca9554_ns = cg.esphome_ns.namespace("pca9554")

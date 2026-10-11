@@ -29,6 +29,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "media_player"
 
 IS_PLATFORM_COMPONENT = True
 

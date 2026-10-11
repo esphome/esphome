@@ -58,8 +58,9 @@ switch:
 
 zigbee:
   model: zigbee_test
-  router: false
-  power_source: MAINS_SINGLE_PHASE
+  sleepy: true
+  polling_interval: 2s
+  power_source: BATTERY
   on_join:
     then:
       - logger.log: "Joined network"

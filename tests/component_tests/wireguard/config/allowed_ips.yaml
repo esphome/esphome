@@ -1,0 +1,26 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: test
+  password: password1
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+wireguard:
+  time_id: sntp_time
+  address: 172.16.34.100
+  netmask: 255.255.255.0
+  private_key: wPBMxtNYH3mChicrbpsRpZIasIdPq3yZuthn23FbGG8=
+  peer_public_key: Hs2JfikvYU03/Kv3YoAs1hrUIPPTEkpsZKSPUljE9yc=
+  peer_endpoint: wg.server.example
+  peer_allowed_ips:
+    - 172.16.34.0/24
+    - 192.168.0.0/16
