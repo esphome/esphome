@@ -9,7 +9,10 @@ ESPHOME_LOG_TAG(TAG, "lp5562");
 // see table 26 in the datasheet https://web.archive.org/web/20240327023921/https://www.ti.com/lit/ds/symlink/lp5562.pdf
 static constexpr uint8_t LP5562_REG_ENABLE = 0x00;
 static constexpr uint8_t LP5562_REG_CONFIG = 0x08;
+static constexpr uint8_t LP5562_REG_RESET = 0x0d;
 static constexpr uint8_t LP5562_REG_LED_MAP = 0x70;
+
+static constexpr uint8_t LP5562_RESET_VALUE = 0xff;
 
 static constexpr uint8_t LP5562_ENABLE_CHIP_EN = 0x40;
 static constexpr uint8_t LP5562_CONFIG_INT_CLK_EN = 0x01;
@@ -24,6 +27,9 @@ static constexpr uint8_t LP5562_REG_PWM[4] = {
 };
 
 void LP5562Output::setup() {
+  // clear any state left over from before a warm reboot; the chip may not ACK while resetting, so ignore the result
+  this->write_byte(LP5562_REG_RESET, LP5562_RESET_VALUE);
+  delay(1);
   // power up the chip and enable the internal 32 kHz oscillator, see
   // https://github.com/m5stack/M5GFX/blob/b2422cdb4735159209c2097d425c0756505b9a81/src/M5GFX.cpp#L566
   if (!this->write_byte(LP5562_REG_ENABLE, LP5562_ENABLE_CHIP_EN)) {
@@ -48,14 +54,14 @@ void LP5562Output::dump_config() {
 }
 
 void LP5562Output::set_channel_value_(uint8_t channel, uint8_t value) {
+  if (this->is_failed())
+    return;
   if (!this->write_byte(LP5562_REG_PWM[channel], value)) {
     this->status_set_warning();
     return;
   }
   this->status_clear_warning();
 }
-
-void LP5562Output::register_channel(LP5562Channel *channel) { channel->set_parent(this); }
 
 void LP5562Channel::write_state(float state) {
   const uint8_t max_duty = 255;

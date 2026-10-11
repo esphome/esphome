@@ -11,21 +11,17 @@ class LP5562Output;
 
 class LP5562Channel final : public output::FloatOutput, public Parented<LP5562Output> {
  public:
-  void set_channel(uint8_t channel) { channel_ = channel; }
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
 
  protected:
-  friend class LP5562Output;
-
   void write_state(float state) override;
 
-  uint8_t channel_;
+  uint8_t channel_{0};
 };
 
 /// LP5562 4-channel (RGBW) I2C LED driver.
 class LP5562Output final : public Component, public i2c::I2CDevice {
  public:
-  void register_channel(LP5562Channel *channel);
-
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

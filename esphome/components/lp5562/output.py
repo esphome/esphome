@@ -29,8 +29,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_LP5562_ID])
     var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_parented(var, config[CONF_LP5562_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-    cg.add(parent.register_channel(var))
     await output.register_output(var, config)
