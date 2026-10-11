@@ -290,8 +290,16 @@ def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
             return sdo_pin_no in (-1, 13) and sdi_pin_no in (-1, 12)
         return False
 
-    if target_platform in (PLATFORM_ESP32, PLATFORM_NRF52):
+    if target_platform == PLATFORM_ESP32:
         return clk_pin_no >= 0
+
+    if target_platform == PLATFORM_NRF52:
+        # Expander pin numbers would be mapped into NRF_PSEL and route the bus to the wrong pads
+        return all(
+            pins.PIN_SCHEMA_REGISTRY.get_key(spi[key]) == PLATFORM_NRF52
+            for key in (CONF_CLK_PIN, CONF_MOSI_PIN, CONF_MISO_PIN)
+            if key in spi
+        )
 
     if target_platform == PLATFORM_RP2:
         if index == -1:
