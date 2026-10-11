@@ -1,5 +1,5 @@
 ---
-description: "Instructions for setting up TMP102 temperature sensors."
+description: "Instructions for TMP102 temperature readings and thermostat configuration."
 title: "TMP102 Temperature Sensor"
 ---
 
@@ -9,10 +9,9 @@ import tmp102FullImg from './images/tmp102-full.jpg';
 import temperatureImg from './images/temperature.png';
 import APIRef from '@components/APIRef.astro';
 
-The TMP102 Temperature sensor allows you to use your TMP102
-([Sparkfun](https://www.sparkfun.com/products/13314)) and LM75 sensors with
-ESPHome. The [I²C Bus](/components/i2c) is required to be set up in your
-configuration for this sensor to work.
+The TMP102 temperature sensor allows you to use [Texas Instruments TMP102](https://www.ti.com/product/TMP102)
+and LM75 sensors with ESPHome. TMP102 breakout boards are available from
+[SparkFun](https://www.sparkfun.com/products/13314). The [I²C Bus](/components/i2c/) must be configured first.
 
 <Figure
   src={tmp102FullImg}
@@ -31,17 +30,82 @@ sensor:
     update_interval: 60s
 ```
 
-## Configuration variables
+## Configuration Variables
 
-- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
-- **address** (*Optional*, int): The I²C address of the sensor. Defaults to `0x48`.
-  See [I²C Addresses](/components/sensor/tmp117#tmp117_i2c_addresses) for more information.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types/#time)): How often ESPHome reads the sensor.
+  Defaults to `60s`.
+- **address** (*Optional*, int): The I²C address. Defaults to `0x48`. TMP102 supports `0x48` through `0x4B`,
+  selected by the ADD0 pin.
+- All other options from [Sensor](/components/sensor/).
 
-- All other options from [Sensor](/components/sensor).
+### Optional Hardware Settings
+
+Temperature-only configurations work unchanged and write no registers at startup. Setting any option below makes
+ESPHome write the configuration register and both threshold registers during setup, using the listed defaults for
+omitted settings. These settings apply to TMP102 chips; do not enable them for LM75 sensors.
+
+Before each update ESPHome reads the configuration register back. If it no longer matches, for example after the chip
+alone lost power, ESPHome rewrites the configuration and both thresholds, skips that update and sets the sensor's
+warning status until the next reading succeeds. Do not use another controller to change these registers while ESPHome
+manages them.
+
+The defaults below are the chip's power-on values and apply only once any of these options is set.
+
+- **extended_mode** (*Optional*, boolean): Use the 13-bit temperature format. Defaults to `false`.
+- **conversion_rate** (*Optional*, string): Chip conversion rate: `0.25Hz`, `1Hz`, `4Hz`, or `8Hz`. Defaults to `4Hz`.
+  This is independent of `update_interval`.
+- **one_shot_mode** (*Optional*, boolean): Keep the chip in shutdown between readings and trigger one conversion
+  per update. The thresholds are then compared only once per `update_interval`, so ALERT can lag a crossing by up to
+  `fault_queue` intervals, and `conversion_rate` has no effect. Defaults to `false`.
+- **alert_polarity** (*Optional*, string): ALERT pin polarity, `active_low` or `active_high`. Defaults to `active_low`.
+- **thermostat_mode** (*Optional*, string): How the ALERT pin behaves. In `comparator` mode ALERT asserts when the
+  temperature rises above `temperature_high` and clears when it falls below `temperature_low`. In `interrupt` mode
+  ALERT asserts on crossing either threshold and stays asserted until a register is read; because ESPHome reads the
+  chip on every update, the pin clears at the next `update_interval` at the latest. Defaults to `comparator`.
+- **fault_queue** (*Optional*, int): Consecutive fault conversions required before ALERT changes: `1`, `2`, `4`, or `6`.
+  Defaults to `1`.
+- **temperature_high** (*Optional*, temperature): High threshold. Defaults to `80°C`.
+- **temperature_low** (*Optional*, temperature): Low threshold. Defaults to `75°C`.
+
+Thresholds accept Celsius or Fahrenheit values, such as `30°C` or `86°F`. The low threshold must not exceed the high
+threshold. Supported thresholds range from `-55°C` to `127.9375°C` in normal mode, or `150°C` in extended mode.
+The chip stores thresholds in steps of `0.0625°C`; values are rounded to the nearest step, with exact half-steps
+rounded away from zero. Temperature sensor filters do not change thermostat thresholds or alert decisions.
+
+In continuous mode, the chip makes conversions independently of ESPHome polling. In one-shot mode, ESPHome waits
+40 ms after triggering a conversion before reading it. Continuous-mode reads happen immediately and do not force
+a new conversion. Very short update intervals do not restart a pending one-shot conversion. Each reading uses the
+format flag in the temperature register, including when a sample still uses the previous mode's format.
+
+## Examples
+
+The thresholds drive the chip's ALERT pin only. Wire it to a GPIO and read it with a
+[GPIO binary sensor](/components/binary_sensor/gpio/) to use it in ESPHome.
+
+```yaml
+sensor:
+  - platform: tmp102
+    name: "Freezer Temperature"
+    one_shot_mode: true
+    thermostat_mode: comparator
+    alert_polarity: active_low
+    temperature_high: -15°C
+    temperature_low: -18°C
+
+binary_sensor:
+  - platform: gpio
+    name: "Freezer Too Warm"
+    pin:
+      number: GPIOXX
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+```
 
 ## See Also
 
-- [Sensor Filters](/components/sensor#sensor-filters)
+- [Sensor Filters](/components/sensor/#sensor-filters)
 - [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
 - [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
 - [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
