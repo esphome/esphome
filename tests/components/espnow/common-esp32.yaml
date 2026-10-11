@@ -1,0 +1,9 @@
+espnow:
+  max_payload_size: 1470
+  on_broadcast:
+    - logger.log:
+        format: "Broadcast from: %s = '%s'  RSSI: %d"
+        args:
+          - format_mac_address_pretty(info.src_addr).c_str()
+          - format_hex_pretty(data, size).c_str()
+          - info.rx_ctrl->rssi
