@@ -127,6 +127,22 @@ TS_COLD_OPTIONS = {"0c": 0, "3c": 1, "5c": 2, "-3c": 3}
 TS_ICHG_OPTIONS = {"0.5x": 0, "0.2x": 1}
 TS_VRCG_OPTIONS = {"-100mv": 0, "-200mv": 1}
 
+
+def _on_voltage_step(volts: float) -> float:
+    if round(volts * 1000) % 10:
+        raise cv.Invalid("battery_regulation_voltage must be a multiple of 10 mV")
+    return volts
+
+
+def _on_current_step(amps: float) -> float:
+    milliamps = round(amps * 1000)
+    if milliamps > 35 and (milliamps < 40 or milliamps % 10):
+        raise cv.Invalid(
+            "fast_charge_current must be a whole number of mA up to 35mA, then a multiple of 10 mA"
+        )
+    return amps
+
+
 # (config key, register, bit shift, validator or enum options, default).
 # VBAT_CTRL bit 7 (pg_mode) and SYS_REG bit 4 (pg_gpo_level) stay 0; they are
 # driven at runtime, not from configuration.
@@ -135,7 +151,7 @@ FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
         CONF_BATTERY_REGULATION_VOLTAGE,
         REG_VBAT_CTRL,
         0,
-        cv.All(cv.voltage, cv.Range(min=3.5, max=4.65)),
+        cv.All(cv.voltage, cv.Range(min=3.5, max=4.65), _on_voltage_step),
         "4.2V",
     ),
     (CONF_CHARGE_ENABLED, REG_ICHG_CTRL, 7, cv.boolean, True),
@@ -143,7 +159,7 @@ FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
         CONF_FAST_CHARGE_CURRENT,
         REG_ICHG_CTRL,
         0,
-        cv.All(cv.current, cv.Range(min=0.005, max=1.0)),
+        cv.All(cv.current, cv.Range(min=0.005, max=1.0), _on_current_step),
         "10mA",
     ),
     (CONF_FLASH_CHARGING_MODE, REG_CHARGECTRL0, 7, cv.boolean, False),
@@ -193,14 +209,14 @@ FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
 
 def _battery_regulation_code(volts: float) -> int:
     """VBAT_CTRL[6:0]: 3.5 V plus 10 mV per step."""
-    return round((volts * 1000 - 3500) / 10)
+    return (round(volts * 1000) - 3500) // 10
 
 
 def _fast_charge_code(amps: float) -> int:
-    """ICHG_CTRL[6:0]: 1 mA steps from 5 mA to 35 mA, then 10 mA steps from 40 mA, never rounding up."""
+    """ICHG_CTRL[6:0]: 1 mA steps from 5 mA to 35 mA, then 10 mA steps from 40 mA."""
     milliamps = round(amps * 1000)
-    if milliamps < 40:
-        return min(milliamps, 35) - 5
+    if milliamps <= 35:
+        return milliamps - 5
     return milliamps // 10 + 27
 
 

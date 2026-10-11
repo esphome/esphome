@@ -1,5 +1,8 @@
 """Tests for the bq25186 register packer."""
 
+import pytest
+
+from esphome import config_validation as cv
 from esphome.components.bq25186 import (
     BQ25186_CONFIG_SCHEMA,
     CONF_BATTERY_REGULATION_VOLTAGE,
@@ -41,12 +44,8 @@ def test_fast_charge_current_code() -> None:
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "5mA"}) == 0x00
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "20mA"}) == 0x0F
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "35mA"}) == 0x1E
-    # 36 to 39 mA have no code of their own and must not round up to 40 mA
-    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "36mA"}) == 0x1E
-    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "39mA"}) == 0x1E
-    # 10 mA steps from 40 mA, rounded down
+    # 10 mA steps from 40 mA
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "40mA"}) == 0x1F
-    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "49mA"}) == 0x1F
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "200mA"}) == 0x2F
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "1A"}) == 0x7F
 
@@ -69,3 +68,17 @@ def test_masked_registers_only_carry_configurable_bits() -> None:
     mask_id = _packed(REG_MASK_ID, config)
     assert mask_id == 0xC0
     assert mask_id & ~0xF0 == 0
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        (CONF_BATTERY_REGULATION_VOLTAGE, "4.105V"),
+        (CONF_FAST_CHARGE_CURRENT, "36mA"),
+        (CONF_FAST_CHARGE_CURRENT, "39mA"),
+        (CONF_FAST_CHARGE_CURRENT, "49mA"),
+    ],
+)
+def test_values_between_steps_are_rejected(key: str, value: str) -> None:
+    with pytest.raises(cv.Invalid):
+        BQ25186_CONFIG_SCHEMA({key: value})
