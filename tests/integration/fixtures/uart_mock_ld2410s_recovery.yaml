@@ -18,7 +18,8 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# No responses: the init commands go unanswered, which does not affect receiving data frames
+# No responses: the init commands go unanswered, so the test also covers the resend and give-up path;
+# this does not affect receiving data frames
 uart_mock:
   id: mock_uart
   baud_rate: 115200
