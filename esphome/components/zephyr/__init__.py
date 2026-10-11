@@ -84,6 +84,7 @@ from .const import (
     KEY_USER,
     KEY_ZEPHYR,
     ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_S3,
     ZEPHYR_VARIANT_NATIVE_SIM,
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_RP2040,
@@ -670,9 +671,9 @@ def zephyr_to_code(config: ConfigType) -> None:
             # Identifies the stalled thread on the console from the watchdog callback (see
             # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
             zephyr_add_prj_conf("THREAD_NAME", True)
-            # arch_stack_walk() isn't implemented for Xtensa (original ESP32); the call
+            # arch_stack_walk() isn't implemented for Xtensa (ESP32, S3); the call
             # would silently do nothing there.
-            if zephyr_variant() != ZEPHYR_VARIANT_ESP32:
+            if zephyr_variant() not in (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3):
                 cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
 
     # As nrf52: off unless a component needs them, since board defconfigs turn

@@ -45,6 +45,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_ESP32_S3,
     ZEPHYR_VARIANT_NATIVE_SIM,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -224,6 +225,7 @@ def uart_selection(value: Any) -> str:
             ZEPHYR_VARIANT_ESP32_C6,
             ZEPHYR_VARIANT_ESP32_C5,
             ZEPHYR_VARIANT_ESP32_C3,
+            ZEPHYR_VARIANT_ESP32_S3,
         ):
             return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
         family = zephyr_variant_family()

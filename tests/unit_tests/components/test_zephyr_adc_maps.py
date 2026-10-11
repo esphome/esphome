@@ -13,6 +13,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_ESP32_S3,
     ZEPHYR_VARIANT_RA4M1,
 )
 from esphome.components.zephyr.variants import VARIANTS
@@ -26,6 +27,7 @@ from esphome.components.zephyr.variants import VARIANTS
         (ZEPHYR_VARIANT_ESP32_C5, esp32.VARIANT_ESP32C5),
         (ZEPHYR_VARIANT_ESP32_C6, esp32.VARIANT_ESP32C6),
         (ZEPHYR_VARIANT_ESP32_H2, esp32.VARIANT_ESP32H2),
+        (ZEPHYR_VARIANT_ESP32_S3, esp32.VARIANT_ESP32S3),
     ],
 )
 def test_adc1_channel_map_matches_esp_idf(
