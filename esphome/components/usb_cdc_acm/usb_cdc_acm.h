@@ -143,7 +143,7 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 #ifdef USE_ZEPHYR
   static void uart_irq_handler(const device *dev, void *instance);
   void uart_rx_process_();
-  bool uart_tx_process_();
+  void uart_tx_process_();
 
   const device *uart_dev_;
   uint32_t dtr_{0};

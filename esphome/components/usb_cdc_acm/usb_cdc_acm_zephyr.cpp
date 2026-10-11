@@ -16,8 +16,7 @@ namespace esphome::usb_cdc_acm {
 ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 500;
 
-// Returns false if the USB device accepted no data and TX was stopped
-bool USBCDCACMInstance::uart_tx_process_() {
+void USBCDCACMInstance::uart_tx_process_() {
   uint8_t *data;
   uint32_t send_len = ring_buf_get_claim(&this->tx_ringbuf_, &data, UINT32_MAX);
   if (send_len == 0) {
@@ -28,21 +27,21 @@ bool USBCDCACMInstance::uart_tx_process_() {
       this->tx_drained_ = true;
     }
     uart_irq_tx_disable(this->uart_dev_);
-    return true;
+    return;
   }
   int sent = uart_fifo_fill(this->uart_dev_, data, send_len);
   if (sent <= 0) {
     // No progress: the USB device is suspended (host asleep, hub power save) or not configured.
     // fill() then returns 0 without clearing tx_ready, and irq_update() always returns 1 for
     // cdc_acm, so the IRQ handler would loop forever on the cooperative USB work queue and
-    // block the main loop. Stop TX here; loop() turns it back on while data is waiting.
+    // block the main loop. Disabling TX ends that loop, because irq_is_pending() only reports
+    // TX while the TX IRQ is enabled. loop() turns it back on while data is waiting.
     ring_buf_get_finish(&this->tx_ringbuf_, 0);
     uart_irq_tx_disable(this->uart_dev_);
     this->tx_irq_disabled_ = true;
-    return false;
+    return;
   }
   ring_buf_get_finish(&this->tx_ringbuf_, sent);
-  return true;
 }
 
 void USBCDCACMInstance::uart_rx_process_() {
@@ -73,8 +72,10 @@ void USBCDCACMInstance::uart_irq_handler(const device *dev, void *instance) {
       thiz->uart_rx_process_();
     }
 
-    if (uart_irq_tx_ready(dev) && !thiz->uart_tx_process_()) {
-      break;
+    // No early exit here: pending RX data must still be read. The loop ends once neither
+    // RX nor TX is pending (both process functions disable their IRQ when they cannot progress).
+    if (uart_irq_tx_ready(dev)) {
+      thiz->uart_tx_process_();
     }
   }
 }
