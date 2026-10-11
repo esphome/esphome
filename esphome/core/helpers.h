@@ -15,6 +15,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <numeric>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -877,6 +878,13 @@ inline float pow10_int(int8_t exp) {
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
+}
+
+/// Add up the bytes of \p data with size \p len, truncated to 8 bits: the checksum many serial and IR
+/// protocols use. Prefer this over a bare std::accumulate, whose result type follows the seed, so a plain 0
+/// sums in int and compares wrong against a checksum byte.
+constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
+  return std::accumulate(data, data + len, sum);
 }
 
 /// Calculate a CRC-8 checksum of \p data with size \p len.
