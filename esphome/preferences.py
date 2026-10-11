@@ -27,6 +27,7 @@ def rtc_supported() -> bool:
         from esphome.components.esp32 import get_esp32_variant
         from esphome.components.esp32.const import VARIANT_ESP32C2, VARIANT_ESP32C61
 
+        # Mirrors the C++ SOC_RTC_MEM_SUPPORTED guard in the ESP32 backend
         return get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32C61)
     return False
 
