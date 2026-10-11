@@ -12,12 +12,12 @@ MULTI_CONF = True
 CONF_LD2410S_ID = "ld2410s_id"
 
 ld2410s_ns = cg.esphome_ns.namespace(DOMAIN)
-LD2410S = ld2410s_ns.class_("LD2410S", cg.Component, uart.UARTDevice)
+LD2410SComponent = ld2410s_ns.class_("LD2410SComponent", cg.Component, uart.UARTDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(LD2410S),
+            cv.GenerateID(): cv.declare_id(LD2410SComponent),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)

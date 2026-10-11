@@ -11,10 +11,11 @@ namespace esphome::ld2410s {
 
 // Largest frame read here is the standard data frame: 4 header + 2 length + payload + 4 footer
 static constexpr size_t RX_BUFFER_SIZE = 96;
+static_assert(RX_BUFFER_SIZE <= 255, "frame lengths are kept in a byte");
 
-class LD2410S : public Component, public uart::UARTDevice {
+class LD2410SComponent final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(presence)
+  SUB_BINARY_SENSOR(target)
 #endif
 
  public:
@@ -36,18 +37,16 @@ class LD2410S : public Component, public uart::UARTDevice {
   }
   void run_init_sequence_(uint32_t now);
   void send_command_(uint16_t command);
-  void set_init_done_(bool done);
-  void publish_presence_(bool presence);
+  void publish_target_(bool target);
 
   uint32_t next_send_at_{0};
-  uint16_t rx_len_{0};
-  uint16_t expected_len_{0};
   uint8_t rx_buffer_[RX_BUFFER_SIZE];
+  uint8_t rx_len_{0};
+  uint8_t expected_len_{0};
   uint8_t init_step_{0};
   uint8_t init_timeouts_{0};
   FrameType frame_type_{FrameType::NONE};
   bool awaiting_ack_{false};
-  bool init_done_{false};
 };
 
 }  // namespace esphome::ld2410s

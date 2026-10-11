@@ -40,14 +40,14 @@ static constexpr uint32_t REINIT_PAUSE_MS = 15000;  // pause before starting ove
 
 static constexpr uint8_t DATA_TYPE_STANDARD = 0x01;
 
-void LD2410S::dump_config() {
+void LD2410SComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410S:");
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Has Target", this->target_binary_sensor_);
 #endif
 }
 
-void LD2410S::loop() {
+void LD2410SComponent::loop() {
   uint8_t chunk[16];
   // Take the count once so one pass handles a bounded number of bytes
   size_t avail = this->available();
@@ -64,7 +64,7 @@ void LD2410S::loop() {
   this->run_init_sequence_(App.get_loop_component_start_time());
 }
 
-void LD2410S::run_init_sequence_(uint32_t now) {
+void LD2410SComponent::run_init_sequence_(uint32_t now) {
   if (this->init_step_ >= INIT_SEQUENCE_LENGTH || static_cast<int32_t>(now - this->next_send_at_) < 0) {
     return;
   }
@@ -83,13 +83,12 @@ void LD2410S::run_init_sequence_(uint32_t now) {
     }
     ESP_LOGD(TAG, "No acknowledgement for command %04X, resending", command);
   }
-  this->set_init_done_(false);
   this->send_command_(command);
   this->awaiting_ack_ = true;
   this->next_send_at_ = now + ACK_TIMEOUT_MS;
 }
 
-void LD2410S::send_command_(uint16_t command) {
+void LD2410SComponent::send_command_(uint16_t command) {
   uint8_t frame[CMD_FRAME_MAX_SIZE];
   memcpy(frame, CMD_FRAME_HEADER, LONG_HEADER_SIZE);
   uint8_t pos = LONG_PAYLOAD_POS;
@@ -118,7 +117,7 @@ void LD2410S::send_command_(uint16_t command) {
 #endif
 }
 
-void LD2410S::receive_byte_(uint8_t byte) {
+void LD2410SComponent::receive_byte_(uint8_t byte) {
   if (this->rx_len_ >= RX_BUFFER_SIZE) {
     this->reset_frame_();
   }
@@ -170,24 +169,23 @@ void LD2410S::receive_byte_(uint8_t byte) {
   }
 }
 
-void LD2410S::handle_frame_() {
+void LD2410SComponent::handle_frame_() {
   const uint8_t *footer;
-  uint8_t payload_pos;
+  uint8_t footer_size = sizeof(CMD_FRAME_FOOTER);
+  uint8_t payload_pos = LONG_PAYLOAD_POS;
   switch (this->frame_type_) {
     case FrameType::SHORT_DATA:
       footer = SHORT_DATA_FRAME_FOOTER;
+      footer_size = sizeof(SHORT_DATA_FRAME_FOOTER);
       payload_pos = 1;
       break;
     case FrameType::STD_DATA:
       footer = STD_DATA_FRAME_FOOTER;
-      payload_pos = LONG_PAYLOAD_POS;
       break;
     default:
       footer = CMD_FRAME_FOOTER;
-      payload_pos = LONG_PAYLOAD_POS;
       break;
   }
-  const uint8_t footer_size = this->frame_type_ == FrameType::SHORT_DATA ? 1 : sizeof(CMD_FRAME_FOOTER);
   if (memcmp(&this->rx_buffer_[this->rx_len_ - footer_size], footer, footer_size) != 0) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(RX_BUFFER_SIZE)];
@@ -201,7 +199,7 @@ void LD2410S::handle_frame_() {
   switch (this->frame_type_) {
     case FrameType::SHORT_DATA:
       // [state][distance low][distance high]; states 0 and 1 mean no target
-      this->publish_presence_(payload[0] > 1);
+      this->publish_target_(payload[0] > 1);
       break;
     case FrameType::STD_DATA:
       this->handle_data_frame_(payload, payload_len);
@@ -212,17 +210,17 @@ void LD2410S::handle_frame_() {
   }
 }
 
-void LD2410S::handle_data_frame_(const uint8_t *payload, uint16_t len) {
+void LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) {
   // [type][state][distance low][distance high]...; the module only sends these before the init
   // sequence switches it to minimal output
   if (len >= 4 && payload[0] == DATA_TYPE_STANDARD) {
-    this->publish_presence_(payload[1] > 1);
+    this->publish_target_(payload[1] > 1);
   } else if (len >= 1) {
     ESP_LOGV(TAG, "Ignoring data frame type %02X", payload[0]);
   }
 }
 
-void LD2410S::handle_command_ack_(const uint8_t *payload, uint16_t len) {
+void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len) {
   if (len < 4) {
     return;
   }
@@ -242,27 +240,15 @@ void LD2410S::handle_command_ack_(const uint8_t *payload, uint16_t len) {
   this->init_step_++;
   this->next_send_at_ = App.get_loop_component_start_time() + COMMAND_GAP_MS;
   if (this->init_step_ >= INIT_SEQUENCE_LENGTH) {
-    this->set_init_done_(true);
-  }
-}
-
-void LD2410S::set_init_done_(bool done) {
-  if (done == this->init_done_) {
-    return;
-  }
-  this->init_done_ = done;
-  if (done) {
     ESP_LOGD(TAG, "Setup done");
     this->status_clear_warning();
-  } else {
-    this->status_set_warning();
   }
 }
 
-void LD2410S::publish_presence_(bool presence) {
+void LD2410SComponent::publish_target_(bool target) {
 #ifdef USE_BINARY_SENSOR
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
+  if (this->target_binary_sensor_ != nullptr) {
+    this->target_binary_sensor_->publish_state(target);
   }
 #endif
 }
