@@ -14,6 +14,8 @@ from .. import (
     MATRIX_COLUMNS,
     MATRIX_KEY_MAX,
     TCA8418Component,
+    _ascii_string,
+    _matrix_key,
     register_listener,
     tca8418_ns,
 )
@@ -37,41 +39,27 @@ def _key_code(value: int) -> int:
     )
 
 
-def _validate(config: ConfigType) -> ConfigType:
-    has_position = CONF_ROW in config or CONF_COL in config
-    selectors = [has_position, CONF_KEY in config, CONF_KEY_CODE in config]
-    if sum(selectors) > 1:
-        raise cv.Invalid(
-            f"Use only one of a position ({CONF_ROW}/{CONF_COL}), "
-            f"'{CONF_KEY}' or '{CONF_KEY_CODE}' to identify the key"
-        )
-    if has_position:
-        if CONF_ROW not in config:
-            raise cv.Invalid(f"Missing '{CONF_ROW}'")
-        if CONF_COL not in config:
-            raise cv.Invalid(f"Missing '{CONF_COL}'")
-    elif (key := config.get(CONF_KEY)) is not None:
-        if len(key) != 1 or not key.isascii():
-            raise cv.Invalid("Key must be a single ASCII character", path=[CONF_KEY])
-    elif not any(selectors):
-        raise cv.Invalid(
-            f"Identify the key with a position ({CONF_ROW}/{CONF_COL}), "
-            f"'{CONF_KEY}' or '{CONF_KEY_CODE}'"
-        )
-    return config
-
+_POSITION_MSG = f"'{CONF_ROW}' and '{CONF_COL}' must be given together"
 
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(TCA8418BinarySensor).extend(
         {
             cv.GenerateID(CONF_KEYPAD_ID): cv.use_id(TCA8418Component),
-            cv.Optional(CONF_ROW): cv.int_range(min=0, max=7),
-            cv.Optional(CONF_COL): cv.int_range(min=0, max=9),
-            cv.Optional(CONF_KEY): cv.string,
+            cv.Inclusive(CONF_ROW, "position", msg=_POSITION_MSG): cv.int_range(
+                min=0, max=7
+            ),
+            cv.Inclusive(CONF_COL, "position", msg=_POSITION_MSG): cv.int_range(
+                min=0, max=9
+            ),
+            cv.Optional(CONF_KEY): cv.All(
+                cv.string,
+                _ascii_string,
+                cv.Length(min=1, max=1, msg="Key must be a single character"),
+            ),
             cv.Optional(CONF_KEY_CODE): _key_code,
         }
     ),
-    _validate,
+    cv.has_exactly_one_key(CONF_ROW, CONF_KEY, CONF_KEY_CODE),
 )
 
 
@@ -86,8 +74,8 @@ def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     keypad_path = full_config.get_path_for_id(config[CONF_KEYPAD_ID])[:-1]
     keypad = full_config.get_config_for_path(keypad_path)
-    rows = keypad[CONF_ROWS]
-    columns = keypad[CONF_COLUMNS]
+    rows = keypad.get(CONF_ROWS, 0)
+    columns = keypad.get(CONF_COLUMNS, 0)
 
     if (row := config.get(CONF_ROW)) is not None:
         col = config[CONF_COL]
@@ -97,7 +85,7 @@ def _final_validate(config: ConfigType) -> None:
                 "matrix of the keypad it belongs to",
                 path=[CONF_ROW],
             )
-        config[CONF_KEY_CODE] = row * MATRIX_COLUMNS + col + 1
+        config[CONF_KEY_CODE] = _matrix_key(row, col)
         return
 
     if (key_code := config.get(CONF_KEY_CODE)) is not None:
@@ -149,9 +137,7 @@ def _final_validate(config: ConfigType) -> None:
                 f"not name one key. Use '{CONF_ROW}' and '{CONF_COL}' instead",
                 path=[CONF_KEY],
             )
-        config[CONF_KEY_CODE] = (
-            (index // columns) * MATRIX_COLUMNS + (index % columns) + 1
-        )
+        config[CONF_KEY_CODE] = _matrix_key(*divmod(index, columns))
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

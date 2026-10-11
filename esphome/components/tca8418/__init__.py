@@ -12,6 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@zebble"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "tca8418"
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 MULTI_CONF = True
 
@@ -21,13 +22,8 @@ _request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
 
 
 async def register_listener(keypad: cg.MockObj, var: cg.MockObj) -> None:
-    """Register a listener with its keypad, and count it for the list's size.
-
-    Both together, so a platform cannot do one and forget the other: counting
-    without registering sizes the list too large, and registering without
-    counting sizes it too small, which silently drops the listener.
-    """
-    _request_listener_slot()
+    """Register a listener with its keypad and count it toward that keypad's list size."""
+    _request_listener_slot(str(keypad))
     cg.add(keypad.register_listener(var))
 
 
@@ -42,6 +38,12 @@ MATRIX_COLUMNS = 10
 MATRIX_KEY_MAX = 80
 GPI_KEY_MIN = 97
 GPI_KEY_MAX = 114
+
+
+def _matrix_key(row: int, col: int) -> int:
+    """The key number the device reports for a matrix position."""
+    return row * MATRIX_COLUMNS + col + 1
+
 
 tca8418_ns = cg.esphome_ns.namespace("tca8418")
 TCA8418Component = tca8418_ns.class_(
@@ -60,13 +62,8 @@ def _ascii_string(value: str) -> str:
 
 
 def _validate(config: ConfigType) -> ConfigType:
-    rows = config[CONF_ROWS]
-    columns = config[CONF_COLUMNS]
-    if (rows == 0) != (columns == 0):
-        raise cv.Invalid(
-            "'rows' and 'columns' must both be set to use the key matrix, "
-            "or both left unset to use every pin as an individual input"
-        )
+    rows = config.get(CONF_ROWS, 0)
+    columns = config.get(CONF_COLUMNS, 0)
     if (keys := config.get(CONF_KEYS)) is not None:
         if rows == 0:
             raise cv.Invalid(
@@ -108,14 +105,23 @@ def _validate(config: ConfigType) -> ConfigType:
     return config
 
 
+_MATRIX_MSG = (
+    "'rows' and 'columns' must both be set to use the key matrix, "
+    "or both left unset to use every pin as an individual input"
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TCA8418Component),
             # The key matrix occupies ROW0..ROW(rows-1) and COL0..COL(columns-1).
             # Leave both unset to use every pin as an individual input instead.
-            cv.Optional(CONF_ROWS, default=0): cv.int_range(min=0, max=8),
-            cv.Optional(CONF_COLUMNS, default=0): cv.int_range(min=0, max=10),
+            cv.Inclusive(CONF_ROWS, "matrix", msg=_MATRIX_MSG): cv.int_range(
+                min=1, max=8
+            ),
+            cv.Inclusive(CONF_COLUMNS, "matrix", msg=_MATRIX_MSG): cv.int_range(
+                min=1, max=10
+            ),
             cv.Optional(CONF_KEYS): _ascii_string,
             # Report pins that are not part of the matrix as individual inputs.
             cv.Optional(CONF_GPI_EVENTS, default=True): cv.boolean,
@@ -134,11 +140,18 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_rows(config[CONF_ROWS]))
-    cg.add(var.set_columns(config[CONF_COLUMNS]))
+    if (rows := config.get(CONF_ROWS)) is not None:
+        columns = config[CONF_COLUMNS]
+        cg.add(var.set_rows(rows))
+        cg.add(var.set_columns(columns))
+        if (keys := config.get(CONF_KEYS)) is not None:
+            # Indexed by key number - 1, with 0 where no key is assigned.
+            table = [0] * _matrix_key(rows - 1, columns - 1)
+            for index, char in enumerate(keys.encode()):
+                table[_matrix_key(*divmod(index, columns)) - 1] = char
+            array = cg.shared_progmem_array("tca8418_keys", cg.uint8, table)
+            cg.add(var.set_keys(array, len(table)))
     cg.add(var.set_gpi_events(config[CONF_GPI_EVENTS]))
-    if (keys := config.get(CONF_KEYS)) is not None:
-        cg.add(var.set_keys(keys))
     if (interrupt_pin := config.get(CONF_INTERRUPT_PIN)) is not None:
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 

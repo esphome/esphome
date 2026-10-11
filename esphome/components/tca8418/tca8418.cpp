@@ -4,14 +4,9 @@
 
 namespace esphome::tca8418 {
 
-static const char *const TAG = "tca8418";
+ESPHOME_LOG_TAG(TAG, "tca8418");
 
-//  The shortest gap between asking the device whether it has events, which bounds
-//  how much of the bus a keypad without an interrupt pin takes up. It applies to
-//  a pass woken by the interrupt too, so a press arriving within the interval of
-//  the last one waits for it; nothing is lost by that, since the device queues
-//  ten events and no one presses ten keys this quickly. A press after any idle
-//  period is read straight away, because the gap has long since passed.
+//  Minimum gap between event queue reads; the ten entry queue holds anything arriving sooner.
 static constexpr uint32_t POLL_INTERVAL_MS = 50;
 
 void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg->enable_loop_soon_any_context(); }
@@ -47,13 +42,8 @@ void TCA8418Component::setup() {
 
   //  Discard anything the device queued before it was configured, and clear
   //  every interrupt flag: leaving one set holds the interrupt output asserted.
-  uint8_t key;
-  for (uint8_t i = 0; i < TCA8418_FIFO_DEPTH; i++) {
-    if (!this->read_byte(TCA8418_REG_KEY_EVENT_A, &key) || key == 0)
-      break;
-  }
-  if (!this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL)) {
-    ESP_LOGE(TAG, "Failed to clear the interrupt flags");
+  if (!this->drain_events_(false)) {
+    ESP_LOGE(TAG, "Failed to clear the event queue");
     this->mark_failed();
     return;
   }
@@ -95,30 +85,16 @@ bool TCA8418Component::configure_pins_() {
 }
 
 void TCA8418Component::loop() {
-  //  One path for both ways of noticing events: ask the device how many it has
-  //  queued, which is a single read.
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_poll_ < POLL_INTERVAL_MS)
     return;
   this->last_poll_ = now;
 
-  uint8_t count;
-  if (!this->read_byte(TCA8418_REG_KEY_LCK_EC, &count)) {
+  if (!this->drain_events_(true)) {
     this->status_set_warning();
     return;
   }
   this->status_clear_warning();
-
-  const uint8_t queued = count & TCA8418_EVENT_COUNT_MASK;
-  //  A full queue means any further key event was dropped before it could be
-  //  read. The device's own overflow flag is not used for this: it stays clear
-  //  even with a queue that has been sitting full, so it would never report.
-  if (queued >= TCA8418_FIFO_DEPTH) {
-    ESP_LOGW(TAG, "Event queue is full - some key presses may have been lost");
-  }
-
-  if (queued != 0)
-    this->process_events_();
 
   //  With an interrupt pin, wait for the next interrupt once the device has
   //  nothing left. Events that arrive while the queue is being read keep the
@@ -128,38 +104,32 @@ void TCA8418Component::loop() {
     this->disable_loop();
 }
 
-void TCA8418Component::process_events_() {
-  //  Reading the top of the queue removes an event and returns 0 once it is
-  //  empty. The queue holds ten entries, so that bounds the number of reads.
-  uint8_t event;
-  for (uint8_t i = 0; i < TCA8418_FIFO_DEPTH; i++) {
-    if (!this->read_byte(TCA8418_REG_KEY_EVENT_A, &event)) {
-      this->status_set_warning();
-      return;
-    }
-    if (event == 0)
-      break;
-    this->dispatch_(event & TCA8418_KEY_CODE_MASK, (event & TCA8418_KEY_PRESSED) != 0);
+bool TCA8418Component::drain_events_(bool dispatch) {
+  uint8_t count;
+  if (!this->read_byte(TCA8418_REG_KEY_LCK_EC, &count))
+    return false;
+  count &= TCA8418_EVENT_COUNT_MASK;
+  if (count == 0 && dispatch)
+    return true;  // idle poll, no flags to clear
+  //  The device's overflow flag stays clear even with a full queue, so check the count instead.
+  if (dispatch && count >= TCA8418_FIFO_DEPTH) {
+    ESP_LOGW(TAG, "Event queue is full - some key presses may have been lost");
   }
 
-  if (!this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL)) {
-    this->status_set_warning();
-    return;
+  uint8_t event;
+  for (uint8_t i = 0; i < count; i++) {
+    if (!this->read_byte(TCA8418_REG_KEY_EVENT_A, &event))
+      return false;
+    if (dispatch)
+      this->dispatch_(event & TCA8418_KEY_CODE_MASK, (event & TCA8418_KEY_PRESSED) != 0);
   }
-  this->status_clear_warning();
+  return this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL);
 }
 
 uint8_t TCA8418Component::key_char_(uint8_t key) const {
-  if (this->keys_.empty() || key < TCA8418_MATRIX_KEY_MIN || key > TCA8418_MATRIX_KEY_MAX)
+  if (key == 0 || key > this->keys_size_)
     return 0;
-  const uint8_t row = (key - 1) / TCA8418_MATRIX_COLUMNS;
-  const uint8_t col = (key - 1) % TCA8418_MATRIX_COLUMNS;
-  if (row >= this->rows_ || col >= this->columns_)
-    return 0;
-  const size_t index = static_cast<size_t>(row) * this->columns_ + col;
-  if (index >= this->keys_.size())
-    return 0;
-  return static_cast<uint8_t>(this->keys_[index]);
+  return progmem_read_byte(&this->keys_[key - 1]);
 }
 
 void TCA8418Component::dispatch_(uint8_t key, bool pressed) {

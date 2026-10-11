@@ -5,7 +5,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/string_ref.h"
 
 namespace esphome::tca8418 {
 
@@ -32,18 +31,9 @@ static constexpr uint8_t TCA8418_KEY_CODE_MASK = 0x7F;
 //  The event queue holds ten entries, which bounds how many can be read at once.
 static constexpr uint8_t TCA8418_FIFO_DEPTH = 10;
 
-//  Key numbering. Matrix keys are numbered row-major with 10 columns per row,
-//  starting at 1, so ROW0/COL0 is 1 and ROW7/COL9 is 80. Pins that are not part
-//  of the matrix report as individual inputs starting at 97 (ROW0..ROW7 are
-//  97..104, COL0..COL9 are 105..114).
-static constexpr uint8_t TCA8418_MATRIX_KEY_MIN = 1;
-static constexpr uint8_t TCA8418_MATRIX_KEY_MAX = 80;
-static constexpr uint8_t TCA8418_MATRIX_COLUMNS = 10;
-
 class TCA8418Listener {
  public:
-  /// Called with the key number reported by the device. Positions in the matrix
-  /// and mapped characters are turned into key numbers during code generation.
+  /// Called with the key number reported by the device (1..80 matrix, 97..114 individual inputs).
   virtual void key_pressed(uint8_t key) {}
   virtual void key_released(uint8_t key) {}
 };
@@ -57,7 +47,10 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   void set_rows(uint8_t rows) { this->rows_ = rows; }
   void set_columns(uint8_t columns) { this->columns_ = columns; }
   void set_gpi_events(bool gpi_events) { this->gpi_events_ = gpi_events; }
-  void set_keys(const char *keys) { this->keys_ = StringRef(keys); }
+  void set_keys(const uint8_t *keys, uint8_t size) {
+    this->keys_ = keys;
+    this->keys_size_ = size;
+  }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
 #ifdef TCA8418_LISTENER_COUNT
@@ -70,8 +63,9 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
  protected:
   /// Write the matrix / individual-input pin configuration. Returns false on I2C failure.
   bool configure_pins_();
-  /// Read and dispatch every queued key event.
-  void process_events_();
+  /// Read every queued key event, dispatching them if asked, then clear the interrupt flags.
+  /// Returns false on I2C failure.
+  bool drain_events_(bool dispatch);
   void dispatch_(uint8_t key, bool pressed);
   /// The character mapped to a matrix key, or 0 when it has none.
   uint8_t key_char_(uint8_t key) const;
@@ -79,7 +73,8 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   uint8_t rows_{0};
   uint8_t columns_{0};
   bool gpi_events_{true};
-  StringRef keys_;
+  uint8_t keys_size_{0};
+  const uint8_t *keys_{nullptr};  // PROGMEM, indexed by key number - 1
   InternalGPIOPin *interrupt_pin_{nullptr};
   uint32_t last_poll_{0};
 
