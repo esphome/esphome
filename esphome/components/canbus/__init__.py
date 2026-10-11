@@ -20,6 +20,9 @@ CONF_REMOTE_TRANSMISSION_REQUEST = "remote_transmission_request"
 CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
+CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
+DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
+DEFAULT_BIT_RATE = "125KBPS"  # Keep in sync with bit_rate_ in canbus.h
 
 
 def validate_id(config: ConfigType) -> ConfigType:
@@ -87,8 +90,13 @@ CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
         cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
-        cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
+        cv.Optional(CONF_BIT_RATE, default=DEFAULT_BIT_RATE): cv.enum(
+            CAN_SPEEDS, upper=True
+        ),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+        cv.Optional(
+            CONF_MAX_FRAMES_PER_LOOP, default=DEFAULT_MAX_FRAMES_PER_LOOP
+        ): cv.positive_not_null_int,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
@@ -109,9 +117,13 @@ CANBUS_SCHEMA.add_extra(validate_id)
 
 async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
-    cg.add(var.set_can_id([config[CONF_CAN_ID]]))
-    cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
-    cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
+    cg.add(var.set_can_id(config[CONF_CAN_ID]))
+    if config[CONF_USE_EXTENDED_ID]:
+        cg.add(var.set_use_extended_id(True))
+    if (bit_rate := config[CONF_BIT_RATE]) != DEFAULT_BIT_RATE:
+        cg.add(var.set_bitrate(CAN_SPEEDS[bit_rate]))
+    if (max_frames := config[CONF_MAX_FRAMES_PER_LOOP]) != DEFAULT_MAX_FRAMES_PER_LOOP:
+        cg.add(var.set_max_frames_per_loop(max_frames))
 
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = conf[CONF_CAN_ID]
