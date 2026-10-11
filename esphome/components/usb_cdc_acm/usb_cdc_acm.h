@@ -174,12 +174,12 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   // generates an indirect function call for atomic<bool> ops instead of inlining
   // them; atomic<uint8_t> inlines correctly on all platforms.
   std::atomic<uint8_t> usb_tx_busy_{0};
+#endif
   // Running total of bytes dropped by write_array() (never reset), and the timestamp
   // of the last "buffer full" log line (throttled so a sustained host stall doesn't
   // flood the log).
   uint32_t tx_dropped_bytes_{0};
   uint32_t tx_dropped_log_ms_{0};
-#endif
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};

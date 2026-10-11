@@ -4,9 +4,6 @@
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/drivers/uart.h>
 #include "esphome/components/zephyr/cdc_acm.h"
-#ifdef USE_LOGGER
-#include "esphome/components/logger/logger.h"
-#endif
 
 // flush() depends on how the legacy cdc_acm driver reports TX state (see uart_tx_process_())
 #ifdef CONFIG_USB_DEVICE_STACK_NEXT
@@ -20,6 +17,8 @@ namespace esphome::usb_cdc_acm {
 
 ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 500;
+// Minimum interval between repeated "buffer full" warnings
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 
 void USBCDCACMInstance::uart_tx_process_() {
   uint8_t *data;
@@ -122,10 +121,11 @@ void USBCDCACMInstance::loop() {
   uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
   uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_RTS, &rts);
   if (dtr != this->dtr_) {
-    ESP_LOGD(TAG, "UART Bus %s: %s", this->uart_dev_->name, dtr ? "Opened" : "Closed");
+    ESP_LOGD(TAG, "UART Bus %s: %s", this->uart_dev_->name,
+             dtr ? LOG_STR_LITERAL("Opened") : LOG_STR_LITERAL("Closed"));
   }
   if (dtr != this->dtr_ || rts != this->rts_) {
-    ESP_LOGV(TAG, "Line state device %s: DTR=%u, RTS=%u", this->uart_dev_->name, dtr, rts);
+    ESP_LOGV(TAG, "Line state device %s: DTR=%" PRIu32 ", RTS=%" PRIu32, this->uart_dev_->name, dtr, rts);
     this->dtr_ = dtr;
     this->rts_ = rts;
     // Queue event for processing in main loop
@@ -145,25 +145,14 @@ void USBCDCACMInstance::dump_config() {
                 "  Stop bits: %u",
                 this->uart_dev_->name, YESNO(this->dtr_), this->baud_rate_, this->data_bits_,
                 LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
-  this->check_logger_conflict();
 }
 
-void USBCDCACMInstance::check_logger_conflict() {
-#ifdef USE_LOGGER
-  if (logger::global_logger->get_baud_rate() == 0 || this->uart_dev_ == nullptr) {
-    return;
-  }
-
-  if (this->uart_dev_ == logger::global_logger->get_hw_serial()) {
-    ESP_LOGW(TAG, "  The same serial port is used for logging and the UART component; "
-                  "set logger.baud_rate: 0 to disable logging over the serial port");
-  }
-#endif
-}
+// A logger on the same port is rejected during config validation (zephyr_claim_cdc_acm())
+void USBCDCACMInstance::check_logger_conflict() {}
 
 size_t USBCDCACMInstance::available() {
   uint32_t size = ring_buf_size_get(&this->rx_ringbuf_) + (this->has_peek_ ? 1 : 0);
-  ESP_LOGVV(TAG, "UART Bus %s: available %u", this->uart_dev_->name, size);
+  ESP_LOGVV(TAG, "UART Bus %s: available %" PRIu32, this->uart_dev_->name, size);
   return size;
 }
 
@@ -233,9 +222,16 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   if (!device_is_ready(this->uart_dev_)) {
     return;
   }
-  auto recv_len = ring_buf_put(&this->tx_ringbuf_, data, len);
+  uint32_t recv_len = ring_buf_put(&this->tx_ringbuf_, data, len);
   if (recv_len < len) {
-    ESP_LOGE(TAG, "TX ring buffer full. Dropping %u bytes", len - recv_len);
+    // Throttled like the ESP32 version: the buffer stays full for as long as the host stalls
+    const bool first_drop = this->tx_dropped_bytes_ == 0;
+    this->tx_dropped_bytes_ += len - recv_len;
+    const uint32_t now = millis();
+    if (first_drop || (now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
+      this->tx_dropped_log_ms_ = now;
+      ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %" PRIu32 " bytes dropped total", this->itf_, this->tx_dropped_bytes_);
+    }
   }
   uart_irq_tx_enable(this->uart_dev_);
 #ifdef USE_UART_DEBUGGER
