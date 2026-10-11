@@ -42,11 +42,17 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
 
   // All bytes from UART should be consumed
   EXPECT_TRUE(ctx.uart.rx.empty());
-  // After successful connect we request status, first settings (0x02)
+  // Defer the first settings request (0x02) until the next update.
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  ctx.sut.set_current_time(201);
+  ASSERT_FALSE(ctx.sut.update());
+
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B));
-  EXPECT_EQ(ctx.sut.operation_start_ms_, 200);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 201);
 
   // Clear TX bytes.
   ctx.uart.tx.clear();
@@ -75,14 +81,23 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_4);
   EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::SWING);
 
-  // Now fetch telemetry (0x03)
+  // Defer the telemetry request (0x03) until the next update.
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  ctx.sut.set_current_time(301);
+  ASSERT_FALSE(ctx.sut.update());
+
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A));
-  EXPECT_EQ(ctx.sut.operation_start_ms_, 300);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 301);
 
   // Clear TX bytes.
   ctx.uart.tx.clear();
+
+  // Queue a setting while waiting for telemetry.
+  ctx.sut.set_power(true);
 
   // Telemetry response
   ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00,
@@ -103,6 +118,13 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
   EXPECT_EQ(ctx.sut.operation_start_ms_, 400);
+
+  // Apply the pending setting on the next update, outside RX processing.
+  ctx.sut.set_current_time(401);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  EXPECT_FALSE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 401);
 }
 
 TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
@@ -467,6 +489,36 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
   EXPECT_EQ(ctx.sut.operation_start_ms_, 6500 - 1000);
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
+}
+
+TEST(MitsubishiCN105Tests, PendingSettingsTakePriorityOverDueTelemetry) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.sut.status_.target_temperature = 24.0f;
+  ctx.sut.status_.room_temperature = 21.0f;
+  ASSERT_TRUE(ctx.sut.is_status_initialized());
+
+  ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
+  ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
+  ctx.sut.set_current_time(1000);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
+  ctx.uart.tx.clear();
+
+  ctx.sut.set_power(true);
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x08, 0x07,
+                    0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3C});
+
+  ctx.sut.set_current_time(1001);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_TRUE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  ctx.sut.set_current_time(1002);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x01, 0x00, 0x01, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B));
 }
 
 TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {

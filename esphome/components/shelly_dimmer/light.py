@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 import re
+from typing import Any
 
 from esphome import external_files, pins
 import esphome.codegen as cg
@@ -66,7 +67,7 @@ KNOWN_FIRMWARE = {
 }
 
 
-def parse_firmware_version(value):
+def parse_firmware_version(value: str) -> tuple[int, int]:
     match = re.fullmatch(r"(\d+)\.(\d+)", value)
     if match is None:
         raise ValueError(f"Not a valid version number {value}")
@@ -154,7 +155,7 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
-def validate_firmware(value):
+def validate_firmware(value: ConfigType) -> ConfigType:
     config = value.copy()
     if CONF_URL not in config:
         try:
@@ -167,14 +168,14 @@ def validate_firmware(value):
     return config
 
 
-def validate_sha256(value):
+def validate_sha256(value: Any) -> str:
     value = cv.string(value)
     if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"Not a valid SHA256 hex string: {value}")
     return value
 
 
-def validate_version(value):
+def validate_version(value: str) -> str:
     parse_firmware_version(value)
     return value
 
@@ -231,7 +232,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     fw_hex = get_firmware(config[CONF_FIRMWARE])
     fw_major, fw_minor = parse_firmware_version(config[CONF_FIRMWARE][CONF_VERSION])
 

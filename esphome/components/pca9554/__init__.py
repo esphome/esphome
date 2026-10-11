@@ -11,10 +11,13 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@hwstar", "@clydebarrow", "@bdraco"]
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pca9554"
 MULTI_CONF = True
 CONF_PIN_COUNT = "pin_count"
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
@@ -40,7 +43,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_pin_count(config[CONF_PIN_COUNT]))
     await cg.register_component(var, config)
@@ -49,7 +52,7 @@ async def to_code(config):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -64,12 +67,14 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_PCA9554): cv.use_id(PCA9554Component),
+        cv.Required(CONF_PCA9554): pins.use_id_or_address(PCA9554Component),
     }
 )
 
 
-def pca9554_pin_final_validate(pin_config, parent_config):
+def pca9554_pin_final_validate(
+    pin_config: ConfigType, parent_config: ConfigType
+) -> None:
     count = parent_config[CONF_PIN_COUNT]
     if pin_config[CONF_NUMBER] >= count:
         raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
@@ -78,7 +83,7 @@ def pca9554_pin_final_validate(pin_config, parent_config):
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_PCA9554, PCA9554_PIN_SCHEMA, pca9554_pin_final_validate
 )
-async def pca9554_pin_to_code(config):
+async def pca9554_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCA9554])
 

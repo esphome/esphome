@@ -98,7 +98,7 @@ speed_t get_baud(int baud) {
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 HostUartComponent::~HostUartComponent() {
   if (this->file_descriptor_ != -1) {

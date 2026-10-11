@@ -5,7 +5,7 @@
 
 namespace esphome::hlk_fm22x {
 
-static const char *const TAG = "hlk_fm22x";
+ESPHOME_LOG_TAG(TAG, "hlk_fm22x");
 static constexpr uint32_t PAYLOAD_TIMEOUT_MS = 20;
 
 void HlkFm22xComponent::setup() {
@@ -336,7 +336,8 @@ void HlkFm22xComponent::dump_config() {
   }
   if (this->enrolling_binary_sensor_) {
     LOG_BINARY_SENSOR("  ", "Enrolling", this->enrolling_binary_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %s", this->enrolling_binary_sensor_->state ? "ON" : "OFF");
+    ESP_LOGCONFIG(TAG, "    Current Value: %s",
+                  this->enrolling_binary_sensor_->state ? LOG_STR_LITERAL("ON") : LOG_STR_LITERAL("OFF"));
   }
   if (this->face_count_sensor_) {
     LOG_SENSOR("  ", "Face Count", this->face_count_sensor_);

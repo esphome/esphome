@@ -2,3 +2,7 @@ zephyr_ble_server:
 
 ota:
   - platform: zephyr_mcumgr
+    status:
+      pin:
+        number: P0.15
+        inverted: true

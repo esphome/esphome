@@ -5,7 +5,7 @@
 
 namespace esphome::pcm5122 {
 
-static const char *const TAG = "pcm5122.gpio";
+ESPHOME_LOG_TAG(TAG, "pcm5122.gpio");
 
 void PCM5122GPIOPin::setup() { this->pin_mode(this->flags_); }
 

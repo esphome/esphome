@@ -37,8 +37,8 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
-#ifdef USE_IMPROV
-#include "esphome/components/esp32_improv/esp32_improv_component.h"
+#ifdef USE_IMPROV_BLE
+#include "esphome/components/improv_ble/improv_ble_component.h"
 #endif
 
 #ifdef USE_IMPROV_SERIAL
@@ -51,7 +51,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi";
+ESPHOME_LOG_TAG(TAG, "wifi");
 
 // CompactString implementation
 CompactString::CompactString(const char *str, size_t len) {
@@ -226,7 +226,7 @@ bool CompactString::operator==(const StringRef &other) const {
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │        Captive Portal / Improv Mode (AP active, scanning disabled)   │
 /// ├──────────────────────────────────────────────────────────────────────┤
-/// │  When captive_portal or esp32_improv is active, WiFi scanning is     │
+/// │  When captive_portal or improv_ble is active, WiFi scanning is       │
 /// │  disabled because it disrupts AP clients (radio leaves AP channel    │
 /// │  to hop through other channels, causing client disconnections).      │
 /// │                                                                      │
@@ -380,6 +380,26 @@ static constexpr uint8_t WIFI_RETRY_COUNT_PER_AP = 1;
 /// Cooldown duration in milliseconds after adapter restart or repeated failures
 /// Allows WiFi hardware to stabilize before next connection attempt
 static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
+#ifdef USE_WIFI_AP
+/// Whether the radio runs the fallback AP on its own, without STA alongside.
+#ifdef USE_WIFI_AP_EXCLUSIVE
+static constexpr bool WIFI_AP_EXCLUSIVE = true;
+#else
+static constexpr bool WIFI_AP_EXCLUSIVE = false;
+#endif
+#endif
+#ifdef USE_WIFI_AP_EXCLUSIVE
+/// On a radio that cannot run the AP and STA together: how long the fallback
+/// AP stays up while nobody uses it before it pauses so the networks can be
+/// tried again, and how long new credentials give the portal to answer
+/// before the AP drops.
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_DWELL_MS = 300000;
+/// The AP pauses after this long even with clients counted, so a lost
+/// disconnect event cannot keep the networks from being tried for good.
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_MAX_DWELL_MS = 3 * WIFI_AP_EXCLUSIVE_DWELL_MS;
+static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
+static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
+#endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
 /// Longer interval gives users time to configure WiFi without constant connection attempts
@@ -478,9 +498,9 @@ bool WiFiComponent::needs_full_scan_results_() const {
   }
 #endif
 
-#ifdef USE_IMPROV
+#ifdef USE_IMPROV_BLE
   // BLE improv also needs results during provisioning
-  if (esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active()) {
+  if (improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active()) {
     return true;
   }
 #endif
@@ -530,7 +550,7 @@ void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Skip logging during roaming scans to avoid log buffer overflow
   // (roaming scans typically find many networks but only care about same-SSID APs)
-  if (this->roaming_state_ == RoamingState::SCANNING) {
+  if (this->is_roaming_scan_active()) {
     return;
   }
   char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -618,8 +638,6 @@ static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
 }
 #endif
 
-float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
-
 void WiFiComponent::setup() {
   this->wifi_pre_setup_();
 
@@ -633,6 +651,29 @@ void WiFiComponent::setup() {
 
   // Store the configured power save mode as baseline
   this->configured_power_save_ = this->power_save_;
+#endif
+
+#if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
+  // The access point is a provisioning surface: once the provisioning window has
+  // closed, shut it down (mirrors the teardown done on a successful connection).
+  // The captive portal registers its own closed-callback, and the fallback block
+  // in loop() is gated so neither is started again afterwards.
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      if (this->ap_setup_) {
+        ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
+#ifdef USE_WIFI_AP_EXCLUSIVE
+        // The networks wait while the AP runs on its own; hand them the radio
+        // now rather than at the end of the dwell.
+        if (this->state_ == WIFI_COMPONENT_STATE_AP && this->has_sta()) {
+          this->pause_exclusive_ap_();
+          return;
+        }
+#endif
+        this->wifi_mode_({}, false);
+      }
+    });
+  }
 #endif
 
   if (this->enable_on_boot_) {
@@ -726,17 +767,20 @@ void WiFiComponent::start() {
     }
 #ifdef USE_CAPTIVE_PORTAL
     if (captive_portal::global_captive_portal != nullptr) {
-      this->wifi_sta_pre_setup_();
-      this->start_scanning();
+      // Where the radio scans alongside the AP, the portal can list networks.
+      if (!WIFI_AP_EXCLUSIVE) {
+        this->wifi_sta_pre_setup_();
+        this->start_scanning();
+      }
       captive_portal::global_captive_portal->start();
     }
 #endif
 #endif  // USE_WIFI_AP
   }
-#ifdef USE_IMPROV
-  if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
+#ifdef USE_IMPROV_BLE
+  if (!this->has_sta() && improv_ble::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
-      esp32_improv::global_improv_component->start();
+      improv_ble::global_improv_component->start();
   }
 #endif
   this->wifi_apply_hostname_();
@@ -749,7 +793,7 @@ void WiFiComponent::restart_adapter() {
   // and check_connecting_finished() is called after cooldown without going
   // through start_connecting() first. Without this clear, stale errors would
   // trigger spurious "failed (callback)" logs. The canonical clear location
-  // is in start_connecting(); this is the only exception to that pattern.
+  // is in start_connecting() (ESP8266 also clears after wifi_station_connect()).
   this->error_from_callback_ = false;
 }
 
@@ -792,7 +836,7 @@ void WiFiComponent::loop() {
           break;
         }
         // Use longer cooldown when captive portal/improv is active to avoid disrupting user config
-        bool portal_active = this->is_captive_portal_active_() || this->is_esp32_improv_active_();
+        bool portal_active = this->is_captive_portal_active_() || this->is_improv_ble_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
           // After cooldown we either restarted the adapter because of
@@ -833,35 +877,65 @@ void WiFiComponent::loop() {
           this->notify_connect_state_listeners_();
 #endif
 
-          // Post-connect roaming: check for better AP
-          if (this->post_connect_roaming_) {
-            if (this->roaming_state_ == RoamingState::SCANNING) {
-              if (this->scan_done_) {
-                this->process_roaming_scan_();
-              }
-              // else: scan in progress, wait
-            } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
-              this->check_roaming_(now);
+          // Post-connect roaming: check for better AP. A scan may have been started by an
+          // explicit force_roam_check() even when post_connect_roaming_ is disabled, so the
+          // scan must always be consumed here to avoid leaving roaming_state_ stuck.
+          if (this->is_roaming_scan_active()) {
+            if (this->scan_done_) {
+              this->process_roaming_scan_();
             }
+            // else: scan in progress, wait
+          } else if (this->post_connect_roaming_ && this->roaming_state_ == RoamingState::IDLE &&
+                     this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
+            this->check_roaming_(now);
           }
         }
         break;
       }
-      case WIFI_COMPONENT_STATE_OFF:
       case WIFI_COMPONENT_STATE_AP:
+#ifdef USE_WIFI_AP_EXCLUSIVE
+        // The networks are not tried while the AP is up, so it pauses for
+        // them once nobody has used it for a while. Without networks the AP
+        // is all there is and stays.
+        if (this->has_sta() && now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_DWELL_MS &&
+            (this->ap_clients_ == 0 || now - this->ap_exclusive_changed_ > WIFI_AP_EXCLUSIVE_MAX_DWELL_MS))
+          this->pause_exclusive_ap_();
+        break;
+#endif
+      case WIFI_COMPONENT_STATE_OFF:
         break;
       case WIFI_COMPONENT_STATE_DISABLED:
         return;
     }
 
 #ifdef USE_WIFI_AP
-    if (this->has_ap() && !this->ap_setup_) {
-      if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
+    bool provisioning_closed = false;
+#ifdef USE_PROVISIONING
+    // Once the provisioning window has closed, don't bring up the fallback AP (or
+    // the captive portal on it) - the device must stay unprovisionable until it is
+    // power-cycled.
+    provisioning_closed =
+        provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
+#endif
+    if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
+      if (this->ap_timeout_ != 0 &&
+          (now - this->last_connected_ > this->ap_timeout_)
+#ifdef USE_WIFI_AP_EXCLUSIVE
+          // After a pause, or a start that failed, the networks get a full
+          // ap_timeout before the AP is tried again.
+          && now - this->ap_exclusive_changed_ > this->ap_timeout_
+#endif
+      ) {
         ESP_LOGI(TAG, "Starting fallback AP");
+#ifdef USE_WIFI_AP_EXCLUSIVE
+        this->ap_exclusive_changed_ = now;
+#endif
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        if (captive_portal::global_captive_portal != nullptr) {
+        // Where the AP runs on its own, a portal with no AP behind it would
+        // only stretch the cooldowns.
+        if (captive_portal::global_captive_portal != nullptr && (!WIFI_AP_EXCLUSIVE || this->ap_setup_)) {
           // Reset so we force one full scan after captive portal starts
           // (previous scans were filtered because captive portal wasn't active yet)
           this->has_completed_scan_after_captive_portal_start_ = false;
@@ -872,12 +946,12 @@ void WiFiComponent::loop() {
     }
 #endif  // USE_WIFI_AP
 
-#ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active() &&
-        !esp32_improv::global_improv_component->should_start()) {
-      if (now - this->last_connected_ > esp32_improv::global_improv_component->get_wifi_timeout()) {
+#ifdef USE_IMPROV_BLE
+    if (improv_ble::global_improv_component != nullptr && !improv_ble::global_improv_component->is_active() &&
+        !improv_ble::global_improv_component->should_start()) {
+      if (now - this->last_connected_ > improv_ble::global_improv_component->get_wifi_timeout()) {
         if (this->wifi_mode_(true, {}))
-          esp32_improv::global_improv_component->start();
+          improv_ble::global_improv_component->start();
       }
     }
 
@@ -912,7 +986,7 @@ void WiFiComponent::loop() {
     if (semaphore_count > 0 && !this->is_high_performance_mode_) {
       // Transition to high-performance mode (no power save)
       ESP_LOGV(TAG, "Switching to high-performance mode (%" PRIu32 " active %s)", (uint32_t) semaphore_count,
-               semaphore_count == 1 ? "request" : "requests");
+               semaphore_count == 1 ? LOG_STR_LITERAL("request") : LOG_STR_LITERAL("requests"));
       this->power_save_ = WIFI_POWER_SAVE_NONE;
       if (this->wifi_apply_power_save_()) {
         this->is_high_performance_mode_ = true;
@@ -931,10 +1005,6 @@ void WiFiComponent::loop() {
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
-#ifdef USE_WIFI_11KV_SUPPORT
-void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
-void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
-#endif
 network::IPAddresses WiFiComponent::get_ip_addresses() {
   if (this->has_sta())
     return this->wifi_sta_ip_addresses();
@@ -954,7 +1024,13 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 
 #ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // The radio cannot run both, so STA goes off while the AP is up.
+  if (!this->wifi_mode_(false, true))
+    return;
+#else
   this->wifi_mode_({}, true);
+#endif
 
   if (this->ap_setup_)
     return;
@@ -988,6 +1064,12 @@ void WiFiComponent::setup_ap_config_() {
     }
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // A failed start must not leave the radio in AP mode, which would refuse
+  // the STA attempts until the next try.
+  if (!this->ap_setup_)
+    this->wifi_mode_({}, false);
+#endif
 
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
@@ -1012,9 +1094,38 @@ void WiFiComponent::setup_ap_config_() {
   }
 #endif
 
-  if (!this->has_sta()) {
+  // Where the AP runs on its own, the STA state machine also waits in this
+  // state until the AP pauses.
+  if (!this->has_sta() || (WIFI_AP_EXCLUSIVE && this->ap_setup_)) {
     this->state_ = WIFI_COMPONENT_STATE_AP;
   }
+}
+
+#ifdef USE_WIFI_AP_EXCLUSIVE
+void WiFiComponent::pause_exclusive_ap_() {
+  ESP_LOGI(TAG, "Pausing AP to try the networks");
+  // Scanning and connecting turn STA back on.
+  this->disable_ap_();
+  this->ap_setup_ = false;
+  // Clients drop with the AP without a disconnect event for each.
+  this->ap_clients_ = 0;
+  this->ap_exclusive_changed_ = App.get_loop_component_start_time();
+  // A fresh connection cycle, as at boot, rather than resuming the one the
+  // AP cut short.
+  this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
+  this->num_retried_ = 0;
+  this->start_initial_connection_();
+}
+#endif
+
+void WiFiComponent::disable_ap_() {
+#ifdef USE_CAPTIVE_PORTAL
+  if (this->is_captive_portal_active_()) {
+    captive_portal::global_captive_portal->end();
+  }
+#endif
+  ESP_LOGD(TAG, "Disabling AP");
+  this->wifi_mode_({}, false);
 }
 
 void WiFiComponent::set_ap(const WiFiAP &ap) {
@@ -1108,6 +1219,17 @@ void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
 }
 
 void WiFiComponent::connect_soon_() {
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  // New credentials from the portal: the AP pauses for them once its answer
+  // is out, and the STA state machine picks them up from there.
+  if (this->ap_setup_) {
+    this->set_timeout(AP_HANDOVER_TIMEOUT_ID, WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
+      if (this->ap_setup_)
+        this->pause_exclusive_ap_();
+    });
+    return;
+  }
+#endif
   // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
   if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
     ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
@@ -1164,8 +1286,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
              "    CA Cert:     %s\n"
              "    Client Cert: %s\n"
              "    Client Key:  %s",
-             ca_cert_present ? "present" : "not present", client_cert_present ? "present" : "not present",
-             client_key_present ? "present" : "not present");
+             ca_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_key_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"));
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.password_.c_str());
@@ -1199,8 +1322,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
   // Clear any stale error from previous connection attempt.
   // This is the canonical location for clearing the flag since all connection
-  // attempts go through start_connecting(). The only other clear is in
-  // restart_adapter() which enters COOLDOWN without calling start_connecting().
+  // attempts go through start_connecting(). restart_adapter() also clears it, as it
+  // enters COOLDOWN without calling start_connecting(), and ESP8266 clears it again
+  // after wifi_station_connect(), whose callbacks fire synchronously.
   this->error_from_callback_ = false;
 
   if (!this->wifi_sta_connect_(ap)) {
@@ -1299,7 +1423,8 @@ void WiFiComponent::print_connect_params_() {
   ESP_LOGCONFIG(TAG,
                 "  BTM: %s\n"
                 "  RRM: %s",
-                this->btm_ ? "enabled" : "disabled", this->rrm_ ? "enabled" : "disabled");
+                this->btm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->rrm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 #endif
 }
 
@@ -1326,8 +1451,6 @@ void WiFiComponent::disable() {
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
 }
-
-bool WiFiComponent::is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
 
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
@@ -1481,8 +1604,8 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
-  this->has_completed_scan_after_captive_portal_start_ =
-      true;  // Track that we've done a scan since captive portal started
+  // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
+  this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
 
   if (this->scan_result_.empty()) {
@@ -1617,18 +1740,14 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
+#ifdef USE_WIFI_AP
     if (this->has_ap()) {
-#ifdef USE_CAPTIVE_PORTAL
-      if (this->is_captive_portal_active_()) {
-        captive_portal::global_captive_portal->end();
-      }
-#endif
-      ESP_LOGD(TAG, "Disabling AP");
-      this->wifi_mode_({}, false);
+      this->disable_ap_();
     }
-#ifdef USE_IMPROV
-    if (this->is_esp32_improv_active_()) {
-      esp32_improv::global_improv_component->stop();
+#endif
+#ifdef USE_IMPROV_BLE
+    if (this->is_improv_ble_active_()) {
+      improv_ble::global_improv_component->stop();
     }
 #endif
 
@@ -1860,7 +1979,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
           return WiFiRetryPhase::RETRY_HIDDEN;
         }
         // Need to scan for captive portal
-      } else if (this->is_esp32_improv_active_()) {
+      } else if (this->is_improv_ble_active_()) {
         // Improv doesn't need scan results
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
@@ -1951,7 +2070,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // Skip actual adapter restart if captive portal/improv is active
       // This allows state machine to reset num_retried_ and trigger fresh scan
       // without disrupting the captive portal/improv connection
-      if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
+      if (!this->is_captive_portal_active_() && !this->is_improv_ble_active_()) {
         this->restart_adapter();
       } else {
         // Even when skipping full restart, disconnect to clear driver state
@@ -2152,7 +2271,7 @@ void WiFiComponent::retry_connect() {
     // Roam connection failed - transition to reconnecting
     ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     this->roaming_state_ = RoamingState::RECONNECTING;
-  } else if (this->roaming_state_ == RoamingState::SCANNING) {
+  } else if (this->is_roaming_scan_active()) {
     // Disconnected during roam scan - transition to RECONNECTING so the attempts
     // counter is preserved when reconnection succeeds (IDLE would reset it)
     ESP_LOGD(TAG, "Disconnected during roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
@@ -2196,15 +2315,12 @@ void WiFiComponent::retry_connect() {
   }
 }
 
-void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   this->configured_power_save_ = power_save;
 #endif
 }
-
-void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
 bool WiFiComponent::is_captive_portal_active_() {
 #ifdef USE_CAPTIVE_PORTAL
@@ -2213,9 +2329,9 @@ bool WiFiComponent::is_captive_portal_active_() {
   return false;
 #endif
 }
-bool WiFiComponent::is_esp32_improv_active_() {
-#ifdef USE_IMPROV
-  return esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active();
+bool WiFiComponent::is_improv_ble_active_() {
+#ifdef USE_IMPROV_BLE
+  return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();
 #else
   return false;
 #endif
@@ -2324,33 +2440,6 @@ void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t ch
 }
 #endif
 
-void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
-void WiFiAP::set_ssid(const char *ssid) { this->ssid_ = CompactString(ssid, strlen(ssid)); }
-void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
-void WiFiAP::clear_bssid() { this->bssid_ = {}; }
-void WiFiAP::set_password(const std::string &password) {
-  this->password_ = CompactString(password.c_str(), password.size());
-}
-void WiFiAP::set_password(const char *password) { this->password_ = CompactString(password, strlen(password)); }
-#ifdef USE_WIFI_WPA2_EAP
-void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
-#endif
-void WiFiAP::set_channel(uint8_t channel) { this->channel_ = channel; }
-void WiFiAP::clear_channel() { this->channel_ = 0; }
-#ifdef USE_WIFI_MANUAL_IP
-void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
-#endif
-void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
-const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
-bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
-#ifdef USE_WIFI_WPA2_EAP
-const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
-#endif
-#ifdef USE_WIFI_MANUAL_IP
-const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
-#endif
-bool WiFiAP::get_hidden() const { return this->hidden_; }
-
 WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi,
                                bool with_auth, bool is_hidden)
     : bssid_(bssid),
@@ -2396,14 +2485,6 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
   }
   return true;
 }
-bool WiFiScanResult::get_matches() const { return this->matches_; }
-void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
-const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
-int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
-bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
-bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
-
 bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
 void WiFiComponent::clear_roaming_state_() {
@@ -2436,7 +2517,7 @@ void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
     ScanResultsLock lock(this);
-#if defined(USE_RP2) || defined(USE_ESP32)
+#if defined(USE_RP2)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else
@@ -2484,6 +2565,17 @@ void WiFiComponent::notify_scan_results_listeners_() {
 }
 #endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
 
+void WiFiComponent::force_roam_check() {
+  if (!this->is_connected() || this->roaming_state_ != RoamingState::IDLE || this->roaming_suppressed_()) {
+    ESP_LOGD(TAG, "Roam check requested, but not able to check now");
+    return;
+  }
+  // Reset the attempt counter so a prior run of failed roams doesn't block this explicit request
+  // Note that this re-arms automatic roaming if enabled.
+  this->roaming_attempts_ = 0;
+  this->check_roaming_(millis());
+}
+
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
@@ -2505,7 +2597,11 @@ void WiFiComponent::check_roaming_(uint32_t now) {
 
   ESP_LOGD(TAG, "Roam scan (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
   this->roaming_state_ = RoamingState::SCANNING;
-  this->wifi_scan_start_(this->passive_scan_);
+  if (!this->wifi_scan_start_(this->passive_scan_)) {
+    // Scan failed to start (e.g. busy) - don't get stuck in SCANNING forever
+    ESP_LOGD(TAG, "Roam scan failed to start");
+    this->roaming_state_ = RoamingState::IDLE;
+  }
 }
 
 void WiFiComponent::process_roaming_scan_() {

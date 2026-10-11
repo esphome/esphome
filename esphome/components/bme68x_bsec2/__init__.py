@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
 )
+from esphome.cpp_generator import MockObj
 from esphome.external_files import RemoteFile
 from esphome.types import ConfigType
 
@@ -94,7 +95,7 @@ def _compute_url(config: dict) -> str:
     return f"https://raw.githubusercontent.com/boschsensortec/Bosch-BSEC2-Library/{BSEC2_LIBRARY_VERSION}/src/config/{model}/{model}_{algo}_{volts}_{sample_rate}_{operating_age}/{filename}.txt"
 
 
-def download_bme68x_blob(config):
+def download_bme68x_blob(config: ConfigType) -> ConfigType:
     url = _compute_url(config)
     path = _compute_local_file_path(url)
     external_files.download_content(url, path)
@@ -138,7 +139,7 @@ def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_blob_ref)
 
 
-def validate_bme68x(config):
+def validate_bme68x(config: ConfigType) -> ConfigType:
     if CONF_ALGORITHM_OUTPUT not in config:
         return config
 
@@ -178,7 +179,7 @@ CONFIG_SCHEMA_BASE = (
 )
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
