@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
     CONF_WIFI,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, HexInt
 from esphome.cpp_generator import MockObj, TemplateArgsType
@@ -24,7 +26,14 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = ["network"]
+
+
+def AUTO_LOAD() -> list[str]:
+    # network initialises esp_netif and the default event loop on the ESP32. The ESP8266 needs neither, and
+    # loading it there would pull in mdns, which requires wifi
+    return ["network"] if CORE.is_esp32 else []
+
+
 DOMAIN = "espnow"
 
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
@@ -121,15 +130,21 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),
-            cv.Optional(CONF_ON_BROADCAST): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastTrigger),
-                    cv.Optional(CONF_ADDRESS): cv.mac_address,
-                }
+            # The ESP8266 SDK does not report the destination address, so broadcasts are indistinguishable there
+            cv.Optional(CONF_ON_BROADCAST): cv.All(
+                cv.only_on_esp32,
+                automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            OnBroadcastTrigger
+                        ),
+                        cv.Optional(CONF_ADDRESS): cv.mac_address,
+                    }
+                ),
             ),
         },
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on_esp32,
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 
 
@@ -138,6 +153,8 @@ def _validate_variant(config: ConfigType) -> ConfigType:
     # ESP-NOW; only the ESP32-P4 has a path, via the esp32_hosted shim that
     # supplies the esp_now_* symbols. Fail here with a clear message instead of
     # letting the build reach an "undefined reference to esp_now_*" link error.
+    if not CORE.is_esp32:
+        return config
     variant = get_esp32_variant()
     if wifi.variant_has_wifi(variant):
         return config

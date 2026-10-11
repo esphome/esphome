@@ -5,6 +5,7 @@ from esphome.components.uart import (
     CONF_DEBUG_PREFIX,
     CONF_FLUSH_TIMEOUT,
     UARTComponent,
+    UARTParityOptions,
     mark_unclocked,
 )
 from esphome.components.usb_host import (
@@ -44,7 +45,6 @@ def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     )
 
 
-UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
     "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
