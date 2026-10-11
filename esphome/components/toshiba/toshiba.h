@@ -11,7 +11,7 @@ enum Model {
   MODEL_RAC_PT1411HWRU_C = 1,  // Temperature range is from 16 to 30
   MODEL_RAC_PT1411HWRU_F = 2,  // Temperature range is from 16 to 30
   MODEL_RAS_2819T = 3,         // RAS-2819T protocol variant, temperature range 18 to 30
-  MODEL_SEIYA = 4,             // Toshiba Seiya (RAS-B13E2KVG-E etc.), temperature range 17 to 30
+  MODEL_SEIYA = 4,             // Seiya family (RAS-B13E2KVG-E etc.), generic frame with a swing byte
 };
 
 // Supported temperature ranges
@@ -23,8 +23,6 @@ const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN = 60.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MAX = 86.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MIN = 18.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MAX = 30.0;
-const float TOSHIBA_SEIYA_TEMP_C_MIN = 17.0;
-const float TOSHIBA_SEIYA_TEMP_C_MAX = 30.0;
 
 class ToshibaClimate final : public climate_ir::ClimateIR {
  public:
@@ -42,7 +40,6 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   void transmit_rac_pt1411hwru_();
   void transmit_rac_pt1411hwru_temp_(bool cs_state = true, bool cs_send_update = true);
   void transmit_ras_2819t_();
-  void transmit_seiya_();
   // Process RAS-2819T IR command data
   bool process_ras_2819t_command_(const remote_base::ToshibaAcData &toshiba_data);
   // Returns the header if valid, else returns zero
@@ -54,7 +51,7 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
  private:
-  // RAS-2819T state tracking for swing mode optimization
+  // Last swing mode sent or received, for models whose swing is a one-shot command
   climate::ClimateSwingMode last_swing_mode_{climate::CLIMATE_SWING_OFF};
   climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};
   optional<climate::ClimateFanMode> last_fan_mode_{};
@@ -65,8 +62,6 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
     if (this->model_ == MODEL_RAS_2819T)
       return TOSHIBA_RAS_2819T_TEMP_C_MIN;
-    if (this->model_ == MODEL_SEIYA)
-      return TOSHIBA_SEIYA_TEMP_C_MIN;
     return TOSHIBA_GENERIC_TEMP_C_MIN;  // Default to GENERIC for unknown models
   }
   float temperature_max_() {
@@ -74,8 +69,6 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX;
     if (this->model_ == MODEL_RAS_2819T)
       return TOSHIBA_RAS_2819T_TEMP_C_MAX;
-    if (this->model_ == MODEL_SEIYA)
-      return TOSHIBA_SEIYA_TEMP_C_MAX;
     return TOSHIBA_GENERIC_TEMP_C_MAX;  // Default to GENERIC for unknown models
   }
   climate::ClimateSwingModeMask toshiba_swing_modes_() {
@@ -90,16 +83,11 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
   bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);
 
-  // Seiya-specific encode/decode (different IR timings from the shared encode_/decode_).
-  void encode_seiya_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
-  bool decode_seiya_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);
-  bool on_receive_seiya_(remote_base::RemoteReceiveData data);
-  uint8_t seiya_checksum_(const uint8_t *message, uint8_t nbytes);
-  uint8_t seiya_encode_temperature_(float c) const;
-  uint8_t seiya_encode_mode_() const;
-  uint8_t seiya_encode_fan_() const;
-  uint8_t seiya_encode_swing_() const;
-  void seiya_decode_state_(const uint8_t *message, uint8_t nbytes);
+  // Shared by every model that uses the F2 0D frame
+  uint8_t encode_mode_fan_() const;
+  void decode_mode_fan_temperature_(const uint8_t *message);
+  uint8_t seiya_swing_code_() const;
+  void seiya_decode_swing_(uint8_t code);
 
   Model model_;
 };

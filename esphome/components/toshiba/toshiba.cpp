@@ -163,45 +163,35 @@ const uint8_t RAS_2819T_AUTO_DRY_FAN_BYTE = 0x65;
 const uint8_t RAS_2819T_AUTO_DRY_SUFFIX = 0x3A;
 const uint8_t RAS_2819T_HEAT_SUFFIX = 0x3B;
 
-// Toshiba Seiya IR timings (differ from the generic Toshiba timings above).
-const uint16_t SEIYA_HEADER_MARK = 4630;
-const uint16_t SEIYA_HEADER_SPACE = 4450;
-const uint16_t SEIYA_BIT_MARK = 625;
-const uint16_t SEIYA_ZERO_SPACE = 490;
-const uint16_t SEIYA_ONE_SPACE = 1570;
-const uint16_t SEIYA_GAP_SPACE = 5830;  // gap between the two repeated frames only
-const uint16_t SEIYA_CARRIER_FREQUENCY = 38000;
+// Bit timings differ per protocol family; the frame layout is shared
+struct ToshibaTimings {
+  uint16_t header_mark;
+  uint16_t header_space;
+  uint16_t bit_mark;
+  uint16_t zero_space;
+  uint16_t one_space;
+  uint16_t gap_space;
+  bool gap_after_last;  // Seiya ends on a bare mark and only puts the gap between repeats
+};
+static constexpr ToshibaTimings TOSHIBA_TIMINGS{TOSHIBA_HEADER_MARK,
+                                                TOSHIBA_HEADER_SPACE,
+                                                TOSHIBA_BIT_MARK,
+                                                TOSHIBA_ZERO_SPACE,
+                                                TOSHIBA_ONE_SPACE,
+                                                TOSHIBA_GAP_SPACE,
+                                                true};
+static constexpr ToshibaTimings SEIYA_TIMINGS{4630, 4450, 625, 490, 1570, 5830, false};
 
-// Seiya header signature and frame layout.
-const uint8_t SEIYA_SIG0 = 0xF2;
-const uint8_t SEIYA_SIG1 = 0x0D;
-const uint8_t SEIYA_FRAME_NORMAL = 0x01;
-const uint8_t SEIYA_FRAME_TIMER = 0x03;  // OFF timer — not handled yet
-const uint8_t SEIYA_FEATURE_MARKER = 0x21;
+static const ToshibaTimings &timings_for(Model model) { return model == MODEL_SEIYA ? SEIYA_TIMINGS : TOSHIBA_TIMINGS; }
 
-// Seiya byte6 low nibble: operating mode.
-const uint8_t SEIYA_MODE_AUTO = 0x00;
-const uint8_t SEIYA_MODE_COOL = 0x01;
-const uint8_t SEIYA_MODE_DRY = 0x02;
-const uint8_t SEIYA_MODE_HEAT = 0x03;
-const uint8_t SEIYA_MODE_FAN_ONLY = 0x04;
-const uint8_t SEIYA_MODE_OFF = 0x07;
-
-// Seiya byte6 high nibble: fan speed.
-const uint8_t SEIYA_FAN_AUTO = 0x00;
-const uint8_t SEIYA_FAN_QUIET = 0x20;
-const uint8_t SEIYA_FAN_1 = 0x40;  // Low
-const uint8_t SEIYA_FAN_2 = 0x60;  // not exposed; nearest = Medium
-const uint8_t SEIYA_FAN_3 = 0x80;  // Medium
-const uint8_t SEIYA_FAN_4 = 0xa0;  // not exposed; nearest = High
-const uint8_t SEIYA_FAN_5 = 0xc0;  // High
-
-// Seiya byte9: swing / direction command.
-const uint8_t SEIYA_SWING_BOTH = 0x01;
-const uint8_t SEIYA_SWING_OMNI = 0x02;  // Omni-direction; mapped to BOTH on receive
-const uint8_t SEIYA_SWING_VERTICAL = 0x08;
-const uint8_t SEIYA_SWING_HORIZONTAL = 0x09;
-const uint8_t SEIYA_SWING_NEUTRAL = 0x17;  // ordinary updates (no swing command)
+// Seiya is the generic frame plus two bytes: a feature marker and a one-shot swing command
+static constexpr uint8_t SEIYA_MESSAGE_LENGTH = 11;
+static constexpr uint8_t SEIYA_FEATURE_MARKER = 0x21;
+static constexpr uint8_t SEIYA_SWING_BOTH = 0x01;
+static constexpr uint8_t SEIYA_SWING_OMNI = 0x02;  // no ESPHome equivalent; treated as BOTH
+static constexpr uint8_t SEIYA_SWING_VERTICAL = 0x08;
+static constexpr uint8_t SEIYA_SWING_HORIZONTAL = 0x09;
+static constexpr uint8_t SEIYA_SWING_NEUTRAL = 0x17;  // no swing change in this frame
 
 // RAS-2819T temperature codes for 18-30°C
 static const uint8_t RAS_2819T_TEMP_CODES[] = {
@@ -450,11 +440,8 @@ void ToshibaClimate::setup() {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
-  // Seed the Seiya one-shot swing tracker from the restored state so a restored swing
-  // mode is not re-transmitted as a fresh swing command on the next ordinary update.
-  if (this->model_ == MODEL_SEIYA) {
-    this->last_swing_mode_ = this->swing_mode;
-  }
+  // A restored swing mode is already in effect, so it must not go out as a fresh swing command
+  this->last_swing_mode_ = this->swing_mode;
 
   // Ensure mode is valid - ESPHome should only use standard climate modes
   if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_HEAT &&
@@ -491,16 +478,15 @@ void ToshibaClimate::transmit_state() {
     this->transmit_rac_pt1411hwru_();
   } else if (this->model_ == MODEL_RAS_2819T) {
     this->transmit_ras_2819t_();
-  } else if (this->model_ == MODEL_SEIYA) {
-    this->transmit_seiya_();
   } else {
     this->transmit_generic_();
   }
 }
 
 void ToshibaClimate::transmit_generic_() {
+  const bool seiya = this->model_ == MODEL_SEIYA;
   uint8_t message[16] = {0};
-  uint8_t message_length = 9;
+  const uint8_t message_length = seiya ? SEIYA_MESSAGE_LENGTH : 9;
 
   // Header
   message[0] = 0xf2;
@@ -521,6 +507,40 @@ void ToshibaClimate::transmit_generic_() {
   message[5] = (temperature - static_cast<uint8_t>(TOSHIBA_GENERIC_TEMP_C_MIN)) << 4;
 
   // Mode and fan
+  message[6] = this->encode_mode_fan_();
+
+  // Zero
+  message[7] = 0x00;
+
+  if (seiya) {
+    // Captured OFF frames carry no fan bits
+    if (this->mode == climate::CLIMATE_MODE_OFF) {
+      message[6] = TOSHIBA_MODE_OFF;
+    }
+    message[8] = SEIYA_FEATURE_MARKER;
+    // Swing is a momentary command, sent only when the mode changes, like the remote does
+    message[9] = SEIYA_SWING_NEUTRAL;
+    if (this->swing_mode != this->last_swing_mode_) {
+      message[9] = this->seiya_swing_code_();
+      this->last_swing_mode_ = this->swing_mode;
+    }
+  }
+
+  // The last byte is the xor of all bytes from [4]
+  for (uint8_t i = 4; i < message_length - 1; i++) {
+    message[message_length - 1] ^= message[i];
+  }
+
+  // Transmit
+  auto transmit = this->transmitter_->transmit();
+  auto *data = transmit.get_data();
+
+  this->encode_(data, message, message_length, 1);
+
+  transmit.perform();
+}
+
+uint8_t ToshibaClimate::encode_mode_fan_() const {
   uint8_t mode;
   switch (this->mode) {
     case climate::CLIMATE_MODE_OFF:
@@ -571,27 +591,20 @@ void ToshibaClimate::transmit_generic_() {
       fan = TOSHIBA_FAN_SPEED_AUTO;
       break;
   }
-  message[6] = fan | mode;
+  return fan | mode;
+}
 
-  // Zero
-  message[7] = 0x00;
-
-  // If timers bit in the command is set, two extra bytes are added here
-
-  // If power bit is set in the command, one extra byte is added here
-
-  // The last byte is the xor of all bytes from [4]
-  for (uint8_t i = 4; i < 8; i++) {
-    message[8] ^= message[i];
+uint8_t ToshibaClimate::seiya_swing_code_() const {
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+      return SEIYA_SWING_VERTICAL;
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      return SEIYA_SWING_HORIZONTAL;
+    case climate::CLIMATE_SWING_BOTH:
+      return SEIYA_SWING_BOTH;
+    default:
+      return SEIYA_SWING_NEUTRAL;
   }
-
-  // Transmit
-  auto transmit = this->transmitter_->transmit();
-  auto *data = transmit.get_data();
-
-  this->encode_(data, message, message_length, 1);
-
-  transmit.perform();
 }
 
 void ToshibaClimate::transmit_rac_pt1411hwru_() {
@@ -1132,21 +1145,17 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 }
 
 bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
-  // Seiya uses different IR timings from the generic Toshiba protocol, so it has its
-  // own receive path and must not flow through the ToshibaAcProtocol / generic decoders.
-  if (this->model_ == MODEL_SEIYA) {
-    return this->on_receive_seiya_(data);
-  }
-
   // Try modern ToshibaAcProtocol decoder first (handles RAS-2819T and potentially others)
-  remote_base::ToshibaAcProtocol toshiba_protocol;
-  auto decode_result = toshiba_protocol.decode(data);
+  if (this->model_ != MODEL_SEIYA) {
+    remote_base::ToshibaAcProtocol toshiba_protocol;
+    auto decode_result = toshiba_protocol.decode(data);
 
-  if (decode_result.has_value()) {
-    auto toshiba_data = decode_result.value();
-    // Validate and process RAS-2819T commands
-    if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
-      return this->process_ras_2819t_command_(toshiba_data);
+    if (decode_result.has_value()) {
+      auto toshiba_data = decode_result.value();
+      // Validate and process RAS-2819T commands
+      if (is_valid_ras_2819t_command(toshiba_data.rc_code_1, toshiba_data.rc_code_2)) {
+        return this->process_ras_2819t_command_(toshiba_data);
+      }
     }
   }
 
@@ -1155,7 +1164,8 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t message_length = TOSHIBA_HEADER_LENGTH, temperature_code = 0;
 
   // Validate header
-  if (!data.expect_item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE)) {
+  const ToshibaTimings &timings = timings_for(this->model_);
+  if (!data.expect_item(timings.header_mark, timings.header_space)) {
     return false;
   }
   // Read incoming bits into buffer
@@ -1171,6 +1181,9 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   } else {
     // First checksum was valid so continue receiving the remaining bits
+    if (message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
+      return false;  // length byte would overrun the buffer
+    }
     message_length = message[2] + 2;
   }
   // Decode the remaining bytes
@@ -1330,59 +1343,10 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
 
-      // Get the mode
-      switch (message[6] & 0x0F) {
-        case TOSHIBA_MODE_OFF:
-          this->mode = climate::CLIMATE_MODE_OFF;
-          break;
-
-        case TOSHIBA_MODE_COOL:
-          this->mode = climate::CLIMATE_MODE_COOL;
-          break;
-
-        case TOSHIBA_MODE_DRY:
-          this->mode = climate::CLIMATE_MODE_DRY;
-          break;
-
-        case TOSHIBA_MODE_FAN_ONLY:
-          this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          break;
-
-        case TOSHIBA_MODE_HEAT:
-          this->mode = climate::CLIMATE_MODE_HEAT;
-          break;
-
-        case TOSHIBA_MODE_AUTO:
-        default:
-          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+      this->decode_mode_fan_temperature_(message);
+      if (this->model_ == MODEL_SEIYA && message_length == SEIYA_MESSAGE_LENGTH) {
+        this->seiya_decode_swing_(message[9]);
       }
-
-      // Get the fan mode
-      switch (message[6] & 0xF0) {
-        case TOSHIBA_FAN_SPEED_QUIET:
-          this->fan_mode = climate::CLIMATE_FAN_QUIET;
-          break;
-
-        case TOSHIBA_FAN_SPEED_1:
-          this->fan_mode = climate::CLIMATE_FAN_LOW;
-          break;
-
-        case TOSHIBA_FAN_SPEED_3:
-          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-          break;
-
-        case TOSHIBA_FAN_SPEED_5:
-          this->fan_mode = climate::CLIMATE_FAN_HIGH;
-          break;
-
-        case TOSHIBA_FAN_SPEED_AUTO:
-        default:
-          this->fan_mode = climate::CLIMATE_FAN_AUTO;
-          break;
-      }
-
-      // Get the target temperature
-      this->target_temperature = (message[5] >> 4) + TOSHIBA_GENERIC_TEMP_C_MIN;
   }
 
   this->publish_state();
@@ -1391,31 +1355,36 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
 void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, const uint8_t nbytes,
                              const uint8_t repeat) {
+  const ToshibaTimings &timings = timings_for(this->model_);
   data->set_carrier_frequency(TOSHIBA_CARRIER_FREQUENCY);
 
   for (uint8_t copy = 0; copy <= repeat; copy++) {
-    data->item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE);
+    data->item(timings.header_mark, timings.header_space);
 
     for (uint8_t byte = 0; byte < nbytes; byte++) {
       for (uint8_t bit = 0; bit < 8; bit++) {
-        data->mark(TOSHIBA_BIT_MARK);
+        data->mark(timings.bit_mark);
         if (message[byte] & (1 << (7 - bit))) {
-          data->space(TOSHIBA_ONE_SPACE);
+          data->space(timings.one_space);
         } else {
-          data->space(TOSHIBA_ZERO_SPACE);
+          data->space(timings.zero_space);
         }
       }
     }
-    data->item(TOSHIBA_BIT_MARK, TOSHIBA_GAP_SPACE);
+    data->mark(timings.bit_mark);
+    if (copy < repeat || timings.gap_after_last) {
+      data->space(timings.gap_space);
+    }
   }
 }
 
 bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *message, const uint8_t nbytes) {
+  const ToshibaTimings &timings = timings_for(this->model_);
   for (uint8_t byte = 0; byte < nbytes; byte++) {
     for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data->expect_item(TOSHIBA_BIT_MARK, TOSHIBA_ONE_SPACE)) {
+      if (data->expect_item(timings.bit_mark, timings.one_space)) {
         message[byte] |= 1 << (7 - bit);
-      } else if (data->expect_item(TOSHIBA_BIT_MARK, TOSHIBA_ZERO_SPACE)) {
+      } else if (data->expect_item(timings.bit_mark, timings.zero_space)) {
         message[byte] &= static_cast<uint8_t>(~(1 << (7 - bit)));
       } else {
         return false;
@@ -1425,293 +1394,80 @@ bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *mess
   return true;
 }
 
-void ToshibaClimate::transmit_seiya_() {
-  uint8_t msg[11];
-
-  // Header
-  msg[0] = SEIYA_SIG0;
-  msg[1] = SEIYA_SIG1;
-  msg[2] = 0x05;                      // payload length: total (11) - 6
-  msg[3] = msg[0] ^ msg[1] ^ msg[2];  // = 0xFA
-
-  // Frame type
-  msg[4] = SEIYA_FRAME_NORMAL;
-
-  // Temperature (retained even when OFF)
-  msg[5] = this->seiya_encode_temperature_(this->target_temperature);
-
-  // Mode + fan (OFF is encoded as 0x07 with no fan bits OR'd in)
-  msg[6] = this->seiya_encode_mode_();
-
-  // byte7 is 0x00 in every confirmed capture (ON and OFF); the byte7-bit4 power
-  // hypothesis from the development manual is contradicted by the captures, so we
-  // leave it clear and encode power via byte6 = 0x07.
-  msg[7] = 0x00;
-
-  // Feature marker
-  msg[8] = SEIYA_FEATURE_MARKER;
-
-  // Swing/direction is a momentary command: emit the mapped code only when the
-  // swing mode actually changed, otherwise send the neutral value like the remote.
-  if (this->swing_mode != this->last_swing_mode_) {
-    msg[9] = this->seiya_encode_swing_();
-    this->last_swing_mode_ = this->swing_mode;
-  } else {
-    msg[9] = SEIYA_SWING_NEUTRAL;
-  }
-
-  // Checksum: XOR of bytes 0..9
-  msg[10] = this->seiya_checksum_(msg, 11);
-
-  auto transmit = this->transmitter_->transmit();
-  auto *data = transmit.get_data();
-  this->encode_seiya_(data, msg, 11, /*repeat=*/1);
-  transmit.perform();
-
-  char hex_buf[2 * 11 + 1];
-  ESP_LOGV(TAG, "seiya tx: %s", format_hex_to(hex_buf, msg, 11));
-}
-
-void ToshibaClimate::encode_seiya_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes,
-                                   uint8_t repeat) {
-  data->set_carrier_frequency(SEIYA_CARRIER_FREQUENCY);
-
-  for (uint8_t copy = 0; copy <= repeat; copy++) {
-    data->item(SEIYA_HEADER_MARK, SEIYA_HEADER_SPACE);
-
-    for (uint8_t byte = 0; byte < nbytes; byte++) {
-      for (uint8_t bit = 0; bit < 8; bit++) {
-        data->mark(SEIYA_BIT_MARK);
-        if (message[byte] & (1 << (7 - bit))) {
-          data->space(SEIYA_ONE_SPACE);
-        } else {
-          data->space(SEIYA_ZERO_SPACE);
-        }
-      }
-    }
-    data->mark(SEIYA_BIT_MARK);  // trailing mark
-
-    // Gap between the two repeated frames only, never after the last one.
-    if (copy < repeat) {
-      data->space(SEIYA_GAP_SPACE);
-    }
-  }
-}
-
-bool ToshibaClimate::on_receive_seiya_(remote_base::RemoteReceiveData data) {
-  uint8_t msg[11] = {0};
-
-  // Header
-  if (!data.expect_item(SEIYA_HEADER_MARK, SEIYA_HEADER_SPACE)) {
-    return false;
-  }
-  if (!this->decode_seiya_(&data, msg, 4)) {
-    return false;
-  }
-  // Validate header signature and header checksum.
-  if (msg[0] != SEIYA_SIG0 || msg[1] != SEIYA_SIG1) {
-    return false;
-  }
-  if ((msg[0] ^ msg[1] ^ msg[2]) != msg[3]) {
-    return false;
-  }
-
-  // Total length from byte2: total = byte2 + 6 (0x05 -> 11, 0x03 -> 9).
-  uint8_t total = msg[2] + 6;
-  if (total > sizeof(msg)) {
-    return false;
-  }
-  uint8_t remaining = total - 4;
-  if (!this->decode_seiya_(&data, &msg[4], remaining)) {
-    return false;
-  }
-
-  // Validate frame checksum (XOR of bytes 0..total-2).
-  if (this->seiya_checksum_(msg, total) != msg[total - 1]) {
-    return false;
-  }
-
-  // OFF-timer frames (byte4 = 0x03) are out of scope; ignore them.
-  if (msg[4] == SEIYA_FRAME_TIMER) {
-    return false;
-  }
-
-  // Optional strict Seiya checks for the 11-byte frame — warn, don't reject, so
-  // future timer/eco/etc. frames aren't silently dropped.
-  if (total == 11) {
-    if (msg[4] != SEIYA_FRAME_NORMAL || msg[7] != 0x00 || msg[8] != SEIYA_FEATURE_MARKER) {
-      ESP_LOGW(TAG, "seiya rx: unexpected 11-byte frame F2 0D 05 FA %02X %02X %02X %02X %02X %02X %02X", msg[4], msg[5],
-               msg[6], msg[7], msg[8], msg[9], msg[10]);
-    }
-  }
-
-  this->seiya_decode_state_(msg, total);
-  this->publish_state();
-  return true;
-}
-
-bool ToshibaClimate::decode_seiya_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes) {
-  for (uint8_t byte = 0; byte < nbytes; byte++) {
-    message[byte] = 0;
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data->expect_item(SEIYA_BIT_MARK, SEIYA_ONE_SPACE)) {
-        message[byte] |= 1 << (7 - bit);
-      } else if (data->expect_item(SEIYA_BIT_MARK, SEIYA_ZERO_SPACE)) {
-        // bit stays 0
-      } else {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-uint8_t ToshibaClimate::seiya_checksum_(const uint8_t *message, uint8_t nbytes) {
-  uint8_t cs = 0;
-  for (uint8_t i = 0; i < nbytes - 1; i++) {
-    cs ^= message[i];
-  }
-  return cs;
-}
-
-uint8_t ToshibaClimate::seiya_encode_temperature_(float c) const {
-  float clamped = clamp<float>(c, this->minimum_temperature_, this->maximum_temperature_);
-  return static_cast<uint8_t>(static_cast<uint8_t>(clamped) - 17) << 4;
-}
-
-uint8_t ToshibaClimate::seiya_encode_mode_() const {
-  uint8_t mode;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      mode = SEIYA_MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      mode = SEIYA_MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      mode = SEIYA_MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      mode = SEIYA_MODE_FAN_ONLY;
-      break;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    default:
-      mode = SEIYA_MODE_AUTO;
-      break;
-  }
-
-  if (this->mode == climate::CLIMATE_MODE_OFF) {
-    // OFF is encoded directly as 0x07; do not OR fan bits in.
-    return SEIYA_MODE_OFF;
-  }
-  return this->seiya_encode_fan_() | mode;
-}
-
-uint8_t ToshibaClimate::seiya_encode_fan_() const {
-  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
-    case climate::CLIMATE_FAN_QUIET:
-      return SEIYA_FAN_QUIET;
-    case climate::CLIMATE_FAN_LOW:
-      return SEIYA_FAN_1;
-    case climate::CLIMATE_FAN_MEDIUM:
-      return SEIYA_FAN_3;
-    case climate::CLIMATE_FAN_HIGH:
-      return SEIYA_FAN_5;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      return SEIYA_FAN_AUTO;
-  }
-}
-
-uint8_t ToshibaClimate::seiya_encode_swing_() const {
-  switch (this->swing_mode) {
-    case climate::CLIMATE_SWING_VERTICAL:
-      return SEIYA_SWING_VERTICAL;
-    case climate::CLIMATE_SWING_HORIZONTAL:
-      return SEIYA_SWING_HORIZONTAL;
-    case climate::CLIMATE_SWING_BOTH:
-      return SEIYA_SWING_BOTH;
-    case climate::CLIMATE_SWING_OFF:
-    default:
-      return SEIYA_SWING_NEUTRAL;
-  }
-}
-
-void ToshibaClimate::seiya_decode_state_(const uint8_t *message, uint8_t nbytes) {
-  // Temperature
-  this->target_temperature = (message[5] >> 4) + 17;
-
-  // Mode (low nibble of byte6)
+void ToshibaClimate::decode_mode_fan_temperature_(const uint8_t *message) {
   switch (message[6] & 0x0F) {
-    case SEIYA_MODE_OFF:
+    case TOSHIBA_MODE_OFF:
       this->mode = climate::CLIMATE_MODE_OFF;
       break;
-    case SEIYA_MODE_COOL:
+
+    case TOSHIBA_MODE_COOL:
       this->mode = climate::CLIMATE_MODE_COOL;
       break;
-    case SEIYA_MODE_DRY:
+
+    case TOSHIBA_MODE_DRY:
       this->mode = climate::CLIMATE_MODE_DRY;
       break;
-    case SEIYA_MODE_HEAT:
-      this->mode = climate::CLIMATE_MODE_HEAT;
-      break;
-    case SEIYA_MODE_FAN_ONLY:
+
+    case TOSHIBA_MODE_FAN_ONLY:
       this->mode = climate::CLIMATE_MODE_FAN_ONLY;
       break;
-    case SEIYA_MODE_AUTO:
+
+    case TOSHIBA_MODE_HEAT:
+      this->mode = climate::CLIMATE_MODE_HEAT;
+      break;
+
+    case TOSHIBA_MODE_AUTO:
     default:
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-      break;
   }
 
-  // Fan (high nibble of byte6). Levels 2 (0x60) and 4 (0xA0) are not exposed
-  // individually — map them to the nearest standard mode.
+  // Speeds 2 and 4 are not exposed; report the nearest mode
   switch (message[6] & 0xF0) {
-    case SEIYA_FAN_QUIET:
+    case TOSHIBA_FAN_SPEED_QUIET:
       this->fan_mode = climate::CLIMATE_FAN_QUIET;
       break;
-    case SEIYA_FAN_1:
+
+    case TOSHIBA_FAN_SPEED_1:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
-    case SEIYA_FAN_2:
-    case SEIYA_FAN_3:
+
+    case TOSHIBA_FAN_SPEED_2:
+    case TOSHIBA_FAN_SPEED_3:
       this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
       break;
-    case SEIYA_FAN_4:
-    case SEIYA_FAN_5:
+
+    case TOSHIBA_FAN_SPEED_4:
+    case TOSHIBA_FAN_SPEED_5:
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
       break;
-    case SEIYA_FAN_AUTO:
+
+    case TOSHIBA_FAN_SPEED_AUTO:
     default:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
   }
 
-  // Swing/direction (byte9) exists only on the 11-byte frame.
-  if (nbytes == 11) {
-    switch (message[9]) {
-      case SEIYA_SWING_BOTH:
-        this->swing_mode = climate::CLIMATE_SWING_BOTH;
-        break;
-      case SEIYA_SWING_VERTICAL:
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-        break;
-      case SEIYA_SWING_HORIZONTAL:
-        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-        break;
-      case SEIYA_SWING_OMNI:
-        // Omni-direction (0x02) has no standard ESPHome swing enum; map it to BOTH
-        // (the closest standard mode) so it round-trips sensibly rather than as OFF.
-        this->swing_mode = climate::CLIMATE_SWING_BOTH;
-        break;
-      case SEIYA_SWING_NEUTRAL:
-      default:
-        this->swing_mode = climate::CLIMATE_SWING_OFF;
-        break;
-    }
-    // Keep the tracker in sync so we don't re-transmit the received swing command.
-    this->last_swing_mode_ = this->swing_mode;
+  this->target_temperature = (message[5] >> 4) + TOSHIBA_GENERIC_TEMP_C_MIN;
+}
+
+void ToshibaClimate::seiya_decode_swing_(uint8_t code) {
+  // A momentary command: the neutral value on an ordinary update means no change, not swing off
+  switch (code) {
+    case SEIYA_SWING_BOTH:
+    case SEIYA_SWING_OMNI:
+      this->swing_mode = climate::CLIMATE_SWING_BOTH;
+      break;
+    case SEIYA_SWING_VERTICAL:
+      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+      break;
+    case SEIYA_SWING_HORIZONTAL:
+      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+      break;
+    default:
+      return;
   }
+  // Keep the tracker in sync so the received command is not sent back out
+  this->last_swing_mode_ = this->swing_mode;
 }
 
 }  // namespace esphome::toshiba
