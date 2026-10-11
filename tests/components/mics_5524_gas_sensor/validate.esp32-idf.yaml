@@ -21,4 +21,3 @@ sensor:
     ammonia:
       name: MiCS-5524 NH3
       max_ppm: 300.0
-
