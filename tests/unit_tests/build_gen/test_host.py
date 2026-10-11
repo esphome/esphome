@@ -308,7 +308,10 @@ def test_write_project_pch_skipped_for_a_force_include_in_the_compiler(
 def test_write_project_without_ccache(tmp_path: Path) -> None:
     _make_src(tmp_path, "main.cpp")
     _changed, ninja = _render()
-    assert "ccache = \n" in ninja
+    # No launcher variable, and no leading space on the commands either:
+    # CreateProcess on Windows rejects a command line that starts with one
+    assert "$ccache" not in ninja
+    assert "  command = $cxx -MMD -MF $out.d" in ninja
 
 
 def test_write_project_routes_user_link_flags(tmp_path: Path) -> None:

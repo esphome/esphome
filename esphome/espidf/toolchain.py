@@ -1,8 +1,8 @@
 """ESP-IDF direct build API for ESPHome."""
 
+import contextlib
 from dataclasses import dataclass, field
 import fnmatch
-import hashlib
 import json
 import logging
 import os
@@ -125,6 +125,8 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
         env_cache[version] = os.environ.copy()
         # Do not leak PYTHONPATH into child env
         env_cache[version].pop("PYTHONPATH", None)
+        # Do not let an inherited IDF_TARGET override the variant
+        env_cache[version].pop("IDF_TARGET", None)
 
         # Use provided IDF framework if available
         if _esphome_manages_idf():
@@ -228,6 +230,8 @@ FILTER_IDF_LINES: list[str] = [
 # click's boolean spellings, which idf.py applies to IDF_CCACHE_ENABLE.
 _CLICK_TRUE = frozenset({"1", "true", "t", "yes", "y", "on"})
 _CMAKECACHE_LINE = re.compile(r"^([^#/:=]+):([^:=]+)=(.*)$")
+_SDKCONFIG_TARGET_LINE = re.compile(r'^CONFIG_IDF_TARGET="([^"]*)"$', re.MULTILINE)
+_TOOLCHAIN_FILE_TARGET = re.compile(r"toolchain-(?:clang-)?(\w+)\.cmake$")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -309,6 +313,50 @@ def tree_skips_bootloader(build_dir: Path) -> bool:
         _LOGGER.debug("Cannot read %s, assuming a full build: %s", build_dir, err)
         return False
     return cache.get(SKIP_BOOTLOADER_DEFINE) == "1"
+
+
+def _foreign_idf_target(target: str) -> str | None:
+    """Return another IDF target recorded in the CMake caches or sdkconfig."""
+    build_dir = _build_dir()
+    sdkconfig = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
+    found = []
+    for cache_path in (
+        build_dir / "CMakeCache.txt",
+        build_dir / "bootloader" / "CMakeCache.txt",
+    ):
+        with contextlib.suppress(OSError, ValueError):
+            cache = _parse_cmakecache(cache_path)
+            found.append(cache.get("IDF_TARGET"))
+            if m := _TOOLCHAIN_FILE_TARGET.search(
+                cache.get("CMAKE_TOOLCHAIN_FILE", "")
+            ):
+                found.append(m.group(1))
+    with contextlib.suppress(OSError, ValueError):
+        if m := _SDKCONFIG_TARGET_LINE.search(sdkconfig.read_text(encoding="utf-8")):
+            found.append(m.group(1))
+    return next((t for t in found if t and t != target), None)
+
+
+def _clean_foreign_target_tree() -> None:
+    """Clean a build configured for another IDF target, like idf.py set-target."""
+    variant = CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT)
+    if variant is None:
+        return
+    target = variant_to_idf_target(variant)
+    if (old := _foreign_idf_target(target)) is None:
+        return
+    from esphome.writer import clean_build
+
+    _LOGGER.info(
+        "IDF target changed from %s to %s, cleaning build files...", old, target
+    )
+    clean_build(clear_pio_cache=False)
+    if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
+        return
+    # Restart sdkconfig from ESPHome's options
+    internal = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
+    if internal.is_file():
+        shutil.copyfile(internal, CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
 
 
 def _skip_bootloader() -> bool:
@@ -516,23 +564,21 @@ def _sync_component_mirror() -> None:
 
 
 def _builtin_component_cache_path() -> Path | None:
-    """Cache file for this build's built-in component list.
+    """Cache file for this target's built-in component list.
 
     The file lives inside the extracted framework directory so it is
     discarded together with that exact checkout (re-extract, source
-    override, clean-all); the target and the EXCLUDE_COMPONENTS set name it.
-    The sdkconfig is not part of the key: IDF components register regardless
-    of CONFIG_* options and only gate their sources on them. A checkout
-    supplied through IDF_PATH is not managed by ESPHome and is never cached.
+    override, clean-all). The discovery configure registers every built-in
+    component, so the list serves any EXCLUDE_COMPONENTS set (the project
+    write drops the excluded names) and any sdkconfig (IDF components
+    register regardless of CONFIG_* options and only gate their sources on
+    them). A checkout supplied through IDF_PATH is not managed by ESPHome
+    and is never cached.
     """
     if not _esphome_manages_idf():
         return None
     target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
-    excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
-    excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
-    return (
-        _get_idf_path() / ".esphome_component_lists" / f"{target}-{excluded_key}.json"
-    )
+    return _get_idf_path() / ".esphome_component_lists" / f"{target}.json"
 
 
 def load_cached_builtin_components() -> list[str] | None:
@@ -635,10 +681,9 @@ def has_outdated_files():
       already deletes ``dependencies.lock`` on a change but that signal
       gets lost as soon as the lock is missing.
     - ``exclude_components.esphomeinternal`` -- the resolved
-      EXCLUDE_COMPONENTS set. Excluded components never register in
-      ``project_description.json``, so re-including one needs a fresh
-      discovery pass before it can appear in the builtin-components
-      property that ``src`` REQUIRES.
+      EXCLUDE_COMPONENTS set. The builtin-components property that
+      ``src`` REQUIRES drops excluded names, so re-including one needs a
+      reconfigure to rebuild that property from the discovery list.
 
     We deliberately don't watch:
     - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
@@ -803,12 +848,12 @@ def run_compile(config, verbose: bool) -> int:
 
     Uses two-phase configure to auto-discover available components:
     1. If no previous build, configure with minimal REQUIRES to discover
-       components (skipped when a cached list for this IDF/target/exclusion
-       set exists)
+       components (skipped when a cached list for this IDF/target exists)
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
     jobs = _build_jobs(config)
+    _clean_foreign_target_tree()
     if need_reconfigure():
         if (rc := _configure_project(verbose)) != 0:
             return rc

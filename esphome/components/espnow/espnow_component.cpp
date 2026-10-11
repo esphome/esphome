@@ -406,7 +406,7 @@ esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payl
   if (packet == nullptr) {
     this->send_packet_queue_.increment_dropped_count();
     ESP_LOGE(TAG, "Failed to allocate send packet from pool");
-    this->status_momentary_warning("send-packet-pool-full");
+    this->status_momentary_warning();
     return ESP_ERR_ESPNOW_NO_MEM;
   }
   // Load the packet data
@@ -434,7 +434,7 @@ void ESPNowComponent::send_() {
     if (packet->callback_ != nullptr) {
       packet->callback_(err);
     }
-    this->status_momentary_warning("send-failed");
+    this->status_momentary_warning();
     this->send_packet_pool_.release(packet);
     this->current_send_packet_ = nullptr;  // Reset current packet
     return;
@@ -447,7 +447,7 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
   }
 
   if (memcmp(peer, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
-    this->status_momentary_warning("peer-add-failed");
+    this->status_momentary_warning();
     return ESP_ERR_INVALID_MAC;
   }
 
@@ -462,7 +462,7 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer, peer_buf);
       ESP_LOGE(TAG, "Failed to add peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
-      this->status_momentary_warning("peer-add-failed");
+      this->status_momentary_warning();
       return err;
     }
   }
@@ -492,7 +492,7 @@ esp_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer, peer_buf);
       ESP_LOGE(TAG, "Failed to delete peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
-      this->status_momentary_warning("peer-del-failed");
+      this->status_momentary_warning();
       return err;
     }
   }

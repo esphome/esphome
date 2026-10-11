@@ -15,6 +15,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@looping40"]
+DOMAIN = "max6956"
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True

@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -43,6 +44,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
+    CONF_TYPE_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WEB_SERVER,
@@ -127,6 +129,7 @@ from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "sensor"
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
@@ -221,6 +224,13 @@ def validate_send_first_at(value):
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 
+# Default for streamed readings (radar sensors): hold the last value for a second so a dropped
+# frame doesn't read as absence, then rate limit. Codegen turns the pair into one TimeoutThrottleFilter.
+TIMEOUT_THROTTLE_FILTERS = [
+    {"timeout": {"timeout": cv.TimePeriod(milliseconds=1000), "value": "last"}},
+    {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+]
+
 
 def validate_datapoint(value):
     if isinstance(value, dict):
@@ -292,6 +302,7 @@ ThrottleWithPriorityNanFilter = sensor_ns.class_(
 TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
+TimeoutThrottleFilter = sensor_ns.class_("TimeoutThrottleFilter", TimeoutFilterLast)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
@@ -682,6 +693,12 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
 )
 
 
+def _is_nan_only(values: Any) -> bool:
+    if not isinstance(values, list):
+        values = [values]
+    return bool(values) and all(isinstance(v, float) and math.isnan(v) for v in values)
+
+
 @FILTER_REGISTRY.register(
     "throttle_with_priority",
     ThrottleWithPriorityFilter,
@@ -695,7 +712,7 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
     # omits `value:`) to avoid the TemplatableFn<float> array + NaN lambda the
     # generic ValueListFilter path requires. Behavior is identical: NaN sensor
     # readings always bypass the throttle.
-    if values and all(isinstance(v, float) and math.isnan(v) for v in values):
+    if _is_nan_only(values):
         filter_id = filter_id.copy()
         filter_id.type = ThrottleWithPriorityNanFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
@@ -940,6 +957,43 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
+def _timeout_throttle_period(
+    first: ConfigType, second: ConfigType
+) -> cv.TimePeriod | None:
+    """Period of a `timeout` (value `last`) directly followed by a NaN only `throttle_with_priority`."""
+    timeout = first.get("timeout")
+    throttle = second.get("throttle_with_priority")
+    if not isinstance(timeout, dict) or not isinstance(throttle, dict):
+        return None
+    if timeout[CONF_VALUE] != "last" or timeout[CONF_TIMEOUT] != throttle[CONF_TIMEOUT]:
+        return None
+    if not _is_nan_only(throttle[CONF_VALUE]):
+        return None
+    return timeout[CONF_TIMEOUT]
+
+
+async def _build_chain_filters(config: list[ConfigType]) -> list:
+    """Like build_filters, but merges the radar `timeout` + `throttle_with_priority` pair into one filter."""
+    filters = []
+    i = 0
+    while i < len(config):
+        if (
+            i + 1 < len(config)
+            and (period := _timeout_throttle_period(config[i], config[i + 1]))
+            is not None
+        ):
+            filter_id = config[i][CONF_TYPE_ID].copy()
+            filter_id.type = TimeoutThrottleFilter
+            var = cg.new_Pvariable(filter_id, period)
+            await cg.register_component(var, {})
+            filters.append(var)
+            i += 2
+            continue
+        filters.append(await cg.build_registry_entry(FILTER_REGISTRY, config[i]))
+        i += 1
+    return filters
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
@@ -978,7 +1032,7 @@ async def setup_sensor_core_(var, config):
         cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_SENSOR_FILTER")
-        filters = await build_filters(config[CONF_FILTERS])
+        filters = await _build_chain_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
 
     CORE.add_job(_build_sensor_automations, var, config)

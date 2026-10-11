@@ -6,6 +6,8 @@ namespace esphome::tmp102 {
 
 ESPHOME_LOG_TAG(TAG, "tmp102");
 
+static constexpr uint32_t READ_TEMP_TIMEOUT_ID = 0;
+
 static const uint8_t TMP102_ADDRESS = 0x48;
 static const uint8_t TMP102_REGISTER_TEMPERATURE = 0x00;
 static const uint8_t TMP102_REGISTER_CONFIGURATION = 0x01;
@@ -29,7 +31,7 @@ void TMP102Component::update() {
     this->status_set_warning();
     return;
   }
-  this->set_timeout("read_temp", 50, [this]() {
+  this->set_timeout(READ_TEMP_TIMEOUT_ID, 50, [this]() {
     int16_t raw_temperature;
     if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
       this->status_set_warning();
