@@ -161,18 +161,7 @@ void OnlineImage::loop() {
   if (this->is_decode_finished() || (this->downloader_->content_length > 0 &&
                                      this->downloader_->get_bytes_read() >= this->downloader_->content_length &&
                                      this->download_buffer_.unread() == 0)) {
-    // Finalize decoding
-    this->end_decode();
-
-    ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
-             millis() - this->start_time_);
-
-    // Save caching headers
-    this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
-    this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
-
-    this->download_finished_callback_.call(false);
-    this->end_connection_();
+    this->finish_download_();
     return;
   }
 
@@ -204,6 +193,17 @@ void OnlineImage::loop() {
       this->end_connection_();
       this->download_error_callback_.call();
       return;
+    } else if (this->downloader_->is_read_complete()) {
+      // The response has ended. With nothing left in the buffer the decoder has seen all
+      // data; anything left over cannot be used, and no more data will arrive to complete it.
+      if (this->download_buffer_.unread() == 0) {
+        this->finish_download_();
+        return;
+      }
+      ESP_LOGE(TAG, "Download ended with %zu bytes the decoder could not use", this->download_buffer_.unread());
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
     }
   } else {
     // Buffer is full, need to decode some data first
@@ -216,11 +216,28 @@ void OnlineImage::loop() {
       this->download_error_callback_.call();
       return;
     } else {
-      // Decoder can't process more data, might need complete image
-      // This is normal for JPEG which needs complete data
-      ESP_LOGV(TAG, "Decoder waiting for more data");
+      // The decoder needs more data than the buffer can hold, so it can never make progress
+      ESP_LOGE(TAG, "Image does not fit in the %zu byte download buffer; increase buffer_size",
+               this->download_buffer_.size());
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
     }
   }
+}
+
+void OnlineImage::finish_download_() {
+  this->end_decode();
+
+  ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
+           millis() - this->start_time_);
+
+  // Save caching headers
+  this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
+  this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+
+  this->download_finished_callback_.call(false);
+  this->end_connection_();
 }
 
 void OnlineImage::end_connection_() {

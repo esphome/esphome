@@ -80,6 +80,7 @@ class OnlineImage final : public PollingComponent,
  protected:
   bool validate_url_(const std::string &url);
   void end_connection_();
+  void finish_download_();
 
   CallbackManager<void(bool)> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
