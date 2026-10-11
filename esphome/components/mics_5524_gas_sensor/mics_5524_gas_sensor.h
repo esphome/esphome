@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 
 #include "esphome/core/component.h"
@@ -17,10 +16,16 @@ namespace esphome::mics_5524_gas_sensor {
 /// One MiCS-5524 channel: samples the analog output, converts it with the vendor
 /// model and publishes the gas concentration.
 ///
-/// The clean-air reference holds `x_air` in volts; the preference key is versioned
-/// so a value stored by an older configuration is never used.
+/// The clean-air reference holds `x_air` in volts, the value the analog output
+/// reads in clean air.  It comes from `air_reference:` in the configuration or
+/// from a clean-air calibration at boot, so the board's load resistor and its
+/// divider ratio do not matter.
 class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
  public:
+  /// `source` is the voltage sampler the analog output is read from.  It must
+  /// outlive this component, which code generation guarantees.
+  explicit MiCS5524GasSensor(voltage_sampler::VoltageSampler *source) : source_(source) {}
+
   void setup() override;
   void loop() override;
   void update() override;
@@ -40,24 +45,8 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void set_samples(uint8_t samples) { this->samples_ = samples; }
   void set_sample_interval(uint32_t interval) { this->sample_interval_ = interval; }
   void set_warmup_time(uint32_t warmup) { this->warmup_time_ = warmup; }
-  void set_source(voltage_sampler::VoltageSampler *source) { this->source_ = source; }
   void set_calibration(bool enabled, uint32_t delay, uint32_t samples);
   void set_air_reference(float air_reference);
-
-  /// Console level of a `log_message_()` call, ordered like ESP-IDF's
-  /// `esp_log_level_t`: ERROR is always printed, DEBUG only with `logger: level: DEBUG`.
-  ///
-  /// The enum name prefixes the values because library headers ESPHome compiles in
-  /// (`dudanov/MideaUART`, NimBLE-Arduino) `#define` the bare `LOG_LEVEL_*` names.
-  enum LogSeverity : uint8_t {
-    LOG_SEVERITY_DEBUG = 0,
-    LOG_SEVERITY_INFO = 1,
-    LOG_SEVERITY_WARN = 2,
-    LOG_SEVERITY_ERROR = 3,
-  };
-
-  /// Size of the message buffer of `log_message_()` (also the text sensor limit).
-  static constexpr size_t LOG_BUFFER_SIZE = 160;
 
   // ----------------------------------------------------------------- runtime
   /// (Re)start the clean-air calibration (deferred until `warmup_time` ended).
@@ -85,9 +74,11 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void process_calibration_();
   void finish_calibration_();
   void log_config_();
-  /// Log a message on the console, prefixed with the gas (`'H2': ...`) so several
-  /// channels stay readable.
-  void log_message_(LogSeverity level, const char *format, ...);
+
+  /// Time left of the warm-up window, 0 once the sensor is settled.  Elapsed time
+  /// is compared instead of a deadline, so the result survives the 32-bit
+  /// `millis()` rollover.
+  uint32_t warmup_remaining_() const;
 
   // ------------------------------------------------------------- configuration
   StringRef gas_{StringRef::from_lit("CUSTOM")};
@@ -112,14 +103,19 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_samples_{10};
 
   // ------------------------------------------------------------------ runtime
+  /// Scheduler id of the deferred calibration start, re-armed and cancelled by
+  /// `request_calibration()`.
+  static constexpr uint32_t CALIBRATION_START_ID = 0;
+
   bool calibrating_{false};
+  /// A calibration waits for its start time; `calibrating_` takes over from there.
   bool calibration_pending_{false};
-  uint32_t calibration_due_{0};
   uint32_t calibration_last_sample_{0};
   uint32_t calibration_count_{0};
   uint32_t calibration_attempts_{0};
   float calibration_sum_{0.0f};
-  uint32_t warmup_end_{0};
+  /// Loop time the warm-up window started at, 0 without a `warmup_time:`.
+  uint32_t warmup_start_{0};
   bool warmup_notified_{false};
   bool warned_no_reference_{false};
   bool warned_voltage_{false};

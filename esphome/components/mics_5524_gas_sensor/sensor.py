@@ -1,8 +1,9 @@
 """``mics_5524_gas_sensor`` - ESPHome sensor platform for the MiCS-5524.
 
 One entry configures one gas of one sensor.  The MiCS-5524 has a single analog
-output, so several entries on the same physical sensor report the same mixture
-with different calibrations (see ``SELECTIVITY_NOTE``).
+output, so several entries on the same physical sensor report the same mixture of
+CO, H2, C2H5OH, NH3 and CH4 with different calibrations, and a reading cannot say
+which of them is present.
 
 The signal comes from an existing voltage sampler (``voltage:``, e.g. an ``adc``
 sensor configured next to this one).
@@ -34,13 +35,7 @@ from . import (
     CONF_VOLTAGE_MULTIPLIER,
     MiCS5524GasSensor,
 )
-from .coefficients import (
-    SELECTIVITY_NOTE,
-    gas_keys,
-    label_for,
-    resolve_gas,
-    resolve_gas_key,
-)
+from .coefficients import gas_keys, label_for, resolve_gas, resolve_gas_key
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,30 +79,26 @@ def _validate_config(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"max_ppm ({resolved.max_ppm}) must be greater than min_ppm ({resolved.min_ppm})"
         )
+    if resolved.max_ppm > resolved.vendor_max_ppm:
+        raise cv.Invalid(
+            f"max_ppm ({resolved.max_ppm}) is above the {label} measuring range of "
+            f"{resolved.vendor_max_ppm:g} ppm, so the conversion can never reach it"
+        )
 
-    fixed = CONF_AIR_REFERENCE
-    if fixed in config and CONF_CALIBRATION in config:
+    if CONF_AIR_REFERENCE in config and CONF_CALIBRATION in config:
         _LOGGER.warning(
             "%s: both '%s:' and 'calibration:' are set - the fixed value wins and the "
             "automatic calibration at boot is disabled",
             label,
-            fixed,
+            CONF_AIR_REFERENCE,
         )
-    if fixed not in config and CONF_CALIBRATION not in config:
+    if CONF_AIR_REFERENCE not in config and CONF_CALIBRATION not in config:
         _LOGGER.warning(
             "%s: neither '%s:' nor 'calibration:' is set - the PPM value stays unknown "
             "until the sensor has been calibrated in clean air",
             label,
-            fixed,
+            CONF_AIR_REFERENCE,
         )
-
-    if resolved.note:
-        _LOGGER.info("%s: %s", label, resolved.note)
-    _LOGGER.info(
-        "%s: %s (treat the value as an estimate)",
-        label,
-        SELECTIVITY_NOTE,
-    )
 
     return config
 
@@ -124,7 +115,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_GAS): cv.All(cv.string, validate_gas),
             cv.Required(CONF_VOLTAGE): cv.use_id(voltage_sampler.VoltageSampler),
-            cv.Optional(CONF_VOLTAGE_MULTIPLIER): cv.positive_not_null_float,
+            cv.Optional(
+                CONF_VOLTAGE_MULTIPLIER, default=1.0
+            ): cv.positive_not_null_float,
             cv.Optional(CONF_VCC, default=5.0): cv.positive_not_null_float,
             cv.Optional(CONF_AIR_REFERENCE): cv.positive_not_null_float,
             cv.Optional(CONF_SAMPLE_COUNT, default=4): cv.int_range(min=1, max=255),
@@ -151,7 +144,9 @@ async def to_code(config: ConfigType) -> None:
         max_ppm=config.get(CONF_MAX_PPM),
     )
 
-    var = await sensor.new_sensor(config)
+    # The sampler is a constructor argument: no reading is possible without it, so
+    # the component has no valid state in which it is missing.
+    var = await sensor.new_sensor(config, await cg.get_variable(config[CONF_VOLTAGE]))
     await cg.register_component(var, config)
 
     cg.add(var.set_gas(resolved.label))
@@ -162,7 +157,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_min_ppm(resolved.min_ppm))
     cg.add(var.set_max_ppm(resolved.max_ppm))
     cg.add(var.set_vcc(config[CONF_VCC]))
-    cg.add(var.set_voltage_multiplier(float(config.get(CONF_VOLTAGE_MULTIPLIER, 1.0))))
+    cg.add(var.set_voltage_multiplier(config[CONF_VOLTAGE_MULTIPLIER]))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_sample_interval(config[CONF_SAMPLE_INTERVAL]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
@@ -170,9 +165,8 @@ async def to_code(config: ConfigType) -> None:
     if (air_reference := config.get(CONF_AIR_REFERENCE)) is not None:
         cg.add(var.set_air_reference(air_reference))
 
-    fixed = CONF_AIR_REFERENCE
     calibration = config.get(CONF_CALIBRATION)
-    if calibration is not None and fixed not in config:
+    if calibration is not None and CONF_AIR_REFERENCE not in config:
         cg.add(
             var.set_calibration(
                 True,
@@ -180,15 +174,3 @@ async def to_code(config: ConfigType) -> None:
                 calibration[CONF_SAMPLE_COUNT],
             )
         )
-
-    cg.add(var.set_source(await cg.get_variable(config[CONF_VOLTAGE])))
-
-    _LOGGER.debug(
-        "%s: threshold=%s gain=%s vcc=%s range=%s..%s ppm",
-        resolved.label,
-        resolved.threshold,
-        resolved.gain,
-        config[CONF_VCC],
-        resolved.min_ppm,
-        resolved.max_ppm,
-    )

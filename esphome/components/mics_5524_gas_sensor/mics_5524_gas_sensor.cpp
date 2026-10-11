@@ -2,8 +2,6 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <cstdarg>
-#include <cstdio>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -12,71 +10,37 @@ namespace esphome::mics_5524_gas_sensor {
 
 ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
 
-/// Human readable name of the stored clean-air reference.
+/// Name of the clean-air reference in the log lines.
 static const char *reference_name() { return "air reference"; }
 
-void MiCS5524GasSensor::log_message_(LogSeverity level, const char *format, ...) {
-  char message[LOG_BUFFER_SIZE];
-  const int prefix = std::snprintf(message, sizeof(message), "'%s': ", this->gas_.c_str());
-  if (prefix > 0) {
-    const size_t used = std::min(static_cast<size_t>(prefix), sizeof(message) - 1);
-    va_list args;
-    va_start(args, format);
-    std::vsnprintf(message + used, sizeof(message) - used, format, args);
-    va_end(args);
-  }
-
-  switch (level) {
-    case LOG_SEVERITY_ERROR:
-      ESP_LOGE(TAG, "%s", message);
-      break;
-    case LOG_SEVERITY_WARN:
-      ESP_LOGW(TAG, "%s", message);
-      break;
-    case LOG_SEVERITY_INFO:
-      ESP_LOGI(TAG, "%s", message);
-      break;
-    default:
-      ESP_LOGD(TAG, "%s", message);
-      break;
-  }
-}
-
 void MiCS5524GasSensor::setup() {
-  if (this->source_ == nullptr) {
-    this->log_message_(LOG_SEVERITY_ERROR, "no voltage source configured");
-    this->mark_failed();
-    return;
-  }
-
   if (this->reference_configured_) {
-    this->log_message_(LOG_SEVERITY_INFO, "using the air reference from the configuration (%.4f)", this->reference_);
+    ESP_LOGI(TAG, "'%s': using the air reference from the configuration (%.4f)", this->gas_.c_str(), this->reference_);
   }
 
   if (this->warmup_time_ > 0) {
-    this->warmup_end_ = App.get_loop_component_start_time() + this->warmup_time_;
-    this->log_message_(LOG_SEVERITY_INFO, "warm-up of %" PRIu32 " s - no readings published before that",
-                       this->warmup_time_ / 1000);
+    this->warmup_start_ = App.get_loop_component_start_time();
+    ESP_LOGI(TAG, "'%s': warm-up of %" PRIu32 " s - no readings published before that", this->gas_.c_str(),
+             this->warmup_time_ / 1000);
   }
 
   if (this->calibration_enabled_) {
-    if (this->has_reference()) {
-      this->log_message_(LOG_SEVERITY_INFO,
-                         "air reference already known (%.4f) - automatic calibration skipped, call "
-                         "request_calibration() (or clear the stored value) to recalibrate",
-                         this->reference_);
-    } else {
-      const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
-      this->calibration_due_ = App.get_loop_component_start_time() + delay;
-      this->calibration_pending_ = true;
-      this->log_message_(LOG_SEVERITY_INFO,
-                         "air reference calibration scheduled in %" PRIu32 " s - the sensor must be in clean air",
-                         delay / 1000);
-    }
+    // Nothing is stored across reboots, so every boot calibrates when it is
+    // configured to; 'air_reference:' is the way to skip that.
+    const uint32_t delay = std::max(this->calibration_delay_, this->warmup_remaining_());
+    this->calibration_pending_ = true;
+    this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+    ESP_LOGI(TAG, "'%s': air reference calibration in %" PRIu32 " s - the sensor must be in clean air",
+             this->gas_.c_str(), delay / 1000);
   } else if (!this->has_reference()) {
-    this->log_message_(LOG_SEVERITY_WARN, "no air reference available, set it in the configuration or enable "
-                                          "'calibration:' - the PPM value stays unknown until then");
+    ESP_LOGW(TAG,
+             "'%s': no air reference available, set it in the configuration or enable 'calibration:' - the PPM "
+             "value stays unknown until then",
+             this->gas_.c_str());
   }
+
+  // The loop only samples while a clean-air calibration runs; `update()` publishes.
+  this->disable_loop();
 }
 
 void MiCS5524GasSensor::log_config_() {
@@ -87,8 +51,7 @@ void MiCS5524GasSensor::log_config_() {
   ESP_LOGCONFIG(TAG, "  Range: %.1f - %.1f ppm, AO samples per reading: %u, calibration spacing: %" PRIu32 " ms",
                 this->min_ppm_, this->max_ppm_, static_cast<unsigned>(this->samples_), this->sample_interval_);
   if (this->has_reference()) {
-    ESP_LOGCONFIG(TAG, "  %s: %.4f (%s)", reference_name(), this->reference_,
-                  this->reference_configured_ ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("calibrated/restored"));
+    ESP_LOGCONFIG(TAG, "  %s: %.4f", reference_name(), this->reference_);
   } else {
     ESP_LOGCONFIG(TAG, "  %s: not available yet", reference_name());
   }
@@ -133,11 +96,11 @@ void MiCS5524GasSensor::update() {
     return;
 
   if (this->calibrating_) {
-    // The persisted reference is about to change: never keep a value that was
-    // computed with the previous one.
+    // The reference is about to change: never keep a value that was computed with
+    // the previous one.
     this->publish_state(NAN);
-    this->log_message_(LOG_SEVERITY_DEBUG,
-                       "update skipped, a calibration is running - the sensor must be in clean air");
+    ESP_LOGD(TAG, "'%s': update skipped, a calibration is running - the sensor must be in clean air",
+             this->gas_.c_str());
     return;
   }
 
@@ -146,12 +109,12 @@ void MiCS5524GasSensor::update() {
     return;
   }
 
-  if (this->warmup_time_ > 0 && App.get_loop_component_start_time() < this->warmup_end_) {
+  const uint32_t warmup_left = this->warmup_remaining_();
+  if (warmup_left > 0) {
     if (!this->warmup_notified_) {
       this->warmup_notified_ = true;
       this->publish_state(NAN);
-      this->log_message_(LOG_SEVERITY_INFO, "warming up, %" PRIu32 " s to go",
-                         (this->warmup_end_ - App.get_loop_component_start_time()) / 1000);
+      ESP_LOGI(TAG, "'%s': warming up, %" PRIu32 " s to go", this->gas_.c_str(), warmup_left / 1000);
     }
     return;
   }
@@ -159,8 +122,8 @@ void MiCS5524GasSensor::update() {
   if (!this->has_reference()) {
     if (!this->warned_no_reference_) {
       this->warned_no_reference_ = true;
-      this->log_message_(LOG_SEVERITY_WARN, "%s unknown - publish it in the configuration or enable 'calibration:'",
-                         reference_name());
+      ESP_LOGW(TAG, "'%s': %s unknown - publish it in the configuration or enable 'calibration:'", this->gas_.c_str(),
+               reference_name());
     }
     this->publish_state(NAN);
     return;
@@ -170,13 +133,14 @@ void MiCS5524GasSensor::update() {
   if (!std::isfinite(this->sensor_voltage_) || this->sensor_voltage_ <= 0.01f) {
     if (!this->warned_voltage_) {
       this->warned_voltage_ = true;
-      this->log_message_(LOG_SEVERITY_WARN,
-                         "analog output reads %.4f V - open circuit, missing supply or bad "
-                         "divider? check the AO wiring",
-                         this->sensor_voltage_);
+      ESP_LOGW(TAG,
+               "'%s': analog output reads %.4f V - open circuit, missing supply or bad divider? check the AO wiring",
+               this->gas_.c_str(), this->sensor_voltage_);
     }
-    this->air_value_ = 0.0f;
-    this->ratio_ = 0.0f;
+    // Nothing usable was read, so leave the internal values unknown instead of
+    // reporting a ratio that looks like a measurement.
+    this->air_value_ = NAN;
+    this->ratio_ = NAN;
     this->publish_state(NAN);
     return;
   }
@@ -185,8 +149,8 @@ void MiCS5524GasSensor::update() {
   this->ratio_ = this->current_ratio_();
   const float ppm = this->read_ppm_();
 
-  this->log_message_(LOG_SEVERITY_DEBUG, "V_AO=%.4f V, x=%.4f, ratio=%.4f -> %.1f ppm", this->sensor_voltage_,
-                     this->air_value_, this->ratio_, ppm);
+  ESP_LOGD(TAG, "'%s': V_AO=%.4f V, x=%.4f, ratio=%.4f -> %.1f ppm", this->gas_.c_str(), this->sensor_voltage_,
+           this->air_value_, this->ratio_, ppm);
 
   this->publish_state(ppm);
 }
@@ -202,47 +166,44 @@ void MiCS5524GasSensor::set_air_reference(float air_reference) {
   this->reference_configured_ = true;
 }
 
+uint32_t MiCS5524GasSensor::warmup_remaining_() const {
+  const uint32_t elapsed = App.get_loop_component_start_time() - this->warmup_start_;
+  return elapsed < this->warmup_time_ ? this->warmup_time_ - elapsed : 0;
+}
+
 void MiCS5524GasSensor::request_calibration() {
   if (this->calibrating_) {
-    this->log_message_(LOG_SEVERITY_WARN, "calibration already running");
-    return;
-  }
-  if (this->calibration_pending_) {
-    const uint32_t now = App.get_loop_component_start_time();
-    this->log_message_(LOG_SEVERITY_WARN, "calibration already requested - starting in %" PRIu32 " s",
-                       (this->calibration_due_ > now ? this->calibration_due_ - now : 0) / 1000);
+    ESP_LOGW(TAG, "'%s': calibration already running", this->gas_.c_str());
     return;
   }
   if (this->calibration_samples_ == 0) {
-    this->log_message_(LOG_SEVERITY_ERROR, "cannot calibrate without samples");
+    ESP_LOGE(TAG, "'%s': cannot calibrate without samples", this->gas_.c_str());
+    return;
+  }
+  if (this->calibration_pending_)
+    ESP_LOGW(TAG, "'%s': calibration already scheduled - restarting the wait", this->gas_.c_str());
+
+  // A request (button, on_boot lambda) must never capture an unstable reading, so
+  // it is deferred until the warm-up / burn-in window of this sensor has ended.
+  this->cancel_timeout(CALIBRATION_START_ID);
+  const uint32_t warmup_left = this->warmup_remaining_();
+  if (warmup_left > 0) {
+    this->calibration_pending_ = true;
+    this->set_timeout(CALIBRATION_START_ID, warmup_left, [this]() { this->begin_calibration_(); });
+    ESP_LOGI(TAG, "'%s': calibration requested - waiting for the warm-up window to end (%" PRIu32 " s)",
+             this->gas_.c_str(), warmup_left / 1000);
     return;
   }
 
-  const uint32_t now = App.get_loop_component_start_time();
-  this->calibration_due_ = now;
-  this->calibration_pending_ = true;
-  // A request (button, on_boot lambda) must never capture an unstable reading, so it
-  // is deferred until the warm-up / burn-in window of this sensor has ended.
-  if (this->warmup_time_ > 0 && now < this->warmup_end_) {
-    this->calibration_due_ = this->warmup_end_;
-    this->log_message_(LOG_SEVERITY_INFO,
-                       "calibration requested - waiting for the warm-up window to end (%" PRIu32 " s)",
-                       (this->warmup_end_ - now) / 1000);
-  } else {
-    this->log_message_(LOG_SEVERITY_INFO, "calibration requested - keep the sensor in clean air");
-  }
+  ESP_LOGI(TAG, "'%s': calibration requested - keep the sensor in clean air", this->gas_.c_str());
+  this->begin_calibration_();
 }
 
 void MiCS5524GasSensor::loop() {
   if (this->is_failed())
     return;
 
-  if (this->calibration_pending_) {
-    if (App.get_loop_component_start_time() >= this->calibration_due_)
-      this->begin_calibration_();
-    return;
-  }
-
+  // The loop runs only while a calibration samples; the deferred start is a timer.
   if (!this->calibrating_)
     return;
 
@@ -261,10 +222,10 @@ void MiCS5524GasSensor::begin_calibration_() {
   this->calibration_count_ = 0;
   this->calibration_attempts_ = 0;
   this->calibration_sum_ = 0.0f;
+  this->enable_loop();
 
-  this->log_message_(LOG_SEVERITY_INFO,
-                     "calibrating the air reference, %" PRIu32 " samples - keep the sensor in clean air",
-                     this->calibration_samples_);
+  ESP_LOGI(TAG, "'%s': calibrating the air reference, %" PRIu32 " samples - keep the sensor in clean air",
+           this->gas_.c_str(), this->calibration_samples_);
 }
 
 void MiCS5524GasSensor::process_calibration_() {
@@ -286,30 +247,31 @@ void MiCS5524GasSensor::process_calibration_() {
 
 void MiCS5524GasSensor::finish_calibration_() {
   this->calibrating_ = false;
+  this->disable_loop();
   const uint32_t attempts = this->calibration_attempts_;
   const uint32_t valid = this->calibration_count_;
 
   if (valid == 0) {
-    this->log_message_(LOG_SEVERITY_ERROR,
-                       "calibration failed, none of the %" PRIu32
-                       " samples produced a valid reading - check the AO wiring and the supply",
-                       attempts);
+    ESP_LOGE(TAG,
+             "'%s': calibration failed, none of the %" PRIu32
+             " samples produced a valid reading - check the AO wiring and the supply",
+             this->gas_.c_str(), attempts);
     return;
   }
 
   const float reference = this->calibration_sum_ / static_cast<float>(valid);
   if (!std::isfinite(reference) || reference <= 0.0f) {
-    this->log_message_(LOG_SEVERITY_ERROR, "calibration produced an invalid %s (%.6f)", reference_name(), reference);
+    ESP_LOGE(TAG, "'%s': calibration produced an invalid %s (%.6f)", this->gas_.c_str(), reference_name(), reference);
     return;
   }
 
   this->reference_ = reference;
   this->reference_configured_ = true;
 
-  this->log_message_(LOG_SEVERITY_INFO, "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)", reference_name(),
-                     this->reference_, valid, attempts);
-  this->log_message_(LOG_SEVERITY_INFO, "hard-code 'air_reference: %.4f' in the YAML to skip the calibration at boot",
-                     this->reference_);
+  ESP_LOGI(TAG, "'%s': %s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)", this->gas_.c_str(), reference_name(),
+           this->reference_, valid, attempts);
+  ESP_LOGI(TAG, "'%s': hard-code 'air_reference: %.4f' in the YAML to skip the calibration at boot", this->gas_.c_str(),
+           this->reference_);
 }
 
 }  // namespace esphome::mics_5524_gas_sensor

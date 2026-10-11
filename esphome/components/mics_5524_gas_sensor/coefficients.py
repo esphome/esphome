@@ -8,6 +8,10 @@ sampled during the clean-air calibration, so the board's load resistor and its
 divider ratio do not matter.  Source: ``DFRobot_MICS.cpp`` (``getGasData()`` and
 the per-gas helpers), cross-checked against ``python/raspberrypi/DFRobot_MICS.py``.
 
+Every MQ/MiCS gas sensor responds to several reducing gases at once and the
+MiCS-5524 has a single analog output, so a reading is a mixture of CO, H2,
+ethanol, ammonia and methane: it cannot say which of them is present.
+
 The table is resolved at code generation time, so a wrong ``gas:`` fails the build
 instead of producing nonsense.
 """
@@ -29,57 +33,24 @@ class VendorCurve:
 class GasDefinition:
     """One gas of the MiCS-5524, with the constants of the vendor model."""
 
-    key: str
     label: str
-    vendor: VendorCurve | None
-    vendor_range: str
-    note: str = ""
+    vendor: VendorCurve
 
 
 #: Per-gas constants: the DFRobot_MICS `getGasData()` thresholds/gains and the
-#: vendor's documented measuring ranges (the Fermion module reaches 1000 ppm for CO
-#: and H2, the trace / early-warning band this project uses the sensor for).
+#: measuring ranges the vendor documents for them (the Fermion module reaches
+#: 1000 ppm for CO and H2, the trace / early-warning band this project uses).
 GASES: dict[str, GasDefinition] = {
-    "CO": GasDefinition(
-        key="CO",
-        label="CO",
-        vendor=VendorCurve(0.425, 0.000405, 1.0, 1000.0),
-        vendor_range="1 - 1000 ppm",
-    ),
-    "H2": GasDefinition(
-        key="H2",
-        label="H2",
-        vendor=VendorCurve(0.279, 0.00026, 1.0, 1000.0),
-        vendor_range="1 - 1000 ppm",
-        note="target gas of this project (trace / early warning band)",
-    ),
-    "NH3": GasDefinition(
-        key="NH3",
-        label="NH3",
-        vendor=VendorCurve(0.8, 0.0015, 10.0, 500.0),
-        vendor_range="1 - 500 ppm (vendor math reports 0 below 10 ppm)",
-    ),
+    "CO": GasDefinition(label="CO", vendor=VendorCurve(0.425, 0.000405, 1.0, 1000.0)),
+    "H2": GasDefinition(label="H2", vendor=VendorCurve(0.279, 0.00026, 1.0, 1000.0)),
+    "NH3": GasDefinition(label="NH3", vendor=VendorCurve(0.8, 0.0015, 10.0, 500.0)),
     "C2H5OH": GasDefinition(
-        key="C2H5OH",
-        label="C2H5OH",
-        vendor=VendorCurve(0.306, 0.00057, 10.0, 500.0),
-        vendor_range="10 - 500 ppm",
+        label="C2H5OH", vendor=VendorCurve(0.306, 0.00057, 10.0, 500.0)
     ),
     "CH4": GasDefinition(
-        key="CH4",
-        label="CH4",
-        vendor=VendorCurve(0.786, 0.000023, 1000.0, 25000.0),
-        vendor_range="1000 - 25000 ppm",
+        label="CH4", vendor=VendorCurve(0.786, 0.000023, 1000.0, 25000.0)
     ),
 }
-
-#: Every MQ/MiCS gas sensor responds to several reducing gases at once, and the
-#: MiCS-5524 has a single analog output, so a reading is a mixture of CO, H2,
-#: ethanol, ammonia and methane; it cannot say which of them is present.
-SELECTIVITY_NOTE = (
-    "single analog output: the reading is a mixture of CO, H2, C2H5OH, NH3 and "
-    "CH4, it cannot identify which gas is present"
-)
 
 #: Friendly aliases accepted by ``gas:`` (the two references name gases differently).
 GAS_ALIASES: dict[str, str] = {
@@ -122,11 +93,6 @@ def label_for(gas_key: str) -> str:
     return GASES[gas_key].label
 
 
-def vendor_gases() -> list[str]:
-    """Gases the vendor model supports."""
-    return [key for key, definition in GASES.items() if definition.vendor is not None]
-
-
 @dataclass(frozen=True)
 class ResolvedGas:
     """Fully resolved gas configuration handed to the C++ component."""
@@ -139,7 +105,6 @@ class ResolvedGas:
     vendor_max_ppm: float  #: upper end of the vendor's own range
     min_ppm: float
     max_ppm: float
-    note: str = ""
 
 
 def resolve_gas(
@@ -159,8 +124,6 @@ def resolve_gas(
 
     definition = GASES[gas]
     curve = definition.vendor
-    if curve is None:  # pragma: no cover - every shipped gas has a vendor curve
-        raise ValueError(f"{definition.label} has no built-in vendor constants")
 
     return ResolvedGas(
         gas=gas,
@@ -171,5 +134,4 @@ def resolve_gas(
         vendor_max_ppm=curve.max_ppm,
         min_ppm=float(0.0 if min_ppm is None else min_ppm),
         max_ppm=float(curve.max_ppm if max_ppm is None else max_ppm),
-        note=definition.note,
     )

@@ -20,38 +20,44 @@ struct VendorCurve {
   float max_ppm;    ///< upper end of the measuring range
 };
 
-/// Vendor model input `x = VCC - V_ao` (clamped to >= 0, 0 for unusable input).
+/// Vendor model input `x = VCC - V_ao` (0 at or above VCC, NaN for unusable input).
 inline float air_value_from_voltage(float voltage, float vcc) {
   if (!std::isfinite(voltage) || !std::isfinite(vcc))
-    return 0.0f;
+    return NAN;
   const double x = static_cast<double>(vcc) - static_cast<double>(voltage);
   if (!std::isfinite(x) || x <= 0.0)
     return 0.0f;
   return static_cast<float>(x);
 }
 
-/// ratio = x / x_air (0 when the calibration value is unusable).
+/// ratio = x / x_air (NaN when either value is unusable).
 inline float ratio_from_air_value(float x, float x_air) {
   if (!std::isfinite(x) || !std::isfinite(x_air) || x_air <= 0.0f)
-    return 0.0f;
+    return NAN;
   const double ratio = static_cast<double>(x) / static_cast<double>(x_air);
   if (!std::isfinite(ratio) || ratio < 0.0)
-    return 0.0f;
+    return NAN;
   return static_cast<float>(ratio);
 }
 
 /// Vendor model: ratio -> ppm for one gas (DFRobot_MICS `getGasData()`).
-/// Ratio above the threshold (not detected) or below the vendor minimum -> 0 ppm,
-/// clamped to [min_ppm, max_ppm]; NaN stays NaN so the caller publishes `unknown`.
+///
+/// A ratio above the threshold means "not detected" -> 0 ppm, and so does a value
+/// below the vendor's own measuring range.  A ratio of exactly 0 is V_AO at VCC,
+/// the output of a saturated sensor: the vendor reports the top of the range
+/// there, so it must never be read as clean air.  NaN stays NaN, so the caller
+/// publishes `unknown`.
 inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
   if (!std::isfinite(ratio))
     return NAN;
-  if (ratio <= 0.0f || ratio > curve.threshold)
+  if (ratio > curve.threshold)
     return 0.0f;
 
   const double ppm =
       (static_cast<double>(curve.threshold) - static_cast<double>(ratio)) / static_cast<double>(curve.gain);
-  if (!std::isfinite(ppm) || ppm < static_cast<double>(curve.min_ppm))
+  if (!std::isfinite(ppm))
+    return NAN;
+  if (ppm < static_cast<double>(curve.min_ppm))
     return 0.0f;
   if (ppm > static_cast<double>(curve.max_ppm))
     return curve.max_ppm;
@@ -59,9 +65,14 @@ inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
 }
 
 /// Clamp a PPM reading to the configured range (NaN stays NaN).
+///
+/// 0 ppm is the vendor's way of saying "no gas detected" and is never lifted to
+/// `min_ppm`; only a reading that the vendor counts as detected can be.
 inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
   if (!std::isfinite(ppm))
     return NAN;
+  if (ppm <= 0.0f)
+    return 0.0f;
   if (ppm < min_ppm)
     return min_ppm;
   if (ppm > max_ppm)
