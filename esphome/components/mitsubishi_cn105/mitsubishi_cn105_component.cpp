@@ -6,7 +6,7 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-static const char *const TAG = "mitsubishi_cn105";
+ESPHOME_LOG_TAG(TAG, "mitsubishi_cn105");
 
 void MitsubishiCN105Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Mitsubishi CN105:");

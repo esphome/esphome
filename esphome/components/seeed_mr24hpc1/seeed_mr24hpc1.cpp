@@ -7,7 +7,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-static const char *const TAG = "seeed_mr24hpc1";
+ESPHOME_LOG_TAG(TAG, "seeed_mr24hpc1");
 
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
 // items in an easy-to-read format, including the configuration key-value pairs.
@@ -265,17 +265,11 @@ void MR24HPC1Component::loop() {
   }
 }
 
-// Calculate CRC check digit
-static uint8_t get_frame_crc_sum(const uint8_t *data, int len) {
-  unsigned int crc_sum = 0;
-  for (int i = 0; i < len - 3; i++) {
-    crc_sum += data[i];
-  }
-  return crc_sum & 0xff;
-}
+// Frames are at least 10 bytes, so the three trailing bytes can always be left out
+static uint8_t get_frame_crc_sum(const uint8_t *data, size_t len) { return sum_bytes(data, len - 3); }
 
 // Check that the check digit is correct
-static int get_frame_check_status(uint8_t *data, int len) {
+static int get_frame_check_status(const uint8_t *data, size_t len) {
   uint8_t crc_sum = get_frame_crc_sum(data, len);
   uint8_t verified = data[len - 3];
   return (verified == crc_sum) ? 1 : 0;

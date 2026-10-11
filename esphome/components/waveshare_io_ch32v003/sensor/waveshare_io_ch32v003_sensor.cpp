@@ -4,7 +4,7 @@
 
 namespace esphome::waveshare_io_ch32v003 {
 
-static const char *const TAG = "waveshare_io_ch32v003.sensor";
+ESPHOME_LOG_TAG(TAG, "waveshare_io_ch32v003.sensor");
 
 float WaveshareIOCH32V003Sensor::get_setup_priority() const { return setup_priority::DATA; }
 

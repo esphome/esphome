@@ -3,7 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.switch";
+ESPHOME_LOG_TAG(TAG, "gree.switch");
 
 void GreeModeBitSwitch::setup() {
   auto initial = this->get_initial_state_with_restore_mode();

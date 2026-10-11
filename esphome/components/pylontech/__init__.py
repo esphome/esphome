@@ -10,6 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "pylontech"
 MULTI_CONF = True
 
 CONF_PYLONTECH_ID = "pylontech_id"
@@ -39,6 +40,14 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "pylontech",
+    baud_rate=115200,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 

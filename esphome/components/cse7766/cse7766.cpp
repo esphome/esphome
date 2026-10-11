@@ -6,7 +6,7 @@
 
 namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -67,10 +67,7 @@ bool CSE7766Component::check_byte_() {
   }
 
   if (index == CSE7766_RAW_DATA_SIZE - 1) {
-    uint8_t checksum = 0;
-    for (uint8_t i = 2; i < CSE7766_RAW_DATA_SIZE - 1; i++) {
-      checksum += this->raw_data_[i];
-    }
+    const uint8_t checksum = sum_bytes(this->raw_data_ + 2, CSE7766_RAW_DATA_SIZE - 3);
 
     if (checksum != this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]) {
       ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum,
@@ -255,7 +252,6 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
-  this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
 }  // namespace esphome::cse7766

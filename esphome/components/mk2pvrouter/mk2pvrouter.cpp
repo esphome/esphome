@@ -1,10 +1,11 @@
 #include "mk2pvrouter.h"
 #include "esphome/core/log.h"
+#include <cstddef>
 #include <cstring>
 
 namespace esphome::mk2pvrouter {
 
-static const char *const TAG = "mk2pvrouter";
+ESPHOME_LOG_TAG(TAG, "mk2pvrouter");
 
 constexpr uint8_t START_FRAME = 0x2;
 constexpr uint8_t END_FRAME = 0x3;
@@ -35,20 +36,13 @@ static size_t get_field(char *dest, const char *buf_start, const char *buf_end, 
 
 // Calculates the CRC (checksum) for a given group of characters.
 uint8_t Mk2PVRouter::calculate_crc_(const char *grp, size_t grp_len) {
-  uint8_t crc_tmp{0};
-  const auto effective_len = grp_len - CRC_SUFFIX_LEN;
-  for (size_t i = 0; i < effective_len; i++) {
-    crc_tmp += grp[i];
-  }
-  crc_tmp &= CRC_MASK;
-  crc_tmp += CRC_OFFSET;
-  return crc_tmp;
+  return (sum_bytes(reinterpret_cast<const uint8_t *>(grp), grp_len - CRC_SUFFIX_LEN) & CRC_MASK) + CRC_OFFSET;
 }
 
 // Verifies the CRC of a group against its trailing CRC byte.
 bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
   const auto grp_len = grp_end - grp;
-  if (grp_len < static_cast<decltype(grp_len)>(CRC_SUFFIX_LEN)) {
+  if (grp_len < static_cast<std::ptrdiff_t>(CRC_SUFFIX_LEN)) {
     ESP_LOGE(TAG, "Empty or too short group");
     return false;
   }
@@ -163,10 +157,7 @@ void Mk2PVRouter::publish_value_(const char *tag, const char *val) {
 #endif
 }
 
-void Mk2PVRouter::dump_config() {
-  ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
-  this->check_uart_settings(BAUD_RATE, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
-}
+void Mk2PVRouter::dump_config() { ESP_LOGCONFIG(TAG, "Mk2PVRouter:"); }
 
 #ifdef MK2PVROUTER_LISTENER_COUNT
 void Mk2PVRouter::register_mk2pvrouter_listener(Mk2PVRouterListener *listener) {

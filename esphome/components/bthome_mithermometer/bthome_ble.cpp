@@ -26,7 +26,7 @@
 
 namespace esphome::bthome_mithermometer {
 
-static const char *const TAG = "bthome_mithermometer";
+ESPHOME_LOG_TAG(TAG, "bthome_mithermometer");
 static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
 static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
@@ -418,6 +418,21 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
         if (this->humidity_ != nullptr) {
           const uint16_t raw = encode_uint16(value[1], value[0]);
           this->humidity_->publish_state(raw * 0.01f);
+          reported = true;
+        }
+        break;
+      }
+      case 0x45: {  // temperature (0.1C), e.g. Shelly BLU H&T
+        if (this->temperature_ != nullptr) {
+          const int16_t raw = encode_uint16(value[1], value[0]);
+          this->temperature_->publish_state(raw * 0.1f);
+          reported = true;
+        }
+        break;
+      }
+      case 0x2E: {  // humidity (uint8, 1%), e.g. Shelly BLU H&T
+        if (this->humidity_ != nullptr) {
+          this->humidity_->publish_state(value[0]);
           reported = true;
         }
         break;
