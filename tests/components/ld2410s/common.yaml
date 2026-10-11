@@ -1,0 +1,7 @@
+ld2410s:
+  uart_id: uart_bus
+
+binary_sensor:
+  - platform: ld2410s
+    has_target:
+      name: Presence
