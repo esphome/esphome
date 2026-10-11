@@ -1,5 +1,6 @@
 #include "toshiba.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 #include <vector>
@@ -173,16 +174,21 @@ struct ToshibaTimings {
   uint16_t gap_space;
   bool gap_after_last;  // Seiya ends on a bare mark and only puts the gap between repeats
 };
-static constexpr ToshibaTimings TOSHIBA_TIMINGS{TOSHIBA_HEADER_MARK,
-                                                TOSHIBA_HEADER_SPACE,
-                                                TOSHIBA_BIT_MARK,
-                                                TOSHIBA_ZERO_SPACE,
-                                                TOSHIBA_ONE_SPACE,
-                                                TOSHIBA_GAP_SPACE,
-                                                true};
-static constexpr ToshibaTimings SEIYA_TIMINGS{4630, 4450, 625, 490, 1570, 5830, false};
+// Kept in flash on ESP8266, where plain const objects referenced through a function would land in RAM
+static const ToshibaTimings TOSHIBA_TIMINGS PROGMEM = {TOSHIBA_HEADER_MARK,
+                                                       TOSHIBA_HEADER_SPACE,
+                                                       TOSHIBA_BIT_MARK,
+                                                       TOSHIBA_ZERO_SPACE,
+                                                       TOSHIBA_ONE_SPACE,
+                                                       TOSHIBA_GAP_SPACE,
+                                                       true};
+static const ToshibaTimings SEIYA_TIMINGS PROGMEM = {4630, 4450, 625, 490, 1570, 5830, false};
 
-static const ToshibaTimings &timings_for(Model model) { return model == MODEL_SEIYA ? SEIYA_TIMINGS : TOSHIBA_TIMINGS; }
+static ToshibaTimings timings_for(Model model) {
+  ToshibaTimings timings;
+  progmem_memcpy(&timings, model == MODEL_SEIYA ? &SEIYA_TIMINGS : &TOSHIBA_TIMINGS, sizeof(timings));
+  return timings;
+}
 
 // Seiya is the generic frame plus two bytes: a feature marker and a one-shot swing command
 static constexpr uint8_t SEIYA_MESSAGE_LENGTH = 11;
@@ -1164,7 +1170,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t message_length = TOSHIBA_HEADER_LENGTH, temperature_code = 0;
 
   // Validate header
-  const ToshibaTimings &timings = timings_for(this->model_);
+  const ToshibaTimings timings = timings_for(this->model_);
   if (!data.expect_item(timings.header_mark, timings.header_space)) {
     return false;
   }
@@ -1356,7 +1362,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
 void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, const uint8_t nbytes,
                              const uint8_t repeat) {
-  const ToshibaTimings &timings = timings_for(this->model_);
+  const ToshibaTimings timings = timings_for(this->model_);
   data->set_carrier_frequency(TOSHIBA_CARRIER_FREQUENCY);
 
   for (uint8_t copy = 0; copy <= repeat; copy++) {
@@ -1380,7 +1386,7 @@ void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_
 }
 
 bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *message, const uint8_t nbytes) {
-  const ToshibaTimings &timings = timings_for(this->model_);
+  const ToshibaTimings timings = timings_for(this->model_);
   for (uint8_t byte = 0; byte < nbytes; byte++) {
     for (uint8_t bit = 0; bit < 8; bit++) {
       if (data->expect_item(timings.bit_mark, timings.one_space)) {
