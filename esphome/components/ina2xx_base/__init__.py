@@ -2,7 +2,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.components.const import UNIT_AMPERE_HOUR
+from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME, UNIT_AMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
@@ -36,9 +36,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@latonita"]
 DOMAIN = "ina2xx_base"
 
-CONF_ADC_AVERAGING = "adc_averaging"
 CONF_ADC_RANGE = "adc_range"
-CONF_ADC_TIME = "adc_time"
 CONF_CHARGE = "charge"
 CONF_CHARGE_COULOMBS = "charge_coulombs"
 CONF_ENERGY_JOULES = "energy_joules"
