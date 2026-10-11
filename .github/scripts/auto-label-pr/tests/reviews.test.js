@@ -28,7 +28,7 @@ describe('too-big review message', () => {
 
   it('names both caps when both are exceeded', () => {
     const message = tooBigMessage(20, 1500);
-    assert.match(message, /under 1000 lines \(excluding tests\) and touches at most 15 components\/areas\./);
+    assert.match(message, /is at most 1000 lines \(excluding tests\) and touches at most 15 components\/areas\./);
   });
 
   it('tells new-component authors to bring one platform first', () => {
