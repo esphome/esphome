@@ -21,20 +21,17 @@ void UDPComponent::setup() {
     SockaddrEntry entry{};
     entry.len = socket::set_sockaddr(&entry.addr.sa, sizeof(entry.addr), address, this->broadcast_port_);
     if (entry.len == 0) {
-      ESP_LOGW(TAG, "Invalid address %s", address);
-      this->status_set_warning(LOG_STR("invalid address"));
-      continue;
+      // Validation only lets through addresses this build can parse
+      ESP_LOGE(TAG, "Invalid address %s", address);
+      this->mark_failed(LOG_STR("Invalid address"));
+      return;
     }
     this->sockaddrs_.push_back(entry);
   }
 #endif
 }
 
-bool UDPComponent::retry_if_transient_(const LogString *what) {
-  const int err = errno;
-  if (err != EADDRNOTAVAIL && err != ENODEV) {
-    return false;
-  }
+void UDPComponent::close_sockets_() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->listen_socket_.reset();
   this->broadcast_socket_.reset();
@@ -42,6 +39,20 @@ bool UDPComponent::retry_if_transient_(const LogString *what) {
   this->send_socket_v6_.reset();
 #endif
 #endif
+}
+
+bool UDPComponent::fail_(const LogString *what) {
+  this->close_sockets_();
+  this->mark_failed(what);
+  return false;
+}
+
+bool UDPComponent::retry_if_transient_(const LogString *what) {
+  const int err = errno;
+  if (err != EADDRNOTAVAIL && err != ENODEV) {
+    return false;
+  }
+  this->close_sockets_();
   this->retry_delay_ms_ = next_retry_delay_ms(this->retry_delay_ms_);
   this->next_retry_ms_ = App.get_loop_component_start_time() + this->retry_delay_ms_;
   ESP_LOGW(TAG, "%s failed (errno %d), retrying in %u ms", LOG_STR_ARG(what), err, this->retry_delay_ms_);
@@ -63,8 +74,7 @@ bool UDPComponent::open_sockets_() {
       server_len =
           socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), this->listen_address_, this->listen_port_);
       if (server_len == 0) {
-        this->mark_failed(LOG_STR("Invalid listen address"));
-        return false;
+        return this->fail_(LOG_STR("Invalid listen address"));
       }
       this->listen_socket_ = socket::socket_loop_monitored(server.ss_family, SOCK_DGRAM, IPPROTO_IP);
     } else {
@@ -76,19 +86,16 @@ bool UDPComponent::open_sockets_() {
       if (this->listen_socket_ != nullptr &&
           this->listen_socket_->setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, &disable, sizeof(disable)) < 0) {
         ESP_LOGE(TAG, "Failed to set IPV6_V6ONLY: errno %d", errno);
-        this->mark_failed(LOG_STR("Failed to set IPV6_V6ONLY"));
-        return false;
+        return this->fail_(LOG_STR("Failed to set IPV6_V6ONLY"));
       }
 #endif
     }
     if (this->listen_socket_ == nullptr) {
-      this->mark_failed(LOG_STR("Could not create socket"));
-      return false;
+      return this->fail_(LOG_STR("Could not create socket"));
     }
     if (this->listen_socket_->setblocking(false) < 0) {
       ESP_LOGE(TAG, "Unable to set nonblocking: errno %d", errno);
-      this->mark_failed(LOG_STR("Unable to set nonblocking"));
-      return false;
+      return this->fail_(LOG_STR("Unable to set nonblocking"));
     }
     int enable = 1;
     if (this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) != 0)
@@ -101,8 +108,7 @@ bool UDPComponent::open_sockets_() {
           return false;
         }
         ESP_LOGE(TAG, "Failed to join multicast group. Error %d", errno);
-        this->mark_failed(LOG_STR("Failed to join multicast group"));
-        return false;
+        return this->fail_(LOG_STR("Failed to join multicast group"));
       }
 #if defined(USE_HOST) || defined(USE_ZEPHYR)
       if (server_len == sizeof(sockaddr_in6) && mcast_ifindex != 0) {
@@ -117,16 +123,14 @@ bool UDPComponent::open_sockets_() {
         return false;
       }
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-      this->mark_failed(LOG_STR("Unable to bind socket"));
-      return false;
+      return this->fail_(LOG_STR("Unable to bind socket"));
     }
   }
   if (this->should_broadcast_) {
     // Broadcast needs an IPv4 socket
     this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->broadcast_socket_ == nullptr) {
-      this->mark_failed(LOG_STR("Could not create socket"));
-      return false;
+      return this->fail_(LOG_STR("Could not create socket"));
     }
     int enable = 1;
     if (this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) != 0)
@@ -145,8 +149,7 @@ bool UDPComponent::open_sockets_() {
     if (any_ipv6) {
       this->send_socket_v6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
       if (this->send_socket_v6_ == nullptr) {
-        this->mark_failed(LOG_STR("Could not create IPv6 socket"));
-        return false;
+        return this->fail_(LOG_STR("Could not create IPv6 socket"));
       }
       if (this->send_socket_v6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) != 0)
         this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
@@ -155,8 +158,7 @@ bool UDPComponent::open_sockets_() {
         if (this->retry_if_transient_(LOG_STR("Set IPv6 multicast interface"))) {
           return false;
         }
-        this->mark_failed(LOG_STR("Failed to set IPv6 multicast interface"));
-        return false;
+        return this->fail_(LOG_STR("Failed to set IPv6 multicast interface"));
       }
     }
 #endif

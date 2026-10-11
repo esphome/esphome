@@ -50,6 +50,9 @@ class UDPComponent final : public Component {
   bool open_sockets_();
   /// If errno is a temporary error, closes the sockets and arms a retry with back-off; true when it did.
   bool retry_if_transient_(const LogString *what);
+  /// Closes the sockets and marks the component failed; always returns false.
+  bool fail_(const LogString *what);
+  void close_sockets_();
 
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 

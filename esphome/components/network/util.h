@@ -58,7 +58,7 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
 
 /// Return whether the node can exchange traffic: connected to a network, or running its own Wi-Fi access point.
 ESPHOME_ALWAYS_INLINE inline bool is_connected_or_ap() {
-#ifdef USE_WIFI
+#ifdef USE_WIFI_AP
   if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_ap_active())
     return true;
 #endif
