@@ -82,8 +82,8 @@ class DaikinClimate final : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 
   /// What the 0xC5 frame of the current transmission said about comfort, applied by the state frame
-  enum class PendingComfort : uint8_t { UNKNOWN, OFF, ON };
-  PendingComfort pending_comfort_{PendingComfort::UNKNOWN};
+  enum class PendingComfort : uint8_t { PENDING_COMFORT_UNKNOWN, PENDING_COMFORT_OFF, PENDING_COMFORT_ON };
+  PendingComfort pending_comfort_{PendingComfort::PENDING_COMFORT_UNKNOWN};
   uint32_t pending_comfort_at_{0};
 };
 
