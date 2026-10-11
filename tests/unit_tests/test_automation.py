@@ -44,6 +44,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_AUTOMATION_ID, CONF_ID, CONF_THEN
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
+from esphome.types import ConfigType
 from esphome.util import Registry, RegistryEntry
 
 
@@ -285,6 +286,22 @@ def test_validate_synchronous_automation_passes_options() -> None:
     assert result["retry"] == "yes"
     with pytest.raises(cv.Invalid, match="Deferring actions"):
         validator({CONF_THEN: [{"delay": "1s"}]})
+
+
+def test_validate_synchronous_automation_passes_extra_validators() -> None:
+    """extra_validators is passed through to validate_automation() and runs on each automation."""
+    seen: list[ConfigType] = []
+
+    def extra_validator(value: ConfigType) -> ConfigType:
+        seen.append(value)
+        return value
+
+    validator = validate_synchronous_automation(
+        "on_test", extra_validators=extra_validator
+    )
+    validator([{CONF_THEN: [{"lambda": Lambda('ESP_LOGD("test", "ran");')}]}])
+    assert len(seen) == 1
+    assert CONF_THEN in seen[0]
 
 
 def _build_forwarder(

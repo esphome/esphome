@@ -1085,7 +1085,11 @@ def validate_synchronous_automation(
     passed to ``validate_automation()``.
     """
     return cv.All(
-        validate_automation(extra_schema, extra_validators, single),
+        validate_automation(
+            extra_schema=extra_schema,
+            extra_validators=extra_validators,
+            single=single,
+        ),
         validate_no_deferring_actions(context, data),
     )
 
