@@ -109,8 +109,7 @@ class GreeClimate final : public climate_ir::ClimateIR {
   uint8_t preset_();
 
   Model model_{};
-  // LIGHT on by default to preserve pre-#12160 behavior.
-  uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};
+  uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
 };
 
 }  // namespace esphome::gree
