@@ -7,7 +7,7 @@
 
 namespace esphome::spi {
 
-static const char *const TAG = "spi.zephyr";
+ESPHOME_LOG_TAG(TAG, "spi.zephyr");
 
 // nRF52's SPIM peripheral uses EasyDMA, which can only access RAM -- flash reads silently fail
 // (garbage or nothing is transferred, with no error reported). ESPHome epaper drivers commonly
