@@ -101,8 +101,13 @@ void Wireguard::update() {
     if (this->wg_peer_offline_time_ == 0) {
       ESP_LOGW(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
       this->wg_peer_offline_time_ = millis();
+      this->wg_reconnect_time_ = this->wg_peer_offline_time_;
     } else if (this->enabled_) {
       ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
+      if (millis() - this->wg_reconnect_time_ >= RECONNECT_INTERVAL_MS) {
+        this->wg_reconnect_time_ = millis();
+        this->stop_connection_();
+      }
       this->start_connection_();
     }
 

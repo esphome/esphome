@@ -69,6 +69,70 @@ template<typename T, typename... X> class TemplatableFn {
   T (*f_)(X...){nullptr};
 };
 
+/// Byte payload that is either a stateless lambda or a static table, which may be in PROGMEM.
+/// 8 bytes on 32-bit; codegen stores constant payloads as shared flash tables.
+template<typename... Ts> class TemplatableBytes {
+ public:
+  void set_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->code_.func = func;
+    this->len_ = -1;
+  }
+  void set_static(const uint8_t *data, uint16_t len) {
+    this->code_.data = data;
+    this->len_ = len;
+  }
+  bool is_static() const { return this->len_ >= 0; }
+  /// Only valid when is_static(); may point to PROGMEM, so read it with progmem_memcpy or progmem_read_byte.
+  const uint8_t *data() const { return this->code_.data; }
+  /// Only valid when is_static().
+  size_t size() const { return static_cast<size_t>(this->len_); }
+  std::vector<uint8_t> value(const Ts &...x) const {
+    if (this->len_ < 0)
+      return this->code_.func(x...);
+    return to_vector(this->code_.data, this->size());
+  }
+  /// Calls fn(const uint8_t *data, size_t len) with the payload readable from RAM: a lambda's vector, a static
+  /// table directly, or on ESP8266 a copy of the PROGMEM table (on the stack up to N bytes).
+  template<size_t N = 64, typename F> void visit(F &&fn, const Ts &...x) const {
+    if (this->len_ < 0) {
+      const std::vector<uint8_t> bytes = this->code_.func(x...);
+      fn(bytes.data(), bytes.size());
+      return;
+    }
+#ifdef USE_ESP8266
+    SmallBufferWithHeapFallback<N> buf(this->size());
+    if (this->len_ != 0)
+      progmem_memcpy(buf.get(), this->code_.data, this->size());
+    fn(buf.get(), this->size());
+#else
+    fn(this->code_.data, this->size());
+#endif
+  }
+
+ protected:
+  static std::vector<uint8_t> to_vector(const uint8_t *data, size_t len) {
+    std::vector<uint8_t> out(len);
+    // An empty payload is (nullptr, 0), and memcpy from nullptr is undefined even for zero bytes.
+    if (len != 0)
+      progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
+    return out;
+  }
+
+  union {
+    std::vector<uint8_t> (*func)(Ts...);
+    const uint8_t *data;
+  } code_{};
+  int32_t len_{-1};  // -1: lambda, otherwise the length of the static table
+};
+
+#define TEMPLATABLE_BYTES(name) \
+ protected: \
+  TemplatableBytes<Ts...> name##_{}; \
+\
+ public: \
+  void set_##name##_template(std::vector<uint8_t> (*func)(Ts...)) { this->name##_.set_template(func); } \
+  void set_##name##_static(const uint8_t *data, uint16_t len) { this->name##_.set_static(data, len); }
+
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;
 
@@ -341,10 +405,14 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   /// Check if this holds a static string (const char* stored without allocation)
   /// The pointer is always directly readable (RAM or flash-mapped).
   /// Returns false for FLASH_STRING (PROGMEM on ESP8266, requires _P functions).
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Read the value with ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
   /// Get the static string pointer (only valid if is_static_string() returns true)
   /// The pointer is always directly readable — FLASH_STRING uses a separate type.
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Use ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   const char *get_static_string() const { return this->static_str_; }
 
   /// Check if the string value is empty without allocating.

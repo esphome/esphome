@@ -10,14 +10,18 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome.build_helpers.tools_cache import SDK_ZEPHYR_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.build_zephyr import (
+    _app_domain_args,
+    _ccache_env,
     _imgtool_sign_commands,
     _runner_supports_dev_id,
+    check_bootloader_built,
     resign_direct_xip_images,
     resolve_dev_id,
     run_west_blobs_fetch,
 )
-from esphome.core import EsphomeError
+from esphome.core import CORE, EsphomeError
 
 # ---------------------------------------------------------------------------
 # _runner_supports_dev_id
@@ -270,3 +274,116 @@ def test_resign_fails_when_signing_fails(tmp_path: Path) -> None:
         run.return_value.returncode = 1
         with pytest.raises(EsphomeError, match="Signing"):
             resign_direct_xip_images(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# _ccache_env
+# ---------------------------------------------------------------------------
+
+_CCACHE_KEYS = (
+    "CCACHE_DIR",
+    "CCACHE_DEPEND",
+    "CCACHE_NOHASHDIR",
+    "CCACHE_BASEDIR",
+    "CCACHE_DISABLE",
+    "CCACHE_IGNOREOPTIONS",
+)
+
+
+@pytest.fixture
+def clean_ccache_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in _CCACHE_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+
+@pytest.mark.usefixtures("clean_ccache_env")
+def test_ccache_env_disabled_turns_zephyr_ccache_off(tmp_path: Path) -> None:
+    """Without a resolved ccache, Zephyr's self-enabled ccache must not cache."""
+    with patch("esphome.build_helpers.ccache.resolve_ccache_path", return_value=None):
+        assert _ccache_env({}, tmp_path / "zephyr") == {"CCACHE_DISABLE": "1"}
+        # A caller-supplied value is left alone
+        assert _ccache_env({"CCACHE_DISABLE": "0"}, tmp_path / "zephyr") == {}
+
+
+@pytest.mark.usefixtures("clean_ccache_env")
+def test_ccache_env_enabled_uses_managed_settings(tmp_path: Path) -> None:
+    """A resolved ccache gets the shared settings and the sdk-zephyr cache dir."""
+    CORE.build_path = tmp_path / "build"
+    source_dir = tmp_path / "build" / "zephyr"
+    with patch(
+        "esphome.build_helpers.ccache.resolve_ccache_path",
+        return_value="/usr/bin/ccache",
+    ):
+        env = _ccache_env({}, source_dir)
+    assert env["CCACHE_DIR"] == str(
+        tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE) / "ccache"
+    )
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    assert "CCACHE_DISABLE" not in env
+    assert env["CCACHE_IGNOREOPTIONS"] == (
+        f"-fmacro-prefix-map={source_dir.as_posix()}=CMAKE_SOURCE_DIR"
+    )
+
+
+@pytest.mark.usefixtures("clean_ccache_env")
+def test_ccache_env_skips_the_map_entry_on_whitespace(tmp_path: Path) -> None:
+    """The ignore list splits on spaces, so a spaced path stays hashed."""
+    CORE.build_path = tmp_path / "with space" / "build"
+    with patch(
+        "esphome.build_helpers.ccache.resolve_ccache_path",
+        return_value="/usr/bin/ccache",
+    ):
+        env = _ccache_env({}, tmp_path / "with space" / "build" / "zephyr")
+    assert "CCACHE_IGNOREOPTIONS" not in env
+
+
+# ---------------------------------------------------------------------------
+# --skip-bootloader
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("swap_method", "expected"),
+    [
+        ("offset", ["--domain", "zephyr"]),
+        (
+            "direct",
+            ["--domain", "zephyr", "--domain", "zephyr_slot1_variant"],
+        ),
+    ],
+)
+def test_app_domain_args(swap_method: str, expected: list[str]) -> None:
+    """Only the app images build; direct-xip has two."""
+    with patch(
+        "esphome.components.zephyr.mcuboot.zephyr_swap_method",
+        return_value=swap_method,
+    ):
+        assert _app_domain_args() == expected
+
+
+def _domains(build_dir: Path, *names: str) -> None:
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "domains.yaml").write_text(
+        "domains:\n" + "".join(f"- name: {n}\n" for n in names)
+    )
+
+
+def test_check_bootloader_built_refuses_a_skipped_mcuboot(tmp_path: Path) -> None:
+    _domains(tmp_path, "zephyr", "mcuboot")
+    with pytest.raises(EsphomeError, match="--skip-bootloader"):
+        check_bootloader_built(tmp_path)
+
+
+def test_check_bootloader_built_accepts_a_built_mcuboot(tmp_path: Path) -> None:
+    _domains(tmp_path, "zephyr", "mcuboot")
+    elf = tmp_path / "mcuboot" / "zephyr" / "zephyr.elf"
+    elf.parent.mkdir(parents=True)
+    elf.write_bytes(b"")
+    check_bootloader_built(tmp_path)
+
+
+def test_check_bootloader_built_without_mcuboot(tmp_path: Path) -> None:
+    _domains(tmp_path, "zephyr")
+    check_bootloader_built(tmp_path)
+    check_bootloader_built(tmp_path / "never-built")

@@ -339,8 +339,9 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
     return READY;
   }
 
+  // the non-blocking call comes from loop(), where the tick's timestamp is already cached
   if (!this->rd_started_) {
-    this->rd_start_time_ = millis();
+    this->rd_start_time_ = block ? millis() : App.get_loop_component_start_time();
     this->rd_started_ = true;
   }
   const uint32_t rd_start_time = this->rd_start_time_;
@@ -351,7 +352,8 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
       break;
     }
 
-    if (millis() - rd_start_time > 100) {
+    const uint32_t now = block ? millis() : App.get_loop_component_start_time();
+    if (now - rd_start_time > 100) {
       ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
       this->rd_ready_ = TIMEOUT;
       break;

@@ -6,11 +6,36 @@ import logging
 from pathlib import Path
 import subprocess
 
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_ADVANCED
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
+from ..const import zephyr_ns
+from ..usb_baud_rate import CONF_USB_BAUD_RATE, UsbBaudRate, declare_component_id
 from . import mcuboot_or_none
 
 _LOGGER = logging.getLogger(__name__)
+
+BootselTouch = zephyr_ns.class_("BootselTouch", cg.Component)
+CONF_BOOTSEL_TOUCH = "bootsel_touch"
+
+# Internal keys of advanced:, filled in by declare_bootsel_touch().
+BOOTSEL_TOUCH_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_BOOTSEL_TOUCH): declare_component_id(BootselTouch),
+        cv.Optional(CONF_USB_BAUD_RATE): declare_component_id(UsbBaudRate),
+    }
+)
+
+
+def declare_bootsel_touch(advanced: ConfigType) -> None:
+    """Declare BootselTouch and the UsbBaudRate it uses in the validated advanced: block:
+    components are counted at validation, so they cannot be created later in to_code."""
+    advanced.setdefault(CONF_BOOTSEL_TOUCH, declare_component_id(BootselTouch)(None))
+    advanced.setdefault(CONF_USB_BAUD_RATE, declare_component_id(UsbBaudRate)(None))
+
 
 # Devicetree property rpi_pico pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "pinmux"
@@ -88,9 +113,10 @@ def to_code(config: ConfigType) -> None:
     """rpi_pico-family zephyr_to_code hook: mainline Zephyr's MINIMAL_LIBCPP
     has no STL, which ESPHome's C++ core requires regardless of chip vendor --
     same reasoning as every other family. Also enables BOOTSEL-touch: lets
-    logger_zephyr.cpp's USB_CDC poll loop detect a host opening the port at
+    BootselTouch detect a host opening the USB serial port at
     1200 baud (the cross-ecosystem "magic baud rate" convention) and reboot
-    into the ROM USB bootloader without needing the physical button -- backed
+    into the ROM USB bootloader without needing the physical button (2001 baud
+    is a plain reboot into the application) -- backed
     entirely by already-merged Zephyr infrastructure (subsys/retention's
     bootmode API + the RP2 SoC's own PRE_KERNEL_2 hook that acts on it).
 
@@ -100,8 +126,7 @@ def to_code(config: ConfigType) -> None:
     (`xiao_rp2350/rp2350a/m33`), so its devicetree overlay silently never
     applies there, and CONFIG_RETENTION_BOOT_MODE gets silently dropped for
     lack of the "zephyr,boot-mode" chosen node it depends on."""
-    import esphome.codegen as cg  # noqa: PLC0415
-    from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
+    from esphome.const import CONF_AP, CONF_LOG_LEVEL, CONF_WIFI  # noqa: PLC0415
 
     from .. import zephyr_add_overlay, zephyr_add_prj_conf, zephyr_data, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
     from ..const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER, ZEPHYR_VARIANT_RP2040  # noqa: PLC0415
@@ -122,6 +147,10 @@ def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every rpi_pico-family variant (core.cpp, etc.).
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RPI_PICO")
+    # The CYW43 driver refuses to connect while the AP is up, so the fallback
+    # AP takes turns with the networks.
+    if CORE.config.get(CONF_WIFI, {}).get(CONF_AP):
+        cg.add_define("USE_WIFI_AP_EXCLUSIVE")
 
     boot_mode_dtsi = (
         "rp2040-boot-mode-retention"
@@ -144,7 +173,17 @@ def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("RETENTION", True, image=image)
         zephyr_add_prj_conf("RETENTION_BOOT_MODE", True, image=image)
         zephyr_add_overlay(boot_mode_overlay, image)
-    cg.add_build_flag("-DUSE_ZEPHYR_BOOTSEL_TOUCH")
+    cg.add_define("USE_ZEPHYR_BOOTSEL_TOUCH")
+    CORE.add_job(_bootsel_touch_to_code, config[CONF_ADVANCED])
+
+
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
+async def _bootsel_touch_to_code(advanced: ConfigType) -> None:
+    from .. import zephyr_add_usb_baud_rate  # noqa: PLC0415 -- avoids circular import at module load
+
+    usb_baud_rate = await zephyr_add_usb_baud_rate(advanced)
+    var = cg.new_Pvariable(advanced[CONF_BOOTSEL_TOUCH], usb_baud_rate)
+    await cg.register_component(var, {})
 
 
 def signed_image_flash_address(signed_hex: Path) -> int | None:
@@ -185,7 +224,7 @@ def find_picotool() -> Path | None:
 
 def touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
     """Trigger an RP2040/RP2350 running ESPHome's own firmware (with
-    USE_ZEPHYR_BOOTSEL_TOUCH's poll loop active) to reboot into BOOTSEL, by briefly
+    BootselTouch) to reboot into BOOTSEL, by briefly
     opening its USB CDC serial port at 1200 baud -- the cross-ecosystem "magic baud
     rate" convention -- then waiting for it to re-enumerate in BOOTSEL mode.
     """
@@ -263,8 +302,6 @@ def upload_using_picotool() -> bool:
     # both must be written -- Zephyr's own "uf2" runner doesn't handle this correctly
     # either (its zephyr.uf2 output is always built from the unsigned binary).
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
-        from esphome.core import CORE  # noqa: PLC0415
-
         mcuboot_elf = CORE.relative_build_path(".west_build/mcuboot/zephyr/zephyr.elf")
         signed_bin = CORE.relative_build_path(
             ".west_build/zephyr/zephyr/zephyr.signed.bin"
@@ -293,8 +330,6 @@ def upload_using_picotool() -> bool:
             (signed_bin, address, True),
         ]
     else:
-        from esphome.core import CORE  # noqa: PLC0415
-
         elf = CORE.relative_build_path(".west_build/zephyr/zephyr/zephyr.elf")
         if not elf.is_file():
             _LOGGER.error("Zephyr firmware ELF not found. Compile first.")

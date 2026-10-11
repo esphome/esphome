@@ -1,0 +1,2 @@
+packages:
+  pulse_meter: !include common.yaml

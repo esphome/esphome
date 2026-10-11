@@ -286,6 +286,14 @@ def copy_ccache_script() -> None:
     )
 
 
+def copy_pch_script() -> None:
+    """Copy the precompiled header SCons script into the build dir."""
+    copy_file_if_changed(
+        Path(__file__).parent / "pch.py.script",
+        CORE.relative_build_path("pch.py"),
+    )
+
+
 def default_libdeps_dir() -> str:
     """The PLATFORMIO_LIBDEPS_DIR value a pio run defaults to; the package
     prefetch must resolve installed libraries against the same dir."""
@@ -327,6 +335,18 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     base_env = kwargs.pop("env", None)
     env = dict(os.environ if base_env is None else base_env)
     env.update(_ccache_env())
+    if CORE.is_configured:
+        from esphome.build_helpers.pch import (
+            ccache_pch_env,
+            pch_forced,
+            pch_script_enabled,
+        )
+
+        if pch_script_enabled():
+            env.update(ccache_pch_env())
+            if pch_forced():
+                # Normalized for the script, like ESPHOME_CCACHE_ENABLE
+                env["ESPHOME_PCH_ENABLE"] = "1"
     # The runner offers the out-of-flash tip but has no configured CORE, so
     # tell it. Ask CORE, not is_esp32_arduino_build(), which reads this same
     # variable; clear an inherited one so it cannot reach the wrong build.

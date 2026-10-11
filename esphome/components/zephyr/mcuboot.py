@@ -95,6 +95,17 @@ def zephyr_swap_method() -> str | None:
     return None
 
 
+def zephyr_skip_bootloader_supported() -> bool:
+    """True when MCUboot is in the build: only with ota:, and OTA never sends it."""
+    from . import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant  # noqa: PLC0415
+
+    return (
+        CORE.is_zephyr
+        and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM
+        and bool((CORE.config or {}).get(CONF_OTA))
+    )
+
+
 def apply_single_slot() -> None:
     """Push zephyr: single_slot: true to sysbuild.conf.
 

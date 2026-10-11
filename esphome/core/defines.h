@@ -110,7 +110,9 @@
 #define USE_IMPROV_BLE_STATE_CALLBACK
 #define USE_INFRARED
 #define USE_IR_RF
+#define USE_IR_RF_TRANSMIT_COMPLETE
 #define USE_JSON
+#define USE_JSON_ARENA
 #define USE_RADIO_FREQUENCY
 #define USE_LIGHT
 #define USE_LIGHT_FLASH_TRANSITION_LENGTH
@@ -169,6 +171,7 @@
 #define MICRONOVA_LISTENER_COUNT 1
 #define USE_MICRONOVA_WRITER
 #define MK2PVROUTER_LISTENER_COUNT 1
+#define NFC_TAG_LISTENER_COUNT 1
 #define PN532_BINARY_SENSOR_COUNT 1
 #define PN532_ON_TAG_REMOVED_TRIGGER_COUNT 1
 #define PN532_ON_TAG_TRIGGER_COUNT 1
@@ -235,6 +238,7 @@
 #define USE_NEXTION_WAVEFORM
 #define USE_NUMBER
 #define USE_OTA
+#define USE_OTA_DEFLATE
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_LISTENER
 #define USE_OTA_VERSION 2
@@ -293,6 +297,7 @@
 #define AUDIO_FILE_MAX_FILES 4
 #define USE_AUDIO_DAC
 #define USE_AUDIO_FLAC_SUPPORT
+#define USE_AUDIO_HTTP_CA_CERTIFICATE
 #define USE_AUDIO_MP3_SUPPORT
 #define USE_AUDIO_OPUS_SUPPORT
 #define USE_AUDIO_WAV_SUPPORT
@@ -304,7 +309,14 @@
 #define USE_API_HOMEASSISTANT_SERVICES
 #define USE_API_HOMEASSISTANT_STATES
 #define USE_API_NOISE
+#define USE_API_OUTGOING_CONNECTION
+#define API_OUTGOING_CONNECTION_PORT 6054
+#define API_OUTGOING_CONNECTION_DELAY 60000
 #define USE_API_VARINT64
+#define USE_API_WIZARD
+#define USE_API_WIZARD_INPUTS
+#define USE_API_WIZARD_LINKED_INPUTS
+#define USE_API_WIZARD_STANDALONE_INPUTS
 #define USE_API_PLAINTEXT
 #define USE_API_USER_DEFINED_ACTIONS
 #define USE_API_CUSTOM_SERVICES
@@ -313,12 +325,15 @@
 #define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #define API_MAX_SEND_QUEUE 8
 #define API_USER_ACTION_STRINGS_SCRATCH_SIZE 64
+#define API_WIZARD_DATA_SIZE 1
+#define API_WIZARD_INPUT_COUNT 1
 #define MAX_API_CONNECTIONS 6
 // The Improv library is not in the Zephyr tidy environment
 #define USE_IMPROV_SERIAL
 #define USE_IMPROV_NEXT_URL
 #define USE_MD5
 #define USE_NOISE
+#define USE_NOISE_SPARE_EPHEMERAL
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
@@ -419,6 +434,7 @@
 #define USE_ESP32_BLE_SERVER_ON_CONNECT
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define USE_ESP32_BLE_TRACKER
+#define USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD
 #define USE_BLE_GATT_CLIENT
 #define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
@@ -431,6 +447,7 @@
 #define ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT 2
 #define ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
 #define ESPHOME_LOOP_TASK_STACK_SIZE 8192
+#define ESPHOME_SUSPEND_LOOP
 #define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
@@ -446,6 +463,10 @@
 #define USE_SENDSPIN_VISUALIZER
 #define USE_SENDSPIN_PORT 8928  // NOLINT
 #define USE_SOCKET_IMPL_BSD_SOCKETS
+#define USE_SOCKET_IPV4_ALLOW
+#define USE_SOCKET_IPV4_RESOLVE
+#define USE_SOCKET_TCP_CLIENT_LINK
+#define USE_SOCKET_TCP_LISTENER
 #define USE_LWIP_FAST_SELECT
 
 #define USE_SPEAKER
@@ -482,6 +503,15 @@
 #define USB_HOST_MAX_REQUESTS 16
 #define USB_HOST_MAX_PACKET_SIZE 64
 #define USB_UART_OUTPUT_CHUNK_COUNT 5
+#define USE_USB_UART_CH34X
+#define USE_USB_UART_CP210X
+#define USE_USB_UART_FT23XX
+#define USE_USB_UART_PL2303
+// USB identity on serial proxy ports needs the usb_host stack
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
+#define USE_SERIAL_PROXY_USB_IDENTITY
+#endif
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 7)
@@ -504,14 +534,17 @@
 #define USE_ETHERNET_W6300
 #define USE_ETHERNET_DM9051
 #define USE_ETHERNET_CH390
+#define USE_ETHERNET_KSZ8851SNL
 #define CONFIG_ETH_SPI_ETHERNET_W5500 1
 #define CONFIG_ETH_SPI_ETHERNET_DM9051 1
+#define CONFIG_ETH_SPI_ETHERNET_KSZ8851SNL 1
 #define CONFIG_ETH_USE_ESP32_EMAC 1
 #define USE_ETHERNET_MANUAL_IP
 #define USE_ETHERNET_IP_STATE_LISTENERS
 #define USE_ETHERNET_CONNECT_TRIGGER
 #define USE_ETHERNET_DISCONNECT_TRIGGER
 #define ESPHOME_ETHERNET_IP_STATE_LISTENERS 2
+#define ESPHOME_ETHERNET_PHY_REGISTER_COUNT 2
 #endif
 
 #ifdef USE_ESP32
@@ -520,6 +553,10 @@
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
 #define USE_ZIGBEE
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#define USE_ESPECTRE
 #endif
 #ifndef USE_OPENTHREAD
 #define USE_MDNS_SUPPORTS_ENABLE_DISABLE
@@ -544,6 +581,7 @@
 
 // ESP8266-specific feature flags
 #ifdef USE_ESP8266
+#define ESPHOME_SUSPEND_LOOP
 #define USE_ADC_SENSOR_VCC
 #define USE_ESP8266_CRASH_HANDLER
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 1, 2)
@@ -579,7 +617,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 1)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
@@ -617,10 +655,12 @@
 // to parse against.
 #ifdef USE_LN882X
 #define USE_LN882H_BLE_TRACKER
+#define USE_WIFI_AP_EXCLUSIVE
 #else
 #define USE_BK72XX_BLE_TRACKER
 #endif
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define ESPHOME_SUSPEND_LOOP
 #define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK
@@ -646,6 +686,7 @@
 #ifdef USE_ZEPHYR
 #define ESPHOME_BLE_NUS_TX_RING_BUFFER_SIZE 512
 #define ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE 512
+#define ESPHOME_SUSPEND_LOOP
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_LOGGER_EARLY_MESSAGE
@@ -663,6 +704,10 @@
 // with Zephyr's generic zephyr,uart-emul devicetree node instead of real silicon,
 // letting a ZephyrUartEmulator answer TX writes with scripted responses.
 #define USE_ZEPHYR_UART_EMULATION
+// Emitted by zephyr/variants/nrf52.py when advanced: dfu: is set.
+#define USE_ZEPHYR_NRF52_DFU
+// Emitted by zephyr_add_usb_baud_rate() -- reports baud rates the USB host sets on the serial port.
+#define USE_ZEPHYR_USB_BAUD_RATE
 #endif
 
 // Emitted for every platform: zephyr/nrf52 target with real watchdog hardware
@@ -675,8 +720,8 @@
 #define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 10000
 #endif
 
-// Emitted for every rpi_pico-family variant (RP2040/RP2350) -- lets logger_zephyr.cpp's
-// USB_CDC poll loop detect a 1200-baud "touch" and reboot into BOOTSEL without the
+// Emitted for every rpi_pico-family variant (RP2040/RP2350) -- lets BootselTouch
+// detect a 1200-baud "touch" and reboot into BOOTSEL without the
 // physical button, backed by Zephyr's retention bootmode API.
 #ifdef USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO
 #define USE_ZEPHYR_BOOTSEL_TOUCH

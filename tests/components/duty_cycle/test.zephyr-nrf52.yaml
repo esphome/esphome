@@ -1,0 +1,2 @@
+packages:
+  duty_cycle: !include common.yaml

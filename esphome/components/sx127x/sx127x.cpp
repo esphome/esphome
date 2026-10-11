@@ -43,11 +43,11 @@ void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
   this->disable();
 }
 
-void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
+void SX127x::write_fifo_(const uint8_t *data, size_t len) {
   this->enable();
   this->write_byte(REG_FIFO | 0x80);
-  for (const auto &byte : packet) {
-    this->transfer_byte(byte);
+  for (size_t i = 0; i < len; i++) {
+    this->transfer_byte(data[i]);
   }
   this->disable();
 }
@@ -250,18 +250,17 @@ size_t SX127x::get_max_packet_size() {
     return this->payload_length_;
   }
   if (this->modulation_ == MOD_LORA) {
-    return 256;
-  } else {
-    return 64;
+    return SX127X_MAX_PACKET_SIZE;
   }
+  return 64;
 }
 
-SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
-  if (this->payload_length_ > 0 && this->payload_length_ != packet.size()) {
+SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
+  if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX127xError::INVALID_PARAMS;
   }
-  if (packet.empty() || packet.size() > this->get_max_packet_size()) {
+  if (len == 0 || len > this->get_max_packet_size()) {
     ESP_LOGE(TAG, "Packet size out of range");
     return SX127xError::INVALID_PARAMS;
   }
@@ -275,18 +274,18 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
   if (this->modulation_ == MOD_LORA) {
     this->set_mode_standby();
     if (this->payload_length_ == 0) {
-      this->write_register_(REG_PAYLOAD_LENGTH, packet.size());
+      this->write_register_(REG_PAYLOAD_LENGTH, len);
     }
     this->write_register_(REG_IRQ_FLAGS, 0xFF);
     this->write_register_(REG_FIFO_ADDR_PTR, 0);
-    this->write_fifo_(packet);
+    this->write_fifo_(data, len);
     this->set_mode_tx();
   } else {
     this->set_mode_standby();
     if (this->payload_length_ == 0) {
-      this->write_register_(REG_FIFO, packet.size());
+      this->write_register_(REG_FIFO, len);
     }
-    this->write_fifo_(packet);
+    this->write_fifo_(data, len);
     this->set_mode_tx();
   }
 

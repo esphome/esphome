@@ -24,7 +24,6 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["network"]
 
-byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
 
 espnow_ns = cg.esphome_ns.namespace("espnow")
@@ -304,11 +303,12 @@ async def send_action(
 
     await register_peer(var, config, args)
 
-    data = config.get(CONF_DATA, [])
+    data = config[CONF_DATA]
     if isinstance(data, str):
         data = list(data.encode())
-    templ = await cg.templatable(data, args, byte_vector, byte_vector)
-    cg.add(var.set_data(templ))
+    await automation.templatable_bytes(
+        data, args, var.set_data_template, var.set_data_static, "espnow_data"
+    )
 
     cg.add(var.set_wait_for_sent(config[CONF_WAIT_FOR_SENT]))
     cg.add(var.set_continue_on_error(config[CONF_CONTINUE_ON_ERROR]))

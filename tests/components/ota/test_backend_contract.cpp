@@ -14,7 +14,7 @@ struct MinimalBackend {
   OTAResponseTypes write(uint8_t *data, size_t len) { return OTA_RESPONSE_OK; }
   OTAResponseTypes end() { return OTA_RESPONSE_OK; }
   void abort() {}
-  bool supports_compression() { return false; }
+  static constexpr bool supports_compression() { return false; }
 };
 static_assert(OTABackendContract<MinimalBackend>);
 

@@ -27,6 +27,7 @@ from . import (
     resolve_framework_version,
     set_core_data,
 )
+from .rpi_pico_family import BOOTSEL_TOUCH_SCHEMA, declare_bootsel_touch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +46,9 @@ _DEFAULT_BOARD = "rpi_pico"
 # fully qualified board themselves, e.g. board: rpi_pico/rp2040/mcuboot, same as they'd
 # supply their own MCUboot-shaped partitions via overlays: for a board without one.
 
-_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA).extend(
+    BOOTSEL_TOUCH_SCHEMA
+)
 
 # GPIO -> RP2040 ADC channel index. Fixed-function silicon: only GPIO26-29 route to
 # the ADC, channel = pin - 26 (Espressif-shaped: the devicetree channel@N address IS
@@ -118,6 +121,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
+    declare_bootsel_touch(config[CONF_ADVANCED])
     bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _, framework_ver, sdk_name, _ = resolve_framework_version(

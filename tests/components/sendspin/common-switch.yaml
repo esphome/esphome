@@ -4,3 +4,4 @@ packages:
 switch:
   - platform: sendspin
     name: "Sendspin Enabled"
+    type: enabled

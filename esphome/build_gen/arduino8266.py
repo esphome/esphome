@@ -25,6 +25,7 @@ import subprocess
 from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.arduino8266.framework import toolchain_tool
+from esphome.build_helpers.idedata import is_joined_include
 from esphome.build_helpers.ninja import (
     escape as _e,
     quote_path as _q,
@@ -36,8 +37,11 @@ from esphome.build_helpers.ninja_gen import (
     compile_edges,
     compile_rule_lines,
     library_edges,
+    pch_edges,
+    pch_rule_lines,
     tool_lines,
 )
+from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
@@ -1049,24 +1053,22 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         + ["stdc++-exc" if config.exceptions else "stdc++", "m", "c", "gcc"]
     )
 
+    cxx = (toolchain_tool(paths.toolchain, "g++"),)
     lines = [
-        *tool_lines(
-            (toolchain_tool(paths.toolchain, "gcc"),),
-            (toolchain_tool(paths.toolchain, "g++"),),
-            ccache,
-        ),
+        *tool_lines((toolchain_tool(paths.toolchain, "gcc"),), cxx, ccache),
         *compile_rule_lines(),
         *ar_rule_lines(toolchain_tool(paths.toolchain, "ar")),
+        *pch_rule_lines(),
         "rule link",
         "  command = $cxx -o $out $linkflags @$out.rsp $libdirflags -Wl,--start-group $archives $libflags -Wl,--end-group",
         "  rspfile = $out.rsp",
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
-        # --flash_size deliberately stays board-derived, as under
-        # PlatformIO (which reads upload.maximum_size, not the ldscript).
+        # --flash_size follows PlatformIO: ldscript filename first, then
+        # upload.maximum_size, so the header always matches the layout.
         # -W: the framework's own elf2bin.py trips SyntaxWarning on 3.12+.
-        f"  command = $python -W ignore::SyntaxWarning {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
+        f"  command = $python -W ignore::SyntaxWarning {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_elf2bin_flash_size(board, flash_ld_name)} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
         "  command = $python $buildtool copy $in $out",
@@ -1111,7 +1113,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # One source of truth with the PlatformIO path: esp8266/__init__ pins
     # build_src_flags (the throw_stubs force-include); -include paths
     # resolve against the source root
-    src_parts: list[str] = []
+    src_other: list[str] = []
+    src_includes: list[str] = []
     src_it = iter(
         lex_build_flags(_pio_option("build_src_flags", ""), "build_src_flags")
     )
@@ -1122,15 +1125,33 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 raise EsphomeError(
                     "build_src_flags has a trailing '-include' with no header"
                 )
-            src_parts.append(f"-include {_q(src_dir / header)}")
+            src_includes.append(header)
+        elif is_joined_include(tok):
+            # Left in src_other it would precede the pch include
+            src_includes.append(tok[len("-include") :])
         else:
-            src_parts.append(_shell_token(tok))
-    src_extra = " ".join(src_parts)
+            src_other.append(_shell_token(tok))
+    include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
-    lines.append(f"srcflags = {src_extra}")
+    lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
+    src_cxx_override = pch_edges(
+        lines,
+        build_dir,
+        src_dir,
+        (*src_includes, *PCH_DEFAULT_HEADERS),
+        flag_sets.cxxflags,
+        src_other,
+        (str(paths.framework), str(paths.toolchain)),
+        cxx,
+    )
     src_objs = compile_edges(
-        lines, collect_sources(src_dir), src_dir, "src", flags="$srcflags"
+        lines,
+        collect_sources(src_dir),
+        src_dir,
+        "src",
+        flags="$srcflags",
+        cxx_override=src_cxx_override,
     )
 
     ld_deps = [f"ld/{_COMMON_LD_NAME}"]
@@ -1168,3 +1189,28 @@ def _flash_size_str(flash_size: int) -> str:
     """Flash size argument for elf2bin (e.g. ``4M``, ``512K``)."""
     mb = 1024 * 1024
     return f"{flash_size // mb}M" if flash_size >= mb else f"{flash_size // 1024}K"
+
+
+# Same pattern PlatformIO's _get_flash_size applies to the ldscript path
+_LD_FLASH_SIZE_RE = re.compile(r"\.flash\.(\d+[mk]).*\.ld")
+# The framework elf2bin.py's --flash_size choices
+_ELF2BIN_FLASH_SIZES = frozenset({"256K", "512K", "1M", "2M", "4M", "8M", "16M"})
+
+
+def _elf2bin_flash_size(board: str, flash_ld_name: str) -> str:
+    """Image-header flash size as PlatformIO derives it: ldscript filename,
+    else board_upload.maximum_size, else the board table. The SDK clamps the
+    chip to the header size at boot, so a header smaller than the linked
+    layout breaks OTA writes on the running device."""
+    if match := _LD_FLASH_SIZE_RE.search(flash_ld_name):
+        token = match.group(1)
+        base = 1024 if token[-1] == "k" else 1024 * 1024
+        return _flash_size_str(int(token[:-1]) * base)
+    if max_size := _pio_option("board_upload.maximum_size", ""):
+        if (
+            not max_size.isdigit()
+            or (size := _flash_size_str(int(max_size))) not in _ELF2BIN_FLASH_SIZES
+        ):
+            raise EsphomeError(f"Invalid board_upload.maximum_size value {max_size!r}")
+        return size
+    return _flash_size_str(BOARDS[board][KEY_FLASH_SIZE])

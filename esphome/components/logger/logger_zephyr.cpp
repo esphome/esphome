@@ -13,20 +13,11 @@
 #elif __has_include(<version.h>)
 #include <version.h>
 #endif
-#if ZEPHYR_VERSION_CODE >= ZEPHYR_VERSION(3, 6, 0)
-#define ESPHOME_ARCH_ESF_T arch_esf
-#else
-#define ESPHOME_ARCH_ESF_T z_arch_esf_t
-#endif
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
 #include <unistd.h>
 #endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
-#endif
-#ifdef USE_ZEPHYR_BOOTSEL_TOUCH
-#include <zephyr/retention/bootmode.h>
-#include <zephyr/sys/reboot.h>
 #endif
 
 namespace esphome::zephyr_coredump {
@@ -36,6 +27,13 @@ __attribute__((weak)) void print_coredump() {}
 }  // namespace esphome::zephyr_coredump
 
 namespace esphome::logger {
+
+// Zephyr 3.7 renamed z_arch_esf_t to struct arch_esf; the old name was later removed.
+#if KERNEL_VERSION_NUMBER >= 0x030700
+using FatalErrorEsf = ::arch_esf;
+#else
+using FatalErrorEsf = z_arch_esf_t;
+#endif
 
 __attribute__((section(".noinit"))) struct {
   uint32_t magic;
@@ -54,16 +52,6 @@ void Logger::cdc_loop_() {
   if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
     return;
   }
-#ifdef USE_ZEPHYR_BOOTSEL_TOUCH
-  // Cross-ecosystem "1200 baud touch" convention: a host opening this port at 1200
-  // baud (e.g. to trigger a firmware update) means "reboot into the USB bootloader",
-  // not an actual serial session at that rate.
-  uint32_t baud = 0;
-  if (uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_BAUD_RATE, &baud) == 0 && baud == 1200) {
-    bootmode_set(BOOT_MODE_TYPE_BOOTLOADER);
-    sys_reboot(SYS_REBOOT_COLD);
-  }
-#endif
   static bool opened = false;
   uint32_t dtr = 0;
   uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
@@ -230,7 +218,7 @@ void Logger::dump_crash_() {
   }
 }
 
-void k_sys_fatal_error_handler(unsigned int reason, const ESPHOME_ARCH_ESF_T *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
   crash_buf.magic = App.get_config_hash();
   crash_buf.reason = reason;
 #ifndef USE_ZEPHYR_VARIANT_NATIVE_SIM
@@ -264,7 +252,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const ESPHOME_ARCH_ESF_T *es
 
 extern "C" {
 
-void k_sys_fatal_error_handler(unsigned int reason, const ESPHOME_ARCH_ESF_T *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const esphome::logger::FatalErrorEsf *esf) {
   esphome::logger::k_sys_fatal_error_handler(reason, esf);
 }
 }

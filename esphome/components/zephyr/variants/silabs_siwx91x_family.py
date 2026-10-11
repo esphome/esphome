@@ -37,7 +37,8 @@ def to_code(config: ConfigType) -> None:
     """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults
     to MINIMAL_LIBCPP, which has no STL and breaks ESPHome's C++ headers."""
     import esphome.codegen as cg  # noqa: PLC0415
-    from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
+    from esphome.const import CONF_AP, CONF_LOG_LEVEL, CONF_WIFI  # noqa: PLC0415
+    from esphome.core import CORE  # noqa: PLC0415
 
     from .. import zephyr_add_prj_conf  # noqa: PLC0415 -- avoids circular import at module load
 
@@ -56,6 +57,10 @@ def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every silabs_siwx91x-family variant.
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X")
+    # The NWP boots as either STA or AP (switching reboots it), so the
+    # fallback AP takes turns with the networks.
+    if CORE.config.get(CONF_WIFI, {}).get(CONF_AP):
+        cg.add_define("USE_WIFI_AP_EXCLUSIVE")
 
 
 def bootloader(advanced: ConfigType) -> str:

@@ -36,6 +36,9 @@ espnow:
         data: [0x01, 0x02, 0x03, 0x04, 0x05]
     - espnow.broadcast:
         data: !lambda 'return {0x01, 0x02, 0x03, 0x04, 0x05};'
+    - espnow.send:
+        address: 11:22:33:44:55:66
+        data: !lambda 'return std::vector<uint8_t>(data, data + size);'
     - espnow.peer.add:
         address: 11:22:33:44:55:66
     - espnow.peer.add:

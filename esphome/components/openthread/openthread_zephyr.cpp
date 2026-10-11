@@ -106,16 +106,6 @@ void OpenThreadComponent::setup() {
       return;
     }
   }
-  // Without this, link mode stayed at OT's default instead of this component's config,
-  // and output_power was never sent to the radio at all.
-  this->apply_linkmode_(instance);
-
-  if (this->output_power_.has_value()) {
-    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
-    }
-  }
-
 #ifdef USE_NRF52
   openthread_state_changed_cb_register(ot_context, &ot_state_changed_cb);
   openthread_start(ot_context);
@@ -123,9 +113,15 @@ void OpenThreadComponent::setup() {
   openthread_state_changed_callback_register(&ot_state_changed_cb);
   openthread_run();
 #endif
-}
 
-void OpenThreadComponent::ot_main() {}
+  InstanceLock lock = InstanceLock::acquire();
+  this->apply_linkmode_(lock.get_instance());
+  if (this->output_power_.has_value()) {
+    if (const auto err = otPlatRadioSetTransmitPower(lock.get_instance(), *this->output_power_); err != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+    }
+  }
+}
 
 otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
 

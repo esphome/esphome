@@ -202,11 +202,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
-        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time).
-        # esp-tls is re-enabled too because http_request includes <esp_tls.h>
-        # directly and esp_http_client only pulls it in as a private dependency.
-        esp32.include_builtin_idf_component("esp_http_client")
-        esp32.include_builtin_idf_component("esp-tls")
+        esp32.request_http_client()
 
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))

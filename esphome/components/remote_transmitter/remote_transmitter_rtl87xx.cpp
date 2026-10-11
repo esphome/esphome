@@ -146,6 +146,8 @@ void RemoteTransmitterComponent::await_target_time_() {
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->pwm_ == nullptr) {
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
+    this->transmit_trigger_.trigger();
+    this->fire_complete_(false);
     return;
   }
   ESP_LOGD(TAG, "Sending remote code");
@@ -194,7 +196,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       }
     }
   }
-  this->complete_trigger_.trigger();
+  this->fire_complete_();
 }
 
 #endif  // USE_LIBRETINY_VARIANT_RTL8720C

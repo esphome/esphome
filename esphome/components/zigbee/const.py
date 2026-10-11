@@ -64,6 +64,7 @@ REPORT = {
     "default": report.ZIGBEE_REPORT_DEFAULT,
 }
 
+CONF_CLUSTER = "cluster"
 CONF_ENDPOINT = "endpoint"
 CONF_MAX_EP_NUMBER = 239
 CONF_ON_JOIN = "on_join"
@@ -144,7 +145,8 @@ class AnalogInputType(IntEnum):
     TIME_SECONDS = 0x0E
 
 
-ANALOG_INPUT_APPTYPE = {
+# Same for input and output
+ANALOG_APPTYPE = {
     (DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS): AnalogInputType.TEMP_DEGREES_C,
     (DEVICE_CLASS_HUMIDITY, UNIT_PERCENT): AnalogInputType.RELATIVE_HUMIDITY_PERCENT,
     (DEVICE_CLASS_PRESSURE, UNIT_PASCAL): AnalogInputType.PRESSURE_PASCAL,

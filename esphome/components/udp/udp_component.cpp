@@ -11,7 +11,8 @@ static const char *const TAG = "udp";
 
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  for (const auto &address : this->addresses_) {
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     struct sockaddr saddr {};
     if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
       ESP_LOGW(TAG, "Invalid address %s", address);
@@ -97,7 +98,8 @@ void UDPComponent::setup() {
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   // 8266 and RP2040 `Duino
-  for (const auto &address : this->addresses_) {
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     auto ipaddr = IPAddress();
     if (!ipaddr.fromString(address)) {
       ESP_LOGW(TAG, "Invalid address %s", address);
@@ -138,7 +140,8 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const char *address : this->addresses_) {
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     ESP_LOGCONFIG(TAG, "  Address: %s", address);
   }
   if (this->listen_address_.has_value()) {

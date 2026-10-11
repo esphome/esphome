@@ -287,13 +287,15 @@ template<typename T> class DisplayWriter {
 // Type alias for Display writer - uses optimized DisplayWriter instead of std::function
 using display_writer_t = DisplayWriter<Display>;
 
+// Callers usually pass `this`; checking a copy keeps GCC's -Wnonnull-compare quiet.
 #define LOG_DISPLAY(prefix, type, obj) \
-  if ((obj) != nullptr) { \
+  if (auto *log_display_obj = (obj); log_display_obj != nullptr) { \
     ESP_LOGCONFIG(TAG, \
                   prefix type "\n" \
                               "%s  Rotations: %d °\n" \
                               "%s  Dimensions: %dpx x %dpx", \
-                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
+                  prefix, log_display_obj->rotation_, prefix, log_display_obj->get_width(), \
+                  log_display_obj->get_height()); \
   }
 
 /// Turn the pixel OFF.

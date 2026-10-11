@@ -6,7 +6,9 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import tempfile
 
 import yaml
 
@@ -475,6 +477,9 @@ def _check_and_install(
         )
         # Cleared first so an interrupted update is retried on the next build.
         sentinel.unlink(missing_ok=True)
+        if not is_local:
+            # A patched tracked file can block west update's checkout.
+            _restore_gen_defines(zephyr_dir)
         cmd = [
             str(python_bin),
             "-m",
@@ -486,8 +491,22 @@ def _check_and_install(
         env = os.environ.copy()
         env.update(west_env)
         result = subprocess.run(cmd, env=env, cwd=str(framework), check=False)
+        update_failed = framework / ".update_failed"
         if result.returncode != 0:
-            raise EsphomeError(f"Can't update Zephyr SDK {ver_tag} ({label})")
+            # As nrf52: one failure is likely a flaky network and resumes;
+            # a second in a row means a broken workspace, so start over.
+            if is_local or not update_failed.exists():
+                if not is_local:
+                    update_failed.touch()
+                raise EsphomeError(
+                    f"Can't update Zephyr SDK {ver_tag} ({label}); the next build retries it"
+                )
+            rmdir(framework, msg=f"Clean up {ver_tag} framework")
+            raise EsphomeError(
+                f"Can't update Zephyr SDK {ver_tag} ({label}) twice in a row; "
+                "the workspace was removed and the next build downloads it anew"
+            )
+        update_failed.unlink(missing_ok=True)
 
         if needs_init or pinned or incomplete or install_venv:
             zephyr_reqs = zephyr_dir / "scripts" / "requirements.txt"
@@ -508,4 +527,49 @@ def _check_and_install(
             resolved_marker.write_text(manifest_rev)
         sentinel.touch()
 
+    if not is_local:
+        # Never edit a sdk_source: local checkout; it is the user's own tree.
+        _patch_gen_defines_dts_path(zephyr_dir)
     return python_bin, framework, west_env
+
+
+_GEN_DEFINES = Path("scripts") / "dts" / "gen_defines.py"
+
+
+def _restore_gen_defines(zephyr_dir: Path) -> None:
+    if (zephyr_dir / _GEN_DEFINES).is_file():
+        subprocess.run(
+            ["git", "-C", str(zephyr_dir), "checkout", "--", _GEN_DEFINES.as_posix()],
+            check=False,
+            capture_output=True,
+        )
+
+
+def _patch_gen_defines_dts_path(zephyr_dir: Path) -> None:
+    """As nrf52's patch: the absolute zephyr.dts.pre path in the devicetree
+    header comment is its only per-device byte and blocks ccache sharing."""
+    gen_defines = zephyr_dir / _GEN_DEFINES
+    if not gen_defines.is_file():
+        return
+    content = gen_defines.read_text(encoding="utf-8")
+    new = "  {os.path.basename(edt.dts_path)}"
+    if new in content:
+        return
+    patched = content.replace("  {edt.dts_path}", new)
+    if patched == content:
+        _LOGGER.warning(
+            "gen_defines.py no longer matches; the devicetree header "
+            "stays per device and ccache sharing between devices degrades"
+        )
+        return
+    # Unique sibling tmp: two builds may patch at once.
+    fd, tmp_name = tempfile.mkstemp(dir=gen_defines.parent, suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(patched)
+        shutil.copymode(gen_defines, tmp)
+        tmp.replace(gen_defines)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise

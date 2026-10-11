@@ -221,6 +221,12 @@ size_t ESP8266UartComponent::available() {
     return this->sw_serial_->available();
   }
 }
+size_t ESP8266UartComponent::available_for_write() {
+  if (this->hw_serial_ != nullptr) {
+    return this->hw_serial_->availableForWrite();
+  }
+  return SIZE_MAX;  // software serial bit-bangs each byte synchronously; there is no buffer to fill
+}
 UARTFlushResult ESP8266UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   if (this->hw_serial_ != nullptr) {

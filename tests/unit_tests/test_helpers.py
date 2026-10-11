@@ -95,6 +95,21 @@ def test_cpp_string_escape(string, expected):
 
 
 @pytest.mark.parametrize(
+    "string, expected",
+    (
+        ("foo", 'u"foo"'),
+        ("foo\nbar", 'u"foo\\012bar"'),
+        ("foo\\bar", 'u"foo\\134bar"'),
+        ('foo "bar"', 'u"foo \\042bar\\042"'),
+        ("caf\u00e9", 'u"caf\\U000000E9"'),
+        ("foo 🐍", 'u"foo \\U0001F40D"'),
+    ),
+)
+def test_cpp_u16string_escape(string: str, expected: str) -> None:
+    assert helpers.cpp_u16string_escape(string) == expected
+
+
+@pytest.mark.parametrize(
     "value, expected",
     (
         # Basic underscore→dash conversion.
@@ -1126,6 +1141,26 @@ def test_resolve_ip_address_cache_miss() -> None:
         # Should call resolver since test.local is not in cache
         MockResolver.assert_called_once_with(["test.local"], 6053)
         assert len(result) == 1
+        assert result[0][4][0] == "192.168.1.100"
+
+
+@pytest.mark.parametrize("hostname", ["test.local", "example.com"])
+def test_resolve_ip_address_empty_cache_entry_falls_back(hostname: str) -> None:
+    """An empty CLI cache entry must use normal DNS or mDNS resolution."""
+    cache = AddressCache.from_cli_args([f"{hostname}="], [f"{hostname}="])
+    mock_addr_info = AddrInfo(
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+        proto=socket.IPPROTO_TCP,
+        sockaddr=IPv4Sockaddr(address="192.168.1.100", port=6053),
+    )
+
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        MockResolver.return_value.resolve.return_value = [mock_addr_info]
+
+        result = helpers.resolve_ip_address(hostname, 6053, address_cache=cache)
+
+        MockResolver.assert_called_once_with([hostname], 6053)
         assert result[0][4][0] == "192.168.1.100"
 
 

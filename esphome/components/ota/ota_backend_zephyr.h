@@ -28,11 +28,11 @@ class ZephyrOTABackend final {
   OTAResponseTypes write(const uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
-  bool supports_compression() const { return false; }
-  bool supports_sha256_checksum() const { return true; }
+  static constexpr bool supports_compression() { return false; }
+  static constexpr bool supports_sha256_checksum() { return true; }
   // No MD5 fallback exists here (set_update_md5() is a no-op) -- silently skipping
   // verification would be worse than rejecting a client that can't negotiate SHA256.
-  bool requires_sha256_checksum() const { return true; }
+  static constexpr bool requires_sha256_checksum() { return true; }
 #if defined(USE_OTA_ZEPHYR_DIRECT_XIP) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
   // True when slot1 is the slot currently executing -- the host must then send the
   // slot0-linked variant instead of re-sending what's running. See espota2.py's

@@ -43,6 +43,7 @@ def native_backend() -> ModuleType | None:
 # without PlatformIO but have no native build backend (which supplies them)
 ANALYSIS_TOOLCHAIN_MODULES = {
     ("nrf52", Toolchain.SDK_NRF): "esphome.components.nrf52.toolchain",
+    ("zephyr", Toolchain.SDK_ZEPHYR): "esphome.components.zephyr.toolchain",
 }
 
 

@@ -68,19 +68,24 @@ CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
 CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
 CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
-# Bit 0x08 is taken by NOISE; the SHA256 checksum extension gets the next free bit.
-CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x10
+CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
+# platform-zephyr bits are added after upstream's; move them if upstream claims these.
+CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x20
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
+# Binding once offered: the device then expects the image size and a deflate stream
+SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
 # Zephyr direct-xip only: set when the device is currently executing from slot 1.
 # The OTA write always targets whichever slot ISN'T running, so this flag being unset
 # (the common case, running slot 0) means the write goes to slot 1 and needs
 # alt_filename (the slot-1-linked build); set means it goes to slot 0 and needs the
 # primary. Never set by non-Zephyr/non-direct-xip devices.
-SERVER_FEATURE_ACTIVE_SLOT_1 = 0x08
-# Bit 0x04 is taken by NOISE; the SHA256 checksum extension gets the next free bit.
-SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x10
+SERVER_FEATURE_ACTIVE_SLOT_1 = 0x10
+SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x20
+
+# Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
+DEFLATE_WINDOW_BITS = 12
 
 NOISE_FRAME_INDICATOR = 0x01
 NOISE_HANDSHAKE_OK = 0x00
@@ -100,6 +105,9 @@ _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
 )
 
 UPLOAD_BLOCK_SIZE = 8192
+# Sizes on the wire are 4 bytes MSB first
+SIZE_FIELD_BYTES = 4
+COMPRESS_LEVEL = 9
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 
 # Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
@@ -588,11 +596,12 @@ def perform_ota(
             f"Device uses unsupported OTA version {version}, this ESPHome supports {supported_versions}"
         )
 
-    # Features - send compression, SHA256 auth, and SHA256 checksum support
+    # Features - send compression, SHA256 auth, deflate, and SHA256 checksum support
     features_to_send = (
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+        | CLIENT_FEATURE_SUPPORTS_DEFLATE
         | CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
     )
     if noise_psk:
@@ -706,8 +715,18 @@ def perform_ota(
                 f"retry {flag_name}."
             )
 
-    if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
-        upload_contents = gzip.compress(file_contents, compresslevel=9)
+    deflate = bool(extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE)
+    if deflate:
+        import zlib
+
+        # The device inflates while receiving through a small ring window
+        upload_contents = zlib.compress(
+            file_contents, COMPRESS_LEVEL, wbits=-DEFLATE_WINDOW_BITS
+        )
+        _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
+    elif features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
+        # The device stores the gzip file and inflates it when it reboots
+        upload_contents = gzip.compress(file_contents, compresslevel=COMPRESS_LEVEL)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     else:
         upload_contents = file_contents
@@ -766,28 +785,27 @@ def perform_ota(
         send_check(sock, ota_type, "ota type")
 
     upload_size = len(upload_contents)
-    upload_size_encoded = [
-        (upload_size >> 24) & 0xFF,
-        (upload_size >> 16) & 0xFF,
-        (upload_size >> 8) & 0xFF,
-        (upload_size >> 0) & 0xFF,
-    ]
     # The device erases flash between receiving the size and acking the
     # prepare, so this window shows the erase cost (near zero when the
     # device erases lazily during the upload)
     prepare_start = time.perf_counter()
-    send_check(sock, upload_size_encoded, "binary size")
+    send_check(sock, upload_size.to_bytes(SIZE_FIELD_BYTES, "big"), "binary size")
+    if deflate:
+        # Own frame: an encrypted session carries one field per frame
+        send_check(sock, file_size.to_bytes(SIZE_FIELD_BYTES, "big"), "image size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
     prepare_duration = time.perf_counter() - prepare_start
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
+    # The device hashes what it writes: the inflated image, else the received bytes
+    hashed_contents = file_contents if deflate else upload_contents
     if features & SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM:
-        upload_checksum = hashlib.sha256(upload_contents).hexdigest()
+        upload_checksum = hashlib.sha256(hashed_contents).hexdigest()
         _LOGGER.debug("SHA256 of upload is %s", upload_checksum)
         send_check(sock, upload_checksum, "file checksum")
         receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_SHA256_OK)
     else:
-        upload_checksum = hashlib.md5(upload_contents).hexdigest()
+        upload_checksum = hashlib.md5(hashed_contents).hexdigest()
         _LOGGER.debug("MD5 of upload is %s", upload_checksum)
         send_check(sock, upload_checksum, "file checksum")
         receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)

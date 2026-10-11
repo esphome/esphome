@@ -8,6 +8,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
@@ -387,6 +388,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", port)
+    if CORE.is_esp32:
+        # The ESP-IDF event source builds state documents in a stack arena
+        enable_arena()
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
@@ -409,7 +413,16 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
-        cg.add(var.set_allowed_origins(allowed_origins))
+        # Shared flash table ended by nullptr, so the server stores only a pointer.
+        cg.add(
+            var.set_allowed_origins(
+                cg.shared_progmem_array(
+                    "web_server_allowed_origins",
+                    cg.const_char_ptr,
+                    [*allowed_origins, cg.nullptr],
+                )
+            )
+        )
     if (auth := config.get(CONF_AUTH)) is not None:
         cg.add_define("USE_WEBSERVER_AUTH")
         # The scheme is fixed at build time so the unused Basic/Digest code path is compiled

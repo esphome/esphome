@@ -42,6 +42,13 @@ script:
           label:
             text: row
 
+esphome:
+  on_boot:
+    then:
+      - lvgl.theme.update:
+          obj:
+            border_width: 2
+
 lvgl:
   id: lvgl_id
   rotation: 90
@@ -1351,6 +1358,17 @@ lvgl:
             id: checkbox_id
             text: Checkbox
             align: bottom_right
+        - list:
+            id: list_a
+            on_add:
+              - lvgl.list.add:
+                  id: list_b          # fires list_b's on_add
+                  label: {text: x}
+        - list:
+            id: list_b
+            on_add:
+              - logger.log: added
+
         - list:
             id: test_list_id
             align: top_right

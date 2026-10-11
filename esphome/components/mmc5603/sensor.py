@@ -82,17 +82,10 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_datarate(auto_data_rate(config)))
-    if CONF_FIELD_STRENGTH_X in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])
-        cg.add(var.set_x_sensor(sens))
-    if CONF_FIELD_STRENGTH_Y in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Y])
-        cg.add(var.set_y_sensor(sens))
-    if CONF_FIELD_STRENGTH_Z in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Z])
-        cg.add(var.set_z_sensor(sens))
-    if CONF_HEADING in config:
-        sens = await sensor.new_sensor(config[CONF_HEADING])
-        cg.add(var.set_heading_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FIELD_STRENGTH_X, var.set_x_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Y, var.set_y_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)
+    await sensors(CONF_HEADING, var.set_heading_sensor)
     if CONF_AUTO_SET_RESET in config:
         cg.add(var.set_auto_set_reset(config[CONF_AUTO_SET_RESET]))

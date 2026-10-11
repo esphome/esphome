@@ -27,6 +27,7 @@ from . import (
     resolve_framework_version,
     set_core_data,
 )
+from .rpi_pico_family import BOOTSEL_TOUCH_SCHEMA, declare_bootsel_touch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +38,9 @@ _DEFAULT_BOARD = "rpi_pico2"
 # rather than required. Only some boards (e.g. rpi_pico2) ship an upstream vendor
 # .../mcuboot DTS sibling -- xiao_rp2350 does not -- so anyone choosing mcuboot must
 # supply the fully qualified board themselves, e.g. board: rpi_pico2/rp2350a/m33/mcuboot.
-_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA).extend(
+    BOOTSEL_TOUCH_SCHEMA
+)
 
 # GPIO -> RP2350 ADC channel index. Same fixed-function silicon mapping as RP2040
 # (see variants/rp2040.py): only GPIO26-29 route to the ADC, channel = pin - 26.
@@ -113,6 +116,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
+    declare_bootsel_touch(config[CONF_ADVANCED])
     bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _, framework_ver, sdk_name, _ = resolve_framework_version(

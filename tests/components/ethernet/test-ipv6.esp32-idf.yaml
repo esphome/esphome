@@ -1,0 +1,12 @@
+network:
+  enable_ipv6: true
+
+ethernet:
+  type: IP101
+  mdc_pin: 23
+  mdio_pin: 18
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
+  phy_addr: 1
+  power_pin: 5

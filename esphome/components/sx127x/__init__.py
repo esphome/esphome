@@ -135,6 +135,11 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     )
 
 
+MAX_PACKET_SIZE = 255
+# The radio's payload length register is 8 bits, and empty packets are rejected.
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
+
+
 def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_MODULATION] == "LORA":
         bws = [
@@ -198,7 +203,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=0, max=17),
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
             cv.Optional(CONF_PACKET_MODE): cv.boolean,
-            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=256),
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
+                min=0, max=MAX_PACKET_SIZE
+            ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=0): cv.int_range(min=0, max=3),
             cv.Optional(CONF_PREAMBLE_ERRORS, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_PREAMBLE_POLARITY, default=0xAA): cv.All(
@@ -286,7 +293,7 @@ for _name, _call in (
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(SX127x),
-        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+        cv.Required(CONF_DATA): cv.templatable(validate_packet_data),
     },
     key=CONF_DATA,
 )
@@ -306,15 +313,11 @@ async def send_packet_action_to_code(
 ) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "sx127x_data",
+    )
     return var

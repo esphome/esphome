@@ -72,7 +72,7 @@ esp_err_t AudioReader::add_sink(const std::weak_ptr<ring_buffer::RingBuffer> &ou
   return ESP_ERR_INVALID_STATE;
 }
 
-esp_err_t AudioReader::start(AudioFile *audio_file, AudioFileType &file_type) {
+esp_err_t AudioReader::start(const AudioFile *audio_file, AudioFileType &file_type) {
   file_type = AudioFileType::NONE;
 
   this->current_audio_file_ = audio_file;
