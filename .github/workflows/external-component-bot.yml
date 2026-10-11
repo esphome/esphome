@@ -125,14 +125,20 @@ jobs:
             }
 
             async function getEsphomeAndComponentChanges(github, owner, repo, prNumber) {
-                const changedFiles = await github.rest.pulls.listFiles({
-                    owner: owner,
-                    repo: repo,
-                    pull_number: prNumber,
-                });
+                const changedFiles = await github.paginate(
+                    github.rest.pulls.listFiles,
+                    {
+                        owner: owner,
+                        repo: repo,
+                        pull_number: prNumber,
+                        per_page: 100,
+                    }
+                );
 
-                const esphomeChanges = changedFiles.data
-                    .filter(file => file.filename !== "esphome/core/defines.h" && file.filename.startsWith('esphome/'))
+                // Files used only for development and CI, which do not affect use as an external component
+                const ignoredFiles = ["esphome/core/defines.h", "esphome/idf_component.yml"];
+                const esphomeChanges = changedFiles
+                    .filter(file => !ignoredFiles.includes(file.filename) && file.filename.startsWith('esphome/'))
                     .map(file => {
                         const match = file.filename.match(/esphome\/([^/]+)/);
                         return match ? match[1] : null;
@@ -144,7 +150,7 @@ jobs:
                 }
 
                 const uniqueEsphomeChanges = [...new Set(esphomeChanges)];
-                const componentChanges = changedFiles.data
+                const componentChanges = changedFiles
                     .filter(file => file.filename.startsWith('esphome/components/'))
                     .map(file => {
                         const match = file.filename.match(/esphome\/components\/([^/]+)\//);

@@ -4,6 +4,8 @@
 
 #include <cstdint>
 
+#include <pico/platform.h>
+
 #include "esphome/core/time_conversion.h"
 
 #define IRAM_ATTR __attribute__((noinline, long_call, section(".time_critical")))
@@ -17,13 +19,13 @@ extern "C" unsigned long micros(void);
 extern "C" unsigned long millis(void);
 // NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 
-// Forward decl from <pico/time.h>.
+// Forward decls from <pico/time.h> and the pico-sdk / FreeRTOS port for the
+// inline arch_* wrappers below.
+// NOLINTBEGIN(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 extern "C" uint64_t time_us_64(void);
-
-// Forward decls from pico-sdk / FreeRTOS port for the inline arch_*
-// wrappers below.
 extern "C" void watchdog_update(void);
 extern "C" unsigned long ulMainGetRunTimeCounterValue(void);
+// NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 
 namespace esphome::rp2 {}
 
@@ -39,6 +41,9 @@ __attribute__((always_inline)) inline bool in_isr_context() {
   __asm__ volatile("mrs %0, ipsr" : "=r"(ipsr));
   return ipsr != 0;
 }
+
+/// arduino-pico runs setup() and loop() on core 0; ESPHome never uses core 1.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return !in_isr_context() && get_core_num() == 0; }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }

@@ -1,0 +1,9 @@
+esphome:
+  name: ota-plain
+
+host:
+
+api:
+
+ota:
+  - platform: esphome

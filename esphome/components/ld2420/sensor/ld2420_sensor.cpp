@@ -4,7 +4,7 @@
 
 namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420.sensor";
+ESPHOME_LOG_TAG(TAG, "ld2420.sensor");
 
 void LD2420Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Sensor:");

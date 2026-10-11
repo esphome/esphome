@@ -3,7 +3,7 @@
 
 namespace esphome::hm3301 {
 
-static const char *const TAG = "hm3301.sensor";
+ESPHOME_LOG_TAG(TAG, "hm3301.sensor");
 
 static const uint8_t PM_1_0_VALUE_INDEX = 5;
 static const uint8_t PM_2_5_VALUE_INDEX = 6;
@@ -61,7 +61,7 @@ void HM3301Component::update() {
   int16_t aqi_value = -1;
   if (this->aqi_sensor_ != nullptr && pm_2_5_value != -1 && pm_10_0_value != -1) {
     aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
-    aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value);
+    aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value, /*extended_range=*/false);
   }
 
   if (pm_1_0_value != -1) {

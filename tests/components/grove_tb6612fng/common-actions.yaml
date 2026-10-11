@@ -1,0 +1,22 @@
+button:
+  - platform: template
+    name: Grove Motor Actions
+    on_press:
+      - grove_tb6612fng.run:
+          channel: !lambda return 0;
+          speed: 100
+          direction: FORWARD
+          id: test_motor
+      - grove_tb6612fng.stop:
+          channel: !lambda return 1;
+          id: test_motor
+      - grove_tb6612fng.break:
+          channel: !lambda return 0;
+          id: test_motor
+      - grove_tb6612fng.standby:
+          id: test_motor
+      - grove_tb6612fng.no_standby:
+          id: test_motor
+      - grove_tb6612fng.change_address:
+          address: 0x15
+          id: test_motor

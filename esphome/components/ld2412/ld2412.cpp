@@ -12,7 +12,7 @@
 
 namespace esphome::ld2412 {
 
-static const char *const TAG = "ld2412";
+ESPHOME_LOG_TAG(TAG, "ld2412");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -197,7 +197,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 }
 
 void LD2412Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -555,7 +555,7 @@ bool LD2412Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
