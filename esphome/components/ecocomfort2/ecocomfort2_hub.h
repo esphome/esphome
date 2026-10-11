@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -69,3 +72,5 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 };
 
 }  // namespace esphome::ecocomfort2
+
+#endif  // USE_ESP32

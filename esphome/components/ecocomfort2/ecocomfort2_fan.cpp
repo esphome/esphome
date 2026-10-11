@@ -1,3 +1,5 @@
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
 #include "ecocomfort2_fan.h"
 #include "esphome/core/log.h"
 
@@ -140,3 +142,5 @@ void Ecocomfort2Fan::on_status() {
 }
 
 }  // namespace esphome::ecocomfort2
+
+#endif  // USE_ESP32

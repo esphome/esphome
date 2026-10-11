@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+
 #include "esphome/core/helpers.h"
 
 namespace esphome::ecocomfort2 {
@@ -13,3 +16,5 @@ class Ecocomfort2Client : public Parented<Ecocomfort2Hub> {
 };
 
 }  // namespace esphome::ecocomfort2
+
+#endif  // USE_ESP32

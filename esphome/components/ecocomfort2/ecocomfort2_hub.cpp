@@ -1,3 +1,5 @@
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
 #include "ecocomfort2_hub.h"
 #include "esphome/core/log.h"
 
@@ -148,3 +150,5 @@ void Ecocomfort2Hub::register_child(Ecocomfort2Client *obj) {
 #endif
 
 }  // namespace esphome::ecocomfort2
+
+#endif  // USE_ESP32

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/components/fan/fan.h"
 #include "ecocomfort2_child.h"
@@ -19,3 +22,5 @@ class Ecocomfort2Fan : public fan::Fan, public Ecocomfort2Client, public Compone
 };
 
 }  // namespace esphome::ecocomfort2
+
+#endif  // USE_ESP32
