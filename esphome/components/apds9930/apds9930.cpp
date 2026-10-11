@@ -1,4 +1,5 @@
 #include "apds9930.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -51,9 +52,9 @@ static constexpr float APDS9930_ALS_C = 0.746f;
 static constexpr float APDS9930_ALS_D = 1.291f;
 static constexpr float APDS9930_ALSIT_MS = 2.73f * (256 - APDS9930_ATIME_VALUE);
 
-static constexpr uint8_t AMBIENT_GAINS[4] = {1, 8, 16, 120};
-static constexpr uint8_t PROXIMITY_GAINS[4] = {1, 2, 4, 8};
-static constexpr float LED_CURRENTS_MA[4] = {100.0f, 50.0f, 25.0f, 12.5f};
+static constexpr uint8_t AMBIENT_GAINS[4] PROGMEM = {1, 8, 16, 120};
+static constexpr uint8_t PROXIMITY_GAINS[4] PROGMEM = {1, 2, 4, 8};
+static constexpr float LED_CURRENT_MAX_MA = 100.0f;  // halved for each drive step
 
 // Lux per count at 1x gain and the fixed integration time
 static constexpr float LUX_PER_COUNT_1X = APDS9930_GA * APDS9930_DF / APDS9930_ALSIT_MS;
@@ -98,8 +99,9 @@ void APDS9930Component::dump_config() {
                 "  LED Drive: %.1f mA\n"
                 "  Proximity Gain: %ux\n"
                 "  Ambient Light Gain: %ux",
-                LED_CURRENTS_MA[this->led_drive_], PROXIMITY_GAINS[this->proximity_gain_],
-                AMBIENT_GAINS[this->ambient_gain_]);
+                LED_CURRENT_MAX_MA / (1 << this->led_drive_),
+                progmem_read_byte(&PROXIMITY_GAINS[this->proximity_gain_]),
+                progmem_read_byte(&AMBIENT_GAINS[this->ambient_gain_]));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
@@ -125,7 +127,8 @@ void APDS9930Component::update() {
       this->illuminance_sensor_->publish_state(NAN);
     } else {
       const float iac = std::max({ch0 - APDS9930_ALS_B * ch1, APDS9930_ALS_C * ch0 - APDS9930_ALS_D * ch1, 0.0f});
-      this->illuminance_sensor_->publish_state(iac * LUX_PER_COUNT_1X / AMBIENT_GAINS[this->ambient_gain_]);
+      this->illuminance_sensor_->publish_state(iac * LUX_PER_COUNT_1X /
+                                               progmem_read_byte(&AMBIENT_GAINS[this->ambient_gain_]));
     }
   }
 
