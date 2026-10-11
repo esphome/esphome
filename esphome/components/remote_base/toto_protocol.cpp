@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.toto";
+ESPHOME_LOG_TAG(TAG, "remote.toto");
 
 static constexpr uint32_t PREAMBLE_HIGH_US = 6200;
 static constexpr uint32_t PREAMBLE_LOW_US = 2800;

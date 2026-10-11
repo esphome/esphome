@@ -6,7 +6,7 @@ namespace esphome::modbus_server {
 using modbus::ExceptionCode;
 using modbus::helpers::registers_to_number;
 
-static const char *const TAG = "modbus_server";
+ESPHOME_LOG_TAG(TAG, "modbus_server");
 
 // The widest Modbus value type (QWORD) spans four registers.
 static constexpr uint8_t MAX_REGISTERS_PER_VALUE = 4;

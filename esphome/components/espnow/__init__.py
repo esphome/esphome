@@ -4,7 +4,9 @@ from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import wifi
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
+from esphome.components.esp32_hosted import DOMAIN as ESP32_HOSTED_DOMAIN
 from esphome.components.udp import CONF_ON_RECEIVE
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -15,6 +17,8 @@ from esphome.const import (
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
     CONF_WIFI,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, HexInt
 from esphome.cpp_generator import MockObj, TemplateArgsType
@@ -22,9 +26,16 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = ["network"]
 
-byte_vector = cg.std_vector.template(cg.uint8)
+
+def AUTO_LOAD() -> list[str]:
+    # network initialises esp_netif and the default event loop on the ESP32. The ESP8266 needs neither, and
+    # loading it there would pull in mdns, which requires wifi
+    return ["network"] if CORE.is_esp32 else []
+
+
+DOMAIN = "espnow"
+
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
 
 espnow_ns = cg.esphome_ns.namespace("espnow")
@@ -119,15 +130,21 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),
-            cv.Optional(CONF_ON_BROADCAST): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastTrigger),
-                    cv.Optional(CONF_ADDRESS): cv.mac_address,
-                }
+            # The ESP8266 SDK does not report the destination address, so broadcasts are indistinguishable there
+            cv.Optional(CONF_ON_BROADCAST): cv.All(
+                cv.only_on_esp32,
+                automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            OnBroadcastTrigger
+                        ),
+                        cv.Optional(CONF_ADDRESS): cv.mac_address,
+                    }
+                ),
             ),
         },
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on_esp32,
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 
 
@@ -136,12 +153,14 @@ def _validate_variant(config: ConfigType) -> ConfigType:
     # ESP-NOW; only the ESP32-P4 has a path, via the esp32_hosted shim that
     # supplies the esp_now_* symbols. Fail here with a clear message instead of
     # letting the build reach an "undefined reference to esp_now_*" link error.
+    if not CORE.is_esp32:
+        return config
     variant = get_esp32_variant()
     if wifi.variant_has_wifi(variant):
         return config
     if variant != VARIANT_ESP32P4:
         raise cv.Invalid(f"ESP-NOW is not supported on {variant} (no Wi-Fi radio)")
-    if "esp32_hosted" not in fv.full_config.get():
+    if ESP32_HOSTED_DOMAIN not in fv.full_config.get():
         raise cv.Invalid(f"ESP-NOW on {variant} requires the esp32_hosted component")
     return config
 
@@ -177,7 +196,7 @@ async def to_code(config: ConfigType) -> None:
 
         include_builtin_idf_component("esp_wifi")
 
-    if CONF_WIFI in CORE.config:
+    if WIFI_DOMAIN in CORE.config:
         # Track the Wi-Fi channel via connect events instead of polling every loop
         wifi.request_wifi_connect_state_listener()
     if wifi_channel := config.get(CONF_CHANNEL):
@@ -304,11 +323,12 @@ async def send_action(
 
     await register_peer(var, config, args)
 
-    data = config.get(CONF_DATA, [])
+    data = config[CONF_DATA]
     if isinstance(data, str):
         data = list(data.encode())
-    templ = await cg.templatable(data, args, byte_vector, byte_vector)
-    cg.add(var.set_data(templ))
+    await automation.templatable_bytes(
+        data, args, var.set_data_template, var.set_data_static, "espnow_data"
+    )
 
     cg.add(var.set_wait_for_sent(config[CONF_WAIT_FOR_SENT]))
     cg.add(var.set_continue_on_error(config[CONF_CONTINUE_ON_ERROR]))

@@ -1,0 +1,1 @@
+DOMAIN = "sts3x"

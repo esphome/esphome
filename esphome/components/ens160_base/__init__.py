@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_AQI
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPENSATION,
@@ -22,10 +23,10 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@vincentscode", "@latonita"]
+DOMAIN = "ens160_base"
 
 ens160_ns = cg.esphome_ns.namespace("ens160_base")
 
-CONF_AQI = "aqi"
 
 CONFIG_SCHEMA_BASE = cv.Schema(
     {

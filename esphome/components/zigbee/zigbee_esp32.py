@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     add_partition,
     include_builtin_idf_component,
+    require_mbedtls_ecp,
     require_mbedtls_tls_extras,
     require_vfs_select,
 )
@@ -23,6 +24,7 @@ from esphome.const import (
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
+    CONF_POLLING_INTERVAL,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
@@ -36,7 +38,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .const import (
-    ANALOG_INPUT_APPTYPE,
+    ANALOG_APPTYPE,
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
     CONF_CLUSTER,
@@ -44,6 +46,7 @@ from .const import (
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
+    CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -67,6 +70,7 @@ from .const_esp32 import (
 )
 from .zigbee_ep_esp32 import (
     ANALOG_INPUT_EP,
+    ANALOG_OUTPUT_EP,
     BINARY_INPUT_EP,
     BINARY_OUTPUT_EP,
     BINARY_SENSOR_EP_CONFIGS,
@@ -229,7 +233,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                 attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
     else:
         ep = copy.deepcopy(ANALOG_INPUT_EP)
-        apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
+        apptype = ANALOG_APPTYPE.get((dev_class, unit))
         bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
         accuracy = config.get(CONF_ACCURACY_DECIMALS)
         if apptype is not None:
@@ -256,6 +260,34 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                     CONF_TYPE: "SINGLE",
                 },
             )
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
+def validate_number_esp32(config: ConfigType) -> ConfigType:
+    # get application type from device class and meas unit
+    # if none get BACNET unit from meas unit
+    dev_class = config.get(CONF_DEVICE_CLASS)
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    ep = copy.deepcopy(ANALOG_OUTPUT_EP)
+    apptype = ANALOG_APPTYPE.get((dev_class, unit))
+    bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+    if apptype is not None:
+        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+            {
+                CONF_ATTRIBUTE_ID: 0x100,
+                CONF_VALUE: (apptype << 16) | 0x0100FFFF,
+                CONF_TYPE: "UINT32",
+            },
+        )
+    ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+        {
+            CONF_ATTRIBUTE_ID: 0x75,
+            CONF_VALUE: bacunit,
+            CONF_TYPE: "ENUM16",
+        },
+    )
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
@@ -355,6 +387,9 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         name="espressif/esp-zigbee-lib",
         ref="2.0.4",
     )
+    # The esp-zigbee-lib blobs reference mbedtls_ecp_* (Zigbee Direct, install
+    # code ECDH); keep ECP without relying on esp_wifi's Kconfig select.
+    require_mbedtls_ecp()
 
     # Zigbee's crypto platform uses AES-CCM and deterministic ECDSA directly.
     # Keep the esp32 component from trimming them out of mbedTLS.
@@ -379,6 +414,11 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
     # setup zigbee components
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    if config.get(CONF_SLEEPY):
+        cg.add(var.set_sleepy(True))
+    if (keep_alive := config.get(CONF_POLLING_INTERVAL, 3000)) != 3000:
+        cg.add(var.set_keep_alive(keep_alive))
+
     cg.add(
         var.set_basic_cluster(
             config[CONF_MODEL],

@@ -8,7 +8,7 @@
 
 namespace esphome::pixoo {
 
-static const char *const TAG = "pixoo";
+ESPHOME_LOG_TAG(TAG, "pixoo");
 
 // Divoom LED-board packet protocol.
 static constexpr uint8_t PACKET_HEAD = 0xAA;
