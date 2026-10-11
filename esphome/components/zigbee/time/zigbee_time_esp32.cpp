@@ -92,8 +92,14 @@ uint32_t ZigbeeTime::get_utc_time() {
 }
 
 void ZigbeeTime::set_utc_time(uint32_t utc) {
-  // prevent overflow
-  if (utc <= (std::numeric_limits<uint32_t>::max() - EPOCH_2000)) {
+  if (utc == 0xFFFFFFFF) {
+    return;  // ZCL invalid UTCTime
+  }
+  // Some coordinators send Unix time instead of ZCL time. A ZCL time that would put the date past the signed 32-bit
+  // limit (year 2038) is far more likely to be Unix time, so use it as is.
+  if (utc > static_cast<uint32_t>(std::numeric_limits<int32_t>::max() - EPOCH_2000)) {
+    global_time->set_epoch_time(utc);
+  } else {
     global_time->set_epoch_time(utc + EPOCH_2000);
   }
 }

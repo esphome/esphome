@@ -1,6 +1,8 @@
 #include "zigbee_time_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_TIME)
 #include "esphome/core/log.h"
+#include <cinttypes>
+#include <limits>
 
 namespace esphome::zigbee {
 
@@ -10,12 +12,22 @@ ESPHOME_LOG_TAG(TAG, "zigbee.time");
 // seconds since 0 hrs 0 mins 0 sec on 1st January 2000 UTC (Universal Coordinated Time).
 constexpr time_t EPOCH_2000 = 946684800;
 
+// Some coordinators send Unix time instead of ZCL time. A ZCL time that would put the date past the signed 32-bit
+// limit (year 2038) is far more likely to be Unix time, so use it as is.
+static uint32_t zcl_time_to_epoch(uint32_t zcl_time) {
+  if (zcl_time > static_cast<uint32_t>(std::numeric_limits<int32_t>::max() - EPOCH_2000)) {
+    ESP_LOGW(TAG, "Time %" PRIu32 " is not a ZCL time (seconds since 2000), assuming Unix time", zcl_time);
+    return zcl_time;
+  }
+  return zcl_time + EPOCH_2000;
+}
+
 ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void ZigbeeTime::sync_time(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t short_addr, zb_uint8_t endpoint,
                            zb_uint32_t nw_time) {
   if (status == RET_OK && auth_level >= ZB_ZCL_TIME_HAS_SYNCHRONIZED_BIT) {
-    global_time->set_epoch_time(nw_time + EPOCH_2000);
+    global_time->set_epoch_time(zcl_time_to_epoch(nw_time));
   } else if (status != RET_TIMEOUT || !global_time->has_time_) {
     ESP_LOGE(TAG, "Status: %d, auth_level: %u, short_addr: %d, endpoint: %d, nw_time: %u", status, auth_level,
              short_addr, endpoint, nw_time);
@@ -62,7 +74,9 @@ void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {
         if (attr_id == ZB_ZCL_ATTR_TIME_TIME_ID) {
           zb_uint32_t value = p_device_cb_param->cb_param.set_attr_value_param.values.data32;
           ESP_LOGI(TAG, "Synchronize time to %u", value);
-          this->defer([this, value]() { synchronize_epoch_(value + EPOCH_2000); });
+          if (value != 0xFFFFFFFF) {  // ZCL invalid UTCTime
+            this->defer([this, value]() { this->synchronize_epoch_(zcl_time_to_epoch(value)); });
+          }
         } else if (attr_id == ZB_ZCL_ATTR_TIME_TIME_STATUS_ID) {
           zb_uint8_t value = p_device_cb_param->cb_param.set_attr_value_param.values.data8;
           ESP_LOGI(TAG, "Time status %hd", value);
