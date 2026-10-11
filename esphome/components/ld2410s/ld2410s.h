@@ -40,6 +40,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   void publish_target_(bool target);
 
   uint32_t next_send_at_{0};
+  uint32_t last_frame_at_{0};
   uint8_t rx_buffer_[RX_BUFFER_SIZE];
   uint8_t rx_len_{0};
   uint8_t expected_len_{0};

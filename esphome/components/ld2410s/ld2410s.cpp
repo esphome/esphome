@@ -37,6 +37,7 @@ static constexpr uint8_t INIT_MAX_TIMEOUTS = 2;
 static constexpr uint32_t ACK_TIMEOUT_MS = 300;
 static constexpr uint32_t COMMAND_GAP_MS = 300;     // pause after an acknowledgement before the next command
 static constexpr uint32_t REINIT_PAUSE_MS = 15000;  // pause before starting over after the module stopped answering
+static constexpr uint32_t LINK_TIMEOUT_MS = 5000;   // the module streams frames continuously; silence means it is gone
 
 static constexpr uint8_t DATA_TYPE_STANDARD = 0x01;
 
@@ -61,7 +62,16 @@ void LD2410SComponent::loop() {
     }
     avail -= len;
   }
-  this->run_init_sequence_(App.get_loop_component_start_time());
+  const uint32_t now = App.get_loop_component_start_time();
+  this->run_init_sequence_(now);
+  if (this->init_step_ >= INIT_SEQUENCE_LENGTH && now - this->last_frame_at_ > LINK_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "No data for %" PRIu32 " s, starting over", LINK_TIMEOUT_MS / 1000);
+    this->status_set_warning();
+    this->init_step_ = 0;
+    this->init_timeouts_ = 0;
+    this->awaiting_ack_ = false;
+    this->next_send_at_ = now;
+  }
 }
 
 void LD2410SComponent::run_init_sequence_(uint32_t now) {
@@ -199,9 +209,11 @@ void LD2410SComponent::handle_frame_() {
   switch (this->frame_type_) {
     case FrameType::SHORT_DATA:
       // [state][distance low][distance high]; states 0 and 1 mean no target
+      this->last_frame_at_ = App.get_loop_component_start_time();
       this->publish_target_(payload[0] > 1);
       break;
     case FrameType::STD_DATA:
+      this->last_frame_at_ = App.get_loop_component_start_time();
       this->handle_data_frame_(payload, payload_len);
       break;
     default:
@@ -241,6 +253,7 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
   this->next_send_at_ = App.get_loop_component_start_time() + COMMAND_GAP_MS;
   if (this->init_step_ >= INIT_SEQUENCE_LENGTH) {
     ESP_LOGD(TAG, "Setup done");
+    this->last_frame_at_ = App.get_loop_component_start_time();
     this->status_clear_warning();
   }
 }

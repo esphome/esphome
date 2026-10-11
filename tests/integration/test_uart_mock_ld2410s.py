@@ -19,6 +19,11 @@ test_uart_mock_ld2410s_recovery (the mock never answers the init commands):
   5. A command frame with a bad footer is dropped
   6. 100 bytes that never start a header are skipped
   7. A standard frame of the largest size that fits (86 byte payload) is accepted
+
+test_uart_mock_ld2410s_link_lost:
+  1. Short frames arriving for longer than the 5 s link timeout keep the link up
+  2. 5 s of silence logs "No data for 5 s, starting over", sets the warning flag
+     and sends a new config-mode start
 """
 
 from __future__ import annotations
@@ -101,7 +106,7 @@ async def test_uart_mock_ld2410s(
             tx_frames.append(frame)
         if "[ld2410s" in line and "Setup done" in line and not setup_done.done():
             setup_done.set_result(True)
-        if "cleared Warning flag" in line and not warning_cleared.done():
+        if "ld2410s cleared Warning flag" in line and not warning_cleared.done():
             warning_cleared.set_result(True)
 
     collector = SensorStateCollector(
@@ -201,3 +206,93 @@ async def test_uart_mock_ld2410s_recovery(
         # Resends follow the 300 ms acknowledgement timeout
         gaps = [b[0] - a[0] for a, b in zip(tx_frames, tx_frames[1:], strict=False)]
         assert all(0.2 <= gap <= 1.0 for gap in gaps), gaps
+
+
+# has_target after each short frame in uart_mock_ld2410s_link_lost.yaml
+EXPECTED_LINK_PRESENCE = [True, False, True, False, True, False, True]
+LINK_TIMEOUT_S = 5.0
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2410s_link_lost(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that short frames keep the link alive and silence restarts the init."""
+    loop = asyncio.get_running_loop()
+    tx_frames: list[str] = []
+    rx_injected_at: list[float] = []
+    setup_done = loop.create_future()
+    link_lost = loop.create_future()
+    warning_set_after_loss = loop.create_future()
+    restarted = loop.create_future()
+    config_start_before_loss = 0
+
+    def line_callback(line: str) -> None:
+        nonlocal config_start_before_loss
+        if (frame := _tx_frame(line)) is not None:
+            tx_frames.append(frame)
+            if frame == CONFIG_START_TX and link_lost.done() and not restarted.done():
+                restarted.set_result(True)
+        if "uart_mock" in line and "Injecting " in line and "(injection " in line:
+            rx_injected_at.append(loop.time())
+        if "[ld2410s" in line and "Setup done" in line and not setup_done.done():
+            setup_done.set_result(True)
+        if "No data for 5 s, starting over" in line and not link_lost.done():
+            config_start_before_loss = tx_frames.count(CONFIG_START_TX)
+            link_lost.set_result(loop.time())
+        if (
+            link_lost.done()
+            and "ld2410s set Warning flag" in line
+            and not warning_set_after_loss.done()
+        ):
+            warning_set_after_loss.set_result(True)
+
+    collector = SensorStateCollector(
+        sensor_names=[], binary_sensor_names=["has_target"]
+    )
+    all_presence = collector.add_waiter(
+        lambda: (
+            len(collector.binary_states["has_target"]) >= len(EXPECTED_LINK_PRESENCE)
+        )
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        try:
+            await asyncio.wait_for(setup_done, 5.0)
+        except TimeoutError:
+            pytest.fail(f"Init sequence did not finish. TX frames: {tx_frames}")
+
+        await _start_scenario(client, collector)
+        try:
+            await asyncio.wait_for(all_presence, timeout=10.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for presence updates. Received: "
+                f"{collector.binary_states['has_target']}"
+            )
+        assert collector.binary_states["has_target"] == EXPECTED_LINK_PRESENCE
+
+        try:
+            lost_at = await asyncio.wait_for(link_lost, timeout=7.0)
+            await asyncio.wait_for(
+                asyncio.gather(warning_set_after_loss, restarted), timeout=1.0
+            )
+        except TimeoutError:
+            pytest.fail(
+                f"No link-lost warning, warning flag or restart. TX frames: {tx_frames}"
+            )
+
+        # The stream ran past the link timeout, so only the silence after it counts
+        silence = lost_at - rx_injected_at[-1]
+        assert silence >= LINK_TIMEOUT_S - 0.5, (
+            f"Link declared lost {silence:.2f} s after the last frame"
+        )
+
+        # The init sequence starts over with a new config-mode start
+        assert config_start_before_loss == 1, tx_frames
+        assert tx_frames.count(CONFIG_START_TX) == 2, tx_frames
