@@ -218,10 +218,15 @@ def validate_config(value):
             }
         else:
             out[CONF_LOG_TOPIC] = {}
-    if CONF_CERTIFICATE_AUTHORITY in value and value.get(CONF_VERIFY_SSL) is False:
-        raise cv.Invalid(
-            "'verify_ssl' cannot be false when 'certificate_authority' is set."
-        )
+    if value.get(CONF_VERIFY_SSL) is False:
+        if CONF_CERTIFICATE_AUTHORITY in value:
+            raise cv.Invalid(
+                "'verify_ssl' cannot be false when 'certificate_authority' is set."
+            )
+        if value.get(CONF_SKIP_CERT_CN_CHECK):
+            raise cv.Invalid(
+                "'skip_cert_cn_check' has no effect when 'verify_ssl' is false."
+            )
     if any(
         key in value
         for key in (
