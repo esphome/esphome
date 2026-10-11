@@ -3,7 +3,7 @@
 
 namespace esphome::st7567_spi {
 
-static const char *const TAG = "st7567_spi";
+ESPHOME_LOG_TAG(TAG, "st7567_spi");
 
 void SPIST7567::setup() {
   this->spi_setup();

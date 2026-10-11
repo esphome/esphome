@@ -97,7 +97,7 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
   return cdc_devs;
 }
 
-bool USBUartTypeCP210X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   // On reload, skip the one-time IFC_ENABLE step (the interface is already enabled).
   if (reload)

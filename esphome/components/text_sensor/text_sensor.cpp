@@ -6,7 +6,7 @@
 
 namespace esphome::text_sensor {
 
-static const char *const TAG = "text_sensor";
+ESPHOME_LOG_TAG(TAG, "text_sensor");
 
 void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj) {
   if (obj == nullptr) {
@@ -17,10 +17,6 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
   LOG_ENTITY_ICON(tag, prefix, *obj);
 }
-
-void TextSensor::publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
-
-void TextSensor::publish_state(const char *state) { this->publish_state(state, strlen(state)); }
 
 void TextSensor::publish_state(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
@@ -91,10 +87,6 @@ const std::string &TextSensor::get_raw_state() const {
 #endif
   return this->state;  // No filters, raw == filtered
 }
-void TextSensor::internal_send_state_to_frontend(const std::string &state) {
-  this->internal_send_state_to_frontend(state.data(), state.size());
-}
-
 void TextSensor::internal_send_state_to_frontend(const char *state, size_t len) {
   // Only assign if changed to avoid heap allocation
   if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {

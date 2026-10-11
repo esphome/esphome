@@ -4,7 +4,7 @@
 
 namespace esphome::airthings_wave_plus {
 
-static const char *const TAG = "airthings_wave_plus";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_plus");
 
 void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
   auto *value = (WavePlusReadings *) raw_value;

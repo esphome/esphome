@@ -56,7 +56,7 @@ async def test_async_run_logs_full_flow(caplog) -> None:
 
     with (
         patch.object(api_client, "async_run", mock_run),
-        patch.object(api_client, "APIClient") as mock_client,
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
         patch.object(api_client, "safe_print", printed.append),
     ):
         task = asyncio.get_running_loop().create_task(
@@ -163,3 +163,324 @@ async def test_async_run_logs_passes_deep_sleep(
         await api_client.async_run_logs(config, ["1.2.3.4"])
 
     assert mock_run.call_args.kwargs["deep_sleep"] is expected_deep_sleep
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_feeds_addresses(caplog) -> None:
+    """Addresses discovered via MQTT are fed into the running client."""
+    caplog.set_level("INFO", logger="esphome.api_client")
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    fed = asyncio.Event()
+
+    def resolver(stop_event):
+        return ["10.0.0.9", "10.0.0.10"]
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
+    ):
+        mock_client.return_value.add_addresses.side_effect = lambda addrs: (
+            fed.set() or True
+        )
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        async with asyncio.timeout(1):
+            await fed.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_client.return_value.add_addresses.assert_called_once_with(
+        ["10.0.0.9", "10.0.0.10"]
+    )
+    assert "Discovered address(es) via MQTT" in caplog.text
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_no_addresses_keeps_running() -> None:
+    """A resolver returning nothing (failed lookup) leaves the session running."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+
+    def resolver(stop_event):
+        # The resolver owns failure handling; a failed lookup returns []
+        resolver_ran.set()
+        return []
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.sleep(0)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_client.return_value.add_addresses.assert_not_called()
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_stopped_on_teardown() -> None:
+    """Teardown sets the resolver's stop event so the thread exits promptly."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    captured_event: threading.Event | None = None
+    resolver_started = threading.Event()
+
+    def resolver(stop_event):
+        nonlocal captured_event
+        captured_event = stop_event
+        resolver_started.set()
+        # Simulate a slow broker lookup that only ends via the stop event.
+        stop_event.wait(timeout=5)
+        return []
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_started.wait, 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert captured_event is not None
+    assert captured_event.is_set()
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_crash_still_stops_cleanly(caplog) -> None:
+    """A resolver raising unexpectedly must not skip stop() at teardown."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+
+    def resolver(stop_event):
+        resolver_ran.set()
+        raise RuntimeError("resolver blew up")
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert "MQTT address discovery failed" in caplog.text
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_connect_cancels_mqtt_discovery() -> None:
+    """A successful connection stops the in-flight broker lookup."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    captured_event: threading.Event | None = None
+    resolver_started = threading.Event()
+
+    def resolver(stop_event):
+        nonlocal captured_event
+        captured_event = stop_event
+        resolver_started.set()
+        stop_event.wait(timeout=5)
+        return []
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)) as mock_run,
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_started.wait, 1)
+
+        # The runner reports a successful connection
+        on_connect = mock_run.call_args.kwargs["on_connect"]
+        on_connect()
+        await asyncio.sleep(0.05)
+
+        assert captured_event is not None
+        assert captured_event.is_set()
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_client.return_value.add_addresses.assert_not_called()
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_connect_before_discovery_skips_lookup() -> None:
+    """A connection during async_run startup prevents the lookup from starting."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver = Mock(name="resolver")
+
+    async def fake_async_run(*args, **kwargs):
+        # Connection succeeds before async_run even returns
+        kwargs["on_connect"]()
+        return stop
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(side_effect=fake_async_run)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    resolver.assert_not_called()
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_duplicate_addresses_logged(caplog) -> None:
+    """A discovery the client rejects as already known leaves a debug trace."""
+    import threading
+
+    caplog.set_level("DEBUG", logger="esphome.api_client")
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    fed = threading.Event()
+
+    def resolver(stop_event):
+        return ["1.2.3.4"]
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
+    ):
+        mock_client.return_value.add_addresses.side_effect = lambda addrs: (
+            fed.set() or False
+        )
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(fed.wait, 1)
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_client.return_value.add_addresses.assert_called_once_with(["1.2.3.4"])
+    assert "MQTT-discovered address(es) already known: 1.2.3.4" in caplog.text
+    assert "Discovered address(es) via MQTT" not in caplog.text
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_base_exception_escape_logged_at_teardown(caplog) -> None:
+    """A BaseException escaping the worker is reported, and stop() still runs."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+
+    class WorkerEscape(BaseException):
+        """Not an Exception, so the task-level guard must not catch it."""
+
+    def resolver(stop_event):
+        resolver_ran.set()
+        raise WorkerEscape("worker bailed")
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert "MQTT address discovery failed" in caplog.text
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_stubborn_worker_cancelled_at_teardown() -> None:
+    """A worker that ignores the stop event is cancelled after the grace period."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+    release = threading.Event()
+
+    def resolver(stop_event):
+        resolver_ran.set()
+        # Ignore stop_event entirely; only the test releases us
+        release.wait(timeout=10)
+        return []
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        release.set()
+
+    stop.assert_awaited_once()

@@ -19,9 +19,9 @@ struct CanalSatLDData : public CanalSatData {};
 
 class CanalSatBaseProtocol : public RemoteProtocol<CanalSatData> {
  public:
-  void encode(RemoteTransmitData *dst, const CanalSatData &data) override;
-  optional<CanalSatData> decode(RemoteReceiveData src) override;
-  void dump(const CanalSatData &data) override;
+  void encode(RemoteTransmitData *dst, const CanalSatData &data);
+  optional<CanalSatData> decode(RemoteReceiveData src);
+  void dump(const CanalSatData &data);
 
  protected:
   uint16_t frequency_;

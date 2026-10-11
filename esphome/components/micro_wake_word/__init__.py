@@ -6,7 +6,6 @@ import re
 from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
-from esphome.automation import register_action, register_condition
 from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
@@ -58,17 +57,6 @@ micro_wake_word_ns = cg.esphome_ns.namespace("micro_wake_word")
 
 MicroWakeWord = micro_wake_word_ns.class_("MicroWakeWord", cg.Component)
 
-DisableModelAction = micro_wake_word_ns.class_("DisableModelAction", automation.Action)
-EnableModelAction = micro_wake_word_ns.class_("EnableModelAction", automation.Action)
-StartAction = micro_wake_word_ns.class_("StartAction", automation.Action)
-StopAction = micro_wake_word_ns.class_("StopAction", automation.Action)
-
-ModelIsEnabledCondition = micro_wake_word_ns.class_(
-    "ModelIsEnabledCondition", automation.Condition
-)
-IsRunningCondition = micro_wake_word_ns.class_(
-    "IsRunningCondition", automation.Condition
-)
 
 WakeWordModel = micro_wake_word_ns.class_("WakeWordModel")
 
@@ -166,12 +154,7 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
 
 
 def _compute_local_file_path(config: dict) -> Path:
-    url = config[CONF_URL]
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, config[CONF_URL])
 
 
 def _convert_manifest_v1_to_v2(v1_manifest):
@@ -389,11 +372,14 @@ def _download_http_models(config: ConfigType) -> ConfigType:
         return config
 
     external_files.download_content_many(
-        ((url, path / "manifest.json") for path, url in http_models.items()),
+        (
+            external_files.RemoteFile(url, path / "manifest.json")
+            for path, url in http_models.items()
+        ),
         description="wake word manifest(s)",
     )
 
-    model_files: list[tuple[str, Path]] = []
+    model_files: list[external_files.RemoteFile] = []
     errors: list[cv.Invalid] = []
     for path, url in http_models.items():
         try:
@@ -412,7 +398,7 @@ def _download_http_models(config: ConfigType) -> ConfigType:
                 cv.Invalid(f"Manifest file at {url} is missing the 'model' key")
             )
             continue
-        model_files.append((urljoin(url, model), path / model))
+        model_files.append(external_files.RemoteFile(urljoin(url, model), path / model))
     if errors:
         raise cv.MultipleInvalid(errors)
 
@@ -621,23 +607,19 @@ async def to_code(config):
 
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
 
-
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.start",
-    StartAction,
     MICRO_WAKE_WORD_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("start()"),
 )
-@register_action(
-    "micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "micro_wake_word.stop",
+    MICRO_WAKE_WORD_ACTION_SCHEMA,
+    automation.ApplyCall("stop()"),
 )
-@register_condition(
-    "micro_wake_word.is_running", IsRunningCondition, MICRO_WAKE_WORD_ACTION_SCHEMA
+automation.register_apply_condition(
+    "micro_wake_word.is_running", MICRO_WAKE_WORD_ACTION_SCHEMA, "is_running()"
 )
-async def micro_wake_word_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -646,24 +628,18 @@ MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.enable_model",
-    EnableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("enable()"),
 )
-@register_action(
+automation.register_apply_action(
     "micro_wake_word.disable_model",
-    DisableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("disable()"),
 )
-@register_condition(
+automation.register_apply_condition(
     "micro_wake_word.model_is_enabled",
-    ModelIsEnabledCondition,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
+    "is_enabled()",
 )
-async def model_action(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)

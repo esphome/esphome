@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <array>
+
 // Based on:
 // - https://cdn-shop.adafruit.com/datasheets/PN532C106_Application+Note_v1.2.pdf
 // - https://www.nxp.com/docs/en/nxp/application-notes/AN133910.pdf
@@ -9,7 +11,7 @@
 
 namespace esphome::pn532_spi {
 
-static const char *const TAG = "pn532_spi";
+ESPHOME_LOG_TAG(TAG, "pn532_spi");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t PN532_MAX_LOG_BYTES = 64;
@@ -25,12 +27,13 @@ void PN532Spi::setup() {
 bool PN532Spi::is_read_ready() {
   this->enable();
   this->write_byte(0x02);
-  bool ready = this->read_byte() == 0x01;
+  // only bit 0 (RDY) of the status byte is defined (UM0701-02, 6.2.5)
+  const bool ready = this->read_byte() & 0x01;
   this->disable();
   return ready;
 }
 
-bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
+bool PN532Spi::write_data(const std::span<const uint8_t> data) {
   this->enable();
   delay(2);
   // First byte, communication mode: Write data
@@ -45,8 +48,8 @@ bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
   return true;
 }
 
-bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
-  if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
+bool PN532Spi::read_data(pn532::PN532Frame &data, size_t len) {
+  if (len + 1 > pn532::PN532_FRAME_MAX_SIZE || this->read_ready_(true) != pn532::PN532ReadReady::READY) {
     return false;
   }
 
@@ -57,10 +60,11 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
 
   ESP_LOGV(TAG, "Reading data");
 
-  data.resize(len);
-  this->read_array(data.data(), len);
+  // lead with a status byte so callers see the same layout as on the I2C bus
+  data.resize(len + 1);
+  data[0] = 0x01;
+  this->read_array(data.data() + 1, len);
   this->disable();
-  data.insert(data.begin(), 0x01);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
 #endif
@@ -68,7 +72,7 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
   return true;
 }
 
-bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
+bool PN532Spi::read_response(uint8_t command, pn532::PN532Frame &data) {
   ESP_LOGV(TAG, "Reading response");
 
   if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
@@ -79,8 +83,8 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   delay(2);
   this->write_byte(0x03);
 
-  std::vector<uint8_t> header(7);
-  this->read_array(header.data(), 7);
+  std::array<uint8_t, 7> header;
+  this->read_array(header.data(), header.size());
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
@@ -140,7 +144,7 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
     return false;
   }
 
-  data.erase(data.end() - 2, data.end());  // Remove checksum and postamble
+  data.resize(len - 1);  // Remove checksum and postamble
 
   return true;
 }
