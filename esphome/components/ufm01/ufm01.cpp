@@ -254,43 +254,30 @@ bool UFM01Component::can_start_clear_action_() const {
        (this->operating_mode_ == OperatingMode::PASSIVE_POLL && !this->passive_read_pending_));
 }
 
-void UFM01Component::clear_pending_() {
-  this->pending_clear_action_ = nullptr;
+void UFM01Component::request_clear_accumulated_flow() {
+  if (this->clear_pending_) {
+    ESP_LOGD(TAG, "Clear accumulated flow already pending");
+    return;
+  }
+  this->clear_pending_ = true;
+  this->pending_clear_sent_ = false;
+  this->pending_clear_start_ms_ = App.get_loop_component_start_time();
+}
+
+void UFM01Component::finish_pending_clear_() {
+  this->clear_pending_ = false;
   this->pending_clear_sent_ = false;
 }
 
-bool UFM01Component::request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action) {
-  if (this->pending_clear_action_ != nullptr) {
-    ESP_LOGW(TAG, "Clear accumulated flow already in progress, ignoring request");
-    return false;
-  }
-  this->clear_pending_();
-  this->pending_clear_action_ = action;
-  this->pending_clear_start_ms_ = App.get_loop_component_start_time();
-  return true;
-}
-
-void UFM01Component::cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action) {
-  if (this->pending_clear_action_ == action)
-    this->clear_pending_();
-}
-
-void UFM01Component::finish_pending_clear_action_() {
-  ClearAccumulatedFlowActionInterface *action = this->pending_clear_action_;
-  this->clear_pending_();
-  if (action != nullptr)
-    action->complete();
-}
-
 void UFM01Component::loop_pending_clear_action_(uint32_t now) {
-  if (this->pending_clear_action_ == nullptr)
+  if (!this->clear_pending_)
     return;
   if (!this->pending_clear_sent_) {
     if (!this->can_start_clear_action_()) {
       if (now - this->pending_clear_start_ms_ < CLEAR_QUEUE_TIMEOUT_MS)
         return;
       ESP_LOGW(TAG, "Clear accumulated flow timed out waiting for an idle UART");
-      this->finish_pending_clear_action_();
+      this->finish_pending_clear_();
       return;
     }
     this->pending_clear_start_ms_ = now;
@@ -300,13 +287,13 @@ void UFM01Component::loop_pending_clear_action_(uint32_t now) {
   }
   if (this->consume_ack_()) {
     ESP_LOGI(TAG, "Clear accumulated flow acknowledged");
-    this->finish_pending_clear_action_();
+    this->finish_pending_clear_();
     return;
   }
   if (now - this->pending_clear_start_ms_ < COMMAND_ACK_TIMEOUT_MS)
     return;
   ESP_LOGW(TAG, "Clear accumulated flow not acknowledged");
-  this->finish_pending_clear_action_();
+  this->finish_pending_clear_();
 }
 #endif  // USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
 
@@ -802,7 +789,7 @@ void UFM01Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   this->loop_pending_clear_action_(now);
-  if (this->pending_clear_action_ != nullptr && this->pending_clear_sent_)
+  if (this->clear_pending_ && this->pending_clear_sent_)
     return;
 #endif
   switch (this->operating_mode_) {

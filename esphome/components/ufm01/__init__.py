@@ -59,7 +59,7 @@ async def to_code(config: ConfigType) -> None:
     "ufm01.clear_accumulated_flow",
     ClearAccumulatedFlowAction,
     CLEAR_ACCUMULATED_FLOW_ACTION_SCHEMA,
-    synchronous=False,
+    synchronous=True,
 )
 async def clear_accumulated_flow_action_to_code(
     config: ConfigType,

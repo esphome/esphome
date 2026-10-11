@@ -20,18 +20,6 @@
 
 namespace esphome::ufm01 {
 
-#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-class ClearAccumulatedFlowActionInterface {
- public:
-  virtual void complete() = 0;
-
- protected:
-  ~ClearAccumulatedFlowActionInterface() = default;
-};
-
-template<typename... Ts> class ClearAccumulatedFlowAction;
-#endif
-
 namespace testing {
 class TestableUFM01;
 }  // namespace testing
@@ -103,16 +91,18 @@ class UFM01Component : public uart::UARTDevice, public Component {
 
   void loop() override;
 
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
+  /// Queue a clear of the accumulated flow; sent once the UART is idle, a request while one is pending joins it
+  void request_clear_accumulated_flow();
+#endif
+
   float get_setup_priority() const override;
 
  private:
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-  bool request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
-  void cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action);
   bool can_start_clear_action_() const;
-  void clear_pending_();
   void loop_pending_clear_action_(uint32_t now);
-  void finish_pending_clear_action_();
+  void finish_pending_clear_();
 #endif
   void send_command_no_wait_(const std::array<uint8_t, 7> &command);
   bool consume_ack_();
@@ -153,7 +143,6 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint32_t last_software_version_attempt_ms_{0};
 #endif
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-  ClearAccumulatedFlowActionInterface *pending_clear_action_{nullptr};
   uint32_t pending_clear_start_ms_{0};
 #endif
   int32_t read_index_{0};
@@ -176,6 +165,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   bool meter_id_invalid_logged_{false};
 #endif
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
+  bool clear_pending_{false};
   bool pending_clear_sent_{false};
 #endif
 
@@ -183,7 +173,6 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint8_t data_[FRAME_SIZE];
 
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-  template<typename... Ts> friend class ClearAccumulatedFlowAction;
 #endif
   friend class testing::TestableUFM01;
 };

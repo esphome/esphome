@@ -34,6 +34,7 @@ from aioesphomeapi import (
     SensorState,
     SwitchInfo,
     TextSensorState,
+    UserService,
 )
 import pytest
 
@@ -117,8 +118,11 @@ class _Log:
 class _Meter:
     """Entities and state history of the running fixture."""
 
-    def __init__(self, client: APIClient, entities: list[EntityInfo]) -> None:
+    def __init__(
+        self, client: APIClient, entities: list[EntityInfo], services: list[UserService]
+    ) -> None:
         self.client = client
+        self.services = services
         self.by_id = {entity.object_id: entity for entity in entities}
         self.waiter = StateWaiter()
         self.states: dict[str, list[float | str]] = {name: [] for name in self.by_id}
@@ -160,8 +164,8 @@ class _Meter:
 
 
 async def _connect(client: APIClient) -> _Meter:
-    entities, _ = await client.list_entities_services()
-    meter = _Meter(client, entities)
+    entities, services = await client.list_entities_services()
+    meter = _Meter(client, entities, services)
     client.subscribe_states(meter.helper.on_state_wrapper(meter.on_state))
     try:
         await meter.helper.wait_for_initial_states()
@@ -351,7 +355,7 @@ async def test_uart_mock_ufm01_clear_action(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """The clear command waits for an idle UART and completes on the ACK or its timeout."""
+    """The clear command is sent once the UART is idle; the automation continues at once."""
     log = _Log()
     started = log.next(ACTIVE_STARTED)
     acked = log.next(CLEAR_ACKED)
@@ -360,8 +364,8 @@ async def test_uart_mock_ufm01_clear_action(
         api_client_connected() as client,
     ):
         meter = await _connect(client)
-        _, services = await client.list_entities_services()
-        (clear,) = services
+        # A second entity listing would re-send the initial states and duplicate the first completion
+        (clear,) = meter.services
         # Normally still inside the startup wait; a slow runner may already be streaming
         queued_during_startup = not started.done()
 
@@ -379,15 +383,17 @@ async def test_uart_mock_ufm01_clear_action(
         assert log.tx.count(CLEAR_ACCUMULATED_FLOW) == 1
         assert log.index(CLEAR_ACCUMULATED_FLOW) < log.index(CLEAR_ACKED)
 
-        # Without an answer the automation continues after the 500 ms ACK timeout
+        # Two requests in a row share one command; without an answer it is reported after the 500 ms ACK timeout
         sent = log.next(CLEAR_ACCUMULATED_FLOW)
         not_acked = log.next(CLEAR_NOT_ACKED)
-        completed = meter.expect("clear_completions", _approx(2), 3.0)
+        completed = meter.expect("clear_completions", _approx(3), 3.0)
         meter.set_silent(True)
         await asyncio.sleep(0.2)
+        await client.execute_service(clear, {})
         await client.execute_service(clear, {})
         sent_at = await _wait_for(log, sent, 2.0)
         not_acked_at = await _wait_for(log, not_acked, 2.0)
         await _gather(meter, [completed])
         assert not_acked_at - sent_at >= 0.4
-        assert meter.states["clear_completions"] == [1.0, 2.0]
+        assert log.tx.count(CLEAR_ACCUMULATED_FLOW) == 2
+        assert meter.states["clear_completions"] == [1.0, 2.0, 3.0]

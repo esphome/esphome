@@ -113,13 +113,7 @@ class TestableUFM01 : public UFM01Component {
 
   void loop_pending_clear_action() { this->loop_pending_clear_action_(now()); }
 
-  void request_clear_accumulated_flow(ClearAccumulatedFlowActionInterface *action) {
-    this->request_clear_accumulated_flow_(action);
-  }
-
-  void cancel_pending_clear_action(ClearAccumulatedFlowActionInterface *action) {
-    this->cancel_pending_clear_action_(action);
-  }
+  bool clear_pending() const { return this->clear_pending_; }
 
   bool pending_clear_sent() const { return this->pending_clear_sent_; }
 
@@ -201,7 +195,7 @@ class TestableUFM01 : public UFM01Component {
     this->meter_id_invalid_logged_ = false;
     this->last_software_version_attempt_ms_ = 0;
     this->startup_phase_ = StartupPhase::WAIT;
-    this->pending_clear_action_ = nullptr;
+    this->clear_pending_ = false;
     this->pending_clear_sent_ = false;
   }
 };
