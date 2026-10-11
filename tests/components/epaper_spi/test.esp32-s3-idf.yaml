@@ -346,7 +346,7 @@ display:
   # full_update_every > 1 exercises the partial refresh path
   - platform: epaper_spi
     spi_id: spi_bus
-    model: xteink-x4pro
+    model: xteink-x4pro-uc8279
     full_update_every: 10
     cs_pin:
       allow_other_uses: true

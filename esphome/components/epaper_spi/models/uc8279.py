@@ -2,7 +2,8 @@
 
 Supported models:
 - uc8279: the controller on its own; dimensions and pins must be configured
-- xteink-x4pro: the Xteink X4 Pro e-reader, an ESP32-S3 board with an 800x480 panel
+- xteink-x4pro-uc8279: the Xteink X4 Pro e-reader (ESP32-S3) with its 800x480 UC8279 panel;
+  the X4 Pro also ships with other panel controllers
 
 The controller scans gate_offset + height gates, and the panel is bonded to the last
 height of them; gate_offset is a property of the panel.
@@ -51,7 +52,7 @@ class UC8279(EpaperModel):
 uc8279 = UC8279("uc8279")
 
 uc8279.extend(
-    "xteink-x4pro",
+    "xteink-x4pro-uc8279",
     width=800,
     height=480,
     gate_offset=120,

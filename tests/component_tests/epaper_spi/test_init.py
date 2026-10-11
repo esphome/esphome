@@ -525,9 +525,13 @@ def test_uc8279_x4pro_code_generation(
 
     assert "epaper_spi::EPaperUC8279" in main_cpp
     # 800 sources, 480 rows, and the panel on the last 480 of 600 gates
-    assert re.search(r'"XTEINK-X4PRO",\s*800,\s*480,.*?,\s*120\)', main_cpp, re.DOTALL)
+    assert re.search(
+        r'"XTEINK-X4PRO-UC8279",\s*800,\s*480,.*?,\s*120\)', main_cpp, re.DOTALL
+    )
     resolution = next(
-        cmd for cmd in MODELS["XTEINK-X4PRO"].get_init_sequence({}) if cmd[0] == 0x61
+        cmd
+        for cmd in MODELS["XTEINK-X4PRO-UC8279"].get_init_sequence({})
+        if cmd[0] == 0x61
     )
     assert resolution == (0x61, 0x03, 0x20, 0x02, 0x58)
 

@@ -12,4 +12,4 @@ spi:
 display:
   - platform: epaper_spi
     id: epaper_display
-    model: xteink-x4pro
+    model: xteink-x4pro-uc8279
