@@ -1,6 +1,6 @@
 #include "apc_proteous_cover.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 
 namespace esphome::apc_proteous {
 
@@ -99,7 +99,7 @@ void APCProteousCover::parse_response_() {
           ((this->current_operation == COVER_OPERATION_OPENING && this->position >= *this->target_position_) ||
            (this->current_operation == COVER_OPERATION_CLOSING && this->position <= *this->target_position_))) {
         ESP_LOGD(TAG, "Target position %.2f reached", *this->target_position_);
-        this->stop_cmd_(millis());
+        this->stop_cmd_(App.get_loop_component_start_time());
       }
     }
     ESP_LOGV(TAG, "x-status: %d%% (position=%.2f)", value, this->position);
@@ -138,7 +138,7 @@ void APCProteousCover::retry_pending_command_(uint32_t now) {
 }
 
 void APCProteousCover::update() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   this->retry_pending_command_(now);
 
   // Let the command and its echo clear the line before the next query
@@ -188,7 +188,7 @@ void APCProteousCover::send_command_(const char *cmd) {
   }
   ESP_LOGD(TAG, "Sending %s command",
            operation == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"));
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   this->pending_command_ = cmd;
   this->pending_command_time_ = now;
   this->command_retries_ = 0;
@@ -210,7 +210,7 @@ void APCProteousCover::stop_cmd_(uint32_t now) {
 
 void APCProteousCover::control(const CoverCall &call) {
   if (call.get_stop()) {
-    this->stop_cmd_(millis());
+    this->stop_cmd_(App.get_loop_component_start_time());
   } else if (call.get_position().has_value()) {
     float target = *call.get_position();
     ESP_LOGD(TAG, "Target position: %.2f, current: %.2f", target, this->position);
@@ -228,7 +228,7 @@ void APCProteousCover::control(const CoverCall &call) {
   } else if (call.get_toggle()) {
     this->clear_pending_();
     this->target_position_.reset();
-    this->write_command_(START_CMD, millis());
+    this->write_command_(START_CMD, App.get_loop_component_start_time());
   }
 }
 
