@@ -61,7 +61,7 @@ def register_external_component_doc_url(component_name: str, base_url: str) -> N
     data.urls[component_name] = base_url
 
 
-class ComponentManifest:
+class ComponentManifest:  # pylint: disable=too-many-public-methods
     def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
         self.recursive_sources = recursive_sources
@@ -209,6 +209,14 @@ class ComponentManifest:
         shim hook.
         """
         return getattr(self.module, "LEGACY_CONFIG_MIGRATE", None)
+
+    @property
+    def expand_platform_config(
+        self,
+    ) -> Callable[[list[ConfigType]], list[ConfigType]] | None:
+        """Optional `EXPAND_PLATFORM_CONFIG` callable; runs on the normalized `platform:`-tagged
+        entry list before per-entry CONFIG_SCHEMA. Must return a list (raise `cv.Invalid` for user errors)."""
+        return getattr(self.module, "EXPAND_PLATFORM_CONFIG", None)
 
     @property
     def resources(self) -> list[FileResource]:

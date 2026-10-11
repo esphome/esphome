@@ -12,4 +12,4 @@ wifi:
 interval:
   - interval: 10s
     then:
-      - lambda: ESP_LOGD("test", "%u", millis());
+      - lambda: ESP_LOGD("test", "%" PRIu32, millis());

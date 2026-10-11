@@ -6,7 +6,6 @@ from esphome import git, loader
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPONENTS,
-    CONF_EXTERNAL_COMPONENTS,
     CONF_PASSWORD,
     CONF_PATH,
     CONF_REF,
@@ -24,7 +23,7 @@ CONF_DOC_URL = "doc_url"
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = CONF_EXTERNAL_COMPONENTS
+DOMAIN = "external_components"
 
 
 CONFIG_SCHEMA = cv.ensure_list(
@@ -74,6 +73,33 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
     return components_dir
 
 
+def _log_overridden_components(
+    conf: dict[str, Any], component_names: list[str]
+) -> None:
+    overridden = [
+        name
+        for name in component_names
+        if (loader.CORE_COMPONENTS_PATH / name / "__init__.py").is_file()
+    ]
+    if not overridden:
+        return
+    if conf[CONF_TYPE] == TYPE_GIT:
+        source = conf[CONF_URL]
+        if ref := conf.get(CONF_REF):
+            source = f"{source}@{ref}"
+        if path := conf.get(CONF_PATH):
+            source = f"{source} ({path})"
+    else:
+        source = conf[CONF_PATH]
+    _LOGGER.info(
+        "External components are overriding built-in components:\n"
+        "  source: %s\n"
+        "  components: %s",
+        source,
+        ", ".join(sorted(overridden)),
+    )
+
+
 def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
@@ -87,10 +113,8 @@ def _process_single_config(config: dict[str, Any]) -> None:
         raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
-        all_component_names = [
-            p.parent.name for p in components_dir.glob("*/__init__.py")
-        ]
-        if len(all_component_names) > 100:
+        component_names = [p.parent.name for p in components_dir.glob("*/__init__.py")]
+        if len(component_names) > 100:
             # Prevent accidentally including all components from an esphome fork/branch
             # In this case force the user to manually specify which components they want to include
             raise cv.Invalid(
@@ -107,21 +131,18 @@ def _process_single_config(config: dict[str, Any]) -> None:
                     [CONF_COMPONENTS, i],
                 )
         allowed_components = config[CONF_COMPONENTS]
-        all_component_names = None
+        component_names = allowed_components
+
+    _log_overridden_components(conf, component_names)
 
     if (base_url := config.get(CONF_DOC_URL)) is not None:
-        names = (
-            allowed_components
-            if allowed_components is not None
-            else all_component_names
-        )
-        for name in names:
+        for name in component_names:
             loader.register_external_component_doc_url(name, base_url)
         _LOGGER.info(
             "External component source '%s' provides documentation at %s for components: %s",
             conf.get(CONF_URL) or conf.get(CONF_PATH),
             base_url,
-            ", ".join(names),
+            ", ".join(component_names),
         )
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)

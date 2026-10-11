@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.4bpp";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.4bpp");
 
 void EPaper4bpp::fill(Color color) {
   // If clipping is active, fall back to base implementation

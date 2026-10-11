@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_EMC2101_ID, EMC2101_COMPONENT_SCHEMA, emc2101_ns
 
@@ -53,23 +54,13 @@ CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
-    paren = await cg.get_variable(config[CONF_EMC2101_ID])
-    var = cg.new_Pvariable(config[CONF_ID], paren)
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_EMC2101_ID])
+    var = cg.new_Pvariable(config[CONF_ID], hub)
     await cg.register_component(var, config)
 
-    if CONF_INTERNAL_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_INTERNAL_TEMPERATURE])
-        cg.add(var.set_internal_temperature_sensor(sens))
-
-    if CONF_EXTERNAL_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_EXTERNAL_TEMPERATURE])
-        cg.add(var.set_external_temperature_sensor(sens))
-
-    if CONF_SPEED in config:
-        sens = await sensor.new_sensor(config[CONF_SPEED])
-        cg.add(var.set_speed_sensor(sens))
-
-    if CONF_DUTY_CYCLE in config:
-        sens = await sensor.new_sensor(config[CONF_DUTY_CYCLE])
-        cg.add(var.set_duty_cycle_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_INTERNAL_TEMPERATURE, var.set_internal_temperature_sensor)
+    await sensors(CONF_EXTERNAL_TEMPERATURE, var.set_external_temperature_sensor)
+    await sensors(CONF_SPEED, var.set_speed_sensor)
+    await sensors(CONF_DUTY_CYCLE, var.set_duty_cycle_sensor)
