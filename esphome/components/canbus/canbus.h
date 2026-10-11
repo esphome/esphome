@@ -103,7 +103,7 @@ class Canbus : public Component {
   uint32_t can_id_;
   bool use_extended_id_;
   CanSpeed bit_rate_;
-  uint32_t max_frames_per_loop_{50};
+  uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 

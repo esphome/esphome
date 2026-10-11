@@ -21,7 +21,7 @@ CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
-DEFAULT_MAX_FRAMES_PER_LOOP = 50
+DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
 
 
 def validate_id(config: ConfigType) -> ConfigType:
