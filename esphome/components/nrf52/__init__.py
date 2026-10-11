@@ -732,13 +732,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return True  # Handled: PYOCD upload
 
     # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_mac_address
+    from .ble_logger import is_ble_address
     from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
 
-    if is_mac_address(host):
+    if is_ble_address(host):
         mcumgr_device = host
 
     if mcumgr_device:
@@ -753,7 +753,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     address = devices[0]
-    from .ble_logger import is_mac_address, logger_connect, logger_scan
+    from .ble_logger import is_ble_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
         ble_device = asyncio.run(logger_scan(CORE.name))
@@ -762,7 +762,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
         else:
             return True
 
-    if is_mac_address(address):
+    if is_ble_address(address):
         asyncio.run(logger_connect(address))
         return True
     return False
