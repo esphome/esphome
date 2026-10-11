@@ -18,6 +18,7 @@ from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@dhoeben"]
+DOMAIN = "water_heater"
 
 IS_PLATFORM_COMPONENT = True
 

@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from filelock import Timeout
+from platformio.dependencies import get_core_dependencies
 from platformio.package.manager._install import PackageManagerInstallMixin
 from platformio.package.manager.base import BasePackageManager
 from platformio.package.manager.library import LibraryPackageManager
@@ -453,21 +454,94 @@ def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
     assert dl_path.read_bytes() == b"data"
 
 
-def test_lock_deadline_leaves_download_to_the_holder(tmp_path: Path) -> None:
-    """A lock held past the deadline means another process is fetching the
-    same file; skipping cleanly beats a misleading failure warning. The
-    tracker is still polled so a parked worker observes cancellation."""
+@pytest.mark.parametrize("staged", [b"", b"ab"])
+def test_lock_deadline_leaves_download_to_the_holder(
+    tmp_path: Path, staged: bytes
+) -> None:
+    """A lock held past the deadline is another process's download; skip
+    cleanly, polling the tracker with what the holder has staged so far."""
     dl_path = tmp_path / "archive"
+    (tmp_path / "archive.prefetch.part").write_bytes(staged)
     ticks: list[int] = []
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
-        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
+        patch("esphome.framework_helpers.DOWNLOAD_LOCK_TIMEOUT", 0),
     ):
         pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
     mock_download.assert_not_called()
-    assert ticks == [0]
+    assert ticks == [len(staged)]
     assert not dl_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("job", "part_name", "chunks", "expected"),
+    [
+        (
+            lambda dl_path: pf._registry_fetch_job(
+                MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
+            ),
+            "archive.part",
+            [b"a", b"abc"],
+            [1, 3, 4],
+        ),
+        (
+            lambda dl_path: pf._uri_fetch_job(
+                MagicMock(), "https://x/a.zip", dl_path, 4
+            ),
+            "archive.prefetch.part",
+            [b"ab"],
+            [2, 4],
+        ),
+    ],
+    ids=["registry", "uri"],
+)
+def test_lock_wait_reports_the_holders_progress(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    held_lock,
+    job,
+    part_name: str,
+    chunks: list[bytes],
+    expected: list[int],
+) -> None:
+    """A waiting job reports the holder's part file (the staging one for a
+    URL job), then the full size once the holder lands the archive."""
+    dl_path = tmp_path / "archive"
+    ticks: list[int] = []
+    acquire = held_lock(
+        tmp_path / part_name, chunks, lambda: dl_path.write_bytes(b"abcd")
+    )
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+        caplog.at_level(logging.INFO),
+    ):
+        job(dl_path)(ticks.append)
+    mock_download.assert_not_called()
+    assert ticks == expected
+    assert caplog.text.count("Waiting for another process downloading archive") == 1
+
+
+def test_uri_lock_wait_prefers_the_landed_archive(tmp_path: Path, held_lock) -> None:
+    """Between the holder's promotion rename and its release the staging
+    part is gone; the landed cache file is credited instead of 0."""
+    dl_path = tmp_path / "archive"
+    ticks: list[int] = []
+    acquire = held_lock(
+        tmp_path / "archive.prefetch.part",
+        [b"ab", lambda: dl_path.write_bytes(b"abcd")],
+        lambda: None,
+    )
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+    ):
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
+    mock_download.assert_not_called()
+    assert ticks == [2, 4, 4]
 
 
 def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
@@ -478,7 +552,7 @@ def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
-        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
+        patch("esphome.framework_helpers.DOWNLOAD_LOCK_TIMEOUT", 0),
     ):
         pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
             lambda done: None
@@ -587,7 +661,8 @@ def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
-    """HEAD sizes direct-URL specs; git and unreachable URLs are skipped."""
+    """HEAD sizes direct-URL specs; VCS specs skip the download but are
+    still installable (the pre-install clones them in parallel)."""
     m = _fake_manager(tmp_path)
     resp = MagicMock()
     resp.headers = {"content-length": "2222"}
@@ -596,20 +671,76 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
             m,
             [
                 _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
-                _FakeSpec(uri="git+https://x/repo.git", name="repo"),
-                _FakeSpec(uri="https://x/repo.git#v1", name="barevcs"),
+                _FakeSpec(uri="git+https://x/repo.git", name="repo", custom_name=True),
                 _FakeSpec(name="registry"),
             ],
             set(),
         )
     assert failed == 0
     assert [(n, s) for n, s, _ in jobs] == [("big", 2222)]
-    assert [n for n, _ in installable] == ["big"]
+    assert [n for n, _ in installable] == ["repo", "big"]
+    # A derived-name platform archive sized in the same run is trusted too
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        jobs, _, installable = pf._uri_jobs(
+            m,
+            [_FakeSpec(uri="https://x/fresh.zip", name="fresh")],
+            set(),
+            trusted_names=True,
+        )
+    assert [n for n, _, _ in jobs] == ["fresh"]
+    assert [n for n, _ in installable] == ["fresh"]
     # a successful HEAD with no Content-Length is a clean skip
     resp.headers = {}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(
             m, [_FakeSpec(uri="https://x/nolen.zip", name="nolen")], set()
+        ) == ([], 0, [])
+
+
+def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
+    """VCS specs never probe the network here (there is no archive); an
+    uninstalled custom-named one is handed to the pre-install, while
+    derived names, installed specs, and file/symlink specs are skipped."""
+    m = _fake_manager(tmp_path)
+    with patch("esphome.net_retry.http_request") as mock_head:
+        jobs, failed, installable = pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                ),
+                _FakeSpec(uri="hg+https://x/old", name="mercurial", custom_name=True),
+                # A derived name is not the destination dir; pio run clones it
+                _FakeSpec(uri="git+https://x/derived#v2", name="derived"),
+                _FakeSpec(uri="file:///local/dir", name="local"),
+                _FakeSpec(uri="symlink:///local/dir", name="link"),
+            ],
+            set(),
+        )
+    mock_head.assert_not_called()
+    assert (jobs, failed) == ([], 0)
+    assert [n for n, _ in installable] == ["tool", "mercurial"]
+
+    # trusted_names admits platform packages, which have no custom name
+    with patch("esphome.net_retry.http_request"):
+        _, _, installable = pf._uri_jobs(
+            m,
+            [_FakeSpec(uri="git+https://x/derived#v2", name="derived")],
+            set(),
+            trusted_names=True,
+        )
+    assert [n for n, _ in installable] == ["derived"]
+
+    m.get_package.return_value = object()  # already installed: warm and silent
+    with patch("esphome.net_retry.http_request"):
+        assert pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                )
+            ],
+            set(),
         ) == ([], 0, [])
 
 
@@ -675,6 +806,11 @@ def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
     # cached: no download job, but still installable
     jobs, failed, installable = pf._uri_jobs(m, spec, set())
     assert (jobs, failed) == ([], 0)
+    assert [n for n, _ in installable] == ["a"]
+    # a cached platform archive with a derived name is trusted the same way
+    derived = [_FakeSpec(uri="https://x/a.zip", name="a")]
+    assert pf._uri_jobs(m, derived, set())[2] == []
+    _, _, installable = pf._uri_jobs(m, derived, set(), trusted_names=True)
     assert [n for n, _ in installable] == ["a"]
     dl.unlink()
     # a registry job already claimed this download path
@@ -799,6 +935,44 @@ def test_dependency_entries_filter_seen_names(tmp_path: Path) -> None:
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
     assert pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], {"dep"}) == []
+
+
+def test_preinstall_widens_the_pool_for_clones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Network-bound clones all run at once even when the CPU-sized
+    extraction pool would serialize them; the barrier deadlocks otherwise."""
+    m = _fake_manager(tmp_path)
+    monkeypatch.setattr(pf, "extract_workers", lambda jobs=None: 1)
+    barrier = threading.Barrier(3)
+    m._install.side_effect = lambda spec, **kw: barrier.wait(timeout=5)
+    pf._preinstall(
+        m,
+        [
+            (f"g{i}", _FakeSpec(uri=f"git+https://x/g{i}.git", name=f"g{i}"))
+            for i in range(3)
+        ],
+    )
+    assert barrier.broken is False
+
+
+def test_preinstall_orders_clones_before_extractions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clone must not queue behind CPU-bound archive extractions."""
+    m = _fake_manager(tmp_path)
+    monkeypatch.setattr(pf, "extract_workers", lambda jobs=None: 1)
+    calls: list[str] = []
+    m._install.side_effect = lambda spec, **kw: calls.append(spec.name)
+    pf._preinstall(
+        m,
+        [
+            ("a@1", _FakeSpec(name="a")),
+            ("b@1", _FakeSpec(name="b")),
+            ("g@1", _FakeSpec(uri="git+https://x/g.git", name="g")),
+        ],
+    )
+    assert calls[0] == "g"
 
 
 def test_preinstall_cleanup_cannot_displace_the_inflight_error(
@@ -1149,6 +1323,20 @@ def test_main_runs_prefetch(tmp_path: Path) -> None:
     with patch.object(pf, "_prefetch") as mock_prefetch:
         assert pf.main([str(tmp_path), "testenv"]) == 0
     mock_prefetch.assert_called_once_with(tmp_path, "testenv")
+
+
+def test_main_skips_private_package_probe_before_prefetch(tmp_path: Path) -> None:
+    """The registry probe patch is applied before any package manager runs."""
+    order: list[str] = []
+    with (
+        patch.object(pf, "_prefetch", side_effect=lambda *_: order.append("prefetch")),
+        patch(
+            "esphome.platformio.runner.patch_registry_private_packages",
+            side_effect=lambda: order.append("patch"),
+        ),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    assert order == ["patch", "prefetch"]
 
 
 def test_main_bad_argv_is_a_distinct_exit(
@@ -1575,7 +1763,7 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
         {"name": "SPI"},
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
-    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@1.0", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
     # The dep wave carries its compatibility so _install searches qualified
     dep_call = m._install.call_args_list[-1]
@@ -1595,7 +1783,7 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
         installed.append(getattr(spec, "name", str(spec)))
     )
-    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@1.0", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c"]
 
 
@@ -1639,7 +1827,7 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
             barrier.wait()
 
     seed = _WaveManager(str(tmp_path))
-    with patch.object(pf, "get_usable_cpu_count", return_value=2):
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=2):
         pf._preinstall(
             seed,
             [
@@ -1728,30 +1916,31 @@ def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
     m.unlock.assert_called_once_with()
 
 
-def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:
-    """A platform that lists tool-scons itself does not get it appended."""
+def test_prefetch_replaces_platform_tool_scons_with_core_spec(tmp_path: Path) -> None:
+    """A platform's own tool-scons spec gives way to the core's registry spec."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     fake_platform = MagicMock()
     fake_platform.packages = {"tool-scons": {"optional": False}}
     fake_platform.get_package_spec.side_effect = lambda name: _FakeSpec(
-        uri=None, name=name
+        uri="https://x/scons.zip", name=name, owner=None
     )
     config = _fake_config(tmp_path, {"platform": "fake/p@1"})
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    batches: list[list[str]] = []
+    batches: list[list] = []
     with (
         patch.dict("sys.modules", modules),
         patch.object(
             pf,
             "_registry_jobs",
             side_effect=lambda mgr, specs, seen: (
-                batches.append([s.name for s in specs]) or ([], 0, [])
+                batches.append(list(specs)) or ([], 0, [])
             ),
         ),
         patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
     ):
         pf._prefetch(tmp_path, "testenv")
-    assert batches[0] == ["tool-scons"]
+    (spec,) = batches[0]
+    assert (spec.name, spec.owner, spec.uri) == ("tool-scons", "platformio", None)
 
 
 def test_platformio_private_api_contract() -> None:
@@ -1784,6 +1973,8 @@ def test_platformio_private_api_contract() -> None:
         assert callable(getattr(BasePackageManager, name))
     # The dependency wave mirrors install_dependency's builtin skip
     assert callable(LibraryPackageManager.is_builtin_lib)
+    # The prefetch keys tool-scons on this core dependency
+    assert "tool-scons" in get_core_dependencies()
     # The pre-install passes these positionally / by keyword
     assert "compatibility" in inspect.signature(BasePackageManager.__init__).parameters
     lib_params = inspect.signature(LibraryPackageManager.__init__).parameters
@@ -1799,3 +1990,9 @@ def test_platformio_private_api_contract() -> None:
     derived = PackageSpec("https://x/y/archive/master.zip")
     assert derived.name and not derived.has_custom_name()
     assert PackageSpec("Foo=https://x/y/archive/master.zip").has_custom_name()
+    # _is_vcs_spec_uri relies on bare .git URLs normalizing to git+, on
+    # both parse paths (raw string, and requirements= for platform tools)
+    assert PackageSpec("https://github.com/x/y.git#v1").uri.startswith("git+")
+    assert PackageSpec(
+        owner="o", name="tool-x", requirements="https://github.com/x/y.git"
+    ).uri.startswith("git+")

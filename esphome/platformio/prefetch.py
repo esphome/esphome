@@ -33,14 +33,18 @@ import time
 from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
+    DownloadLockUnavailable,
     content_length,
     discard_partial_download,
+    downloaded_bytes,
+    extract_workers,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
-    warn_prefetch_failures,
+    wait_for_download_lock,
+    warn_batch_failures,
 )
-from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
+from esphome.helpers import get_bool_env, rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,18 +62,15 @@ def _preserved_sys_path() -> Iterator[None]:
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
 
+# Concurrent VCS clones; network-bound, so wider than the extraction pool
+_CLONE_WORKERS = 8
+
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
-
-# Waiting on another process's URL download; past this, leave it to pio
-_DOWNLOAD_LOCK_TIMEOUT = 60
 
 # Child exit for a handled, already-warned failure; 1 would collide with
 # the interpreter's own import-failure exit
 _EXIT_HANDLED = 3
-
-# Short lock-acquire slices so a waiting worker still observes Ctrl-C
-_URI_LOCK_POLL = 1
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
@@ -374,42 +375,64 @@ def _registry_jobs(
     return jobs, failed, installable
 
 
+def _is_vcs_spec_uri(url: str) -> bool:
+    """Whether pio's ``install_from_uri`` would clone this URI rather than
+    copy or download it (PackageSpec normalizes git URLs to ``git+``)."""
+    return not url.startswith(("file://", "symlink://", "http://", "https://"))
+
+
+def _is_clone_entry(entry: tuple) -> bool:
+    """Whether this pre-install entry's spec is cloned, not extracted."""
+    url = entry[1].uri
+    return bool(url) and _is_vcs_spec_uri(url)
+
+
+def _spec_name(spec: Any, url: str) -> str:
+    """The spec's name; the URL basename fallback is defensive only
+    (PackageSpec derives a name from the URI itself)."""
+    return spec.name or url.split("#", 1)[0].rsplit("/", 1)[-1]
+
+
 def _uri_jobs(
-    manager: Any, specs: list[Any], seen: set[str]
+    manager: Any, specs: list[Any], seen: set[str], trusted_names: bool = False
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
     Also returns how many HEAD probes errored (an absent length is not an
-    error) and the ``(name, spec)`` pairs whose archives will be
-    installable.
+    error) and the ``(name, spec)`` pairs to pre-install, including VCS
+    specs, which the pre-install clones itself. ``trusted_names`` marks
+    platform packages, whose platform.json keys match their manifests.
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
-    candidates: list[tuple[str, str, Path, Any]] = []
+    candidates: list[tuple[str, str, Path, Any, bool]] = []
     installable: list[tuple[str, Any]] = []
     for spec in specs:
         url = spec.uri
-        if not url or not url.startswith(("http://", "https://")):
-            continue  # git+/file specs are cloned/copied, not downloaded
-        if url.split("#", 1)[0].endswith(".git"):
-            continue  # bare-URL VCS spec; PlatformIO clones it
+        if not url:
+            continue
+        is_vcs = _is_vcs_spec_uri(url)
+        if not is_vcs and not url.startswith(("http://", "https://")):
+            continue  # file/symlink specs are copied in place by pio run
         if manager.get_package(spec):
             continue
-        name = spec.name or url.rsplit("/", 1)[-1]
+        name = _spec_name(spec, url)
+        # Only a name that is also the install dir may pre-install
+        safe_name = trusted_names or spec.has_custom_name()
+        if is_vcs:
+            if safe_name:
+                installable.append((name, spec))
+            continue
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
-            if spec.has_custom_name():
-                # Only a custom name (Foo=https://...) is the destination
-                # dir; a URI-derived name's destination comes from the
-                # archive manifest, so its dedupe key could collide with
-                # another name and race one directory. pio run installs it.
+            if safe_name:
                 installable.append((name, spec))  # fetched by an earlier run
             continue
         if str(dl_path) in seen:
             continue  # another spec already claimed this .part
         seen.add(str(dl_path))
-        candidates.append((spec.name, url, dl_path, spec))
+        candidates.append((name, url, dl_path, spec, safe_name))
 
     errors: list[str] = []
 
@@ -436,16 +459,17 @@ def _uri_jobs(
     if not candidates:
         return [], 0, installable
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(candidates))) as ex:
-        sizes = list(ex.map(_head_size, [url for _, url, _, _ in candidates]))
+        sizes = list(ex.map(_head_size, [url for _, url, _, _, _ in candidates]))
     jobs: list[tuple[str, int, Any]] = []
     failed = 0
-    for (name, url, dl_path, spec), size in zip(candidates, sizes, strict=True):
+    for (name, url, dl_path, spec, safe_name), size in zip(
+        candidates, sizes, strict=True
+    ):
         if size < 0:
             failed += 1
         elif size:
             jobs.append((name, size, _uri_fetch_job(manager, url, dl_path, size)))
-            if spec.has_custom_name():
-                # See above: derived-name specs stay with pio run's installer
+            if safe_name:
                 installable.append((name, spec))
         else:
             # Missing or unusable Content-Length; visible under -v
@@ -462,17 +486,26 @@ def _uri_jobs(
 
 
 def _serialized_fetch_job(
-    dl_path: Path, lock_path: str, body: Any, unlocked_ok: bool = True
+    dl_path: Path,
+    lock_path: str,
+    body: Any,
+    size: int,
+    stream_dest: Path | None = None,
+    unlocked_ok: bool = True,
 ) -> Any:
-    """Wrap ``body`` so the shared destination is single-writer.
-
-    Interleaved writers truncate each other's ``.part`` bytes (see
-    registry.py). The bounded poll observes Ctrl-C via the tracker; a
-    blown deadline is a clean skip (the holder's copy is what the build
-    needs). On a lock-less filesystem a sha256-verified body runs
-    unlocked with one warning; a checksum-less one
-    (``unlocked_ok=False``) is a counted failure instead.
+    """Wrap ``body`` so the shared destination is single-writer (interleaved
+    writers truncate each other's ``.part``, see registry.py). A blown deadline
+    is a clean skip. On a lock-less filesystem a sha256-verified body runs
+    unlocked with one warning; a checksum-less one (``unlocked_ok=False``) fails.
     """
+
+    def on_disk() -> int:
+        # A URL job's holder streams beside the staging path until it
+        # promotes; after that only dl_path is left
+        done = downloaded_bytes(dl_path, size)
+        if not done and stream_dest is not None:
+            done = downloaded_bytes(stream_dest, size)
+        return done
 
     def run(tracker: Any) -> None:
         from filelock import FileLock, Timeout
@@ -480,33 +513,27 @@ def _serialized_fetch_job(
         # fallback_to_soft would leave a stale marker on lock-less
         # filesystems that blocks every later build (see git.py)
         lock = FileLock(lock_path, fallback_to_soft=False)
-        deadline = time.monotonic() + _DOWNLOAD_LOCK_TIMEOUT
-        while True:
-            try:
-                lock.acquire(timeout=_URI_LOCK_POLL)
-                break
-            except Timeout:
-                tracker(0)  # raises when the batch is cancelled
-                if time.monotonic() >= deadline:
-                    # Another process is fetching this same file; its copy
-                    # is what the build needs (a large framework archive
-                    # can hold the lock far longer than this deadline)
-                    _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
-                    return
-            except OSError as err:
-                if not unlocked_ok:
-                    # A body with no checksum to catch interleaved corruption
-                    raise
-                lock = None
-                _LOGGER.warning(
-                    "Could not lock %s (%s); downloading unlocked",
-                    dl_path.name,
-                    err,
-                )
-                break
+        try:
+            wait_for_download_lock(lock, tracker, on_disk, dl_path.name)
+        except Timeout:
+            # The holder's copy is what the build needs (a large
+            # framework archive can outlast this deadline)
+            _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
+            return
+        except DownloadLockUnavailable as err:
+            if not unlocked_ok:
+                # A body with no checksum to catch interleaved corruption
+                raise
+            lock = None
+            _LOGGER.warning(
+                "Could not lock %s (%s); downloading unlocked",
+                dl_path.name,
+                err,
+            )
         try:
             if dl_path.is_file():
-                return  # another process finished it while we waited
+                tracker(size)  # another process finished it while we waited
+                return
             body(tracker)
         finally:
             if lock is not None:
@@ -540,6 +567,7 @@ def _registry_fetch_job(
         dl_path,
         f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
+        size,
     )
 
     def run(tracker: Any) -> None:
@@ -571,9 +599,9 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
         tmp.replace(dl_path)
 
     def run(tracker: Any) -> None:
-        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote, unlocked_ok=False)(
-            tracker
-        )
+        _serialized_fetch_job(
+            dl_path, f"{tmp}.lock", promote, size, tmp, unlocked_ok=False
+        )(tracker)
         if dl_path.is_file():
             # Won or lost, the race is over; staging files left behind
             # are dead weight PlatformIO's cache never prunes
@@ -701,7 +729,11 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    workers = min(get_usable_cpu_count(), len(entries))
+    # Clones wait on the network: sort them first, dependency waves too
+    entries = sorted(entries, key=lambda entry: not _is_clone_entry(entry))
+    clones = sum(map(_is_clone_entry, entries))
+    # Network-bound clones get a wider pool than CPU-bound extraction
+    workers = max(extract_workers(len(entries)), min(clones, _CLONE_WORKERS))
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -733,8 +765,9 @@ def _preinstall(
             raise
 
     _LOGGER.info(
-        "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
+        "Installing %d PlatformIO package(s)%s with %d worker(s): %s",
         len(entries),
+        f" ({clones} clone(s))" if clones else "",
         workers,
         ", ".join(name for name, *_ in entries),
     )
@@ -832,16 +865,16 @@ def _prefetch(build_dir: Path, env: str) -> None:
         for name, opts in p.packages.items()
         if not opts.get("optional")
     ]
-    # PIO's build engine installs outside the platform package list;
-    # skipped when the platform lists it itself
-    if not any(s.name == "tool-scons" for s in specs):
-        specs.append(
-            PackageSpec(
-                owner="platformio",
-                name="tool-scons",
-                requirements=get_core_dependencies()["tool-scons"],
-            )
+    # PIO's build engine installs tool-scons by its own registry spec at build
+    # start; a platform URL copy has no owner to match it, so prefetch that spec
+    specs = [s for s in specs if s.name != "tool-scons"]
+    specs.append(
+        PackageSpec(
+            owner="platformio",
+            name="tool-scons",
+            requirements=get_core_dependencies()["tool-scons"],
         )
+    )
     lib_deps = config.get(f"env:{env}", "lib_deps", [])
     # pio run's storage dir for this env, with its compatibility
     # qualifiers: an unqualified library install could land a different
@@ -869,8 +902,10 @@ def _prefetch(build_dir: Path, env: str) -> None:
     unresolved = 0
     for mgr, batch, is_platform in ((p.pm, specs, True), (lm, lib_specs, False)):
         entries: list[tuple[str, Any]] = []
-        for build_jobs in (_registry_jobs, _uri_jobs):
-            batch_jobs, failed, installable = build_jobs(mgr, batch, seen)
+        for batch_jobs, failed, installable in (
+            _registry_jobs(mgr, batch, seen),
+            _uri_jobs(mgr, batch, seen, trusted_names=is_platform),
+        ):
             jobs += batch_jobs
             unresolved += failed
             entries += installable
@@ -890,7 +925,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         )
         # PlatformIO retries failed packages itself, without resume
         failures = run_batch_downloads("Downloading PlatformIO packages", jobs)
-        warn_prefetch_failures(failures)
+        warn_batch_failures(failures, "Could not prefetch %s: %s")
         failed_names = {name for name, _ in failures}
     elif not groups and not unresolved:
         # Record the no-work run so the parent skips the next spawn.
@@ -950,8 +985,10 @@ def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
     from esphome.core import CORE
     from esphome.log import setup_log
+    from esphome.platformio.runner import patch_registry_private_packages
 
     signal.signal(signal.SIGTERM, _sigterm)
+    patch_registry_private_packages()
     raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
     try:
         level = int(raw_level) if raw_level is not None else logging.INFO
