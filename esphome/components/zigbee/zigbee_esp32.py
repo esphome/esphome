@@ -3,9 +3,11 @@ import logging
 import re
 from typing import Any
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     CONF_PARTITIONS,
+    DOMAIN as ESP32_DOMAIN,
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
@@ -51,6 +53,8 @@ from .const import (
     KEY_ZIGBEE,
     POWER_SOURCE,
     ZigbeeAttribute,
+    ZigbeeComponent,
+    report,
 )
 from .const_esp32 import (
     ALLOWED_UNITS,
@@ -200,7 +204,10 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
             if attr.get(CONNECT):  # connect device
-                if CONF_REPORT in config:
+                if (
+                    CONF_REPORT in config
+                    and config[CONF_REPORT] != report.ZIGBEE_REPORT_DEFAULT
+                ):
                     attr[CONF_REPORT] = config[CONF_REPORT]
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
                 attr_list = config.setdefault(KEY_ZIGBEE_ATTRIBUTES, [])
@@ -454,3 +461,19 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(ZigbeeComponent),
+        },
+        cv.requires_component(ESP32_DOMAIN),
+    )
+)
+
+automation.register_apply_action(
+    "zigbee.report",
+    ZIGBEE_ACTION_SCHEMA_ESP32,
+    automation.ApplyCall("report()"),
+)
