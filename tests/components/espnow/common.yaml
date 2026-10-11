@@ -2,7 +2,6 @@ espnow:
   id: espnow_component
   auto_add_peer: false
   channel: 1
-  max_payload_size: 1470
   peers:
     - 11:22:33:44:55:66
   on_receive:
@@ -50,13 +49,6 @@ espnow:
     - espnow.set_channel: 6
     - espnow.set_channel:
         channel: !lambda 'return 6;'
-  on_broadcast:
-    - logger.log:
-        format: "Broadcast from: %s = '%s'  RSSI: %d"
-        args:
-          - format_mac_address_pretty(info.src_addr).c_str()
-          - format_hex_pretty(data, size).c_str()
-          - info.rx_ctrl->rssi
   on_unknown_peer:
     - logger.log:
         format: "Unknown peer: %s = '%s'  RSSI: %d"
@@ -80,8 +72,9 @@ packet_transport:
           key: "0123456789abcdef0123456789abcdef"
 
 sensor:
-  - platform: internal_temperature
+  - platform: template
     id: espnow_temp_sensor
+    lambda: return 21.5;
 
   - platform: packet_transport
     transport_id: transport1

@@ -359,7 +359,7 @@ void MixerSpeaker::loop() {
         xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_START);
       } else {
         ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
-        this->status_momentary_error("failure", 1000);
+        this->status_momentary_error(1000);
         return;
       }
     }

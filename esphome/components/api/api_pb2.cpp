@@ -688,8 +688,8 @@ uint8_t *ListEntitiesLightResponse::encode_msg(const void *self, uint8_t *__rest
   if (uint32_t raw = float_to_raw(msg.max_mireds); raw != 0) [[likely]] {
     pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 85, raw);
   }
-  for (const char *it : *msg.effects) {
-    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 11, it, strlen(it));
+  for (const auto &it : *msg.effects) {
+    pos = ProtoEncode::encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, 11, it);
   }
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -713,8 +713,8 @@ uint32_t ListEntitiesLightResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_float(1, msg.min_mireds);
   size += ProtoSize::calc_float(1, msg.max_mireds);
   if (!msg.effects->empty()) {
-    for (const char *it : *msg.effects) {
-      size += ProtoSize::calc_length_force(1, strlen(it));
+    for (const auto &it : *msg.effects) {
+      size += ProtoSize::calc_length_force(1, it.size());
     }
   }
   size += ProtoSize::calc_bool(1, msg.disabled_by_default);

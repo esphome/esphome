@@ -1019,6 +1019,43 @@ async def nec_action(var, config, args):
     cg.add(var.set_command_repeats(template_))
 
 
+# Onkyo RI
+OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, OnkyoRIAction, OnkyoRIDumper = (
+    declare_protocol("OnkyoRI")
+)
+ONKYORI_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_int_range(0, 0xFFF)})
+
+
+@register_binary_sensor("onkyori", OnkyoRIBinarySensor, ONKYORI_SCHEMA)
+def onkyori_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                OnkyoRIData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("onkyori", OnkyoRITrigger, OnkyoRIData)
+def onkyori_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("onkyori", OnkyoRIDumper)
+def onkyori_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+@register_action("onkyori", OnkyoRIAction, ONKYORI_SCHEMA)
+async def onkyori_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
+    cg.add(var.set_data(template_))
+
+
 # Pioneer
 (
     PioneerData,
@@ -2061,11 +2098,20 @@ def midea_dumper(var, config):
     pass
 
 
+async def _code_bytes(
+    value: Any, args: TemplateArgsType, set_template: MockObj, set_static: MockObj
+) -> None:
+    """Constant codes share one PROGMEM table pool across the remote protocols."""
+    await automation.templatable_bytes(
+        value, args, set_template, set_static, "remote_base_code"
+    )
+
+
 @register_action("midea", MideaAction, MIDEA_SCHEMA)
 async def midea_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # AEHA
@@ -2117,10 +2163,9 @@ def aeha_dumper(var, config):
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    template_ = await cg.templatable(
-        config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
+    await _code_bytes(
+        config[CONF_DATA], args, var.set_data_template, var.set_data_static
     )
-    cg.add(var.set_data(template_))
     templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
     cg.add(var.set_carrier_frequency(templ))
 
@@ -2216,9 +2261,9 @@ def haier_dumper(var, config):
 
 @register_action("haier", HaierAction, HAIER_SCHEMA)
 async def haier_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # ABBWelcome
@@ -2359,9 +2404,9 @@ def mirage_dumper(var, config):
 
 @register_action("mirage", MirageAction, MIRAGE_SCHEMA)
 async def mirage_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # Toto
