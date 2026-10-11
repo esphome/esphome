@@ -259,8 +259,7 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
 
   // The crop is a multiple of four pixels, counted from the corner of the crop in use.
   const int offset_x = std::clamp(area.offset_x - area.offset_x % OV2640_CROP_STEP, 0, crop.width - OV2640_CROP_STEP);
-  const int offset_y =
-      std::clamp(area.offset_y - area.offset_y % OV2640_CROP_STEP, 0, crop.height - OV2640_CROP_STEP);
+  const int offset_y = std::clamp(area.offset_y - area.offset_y % OV2640_CROP_STEP, 0, crop.height - OV2640_CROP_STEP);
   int width = std::min(area.width, crop.width - offset_x);
   int height = std::min(area.height, crop.height - offset_y);
   width = std::max(width - width % OV2640_CROP_STEP, OV2640_CROP_STEP);
