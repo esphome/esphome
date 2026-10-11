@@ -13,9 +13,9 @@ struct PioneerData {
 
 class PioneerProtocol : public RemoteProtocol<PioneerData> {
  public:
-  void encode(RemoteTransmitData *dst, const PioneerData &data) override;
-  optional<PioneerData> decode(RemoteReceiveData src) override;
-  void dump(const PioneerData &data) override;
+  void encode(RemoteTransmitData *dst, const PioneerData &data);
+  optional<PioneerData> decode(RemoteReceiveData src);
+  void dump(const PioneerData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Pioneer)

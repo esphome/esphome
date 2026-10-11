@@ -9,6 +9,7 @@ from esphome.const import (
     UNIT_MILLIAMP,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_SY6970_ID, SY6970Component, sy6970_ns
 
@@ -71,25 +72,12 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_SY6970_ID])
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_SY6970_ID])
 
-    if vbus_voltage_config := config.get(CONF_VBUS_VOLTAGE):
-        sens = await sensor.new_sensor(vbus_voltage_config)
-        cg.add(parent.add_listener(sens))
-
-    if battery_voltage_config := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(battery_voltage_config)
-        cg.add(parent.add_listener(sens))
-
-    if system_voltage_config := config.get(CONF_SYSTEM_VOLTAGE):
-        sens = await sensor.new_sensor(system_voltage_config)
-        cg.add(parent.add_listener(sens))
-
-    if charge_current_config := config.get(CONF_CHARGE_CURRENT):
-        sens = await sensor.new_sensor(charge_current_config)
-        cg.add(parent.add_listener(sens))
-
-    if precharge_current_config := config.get(CONF_PRECHARGE_CURRENT):
-        sens = await sensor.new_sensor(precharge_current_config)
-        cg.add(parent.add_listener(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VBUS_VOLTAGE, hub.add_listener)
+    await sensors(CONF_BATTERY_VOLTAGE, hub.add_listener)
+    await sensors(CONF_SYSTEM_VOLTAGE, hub.add_listener)
+    await sensors(CONF_CHARGE_CURRENT, hub.add_listener)
+    await sensors(CONF_PRECHARGE_CURRENT, hub.add_listener)

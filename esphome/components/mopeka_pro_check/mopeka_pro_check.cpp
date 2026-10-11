@@ -1,11 +1,9 @@
 #include "mopeka_pro_check.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::mopeka_pro_check {
 
-static const char *const TAG = "mopeka_pro_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_pro_check");
 static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
 static const uint16_t MANUFACTURER_ID = 0x0059;
 static const double MOPEKA_LPG_COEF[] = {0.573045, -0.002822, -0.00000535};  // Magic numbers provided by Mopeka
@@ -25,7 +23,7 @@ void MopekaProCheck::dump_config() {
  * Check if advertisement is for our sensor and if so decode it and
  * update the sensor state data.
  */
-bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     return false;
   }
@@ -154,5 +152,3 @@ SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t>
 }
 
 }  // namespace esphome::mopeka_pro_check
-
-#endif

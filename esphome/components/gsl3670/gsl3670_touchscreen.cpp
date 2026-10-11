@@ -4,7 +4,7 @@
 
 namespace esphome::gsl3670 {
 
-static const char *const TAG = "gsl3670.touchscreen";
+ESPHOME_LOG_TAG(TAG, "gsl3670.touchscreen");
 static const size_t MAX_TOUCHES = 3;
 // ---------------------------------------------------------------------------
 // setup() – mirrors esp_lcd_touch_gsl3670_init() in the Seeed BSP:
