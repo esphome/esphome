@@ -172,8 +172,6 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint8_t passive_frame_[PASSIVE_FRAME_MAX_SIZE];
   uint8_t data_[FRAME_SIZE];
 
-#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-#endif
   friend class testing::TestableUFM01;
 };
 

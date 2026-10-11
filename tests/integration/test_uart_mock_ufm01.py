@@ -15,8 +15,8 @@ test_uart_mock_ufm01_escalation:
   Eight unanswered passive polls send a reset and run the startup sequence again; values publish
   once the meter answers, and the diagnostics are not published again.
 test_uart_mock_ufm01_clear_action:
-  The clear command waits for an idle UART, the automation continues after the ACK, and after the
-  ACK timeout when the meter does not answer.
+  The clear command is sent once the UART is idle while the automation continues at once; the
+  meter's ACK, or its absence, is only logged, and a second request joins the pending one.
 """
 
 from __future__ import annotations
