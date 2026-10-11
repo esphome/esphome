@@ -4,3 +4,9 @@ button:
     id: some_button
     on_press:
       - logger.log: Button pressed
+
+esphome:
+  on_boot:
+    - button.press: some_button
+    - button.press:
+        id: some_button

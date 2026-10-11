@@ -1,15 +1,12 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::pzemac {
-
-template<typename... Ts> class ResetEnergyAction;
 
 class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
@@ -22,30 +19,21 @@ class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice 
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                               modbus::ResponseStatus status) override;
+  void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          modbus::ResponseStatus status) override;
 
   void dump_config() override;
+  void reset_energy();
 
  protected:
-  template<typename... Ts> friend class ResetEnergyAction;
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *energy_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};
   sensor::Sensor *power_factor_sensor_{nullptr};
-
-  void reset_energy_();
-};
-
-template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
- public:
-  ResetEnergyAction(PZEMAC *pzemac) : pzemac_(pzemac) {}
-
-  void play(const Ts &...x) override { this->pzemac_->reset_energy_(); }
-
- protected:
-  PZEMAC *pzemac_;
 };
 
 }  // namespace esphome::pzemac

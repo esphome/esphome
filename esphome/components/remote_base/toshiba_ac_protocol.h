@@ -14,9 +14,9 @@ struct ToshibaAcData {
 
 class ToshibaAcProtocol : public RemoteProtocol<ToshibaAcData> {
  public:
-  void encode(RemoteTransmitData *dst, const ToshibaAcData &data) override;
-  optional<ToshibaAcData> decode(RemoteReceiveData src) override;
-  void dump(const ToshibaAcData &data) override;
+  void encode(RemoteTransmitData *dst, const ToshibaAcData &data);
+  optional<ToshibaAcData> decode(RemoteReceiveData src);
+  void dump(const ToshibaAcData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(ToshibaAc)

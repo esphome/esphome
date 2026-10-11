@@ -6,7 +6,7 @@
 
 namespace esphome::pcf8563 {
 
-static const char *const TAG = "PCF8563";
+ESPHOME_LOG_TAG(TAG, "PCF8563");
 
 void PCF8563Component::setup() {
   if (!this->read_rtc_()) {

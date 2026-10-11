@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.keeloq";
+ESPHOME_LOG_TAG(TAG, "remote.keeloq");
 
 static constexpr uint32_t BIT_TIME_US = 380;
 static constexpr uint8_t NBITS_PREAMBLE = 12;

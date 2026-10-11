@@ -1,0 +1,3 @@
+packages:
+  duty_time: !include common.yaml
+  actions: !include common-actions.yaml

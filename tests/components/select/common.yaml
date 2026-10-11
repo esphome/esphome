@@ -1,0 +1,101 @@
+select:
+  - platform: template
+    name: "Test Select"
+    id: select_test_select
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: two
+
+button:
+  - platform: template
+    name: "Test Select Actions"
+    on_press:
+      - select.set:
+          id: select_test_select
+          option: three
+      - select.set:
+          id: select_test_select
+          option: !lambda |-
+            std::string option = "one";
+            return option;
+      - select.set_index:
+          id: select_test_select
+          index: 1
+      - select.set_index:
+          id: select_test_select
+          index: !lambda return 2;
+      - select.next: select_test_select
+      - select.previous:
+          id: select_test_select
+          cycle: false
+      - select.first: select_test_select
+      - select.last: select_test_select
+      - if:
+          condition:
+            select.is:
+              id: select_test_select
+              options: [one, two]
+          then:
+            - select.next: select_test_select
+      - if:
+          condition:
+            select.is:
+              id: select_test_select
+              lambda: return current == "three";
+          then:
+            - select.first: select_test_select
+      - select.operation:
+          id: select_test_select
+          operation: next
+          cycle: false
+      - select.operation:
+          id: select_test_select
+          operation: !lambda return SELECT_OP_PREVIOUS;
+          cycle: !lambda return true;
+  - platform: template
+    name: "Test Select Options Lambdas"
+    on_press:
+      - lambda: |-
+          auto &options = id(select_test_select).traits.get_options();
+          for (size_t i = 0; i < options.size(); i++)
+            ESP_LOGD("test", "%s", options[i]);
+      - lambda: |-
+          std::string wanted = "two";
+          const auto &opts = id(select_test_select).traits.get_options();
+          if (opts.empty())
+            return;
+          for (int i = 0; i < (int) opts.size(); i++) {
+            if (opts[i] == wanted)
+              ESP_LOGD("test", "found at %d", i);
+          }
+          if (id(select_test_select).traits.get_options()[0] == wanted)
+            ESP_LOGD("test", "first");
+          auto it = std::find(opts.begin(), opts.end(), std::string("three"));
+          ESP_LOGD("test", "index %d", (int) (it - opts.begin()));
+      - lambda: |-
+          static std::vector<std::string> names{"red", "green"};
+          FixedVector<const char *> fresh;
+          fresh.init(names.size());
+          for (auto &name : names)
+            fresh.push_back(name.c_str());
+          if (id(select_test_select).traits.get_options().size() != fresh.size())
+            id(select_test_select).traits.set_options(fresh);
+          id(select_test_select).traits.set_options({"one", "two", "three"});
+      - lambda: |-
+          const char *value = "two";
+          const auto &options = id(select_test_select).traits.get_options();
+          const auto *it = std::find_if(options.begin(), options.end(),
+                                        [value](const char *option) { return strcmp(option, value) == 0; });
+          if (it == options.end())
+            return;
+          uint32_t index = (uint32_t) (it - options.begin());
+          ESP_LOGD("test", "index %u", (unsigned) index);
+          const auto *it2 = std::find(options.begin(), options.end(), options[0]);
+          ESP_LOGD("test", "first at %d", (int) (it2 - options.begin()));
+      - lambda: |-
+          auto &options = id(select_test_select).traits.get_options();
+          for (size_t i = 0; i < options.size(); i++)
+            ESP_LOGD("test", "%u: %s", (unsigned) i, options.at(i));

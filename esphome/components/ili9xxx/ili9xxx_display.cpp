@@ -116,8 +116,8 @@ void ILI9XXXDisplay::dump_config() {
                 "  Mirror_x: %s\n"
                 "  Mirror_y: %s\n"
                 "  Invert colors: %s",
-                this->color_order_ == display::COLOR_ORDER_BGR ? "BGR" : "RGB", YESNO(this->swap_xy_),
-                YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->pre_invertcolors_));
+                this->color_order_ == display::COLOR_ORDER_BGR ? LOG_STR_LITERAL("BGR") : LOG_STR_LITERAL("RGB"),
+                YESNO(this->swap_xy_), YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->pre_invertcolors_));
 
   if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");

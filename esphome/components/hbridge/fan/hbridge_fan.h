@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/fan/fan.h"
@@ -44,15 +43,6 @@ class HBridgeFan final : public Component, public fan::Fan {
 
   void set_hbridge_levels_(float a_level, float b_level);
   void set_hbridge_levels_(float a_level, float b_level, float enable);
-};
-
-template<typename... Ts> class BrakeAction final : public Action<Ts...> {
- public:
-  explicit BrakeAction(HBridgeFan *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->brake(); }
-
-  HBridgeFan *parent_;
 };
 
 }  // namespace esphome::hbridge

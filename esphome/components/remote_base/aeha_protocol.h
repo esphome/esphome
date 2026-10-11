@@ -15,9 +15,9 @@ struct AEHAData {
 
 class AEHAProtocol : public RemoteProtocol<AEHAData> {
  public:
-  void encode(RemoteTransmitData *dst, const AEHAData &data) override;
-  optional<AEHAData> decode(RemoteReceiveData src) override;
-  void dump(const AEHAData &data) override;
+  void encode(RemoteTransmitData *dst, const AEHAData &data);
+  optional<AEHAData> decode(RemoteReceiveData src);
+  void dump(const AEHAData &data);
 
  private:
   std::string format_data_(const std::vector<uint8_t> &data);
@@ -28,10 +28,9 @@ DECLARE_REMOTE_PROTOCOL(AEHA)
 template<typename... Ts> class AEHAAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, data)
+  TEMPLATABLE_BYTES(data)
   TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
-  void set_data(const std::vector<uint8_t> &data) { data_ = data; }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     AEHAData data{};
     data.address = this->address_.value(x...);
