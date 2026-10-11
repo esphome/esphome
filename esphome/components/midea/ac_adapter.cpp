@@ -1,4 +1,4 @@
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/log.h"
 #include "ac_adapter.h"
@@ -6,9 +6,9 @@
 namespace esphome::midea::ac {
 
 const char *const Constants::TAG = "midea";
-const char *const Constants::FREEZE_PROTECTION = "freeze protection";
-const char *const Constants::SILENT = "silent";
-const char *const Constants::TURBO = "turbo";
+const char *const Constants::FREEZE_PROTECTION = "Freeze Protection";
+const char *const Constants::SILENT = "Silent";
+const char *const Constants::TURBO = "Turbo";
 
 ClimateMode Converters::to_climate_mode(MideaMode mode) {
   switch (mode) {
@@ -172,4 +172,4 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

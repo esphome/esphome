@@ -41,7 +41,7 @@ static const uint8_t REPEATING_MESSAGE_ORDER = 255;
 static const uint8_t INITIAL_UNORDERED_MESSAGE_ORDER = 254;
 
 // OpenTherm component for ESPHome
-class OpenthermHub : public Component {
+class OpenthermHub final : public Component {
  protected:
   // Communication pins for the OpenTherm interface
   InternalGPIOPin *in_pin_, *out_pin_;

@@ -30,3 +30,8 @@ script:
           id: speaker_media_player_id
           media_file: speaker_test_audio
           announcement: true
+      - media_player.speaker.play_on_device_media_file:
+          id: speaker_media_player_id
+          media_file: speaker_test_audio
+          announcement: !lambda return id(speaker_my_number).state > 50;
+          enqueue: !lambda return id(speaker_my_number).state < 50;

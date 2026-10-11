@@ -7,9 +7,9 @@
 
 namespace esphome::tca9555 {
 
-class TCA9555Component : public Component,
-                         public i2c::I2CDevice,
-                         public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class TCA9555Component final : public Component,
+                               public i2c::I2CDevice,
+                               public gpio_expander::CachedGpioExpander<uint8_t, 16> {
  public:
   TCA9555Component() = default;
 
@@ -27,9 +27,10 @@ class TCA9555Component : public Component,
 
  protected:
   static void IRAM_ATTR gpio_intr(TCA9555Component *arg);
-  bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
-  void digital_write_hw(uint8_t pin, bool value) override;
+  // Virtual methods from GpioExpander base class — names come from base
+  bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
+  bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
+  void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
   /// Mask for the pin mode - 1 means output, 0 means input
   uint16_t mode_mask_{0x00};
@@ -46,7 +47,7 @@ class TCA9555Component : public Component,
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
-class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
+class TCA9555GPIOPin final : public GPIOPin, public Parented<TCA9555Component> {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;

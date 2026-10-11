@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_PIN,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from .. import gpio_ns
 
@@ -39,7 +40,6 @@ CONFIG_SCHEMA = (
             # due to hardware limitations or lack of reliable interrupt support. This ensures
             # stable operation on these platforms. Future maintainers should verify platform
             # capabilities before changing this default behavior.
-            # nrf52 has no gpio interrupts implemented yet
             cv.SplitDefault(
                 CONF_USE_INTERRUPT,
                 bk72xx=False,
@@ -47,8 +47,8 @@ CONFIG_SCHEMA = (
                 esp8266=True,
                 host=True,
                 ln882x=False,
-                nrf52=False,
-                rp2040=True,
+                nrf52=True,
+                rp2=True,
                 rtl87xx=False,
             ): cv.boolean,
             cv.Optional(CONF_INTERRUPT_TYPE, default="ANY"): cv.enum(
@@ -69,12 +69,10 @@ def _pin_shared_only_with_deep_sleep(pin_num: int) -> bool:
     return any(path and path[0] == "deep_sleep" for path, _, _ in pin_users)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     use_interrupt = config[CONF_USE_INTERRUPT]
     if not use_interrupt:
-        return config
-
-    pin_num = config[CONF_PIN][CONF_NUMBER]
+        return
 
     # Expander pins (e.g. PCF8574, MCP23017) don't support direct interrupt
     # attachment — only internal/native GPIO pins do.
@@ -85,7 +83,9 @@ def _final_validate(config):
             config.get(CONF_NAME, config[CONF_ID]),
         )
         config[CONF_USE_INTERRUPT] = False
-        return config
+        return
+
+    pin_num = config[CONF_PIN][CONF_NUMBER]
 
     # GPIO16 on ESP8266 doesn't support interrupts through attachInterrupt().
     if CORE.is_esp8266 and pin_num == 16:
@@ -97,7 +97,7 @@ def _final_validate(config):
             config.get(CONF_NAME, config[CONF_ID]),
         )
         config[CONF_USE_INTERRUPT] = False
-        return config
+        return
 
     # When a pin is shared, interrupts can interfere with other components
     # (e.g., duty_cycle sensor) that need to monitor the pin's state changes.
@@ -121,13 +121,11 @@ def _final_validate(config):
                 pin_num,
             )
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
@@ -135,6 +133,7 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
 
     if config[CONF_USE_INTERRUPT]:
+        cg.add_define("USE_GPIO_BINARY_SENSOR_INTERRUPT")
         cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
     else:
         cg.add(var.set_use_interrupt(False))

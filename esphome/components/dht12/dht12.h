@@ -6,7 +6,7 @@
 
 namespace esphome::dht12 {
 
-class DHT12Component : public PollingComponent, public i2c::I2CDevice {
+class DHT12Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

@@ -3,7 +3,7 @@
 
 namespace esphome::x9c {
 
-static const char *const TAG = "x9c.output";
+ESPHOME_LOG_TAG(TAG, "x9c.output");
 
 void X9cOutput::trim_value(int32_t change_amount) {
   if (change_amount == 0) {
@@ -44,7 +44,7 @@ void X9cOutput::setup() {
   this->ud_pin_->get_pin();
   this->ud_pin_->setup();
 
-  if (this->initial_value_ <= 0.50) {
+  if (this->initial_value_ <= 0.50f) {
     this->trim_value(-101);  // Set min value (beyond 0)
     this->trim_value(lroundf(this->initial_value_ * 100));
   } else {

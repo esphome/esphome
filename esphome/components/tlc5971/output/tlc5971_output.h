@@ -8,7 +8,7 @@
 
 namespace esphome::tlc5971 {
 
-class TLC5971Channel : public output::FloatOutput, public Parented<TLC5971> {
+class TLC5971Channel final : public output::FloatOutput, public Parented<TLC5971> {
  public:
   void set_channel(uint16_t channel) { this->channel_ = channel; }
 

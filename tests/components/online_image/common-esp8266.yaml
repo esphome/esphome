@@ -6,7 +6,7 @@ packages:
 display:
   - platform: ili9xxx
     spi_id: spi_bus
-    id: main_lcd
+    id: online_image_main_lcd
     model: ili9342
     cs_pin: 15
     dc_pin: 3

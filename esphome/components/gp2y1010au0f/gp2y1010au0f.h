@@ -7,7 +7,7 @@
 
 namespace esphome::gp2y1010au0f {
 
-class GP2Y1010AU0FSensor : public sensor::Sensor, public PollingComponent {
+class GP2Y1010AU0FSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void update() override;
   void loop() override;

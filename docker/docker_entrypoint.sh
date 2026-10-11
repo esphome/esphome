@@ -21,10 +21,27 @@ export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
 export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
 export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
 
+# Keep the native toolchain installs and compiler caches on the persistent
+# cache root, not the container's user cache dir: it is lost on every
+# restart, and not writable when the container runs as a non-root user.
+export ESPHOME_ESP_IDF_PREFIX="$(dirname "${pio_cache_base}")/idf"
+export ESPHOME_SDK_NRF_PREFIX="$(dirname "${pio_cache_base}")/sdk-nrf"
+export ESPHOME_ARDUINO8266_PREFIX="$(dirname "${pio_cache_base}")/arduino8266"
+export ESPHOME_HOST_PREFIX="$(dirname "${pio_cache_base}")/host"
+export ESPHOME_PLATFORMIO_CCACHE_DIR="$(dirname "${pio_cache_base}")/platformio-ccache"
+
 # If /build is mounted, use that as the build path
 # otherwise use path in /config (so that builds aren't lost on container restart)
 if [[ -d /build ]]; then
     export ESPHOME_BUILD_PATH=/build
+fi
+
+# The default CMD is "dashboard /config". Route the dashboard to the new
+# Device Builder, but pass every other subcommand (compile, run, config,
+# logs, ...) straight through to the esphome CLI so direct CLI use keeps working.
+if [[ "$1" == "dashboard" ]]; then
+    shift
+    exec esphome-device-builder "$@"
 fi
 
 exec esphome "$@"

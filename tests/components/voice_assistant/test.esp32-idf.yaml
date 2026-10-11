@@ -1,9 +1,9 @@
 substitutions:
-  i2s_lrclk_pin: GPIO4
-  i2s_bclk_pin: GPIO5
-  i2s_mclk_pin: GPIO15
-  i2s_din_pin: GPIO13
-  i2s_din_pin2: GPIO14
-  i2s_dout_pin: GPIO12
+  i2s_din_pin: GPIO34
+  i2s_din_pin2: GPIO35
+  i2s_dout_pin: GPIO32
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
 
 <<: !include common-idf.yaml

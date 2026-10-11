@@ -26,14 +26,12 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 
 pzemac_ns = cg.esphome_ns.namespace("pzemac")
-PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusDevice)
-
-# Actions
-ResetEnergyAction = pzemac_ns.class_("ResetEnergyAction", automation.Action)
+PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusClientDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -82,47 +80,33 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzemac.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(PZEMAC),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-async def to_code(config):
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("pzemac", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-    if CONF_ENERGY in config:
-        conf = config[CONF_ENERGY]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor(sens))
-    if CONF_FREQUENCY in config:
-        conf = config[CONF_FREQUENCY]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_frequency_sensor(sens))
-    if CONF_POWER_FACTOR in config:
-        conf = config[CONF_POWER_FACTOR]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_factor_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
+    await sensors(CONF_POWER_FACTOR, var.set_power_factor_sensor)

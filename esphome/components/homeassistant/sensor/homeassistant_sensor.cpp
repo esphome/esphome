@@ -5,7 +5,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.sensor";
+ESPHOME_LOG_TAG(TAG, "homeassistant.sensor");
 
 void HomeassistantSensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
@@ -17,9 +17,9 @@ void HomeassistantSensor::setup() {
     }
 
     if (this->attribute_ != nullptr) {
-      ESP_LOGD(TAG, "'%s::%s': Got attribute state %.2f", this->entity_id_, this->attribute_, *val);
+      ESP_LOGV(TAG, "'%s::%s': Got attribute state %.2f", this->entity_id_, this->attribute_, *val);
     } else {
-      ESP_LOGD(TAG, "'%s': Got state %.2f", this->entity_id_, *val);
+      ESP_LOGV(TAG, "'%s': Got state %.2f", this->entity_id_, *val);
     }
     this->publish_state(*val);
   });

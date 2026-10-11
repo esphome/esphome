@@ -4,7 +4,7 @@
 
 namespace esphome::sds011 {
 
-static const char *const TAG = "sds011";
+ESPHOME_LOG_TAG(TAG, "sds011");
 
 static const uint8_t SDS011_MSG_REQUEST_LENGTH = 19;
 static const uint8_t SDS011_MSG_RESPONSE_LENGTH = 10;
@@ -73,7 +73,6 @@ void SDS011Component::dump_config() {
                 this->update_interval_min_, ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-  this->check_uart_settings(9600);
 }
 
 void SDS011Component::loop() {
@@ -106,8 +105,6 @@ void SDS011Component::loop() {
     }
   }
 }
-
-void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
   this->write_byte(SDS011_MSG_HEAD);

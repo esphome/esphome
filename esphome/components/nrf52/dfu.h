@@ -6,7 +6,7 @@
 #include "esphome/core/gpio.h"
 
 namespace esphome::nrf52 {
-class DeviceFirmwareUpdate : public Component {
+class DeviceFirmwareUpdate final : public Component {
  public:
   void setup() override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }

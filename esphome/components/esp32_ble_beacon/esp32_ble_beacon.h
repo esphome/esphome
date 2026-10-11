@@ -5,7 +5,7 @@
 
 #ifdef USE_ESP32
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #endif
 #include <esp_gap_ble_api.h>
@@ -34,7 +34,7 @@ using esp_ble_ibeacon_t = struct {
 
 using namespace esp32_ble;
 
-class ESP32BLEBeacon : public Component {
+class ESP32BLEBeacon final : public Component {
  public:
   explicit ESP32BLEBeacon(const std::array<uint8_t, 16> &uuid) : uuid_(uuid) {}
 
@@ -47,7 +47,7 @@ class ESP32BLEBeacon : public Component {
   void set_min_interval(uint16_t val) { this->min_interval_ = val; }
   void set_max_interval(uint16_t val) { this->max_interval_ = val; }
   void set_measured_power(int8_t val) { this->measured_power_ = val; }
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   void set_tx_power(esp_power_level_t val) { this->tx_power_ = val; }
 #endif
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
@@ -61,7 +61,7 @@ class ESP32BLEBeacon : public Component {
   uint16_t min_interval_{};
   uint16_t max_interval_{};
   int8_t measured_power_{};
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   esp_power_level_t tx_power_{};
 #endif
   esp_ble_adv_params_t ble_adv_params_;

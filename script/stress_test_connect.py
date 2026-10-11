@@ -21,7 +21,7 @@ async def connect_disconnect(client_id: int, iteration: int) -> tuple[int, bool,
         await asyncio.wait_for(cli.connect(login=True), timeout=10)
         await cli.disconnect()
         return iteration, True, ""
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return (
             iteration,
             False,

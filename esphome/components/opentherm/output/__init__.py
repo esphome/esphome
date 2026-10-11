@@ -21,7 +21,7 @@ async def new_openthermoutput(
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
-    cg.add(getattr(var, "set_id")(cg.RawExpression(f'"{key}_{config[CONF_ID]}"')))
+    cg.add(var.set_id(cg.RawExpression(f'"{key}_{config[CONF_ID]}"')))
     input.generate_setters(var, config)
     return var
 

@@ -5,7 +5,7 @@
 
 namespace esphome::ft5x06 {
 
-static const char *const TAG = "ft5x06.touchscreen";
+ESPHOME_LOG_TAG(TAG, "ft5x06.touchscreen");
 
 void FT5x06Touchscreen::setup() {
   if (this->interrupt_pin_ != nullptr) {
@@ -13,6 +13,16 @@ void FT5x06Touchscreen::setup() {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
+  }
+
+  // reading the chip registers to get max x/y does not seem to work.
+  if (this->display_ != nullptr) {
+    if (this->x_raw_max_ == this->x_raw_min_) {
+      this->x_raw_max_ = this->display_->get_native_width();
+    }
+    if (this->y_raw_max_ == this->y_raw_min_) {
+      this->y_raw_max_ = this->display_->get_native_height();
+    }
   }
 
   // wait 200ms after reset.
@@ -39,15 +49,6 @@ void FT5x06Touchscreen::continue_setup_() {
       this->mark_failed();
       return;
   }
-  // reading the chip registers to get max x/y does not seem to work.
-  if (this->display_ != nullptr) {
-    if (this->x_raw_max_ == this->x_raw_min_) {
-      this->x_raw_max_ = this->display_->get_native_width();
-    }
-    if (this->y_raw_max_ == this->y_raw_min_) {
-      this->y_raw_max_ = this->display_->get_native_height();
-    }
-  }
 }
 
 void FT5x06Touchscreen::update_touches() {
@@ -71,7 +72,7 @@ void FT5x06Touchscreen::update_touches() {
     uint16_t x = encode_uint16(data[i][0] & 0x0F, data[i][1]);
     uint16_t y = encode_uint16(data[i][2] & 0xF, data[i][3]);
 
-    ESP_LOGD(TAG, "Read %X status, id: %d, pos %d/%d", status, id, x, y);
+    ESP_LOGV(TAG, "Read %X status, id: %d, pos %d/%d", status, id, x, y);
     if (status == 0 || status == 2) {
       this->add_raw_touch_position_(id, x, y);
     }

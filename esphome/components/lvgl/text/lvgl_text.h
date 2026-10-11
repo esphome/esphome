@@ -6,7 +6,7 @@
 
 namespace esphome::lvgl {
 
-class LVGLText : public text::Text {
+class LVGLText final : public text::Text {
  public:
   void set_control_lambda(const std::function<void(std::string)> &control_lambda) {
     this->control_lambda_ = control_lambda;

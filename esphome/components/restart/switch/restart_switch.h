@@ -5,8 +5,11 @@
 
 namespace esphome::restart {
 
-class RestartSwitch : public switch_::Switch, public Component {
+class RestartSwitch final : public switch_::Switch, public Component {
  public:
+  // User provided, not "= default": `new(p) RestartSwitch()` would zero-fill .bss that is already zero.
+  RestartSwitch() {}
+
   void dump_config() override;
 
  protected:

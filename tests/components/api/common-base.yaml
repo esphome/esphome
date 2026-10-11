@@ -9,6 +9,14 @@ esphome:
           event: esphome.button_pressed
           data:
             message: Button was pressed
+      - homeassistant.event:
+          event: esphome.button_pressed_with_variables
+          data_template:
+            message: Button {{ button_name }} ({{ button_index }}) was pressed from {{ button_source }}
+          variables:
+            button_name: !lambda 'return std::string("test_button");'
+            button_index: !lambda 'return 1;'
+            button_source: static_value
       - homeassistant.action:
           action: notify.html5
           data:
@@ -53,8 +61,12 @@ api:
   reboot_timeout: 0min
   actions:
     - action: hello_world
+      description: Log a greeting
       variables:
-        name: string
+        name:
+          type: string
+          description: Name to greet
+          example: World
       then:
         - logger.log:
             format: Hello World %s!
@@ -80,7 +92,7 @@ api:
       then:
         - logger.log:
             # yamllint disable rule:line-length
-            format: "Bool: %s (%u), Int: %ld (%u), Float: %f (%u), String: %s (%u)"
+            format: "Bool: %s (%zu), Int: %ld (%zu), Float: %f (%zu), String: %s (%zu)"
             # yamllint enable rule:line-length
             args:
               - YESNO(bool_arr[0])
@@ -104,11 +116,71 @@ api:
       then:
         - delay: 20ms
         - logger.log:
-            format: "Delayed: %s (%u ints, %u strings)"
+            format: "Delayed: %s (%zu ints, %zu strings)"
             args:
               - name.c_str()
               - int_arr.size()
               - string_arr.size()
+    # Test string + array args used by homeassistant.action's deferred
+    # on_success/on_error response callback.  homeassistant.action registers
+    # synchronous=False, so the api codegen must fall back to owning
+    # std::string / std::vector args here: the non-owning defaults would
+    # dangle once rx_buf_ is reused before the response arrives, and the
+    # non-copyable FixedVector would fail to compile when captured into
+    # the response callback.
+    - action: action_response_args
+      variables:
+        name: string
+        int_arr: int[]
+      then:
+        - homeassistant.action:
+            action: notify.notify
+            data:
+              message: !lambda 'return name;'
+            on_success:
+              - logger.log:
+                  format: "Notified %s (%zu ints)"
+                  args:
+                    - name.c_str()
+                    - int_arr.size()
+            on_error:
+              - logger.log:
+                  format: "Notify failed (%s): %s"
+                  args:
+                    - error.c_str()
+                    - name.c_str()
+    # Constant and lambda fields mixed in one action, with lambdas of several
+    # return types reading the trigger args, and a templated action name
+    - action: test_homeassistant_fields
+      variables:
+        room: string
+        level: int
+      then:
+        - homeassistant.action:
+            action: !lambda 'return std::string("light.") + (level > 0 ? "turn_on" : "turn_off");'
+            data:
+              entity_id: light.living_room
+              brightness: !lambda 'return level;'
+            data_template:
+              message: "{{ room }} is at {{ level }}"
+            variables:
+              room: !lambda 'return room.c_str();'
+              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", level); return buf;'
+        - homeassistant.action:
+            action: notify.html5
+            data:
+              message: Button was pressed
+        # Same constant fields as above, so codegen can share them
+        - homeassistant.action:
+            action: notify.html5
+            data:
+              message: Button was pressed
+        - homeassistant.event:
+            event: esphome.room_level
+            data:
+              room: !lambda 'return room;'
+              ratio: !lambda 'return level / 100.0f;'
+        - homeassistant.tag_scanned: !lambda 'return room;'
     # Test ContinuationAction (IfAction with then/else branches)
     - action: test_if_action
       variables:
@@ -120,12 +192,12 @@ api:
               lambda: 'return condition;'
             then:
               - logger.log:
-                  format: "Condition true, value: %d"
-                  args: ['value']
+                  format: "Condition true, value: %ld"
+                  args: ['(long) value']
             else:
               - logger.log:
-                  format: "Condition false, value: %d"
-                  args: ['value']
+                  format: "Condition false, value: %ld"
+                  args: ['(long) value']
         - logger.log: "After if/else"
     # Test nested IfAction (multiple ContinuationAction instances)
     - action: test_nested_if
@@ -171,8 +243,8 @@ api:
             count: !lambda 'return count;'
             then:
               - logger.log:
-                  format: "Repeat iteration: %d"
-                  args: ['iteration']
+                  format: "Repeat iteration: %lu"
+                  args: ['(unsigned long) iteration']
         - logger.log: "After repeat"
     # Test combined continuations (if + while + repeat)
     - action: test_combined_continuations
@@ -193,8 +265,8 @@ api:
                           lambda: 'return id(api_continuation_test_counter) > 0;'
                         then:
                           - logger.log:
-                              format: "Combined: repeat=%d, while=%d"
-                              args: ['iteration', 'id(api_continuation_test_counter)']
+                              format: "Combined: repeat=%lu, while=%d"
+                              args: ['(unsigned long) iteration', 'id(api_continuation_test_counter)']
                           - lambda: 'id(api_continuation_test_counter)--;'
             else:
               - logger.log: "Skipped loops"
@@ -208,8 +280,8 @@ api:
         - api.respond:
             success: true
         - logger.log:
-            format: "Status response sent (call_id=%d)"
-            args: [call_id]
+            format: "Status response sent (call_id=%lu)"
+            args: ['(unsigned long) call_id']
 
     - action: test_respond_status_error
       variables:
@@ -229,8 +301,8 @@ api:
         value: float
       then:
         - logger.log:
-            format: "Optional response (call_id=%d, return_response=%d)"
-            args: [call_id, return_response]
+            format: "Optional response (call_id=%lu, return_response=%lu)"
+            args: ['(unsigned long) call_id', '(unsigned long) return_response']
         - api.respond:
             data: !lambda |-
               root["sensor"] = sensor_name;
@@ -264,8 +336,8 @@ api:
         input: string
       then:
         - logger.log:
-            format: "Only response (call_id=%d)"
-            args: [call_id]
+            format: "Only response (call_id=%lu)"
+            args: ['(unsigned long) call_id']
         - api.respond:
             data: !lambda |-
               root["input"] = input;
@@ -296,7 +368,7 @@ api:
 event:
   - platform: template
     name: Test Event
-    id: test_event
+    id: api_test_event
     event_types:
       - single_click
       - double_click

@@ -7,9 +7,9 @@
 
 namespace esphome::m5stack_8angle {
 
-class M5Stack8AngleKnobSensor : public sensor::Sensor,
-                                public PollingComponent,
-                                public Parented<M5Stack8AngleComponent> {
+class M5Stack8AngleKnobSensor final : public sensor::Sensor,
+                                      public PollingComponent,
+                                      public Parented<M5Stack8AngleComponent> {
  public:
   void update() override;
   void set_channel(uint8_t channel) { this->channel_ = channel; };

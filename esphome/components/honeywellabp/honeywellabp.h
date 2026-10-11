@@ -8,9 +8,9 @@
 
 namespace esphome::honeywellabp {
 
-class HONEYWELLABPSensor : public PollingComponent,
-                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
+class HONEYWELLABPSensor final : public PollingComponent,
+                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                       spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
  public:
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }

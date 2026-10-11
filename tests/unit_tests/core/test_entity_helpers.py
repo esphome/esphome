@@ -34,7 +34,7 @@ from esphome.core.entity_helpers import (
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj
-from esphome.helpers import sanitize, snake_case
+from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
@@ -174,10 +174,11 @@ def test_empty_name_fallback() -> None:
 def test_name_add_mac_suffix_behavior() -> None:
     """Test behavior related to name_add_mac_suffix.
 
-    In C++, when name_add_mac_suffix is enabled and entity has no name,
-    get_object_id() returns str_sanitize(str_snake_case(App.get_friendly_name()))
-    dynamically. Our function always returns the same result since we're
-    calculating the base for duplicate tracking.
+    In C++, an entity's object_id is computed from its name_ via
+    write_object_id_to() (sanitized snake_case). When an entity has no name,
+    configure_entity_() sets name_ from the friendly name, with the MAC suffix
+    appended when name_add_mac_suffix is enabled. Our function always returns
+    the same result since we're calculating the base for duplicate tracking.
     """
     # The function should always return the same result regardless of
     # name_add_mac_suffix setting, as we're calculating the base object_id
@@ -514,9 +515,9 @@ def test_entity_duplicate_validator() -> None:
     config1 = {CONF_NAME: "Temperature"}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("", "sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
     # Check metadata was stored
-    metadata = CORE.unique_ids[("", "sensor", "temperature")]
+    metadata = CORE.unique_ids[("", "sensor", fnv1_hash("temperature"))]
     assert metadata["name"] == "Temperature"
     assert metadata["platform"] == "sensor"
 
@@ -524,8 +525,8 @@ def test_entity_duplicate_validator() -> None:
     config2 = {CONF_NAME: "Humidity"}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("", "sensor", "humidity") in CORE.unique_ids
-    metadata2 = CORE.unique_ids[("", "sensor", "humidity")]
+    assert ("", "sensor", fnv1_hash("humidity")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("", "sensor", fnv1_hash("humidity"))]
     assert metadata2["name"] == "Humidity"
 
     # Duplicate entity should fail
@@ -534,6 +535,34 @@ def test_entity_duplicate_validator() -> None:
         Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
     ):
         validator(config3)
+
+
+def test_entity_duplicate_validator_hash_collision() -> None:
+    """Test that two different object_ids with the same FNV-1 hash are rejected."""
+    # Brute-forced FNV-1 32-bit collision pair; both object_ids hash to 0xe95747e4
+    name_a = "Sensor aooxzi"
+    name_b = "Sensor baraia"
+    object_id_a = sanitize(snake_case(name_a))
+    object_id_b = sanitize(snake_case(name_b))
+    assert object_id_a != object_id_b
+    assert fnv1_hash(object_id_a) == fnv1_hash(object_id_b)
+
+    validator = entity_duplicate_validator("sensor")
+
+    config1 = {CONF_NAME: name_a}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    config2 = {CONF_NAME: name_b}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate sensor entity with name 'Sensor baraia' found.*"
+            r"produce the same entity key hash \(0xe95747e4\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
 
 
 def test_entity_duplicate_validator_with_devices() -> None:
@@ -549,15 +578,15 @@ def test_entity_duplicate_validator_with_devices() -> None:
     config1 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("device1", "sensor", "temperature") in CORE.unique_ids
-    metadata1 = CORE.unique_ids[("device1", "sensor", "temperature")]
+    assert ("device1", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata1 = CORE.unique_ids[("device1", "sensor", fnv1_hash("temperature"))]
     assert metadata1["device_id"] == "device1"
 
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device2}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("device2", "sensor", "temperature") in CORE.unique_ids
-    metadata2 = CORE.unique_ids[("device2", "sensor", "temperature")]
+    assert ("device2", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("device2", "sensor", fnv1_hash("temperature"))]
     assert metadata2["device_id"] == "device2"
 
     # Duplicate on same device should fail
@@ -667,7 +696,7 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated1 = validator(config1)
     assert validated1 == config1
     # New format includes device_id (empty string for main device)
-    assert ("", "sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
 
     # Internal entity with same name should pass (not added to unique_ids)
     config2 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
@@ -675,7 +704,9 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     assert validated2 == config2
     # Internal entity should not be added to unique_ids
     # Count how many times the key appears (should still be 1)
-    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
     assert count == 1
 
     # Another internal entity with same name should also pass
@@ -683,7 +714,9 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated3 = validator(config3)
     assert validated3 == config3
     # Still only one entry in unique_ids (from the non-internal entity)
-    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
     assert count == 1
 
     # Non-internal entity with same name should fail
@@ -1203,3 +1236,61 @@ async def test_finalize_comment_sanitization(
     # Newline must be replaced to prevent breaking out of comment
     assert "\n" not in comment_line
     assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_creates_and_sets(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """A configured key creates the entity, sets the parent before the setter and returns it."""
+    calls: list[tuple[Any, ...]] = []
+    created = MockObj("child")
+
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf, args, kwargs))
+        return created
+
+    async def fake_register_parented(var: MockObj, parent: MockObj) -> None:
+        setup_test_environment.append(f"parent {var} {parent}")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fake_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {}}, parent=hub)
+
+    assert await sub("child", hub.set_child, 1, step=2) is created
+    assert calls == [({}, (1,), {"step": 2})]
+    assert setup_test_environment == ["parent child hub", "hub->set_child(child)"]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_missing_key(setup_test_environment: list[str]) -> None:
+    """A missing key creates nothing and emits no code."""
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        raise AssertionError("must not be called")
+
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {})
+
+    assert await sub("child", hub.set_child) is None
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_parent(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Without a bound parent, register_parented is not called."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        return MockObj("child")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {CONF_ID: "child"}})
+
+    assert await sub("child", hub.set_child) is not None
+    assert setup_test_environment == ["hub->set_child(child)"]

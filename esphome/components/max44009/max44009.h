@@ -9,14 +9,14 @@ namespace esphome::max44009 {
 enum MAX44009Mode { MAX44009_MODE_AUTO, MAX44009_MODE_LOW_POWER, MAX44009_MODE_CONTINUOUS };
 
 /// This class implements support for the MAX44009 Illuminance i2c sensor.
-class MAX44009Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class MAX44009Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   MAX44009Sensor() {}
 
   void setup() override;
   void dump_config() override;
   void update() override;
-  void set_mode(MAX44009Mode mode);
+  void set_mode(MAX44009Mode mode) { this->mode_ = mode; }
   bool set_continuous_mode();
   bool set_low_power_mode();
 

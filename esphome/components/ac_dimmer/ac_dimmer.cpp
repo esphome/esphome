@@ -14,7 +14,7 @@
 
 namespace esphome::ac_dimmer {
 
-static const char *const TAG = "ac_dimmer";
+ESPHOME_LOG_TAG(TAG, "ac_dimmer");
 
 // Global array to store dimmer objects
 static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -216,7 +216,7 @@ void AcDimmer::setup() {
 }
 
 void AcDimmer::write_state(float state) {
-  state = std::acos(1 - (2 * state)) / std::numbers::pi;  // RMS power compensation
+  state = std::acos(1 - (2 * state)) / std::numbers::pi_v<float>;  // RMS power compensation
   auto new_value = static_cast<uint16_t>(roundf(state * 65535));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;

@@ -4,7 +4,6 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
-#include "esphome/core/wake.h"
 
 extern "C" {
 #include <zboss_api.h>
@@ -16,7 +15,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee";
+ESPHOME_LOG_TAG(TAG, "zigbee");
 
 ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -30,6 +29,9 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   switch (sig) {
     case ZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_SKIP_STARTUP, status: %d", status);
+      if (status == RET_OK) {
+        on_start_();
+      }
       break;
     case ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY, status: %d", status);
@@ -117,8 +119,6 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
-  esphome::wake_loop_threadsafe();
-
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
@@ -134,6 +134,13 @@ void ZigbeeComponent::on_join_(bool factory_new) {
   this->defer([this, factory_new]() {
     ESP_LOGD(TAG, "Joined the network");
     this->join_cb_.call(factory_new);
+  });
+}
+
+void ZigbeeComponent::on_start_() {
+  this->defer([this]() {
+    ESP_LOGD(TAG, "Started zigbee stack");
+    this->start_cb_.call();
   });
 }
 
@@ -187,6 +194,7 @@ void ZigbeeComponent::setup() {
   zigbee_configure_sleepy_behavior(this->sleepy_);
 #endif
   zigbee_enable();
+  this->disable_loop();
 }
 
 #ifdef ESPHOME_LOG_HAS_CONFIG
@@ -229,6 +237,7 @@ void ZigbeeComponent::dump_config() {
                 "  Wipe on boot: %s\n"
                 "  Device is joined to the network: %s\n"
                 "  Sleep time: %us\n"
+                "  Radio sleep time: %us\n"
                 "  RX ON when idle: %s\n"
                 "  Current channel: %d\n"
                 "  Current page: %d\n"
@@ -238,9 +247,10 @@ void ZigbeeComponent::dump_config() {
                 "  Short addr: 0x%04X\n"
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
-                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, YESNO(zb_get_rx_on_when_idle()),
-                zb_get_current_channel(), zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf,
-                zb_get_short_address(), extended_pan_id_buf, zb_get_pan_id());
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, this->radio_sleep_time_,
+                YESNO(zb_get_rx_on_when_idle()), zb_get_current_channel(), zb_get_current_page(),
+                zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf,
+                zb_get_pan_id());
   dump_reporting_();
 }
 
@@ -249,13 +259,24 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void ZigbeeComponent::force_report() { this->force_report_ = true; }
+void ZigbeeComponent::force_report() {
+  this->force_report_ = true;
+  this->enable_loop_soon_any_context();
+}
+
+void ZigbeeComponent::add_radio_sleep_time_ms(uint32_t ms) {
+  this->radio_sleep_remainder_ += ms;
+  uint32_t seconds = this->radio_sleep_remainder_ / 1000;
+  this->radio_sleep_remainder_ -= seconds * 1000;
+  this->radio_sleep_time_ += seconds;
+}
 
 void ZigbeeComponent::loop() {
   if (this->force_report_) {
     this->force_report_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
+  this->disable_loop();
 }
 
 void ZigbeeComponent::factory_reset() {
@@ -326,6 +347,36 @@ zb_ret_t __wrap_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_re
   zb_ret_t ret = __real_zb_zcl_put_reporting_info_from_req(config_rep_req, attr_addr_info);
   esphome::zigbee::global_zigbee->after_reporting_info(config_rep_req, attr_addr_info);
   return ret;
+}
+
+extern void __real_zb_trans_enter_sleep(void);
+extern void __real_zb_trans_enter_receive(void);
+extern zb_bool_t __real_zb_trans_transmit(zb_uint8_t wait_type, zb_time_t tx_at, zb_uint8_t *tx_buf,
+                                          zb_uint8_t current_channel);
+
+static uint32_t radio_sleep_start_ms = 0;
+
+static void stop_radio_sleep_timer() {
+  if (radio_sleep_start_ms) {
+    esphome::zigbee::global_zigbee->add_radio_sleep_time_ms(esphome::millis() - radio_sleep_start_ms);
+  }
+  radio_sleep_start_ms = 0;
+}
+
+void __wrap_zb_trans_enter_sleep(void) {
+  __real_zb_trans_enter_sleep();
+  radio_sleep_start_ms = esphome::millis();
+}
+
+void __wrap_zb_trans_enter_receive(void) {
+  stop_radio_sleep_timer();
+  __real_zb_trans_enter_receive();
+}
+
+zb_bool_t __wrap_zb_trans_transmit(zb_uint8_t wait_type, zb_time_t tx_at, zb_uint8_t *tx_buf,
+                                   zb_uint8_t current_channel) {
+  stop_radio_sleep_timer();
+  return __real_zb_trans_transmit(wait_type, tx_at, tx_buf, current_channel);
 }
 // NOLINTEND(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 }

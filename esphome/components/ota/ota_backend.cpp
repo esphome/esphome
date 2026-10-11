@@ -2,6 +2,34 @@
 
 namespace esphome::ota {
 
+bool version_is_older(const char *candidate, const char *reference) {
+  if (candidate == nullptr || reference == nullptr)
+    return false;
+  while (true) {
+    uint32_t a = 0;
+    while (*candidate >= '0' && *candidate <= '9') {
+      a = a * 10 + static_cast<uint32_t>(*candidate - '0');
+      candidate++;
+    }
+    uint32_t b = 0;
+    while (*reference >= '0' && *reference <= '9') {
+      b = b * 10 + static_cast<uint32_t>(*reference - '0');
+      reference++;
+    }
+    if (a != b)
+      return a < b;
+    // Components equal so far; advance past a single separator on each side.
+    const bool a_more = (*candidate == '.');
+    const bool b_more = (*reference == '.');
+    if (a_more)
+      candidate++;
+    if (b_more)
+      reference++;
+    if (!a_more && !b_more)
+      return false;  // Both strings exhausted with all components equal.
+  }
+}
+
 #ifdef USE_OTA_STATE_LISTENER
 OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

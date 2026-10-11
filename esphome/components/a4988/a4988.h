@@ -6,7 +6,7 @@
 
 namespace esphome::a4988 {
 
-class A4988 : public stepper::Stepper, public Component {
+class A4988 final : public stepper::Stepper, public Component {
  public:
   void set_step_pin(GPIOPin *step_pin) { step_pin_ = step_pin; }
   void set_dir_pin(GPIOPin *dir_pin) { dir_pin_ = dir_pin; }

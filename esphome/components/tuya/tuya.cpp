@@ -1,9 +1,12 @@
 #include "tuya.h"
-#include "esphome/components/network/util.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+
+#ifdef USE_NETWORK
+#include "esphome/components/network/util.h"
+#endif
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
@@ -15,15 +18,27 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya";
+ESPHOME_LOG_TAG(TAG, "tuya");
+
+static constexpr uint32_t HEARTBEAT_INTERVAL_ID = 0;
+static constexpr uint32_t WIFI_STATUS_INTERVAL_ID = 1;
+static constexpr uint32_t DATAPOINT_DUMP_TIMEOUT_ID = 2;
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
 // Max bytes to log for datapoint values (larger values are truncated)
 static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
 
+static bool network_is_connected() {
+#ifdef USE_NETWORK
+  return network::is_connected();
+#else
+  return false;
+#endif
+}
+
 void Tuya::setup() {
-  this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+  this->set_interval(HEARTBEAT_INTERVAL_ID, 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
   if (this->status_pin_ != nullptr) {
     this->status_pin_->digital_write(false);
   }
@@ -206,19 +221,21 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         if (this->status_pin_reported_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
-          bool is_pin_equals =
-              this->status_pin_ != nullptr && this->status_pin_->get_pin() == this->status_pin_reported_;
-          // Configure status pin toggling (if reported and configured) or WIFI_STATE periodic send
-          if (!is_pin_equals) {
-            ESP_LOGW(TAG, "Supplied status_pin does not equals the reported pin %i. Using supplied pin anyway.",
+          if (this->status_pin_ != nullptr) {
+            if (this->status_pin_->get_pin() != this->status_pin_reported_) {
+              ESP_LOGW(TAG, "Supplied status_pin does not equal the reported pin %i. Using supplied pin anyway.",
+                       this->status_pin_reported_);
+            }
+            ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_->get_pin());
+            this->set_interval(WIFI_STATUS_INTERVAL_ID, 1000, [this] { this->set_status_pin_(); });
+          } else {
+            ESP_LOGW(TAG, "MCU reported status_pin %i but no status_pin was configured; running in limited mode.",
                      this->status_pin_reported_);
           }
-          ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_->get_pin());
-          this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
           ESP_LOGV(TAG, "Configured WIFI_STATE periodic send");
-          this->set_interval("wifi", 1000, [this] { this->send_wifi_status_(); });
+          this->set_interval(WIFI_STATUS_INTERVAL_ID, 1000, [this] { this->send_wifi_status_(); });
         }
       }
       break;
@@ -257,7 +274,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       st.payload[0] = 0x04;
       this->send_command_(st);
       ESP_LOGI(TAG, "%s received (%s), replied with WIFI_STATE confirming connection established",
-               is_select ? "WIFI_SELECT" : "WIFI_RESET", mode_str);
+               is_select ? LOG_STR_LITERAL("WIFI_SELECT") : LOG_STR_LITERAL("WIFI_RESET"), mode_str);
       break;
     }
     case TuyaCommandType::DATAPOINT_DELIVER:
@@ -266,7 +283,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
+        this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_config(); });
         this->initialized_callback_.call();
       }
       this->handle_datapoints_(buffer, len);
@@ -299,6 +316,22 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #endif
       {
         ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
+      }
+      break;
+    case TuyaCommandType::GMT_TIME_QUERY:
+#ifdef USE_TIME
+      if (this->time_id_ != nullptr) {
+        this->send_gmt_time_();
+
+        if (!this->gmt_time_sync_callback_registered_) {
+          // tuya mcu supports time, so we let them know when our time changed
+          this->time_id_->add_on_time_sync_callback([this] { this->send_gmt_time_(); });
+          this->gmt_time_sync_callback_registered_ = true;
+        }
+      } else
+#endif
+      {
+        ESP_LOGW(TAG, "GMT_TIME_QUERY is not handled because time is not configured");
       }
       break;
     case TuyaCommandType::VACUUM_MAP_UPLOAD:
@@ -449,7 +482,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     // Run through listeners
     for (auto &listener : this->listeners_) {
       if (listener.datapoint_id == datapoint.id)
-        listener.on_datapoint(datapoint);
+        listener.on_datapoint.call(datapoint);
     }
   }
 }
@@ -536,14 +569,14 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
 }
 
 void Tuya::set_status_pin_() {
-  bool is_network_ready = network::is_connected() && remote_is_connected();
+  bool is_network_ready = network_is_connected() && remote_is_connected();
   this->status_pin_->digital_write(is_network_ready);
 }
 
 uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = 0x02;
 
-  if (network::is_connected()) {
+  if (network_is_connected()) {
     status = 0x03;
 
     // Protocol version 3 also supports specifying when connected to "the cloud"
@@ -606,6 +639,25 @@ void Tuya::send_local_time_() {
     payload = std::vector<uint8_t>{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   }
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::LOCAL_TIME_QUERY, .payload = payload});
+}
+void Tuya::send_gmt_time_() {
+  std::vector<uint8_t> payload;
+  ESPTime now = this->time_id_->utcnow();
+  if (now.is_valid()) {
+    uint8_t year = now.year - 2000;
+    uint8_t month = now.month;
+    uint8_t day_of_month = now.day_of_month;
+    uint8_t hour = now.hour;
+    uint8_t minute = now.minute;
+    uint8_t second = now.second;
+    ESP_LOGD(TAG, "Sending gmt time");
+    payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second};
+  } else {
+    // By spec we need to notify MCU that the time was not obtained if this is a response to a query
+    ESP_LOGW(TAG, "Sending missing gmt time");
+    payload = std::vector<uint8_t>{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  }
+  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::GMT_TIME_QUERY, .payload = payload});
 }
 #endif
 
@@ -744,18 +796,25 @@ void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datap
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_DELIVER, .payload = buffer});
 }
 
-void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func) {
-  auto listener = TuyaDatapointListener{
+void Tuya::register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func) {
+  this->listeners_.push_back(TuyaDatapointListener{
       .datapoint_id = datapoint_id,
       .on_datapoint = func,
-  };
-  this->listeners_.push_back(listener);
+  });
 
   // Run through existing datapoints
   for (auto &datapoint : this->datapoints_) {
     if (datapoint.id == datapoint_id)
-      func(datapoint);
+      func.call(datapoint);
   }
+}
+
+const TuyaDatapoint &TuyaDatapoint::expect_type(TuyaDatapointType expected) const {
+  if (this->type != expected) {
+    ESP_LOGW(TAG, "Tuya sensor %u expected datapoint type %#02hhX but got %#02hhX", this->id,
+             static_cast<uint8_t>(expected), static_cast<uint8_t>(this->type));
+  }
+  return *this;
 }
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }

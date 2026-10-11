@@ -1,10 +1,19 @@
 #pragma once
-#include <string>
 #include <cstdint>
+#include <cstring>
+#include <string>
 #include "gpio.h"
 #include "esphome/core/defines.h"
+
 #include "esphome/core/time_64.h"
 #include "esphome/core/time_conversion.h"
+
+/// Address tables in ESP8266 flash must be constant-initialized: a runtime initializer would write to flash.
+#if defined(USE_ESP8266) && defined(__GNUC__) && !defined(__clang__)
+#define ESPHOME_FLASH_CONSTINIT constinit
+#else
+#define ESPHOME_FLASH_CONSTINIT
+#endif
 
 // Per-platform HAL bits (IRAM_ATTR / PROGMEM macros, in_isr_context(),
 // inline yield/delay/micros/millis/millis_64 wrappers, ESP8266 progmem
@@ -18,8 +27,8 @@
 #include "esphome/components/esp8266/hal.h"
 #elif defined(USE_LIBRETINY)
 #include "esphome/components/libretiny/hal.h"
-#elif defined(USE_RP2040)
-#include "esphome/components/rp2040/hal.h"
+#elif defined(USE_RP2)
+#include "esphome/components/rp2/hal.h"
 #elif defined(USE_HOST)
 #include "esphome/components/host/hal.h"
 #elif defined(USE_ZEPHYR)
@@ -42,6 +51,9 @@ void __attribute__((noreturn)) arch_restart();
 inline uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 inline const char *progmem_read_ptr(const char *const *addr) { return *addr; }
 inline uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
+// Bulk copy out of PROGMEM. PROGMEM is a no-op everywhere except ESP8266, so a
+// plain `std::memcpy` is correct and the fast path here.
+inline void progmem_memcpy(void *dst, const void *src, size_t len) { std::memcpy(dst, src, len); }
 #endif
 
 }  // namespace esphome

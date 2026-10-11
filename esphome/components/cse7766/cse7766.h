@@ -9,7 +9,7 @@ namespace esphome::cse7766 {
 
 static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
 
-class CSE7766Component : public Component, public uart::UARTDevice {
+class CSE7766Component final : public Component, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }

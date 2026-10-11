@@ -6,7 +6,7 @@
 
 namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -255,7 +255,6 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
-  this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
 }  // namespace esphome::cse7766

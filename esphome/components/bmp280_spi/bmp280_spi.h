@@ -5,9 +5,9 @@
 
 namespace esphome::bmp280_spi {
 
-class BMP280SPIComponent : public esphome::bmp280_base::BMP280Component,
-                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
+class BMP280SPIComponent final : public esphome::bmp280_base::BMP280Component,
+                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                       spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
   void setup() override;
   bool bmp_read_byte(uint8_t a_register, uint8_t *data) override;
   bool bmp_write_byte(uint8_t a_register, uint8_t data) override;

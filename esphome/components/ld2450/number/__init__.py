@@ -9,6 +9,7 @@ from esphome.const import (
     UNIT_MILLIMETER,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
 
@@ -78,17 +79,16 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
-    if presence_timeout_config := config.get(CONF_PRESENCE_TIMEOUT):
-        n = await number.new_number(
-            presence_timeout_config,
-            min_value=0,
-            max_value=3600,
-            step=1,
-        )
-        await cg.register_parented(n, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_presence_timeout_number(n))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    numbers = number.sub_numbers(config, parent=hub)
+    await numbers(
+        CONF_PRESENCE_TIMEOUT,
+        hub.set_presence_timeout_number,
+        min_value=0,
+        max_value=3600,
+        step=1,
+    )
     for zone_num in range(MAX_ZONES):
         if zone_conf := config.get(f"zone_{zone_num + 1}"):
             zone_x1_config = zone_conf.get(CONF_X1)
@@ -96,27 +96,27 @@ async def to_code(config):
             await number.register_number(
                 x1, zone_x1_config, min_value=-4860, max_value=4860, step=1
             )
-            await cg.register_parented(x1, config[CONF_LD2450_ID])
+            await cg.register_parented(x1, hub)
 
             zone_y1_config = zone_conf.get(CONF_Y1)
             y1 = cg.new_Pvariable(zone_y1_config[CONF_ID], zone_num)
             await number.register_number(
                 y1, zone_y1_config, min_value=0, max_value=7560, step=1
             )
-            await cg.register_parented(y1, config[CONF_LD2450_ID])
+            await cg.register_parented(y1, hub)
 
             zone_x2_config = zone_conf.get(CONF_X2)
             x2 = cg.new_Pvariable(zone_x2_config[CONF_ID], zone_num)
             await number.register_number(
                 x2, zone_x2_config, min_value=-4860, max_value=4860, step=1
             )
-            await cg.register_parented(x2, config[CONF_LD2450_ID])
+            await cg.register_parented(x2, hub)
 
             zone_y2_config = zone_conf.get(CONF_Y2)
             y2 = cg.new_Pvariable(zone_y2_config[CONF_ID], zone_num)
             await number.register_number(
                 y2, zone_y2_config, min_value=0, max_value=7560, step=1
             )
-            await cg.register_parented(y2, config[CONF_LD2450_ID])
+            await cg.register_parented(y2, hub)
 
-            cg.add(ld2450_component.set_zone_numbers(zone_num, x1, y1, x2, y2))
+            cg.add(hub.set_zone_numbers(zone_num, x1, y1, x2, y2))

@@ -6,7 +6,7 @@
 
 namespace esphome::dallas_temp {
 
-class DallasTemperatureSensor : public PollingComponent, public sensor::Sensor, public one_wire::OneWireDevice {
+class DallasTemperatureSensor final : public PollingComponent, public sensor::Sensor, public one_wire::OneWireDevice {
  public:
   void setup() override;
   void update() override;

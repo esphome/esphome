@@ -4,7 +4,9 @@
 
 namespace esphome::tsl2591 {
 
-static const char *const TAG = "tsl2591.sensor";
+ESPHOME_LOG_TAG(TAG, "tsl2591.sensor");
+
+static constexpr uint32_t ADC_WAIT_INTERVAL_ID = 0;
 
 // Various constants used in TSL2591 register manipulation
 #define TSL2591_COMMAND_BIT (0xA0)      // 1010 0000: bits 7 and 5 for 'command, normal'
@@ -163,19 +165,17 @@ void TSL2591Component::process_update_() {
   this->status_clear_warning();
 }
 
-#define interval_name "tsl2591_interval_for_update"
-
 void TSL2591Component::interval_function_for_update_() {
   if (!this->is_adc_valid()) {
     uint64_t now = millis();
     ESP_LOGD(TAG, "Elapsed %3llu ms; still waiting for valid ADC", (now - this->interval_start_));
     if (now > this->interval_timeout_) {
       ESP_LOGW(TAG, "Interval timeout for '%s' expired before ADCs became valid", this->name_);
-      this->cancel_interval(interval_name);
+      this->cancel_interval(ADC_WAIT_INTERVAL_ID);
     }
     return;
   }
-  this->cancel_interval(interval_name);
+  this->cancel_interval(ADC_WAIT_INTERVAL_ID);
   this->process_update_();
 }
 
@@ -191,7 +191,7 @@ void TSL2591Component::update() {
     } else {
       this->interval_start_ = millis();
       this->interval_timeout_ = this->interval_start_ + 620;
-      this->set_interval(interval_name, 100, [this] { this->interval_function_for_update_(); });
+      this->set_interval(ADC_WAIT_INTERVAL_ID, 100, [this] { this->interval_function_for_update_(); });
     }
   }
 }
@@ -199,8 +199,6 @@ void TSL2591Component::update() {
 void TSL2591Component::set_infrared_sensor(sensor::Sensor *infrared_sensor) {
   this->infrared_sensor_ = infrared_sensor;
 }
-
-void TSL2591Component::set_visible_sensor(sensor::Sensor *visible_sensor) { this->visible_sensor_ = visible_sensor; }
 
 void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor) {
   this->full_spectrum_sensor_ = full_spectrum_sensor;
@@ -217,8 +215,6 @@ void TSL2591Component::set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
   this->integration_time_ = integration_time;
 }
-
-void TSL2591Component::set_gain(TSL2591ComponentGain gain) { this->component_gain_ = gain; }
 
 void TSL2591Component::set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor) {
   this->device_factor_ = device_factor;
@@ -241,10 +237,6 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
     this->enable();
   }
 }
-
-void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
-
-void TSL2591Component::set_name(const char *name) { this->name_ = name; }
 
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;
@@ -269,7 +261,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
       break;
     }
     // we only log this if we need any delay, since normally we don't
-    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? "true" : "false");
+    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
     delay(mini_delay);
   }
   if (!avalid) {

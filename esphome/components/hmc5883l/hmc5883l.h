@@ -34,7 +34,7 @@ enum HMC5883LRange {
   HMC5883L_RANGE_810_UT = 0b111,
 };
 
-class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
+class HMC5883LComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

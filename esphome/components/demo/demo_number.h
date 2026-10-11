@@ -11,7 +11,7 @@ enum class DemoNumberType {
   TYPE_3,
 };
 
-class DemoNumber : public number::Number, public Component {
+class DemoNumber final : public number::Number, public Component {
  public:
   void set_type(DemoNumberType type) { type_ = type; }
   void setup() override {

@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@justfalter"]
 
@@ -38,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     wrapped_light = await cg.get_variable(config[CONF_ADDRESSABLE_LIGHT_ID])
     cg.add(var.set_width(config[CONF_WIDTH]))

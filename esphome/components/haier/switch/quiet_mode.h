@@ -5,7 +5,7 @@
 
 namespace esphome::haier {
 
-class QuietModeSwitch : public switch_::Switch, public Parented<HonClimate> {
+class QuietModeSwitch final : public switch_::Switch, public Parented<HonClimate> {
  public:
   QuietModeSwitch() = default;
 

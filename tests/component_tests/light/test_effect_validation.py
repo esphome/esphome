@@ -9,13 +9,17 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.light import (
+    EffectCycleRef,
     EffectRef,
     _final_validate,
     _get_data,
     available_effects_str,
     find_effect_index,
 )
-from esphome.components.light.automation import _record_effect_ref
+from esphome.components.light.automation import (
+    _record_effect_cycle_ref,
+    _record_effect_ref,
+)
 from esphome.config import Config, path_context
 from esphome.const import CONF_EFFECT, CONF_EFFECTS, CONF_ID, CONF_NAME
 from esphome.core import ID, Lambda
@@ -215,6 +219,111 @@ def test_final_validate_drains_refs() -> None:
         fv.full_config.reset(token)
 
 
+# --- _final_validate: EffectCycleRef ---
+
+
+def _setup_cycle_final_validate(
+    cycle_refs: list[EffectCycleRef],
+    light_configs: list[ConfigType],
+    declare_ids: list[tuple[ID, list[str | int]]],
+) -> Token:
+    """Set up CORE.data and fv.full_config for EffectCycleRef final_validate tests."""
+    data = _get_data()
+    data.effect_cycle_refs = cycle_refs
+
+    full_conf = Config()
+    full_conf["light"] = light_configs
+    for id_, path in declare_ids:
+        full_conf.declare_ids.append((id_, path))
+
+    return fv.full_config.set(full_conf)
+
+
+def test_final_validate_cycle_accepts_light_with_effects() -> None:
+    """Cycle ref against a light with effects should not raise."""
+    light_id = ID("led1", is_declaration=True)
+    token = _setup_cycle_final_validate(
+        cycle_refs=[
+            EffectCycleRef(light_id=light_id, component_path=["esphome"]),
+        ],
+        light_configs=[{CONF_ID: light_id, CONF_EFFECTS: _make_effects("Fast Pulse")}],
+        declare_ids=[(light_id, ["light", 0, CONF_ID])],
+    )
+    try:
+        _final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_cycle_rejects_light_without_effects_key() -> None:
+    """Cycle ref against a light with no CONF_EFFECTS key should raise."""
+    light_id = ID("led1", is_declaration=True)
+    token = _setup_cycle_final_validate(
+        cycle_refs=[
+            EffectCycleRef(light_id=light_id, component_path=["esphome"]),
+        ],
+        light_configs=[{CONF_ID: light_id}],
+        declare_ids=[(light_id, ["light", 0, CONF_ID])],
+    )
+    try:
+        with pytest.raises(cv.FinalExternalInvalid, match="no effects configured"):
+            _final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_cycle_rejects_light_with_empty_effects() -> None:
+    """Cycle ref against a light with empty effects list should raise."""
+    light_id = ID("led1", is_declaration=True)
+    token = _setup_cycle_final_validate(
+        cycle_refs=[
+            EffectCycleRef(light_id=light_id, component_path=["esphome"]),
+        ],
+        light_configs=[{CONF_ID: light_id, CONF_EFFECTS: []}],
+        declare_ids=[(light_id, ["light", 0, CONF_ID])],
+    )
+    try:
+        with pytest.raises(cv.FinalExternalInvalid, match="no effects configured"):
+            _final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_cycle_unknown_light_id_skipped() -> None:
+    """Cycle refs to unknown light IDs should be silently skipped."""
+    data = _get_data()
+    data.effect_cycle_refs = [
+        EffectCycleRef(
+            light_id=ID("nonexistent", is_declaration=True),
+            component_path=["esphome"],
+        )
+    ]
+
+    full_conf = Config()
+    token = fv.full_config.set(full_conf)
+    try:
+        _final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_drains_cycle_refs() -> None:
+    """Cycle refs should be drained after validation to avoid redundant runs."""
+    light_id = ID("led1", is_declaration=True)
+    token = _setup_cycle_final_validate(
+        cycle_refs=[
+            EffectCycleRef(light_id=light_id, component_path=["esphome"]),
+        ],
+        light_configs=[{CONF_ID: light_id, CONF_EFFECTS: _make_effects("Fast Pulse")}],
+        declare_ids=[(light_id, ["light", 0, CONF_ID])],
+    )
+    try:
+        _final_validate({})
+        assert _get_data().effect_cycle_refs == []
+    finally:
+        fv.full_config.reset(token)
+
+
 # --- _record_effect_ref ---
 
 
@@ -278,3 +387,19 @@ def test_record_effect_ref_skips_no_effect_key() -> None:
     config: ConfigType = {CONF_ID: ID("led1", is_declaration=True)}
     _record_effect_ref(config)
     assert _get_data().effect_refs == []
+
+
+# --- _record_effect_cycle_ref ---
+
+
+@pytest.mark.usefixtures("_path_ctx")
+def test_record_effect_cycle_ref() -> None:
+    """Cycle-action config should be recorded with light_id and path."""
+    light_id = ID("led1", is_declaration=True)
+    config: ConfigType = {CONF_ID: light_id}
+    result = _record_effect_cycle_ref(config)
+    assert result is config
+    data = _get_data()
+    assert len(data.effect_cycle_refs) == 1
+    assert data.effect_cycle_refs[0].light_id is light_id
+    assert data.effect_cycle_refs[0].component_path == ["esphome"]
