@@ -573,12 +573,7 @@ def do_substitution_pass(
             del substitutions[old]
 
     errors: ErrList = []  # Collect undefined errors during substitution
-
-    # Read top-level context first, which contains built-in variables:
-    parent_context = push_context(config, ContextVars(), errors)
-
-    # Resolve substitutions, which may depend on built-in variables:
-    parent_context, substitutions = _push_context(substitutions, parent_context, errors)
+    parent_context, substitutions = _push_context(substitutions, ContextVars(), errors)
 
     config = substitute(config, [], parent_context, False, errors)
 
