@@ -3,7 +3,7 @@
 
 namespace esphome::sm2335 {
 
-static const char *const TAG = "sm2335";
+ESPHOME_LOG_TAG(TAG, "sm2335");
 
 void SM2335::setup() {
   this->data_pin_->setup();

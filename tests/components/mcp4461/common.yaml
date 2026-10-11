@@ -3,30 +3,61 @@ mcp4461:
     i2c_id: i2c_bus
 
 output:
+  # All-terminals-off coverage lives here (folded from a former second channel-A
+  # output — one output per channel keeps the reg_ state deterministic).
   - platform: mcp4461
     id: digipot_wiper_1
-    mcp4461_id: mcp4461_digipot_01
-    channel: A
-
-  - platform: mcp4461
-    id: digipot_wiper_2
-    mcp4461_id: mcp4461_digipot_01
-    channel: B
-
-  - platform: mcp4461
-    id: digipot_wiper_3
-    mcp4461_id: mcp4461_digipot_01
-    channel: C
-
-  - platform: mcp4461
-    id: digipot_wiper_4
-    mcp4461_id: mcp4461_digipot_01
-    channel: D
-
-  - platform: mcp4461
-    id: digipot_wiper_5
     mcp4461_id: mcp4461_digipot_01
     channel: A
     terminal_a: false
     terminal_b: false
     terminal_w: false
+
+  - platform: mcp4461
+    id: digipot_wiper_2
+    mcp4461_id: mcp4461_digipot_01
+    channel: B
+    nonvolatile: false
+
+  - platform: mcp4461
+    id: digipot_wiper_3
+    mcp4461_id: mcp4461_digipot_01
+    channel: C
+    nonvolatile_write_delay: 5s
+    initial_value: 0.5
+
+  # TCON1 coverage: terminal flags on a channel D output exercise the
+  # calc_terminal_connector_byte_() write path for wipers 2/3.
+  - platform: mcp4461
+    id: digipot_wiper_4
+    mcp4461_id: mcp4461_digipot_01
+    channel: D
+    terminal_a: false
+    terminal_w: false
+
+  # Bare NV-channel output — the pre-existing persistence workaround; must
+  # keep validating without any nonvolatile key (regression: schema default
+  # used to materialize the key on every channel and fail final validation).
+  - platform: mcp4461
+    id: digipot_nv_wiper_1
+    mcp4461_id: mcp4461_digipot_01
+    channel: E
+
+  # Explicit opt-out on an NV channel is a harmless no-op and stays valid.
+  - platform: mcp4461
+    id: digipot_nv_wiper_2
+    mcp4461_id: mcp4461_digipot_01
+    channel: F
+    nonvolatile: false
+
+button:
+  - platform: template
+    name: "Digipot test actions"
+    on_press:
+      - mcp4461.wiper.increase: digipot_wiper_1
+      - mcp4461.wiper.decrease: digipot_wiper_1
+      - mcp4461.wiper.store_nonvolatile: digipot_wiper_2
+      - mcp4461.wiper.set_terminal:
+          id: digipot_wiper_1
+          terminal: a
+          enable: false

@@ -363,4 +363,47 @@ static void Snprintf_Uint32_Large(benchmark::State &state) {
 }
 BENCHMARK(Snprintf_Uint32_Large);
 
+// --- step_to_accuracy_decimals() ---
+// Called from climate traits and web_server for every number/climate step.
+
+static void StepToAccuracyDecimals_Tenth(benchmark::State &state) {
+  for (auto _ : state) {
+    int result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += step_to_accuracy_decimals(0.1f);
+    }
+    benchmark::DoNotOptimize(result);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(StepToAccuracyDecimals_Tenth);
+
+static void StepToAccuracyDecimals_Whole(benchmark::State &state) {
+  for (auto _ : state) {
+    int result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += step_to_accuracy_decimals(1.0f);
+    }
+    benchmark::DoNotOptimize(result);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(StepToAccuracyDecimals_Whole);
+
+static void StepToAccuracyDecimals_Mixed(benchmark::State &state) {
+  static constexpr float steps[] = {
+      0.001f, 0.01f, 0.05f, 0.1f, 0.25f, 0.5f, 1.0f, 2.5f, 5.0f, 10.0f,
+  };
+  static constexpr int num_steps = sizeof(steps) / sizeof(steps[0]);
+  for (auto _ : state) {
+    int result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += step_to_accuracy_decimals(steps[i % num_steps]);
+    }
+    benchmark::DoNotOptimize(result);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(StepToAccuracyDecimals_Mixed);
+
 }  // namespace esphome::benchmarks

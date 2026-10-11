@@ -1,0 +1,10 @@
+# Common server-role Modbus configuration for ESP8266 Arduino tests
+# Provides a shared Modbus bus that all Modbus server components can use
+
+packages:
+  uart: !include ../uart/esp8266-ard.yaml
+
+modbus:
+  - id: modbus_server_bus
+    uart_id: uart_bus
+    role: server

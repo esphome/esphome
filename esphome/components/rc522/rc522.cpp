@@ -9,7 +9,7 @@ namespace esphome::rc522 {
 
 static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
-static const char *const TAG = "rc522";
+ESPHOME_LOG_TAG(TAG, "rc522");
 
 // Max UID size for RFID tags (4, 7, or 10 bytes)
 static constexpr size_t RC522_MAX_UID_SIZE = 10;
