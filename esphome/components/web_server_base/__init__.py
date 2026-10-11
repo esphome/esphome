@@ -10,6 +10,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
+DOMAIN = "web_server_base"
 
 
 def AUTO_LOAD() -> list[str]:

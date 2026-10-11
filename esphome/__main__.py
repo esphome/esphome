@@ -7,6 +7,7 @@ import importlib
 import logging
 import os
 from pathlib import Path
+import platform
 import re
 import sys
 import time
@@ -50,11 +51,12 @@ from esphome.const import (
     KEY_ESP32,
     KEY_VARIANT,
     SECRETS_FILES,
+    ErrorFormat,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
-from esphome.helpers import get_bool_env, indent, is_ip_address
+from esphome.helpers import IS_MACOS, get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
@@ -829,9 +831,9 @@ def write_cpp_file() -> int:
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     if CORE.skip_bootloader and not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
-        # Info, not a warning: an orchestrator cannot see YAML toolchain
-        # overrides, this is its expected no-op, and a full build is safe.
-        _LOGGER.info(
+        # Debug only: an orchestrator cannot see YAML toolchain overrides,
+        # so this is its expected no-op, and a full build is safe.
+        _LOGGER.debug(
             "--skip-bootloader ignored: only supported on ESP32 with the "
             "esp-idf toolchain"
         )
@@ -1311,9 +1313,9 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     # platform's final-validate hook merges duplicates anyway.
     available: dict[str, None] = {}
     for ota_item in config.get(CONF_OTA, []):
-        platform = ota_item.get(CONF_PLATFORM)
-        if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
-            available[platform] = None
+        ota_platform = ota_item.get(CONF_PLATFORM)
+        if ota_platform in (CONF_ESPHOME, CONF_WEB_SERVER):
+            available[ota_platform] = None
 
     if not available:
         raise EsphomeError(
@@ -1945,7 +1947,10 @@ def run_multiple_configs(
         safe_print()
 
         cmd = command_builder(f)
-        rc = run_external_process(*cmd)
+        # The parent already logged the Intel macOS warning; children skip it.
+        rc = run_external_process(
+            *cmd, env={**os.environ, _INTEL_MACOS_WARNED_ENV: "1"}
+        )
 
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
@@ -2201,6 +2206,16 @@ def _add_states_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _error_format(value: str) -> ErrorFormat:
+    try:
+        return ErrorFormat(value.lower())
+    except ValueError:
+        choices = ", ".join(ErrorFormat)
+        raise argparse.ArgumentTypeError(
+            f"invalid choice: '{value}' (choose from {choices})"
+        ) from None
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2260,6 +2275,17 @@ def parse_args(argv):
             "Select toolchain for compiling. Overrides '<platform>.toolchain' in YAML. "
             "Default: the platform's native toolchain where it has one, else "
             f"{Toolchain.PLATFORMIO.value}."
+        ),
+    )
+
+    options_parser.add_argument(
+        "--error-format",
+        type=_error_format,
+        metavar="{" + ",".join(f.value for f in ErrorFormat) + "}",
+        help=(
+            "How configuration errors are shown. 'yaml' shows them inside the "
+            "failing YAML; 'line' prints one 'file:line:column: error: message' "
+            "line per error. Default: $ESPHOME_ERROR_FORMAT, else 'yaml'."
         ),
     )
 
@@ -2566,9 +2592,18 @@ def parse_args(argv):
         args, unknown_args = parser.parse_known_args(arguments)
         if unknown_args:
             _LOGGER.warning("Ignored unrecognized arguments: %s", unknown_args)
-        return args
+    else:
+        args = parser.parse_args(arguments)
 
-    return parser.parse_args(arguments)
+    # Read here rather than as the option default, so a bad value is reported
+    # against the environment variable instead of --error-format
+    if args.error_format is None:
+        env_value = os.getenv("ESPHOME_ERROR_FORMAT", ErrorFormat.YAML.value)
+        try:
+            args.error_format = _error_format(env_value)
+        except argparse.ArgumentTypeError as err:
+            parser.error(f"ESPHOME_ERROR_FORMAT: {err}")
+    return args
 
 
 def _warn_if_source_tree_mismatch() -> None:
@@ -2614,12 +2649,34 @@ def _warn_if_source_tree_mismatch() -> None:
     )
 
 
+_INTEL_MACOS_REMOVAL = "2027.6.0"
+_INTEL_MACOS_WARNED_ENV = "ESPHOME_INTEL_MACOS_WARNED"
+
+
+def _warn_if_intel_macos() -> None:
+    """Warn that Intel (x86_64) Python on macOS loses support by _INTEL_MACOS_REMOVAL."""
+    if (
+        not IS_MACOS
+        or platform.machine() != "x86_64"
+        or _INTEL_MACOS_WARNED_ENV in os.environ
+    ):
+        return
+    _LOGGER.warning(
+        "Support for Intel Macs will end in ESPHome %s or earlier. The Python "
+        "packages ESPHome depends on have stopped publishing Intel macOS builds, "
+        "so future releases will not install on this machine. On an Apple "
+        "Silicon Mac, switch to a native arm64 Python.",
+        _INTEL_MACOS_REMOVAL,
+    )
+
+
 def run_esphome(argv):
     from esphome.address_cache import AddressCache
 
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
     CORE.testing_mode = args.testing_mode
+    CORE.error_format = args.error_format
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(
@@ -2633,6 +2690,7 @@ def run_esphome(argv):
 
     setup_log(log_level=args.log_level)
     _warn_if_source_tree_mismatch()
+    _warn_if_intel_macos()
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:

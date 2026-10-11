@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import logging
 
 from esphome import automation, pins
 from esphome.automation import Condition
@@ -61,13 +60,12 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["network"]
-LOGGER = logging.getLogger(__name__)
+DOMAIN = "ethernet"
 
 # Key for tracking IP state listener count in CORE.data
 ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
 # Key for tracking configured ethernet type
 ETHERNET_TYPE_KEY = "ethernet_type"
-KEY_ETHERNET = "ethernet"
 
 
 def request_ethernet_ip_state_listener() -> None:
@@ -212,13 +210,6 @@ emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 CLK_MODES = {
     "CLK_EXT_IN": emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
     "CLK_OUT": emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-}
-
-CLK_MODES_DEPRECATED = {
-    "GPIO0_IN": ("CLK_EXT_IN", 0),
-    "GPIO0_OUT": ("CLK_OUT", 0),
-    "GPIO16_OUT": ("CLK_OUT", 16),
-    "GPIO17_OUT": ("CLK_OUT", 17),
 }
 
 spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
@@ -387,23 +378,6 @@ def _validate(config: ConfigType) -> ConfigType:
                 get_esp32_variant,
             )
 
-            if CONF_CLK_MODE in config:
-                mode, pin = CLK_MODES_DEPRECATED[config[CONF_CLK_MODE]]
-                LOGGER.warning(
-                    "[ethernet] The 'clk_mode' option is deprecated. "
-                    "Please replace 'clk_mode: %s' with:\n"
-                    "  clk:\n"
-                    "    mode: %s\n"
-                    "    pin: %s\n"
-                    "Removal scheduled for 2026.11.0.",
-                    config[CONF_CLK_MODE],
-                    mode,
-                    pin,
-                )
-                config[CONF_CLK] = CLK_SCHEMA({CONF_MODE: mode, CONF_PIN: pin})
-                del config[CONF_CLK_MODE]
-            elif CONF_CLK not in config:
-                raise cv.Invalid("'clk' is a required option for [ethernet].")
             variant = get_esp32_variant()
             if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
                 raise cv.Invalid(
@@ -452,10 +426,17 @@ RMII_SCHEMA = cv.All(
             {
                 cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
                 cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_CLK_MODE): cv.enum(
-                    CLK_MODES_DEPRECATED, upper=True, space="_"
+                # Removed in 2026.11.0 - kept to provide helpful error message
+                # Remove before 2027.5.0
+                cv.Optional(CONF_CLK_MODE): cv.invalid(
+                    "The 'clk_mode' option has been removed in ESPHome 2026.11.0.\n"
+                    "Replace it with a 'clk:' block containing 'mode:' and 'pin:':\n"
+                    "  GPIO0_IN   -> mode: CLK_EXT_IN, pin: GPIO0\n"
+                    "  GPIO0_OUT  -> mode: CLK_OUT, pin: GPIO0\n"
+                    "  GPIO16_OUT -> mode: CLK_OUT, pin: GPIO16\n"
+                    "  GPIO17_OUT -> mode: CLK_OUT, pin: GPIO17"
                 ),
-                cv.Optional(CONF_CLK): CLK_SCHEMA,
+                cv.Required(CONF_CLK): CLK_SCHEMA,
                 cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
                 cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
@@ -636,6 +617,19 @@ def phy_register(address: int, value: int, page: int) -> cg.StructInitializer:
     )
 
 
+def _add_phy_registers(var: cg.MockObj, config: ConfigType) -> None:
+    if not (registers := config.get(CONF_PHY_REGISTERS)):
+        return
+    cg.add_define("ESPHOME_ETHERNET_PHY_REGISTER_COUNT", len(registers))
+    for register_value in registers:
+        reg = phy_register(
+            register_value.get(CONF_ADDRESS),
+            register_value.get(CONF_VALUE),
+            register_value.get(CONF_PAGE_ID),
+        )
+        cg.add(var.add_phy_register(reg))
+
+
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -659,7 +653,7 @@ async def to_code(config: ConfigType) -> None:
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
-    CORE.data.setdefault(KEY_ETHERNET, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
+    CORE.data.setdefault(DOMAIN, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
 
     if CONF_MANUAL_IP in config:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
@@ -741,13 +735,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
         cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
-        for register_value in config.get(CONF_PHY_REGISTERS, []):
-            reg = phy_register(
-                register_value.get(CONF_ADDRESS),
-                register_value.get(CONF_VALUE),
-                register_value.get(CONF_PAGE_ID),
-            )
-            cg.add(var.add_phy_register(reg))
+        _add_phy_registers(var, config)
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
@@ -756,13 +744,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
         cg.add(var.set_clk_pin(config[CONF_CLK][CONF_PIN]))
         if CONF_POWER_PIN in config:
             cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
-        for register_value in config.get(CONF_PHY_REGISTERS, []):
-            reg = phy_register(
-                register_value.get(CONF_ADDRESS),
-                register_value.get(CONF_VALUE),
-                register_value.get(CONF_PAGE_ID),
-            )
-            cg.add(var.add_phy_register(reg))
+        _add_phy_registers(var, config)
 
     # Register Ethernet with the esp32 sdkconfig reconciler. It disables the
     # WiFi stack and WiFi/BT coexistence only when Ethernet runs without WiFi,
@@ -912,7 +894,7 @@ _define_filter = filter_source_files_from_defines(
 
 def _filter_source_files() -> list[str]:
     excluded = _platform_filter() + _define_filter()
-    eth_data = CORE.data.get(KEY_ETHERNET, {})
+    eth_data = CORE.data.get(DOMAIN, {})
     eth_type = eth_data.get(ETHERNET_TYPE_KEY)
     # Only compile the custom JL1101 driver when JL1101 is configured
     # and pioarduino doesn't have it builtin (IDF 5.4.2 to 5.x)

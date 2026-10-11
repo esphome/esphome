@@ -254,7 +254,8 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   }
 
   Script<As...> *script_;
-  Args args_;
+  // Empty tuple for scripts without parameters; takes no space then
+  [[no_unique_address]] Args args_;
 };
 
 /** Wait for a script to finish before continuing.

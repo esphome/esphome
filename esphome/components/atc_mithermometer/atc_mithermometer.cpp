@@ -3,7 +3,7 @@
 
 namespace esphome::atc_mithermometer {
 
-static const char *const TAG = "atc_mithermometer";
+ESPHOME_LOG_TAG(TAG, "atc_mithermometer");
 
 void ATCMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "ATC MiThermometer");

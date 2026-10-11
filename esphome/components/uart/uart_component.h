@@ -86,6 +86,10 @@ class UARTComponent {
   // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
   virtual size_t available_for_write() { return SIZE_MAX; }
 
+  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the line time since
+  // last_write_ms, a loop start time: at most one loop interval and 4 s, at least one byte.
+  size_t paced_write_room(uint32_t last_write_ms);
+
   // Pure virtual method to block until all bytes have been written to the UART bus.
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
   virtual UARTFlushResult flush() = 0;
@@ -217,7 +221,7 @@ class UARTComponent {
   uint32_t baud_rate_{0};
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
-  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif

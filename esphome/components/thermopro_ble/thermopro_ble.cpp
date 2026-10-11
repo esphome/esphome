@@ -19,7 +19,7 @@ static optional<ParseResult> parse_tp972(const uint8_t *data, std::size_t data_s
 static optional<ParseResult> parse_tp96(const uint8_t *data, std::size_t data_size);
 static optional<ParseResult> parse_tp3(const uint8_t *data, std::size_t data_size);
 
-static const char *const TAG = "thermopro_ble";
+ESPHOME_LOG_TAG(TAG, "thermopro_ble");
 
 static const struct DeviceParserMapping DEVICE_PARSER_MAP[] = {
     {"TP972", parse_tp972}, {"TP970", parse_tp96}, {"TP96", parse_tp96}, {"TP3", parse_tp3}};

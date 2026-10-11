@@ -14,6 +14,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "socket"
 
 socket_ns = cg.esphome_ns.namespace("socket")
 Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
@@ -147,6 +148,21 @@ def require_wake_loop_threadsafe() -> None:
 
 # For an Ipv4Allow config option; a sanity cap on the list length.
 IPV4_ALLOW_SCHEMA = cv.All(cv.ensure_list(cv.ipv4network), cv.Length(max=255))
+
+
+_HOST = cv.Any(cv.domain, cv.hostname)
+
+
+def ipv4_host(value: object) -> str:
+    """Validate an IPv4 address or a hostname; the resolver behind it is IPv4 only."""
+    value = cv.string(value)
+    try:
+        cv.ipv6address(value)
+    except cv.Invalid:
+        return _HOST(value)
+    raise cv.Invalid(
+        "IPv6 addresses are not supported, use an IPv4 address or a hostname"
+    )
 
 
 def _network_order(addr: IPv4Address) -> int:

@@ -11,7 +11,7 @@ from unittest.mock import ANY, call, patch
 import platformdirs
 import pytest
 
-from esphome.components.nrf52 import _resolve_toolchain
+from esphome.components.nrf52 import _resolve_toolchain, framework
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
@@ -22,12 +22,12 @@ from esphome.components.nrf52.framework import (
     _get_toolchain_platform_info,
     _install_toolchain,
     _needs_venv_rebuild,
-    _wanted_west_projects,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
     include_west_project,
     setup_platformio_python_env,
+    wanted_west_projects,
 )
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
@@ -539,7 +539,7 @@ class TestCheckAndInstall:
         """Zephyr 4.1 moved the Cortex-M core headers to the cmsis_6 module."""
         CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(sdk_version)}
 
-        assert ("cmsis_6" in _wanted_west_projects()) is has_cmsis_6
+        assert ("cmsis_6" in wanted_west_projects()) is has_cmsis_6
 
     def test_default_projects_never_read_the_stamp(
         self,
@@ -1121,6 +1121,22 @@ def test_get_build_env_with_ccache(
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
     assert "CCACHE_DISABLE" not in env
+    # Only the per build map entry leaves the hash; user maps stay in
+    assert env["CCACHE_IGNOREOPTIONS"] == (
+        f"-fmacro-prefix-map={(tmp_path / 'build' / 'zephyr').as_posix()}"
+        "=CMAKE_SOURCE_DIR"
+    )
+
+
+def test_get_build_env_skips_the_map_entry_on_whitespace(
+    nrf52_dirs: SimpleNamespace, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The ignore list splits on spaces; a spaced path cannot be
+    expressed, so the entry is left hashed rather than emitted broken."""
+    monkeypatch.delenv("CCACHE_IGNOREOPTIONS", raising=False)
+    CORE.build_path = tmp_path / "with space" / "build"
+    env = get_build_env("/usr/bin/ccache")
+    assert "CCACHE_IGNOREOPTIONS" not in env
 
 
 def test_get_build_env_sdk_3_4_0_uses_toolchain_root(
@@ -1250,3 +1266,30 @@ def test_resolve_toolchain_rejects_unsupported() -> None:
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
         _resolve_toolchain({})
+
+
+def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
+    """The absolute dts.pre path is the only per device byte in the
+    devicetree header; the patch makes gen_defines emit the basename."""
+    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    gen.parent.mkdir(parents=True)
+    gen.write_text("s = f'DTS input file:\\n  {edt.dts_path}\\n'\n")
+    framework._patch_gen_defines_dts_path(tmp_path)
+    assert "{os.path.basename(edt.dts_path)}" in gen.read_text()
+    assert not list(gen.parent.glob("*.tmp"))  # no leftovers
+    before = gen.read_text()
+    framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
+    assert gen.read_text() == before
+    framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
+
+
+def test_patch_gen_defines_warns_when_the_anchor_is_gone(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A reformatted upstream must not silently cost the sharing."""
+    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    gen.parent.mkdir(parents=True)
+    gen.write_text("s = 'something else entirely'\n")
+    with caplog.at_level("WARNING"):
+        framework._patch_gen_defines_dts_path(tmp_path)
+    assert "gen_defines.py no longer matches" in caplog.text

@@ -193,7 +193,9 @@ class EthernetComponent final : public Component {
   void set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
   void set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
   void set_clk_mode(emac_rmii_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
-  void add_phy_register(PHYRegister register_value);
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
+  void add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
+#endif
 #endif  // USE_ETHERNET_SPI
 #endif  // USE_ESP32
 
@@ -255,8 +257,10 @@ class EthernetComponent final : public Component {
   /// reset) and set the RGMII Tx/Rx clock delays needed for reliable data sampling.
   void yt8531_phy_init_();
 #endif
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
+#endif
 
 #ifdef USE_ETHERNET_SPI
   uint8_t clk_pin_;
@@ -280,7 +284,9 @@ class EthernetComponent final : public Component {
   // Group all 32-bit members first
   int power_pin_{-1};
   emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
-  std::vector<PHYRegister> phy_registers_{};
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
+  StaticVector<PHYRegister, ESPHOME_ETHERNET_PHY_REGISTER_COUNT> phy_registers_{};
+#endif
 
   // Group all 8-bit members together
   uint8_t clk_pin_{0};

@@ -11,6 +11,7 @@ CONF_ALLOW_MULTIPLE_TOUCHES = "allow_multiple_touches"
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["binary_sensor", "output"]
 CODEOWNERS = ["@mreditor97"]
+DOMAIN = "cap1188"
 
 cap1188_ns = cg.esphome_ns.namespace("cap1188")
 CONF_CAP1188_ID = "cap1188_id"

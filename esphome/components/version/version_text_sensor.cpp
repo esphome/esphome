@@ -7,7 +7,7 @@
 
 namespace esphome::version {
 
-static const char *const TAG = "version.text_sensor";
+ESPHOME_LOG_TAG(TAG, "version.text_sensor");
 
 void VersionTextSensor::setup() {
   static const char HASH_PREFIX[] PROGMEM = ESPHOME_VERSION " (config hash 0x";

@@ -209,9 +209,6 @@ class LvContext(LambdaContext):
     def __init__(self):
         super().__init__(parameters=LVGL_COMP_ARG)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await super().__aexit__(exc_type, exc_val, exc_tb)
-
     def add(self, expression: Expression | Statement):
         cg.add(expression)
         return expression

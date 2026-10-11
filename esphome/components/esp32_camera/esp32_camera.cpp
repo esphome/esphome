@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_camera {
 
-static const char *const TAG = "esp32_camera";
+ESPHOME_LOG_TAG(TAG, "esp32_camera");
 static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;

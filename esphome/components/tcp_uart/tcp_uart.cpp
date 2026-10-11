@@ -8,7 +8,7 @@
 
 namespace esphome::tcp_uart {
 
-static const char *const TAG = "tcp_uart";
+ESPHOME_LOG_TAG(TAG, "tcp_uart");
 
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 
@@ -20,6 +20,11 @@ void TcpUart::setup() {
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
+#ifdef USE_SENSOR
+  if (this->disconnects_sensor_ != nullptr) {
+    this->disconnects_sensor_->publish_state(0);
+  }
+#endif
 }
 
 void TcpUart::dump_config() {
@@ -34,6 +39,9 @@ void TcpUart::dump_config() {
   this->listener_.dump_config();
 #endif
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
+#endif
 }
 
 void TcpUart::on_shutdown() {
@@ -46,12 +54,20 @@ void TcpUart::on_shutdown() {
 void TcpUart::sync_link_() {
   bool up = this->link_.connected();
   this->link_was_up_ = up;
-  if (!up) {
+  if (up) {
+    // Unread bytes of the last session stay readable while down, never into the next one.
     this->rx_start_ = this->rx_end_ = 0;
   }
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
+#ifdef USE_SENSOR
+  // Only edges get here, so down is the falling edge.
+  if (!up && this->disconnects_sensor_ != nullptr) {
+    this->disconnects_++;
+    this->disconnects_sensor_->publish_state(this->disconnects_);
+  }
+#endif
 }
 
 void TcpUart::read_socket_() {
@@ -67,7 +83,7 @@ void TcpUart::read_socket_() {
   }
   ssize_t count = this->link_.read(this->rx_ + this->rx_end_, room);
   if (count <= 0) {
-    // A dropped link (-1) is cleaned up by sync_link_() on the next loop.
+    // A dropped link (-1) is seen by sync_link_() on the next loop.
     if (count == 0) {
       this->rx_pending_ = false;
     }
@@ -81,7 +97,7 @@ void TcpUart::loop() {
 #ifdef USE_SOCKET_TCP_LISTENER
   if (this->server_) {
     // link_was_up_ holds the accept until the previous drop's edge has run,
-    // so the sensor and the cleared RX buffer always see the disconnect.
+    // so the sensor sees the disconnect and the new session's edge clears RX.
     this->listener_.poll(this->link_, !this->link_was_up_);
   } else {
     this->link_.poll();

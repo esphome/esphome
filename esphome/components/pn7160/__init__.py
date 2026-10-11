@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn71xx"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
+DOMAIN = "pn7160"
 
 CONF_DWL_REQ_PIN = "dwl_req_pin"
 CONF_WKUP_REQ_PIN = "wkup_req_pin"

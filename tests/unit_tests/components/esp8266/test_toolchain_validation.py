@@ -12,10 +12,12 @@ import pytest
 from esphome.components import esp8266
 from esphome.components.esp8266 import (
     ARDUINO_FRAMEWORK_SCHEMA,
+    _resolve_board,
     _resolve_toolchain,
     _validate_native_toolchain,
     _warn_platformio_toolchain,
 )
+from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -116,6 +118,57 @@ def test_custom_source_rejected() -> None:
 def test_unsupported_board_rejected() -> None:
     with pytest.raises(cv.Invalid, match="not supported by"):
         _validate_native_toolchain(_config(board="not_a_board"))
+
+
+def test_known_board_passes_unchanged() -> None:
+    config = {CONF_BOARD: "esp01_1m"}
+    assert _resolve_board(config) is config
+
+
+@pytest.mark.parametrize(
+    ("board", "expected"),
+    [("ESP01-1M", "esp01_1m"), ("SPARKFUNBLYNK", "sparkfunBlynk")],
+)
+def test_misspelled_board_normalized(
+    board: str, expected: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    assert _resolve_board({CONF_BOARD: board})[CONF_BOARD] == expected
+    assert f"using '{expected}'" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("board", "expected_board", "expected_toolchain"),
+    [
+        ("esp01-1m", "esp01_1m", Toolchain.ARDUINO),
+        ("my_custom_board", "my_custom_board", Toolchain.PLATFORMIO),
+    ],
+)
+def test_config_schema_resolves_board_before_toolchain(
+    board: str,
+    expected_board: str,
+    expected_toolchain: Toolchain,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The full chain normalizes or falls back, and warns once."""
+    CORE.toolchain = None
+    config = esp8266.CONFIG_SCHEMA({CONF_BOARD: board})
+    assert config[CONF_BOARD] == expected_board
+    assert CORE.data[KEY_ESP8266][KEY_BOARD] == expected_board
+    assert CORE.toolchain == expected_toolchain
+    assert len(caplog.records) == 1
+
+
+@pytest.mark.parametrize(
+    ("cli_toolchain", "yaml"),
+    [(Toolchain.ARDUINO, {}), (None, {CONF_TOOLCHAIN: Toolchain.ARDUINO})],
+)
+def test_unknown_board_keeps_explicit_toolchain(
+    cli_toolchain: Toolchain | None, yaml: ConfigType
+) -> None:
+    """A CLI or YAML toolchain is not overridden."""
+    CORE.toolchain = cli_toolchain
+    config = {CONF_BOARD: "my_custom_board", **yaml}
+    assert _resolve_board(config) is config
 
 
 def test_yaml_toolchain_key_resolves() -> None:

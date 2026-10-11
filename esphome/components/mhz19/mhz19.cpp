@@ -5,7 +5,7 @@
 
 namespace esphome::mhz19 {
 
-static const char *const TAG = "mhz19";
+ESPHOME_LOG_TAG(TAG, "mhz19");
 static const uint8_t MHZ19_REQUEST_LENGTH = 8;
 static const uint8_t MHZ19_RESPONSE_LENGTH = 9;
 static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};

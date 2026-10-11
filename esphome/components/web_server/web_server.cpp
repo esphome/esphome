@@ -55,7 +55,7 @@
 
 namespace esphome::web_server {
 
-static const char *const TAG = "web_server";
+ESPHOME_LOG_TAG(TAG, "web_server");
 
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
@@ -495,7 +495,8 @@ bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const
 
 #ifdef USE_WEBSERVER_ALLOWED_ORIGINS
   // Otherwise the origin must be explicitly allowed via configuration.
-  for (const char *allowed_origin : this->allowed_origins_) {
+  for (const char *const *it = this->allowed_origins_; *it != nullptr; it++) {
+    const char *allowed_origin = *it;
     // A single "*" entry allows any origin.
     if (allowed_origin[0] == '*' && allowed_origin[1] == '\0')
       return true;
@@ -2079,10 +2080,8 @@ void WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config,
 
   set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
 
-  auto traits = obj->get_traits();
-
-  root[ESPHOME_F("supports_transmitter")] = traits.get_supports_transmitter();
-  root[ESPHOME_F("supports_receiver")] = traits.get_supports_receiver();
+  root[ESPHOME_F("supports_transmitter")] = obj->get_supports_transmitter();
+  root[ESPHOME_F("supports_receiver")] = obj->get_supports_receiver();
 
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);

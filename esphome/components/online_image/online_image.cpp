@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 
-static const char *const TAG = "online_image";
+ESPHOME_LOG_TAG(TAG, "online_image");
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 static const char *const ETAG_HEADER_NAME = "etag";
 static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";

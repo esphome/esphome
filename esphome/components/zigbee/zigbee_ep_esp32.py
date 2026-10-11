@@ -78,6 +78,35 @@ ANALOG_INPUT_EP = {
     ],
 }
 
+ANALOG_OUTPUT_EP = {
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "ANALOG_OUTPUT",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x55,
+                    CONF_TYPE: "SINGLE",
+                    CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                    CONNECT: True,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x51,
+                    CONF_TYPE: "BOOL",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x6F,
+                    CONF_TYPE: "MAP8",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x1C,
+                    CONF_TYPE: "STRING",
+                },
+            ],
+        },
+    ],
+}
+
 BINARY_INPUT_EP = {
     DEVICE_TYPE: "SIMPLE_SENSOR",
     CONF_CLUSTERS: [

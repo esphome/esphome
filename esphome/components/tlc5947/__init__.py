@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 CONF_LAT_PIN = "lat_pin"
 
 CODEOWNERS = ["@rnauber"]
+DOMAIN = "tlc5947"
 
 tlc5947_ns = cg.esphome_ns.namespace("tlc5947")
 TLC5947 = tlc5947_ns.class_("TLC5947", cg.Component)

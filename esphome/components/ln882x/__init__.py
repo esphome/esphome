@@ -35,6 +35,7 @@ from .boards import LN882X_BOARD_PINS, LN882X_BOARDS
 
 CODEOWNERS = ["@lamauny"]
 AUTO_LOAD = ["libretiny"]
+DOMAIN = "ln882x"
 IS_TARGET_PLATFORM = True
 
 COMPONENT_DATA = LibreTinyComponent(

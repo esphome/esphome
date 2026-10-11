@@ -12,7 +12,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include "esp_tls_crypto.h"
+#include <mbedtls/base64.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -55,7 +55,7 @@ namespace esphome::web_server_idf {
 #define CRLF_STR "\r\n"
 #define CRLF_LEN (sizeof(CRLF_STR) - 1)
 
-static const char *const TAG = "web_server_idf";
+ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
 // Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
 // arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
@@ -554,14 +554,18 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   constexpr size_t max_digest_len = 350;
   char digest[max_digest_len];
   size_t out;
-  esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
-                           reinterpret_cast<const uint8_t *>(user_info), user_info_len);
+  // The buffer bound above makes failure unreachable; reject rather than
+  // compare against an unwritten digest if that ever changes.
+  if (mbedtls_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
+                            reinterpret_cast<const uint8_t *>(user_info), user_info_len) != 0) {
+    return false;
+  }
 
   // Constant-time comparison to avoid timing side channels.
   // No early return on length mismatch — the length difference is folded
   // into the accumulator so any mismatch is rejected.
   const char *provided = auth_str + auth_prefix_len;
-  size_t digest_len = out;  // length from esp_crypto_base64_encode
+  size_t digest_len = out;
   // Derive provided_len from the already-sized std::string rather than
   // rescanning with strlen (avoids attacker-controlled scan length).
   size_t provided_len = auth.value().size() - auth_prefix_len;
@@ -761,7 +765,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
     this->has_pending_sessions_.store(false, std::memory_order_relaxed);
   }
   for (auto *rsp : incoming) {
-    // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
+    // Already disconnected? Drop it; skip session start on a dead session.
     if (rsp->safe_to_delete_()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
@@ -775,12 +779,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       continue;
     }
     this->sessions_.push_back(rsp);
-    // Prime first so on_connect_ observes a session that has already sent its
-    // initial ping/config/sorting_groups, matching the pre-refactor ordering.
     rsp->start_session_main_loop_();
-    if (this->on_connect_) {
-      this->on_connect_(rsp);
-    }
   }
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
