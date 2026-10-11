@@ -94,6 +94,7 @@ void I2SAudioSpeakerBase::loop() {
       this->audio_dac_->on_audio_started();
     }
 #endif  // USE_AUDIO_DAC
+    this->audio_start_callback_.call();
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
@@ -113,26 +114,27 @@ void I2SAudioSpeakerBase::loop() {
     }
     // Keep BCLK/LRCK running while the codec mutes. Delayed automation actions
     // can run during this hold; no delay blocks the main loop.
-    if (this->audio_end_waiting_ &&
-        App.get_loop_component_start_time() - this->audio_end_started_ms_ < AUDIO_END_MUTE_HOLD_MS) {
-      return;
-    }
-    this->audio_end_waiting_ = false;
-    ESP_LOGD(TAG, "Stopped");
-    this->stop_i2s_driver_();
-    // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
-    // the top of loop(): the audio source's task can raise a start at any point above, including
-    // during stop_i2s_driver_(), and nothing would ever re-issue it.
-    const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
-    if (bits_before_clear & SpeakerEventGroupBits::COMMAND_START) {
-      ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
-      xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
-    }
-    this->status_clear_error();
+    const bool audio_end_hold_active =
+        this->audio_end_waiting_ &&
+        App.get_loop_component_start_time() - this->audio_end_started_ms_ < AUDIO_END_MUTE_HOLD_MS;
+    if (!audio_end_hold_active) {
+      this->audio_end_waiting_ = false;
+      ESP_LOGD(TAG, "Stopped");
+      this->stop_i2s_driver_();
+      // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
+      // the top of loop(): the audio source's task can raise a start at any point above, including
+      // during stop_i2s_driver_(), and nothing would ever re-issue it.
+      const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
+      if (bits_before_clear & SpeakerEventGroupBits::COMMAND_START) {
+        ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
+        xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+      }
+      this->status_clear_error();
 
-    this->on_task_stopped();
+      this->on_task_stopped();
 
-    this->state_ = speaker::STATE_STOPPED;
+      this->state_ = speaker::STATE_STOPPED;
+    }
   }
 
   if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
