@@ -151,13 +151,13 @@ def _validate_router_sleepy(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_strings(config: ConfigType) -> ConfigType:
-    config[CONF_MODEL] = config[CONF_MODEL].encode("ascii", "ignore")[:31].decode()
-    config[CONF_MANUFACTURER] = (
-        config[CONF_MANUFACTURER].encode("ascii", "ignore")[:31].decode()
-    )
-
-    return config
+def _validate_ascii(value):
+    """Validate that a string contains only ascii characters."""
+    if not isinstance(value, str):
+        raise cv.Invalid("expected string")
+    if not value.isascii():
+        raise cv.Invalid("Only ASCII characters are allowed")
+    return value
 
 
 CONFIG_SCHEMA = cv.All(
@@ -165,11 +165,17 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
             cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
-                cv.string, cv.Length(max=31)
+                cv.string,
+                cv.Length(max=31),
+                _validate_ascii,
             ),
             cv.Optional(
                 CONF_MANUFACTURER, default="esphome", visibility=cv.Visibility.YAML_ONLY
-            ): cv.All(cv.string, cv.Length(max=31)),
+            ): cv.All(
+                cv.string,
+                cv.Length(max=31),
+                _validate_ascii,
+            ),
             cv.Optional(CONF_VERSION, default=0): cv.All(
                 cv.int_range(min=0x00, max=0xFF),
             ),
@@ -207,7 +213,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_router_sleepy,
-    _validate_strings,
     zigbee_require_vfs_select,
     cv.Any(
         cv.All(
@@ -253,9 +258,21 @@ def final_validate_strings(config: ConfigType) -> ConfigType:
         .get(CONF_VERSION)
     ):
         version_str = proj_version.encode("ascii", "ignore")[:15].decode()
+        if version_str != proj_version:
+            _LOGGER.warning(
+                "esphome.project.version %s was changed to %s for use in Zigbee attributes. Use only a maximum of 15 ASCII characters",
+                proj_version,
+                version_str,
+            )
     area_str = ""
     if CORE.area:
         area_str = CORE.area.encode("ascii", "ignore")[:15].decode()
+        if area_str != CORE.area:
+            _LOGGER.warning(
+                "esphome.area %s was changed to %s for use in Zigbee attributes. Use only a maximum of 15 ASCII characters",
+                CORE.area,
+                area_str,
+            )
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     data[KEY_ZIGBEE_VERSION_STR] = version_str
     data[KEY_ZIGBEE_AREA_STR] = area_str

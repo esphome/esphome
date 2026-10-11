@@ -444,7 +444,7 @@ void ZigbeeComponent::dump_config() {
                 "  Sleepy end device: %s\n"
                 "  Poll interval: %" PRIu32 " ms\n"
 #endif
-                "  App Version: %u\n",
+                "  App Version: %u",
                 this->basic_cluster_data_.model[0], reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
                 this->basic_cluster_data_.manufacturer[0],
                 reinterpret_cast<const char *>(this->basic_cluster_data_.manufacturer + 1),
