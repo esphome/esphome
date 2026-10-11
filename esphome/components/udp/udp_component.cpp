@@ -7,7 +7,7 @@
 
 namespace esphome::udp {
 
-static const char *const TAG = "udp";
+ESPHOME_LOG_TAG(TAG, "udp");
 
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)

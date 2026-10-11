@@ -30,6 +30,7 @@ from esphome.cpp_types import global_ns
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "select"
 IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")

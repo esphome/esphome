@@ -3120,6 +3120,11 @@ def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
 
 
+@pytest.mark.parametrize("value", ["an_id", 1, None, ["old"]])
+def test_rename_key_non_dict_passes_through(value: object) -> None:
+    assert cv.rename_key("old", "new")(value) == value
+
+
 def test_rename_key_no_removed_in_is_silent(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

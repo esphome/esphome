@@ -4,7 +4,7 @@
 
 namespace esphome::pn7150 {
 
-static const char *const TAG = "pn7150";
+ESPHOME_LOG_TAG(TAG, "pn7150");
 
 void PN7150::dump_config() {
   ESP_LOGCONFIG(TAG, "PN7150:");

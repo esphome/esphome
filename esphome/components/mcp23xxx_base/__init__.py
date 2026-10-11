@@ -20,6 +20,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "mcp23xxx_base"
 
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
 MCP23XXXBase = mcp23xxx_base_ns.class_("MCP23XXXBase", cg.Component)
@@ -74,7 +75,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_MCP23XXX): cv.use_id(MCP23XXXBase),
+        cv.Required(CONF_MCP23XXX): pins.use_id_or_address(MCP23XXXBase),
         cv.Optional(CONF_INTERRUPT, default="NO_INTERRUPT"): cv.enum(
             MCP23XXX_INTERRUPT_MODES, upper=True
         ),

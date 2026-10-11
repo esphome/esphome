@@ -4,7 +4,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   // Return the static string directly
