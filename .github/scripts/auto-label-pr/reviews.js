@@ -59,15 +59,16 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
     message += `, which makes it harder for maintainers to review.\n\n`;
     message +=
       `**This PR will not be reviewed until it is under ${TOO_BIG_THRESHOLD} ` +
-      `lines (excluding tests).** Nobody is going to pick it up as it is, ` +
-      `and waiting does not change that. The way forward is to split it: ` +
-      `the label is removed automatically once the change is under the cap.\n\n`;
+      `lines (excluding tests).** We know that is not what you want to hear ` +
+      `after this much work, and we want to be upfront so you do not wait ` +
+      `for a review that is not coming: please split the change. The label ` +
+      `is removed automatically once the PR is under the cap.\n\n`;
     message +=
-      `There is no exception to apply for. A maintainer in \`#devs\` on ` +
-      `[Discord](https://esphome.io/chat) can add the \`mega-pr\` label to a ` +
-      `change that genuinely cannot be split, but that almost never happens, ` +
-      `so do not count on it or wait for it. Smaller, focused PRs are ` +
-      `reviewed much faster because they fit into the short gaps between ` +
+      `A maintainer can add the \`mega-pr\` label after a conversation in ` +
+      `\`#devs\` on [Discord](https://esphome.io/chat) for a change that ` +
+      `genuinely cannot be split, but that is rare enough that you should ` +
+      `plan on splitting rather than wait for it. Smaller, focused PRs are ` +
+      `picked up much faster because they fit into the short gaps between ` +
       `other maintainer work. For a new component, the first PR brings the ` +
       `hub and a single platform (for example \`sensor\`); each further ` +
       `platform is its own PR on top of it.\n\n`;
