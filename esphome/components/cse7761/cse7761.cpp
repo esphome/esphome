@@ -101,11 +101,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
       buffer[3] = data & 0xFF;
       len = 4;
     }
-    uint8_t crc = 0;
-    for (uint32_t i = 0; i < len; i++) {
-      crc += buffer[i];
-    }
-    buffer[len] = ~crc;
+    buffer[len] = ~sum_bytes(buffer, len);
     len++;
   }
 
@@ -135,16 +131,12 @@ bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
   }
 
   rcvd--;
+  if (static_cast<uint8_t>(~sum_bytes(buffer, rcvd, 0xA5 + reg)) != buffer[rcvd]) {
+    return false;
+  }
   uint32_t result = 0;
-  // CRC check
-  uint8_t crc = 0xA5 + reg;
   for (uint32_t i = 0; i < rcvd; i++) {
     result = (result << 8) | buffer[i];
-    crc += buffer[i];
-  }
-  crc = ~crc;
-  if (crc != buffer[rcvd]) {
-    return false;
   }
 
   *value = result;
