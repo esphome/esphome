@@ -1,0 +1,227 @@
+esphome:
+  name: uart-mock-modbus-ranges-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Each expect_tx below pins the exact read request the controller's range builder emits, so this
+# fixture is a wire-level test of reuse_previous_range (auto/yes/no), gap joins, same-register reuse,
+# response_size surplus accounting, and RAW/text block reads.
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    rx_full_threshold: 120
+    rx_timeout: 2
+    # auto_start must be false to avoid races: the test presses the
+    # "Start Scenario" button only after subscribing to states.
+    auto_start: false
+    debug:
+    responses:
+      - expect_tx: [0x01, 0x03, 0x00, 0x00, 0x00, 0x03, 0x05, 0xCB] # auto adjacency: one read covers 0x00-0x02
+        inject_rx: [0x01, 0x03, 0x06, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0xFD, 0x74]
+      - expect_tx: [0x01, 0x03, 0x00, 0x10, 0x00, 0x01, 0x85, 0xCF] # auto gap: 0x10 alone
+        inject_rx: [0x01, 0x03, 0x02, 0x00, 0x04, 0xB9, 0x87]
+      - expect_tx: [0x01, 0x03, 0x00, 0x13, 0x00, 0x01, 0x75, 0xCF] # auto gap: 0x13 alone
+        inject_rx: [0x01, 0x03, 0x02, 0x00, 0x05, 0x78, 0x47]
+      - expect_tx: [0x01, 0x03, 0x00, 0x20, 0x00, 0x04, 0x45, 0xC3] # yes across gap: one read 0x20-0x23, gap registers ignored
+        inject_rx: [0x01, 0x03, 0x08, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x33, 0xD1]
+      - expect_tx: [0x01, 0x03, 0x00, 0x30, 0x00, 0x01, 0x84, 0x05] # no isolation: 0x30 alone despite adjacency
+        inject_rx: [0x01, 0x03, 0x02, 0x00, 0x0A, 0x38, 0x43]
+      - expect_tx: [0x01, 0x03, 0x00, 0x31, 0x00, 0x01, 0xD5, 0xC5] # no isolation: 0x31 alone
+        inject_rx: [0x01, 0x03, 0x02, 0x00, 0x0B, 0xF9, 0x83]
+      - expect_tx: [0x01, 0x03, 0x00, 0x3F, 0x00, 0x01, 0xB4, 0x06] # open NEVER: 0x3F alone (the reuse:false item split off)
+        inject_rx: [0x01, 0x03, 0x02, 0x00, 0x0C, 0xB8, 0x41]
+      - expect_tx: [0x01, 0x03, 0x00, 0x40, 0x00, 0x02, 0xC5, 0xDF] # open NEVER: 0x40 (reuse: false) still extended by the auto item at 0x41
+        inject_rx: [0x01, 0x03, 0x04, 0x00, 0x0D, 0x00, 0x0E, 0xEA, 0x34]
+      - expect_tx: [0x01, 0x03, 0x00, 0x50, 0x00, 0x01, 0x84, 0x1B] # same-address reuse: one read, two sensors on 0x50
+        inject_rx: [0x01, 0x03, 0x02, 0x12, 0x34, 0xB5, 0x33]
+      - expect_tx: [0x01, 0x03, 0x00, 0x60, 0x00, 0x04, 0x44, 0x17] # text block + adjacent word: one read 0x60-0x63
+        inject_rx: [0x01, 0x03, 0x08, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x00, 0x0F, 0x78, 0x0E]
+      - expect_tx: [0x01, 0x03, 0x00, 0x70, 0x00, 0x02, 0xC5, 0xD0] # response_size surplus: 0x70 answers 4 bytes, reuse:true word at 0x71 shifted along
+        inject_rx: [0x01, 0x03, 0x06, 0x00, 0x10, 0xAA, 0xBB, 0x00, 0x11, 0x71, 0x47]
+      - expect_tx: [0x01, 0x03, 0x00, 0x90, 0x00, 0x01, 0x84, 0x27] # auto after surplus: 0x90 alone (auto never joins past response_size)
+        inject_rx: [0x01, 0x03, 0x04, 0x00, 0x18, 0xCC, 0xDD, 0xEF, 0x6D]
+      - expect_tx: [0x01, 0x03, 0x00, 0x91, 0x00, 0x01, 0xD5, 0xE7] # auto after surplus: 0x91 alone
+        inject_rx: [0x01, 0x03, 0x02, 0x00, 0x19, 0x79, 0x8E]
+      - expect_tx: [0x01, 0x03, 0x00, 0x80, 0x00, 0x04, 0x45, 0xE1] # RAW block via response_size: 8 bytes = 4 registers in one read
+        inject_rx: [0x01, 0x03, 0x08, 0x00, 0x14, 0x00, 0x15, 0x00, 0x16, 0x00, 0x17, 0x6D, 0xDF]
+
+modbus:
+  uart_id: virtual_uart_dev
+  send_wait_time: 200ms
+  turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    id: ranges_controller
+    max_cmd_retries: 0
+    # The test triggers a single poll by pressing the "Start Scenario" button
+    update_interval: never
+
+sensor:
+  # Case 1: three adjacent registers merge into one read (auto default)
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "adjacent_a"
+    register_type: holding
+    address: 0x00
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "adjacent_b"
+    register_type: holding
+    address: 0x01
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "adjacent_c"
+    register_type: holding
+    address: 0x02
+
+  # Case 2: a gap keeps auto items apart
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "gap_a"
+    register_type: holding
+    address: 0x10
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "gap_b"
+    register_type: holding
+    address: 0x13
+
+  # Case 3: reuse_previous_range: true bridges the gap into one read
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "bridge_a"
+    register_type: holding
+    address: 0x20
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "bridge_b"
+    register_type: holding
+    address: 0x23
+    reuse_previous_range: true
+
+  # Case 4: reuse_previous_range: false splits adjacent registers
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "split_a"
+    register_type: holding
+    address: 0x30
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "split_b"
+    register_type: holding
+    address: 0x31
+    reuse_previous_range: false
+
+  # Case 5: a reuse:false item starts its own range but stays open for later auto items
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "open_prev"
+    register_type: holding
+    address: 0x3F
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "open_never"
+    register_type: holding
+    address: 0x40
+    reuse_previous_range: false
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "open_tagalong"
+    register_type: holding
+    address: 0x41
+
+  # Case 6: two sensors on the same register share one read
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "shared_lo"
+    register_type: holding
+    address: 0x50
+    bitmask: 0x00FF
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "shared_hi"
+    register_type: holding
+    address: 0x50
+    bitmask: 0xFF00
+
+  # Case 10 (text block, see text_sensor below) shares the range with this word at 0x63
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "after_text"
+    register_type: holding
+    address: 0x63
+
+  # Case 11: response_size surplus — the device answers 4 bytes for this single register, so the
+  # following sensor's data sits 2 bytes later than its address alone implies. Joining past a
+  # non-standard response_size takes an explicit reuse_previous_range: true.
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "surplus"
+    register_type: holding
+    address: 0x70
+    response_size: 4
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "after_surplus"
+    register_type: holding
+    address: 0x71
+    reuse_previous_range: true
+
+  # Case 13: auto never joins past a response_size register — despite adjacency these poll separately
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "surplus_split"
+    register_type: holding
+    address: 0x90
+    response_size: 4
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "after_surplus_split"
+    register_type: holding
+    address: 0x91
+
+  # Case 12: RAW + response_size reads a block of ceil(8/2) = 4 registers
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "raw_block"
+    register_type: holding
+    address: 0x80
+    value_type: RAW
+    response_size: 8
+    lambda: |-
+      return (float) data.size();
+
+text_sensor:
+  # Case 10: text sensor reads 3 registers (response_size 6)
+  - platform: modbus_controller
+    modbus_controller_id: ranges_controller
+    name: "text_block"
+    register_type: holding
+    address: 0x60
+    response_size: 6
+    raw_encode: NONE
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: |-
+          id(virtual_uart_dev).start_scenario();
+          id(ranges_controller).set_update_interval(1000);
+          id(ranges_controller).start_poller();

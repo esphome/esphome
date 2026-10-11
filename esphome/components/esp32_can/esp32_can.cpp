@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_can {
 
-static const char *const TAG = "esp32_can";
+ESPHOME_LOG_TAG(TAG, "esp32_can");
 
 static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config) {
   switch (bitrate) {

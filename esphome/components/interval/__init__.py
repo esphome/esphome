@@ -2,8 +2,10 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERVAL, CONF_STARTUP_DELAY
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "interval"
 interval_ns = cg.esphome_ns.namespace("interval")
 IntervalTrigger = interval_ns.class_(
     "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent
@@ -22,7 +24,7 @@ CONFIG_SCHEMA = automation.validate_automation(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
         var = cg.new_Pvariable(conf[CONF_ID])
         await cg.register_component(var, conf)

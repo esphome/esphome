@@ -37,11 +37,14 @@ struct TuyaDatapoint {
   };
   std::string value_string;
   std::vector<uint8_t> value_raw;
+
+  /// Log a warning when this datapoint is not of type `expected`, and return it.
+  const TuyaDatapoint &expect_type(TuyaDatapointType expected) const;
 };
 
 struct TuyaDatapointListener {
   uint8_t datapoint_id;
-  std::function<void(TuyaDatapoint)> on_datapoint;
+  Callback<void(const TuyaDatapoint &)> on_datapoint;
 };
 
 enum class TuyaCommandType : uint8_t {
@@ -54,6 +57,7 @@ enum class TuyaCommandType : uint8_t {
   DATAPOINT_DELIVER = 0x06,
   DATAPOINT_REPORT_ASYNC = 0x07,
   DATAPOINT_QUERY = 0x08,
+  GMT_TIME_QUERY = 0x0C,
   WIFI_TEST = 0x0E,
   LOCAL_TIME_QUERY = 0x1C,
   DATAPOINT_REPORT_SYNC = 0x22,
@@ -90,7 +94,9 @@ class Tuya final : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
+  template<typename F> void register_listener(uint8_t datapoint_id, F &&func) {
+    this->register_listener_(datapoint_id, Callback<void(const TuyaDatapoint &)>::create(std::forward<F>(func)));
+  }
   void set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
@@ -116,6 +122,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   }
 
  protected:
+  void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
   void handle_char_(uint8_t c);
   void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
@@ -138,8 +145,10 @@ class Tuya final : public Component, public uart::UARTDevice {
 
 #ifdef USE_TIME
   void send_local_time_();
+  void send_gmt_time_();
   time::RealTimeClock *time_id_{nullptr};
   bool time_sync_callback_registered_{false};
+  bool gmt_time_sync_callback_registered_{false};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   bool init_failed_{false};

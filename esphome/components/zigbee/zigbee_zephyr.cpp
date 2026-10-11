@@ -4,7 +4,6 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
-#include "esphome/core/wake.h"
 
 extern "C" {
 #include <zboss_api.h>
@@ -16,7 +15,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee";
+ESPHOME_LOG_TAG(TAG, "zigbee");
 
 ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -30,6 +29,9 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   switch (sig) {
     case ZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_SKIP_STARTUP, status: %d", status);
+      if (status == RET_OK) {
+        on_start_();
+      }
       break;
     case ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY, status: %d", status);
@@ -117,8 +119,6 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
-  esphome::wake_loop_threadsafe();
-
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
@@ -134,6 +134,13 @@ void ZigbeeComponent::on_join_(bool factory_new) {
   this->defer([this, factory_new]() {
     ESP_LOGD(TAG, "Joined the network");
     this->join_cb_.call(factory_new);
+  });
+}
+
+void ZigbeeComponent::on_start_() {
+  this->defer([this]() {
+    ESP_LOGD(TAG, "Started zigbee stack");
+    this->start_cb_.call();
   });
 }
 
@@ -187,6 +194,7 @@ void ZigbeeComponent::setup() {
   zigbee_configure_sleepy_behavior(this->sleepy_);
 #endif
   zigbee_enable();
+  this->disable_loop();
 }
 
 #ifdef ESPHOME_LOG_HAS_CONFIG
@@ -251,7 +259,10 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void ZigbeeComponent::force_report() { this->force_report_ = true; }
+void ZigbeeComponent::force_report() {
+  this->force_report_ = true;
+  this->enable_loop_soon_any_context();
+}
 
 void ZigbeeComponent::add_radio_sleep_time_ms(uint32_t ms) {
   this->radio_sleep_remainder_ += ms;
@@ -265,6 +276,7 @@ void ZigbeeComponent::loop() {
     this->force_report_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
+  this->disable_loop();
 }
 
 void ZigbeeComponent::factory_reset() {

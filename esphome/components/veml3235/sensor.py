@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["i2c"]
@@ -43,7 +44,7 @@ GAINS = {
 }
 
 
-def _validate_auto_gain_thresholds(config):
+def _validate_auto_gain_thresholds(config: ConfigType) -> ConfigType:
     if config[CONF_AUTO_GAIN_THRESHOLD_LOW] >= config[CONF_AUTO_GAIN_THRESHOLD_HIGH]:
         raise cv.Invalid(
             f"'{CONF_AUTO_GAIN_THRESHOLD_LOW}' must be less than '{CONF_AUTO_GAIN_THRESHOLD_HIGH}'"
@@ -80,7 +81,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

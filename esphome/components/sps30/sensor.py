@@ -26,6 +26,7 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_MICROMETER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras"]
 DEPENDENCIES = ["i2c"]
@@ -35,11 +36,6 @@ sps30_ns = cg.esphome_ns.namespace("sps30")
 SPS30Component = sps30_ns.class_(
     "SPS30Component", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
-
-# Actions
-StartFanAction = sps30_ns.class_("StartFanAction", automation.Action)
-StartMeasurementAction = sps30_ns.class_("StartMeasurementAction", automation.Action)
-StopMeasurementAction = sps30_ns.class_("StopMeasurementAction", automation.Action)
 
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 CONF_IDLE_INTERVAL = "idle_interval"
@@ -120,50 +116,22 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_PM_1_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_1_0])
-        cg.add(var.set_pm_1_0_sensor(sens))
-
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
-
-    if CONF_PM_4_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_4_0])
-        cg.add(var.set_pm_4_0_sensor(sens))
-
-    if CONF_PM_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_10_0])
-        cg.add(var.set_pm_10_0_sensor(sens))
-
-    if CONF_PMC_0_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_0_5])
-        cg.add(var.set_pmc_0_5_sensor(sens))
-
-    if CONF_PMC_1_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_1_0])
-        cg.add(var.set_pmc_1_0_sensor(sens))
-
-    if CONF_PMC_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_2_5])
-        cg.add(var.set_pmc_2_5_sensor(sens))
-
-    if CONF_PMC_4_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_4_0])
-        cg.add(var.set_pmc_4_0_sensor(sens))
-
-    if CONF_PMC_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PMC_10_0])
-        cg.add(var.set_pmc_10_0_sensor(sens))
-
-    if CONF_PM_SIZE in config:
-        sens = await sensor.new_sensor(config[CONF_PM_SIZE])
-        cg.add(var.set_pm_size_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_4_0, var.set_pm_4_0_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
+    await sensors(CONF_PMC_0_5, var.set_pmc_0_5_sensor)
+    await sensors(CONF_PMC_1_0, var.set_pmc_1_0_sensor)
+    await sensors(CONF_PMC_2_5, var.set_pmc_2_5_sensor)
+    await sensors(CONF_PMC_4_0, var.set_pmc_4_0_sensor)
+    await sensors(CONF_PMC_10_0, var.set_pmc_10_0_sensor)
+    await sensors(CONF_PM_SIZE, var.set_pm_size_sensor)
 
     if CONF_AUTO_CLEANING_INTERVAL in config:
         cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
@@ -179,25 +147,11 @@ SPS30_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "sps30.start_fan_autoclean",
-    StartFanAction,
-    SPS30_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sps30.start_measurement",
-    StartMeasurementAction,
-    SPS30_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sps30.stop_measurement",
-    StopMeasurementAction,
-    SPS30_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def sps30_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("sps30.start_fan_autoclean", "start_fan_cleaning()"),
+    ("sps30.start_measurement", "start_measurement()"),
+    ("sps30.stop_measurement", "stop_measurement()"),
+):
+    automation.register_apply_action(
+        _name, SPS30_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
