@@ -35,6 +35,7 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void set_roi_center(uint8_t center) { this->roi_center_ = center; }
 
  protected:
+  void fail_at_default_address_(const LogString *message);
   bool wait_for_boot_();
   bool configure_();
   bool start_ranging_();

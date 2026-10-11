@@ -85,10 +85,9 @@ def validate_roi(config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # Every sensor boots at 0x29, so with several on one bus each needs its own enable_pin
-    # to be held in reset while the others are re-addressed.
-    if CONF_ENABLE_PIN in config:
-        return config
+    # Every sensor boots at 0x29. With several on one bus each needs its own enable_pin so it
+    # can be held in reset while the others are re-addressed, and none may stay at 0x29, or a
+    # later sibling boots at the same address and the re-address write reaches both chips.
     full_config = fv.full_config.get()
     siblings = [
         conf
@@ -96,10 +95,24 @@ def _final_validate(config: ConfigType) -> ConfigType:
         if conf.get(CONF_PLATFORM) == DOMAIN
         and conf[CONF_I2C_ID] == config[CONF_I2C_ID]
     ]
-    if len(siblings) > 1:
+    if len(siblings) < 2:
+        return config
+    if CONF_ENABLE_PIN not in config:
         raise cv.Invalid(
             "Every VL53L1X sensor on a shared I2C bus needs an enable_pin",
             path=[CONF_ENABLE_PIN],
+        )
+    address = config[CONF_ADDRESS]
+    if address == DEFAULT_ADDRESS:
+        raise cv.Invalid(
+            f"VL53L1X sensors sharing an I2C bus must all be re-addressed away from "
+            f"0x{DEFAULT_ADDRESS:02X}",
+            path=[CONF_ADDRESS],
+        )
+    if sum(conf[CONF_ADDRESS] == address for conf in siblings) > 1:
+        raise cv.Invalid(
+            f"Address 0x{address:02X} is used by more than one VL53L1X sensor on this bus",
+            path=[CONF_ADDRESS],
         )
     return config
 

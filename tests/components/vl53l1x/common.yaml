@@ -2,6 +2,7 @@ sensor:
   - platform: vl53l1x
     i2c_id: i2c_bus
     name: VL53L1X Distance
+    address: 0x31
     enable_pin: GPIO12
   - platform: vl53l1x
     i2c_id: i2c_bus

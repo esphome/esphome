@@ -213,24 +213,24 @@ void VL53L1XSensor::setup() {
   this->set_i2c_address(DEFAULT_ADDRESS);
 
   if (!this->wait_for_boot_()) {
-    this->mark_failed(LOG_STR("Boot timeout"));
+    this->fail_at_default_address_(LOG_STR("Boot timeout"));
     return;
   }
 
   uint16_t model_id;
   if (!this->read_word16_(IDENTIFICATION_MODEL_ID, &model_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->fail_at_default_address_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (model_id != MODEL_ID) {
     ESP_LOGE(TAG, "Wrong model ID 0x%04X", model_id);
-    this->mark_failed();
+    this->fail_at_default_address_(LOG_STR("Wrong model ID"));
     return;
   }
 
   if (final_address != DEFAULT_ADDRESS) {
     if (!this->write_byte16_(I2C_DEVICE_ADDRESS, final_address & 0x7F)) {
-      this->mark_failed(LOG_STR("Setting address failed"));
+      this->fail_at_default_address_(LOG_STR("Setting address failed"));
       return;
     }
     this->set_i2c_address(final_address);
@@ -247,6 +247,14 @@ void VL53L1XSensor::setup() {
     return;
   }
   this->measurement_start_ = millis();
+}
+
+// A sensor that failed before it was re-addressed is still answering at 0x29, which would
+// collide with the next sibling's bring-up, so hold it in reset.
+void VL53L1XSensor::fail_at_default_address_(const LogString *message) {
+  if (this->enable_pin_ != nullptr)
+    this->enable_pin_->digital_write(false);
+  this->mark_failed(message);
 }
 
 bool VL53L1XSensor::wait_for_boot_() {
@@ -375,10 +383,13 @@ void VL53L1XSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Distance Mode: %s\n"
                 "  Timing Budget: %u ms\n"
-                "  ROI: %ux%u, center %u\n"
+                "  ROI: %ux%u\n"
                 "  Offset: %d mm",
                 this->distance_mode_ == DISTANCE_MODE_SHORT ? LOG_STR_LITERAL("short") : LOG_STR_LITERAL("long"),
-                this->budget_ms_, this->roi_width_, this->roi_height_, this->roi_center_, this->offset_mm_);
+                this->budget_ms_, this->roi_width_, this->roi_height_, this->offset_mm_);
+  if (this->roi_center_ != 0) {
+    ESP_LOGCONFIG(TAG, "  ROI Center: %u", this->roi_center_);
+  }
 }
 
 bool VL53L1XSensor::write_byte16_(uint16_t reg, uint8_t value) {
