@@ -7,7 +7,7 @@
 
 namespace esphome::esp32_pm {
 
-static const char *const TAG = "esp32_pm";
+ESPHOME_LOG_TAG(TAG, "esp32_pm");
 
 void ESP32PowerManagement::setup() {
   esp_err_t rc = ESP_OK;
