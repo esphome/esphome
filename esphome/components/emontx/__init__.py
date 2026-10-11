@@ -44,13 +44,29 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
+def _synchronous_automation(value: ConfigType) -> ConfigType:
+    """Reject deferring actions: the received line and parsed JSON are only valid while the
+    automation runs, and DelayAction and friends keep the trigger arguments for later."""
+    if automation.has_non_synchronous_actions(value):
+        raise cv.Invalid(
+            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in on_json and "
+            "on_data: the received data is only valid while the automation runs. Copy what you need "
+            "into globals first, then defer in a separate script or automation."
+        )
+    return value
+
+
+def _synchronous_automation_schema() -> cv.All:
+    return cv.All(automation.validate_automation({}), _synchronous_automation)
+
+
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmonTx),
-            cv.Optional(CONF_ON_JSON): automation.validate_automation({}),
-            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
+            cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
+            cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -104,10 +120,10 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_JSON,
         "add_on_json_callback",
-        [(cg.JsonObject, "json"), (cg.std_string, "raw_json")],
+        [(cg.JsonObject, "json"), (cg.StringRef, "raw_json")],
     ),
     automation.CallbackAutomation(
-        CONF_ON_DATA, "add_on_data_callback", [(cg.std_string, "data")]
+        CONF_ON_DATA, "add_on_data_callback", [(cg.StringRef, "data")]
     ),
 )
 

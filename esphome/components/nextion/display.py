@@ -261,10 +261,7 @@ async def to_code(config):
 
         if CORE.is_esp32:
             esp32.request_http_client()
-            esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
-            )
+            esp32.allow_insecure_tls()
         elif CORE.is_esp8266:
             cg.add_library("ESP8266HTTPClient", None)
 
