@@ -9,11 +9,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
 )
 from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
-from esphome.components.zephyr import (
-    zephyr_add_cdc_acm,
-    zephyr_add_prj_conf,
-    zephyr_claim_cdc_acm,
-)
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_claim_cdc_acm
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -123,7 +119,6 @@ async def to_code(config: ConfigType) -> None:
         interface = None
         if CORE.using_zephyr:
             port = f"cdc_acm_uart{interface_index}"
-            zephyr_add_cdc_acm(config, interface_index)
             interface = cg.new_Pvariable(
                 interface_conf[CONF_ID],
                 MockObj(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({port}))"),

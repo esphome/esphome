@@ -5,7 +5,6 @@ from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
     HexValue,
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_claim_cdc_acm,
@@ -118,7 +117,8 @@ def _final_validate(config: ConfigType) -> None:
     if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
         cdc_id = UARTS[uart][1]
         if cdc_id >= 0:
-            zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr")
+            # SMP frames are marked, so log text from the logger on the same port is skipped
+            zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr", allow_write_only=True)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -165,11 +165,8 @@ async def to_code(config: ConfigType) -> None:
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
-        uart = UARTS[transport[CONF_HARDWARE_UART]]
-        uart_name = uart[0]
-        cdc_id = uart[1]
-        if cdc_id >= 0:
-            zephyr_add_cdc_acm(config, cdc_id)
+        # A CDC ACM port is set up by zephyr_to_code() from the claim in _final_validate()
+        uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
