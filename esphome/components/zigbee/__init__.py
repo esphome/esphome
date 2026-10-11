@@ -3,6 +3,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_MANUFACTURER
 from esphome.components.esp32 import DOMAIN as ESP32_DOMAIN, only_on_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32C5,
@@ -14,14 +15,19 @@ from esphome.components.esp32.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ESPHOME,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MODEL,
     CONF_NAME,
     CONF_ON_START,
     CONF_POLLING_INTERVAL,
+    CONF_PROJECT,
+    CONF_VERSION,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .const import (
@@ -36,6 +42,8 @@ from .const import (
     CONF_USE_DEVICE_TYPE,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
+    KEY_ZIGBEE_AREA_STR,
+    KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     REPORT,
     ZigbeeComponent,
@@ -150,6 +158,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
                 cv.string, cv.Length(max=31)
             ),
+            cv.Optional(
+                CONF_MANUFACTURER, default="esphome", visibility=cv.Visibility.YAML_ONLY
+            ): cv.All(cv.string, cv.Length(max=31)),
+            cv.Optional(CONF_VERSION, default=0): cv.All(
+                cv.int_range(min=0x00, max=0xFF),
+            ),
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
             cv.Optional(CONF_ON_START): automation.validate_automation({}),
@@ -220,7 +234,26 @@ def validate_number_of_ep(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_strings(config: ConfigType) -> ConfigType:
+    version_str = ESPHOME_VERSION
+    if (
+        proj_version := fv.full_config.get()
+        .get(CONF_ESPHOME, {})
+        .get(CONF_PROJECT, {})
+        .get(CONF_VERSION)
+    ):
+        version_str = proj_version if len(proj_version) < 16 else proj_version[:15]
+    area_str = ""
+    if CORE.area:
+        area_str = CORE.area if len(CORE.area) < 16 else CORE.area[:15]
+    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
+    data[KEY_ZIGBEE_VERSION_STR] = version_str
+    data[KEY_ZIGBEE_AREA_STR] = area_str
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = cv.All(
+    validate_strings,
     validate_number_of_ep,
     final_validate_esp32,
 )
