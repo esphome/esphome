@@ -4,7 +4,7 @@ from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
-from esphome.config_validation import Invalid, Schema
+from esphome.config_validation import Schema
 from esphome.const import (
     CONF_DEFAULT,
     CONF_GROUP,
@@ -16,11 +16,12 @@ from esphome.const import (
 )
 from esphome.core import ID, EsphomeError, TimePeriod
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, call_lambda
 from esphome.schema_extractors import EnableSchemaExtraction
 from esphome.types import Expression
 
 from ..defines import (
+    CONF_DEBUG_OUTLINE,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
     CONF_FLEX_ALIGN_TRACK,
@@ -42,13 +43,13 @@ from ..defines import (
     STATES,
     LValidator,
     add_lv_use,
-    call_lambda,
+    get_options,
+    get_part_state_selector,
     get_styles_used,
-    get_theme_widget_map,
     get_widget_map,
-    get_widgets_completed,
     join_enums,
     literal,
+    next_debug_outline_color,
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
@@ -190,29 +191,27 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := get_theme_widget_map().get(self.name):
-            for part, states in theme.items():
-                part = "LV_PART_" + part.upper()
-                for state, style in states.items():
-                    state = "LV_STATE_" + state.upper()
-                    if state == "LV_STATE_DEFAULT":
-                        lv_state = literal(part)
-                    elif part == "LV_PART_MAIN":
-                        lv_state = literal(state)
-                    else:
-                        lv_state = join_enums((state, part))
-                    w.add_style(style, lv_state)
+        apply_theme_styles(w)
         await set_obj_properties(w, config)
+        apply_debug_outline(w)
         await add_widgets(w, config)
         await self.to_code(w, config)
         return w
 
-    async def to_code(self, w: "Widget", config: dict):
+    async def to_code(self, w: "Widget", config: dict) -> None:
         """
-        Update a widget, also called when creating
+        Generate code for widget properties and actions.
         :param config:
         :return:
         """
+
+    async def update_to_code(self, w: "Widget", config: dict) -> None:
+        """
+        Update a widget. Defaults to calling to_code, but can be overridden
+        :param w: The widget to update
+        :param config: The configuration for the update
+        """
+        await self.to_code(w, config)
 
     async def obj_creator(self, parent: MockObj, config: dict):
         """
@@ -230,7 +229,7 @@ class WidgetType:
         :param config: Its configuration
         """
 
-    def get_uses(self):
+    def get_uses(self) -> tuple:
         """
         Get a list of other widgets used by this one
         :return:
@@ -265,6 +264,29 @@ class WidgetType:
         :param widget_config: The configuration for the widget itself
         :param path: The path to the widget, for error reporting
         """
+
+
+def apply_theme_styles(w: "Widget") -> None:
+    """Apply the current theme's styles for this widget's type"""
+    from ..styles import get_widget_theme_styles
+
+    for style, lv_state in get_widget_theme_styles(w.type.name):
+        w.add_style(style, lv_state)
+
+
+def apply_debug_outline(w: "Widget") -> None:
+    """
+    When `debug_outline` is set, outline this widget in the next palette colour.
+    An outline is drawn outside the widget's own box, so it doesn't take up layout
+    space and doesn't touch the widget's own `border_*` style, unlike a border.
+    """
+    if not get_options().get(CONF_DEBUG_OUTLINE):
+        return
+    r, g, b = next_debug_outline_color()
+    w.set_style("outline_width", 1)
+    w.set_style("outline_pad", 0)
+    w.set_style("outline_color", f"lv_color_make({r}, {g}, {b})")
+    w.set_style("outline_opa", "LV_OPA_COVER")
 
 
 class Widget:
@@ -320,8 +342,6 @@ class Widget:
         return lv_obj.remove_flag(self.obj, literal(flag))
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(
@@ -454,10 +474,6 @@ def get_widget_generator(wid):
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if get_widgets_completed():
-            raise Invalid(
-                f"Widget {wid} not found, yet all widgets should be defined by now"
-            )
         yield
 
 
@@ -465,19 +481,6 @@ async def get_widget_(wid):
     if obj := get_widget_map().get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
-
-
-def widgets_wait_generator():
-    while True:
-        if get_widgets_completed():
-            return
-        yield
-
-
-async def wait_for_widgets():
-    if get_widgets_completed():
-        return
-    await FakeAwaitable(widgets_wait_generator())
 
 
 async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
@@ -612,15 +615,8 @@ async def set_obj_properties(w: Widget, config):
         _set_layout_options(w, layout, base_name)
     parts = collect_parts(config)
     for part, states in parts.items():
-        part = "LV_PART_" + part.upper()
         for state, props in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
+            lv_state = get_part_state_selector(part, state)
             for style_id in props.get(CONF_STYLES, ()):
                 w.add_style(style_id, lv_state)
             for prop, value in {

@@ -3,7 +3,7 @@
 
 namespace esphome::ina2xx_spi {
 
-static const char *const TAG = "ina2xx_spi";
+ESPHOME_LOG_TAG(TAG, "ina2xx_spi");
 
 void INA2XXSPI::setup() {
   this->spi_setup();

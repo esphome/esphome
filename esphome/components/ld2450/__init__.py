@@ -3,10 +3,12 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_DATA, CONF_THROTTLE
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@hareeshmu"]
+DOMAIN = "ld2450"
 MULTI_CONF = True
 
 ld2450_ns = cg.esphome_ns.namespace("ld2450")
@@ -49,7 +51,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

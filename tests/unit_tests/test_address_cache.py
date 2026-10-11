@@ -257,6 +257,42 @@ def test_from_cli_args_invalid_format(caplog: LogCaptureFixture) -> None:
     assert "Invalid cache format: also_invalid" in caplog.text
 
 
+@pytest.mark.parametrize(
+    "args,expected",
+    [
+        (["device.local="], {}),
+        (["device.local= , , "], {}),
+        (["=192.168.1.10"], {}),
+        (["...=192.168.1.10"], {}),
+        (
+            [" device.local. = , 192.168.1.10, , fe80::1, "],
+            {"device.local": ["192.168.1.10", "fe80::1"]},
+        ),
+    ],
+)
+def test_from_cli_args_discards_empty_addresses_and_hostnames(
+    args: list[str], expected: dict[str, list[str]], caplog: LogCaptureFixture
+) -> None:
+    """Only usable cache entries may prevent normal hostname resolution."""
+    cache = AddressCache.from_cli_args(args, args)
+
+    assert cache.mdns_cache == expected
+    assert cache.dns_cache == expected
+    assert cache.has_cache() == bool(expected)
+    if not expected:
+        assert cache.get_addresses("device.local") is None
+        assert "Invalid cache entry" in caplog.text
+
+
+def test_invalid_cache_entry_does_not_replace_valid_entry() -> None:
+    """A later empty entry must not remove an earlier usable address."""
+    args = ["device.local=192.168.1.10", "device.local=", "server.com=10.0.0.1"]
+    cache = AddressCache.from_cli_args(args, args)
+
+    assert cache.get_mdns_addresses("DEVICE.LOCAL.") == ["192.168.1.10"]
+    assert cache.get_dns_addresses("server.com") == ["10.0.0.1"]
+
+
 def test_from_cli_args_ipv6() -> None:
     """Test handling of IPv6 addresses."""
     mdns_args: list[str] = ["device.local=fe80::1,2001:db8::1"]

@@ -18,7 +18,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_pico_w";
+ESPHOME_LOG_TAG(TAG, "wifi_pico_w");
 
 // Check if STA is fully connected (WiFi joined + has IP address).
 // Do NOT use WiFi.status() or WiFi.connected() for this — in AP-only mode they
@@ -265,7 +265,6 @@ bssid_t WiFiComponent::wifi_bssid() {
     bssid[i] = raw_bssid[i];
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   // TODO: Find direct CYW43 API to avoid Arduino String allocation
   String ssid = WiFi.SSID();

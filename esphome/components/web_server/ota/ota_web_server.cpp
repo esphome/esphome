@@ -23,7 +23,7 @@ using PlatformString = String;
 
 namespace esphome::web_server {
 
-static const char *const TAG = "web_server.ota";
+ESPHOME_LOG_TAG(TAG, "web_server.ota");
 
 class OTARequestHandler : public AsyncWebHandler {
  public:
@@ -249,7 +249,7 @@ void WebServerOTAComponent::setup() {
     return;
   }
 
-  // AsyncWebServer takes ownership of the handler and will delete it when the server is destroyed
+  // The handler lives for the life of the process; WebServerBase never destroys its server
   base->add_handler(new OTARequestHandler(this));  // NOLINT
 }
 

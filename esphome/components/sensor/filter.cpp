@@ -11,7 +11,18 @@
 
 namespace esphome::sensor {
 
-static const char *const TAG = "sensor.filter";
+ESPHOME_LOG_TAG(TAG, "sensor.filter");
+
+/// Shared pass check for throttle_with_priority (NaN only): passes and stamps `last_input` when the
+/// period has elapsed, on the first value, or for NaN.
+static bool throttle_nan_passes(uint32_t &last_input, uint32_t period, float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (last_input == 0 || now - last_input >= period || std::isnan(value)) {
+    last_input = now;
+    return true;
+  }
+  return false;
+}
 
 // Filter
 void Filter::input(float value) {
@@ -164,8 +175,6 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   }
   return {};
 }
-void ExponentialMovingAverageFilter::set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
-void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
 // ThrottleAverageFilter
 ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period_(time_period) {}
@@ -268,11 +277,8 @@ optional<float> throttle_with_priority_new_value(Sensor *parent, float value, co
 ThrottleWithPriorityNanFilter::ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs)
     : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ || std::isnan(value)) {
-    this->last_input_ = now;
+  if (throttle_nan_passes(this->last_input_, this->min_time_between_inputs_, value))
     return value;
-  }
   return {};
 }
 
@@ -283,8 +289,11 @@ DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
 void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
 
 optional<float> DeltaFilter::new_value(float value) {
-  // Always yield the first value.
-  if (std::isnan(this->last_value_)) {
+  const bool no_value = std::isnan(value);
+  const bool no_reference = std::isnan(this->last_value_);
+  if (no_value && no_reference)
+    return {};
+  if (no_value || no_reference) {
     this->last_value_ = value;
     return value;
   }
@@ -293,8 +302,7 @@ optional<float> DeltaFilter::new_value(float value) {
   float min = fabsf(this->min_a0_ + ref * this->min_a1_);
   float max = fabsf(this->max_a0_ + ref * this->max_a1_);
   float delta = fabsf(value - ref);
-  // if there is no reference, e.g. for the first value, just accept this one,
-  // otherwise accept only if within range.
+  // accept only if within range
   if (delta > min && delta <= max) {
     this->last_value_ = value;
     return value;
@@ -353,6 +361,23 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
   this->enable_loop();
 
   return value;
+}
+
+// TimeoutThrottleFilter
+optional<float> TimeoutThrottleFilter::new_value(float value) {
+  TimeoutFilterLast::new_value(value);
+  if (throttle_nan_passes(this->last_input_, this->time_period_, value))
+    return value;
+  return {};
+}
+
+void TimeoutThrottleFilter::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->timeout_start_time_ >= this->time_period_) {
+    if (throttle_nan_passes(this->last_input_, this->time_period_, this->pending_value_))
+      this->output(this->pending_value_);
+    this->disable_loop();
+  }
 }
 
 // DebounceFilter
@@ -450,7 +475,7 @@ optional<float> ToNTCResistanceFilter::new_value(float value) {
   }
   double k = 273.15;
   // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
-  double t = value + k;
+  double t = static_cast<double>(value) + k;
   double y = (this->a_ - 1 / (t)) / (2 * this->c_);
   double x = sqrt(pow(this->b_ / (3 * this->c_), 3) + y * y);
   double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));

@@ -7,7 +7,7 @@
 
 namespace esphome::datetime {
 
-static const char *const TAG = "datetime.time_entity";
+ESPHOME_LOG_TAG(TAG, "datetime.time_entity");
 
 void TimeEntity::publish_state() {
   if (this->hour_ > 23) {
@@ -32,8 +32,6 @@ void TimeEntity::publish_state() {
   ControllerRegistry::notify_time_update(this);
 #endif
 }
-
-TimeCall TimeEntity::make_call() { return TimeCall(this); }
 
 void TimeCall::validate_() {
   if (this->hour_.has_value() && this->hour_ > 23) {
