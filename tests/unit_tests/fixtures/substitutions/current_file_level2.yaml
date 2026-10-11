@@ -1,0 +1,4 @@
+# included by current_file_level1.yaml
+level2:
+  file: ${this_file().name}
+  dir: ${this_dir().name}

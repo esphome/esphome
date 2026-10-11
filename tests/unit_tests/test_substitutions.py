@@ -1238,3 +1238,13 @@ def test_include_candidate_patterns_cover_real_expansion(
     )
     patterns = substitutions.include_candidate_patterns(template)
     assert any(fnmatchcase(resolved, p) or resolved == p for p in patterns)
+
+
+def test_file_context_key_is_not_a_valid_substitution_key() -> None:
+    """The sentinel key holding each file's location cannot be typed by a user.
+
+    Substitution names may not contain a dot, so no configuration can shadow or
+    forge the value that this_file()/this_dir() read.
+    """
+    with pytest.raises(cv.Invalid, match="cannot be used"):
+        substitutions.validate_substitution_key(yaml_util.FILE_CONTEXT)

@@ -10,8 +10,8 @@ from ipaddress import _BaseAddress, _BaseNetwork
 import logging
 import math
 import os
-from pathlib import Path
-from typing import Any
+from pathlib import Path, PurePath
+from typing import Any, NamedTuple
 import uuid
 
 import yaml
@@ -160,6 +160,19 @@ def make_literal(value: Any) -> ESPLiteralValue | Any:
     except TypeError:
         # Adding class failed, ignore error
         return value
+
+
+# Sentinel key under which every parsed document carries its own location.
+# Dots are invalid in substitution names, so this can never collide with — or be
+# overridden by — a user-defined variable. Same technique as ``jinja.Resolver``.
+FILE_CONTEXT = ".file_context"
+
+
+class FileContext(NamedTuple):
+    """Location of the YAML document a node was parsed from."""
+
+    file: PurePath
+    dir: PurePath
 
 
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
@@ -1053,7 +1066,7 @@ def parse_yaml(
         # tracked mode; reject the combination instead of half-applying it.
         raise ValueError("track_document_range=False requires the default yaml_loader")
     try:
-        return _load_yaml_internal_with_type(
+        content = _load_yaml_internal_with_type(
             ESPHomeLoader,
             file_name,
             file_handle,
@@ -1065,13 +1078,25 @@ def parse_yaml(
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _load_yaml_internal_with_type(
+        content = _load_yaml_internal_with_type(
             ESPHomePurePythonLoader,
             file_name,
             file_handle,
             yaml_loader,
             track_document_range=track_document_range,
         )
+    # Record where this document came from, under a sentinel key. The key holds
+    # a dot, which substitution names may not, so a user variable can neither
+    # shadow nor forge it. Read back by the this_file()/this_dir() globals.
+    return add_context(
+        content,
+        {
+            FILE_CONTEXT: FileContext(
+                file=PurePath(file_name.absolute()),
+                dir=PurePath(file_name.parent.absolute()),
+            )
+        },
+    )
 
 
 def _load_yaml_internal_with_type(
@@ -1466,4 +1491,5 @@ ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_path)
+ESPHomeDumper.add_multi_representer(PurePath, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(IncludeFile, ESPHomeDumper.represent_include_file)
