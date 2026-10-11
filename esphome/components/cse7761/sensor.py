@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
     CONF_ID,
-    CONF_POWER_FACTOR,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -36,6 +35,7 @@ CONF_ACTIVE_POWER_1 = "active_power_1"
 CONF_ACTIVE_POWER_2 = "active_power_2"
 CONF_ENERGY_1 = "energy_1"
 CONF_ENERGY_2 = "energy_2"
+CONF_POWER_FACTOR_1 = "power_factor_1"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -53,7 +53,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
+            cv.Optional(CONF_POWER_FACTOR_1): sensor.sensor_schema(
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_POWER_FACTOR,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -116,19 +116,13 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for key in [
-        CONF_VOLTAGE,
-        CONF_FREQUENCY,
-        CONF_POWER_FACTOR,
-        CONF_CURRENT_1,
-        CONF_CURRENT_2,
-        CONF_ACTIVE_POWER_1,
-        CONF_ACTIVE_POWER_2,
-        CONF_ENERGY_1,
-        CONF_ENERGY_2,
-    ]:
-        if key not in config:
-            continue
-        conf = config[key]
-        sens = await sensor.new_sensor(conf)
-        cg.add(getattr(var, f"set_{key}_sensor")(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
+    await sensors(CONF_POWER_FACTOR_1, var.set_power_factor_1_sensor)
+    await sensors(CONF_CURRENT_1, var.set_current_1_sensor)
+    await sensors(CONF_CURRENT_2, var.set_current_2_sensor)
+    await sensors(CONF_ACTIVE_POWER_1, var.set_active_power_1_sensor)
+    await sensors(CONF_ACTIVE_POWER_2, var.set_active_power_2_sensor)
+    await sensors(CONF_ENERGY_1, var.set_energy_1_sensor)
+    await sensors(CONF_ENERGY_2, var.set_energy_2_sensor)
