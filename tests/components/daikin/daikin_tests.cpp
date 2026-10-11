@@ -141,9 +141,11 @@ struct Fixture {
 
   Fixture() {
     // The test main does not construct App as generated code does; the boost timer needs its scheduler
-    static const bool app_constructed = (new (&App) Application(), true);
-    (void) app_constructed;
-    App.pre_setup("test_daikin", 11, "", 0);
+    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
+    (void) APP_CONSTRUCTED;
+    static char name[] = "test_daikin";
+    static char friendly_name[] = "";
+    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     this->climate.set_transmitter(&this->transmitter);
     static_cast<Component &>(this->climate).setup();
   }
