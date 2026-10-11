@@ -10,9 +10,12 @@ The `ufm01` component allows you to integrate the UFM-01 flow meter
 ([datasheet](https://www.sciosense.com/wp-content/uploads/2025/06/UFM-01-Datasheet-1.pdf),
 [manufacturer page](https://www.sciosense.com/ufm-01-ultrasonic-flow-sensing-module/))
 into your ESPHome device. This component reads accumulated flow (volume), current flow rate, and water temperature
-from the UFM-01 device via UART. It also provides several diagnostic binary sensors to monitor the device's status.
+from the UFM-01 device via UART. It also provides diagnostic binary sensors, optional meter ID and software version
+text sensors, and an action to clear the accumulated flow stored on the meter.
 
 The UFM-01 flow meter communicates using a specific UART protocol at 2400 baud with even parity and 1 stop bit.
+One-Wire is not supported; use the [manufacturer Arduino library](https://github.com/sciosense/ufm01-arduino)
+if you need that bus.
 
 <Figure
   src="/images/ufm01.png"
@@ -89,8 +92,9 @@ sensor:
 
   - All options from [Sensor](/components/sensor).
 
-When `empty_tube` is active, `flow` and `temperature` are published as unknown (`NaN`). `accumulated_flow` continues
-to update.
+When `empty_tube` is active, or when the meter stops sending valid readings long enough for the component to treat
+the stream as stale, `flow` and `temperature` are published as unknown (`NaN`). `accumulated_flow` continues to
+update while frames are still valid.
 
 ## Binary Sensor
 
@@ -131,6 +135,54 @@ binary_sensor:
 
   - All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
+## Text Sensor
+
+The `ufm01` text sensors report the meter identity and firmware version.
+
+```yaml
+text_sensor:
+  - platform: ufm01
+    ufm01_id: ufm01_component
+    meter_id:
+      name: "UFM01 Meter ID"
+    software_version:
+      name: "UFM01 Software Version"
+```
+
+### Configuration variables
+
+- **platform**: `ufm01`
+- **ufm01_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the `ufm01` component this text sensor
+  belongs to.
+- **meter_id** (*Optional*): The 10-digit meter ID from the device.
+
+  - All options from [Text Sensor](/components/text_sensor/#config-text_sensor).
+
+- **software_version** (*Optional*): The software version reported by the meter.
+
+  - All options from [Text Sensor](/components/text_sensor/#config-text_sensor).
+
+## Actions
+
+### `ufm01.clear_accumulated_flow` Action
+
+Clears the accumulated flow stored on the UFM-01. The command is sent once the UART is idle and the automation
+continues right away; the meter's acknowledgement, or a timeout, is logged. A request made while one is still pending
+joins it instead of sending a second command.
+
+```yaml
+on_...:
+  - ufm01.clear_accumulated_flow: ufm01_component
+
+  # Equivalent long form
+  - ufm01.clear_accumulated_flow:
+      id: ufm01_component
+```
+
+#### Configuration variables
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the UFM-01 component.
+
 ## Full Example Configuration
 
 ```yaml
@@ -167,6 +219,20 @@ binary_sensor:
       name: "UFM01 Empty Tube"
     flow_rate_out_of_range:
       name: "UFM01 Flow Rate Out of Range"
+
+text_sensor:
+  - platform: ufm01
+    ufm01_id: ufm01_component
+    meter_id:
+      name: "UFM01 Meter ID"
+    software_version:
+      name: "UFM01 Software Version"
+
+button:
+  - platform: template
+    name: "Clear UFM01 accumulated flow"
+    on_press:
+      - ufm01.clear_accumulated_flow: ufm01_component
 ```
 
 ## See Also
@@ -174,4 +240,7 @@ binary_sensor:
 - [UART](/components/uart/)
 - [Sensor](/components/sensor/)
 - [Binary Sensor](/components/binary_sensor/)
+- [Text Sensor](/components/text_sensor/)
+- [Template Button](/components/button/template/)
+- [Automation](/automations/)
 - <APIRef text="ufm01.h" path="ufm01/ufm01.h" />
