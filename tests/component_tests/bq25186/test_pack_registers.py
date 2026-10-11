@@ -77,6 +77,9 @@ def test_masked_registers_only_carry_configurable_bits() -> None:
         (CONF_FAST_CHARGE_CURRENT, "36mA"),
         (CONF_FAST_CHARGE_CURRENT, "39mA"),
         (CONF_FAST_CHARGE_CURRENT, "49mA"),
+        (CONF_FAST_CHARGE_CURRENT, "5.5mA"),
+        (CONF_FAST_CHARGE_CURRENT, "34.6mA"),
+        (CONF_BATTERY_REGULATION_VOLTAGE, "4.2005V"),
     ],
 )
 def test_values_between_steps_are_rejected(key: str, value: str) -> None:

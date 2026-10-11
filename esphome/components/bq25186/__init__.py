@@ -129,14 +129,16 @@ TS_VRCG_OPTIONS = {"-100mv": 0, "-200mv": 1}
 
 
 def _on_voltage_step(volts: float) -> float:
-    if round(volts * 1000) % 10:
+    millivolts = volts * 1000
+    if abs(millivolts - round(millivolts / 10) * 10) > 1e-6:
         raise cv.Invalid("battery_regulation_voltage must be a multiple of 10 mV")
     return volts
 
 
 def _on_current_step(amps: float) -> float:
-    milliamps = round(amps * 1000)
-    if milliamps > 35 and (milliamps < 40 or milliamps % 10):
+    milliamps = amps * 1000
+    step = 1 if milliamps < 36 else 10
+    if abs(milliamps - round(milliamps / step) * step) > 1e-6 or 35 < milliamps < 40:
         raise cv.Invalid(
             "fast_charge_current must be a whole number of mA up to 35mA, then a multiple of 10 mA"
         )

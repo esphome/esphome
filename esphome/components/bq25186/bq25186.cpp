@@ -52,8 +52,7 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
 void BQ25186Component::setup() {
   uint8_t mask_id;
   if (!this->read_byte(BQ25186_REG_MASK_ID, &mask_id)) {
-    ESP_LOGE(TAG, "Failed to communicate with BQ25186");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -61,22 +60,18 @@ void BQ25186Component::setup() {
   const uint8_t device_id = mask_id & 0x0F;
   if (device_id != 0x01) {
     ESP_LOGE(TAG, "Unexpected device id 0x%X (expected 0x1)", device_id);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Not a BQ25186"));
     return;
   }
 
   if (this->configure_on_boot_ && !this->apply_config(this->setup_regs_)) {
-    ESP_LOGE(TAG, "Failed to apply configuration");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Configuration write failed"));
   }
 }
 
 void BQ25186Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BQ25186:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with BQ25186 failed");
-  }
 }
 
 }  // namespace esphome::bq25186
