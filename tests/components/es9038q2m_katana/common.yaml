@@ -10,8 +10,7 @@ audio_dac:
   - platform: es9038q2m_katana
     i2c_id: i2c_bus
     filter_shape: hybrid
-    bits_per_sample: 16bit
-    sample_rate: 48000
+    bits_per_sample: 24bit
+    sample_rate: 96000
     deemphasis: 48khz
-    dop: false
-    dump_registers: false
+    dop: true
