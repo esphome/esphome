@@ -2436,4 +2436,76 @@ TEST(ModbusClientHubPriority, ReadModifyWritesRankAsWrites) {
   EXPECT_EQ(next->priority(), CommandPriority::WRITE);  // 0x16 wins selection over the queued read
   EXPECT_EQ(next->frame.pdu()[0], 0x16);
 }
+namespace {
+// Overrides only the address overloads and records the address each one is given.
+class AddressRecordingDevice : public ModbusClientDevice {
+ public:
+  AddressRecordingDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(uint8_t address, std::span<const uint8_t> request_pdu) override { this->sent_ = address; }
+  void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
+                   std::span<const uint8_t> response_pdu) override {
+    this->response_ = address;
+  }
+  void on_error(uint8_t address, std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override {
+    this->error_ = address;
+  }
+  bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) override {
+    this->no_response_ = address;
+    return false;
+  }
+  void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) override { this->not_sent_ = address; }
+  int sent_{-1};
+  int response_{-1};
+  int error_{-1};
+  int no_response_{-1};
+  int not_sent_{-1};
+};
+}  // namespace
+
+// Each callback gets the address its request was sent to, even when the device has changed its own
+// address before the outcome arrives.
+TEST(ModbusClientHubAddress, CallbacksReportTheRequestAddressAfterSetAddress) {
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  const uint8_t exception_response[] = {0x83, 0x02};
+  {
+    NullUART uart;
+    NoResponseProbeHub hub;
+    hub.set_uart_parent(&uart);
+    hub.setup();
+    AddressRecordingDevice device(&hub, 0x02);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.send_next_for_test();
+    EXPECT_EQ(device.sent_, 0x02);
+    hub.receive_frame_for_test(0x02, ok_response);
+    EXPECT_EQ(device.response_, 0x02);
+  }
+  {
+    NoResponseProbeHub hub;
+    AddressRecordingDevice device(&hub, 0x03);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.force_send_next();
+    hub.receive_frame_for_test(0x03, exception_response);
+    EXPECT_EQ(device.error_, 0x03);
+  }
+  {
+    NoResponseProbeHub hub;
+    AddressRecordingDevice device(&hub, 0x04);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.force_send_next();
+    hub.timeout_waiting();
+    EXPECT_EQ(device.no_response_, 0x04);
+  }
+  {
+    NoResponseProbeHub hub;
+    AddressRecordingDevice device(&hub, 0x06);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.clear_tx_queue_for_address(0x06);
+    hub.sweep_for_test();
+    EXPECT_EQ(device.not_sent_, 0x06);
+  }
+}
 }  // namespace esphome::modbus::testing
