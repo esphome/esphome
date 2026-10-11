@@ -9,7 +9,7 @@ class SPISH1122 final : public sh1122_base::SH1122,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                               spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_8MHZ> {
  public:
-  void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
+  explicit SPISH1122(GPIOPin *dc_pin) : dc_pin_(dc_pin) {}
 
   void setup() override;
 
@@ -19,7 +19,7 @@ class SPISH1122 final : public sh1122_base::SH1122,
   void write_command(const uint8_t *bytes, size_t len) override;
   void write_display_data() override;
 
-  GPIOPin *dc_pin_{nullptr};
+  GPIOPin *dc_pin_;
 };
 
 }  // namespace esphome::sh1122_spi

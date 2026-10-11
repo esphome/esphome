@@ -31,9 +31,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
+    var = cg.new_Pvariable(config[CONF_ID], dc)
     await sh1122_base.setup_sh1122(var, config)
     await spi.register_spi_device(var, config, write_only=True)
-
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
