@@ -3,7 +3,7 @@
 
 namespace esphome::binary {
 
-static const char *const TAG = "binary.fan";
+ESPHOME_LOG_TAG(TAG, "binary.fan");
 
 void BinaryFan::setup() {
   auto restore = this->restore_state_();

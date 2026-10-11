@@ -331,6 +331,55 @@ def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("platform", "expected"), [("esp8266", "true"), ("nrf52", None)]
+)
+def test_run_platformio_cli_exports_the_pch_ccache_settings(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    platform: str,
+    expected: str | None,
+) -> None:
+    """Only for a platform that takes the pch script."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+    env = mock_run_external_process.call_args[1]["env"]
+    assert env.get("CCACHE_PCH_EXTSUM") == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [("yes", "1"), ("0", "0"), (None, None)]
+)
+def test_run_platformio_cli_normalizes_a_forced_pch_for_the_script(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    value: str | None,
+    expected: str | None,
+) -> None:
+    """The script cannot import the knob parser, so it only reads a ``1``."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    env_vars = {} if value is None else {"ESPHOME_PCH_ENABLE": value}
+    with patch.dict(os.environ, env_vars, clear=True):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+    env = mock_run_external_process.call_args[1]["env"]
+    assert env.get("ESPHOME_PCH_ENABLE") == expected
+
+
+@pytest.mark.parametrize(
     ("platform", "framework", "expected"),
     [
         ("esp32", "arduino", "1"),
@@ -445,6 +494,47 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     # process would otherwise skip its own ccache defaults.
     assert "CCACHE_BASEDIR" not in os.environ
     assert "ESPHOME_CCACHE_ENABLE" not in os.environ
+
+
+def test_ccache_env_uses_cache_dir_override(setup_core: Path, tmp_path: Path) -> None:
+    """The containers point ccache at their writable cache mount."""
+    CORE.build_path = setup_core / "build" / "test"
+    ccache_dir = tmp_path / "cache" / "platformio-ccache"
+
+    with (
+        patch.dict(
+            os.environ,
+            {"HOME": "/", "ESPHOME_PLATFORMIO_CCACHE_DIR": str(ccache_dir)},
+            clear=True,
+        ),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["CCACHE_DIR"] == str(ccache_dir.resolve())
+
+
+def test_ccache_env_ignores_platformio_cache_dir(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """PLATFORMIO_CACHE_DIR does not move ccache; only the override does."""
+    CORE.build_path = setup_core / "build" / "test"
+    cache_root = tmp_path / "user-cache"
+
+    with (
+        patch.dict(
+            os.environ,
+            {"PLATFORMIO_CACHE_DIR": str(tmp_path / "platformio" / "cache")},
+            clear=True,
+        ),
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["CCACHE_DIR"] == str((cache_root / "platformio-ccache").resolve())
 
 
 @pytest.mark.parametrize(
@@ -582,6 +672,7 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
     user_env = {
         "CCACHE_DIR": "/custom/cache",
         "CCACHE_BASEDIR": "/stale/other-device",
+        "ESPHOME_PLATFORMIO_CCACHE_DIR": "/mounted/platformio-ccache",
     }
     CORE.build_path = setup_core / "build" / "test"
 

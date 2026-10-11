@@ -1,0 +1,7 @@
+button:
+  - platform: template
+    name: BM8563 Actions
+    on_press:
+      - bm8563.read_time:
+      - bm8563.start_timer:
+          duration: !lambda return 60;
