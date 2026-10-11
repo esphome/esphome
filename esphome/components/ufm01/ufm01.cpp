@@ -68,9 +68,7 @@ static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t exp
 }
 
 static bool validate_active_frame(const uint8_t data[FRAME_SIZE]) {
-  uint8_t sum = 0;
-  for (size_t i = 0; i < FRAME_CHECKSUM_INDEX; ++i)
-    sum += data[i];
+  const uint8_t sum = sum_bytes(data, FRAME_CHECKSUM_INDEX);
   return check_byte(data, 0, FRAME_START_BYTE_1, "start byte 1") &&
          check_byte(data, 1, FRAME_START_BYTE_2, "start byte 2") &&
          check_byte(data, FRAME_INDEX_INSTANT_FLOW_FLAG, FRAME_FLAG_INSTANT_FLOW, "instant flow flag") &&
@@ -83,10 +81,7 @@ static bool validate_active_frame(const uint8_t data[FRAME_SIZE]) {
 static bool validate_passive_frame(const uint8_t data[PASSIVE_FRAME_SIZE]) {
   if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2 || data[22] != FRAME_STOP_BYTE)
     return false;
-  uint8_t sum = 0;
-  for (size_t i = 0; i < 21; ++i)
-    sum += data[i];
-  return data[21] == (sum & 0xFF);
+  return data[21] == sum_bytes(data, 21);
 }
 
 static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SIZE], uint8_t active[FRAME_SIZE]) {
