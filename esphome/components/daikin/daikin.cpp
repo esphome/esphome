@@ -5,27 +5,36 @@ namespace esphome::daikin {
 
 ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
+static constexpr uint32_t BOOST_TIMEOUT_ID = 0;
+
+static uint8_t sum_bytes(const uint8_t *data, size_t len) {
+  uint8_t sum = 0;
+  for (size_t i = 0; i < len; i++) {
+    sum += data[i];
+  }
+  return sum;
+}
+
+void DaikinClimate::control(const climate::ClimateCall &call) {
+  const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
+  climate_ir::ClimateIR::control(call);
+  this->update_boost_timer_(was_boost);
+}
+
 void DaikinClimate::transmit_state() {
   uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0x00, 0x11, 0xDA, 0x27, 0x00,
                               0x42, 0x49, 0x05, 0xA2, 0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00,
                               0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
 
-  remote_state[6] |= this->preset == climate::CLIMATE_PRESET_COMFORT ? DAIKIN_PRESET_COMFORT_ON : 0;
+  this->set_presets_(remote_state);
   remote_state[21] = this->operation_mode_();
   remote_state[22] = this->temperature_();
   uint16_t fan_speed = this->fan_speed_();
   remote_state[24] = fan_speed >> 8;
   remote_state[25] = fan_speed & 0xff;
-  remote_state[29] = this->powerful_quiet_preset_();
-  remote_state[32] = this->eco_preset_();
 
-  // Calculate checksums
-  for (int i = 0; i < 7; i++) {
-    remote_state[7] += remote_state[i];
-  }
-  for (int i = 16; i < 34; i++) {
-    remote_state[34] += remote_state[i];
-  }
+  remote_state[7] = sum_bytes(remote_state, 7);
+  remote_state[34] = sum_bytes(remote_state + 16, 18);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
@@ -142,67 +151,52 @@ uint8_t DaikinClimate::temperature_() const {
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
-      // Temperature is encoded as degrees * 2, supporting 0.5°C increments
-      return (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX) * 2.0f);
+      return static_cast<uint8_t>(
+          roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX) * 2.0f));
+  }
+}
+
+void DaikinClimate::set_presets_(uint8_t *remote_state) const {
+  switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
+    case climate::CLIMATE_PRESET_BOOST:
+      remote_state[29] = DAIKIN_PRESET_POWERFUL_ON;
+      break;
+    case climate::CLIMATE_PRESET_SLEEP:
+      remote_state[29] = DAIKIN_PRESET_QUIET_ON;
+      break;
+    case climate::CLIMATE_PRESET_ECO:
+      remote_state[32] = DAIKIN_PRESET_ECONO_ON;
+      break;
+    case climate::CLIMATE_PRESET_ACTIVITY:
+      remote_state[32] = DAIKIN_PRESET_SENSOR_ON;
+      break;
+    case climate::CLIMATE_PRESET_COMFORT:
+      // The remote sets the comfort bit in both the first frame and the state frame
+      remote_state[6] = DAIKIN_PRESET_COMFORT_ON;
+      remote_state[32] = DAIKIN_PRESET_COMFORT_ON;
+      break;
+    default:
+      break;
+  }
+}
+
+void DaikinClimate::update_boost_timer_(bool was_boost) {
+  const bool is_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
+  if (is_boost && !was_boost) {
+    this->set_timeout(BOOST_TIMEOUT_ID, DAIKIN_BOOST_DURATION_MS, [this]() { this->cancel_boost_mode_(); });
+  } else if (was_boost && !is_boost) {
+    this->cancel_timeout(BOOST_TIMEOUT_ID);
   }
 }
 
 void DaikinClimate::cancel_boost_mode_() {
-  if (this->preset == climate::CLIMATE_PRESET_BOOST) {
-    ESP_LOGD(TAG, "Turning off boost mode after timeout");
-    this->preset = climate::CLIMATE_PRESET_NONE;
-    this->publish_state();
-  }
-}
-
-uint8_t DaikinClimate::powerful_quiet_preset_() {
-  uint8_t powerful_quiet_preset = DAIKIN_PRESET_OFF;
-  if (this->preset.has_value()) {
-    if (this->preset == climate::CLIMATE_PRESET_BOOST) {
-      powerful_quiet_preset = DAIKIN_PRESET_POWERFUL_ON;
-      // Only set the timer if this is a new boost mode activation
-      if (this->boost_mode_start_ == 0) {
-        this->boost_mode_start_ = millis();
-        ESP_LOGD(TAG, "Starting boost mode timer");
-        this->set_timeout("boost_timeout", 15 * 60 * 1000, [this]() {
-          this->cancel_boost_mode_();
-          this->boost_mode_start_ = 0;
-        });
-      }
-    } else if (this->preset == climate::CLIMATE_PRESET_SLEEP) {
-      powerful_quiet_preset = DAIKIN_PRESET_QUIET_ON;
-    }
-
-    // If changing away from boost mode, clear the timer
-    if (this->preset != climate::CLIMATE_PRESET_BOOST && this->boost_mode_start_ != 0) {
-      this->boost_mode_start_ = 0;
-      this->cancel_timeout("boost_timeout");
-    }
-  }
-  return powerful_quiet_preset;
-}
-
-uint8_t DaikinClimate::eco_preset_() const {
-  uint8_t eco_preset = DAIKIN_PRESET_OFF;
-  if (this->preset.has_value()) {
-    if (this->preset == climate::CLIMATE_PRESET_ECO) {
-      eco_preset = DAIKIN_PRESET_ECONO_ON;
-    } else if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
-      eco_preset = DAIKIN_PRESET_COMFORT_ON;
-    } else if (this->preset == climate::CLIMATE_PRESET_ACTIVITY) {
-      eco_preset = DAIKIN_PRESET_SENSOR_ON;
-    }
-  }
-  return eco_preset;
+  ESP_LOGD(TAG, "Boost ended");
+  this->preset = climate::CLIMATE_PRESET_NONE;
+  this->publish_state();
 }
 
 bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
-  if (frame[DAIKIN_STATE_FRAME_SIZE - 1] != checksum)
-    return false;
+  const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
   uint8_t mode = frame[5];
   // Temperature is given in degrees celcius * 2
   // only update for states that use the temperature
@@ -262,45 +256,21 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
       break;
   }
 
-  uint8_t powerful_quiet_preset = frame[13];
-  uint8_t eco_preset = frame[16];
-
-  switch (powerful_quiet_preset) {
-    case DAIKIN_PRESET_POWERFUL_ON:
-      this->preset = climate::CLIMATE_PRESET_BOOST;
-      break;
-    case DAIKIN_PRESET_QUIET_ON:
-      this->preset = climate::CLIMATE_PRESET_SLEEP;
-      break;
+  // Comfort lives in the first frame, which arrives before this one and sets the preset itself
+  if (frame[13] & DAIKIN_PRESET_POWERFUL_ON) {
+    this->preset = climate::CLIMATE_PRESET_BOOST;
+  } else if (frame[13] & DAIKIN_PRESET_QUIET_ON) {
+    this->preset = climate::CLIMATE_PRESET_SLEEP;
+  } else if (frame[16] & DAIKIN_PRESET_ECONO_ON) {
+    this->preset = climate::CLIMATE_PRESET_ECO;
+  } else if (frame[16] & DAIKIN_PRESET_SENSOR_ON) {
+    this->preset = climate::CLIMATE_PRESET_ACTIVITY;
+  } else if (this->preset != climate::CLIMATE_PRESET_COMFORT) {
+    this->preset = climate::CLIMATE_PRESET_NONE;
   }
-  switch (eco_preset) {
-    case DAIKIN_PRESET_ECONO_ON:
-      this->preset = climate::CLIMATE_PRESET_ECO;
-      break;
-    case DAIKIN_PRESET_SENSOR_ON:
-      this->preset = climate::CLIMATE_PRESET_ACTIVITY;
-      break;
-  }
+  this->update_boost_timer_(was_boost);
 
   this->publish_state();
-  return true;
-}
-
-bool DaikinClimate::parse_comfort_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_COMFORT_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
-  if (frame[DAIKIN_COMFORT_FRAME_SIZE - 1] != checksum)
-    return false;
-
-  uint8_t comfort_preset = frame[6];
-
-  this->preset = climate::CLIMATE_PRESET_NONE;
-  if (comfort_preset & DAIKIN_PRESET_COMFORT_ON) {
-    this->preset = climate::CLIMATE_PRESET_COMFORT;
-  }
-
   return true;
 }
 
@@ -339,22 +309,24 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
     } else if (pos == 4) {
       // frame type
-      if (byte == 0xC5)
+      if (byte == DAIKIN_FRAME_TYPE_COMFORT) {
         frame_size = DAIKIN_COMFORT_FRAME_SIZE;
-      else if (byte != 0x00)
+      } else if (byte != DAIKIN_FRAME_TYPE_STATE) {
         return false;
+      }
     }
   }
-
-  switch (frame[4]) {
-    case 0:
-      return this->parse_state_frame_(frame);
-    case 0xC5:
-      return this->parse_comfort_frame_(frame);
-    default:
-      return false;
+  if (frame[frame_size - 1] != sum_bytes(frame, frame_size - 1)) {
+    return false;
   }
-  return false;
+
+  if (frame_size == DAIKIN_COMFORT_FRAME_SIZE) {
+    // The state frame that follows publishes the whole update
+    this->preset =
+        (frame[6] & DAIKIN_PRESET_COMFORT_ON) ? climate::CLIMATE_PRESET_COMFORT : climate::CLIMATE_PRESET_NONE;
+    return true;
+  }
+  return this->parse_state_frame_(frame);
 }
 
 }  // namespace esphome::daikin

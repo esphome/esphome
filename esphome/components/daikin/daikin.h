@@ -1,8 +1,6 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
-#include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 
 namespace esphome::daikin {
 
@@ -29,13 +27,14 @@ const uint8_t DAIKIN_FAN_3 = 0x50;
 const uint8_t DAIKIN_FAN_4 = 0x60;
 const uint8_t DAIKIN_FAN_5 = 0x70;
 
-// Presets
-const uint8_t DAIKIN_PRESET_OFF = 0x00;
+// Presets: bit flags in frame byte 29 (powerful, quiet) and byte 32 (sensor, econo, comfort)
 const uint8_t DAIKIN_PRESET_COMFORT_ON = 0x10;
 const uint8_t DAIKIN_PRESET_POWERFUL_ON = 0x01;
 const uint8_t DAIKIN_PRESET_QUIET_ON = 0x20;
 const uint8_t DAIKIN_PRESET_ECONO_ON = 0x04;
 const uint8_t DAIKIN_PRESET_SENSOR_ON = 0x02;
+// The unit leaves powerful mode by itself after 20 minutes; mirror that in the entity
+const uint32_t DAIKIN_BOOST_DURATION_MS = 20 * 60 * 1000;
 
 // IR Transmission
 const uint32_t DAIKIN_IR_FREQUENCY = 38000;
@@ -46,7 +45,9 @@ const uint32_t DAIKIN_ONE_SPACE = 1370;
 const uint32_t DAIKIN_ZERO_SPACE = 360;
 const uint32_t DAIKIN_MESSAGE_SPACE = 32300;
 
-// State Frame size
+// Frame types (byte 4) and sizes
+const uint8_t DAIKIN_FRAME_TYPE_STATE = 0x00;
+const uint8_t DAIKIN_FRAME_TYPE_COMFORT = 0xC5;
 const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
 const uint8_t DAIKIN_COMFORT_FRAME_SIZE = 8;
 
@@ -63,19 +64,19 @@ class DaikinClimate final : public climate_ir::ClimateIR {
              climate::CLIMATE_PRESET_SLEEP, climate::CLIMATE_PRESET_ACTIVITY, climate::CLIMATE_PRESET_NONE}) {}
 
  protected:
+  void control(const climate::ClimateCall &call) override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   uint8_t operation_mode_() const;
   uint16_t fan_speed_() const;
   uint8_t temperature_() const;
-  uint8_t powerful_quiet_preset_();
-  uint8_t eco_preset_() const;
+  void set_presets_(uint8_t *remote_state) const;
+  /// Arms or cancels the boost timer when the preset moves into or out of boost.
+  void update_boost_timer_(bool was_boost);
   void cancel_boost_mode_();
-  uint32_t boost_mode_start_{0};
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
-  bool parse_comfort_frame_(const uint8_t frame[]);
 };
 
 }  // namespace esphome::daikin
