@@ -36,4 +36,3 @@ CONF_SAMPLE_COUNT = "sample_count"
 CONF_SAMPLE_INTERVAL = "sample_interval"
 CONF_MIN_PPM = "min_ppm"
 CONF_MAX_PPM = "max_ppm"
-
