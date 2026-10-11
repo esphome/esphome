@@ -434,9 +434,9 @@ void ToshibaClimate::setup() {
   this->maximum_temperature_ = this->temperature_max_();
   this->swing_modes_ = this->toshiba_swing_modes_();
 
-  // Ensure swing mode is always initialized to a valid value
+  // Ensure swing mode is always initialized to a valid value. OFF also stands for "not yet
+  // commanded" on models that cannot switch the swing off, such as Seiya.
   if (this->swing_modes_.empty() || !this->swing_modes_.count(this->swing_mode)) {
-    // No swing support for this model or current swing mode not supported, reset to OFF
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
