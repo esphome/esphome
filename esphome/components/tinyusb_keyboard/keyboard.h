@@ -6,6 +6,8 @@
 #include "esphome/core/component.h"
 
 #include "tusb.h"
+// tusb.h only pulls the HID class in when CFG_TUD_HID is set, which the static analysis build does not do
+#include "class/hid/hid_device.h"
 
 namespace esphome::tinyusb_keyboard {
 
