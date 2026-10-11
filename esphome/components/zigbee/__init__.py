@@ -151,6 +151,15 @@ def _validate_router_sleepy(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_strings(config: ConfigType) -> ConfigType:
+    config[CONF_MODEL] = config[CONF_MODEL].encode("ascii", "ignore")[:31].decode()
+    config[CONF_MANUFACTURER] = (
+        config[CONF_MANUFACTURER].encode("ascii", "ignore")[:31].decode()
+    )
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -198,6 +207,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_router_sleepy,
+    _validate_strings,
     zigbee_require_vfs_select,
     cv.Any(
         cv.All(
@@ -221,7 +231,7 @@ CONFIG_SCHEMA = cv.All(
 def validate_number_of_ep(config: ConfigType) -> ConfigType:
     if not CORE.is_nrf52:
         return config
-    if KEY_ZIGBEE not in CORE.data:
+    if KEY_EP_NUMBER not in CORE.data.get(KEY_ZIGBEE, {}):
         raise cv.Invalid("At least one zigbee device need to be included")
     count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
     if count == 1:
@@ -234,7 +244,7 @@ def validate_number_of_ep(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_strings(config: ConfigType) -> ConfigType:
+def final_validate_strings(config: ConfigType) -> ConfigType:
     version_str = ESPHOME_VERSION
     if (
         proj_version := fv.full_config.get()
@@ -242,10 +252,10 @@ def validate_strings(config: ConfigType) -> ConfigType:
         .get(CONF_PROJECT, {})
         .get(CONF_VERSION)
     ):
-        version_str = proj_version if len(proj_version) < 16 else proj_version[:15]
+        version_str = proj_version.encode("ascii", "ignore")[:15].decode()
     area_str = ""
     if CORE.area:
-        area_str = CORE.area if len(CORE.area) < 16 else CORE.area[:15]
+        area_str = CORE.area.encode("ascii", "ignore")[:15].decode()
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     data[KEY_ZIGBEE_VERSION_STR] = version_str
     data[KEY_ZIGBEE_AREA_STR] = area_str
@@ -253,7 +263,7 @@ def validate_strings(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
-    validate_strings,
+    final_validate_strings,
     validate_number_of_ep,
     final_validate_esp32,
 )
