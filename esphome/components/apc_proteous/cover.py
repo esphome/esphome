@@ -3,6 +3,8 @@ from esphome.components import cover, uart
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
+from . import DOMAIN
+
 apc_proteous_ns = cg.esphome_ns.namespace("apc_proteous")
 APCProteousCover = apc_proteous_ns.class_(
     "APCProteousCover", cover.Cover, cg.PollingComponent, uart.UARTDevice
@@ -15,7 +17,7 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "apc_proteous",
+    DOMAIN,
     baud_rate=9600,
     require_tx=True,
     require_rx=True,
