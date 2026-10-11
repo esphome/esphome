@@ -69,6 +69,8 @@ TEST(WaitUntilActionTest, AcceptsMutableReferenceArguments) {
   condition.ready = true;
   wait.loop();
   EXPECT_EQ(increment.seen, 1);
+  // Like delay, the actions after the wait work on a copy
+  EXPECT_EQ(counter.value, 0);
 }
 
 }  // namespace esphome::testing

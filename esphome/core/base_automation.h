@@ -501,7 +501,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     // Store for later processing
     auto now = millis();
     auto timeout = this->timeout_value_.optional_value(x...);
-    this->var_queue_.emplace_back(now, timeout, std::make_tuple(x...));
+    this->var_queue_.emplace_back(now, timeout, x...);
 
     // Do immediate check with fresh timestamp - don't call loop() synchronously!
     // Let the event loop call it to avoid reentrancy issues
@@ -533,10 +533,15 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
  protected:
-  // Store copies, not references: trigger arguments such as `const T &` refer to data that is gone once the
-  // trigger returns
-  using ArgsTuple = std::tuple<std::remove_cvref_t<Ts>...>;
-  using QueueItem = std::tuple<uint32_t, optional<uint32_t>, ArgsTuple>;
+  struct QueueItem {
+    QueueItem(uint32_t start, optional<uint32_t> timeout, const Ts &...x)
+        : start(start), timeout(timeout), args(x...) {}
+    uint32_t start;
+    optional<uint32_t> timeout;
+    // Copies, not references: trigger arguments such as `const T &` refer to data that is gone once the
+    // trigger returns
+    std::tuple<std::remove_cvref_t<Ts>...> args;
+  };
 
   // Helper: Process queue, triggering completed items and removing them
   // Returns true if queue still has pending items
@@ -550,15 +555,14 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     std::list<QueueItem> pending;
     while (!queue.empty()) {
       auto it = queue.begin();
-      auto start = std::get<uint32_t>(*it);
-      auto timeout = std::get<optional<uint32_t>>(*it);
+      auto start = it->start;
+      auto timeout = it->timeout;
 
       // Check if timeout has expired
       auto expired = timeout && (now - start) >= *timeout;
 
       // Keep waiting if not expired and condition not met
-      if (!expired &&
-          !std::apply([this](auto &...args) { return this->condition_->check(args...); }, std::get<ArgsTuple>(*it))) {
+      if (!expired && !std::apply([this](auto &...args) { return this->condition_->check(args...); }, it->args)) {
         pending.splice(pending.end(), queue, it);
         continue;
       }
@@ -569,7 +573,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       std::list<QueueItem> completed;
       completed.splice(completed.begin(), queue, it);
       uint8_t generation = this->stop_generation_;
-      std::apply([this](auto &...args) { this->play_next_(args...); }, std::get<ArgsTuple>(completed.front()));
+      std::apply([this](auto &...args) { this->play_next_(args...); }, completed.front().args);
       if (generation != this->stop_generation_) {
         // stop() ran inside the chain - the items still held locally were cancelled
         pending.clear();
@@ -586,7 +590,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   Condition<Ts...> *condition_;
   std::list<QueueItem> var_queue_{};
-  // Bumped by stop() so process_queue_() can detect a stop from inside play_next_tuple_()
+  // Bumped by stop() so process_queue_() can detect a stop from inside play_next_()
   uint8_t stop_generation_{0};
 };
 

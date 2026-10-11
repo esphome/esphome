@@ -307,7 +307,7 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     // play_next_() can trigger more items to be queued
     if (!this->param_queue_.empty()) {
       auto &params = this->param_queue_.front();
-      this->play_next_tuple_(params, std::make_index_sequence<sizeof...(Ts)>{});
+      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
       this->param_queue_.pop_front();
     } else {
       // Queue is now empty - disable loop until next play_complex
@@ -324,16 +324,10 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
   }
 
  protected:
-  // Store copies, not references: trigger arguments such as `const T &` refer to data that is gone once the
-  // trigger returns
-  using ArgsTuple = std::tuple<std::remove_cvref_t<Ts>...>;
-
-  template<size_t... S> void play_next_tuple_(ArgsTuple &tuple, std::index_sequence<S...> /*unused*/) {
-    this->play_next_(std::get<S>(tuple)...);
-  }
-
   C *script_;
-  std::list<ArgsTuple> param_queue_;
+  // Copies, not references: trigger arguments such as `const T &` refer to data that is gone once the
+  // trigger returns
+  std::list<std::tuple<std::remove_cvref_t<Ts>...>> param_queue_;
 };
 
 }  // namespace esphome::script

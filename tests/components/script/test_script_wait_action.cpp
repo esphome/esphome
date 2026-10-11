@@ -39,4 +39,31 @@ TEST(ScriptWaitActionTest, KeepsCopyOfReferenceArguments) {
   EXPECT_EQ(record.seen, "argument longer than the small string buffer");
 }
 
+class Counter {
+ public:
+  int value{0};
+};
+
+class IncrementAction : public Action<Counter &> {
+ public:
+  void play(Counter &counter) override { this->seen = ++counter.value; }
+  int seen{0};
+};
+
+TEST(ScriptWaitActionTest, KeepsCopyOfMutableReferenceArguments) {
+  FakeScript script;
+  ScriptWaitAction<FakeScript, Counter &> wait(&script);
+  IncrementAction increment;
+  ActionList<Counter &> actions;
+  actions.add_actions({&wait, &increment});
+
+  Counter counter;
+  actions.play(counter);
+  script.running = false;
+  wait.loop();
+  EXPECT_EQ(increment.seen, 1);
+  // Like delay, the actions after the wait work on a copy
+  EXPECT_EQ(counter.value, 0);
+}
+
 }  // namespace esphome::script::testing
