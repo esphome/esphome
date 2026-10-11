@@ -298,6 +298,7 @@
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
+#define USE_MQTT_SUB_DEVICE_TOPICS
 #define USE_WIREGUARD
 #endif
 #define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
