@@ -65,7 +65,10 @@ void LD2410SComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   this->run_init_sequence_(now);
   if (this->init_step_ >= INIT_SEQUENCE_LENGTH && now - this->last_frame_at_ > LINK_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "No data for %" PRIu32 " s, starting over", LINK_TIMEOUT_MS / 1000);
+    // The count tells real silence apart from frames that never parse (wrong baud rate or firmware)
+    ESP_LOGW(TAG, "No data for %" PRIu32 " s (%u frames dropped), starting over", LINK_TIMEOUT_MS / 1000,
+             this->dropped_frames_);
+    this->dropped_frames_ = 0;
     this->status_set_warning();
     this->init_step_ = 0;
     this->init_timeouts_ = 0;
@@ -166,6 +169,9 @@ void LD2410SComponent::receive_byte_(uint8_t byte) {
         encode_uint16(this->rx_buffer_[LONG_HEADER_SIZE + 1], this->rx_buffer_[LONG_HEADER_SIZE]);
     if (payload_len > RX_BUFFER_SIZE - LONG_PAYLOAD_POS - sizeof(CMD_FRAME_FOOTER)) {
       ESP_LOGV(TAG, "Dropping frame with a %u byte payload, larger than the receive buffer", payload_len);
+      if (this->dropped_frames_ < UINT8_MAX) {
+        this->dropped_frames_++;
+      }
       this->reset_frame_();
       return;
     }
@@ -215,6 +221,9 @@ bool LD2410SComponent::handle_frame_() {
     ESP_LOGV(TAG, "Footer does not match header: %s",
              format_hex_pretty_to(hex_buf, this->rx_buffer_, this->rx_len_, ' '));
 #endif
+    if (this->dropped_frames_ < UINT8_MAX) {
+      this->dropped_frames_++;
+    }
     return false;
   }
   const uint8_t *payload = &this->rx_buffer_[payload_pos];
@@ -223,10 +232,12 @@ bool LD2410SComponent::handle_frame_() {
     case FrameType::SHORT_DATA:
       // [state][distance low][distance high]; states 0 and 1 mean no target
       this->last_frame_at_ = App.get_loop_component_start_time();
+      this->dropped_frames_ = 0;
       this->publish_target_(payload[0] > 1);
       break;
     case FrameType::STD_DATA:
       this->last_frame_at_ = App.get_loop_component_start_time();
+      this->dropped_frames_ = 0;
       this->handle_data_frame_(payload, payload_len);
       break;
     default:

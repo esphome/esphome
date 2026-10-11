@@ -47,6 +47,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   uint8_t expected_len_{0};
   uint8_t init_step_{0};
   uint8_t init_timeouts_{0};
+  uint8_t dropped_frames_{0};  // since the last accepted data frame, saturates at 255
   FrameType frame_type_{FrameType::NONE};
   bool awaiting_ack_{false};
   bool rescanning_{false};

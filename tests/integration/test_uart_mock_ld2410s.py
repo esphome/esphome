@@ -23,7 +23,7 @@ test_uart_mock_ld2410s_recovery (the mock never answers the init commands):
 
 test_uart_mock_ld2410s_link_lost:
   1. Short frames arriving for longer than the 5 s link timeout keep the link up
-  2. 5 s of silence logs "No data for 5 s, starting over", sets the warning flag
+  2. 5 s of silence logs "No data for 5 s (0 frames dropped), starting over", sets the warning flag
      and sends a new config-mode start
 """
 
@@ -254,7 +254,10 @@ async def test_uart_mock_ld2410s_link_lost(
             rx_injected_at.append(loop.time())
         if "[ld2410s" in line and "Setup done" in line and not setup_done.done():
             setup_done.set_result(True)
-        if "No data for 5 s, starting over" in line and not link_lost.done():
+        if (
+            "No data for 5 s (0 frames dropped), starting over" in line
+            and not link_lost.done()
+        ):
             config_start_before_loss = tx_frames.count(CONFIG_START_TX)
             link_lost.set_result(loop.time())
         if (
