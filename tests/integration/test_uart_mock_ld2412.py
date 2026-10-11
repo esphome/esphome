@@ -47,6 +47,11 @@ test_uart_mock_ld2412_truncated_answer (truncated threshold answer):
   1. A motion answer missing two gate bytes runs into the next acknowledgement
   2. The merged bytes are dropped with a warning, no number takes a value from them
   3. A complete motion answer that arrives later is parsed
+
+test_uart_mock_ld2412_requery_after_giveup (NaN gate refilled after a given up write):
+  1. The first write is given up because the module never answers, the motion numbers show NaN
+  2. The second write is held back again because a NaN number counts as not configured
+  3. The module answers this time, its value replaces the NaN and the write carries both values
 """
 
 from __future__ import annotations
@@ -834,3 +839,89 @@ async def test_uart_mock_ld2412_truncated_answer(
                 assert int(value) not in merged_values, (
                     f"{number.object_id} took {value} from the merged frame"
                 )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_requery_after_giveup(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that a gate left at NaN by a given up write is refilled from the module.
+
+    The first write is given up because the module never answers, so both motion numbers show NaN. A NaN
+    number counts as not configured, so the second write is held back and queried again as well. The
+    module answers that query, its value replaces the NaN on gate 0, and the write carries the module
+    value for gate 0 and the user value for gate 5.
+    """
+    loop = asyncio.get_running_loop()
+
+    # Gate 0 takes the module value 25 (0x19), gate 5 the user value 30 (0x1E)
+    expected_motion = "19:0B:0C:0D:0E:1E:10:11:12:13:14:15:16:17"
+    tx_callback, (motion_written,) = _tx_waiter(expected_motion)
+    given_up = loop.create_future()
+    queries: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if (
+            "Command 03 not sent, the module did not report" in line
+            and not given_up.done()
+        ):
+            given_up.set_result(True)
+        if _is_tx(line) and MOTION_QUERY in line:
+            queries.append(line)
+        tx_callback(line)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        numbers = _threshold_numbers(entities)
+        gate_0_key = numbers["gate_0_move_threshold"].key
+        gate_5_key = numbers["gate_5_move_threshold"].key
+
+        gate_5_values: list[float] = []
+        waiter = StateWaiter()
+
+        def on_state(state: EntityState) -> None:
+            if _number_state_of(gate_5_key)(state):
+                gate_5_values.append(state.state)
+            waiter.on_state(state)
+
+        await _wait_initial(client, entities, on_state)
+
+        def is_nan_of(key: int) -> Callable[[EntityState], bool]:
+            return lambda s: _number_state_of(key)(s) and math.isnan(s.state)
+
+        unknown = [
+            waiter.expect(is_nan_of(key), label="NaN")
+            for key in (gate_0_key, gate_5_key)
+        ]
+        client.number_command(gate_5_key, 20.0)
+        try:
+            await asyncio.wait_for(given_up, timeout=5.0)
+            await asyncio.gather(*unknown)
+        except TimeoutError as err:
+            pytest.fail(f"Timeout waiting for the first write to be given up: {err}")
+
+        gate_0_refilled = waiter.expect(
+            lambda s: _number_state_of(gate_0_key)(s) and not math.isnan(s.state),
+            label="gate 0 move threshold from the module",
+        )
+        gate_5_values.clear()
+        client.number_command(gate_5_key, 30.0)
+        try:
+            await asyncio.wait_for(motion_written, timeout=5.0)
+            gate_0_state = await gate_0_refilled
+        except TimeoutError as err:
+            pytest.fail(
+                f"Timeout waiting for the second write: {err}\n"
+                f"  expected motion payload: {expected_motion}"
+            )
+
+        # Setup, the given up write and the second write each queried the motion thresholds
+        assert len(queries) == 3
+        assert gate_0_state.state == pytest.approx(25.0)
+        assert gate_5_values
+        assert all(value == pytest.approx(30.0) for value in gate_5_values)
