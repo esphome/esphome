@@ -18,15 +18,11 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Frame layout follows the 0x0013 and 0x0014 answers in the HLK-LD2412 Serial Communication Protocol V1.05,
-# sections 2.2.10 and 2.2.12: header, length 12 00, command 13 01 (14 01), status 00 00, 14 threshold bytes,
-# footer
 uart_mock:
   id: mock_uart
   baud_rate: 256000
   responses:
-    # The motion answer loses its last two gate bytes but keeps its footer, and the next acknowledgement
-    # follows right behind it, so both arrive as one run of bytes
+    # The motion answer is two gate bytes short, so the parser reads on into the next acknowledgement
     - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x13, 0x00, 0x04, 0x03, 0x02, 0x01]
       inject_rx:
         [
@@ -43,7 +39,7 @@ uart_mock:
           0x00, 0x00,  # status: success
           0x04, 0x03, 0x02, 0x01,  # its footer; the merged 40-byte frame gets dropped
         ]
-  # A complete motion answer arrives later, after setup has finished
+  # A complete answer after setup proves the parser recovered
   injections:
     - delay: 1500ms
       inject_rx:

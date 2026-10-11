@@ -76,7 +76,7 @@ enum PeriodicDataValue : uint8_t {
 };
 
 enum AckData : uint8_t {
-  FRAME_LENGTH = 4,  // little-endian count of the bytes between the length field and the footer
+  FRAME_LENGTH = 4,  // little-endian count of the bytes between it and the footer
   COMMAND = 6,
   COMMAND_STATUS = 7,
   ACK_PAYLOAD = 10,
@@ -196,7 +196,6 @@ static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0x
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
-// A gate threshold answer carries one byte per gate
 static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
 // The length field counts the command word, the status word and the gates
 static constexpr uint16_t GATE_SENS_ACK_LENGTH = GATE_SENS_ACK_SIZE - COMMAND - HEADER_FOOTER_SIZE;
@@ -470,10 +469,10 @@ void set_number_value(number::Number *n, float value) {
   }
 }
 
-// A number set to NaN after a failed write counts as not configured
+// NaN marks a value the module never received
 static inline bool has_value(number::Number *n) { return n != nullptr && n->has_state() && !std::isnan(n->state); }
 
-// Scheduler ids 0 (still) and 1 (motion) time out a re-query that a held-back write waits for
+// Timeout ids 0 (still) and 1 (motion) for a write waiting on a re-query
 static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
 static constexpr uint32_t GATE_QUERY_TIMEOUT_MS = 2000;
 #endif
@@ -625,11 +624,11 @@ bool LD2412Component::handle_ack_data_() {
       }
       const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
       GateThresholds &group = this->gate_thresholds_(motion);
-      // A write held back for this answer is pending while its timeout is still running
+      // True only while a held-back write waits for this answer
       const bool pending = this->cancel_timeout(GATE_QUERY_TIMEOUT_ID + motion);
       for (size_t i = 0; i < TOTAL_GATES; i++) {
         group.last_read[i] = this->buffer_data_[ACK_PAYLOAD + i];
-        // While a write waits for this answer, the values the user set must survive it
+        // The pending write's user values must survive the answer
         if (!pending || !has_value(group.numbers[i])) {
           set_number_value(group.numbers[i], group.last_read[i]);
         }
@@ -779,7 +778,7 @@ void LD2412Component::factory_reset() {
   this->set_config_mode_(true);
   this->send_command_(CMD_FACTORY_RESET, nullptr, 0);
 #ifdef USE_NUMBER
-  // The reset discards the module's thresholds, so a write must wait for the re-read
+  // Reset discards the thresholds; the next write must wait for the re-read
   this->gate_move_thresholds_.read = false;
   this->gate_still_thresholds_.read = false;
 #endif
@@ -856,8 +855,7 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
     }
   }
   if (configured < TOTAL_GATES && !group.read) {
-    // Without the module's values those gates would be sent as zero, which is maximum sensitivity.
-    // Ask again and send the write once the answer arrives.
+    // Unread gates would go out as zero, which is maximum sensitivity
     ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
     this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
     this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, GATE_QUERY_TIMEOUT_MS,
@@ -870,8 +868,7 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
 void LD2412Component::gate_query_timeout_(bool motion) {
   ESP_LOGE(TAG, "Command %02X not sent, the module did not report its gate thresholds",
            motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS);
-  // Every value a number holds either never reached the module (set by the user before the first answer) or
-  // is stale (read before a factory reset), so marking the group unknown loses nothing the module still has
+  // The values on hand never reached the module or are stale, so forgetting them loses nothing
   for (number::Number *n : this->gate_thresholds_(motion).numbers) {
     if (n != nullptr) {
       n->publish_state(NAN);
@@ -880,7 +877,7 @@ void LD2412Component::gate_query_timeout_(bool motion) {
 }
 
 void LD2412Component::set_gate_threshold(number::Number *n) {
-  // The number carries no group of its own; 14 pointer compares on a user write are cheaper than a flag per number
+  // Found by pointer: 14 compares per write beat a flag per number
   const auto &motion_numbers = this->gate_move_thresholds_.numbers;
   const bool motion = std::find(motion_numbers.begin(), motion_numbers.end(), n) != motion_numbers.end();
   this->set_config_mode_(true);

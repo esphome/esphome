@@ -21,28 +21,9 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
      must not receive garbage from stale buffer data or frame footer bytes
   3. Recovery frame with different values proves the component survived
 
-test_uart_mock_ld2412_footer_in_payload (frame footer bytes inside the thresholds):
-  1. Threshold answers holding 04 03 02 01 before the real footer are parsed in full
-  2. The answer that follows such a frame is still parsed
-  3. Writing a threshold does not crash when most gates have no number
-  4. A motion write sends only the motion command with all 14 gates, the user value and the module
-     values exactly as read, and a still write does the same for the still command
-  5. A factory reset discards the values read from the module, so the next write is held back and
-     queried again before it goes out
-
-test_uart_mock_ld2412_truncated_answer (truncated threshold answer):
-  1. A motion answer missing two gate bytes runs into the next acknowledgement
-  2. The merged bytes are dropped with a warning, no number takes a value from them
-  3. A complete motion answer that arrives later is parsed
-
-test_uart_mock_ld2412_requery_after_giveup (write before the module has reported its thresholds):
-  1. The setup queries go unanswered, so writing a motion threshold holds the command back instead of
-     writing zeros; only the motion group is queried again, before configuration mode ends, and the still
-     group is neither written nor queried
-  2. The query stays unanswered, the write is given up with an error and the motion numbers show NaN
-  3. A second write is held back again because a NaN number counts as not configured; the module answers
-     this time, its value replaces the NaN and the write goes out with the user value and the module values
-  4. The module values do not overwrite the value the user wrote
+The gate threshold tests (footer_in_payload, truncated_answer, requery_after_giveup) cover
+answers that hold the frame footer or are truncated, writes that fill the gates without a
+number from the module's values, and writes held back until the module reports them.
 """
 
 from __future__ import annotations
@@ -70,19 +51,14 @@ from .state_utils import (
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-# Frames as the uart mock logs what the component writes. The component writes the length and command word
-# as one piece and the payload as the next, so each shows up on its own TX line
-# Length 16 (2 command bytes and one byte per gate), then the threshold command, motion is 0x03 and still 0x04
+# Length and command word of each frame as the uart mock logs it; the payload is logged on its own TX line
 MOTION_COMMAND = "10:00:03:00"
 STILL_COMMAND = "10:00:04:00"
-# Length 2 and the query command for each group, motion is 0x13 and still is 0x14
 MOTION_QUERY = "02:00:13:00"
 STILL_QUERY = "02:00:14:00"
-# Length 2 and command 0xFE, the frame that leaves configuration mode
 CONFIG_MODE_LEFT = "02:00:FE:00"
-# Length 2 and command 0xA2, the factory reset
 FACTORY_RESET = "02:00:A2:00"
-# Logged in place of the motion command when the write waits for the module's values, or was given up
+# Logged in place of the motion command when the write is held back or given up
 MOTION_HELD_BACK = "Command 03 held back"
 MOTION_GIVEN_UP = "Command 03 not sent, the module did not report"
 
@@ -95,25 +71,7 @@ THRESHOLD_NUMBERS = (
 
 
 def _is_tx(line: str) -> bool:
-    """Return whether the log line is a TX line from the uart mock."""
     return "uart_mock" in line and "TX " in line
-
-
-def _tx_waiter(
-    *payloads: str,
-) -> tuple[Callable[[str], None], list[asyncio.Future[bool]]]:
-    """Return a line callback and one future per payload, resolved when a TX line holds it."""
-    loop = asyncio.get_running_loop()
-    futures = [loop.create_future() for _ in payloads]
-
-    def line_callback(line: str) -> None:
-        if not _is_tx(line):
-            return
-        for payload, future in zip(payloads, futures, strict=True):
-            if payload in line and not future.done():
-                future.set_result(True)
-
-    return line_callback, futures
 
 
 def _threshold_numbers(entities: list[EntityInfo]) -> dict[str, NumberInfo]:
@@ -154,7 +112,6 @@ class _LogEvents:
     def __init__(self, *texts: str) -> None:
         self._texts = texts
         self.lines: list[str] = []
-        # Text a test waits for, resolved by the next line that holds it
         self._awaited: dict[str, asyncio.Future[None]] = {}
 
     def on_line(self, line: str) -> None:
@@ -165,13 +122,11 @@ class _LogEvents:
                 future.set_result(None)
 
     def next_line_with(self, text: str) -> asyncio.Future[None]:
-        """Return a future resolved by the next line that holds ``text``."""
         future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._awaited[text] = future
         return future
 
     def index_after(self, start: int, text: str) -> int:
-        """Return the index of the first recorded line after ``start`` that holds ``text``."""
         return next(
             i for i, line in enumerate(self.lines) if i > start and text in line
         )
@@ -506,24 +461,12 @@ async def test_uart_mock_ld2412_footer_in_payload(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test threshold answers whose values contain the command frame footer, and the writes they feed.
-
-    Gates holding 4, 3, 2, 1 in a row look like the footer 04 03 02 01, so the parser sees a footer
-    before the frame is complete. A short frame is not a complete answer, so it has to keep reading up
-    to the real footer, parse all 14 thresholds and then parse the next answer as well.
-
-    Only 2 of the 14 gates have numbers, which used to crash the first write because the numbers of the
-    other gates were dereferenced. Each threshold command carries all 14 gates, so the gates without a
-    number must be written back with the value read from the module, and a write only sends the command
-    of its own group.
-    """
-    # Every gate except the changed one must match the answer byte for byte, which proves all 14
-    # thresholds were parsed
-    # Motion: gate 0 becomes 77 (0x4D), gates 5 to 8 keep 4, 3, 2, 1
+    """Test threshold answers that hold the frame footer 04 03 02 01, and the writes built from them."""
+    # Gate 0 set to 77 (0x4D); the other 13 gates must match the motion answer byte for byte
     expected_motion = "4D:23:23:23:23:04:03:02:01:19:19:19:19:19"
-    # Still: gate 5 becomes 77 (0x4D), gates 10 to 13 keep 4, 3, 2, 1
+    # Gate 5 set to 77, the rest matches the still answer
     expected_still = "00:23:23:23:23:4D:19:19:19:19:04:03:02:01"
-    # Motion after the factory reset: gate 0 becomes 50 (0x32), the rest is read from the module again
+    # Gate 0 set to 50 (0x32) after the reset
     expected_motion_after_reset = "32:23:23:23:23:04:03:02:01:19:19:19:19:19"
     events = _LogEvents(MOTION_HELD_BACK)
 
@@ -535,7 +478,7 @@ async def test_uart_mock_ld2412_footer_in_payload(
         initial_state_helper = await _wait_initial(client, entities)
         numbers = _threshold_numbers(entities)
 
-        # Gate 5 move holds the first footer byte, gate 5 still comes from the second answer
+        # Gate 5 move is the first footer byte inside the motion answer
         for name, value in {
             "gate_0_move_threshold": 0.0,
             "gate_5_move_threshold": 4.0,
@@ -545,7 +488,6 @@ async def test_uart_mock_ld2412_footer_in_payload(
             state = initial_state_helper.initial_states[numbers[name].key]
             assert state.state == pytest.approx(value), name
 
-        # Write one motion threshold; this is what used to crash the device
         motion_written = events.next_line_with(expected_motion)
         client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
         try:
@@ -556,7 +498,6 @@ async def test_uart_mock_ld2412_footer_in_payload(
                 f"  expected motion payload: {expected_motion}"
             )
 
-        # A motion write leaves the still thresholds alone
         assert events.count(STILL_COMMAND) == 0, (
             "still threshold command was sent for a motion write"
         )
@@ -571,12 +512,11 @@ async def test_uart_mock_ld2412_footer_in_payload(
                 f"  expected still payload: {expected_still}"
             )
 
-        # Each group was written exactly once, and nothing was held back
         assert events.count(MOTION_COMMAND) == 1
         assert events.count(STILL_COMMAND) == 1
         assert events.count(MOTION_HELD_BACK) == 0
 
-        # A factory reset discards the module's thresholds, so the values read so far must not be reused
+        # The reset discards the module's thresholds, so the next write is held back and re-queried
         reset_sent = events.next_line_with(FACTORY_RESET)
         client.button_command(require_entity(entities, "factory_reset", ButtonInfo).key)
         try:
@@ -584,8 +524,6 @@ async def test_uart_mock_ld2412_footer_in_payload(
         except TimeoutError:
             pytest.fail("Timeout waiting for the factory reset command")
 
-        # The write is held back, the motion thresholds are queried again, the mock answers and the write
-        # goes out
         held_back = events.next_line_with(MOTION_HELD_BACK)
         written_after_reset = events.next_line_with(expected_motion_after_reset)
         client.number_command(numbers["gate_0_move_threshold"].key, 50.0)
@@ -604,7 +542,6 @@ async def test_uart_mock_ld2412_footer_in_payload(
         query_at = events.index_after(warning_at, MOTION_QUERY)
         events.index_after(query_at, expected_motion_after_reset)
 
-        # A round trip proves the device is still running after the writes
         entities_after, _ = await client.list_entities_services()
         assert len(entities_after) == len(entities)
 
@@ -615,13 +552,7 @@ async def test_uart_mock_ld2412_truncated_answer(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test recovery from a truncated threshold answer that runs into the next answer.
-
-    The motion answer is missing two gate bytes, so its footer comes too early and the next acknowledgement
-    is read as part of the same frame. Those bytes must be dropped with a warning and must not reach any
-    number. A complete motion answer that arrives later has to be parsed, which proves the parser
-    recovered.
-    """
+    """Test that a threshold answer merged with the next frame is dropped and the parser recovers."""
     loop = asyncio.get_running_loop()
 
     dropped = loop.create_future()
@@ -633,7 +564,7 @@ async def test_uart_mock_ld2412_truncated_answer(
         if "Dropping gate threshold answer" in line and not dropped.done():
             dropped.set_result(True)
 
-    # Values the merged frame carries in its motion part
+    # Gate bytes of the truncated answer
     merged_values = set(range(0x30, 0x3C))
 
     async with (
@@ -692,20 +623,7 @@ async def test_uart_mock_ld2412_requery_after_giveup(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test writing a threshold before the module has reported the values it holds.
-
-    The gates without a number are filled from the last values read back from the module. When the
-    module never answers the setup query there is nothing to fill them with, and sending the command
-    anyway would write a zero to every one of those gates, which is maximum sensitivity. The command
-    has to be held back and only its own group queried again; the still group is neither written nor
-    queried. When the query stays unanswered the write is given up with an error and the motion numbers
-    show NaN, since the module never received the value.
-
-    A NaN number counts as not configured, so the second write is held back and queried again as well.
-    This time the module answers, its value replaces the NaN on gate 0, and the held back write goes out
-    with the module value for gate 0 and the user value for gate 5. The answer must not overwrite the
-    value the user wrote.
-    """
+    """Test a write held back until the module reports its thresholds: given up once, then sent."""
     # Gate 0 takes the module value 25 (0x19), gate 5 the user value 30 (0x1E)
     expected_motion = "19:0B:0C:0D:0E:1E:10:11:12:13:14:15:16:17"
     events = _LogEvents(MOTION_HELD_BACK, MOTION_GIVEN_UP)
@@ -729,11 +647,9 @@ async def test_uart_mock_ld2412_requery_after_giveup(
 
         initial_state_helper = await _wait_initial(client, entities, on_state)
 
-        # Neither query was answered during setup, so no threshold has a value yet
         for key in (gate_0_key, gate_5_key):
             assert initial_state_helper.initial_states[key].missing_state
 
-        # Phase 1: the write is held back, the query sent again stays unanswered and the write is given up
         held_back = events.next_line_with(MOTION_HELD_BACK)
         config_mode_left = events.next_line_with(CONFIG_MODE_LEFT)
         given_up = events.next_line_with(MOTION_GIVEN_UP)
@@ -755,8 +671,6 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         except TimeoutError as err:
             pytest.fail(f"Timeout waiting for the first write to be given up: {err}")
 
-        # Only the held back motion group asks the module for its values again, before configuration
-        # mode is left
         warning_at = events.index_after(-1, MOTION_HELD_BACK)
         left_at = events.index_after(warning_at, CONFIG_MODE_LEFT)
         write_window = events.lines[warning_at:left_at]
@@ -766,12 +680,10 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         assert not any(STILL_QUERY in line for line in write_window), (
             "still thresholds were queried for a motion write"
         )
-        # Neither threshold command reached the module, so no gate was reconfigured
         assert events.count(MOTION_COMMAND) == 0, (
             "motion threshold command was sent without a value for the gates that have no number"
         )
 
-        # Phase 2: the write is held back again and the module answers the query sent again
         held_back_again = events.next_line_with(MOTION_HELD_BACK)
         motion_written = events.next_line_with(expected_motion)
         gate_0_refilled = waiter.expect(
@@ -792,20 +704,17 @@ async def test_uart_mock_ld2412_requery_after_giveup(
                 f"  logged: {events.lines}"
             )
 
-        # The warning, the query sent again and the write arrive in that order
         warning_at = events.index_after(left_at, MOTION_HELD_BACK)
         query_at = events.index_after(warning_at, MOTION_QUERY)
         write_at = events.index_after(query_at, expected_motion)
         assert MOTION_COMMAND in events.lines[write_at - 1]
 
-        # Setup, the given up write and the second write each queried the motion thresholds
+        # One query each from setup, the given-up write and the second write
         assert events.count(MOTION_QUERY) == 3
-        # A motion write never touches the still group
         assert events.count(STILL_COMMAND) == 0, (
             "still threshold command was sent for a motion write"
         )
 
-        # The user value survives the answer, gate 0 takes the module value
         assert gate_0_state.state == pytest.approx(25.0)
         assert gate_5_values
         assert all(value == pytest.approx(30.0) for value in gate_5_values)
