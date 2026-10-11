@@ -1,16 +1,21 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.i2c import CONF_I2C_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ENABLE_PIN,
     CONF_OFFSET,
+    CONF_PLATFORM,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+from . import DOMAIN
 
 CODEOWNERS = ["@will-tm"]
 DEPENDENCIES = ["i2c"]
@@ -34,7 +39,8 @@ CONF_ROI_HEIGHT = "roi_height"
 CONF_ROI_CENTER = "roi_center"
 
 DEFAULT_ADDRESS = 0x29
-DEFAULT_ROI_CENTER = 199
+# ROI centre the ULD uses for a ROI wider or taller than 10 SPADs
+ROI_CENTER_LARGE = 199
 # Timing budgets in ms supported by the ST Ultra Lite Driver tables, per distance mode
 TIMING_BUDGETS = {
     "short": (15, 20, 33, 50, 100, 200, 500),
@@ -65,13 +71,35 @@ def validate_timing_budget(config: ConfigType) -> ConfigType:
 
 
 def validate_roi(config: ConfigType) -> ConfigType:
-    if (config[CONF_ROI_WIDTH] > 10 or config[CONF_ROI_HEIGHT] > 10) and config[
-        CONF_ROI_CENTER
-    ] != DEFAULT_ROI_CENTER:
+    if (
+        (center := config.get(CONF_ROI_CENTER)) is not None
+        and center != ROI_CENTER_LARGE
+        and (config[CONF_ROI_WIDTH] > 10 or config[CONF_ROI_HEIGHT] > 10)
+    ):
         raise cv.Invalid(
-            f"roi_center must be {DEFAULT_ROI_CENTER} when roi_width or roi_height "
+            f"roi_center must be {ROI_CENTER_LARGE} when roi_width or roi_height "
             "is larger than 10",
             path=[CONF_ROI_CENTER],
+        )
+    return config
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Every sensor boots at 0x29, so with several on one bus each needs its own enable_pin
+    # to be held in reset while the others are re-addressed.
+    if CONF_ENABLE_PIN in config:
+        return config
+    full_config = fv.full_config.get()
+    siblings = [
+        conf
+        for conf in full_config.get(sensor.DOMAIN, [])
+        if conf.get(CONF_PLATFORM) == DOMAIN
+        and conf[CONF_I2C_ID] == config[CONF_I2C_ID]
+    ]
+    if len(siblings) > 1:
+        raise cv.Invalid(
+            "Every VL53L1X sensor on a shared I2C bus needs an enable_pin",
+            path=[CONF_ENABLE_PIN],
         )
     return config
 
@@ -99,9 +127,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ROI_WIDTH, default=16): cv.int_range(min=4, max=16),
             cv.Optional(CONF_ROI_HEIGHT, default=16): cv.int_range(min=4, max=16),
-            cv.Optional(CONF_ROI_CENTER, default=DEFAULT_ROI_CENTER): cv.int_range(
-                min=0, max=255
-            ),
+            # Defaults to the chip's optical centre, or 199 for a ROI larger than 10x10
+            cv.Optional(CONF_ROI_CENTER): cv.int_range(min=1, max=255),
             cv.Optional(CONF_OFFSET, default=0): cv.int_range(min=-1024, max=1023),
         }
     )
@@ -112,6 +139,8 @@ CONFIG_SCHEMA = cv.All(
     validate_roi,
 )
 
+FINAL_VALIDATE_SCHEMA = _final_validate
+
 
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
@@ -121,11 +150,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_distance_mode(config[CONF_DISTANCE_MODE]))
     cg.add(var.set_timing_budget(config[CONF_TIMING_BUDGET].total_milliseconds))
     cg.add(var.set_signal_rate_limit(config[CONF_SIGNAL_RATE_LIMIT]))
-    cg.add(
-        var.set_roi(
-            config[CONF_ROI_WIDTH], config[CONF_ROI_HEIGHT], config[CONF_ROI_CENTER]
-        )
-    )
+    cg.add(var.set_roi(config[CONF_ROI_WIDTH], config[CONF_ROI_HEIGHT]))
+    if (roi_center := config.get(CONF_ROI_CENTER)) is not None:
+        cg.add(var.set_roi_center(roi_center))
     cg.add(var.set_offset(config[CONF_OFFSET]))
 
     if (enable_pin := config.get(CONF_ENABLE_PIN)) is not None:

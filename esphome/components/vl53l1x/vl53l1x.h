@@ -28,11 +28,11 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   // Rate in MCPS, stored as the register's 9.7 fixed point value.
   void set_signal_rate_limit(float limit_mcps) { this->signal_rate_limit_ = static_cast<uint16_t>(limit_mcps * 128); }
   void set_offset(int16_t offset_mm) { this->offset_mm_ = offset_mm; }
-  void set_roi(uint8_t width, uint8_t height, uint8_t center) {
+  void set_roi(uint8_t width, uint8_t height) {
     this->roi_width_ = width;
     this->roi_height_ = height;
-    this->roi_center_ = center;
   }
+  void set_roi_center(uint8_t center) { this->roi_center_ = center; }
 
  protected:
   bool wait_for_boot_();
@@ -45,7 +45,7 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   bool read_word16_(uint16_t reg, uint16_t *value);
 
   // Every instance, so the first setup() can hold all sensors with an enable pin in reset.
-  static VL53L1XSensor *first_sensor_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static VL53L1XSensor *first_sensor;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
   VL53L1XSensor *next_{nullptr};
   GPIOPin *enable_pin_{nullptr};
@@ -55,7 +55,7 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   int16_t offset_mm_{0};
   uint8_t roi_width_{16};
   uint8_t roi_height_{16};
-  uint8_t roi_center_{199};
+  uint8_t roi_center_{0};  // 0 selects the centre the way the ULD does
   DistanceMode distance_mode_{DISTANCE_MODE_LONG};
   bool first_result_{true};
 };
