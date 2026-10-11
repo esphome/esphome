@@ -40,6 +40,10 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   void set_timing_budget(uint32_t timing_budget) { this->measurement_timing_budget_us_ = timing_budget; }
 
  protected:
+  // The address the sensor powers up with, and returns to after a soft reset or
+  // an enable-pin toggle. Re-addressing happens at the end of init.
+  static constexpr uint8_t DEFAULT_I2C_ADDRESS = 0x29;
+
   uint32_t get_measurement_timing_budget_();
   bool set_measurement_timing_budget_(uint32_t budget_us);
   void get_sequence_step_enables_(SequenceStepEnables *enables);
@@ -53,7 +57,8 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   uint16_t decode_timeout_(uint16_t reg_val);
   uint16_t encode_timeout_(uint16_t timeout_mclks);
 
-  bool perform_single_ref_calibration_(uint8_t vhv_init_byte);
+  bool perform_single_ref_calibration_(uint8_t vhv_init_byte, uint32_t timeout_ms = 1000);
+  bool init_sensor_(uint8_t final_address, bool recovery = false);
 
   float signal_rate_limit_;
   bool long_range_;
@@ -62,6 +67,26 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   bool initiated_read_{false};
   bool waiting_for_interrupt_{false};
   uint8_t stop_variable_;
+  // Stall detection - when the in-flight measurement started and how long it
+  // may take before it is treated as stalled (computed once during init).
+  uint32_t measurement_start_ms_{0};
+  uint32_t stall_timeout_ms_{0};
+  // Self-recovery - consecutive stalled measurements trigger a sensor soft
+  // reset + full re-init; recovery_attempts_ counts failed recovery attempts
+  // before the component is marked failed.
+  static constexpr uint8_t STALLS_BEFORE_RESET = 2;
+  static constexpr uint8_t MAX_RECOVERY_ATTEMPTS = 5;
+  uint8_t consecutive_stalls_{0};
+  uint8_t recovery_attempts_{0};
+  // Backoff - while active, the driver stays completely off the I2C bus.
+  // Hammering a wedged bus feeds an ESP-IDF i2c_master bug that crashes the
+  // whole ESP after "I2C hardware timeout". Start+duration (not "until") so
+  // the comparison stays valid across the millis() rollover.
+  uint32_t backoff_start_ms_{0};
+  uint32_t backoff_duration_ms_{0};
+  // Keep the configured address separately; address_ temporarily becomes
+  // DEFAULT_I2C_ADDRESS during setup and recovery.
+  uint8_t configured_address_{DEFAULT_I2C_ADDRESS};
 
   uint32_t timeout_us_{};
 
