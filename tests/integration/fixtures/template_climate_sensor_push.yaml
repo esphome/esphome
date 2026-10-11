@@ -1,0 +1,49 @@
+esphome:
+  name: tmpl-clim-sensor-push
+host:
+api:
+logger:
+
+# No lambda/update_interval: these sensors only ever report a value when a button below
+# publishes one (standing in for e.g. a BLE scan callback in a real config).
+sensor:
+  - platform: template
+    id: room_temperature
+    name: Room Temperature
+  - platform: template
+    id: room_humidity
+    name: Room Humidity
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Sensor Push Climate
+    optimistic: true
+    sensor: room_temperature
+    humidity_sensor: room_humidity
+    supported_modes:
+      - "OFF"
+      - HEAT
+
+button:
+  - platform: template
+    id: publish_temperature
+    name: Publish Temperature
+    on_press:
+      - sensor.template.publish:
+          id: room_temperature
+          state: 24.0
+  - platform: template
+    id: publish_temperature_same
+    name: Publish Temperature Same Value
+    on_press:
+      - sensor.template.publish:
+          id: room_temperature
+          state: 24.0
+  - platform: template
+    id: publish_humidity
+    name: Publish Humidity
+    on_press:
+      - sensor.template.publish:
+          id: room_humidity
+          state: 65.0
