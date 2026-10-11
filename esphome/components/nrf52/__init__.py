@@ -495,9 +495,16 @@ async def _dfu_to_code(dfu_config):
         cg.add(var.set_reset_pin(pin))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
-    zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver >= cv.Version(3, 4, 0):
+        # The new USB stack reports the rate change through a USB message callback.
+        zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", True)
+        zephyr_add_prj_conf("USBD_CDC_ACM_CLASS", True)
+        zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
+    else:
+        zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+        zephyr_add_prj_conf("USB_CDC_ACM", True)
+        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     zephyr_add_prj_conf("SERIAL", True)
     await cg.register_component(var, dfu_config)
 

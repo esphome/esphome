@@ -1,9 +1,14 @@
 #pragma once
-#if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
+#if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include <zephyr/device.h>
+
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+struct usbd_context;
+struct usbd_msg;
+#endif
 
 namespace esphome::zephyr {
 
@@ -14,7 +19,11 @@ class CdcAcm final : public Component {
   template<typename F> void add_on_rate_callback(F &&callback) { this->rate_callbacks_.add(std::forward<F>(callback)); }
 
  protected:
+#if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
   static void cdc_dte_rate_callback_(const device *device, uint32_t rate);
+#elif defined(CONFIG_USB_DEVICE_STACK_NEXT)
+  static void usbd_msg_cb_(struct usbd_context *ctx, const struct usbd_msg *msg);
+#endif
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
 };
 

@@ -230,8 +230,6 @@ async def to_code(config: ConfigType) -> None:
                 }};"""
 
             return f"""
-                /delete-node/ &boot_partition;
-                /delete-node/ &storage_partition;
                 /delete-node/ &code_partition;
                 /delete-node/ &reserved_partition_0;
 
