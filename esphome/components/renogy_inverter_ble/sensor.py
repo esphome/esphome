@@ -1,9 +1,9 @@
-"""Sensor platform for renogy_inverter_ble — the inverter's live electrical values."""
-
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BATTERY_VOLTAGE,
+    CONF_TEMPERATURE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_FREQUENCY,
@@ -15,46 +15,85 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_HERTZ,
     UNIT_VOLT,
+    UNIT_VOLT_AMPS,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_RENOGY_INVERTER_BLE_ID, RENOGY_INVERTER_BLE_COMPONENT_SCHEMA
 
-DEPENDENCIES = ["renogy_inverter_ble"]
 CODEOWNERS = ["@emilioaray-dev"]
+DEPENDENCIES = ["renogy_inverter_ble"]
 
-UNIT_VOLT_AMPS = "VA"
+CONF_AC_INPUT_VOLTAGE = "ac_input_voltage"
+CONF_AC_OUTPUT_VOLTAGE = "ac_output_voltage"
+CONF_AC_OUTPUT_CURRENT = "ac_output_current"
+CONF_AC_OUTPUT_FREQUENCY = "ac_output_frequency"
+CONF_INPUT_FREQUENCY = "input_frequency"
+CONF_LOAD_CURRENT = "load_current"
+CONF_LOAD_ACTIVE_POWER = "load_active_power"
+CONF_LOAD_APPARENT_POWER = "load_apparent_power"
 
-# (config key, unit, accuracy decimals, device_class) for each measurement the inverter exposes.
-SENSORS = [
-    ("ac_input_voltage", UNIT_VOLT, 1, DEVICE_CLASS_VOLTAGE),
-    ("ac_output_voltage", UNIT_VOLT, 1, DEVICE_CLASS_VOLTAGE),
-    ("ac_output_current", UNIT_AMPERE, 2, DEVICE_CLASS_CURRENT),
-    ("ac_output_frequency", UNIT_HERTZ, 2, DEVICE_CLASS_FREQUENCY),
-    ("input_frequency", UNIT_HERTZ, 2, DEVICE_CLASS_FREQUENCY),
-    ("battery_voltage", UNIT_VOLT, 1, DEVICE_CLASS_VOLTAGE),
-    ("temperature", UNIT_CELSIUS, 1, DEVICE_CLASS_TEMPERATURE),
-    ("load_current", UNIT_AMPERE, 2, DEVICE_CLASS_CURRENT),
-    ("load_active_power", UNIT_WATT, 0, DEVICE_CLASS_POWER),
-    ("load_apparent_power", UNIT_VOLT_AMPS, 0, DEVICE_CLASS_APPARENT_POWER),
-]
+VOLTAGE_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_VOLT,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_VOLTAGE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+CURRENT_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_AMPERE,
+    accuracy_decimals=2,
+    device_class=DEVICE_CLASS_CURRENT,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+FREQUENCY_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_HERTZ,
+    accuracy_decimals=2,
+    device_class=DEVICE_CLASS_FREQUENCY,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
 
 CONFIG_SCHEMA = RENOGY_INVERTER_BLE_COMPONENT_SCHEMA.extend(
     {
-        cv.Optional(key): sensor.sensor_schema(
-            unit_of_measurement=unit,
-            accuracy_decimals=decimals,
-            device_class=device_class,
+        cv.Optional(CONF_AC_INPUT_VOLTAGE): VOLTAGE_SCHEMA,
+        cv.Optional(CONF_AC_OUTPUT_VOLTAGE): VOLTAGE_SCHEMA,
+        cv.Optional(CONF_AC_OUTPUT_CURRENT): CURRENT_SCHEMA,
+        cv.Optional(CONF_AC_OUTPUT_FREQUENCY): FREQUENCY_SCHEMA,
+        cv.Optional(CONF_INPUT_FREQUENCY): FREQUENCY_SCHEMA,
+        cv.Optional(CONF_BATTERY_VOLTAGE): VOLTAGE_SCHEMA,
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
-        )
-        for key, unit, decimals, device_class in SENSORS
+        ),
+        cv.Optional(CONF_LOAD_CURRENT): CURRENT_SCHEMA,
+        cv.Optional(CONF_LOAD_ACTIVE_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_LOAD_APPARENT_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT_AMPS,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_APPARENT_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_RENOGY_INVERTER_BLE_ID])
-    for key, _unit, _decimals, _device_class in SENSORS:
-        if key in config:
-            sens = await sensor.new_sensor(config[key])
-            cg.add(getattr(hub, f"set_{key}_sensor")(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_AC_INPUT_VOLTAGE, hub.set_ac_input_voltage_sensor)
+    await sensors(CONF_AC_OUTPUT_VOLTAGE, hub.set_ac_output_voltage_sensor)
+    await sensors(CONF_AC_OUTPUT_CURRENT, hub.set_ac_output_current_sensor)
+    await sensors(CONF_AC_OUTPUT_FREQUENCY, hub.set_ac_output_frequency_sensor)
+    await sensors(CONF_INPUT_FREQUENCY, hub.set_input_frequency_sensor)
+    await sensors(CONF_BATTERY_VOLTAGE, hub.set_battery_voltage_sensor)
+    await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+    await sensors(CONF_LOAD_CURRENT, hub.set_load_current_sensor)
+    await sensors(CONF_LOAD_ACTIVE_POWER, hub.set_load_active_power_sensor)
+    await sensors(CONF_LOAD_APPARENT_POWER, hub.set_load_apparent_power_sensor)

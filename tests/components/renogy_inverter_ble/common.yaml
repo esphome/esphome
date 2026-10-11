@@ -5,7 +5,6 @@ ble_client:
 renogy_inverter_ble:
   - id: inv0
     ble_client_id: inverter_client
-    update_interval: 30s
 
 sensor:
   - platform: renogy_inverter_ble
