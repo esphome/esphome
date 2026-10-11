@@ -54,7 +54,6 @@ from .const import (
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
-    report,
 )
 from .const_esp32 import (
     ALLOWED_UNITS,
@@ -204,11 +203,8 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
             if attr.get(CONNECT):  # connect device
-                if (
-                    CONF_REPORT in config
-                    and config[CONF_REPORT] != report.ZIGBEE_REPORT_DEFAULT
-                ):
-                    attr[CONF_REPORT] = config[CONF_REPORT]
+                if (report := config.get(CONF_REPORT, "default")) != "default":
+                    attr[CONF_REPORT] = report
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
                 attr_list = config.setdefault(KEY_ZIGBEE_ATTRIBUTES, [])
                 attr_list.append(attr)
@@ -464,10 +460,12 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(ZigbeeComponent),
-        },
+    cv.All(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(ZigbeeComponent),
+            },
+        ),
         cv.requires_component(ESP32_DOMAIN),
     )
 )
