@@ -1,0 +1,27 @@
+esphome:
+  name: uart-mock-ld2410s-no-ack
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2410s's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# No responses: the module never acknowledges config-mode start
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+
+ld2410s:
+  id: ld2410s_dev
+  uart_id: mock_uart
