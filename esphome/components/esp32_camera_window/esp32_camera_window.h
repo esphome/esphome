@@ -30,6 +30,11 @@ namespace esphome::esp32_camera_window {
 ///
 /// The OV2640 can only be told to crop in whole four-pixel steps of its readout, so a window on it
 /// is rounded down to one.
+///
+/// Repeated set_window() calls replace the previous window; they never nest inside it. Changing
+/// the frame size clears any window back to the whole sensor, so re-apply the window afterwards.
+/// There is no settle delay: one or two captures after a change may still show the previous
+/// window while the sensor reads the new one out.
 class Esp32CameraWindow : public Component {
  public:
   /// A rectangle of the picture that is read out.
@@ -55,7 +60,8 @@ class Esp32CameraWindow : public Component {
   ///
   /// A window that reaches past the frame is clamped to it, and so is its size. The frame size
   /// the camera publishes is left as it is. Returns false when no sensor is available, when the
-  /// sensor cannot take a window, or when it rejects the settings.
+  /// sensor cannot take a window, or when it rejects the settings. Calling it again replaces
+  /// the previous window.
   ///
   /// The SC101IOT and SC030IOT read a window out as it is and cannot scale it, so the size of a
   /// window on them has to be the frame size and the offsets are counted from the corner of the
@@ -63,6 +69,8 @@ class Esp32CameraWindow : public Component {
   bool set_window(int offset_x, int offset_y, int width, int height);
 
   /// Read out the whole sensor again, without changing the frame size.
+  ///
+  /// Changing the frame size through the camera does the same on its own.
   bool reset_window();
 
   /// True when the camera has a sensor that accepts a window. Meant for use from lambdas: the
@@ -77,6 +85,7 @@ class Esp32CameraWindow : public Component {
 
  protected:
   bool set_sensor_window_(sensor_t *sensor, const Window &window);
+  sensor_t *checked_sensor_(const char *op) const;
   static bool is_window_supported(sensor_t *sensor);
   static const char *sensor_name(sensor_t *sensor);
 
