@@ -13,7 +13,7 @@ from .. import (
 )
 
 SystaSolarAquaTextSensor = systa_bus_ns.class_(
-    "SystaSolarAquaTextSensor", text_sensor.TextSensor, cg.Component
+    "SystaSolarAquaTextSensor", cg.Component
 )
 
 CONF_ERROR_CODE = "error_code"
