@@ -8,7 +8,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light";
+ESPHOME_LOG_TAG(TAG, "light");
 
 // Cold-path logger; caller handles the clamp so the in-range hot path avoids
 // the spill/reload around the call.
@@ -147,7 +147,7 @@ void LightCall::perform() {
     // EFFECT
     StringRef effect_s;
     if (this->effect_ == 0u) {
-      effect_s = StringRef::from_lit("None");
+      effect_s = EFFECT_NONE_REF;
     } else {
       effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }

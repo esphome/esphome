@@ -23,7 +23,7 @@
 
 namespace esphome::network {
 
-static const char *const TAG = "network";
+ESPHOME_LOG_TAG(TAG, "network");
 
 void NetworkComponent::setup() {
   // Initialize ESP-IDF network interfaces and ensure the default event loop exists

@@ -7,6 +7,7 @@ from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN, CONF_TRIGGER_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "matrix_keypad"
 
 AUTO_LOAD = ["key_provider"]
 

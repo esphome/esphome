@@ -15,9 +15,12 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
     {0x60, 0x01},  // ADR_PIN_CTRL: output
     {0x7D, 0x11},
     {0x7E, 0xFF},
-    {0x00, 0x01},
+    {0x00, 0x01},  // Page 1
     {0x51, 0x05},
-    {0x00, 0x00},
+    {0x00, 0x00},  // Page 0
+
+    // Additional register configuration
+    {0x53, 0x60},  // ANA_CTRL: for high audio performance use 175kHz bandwidth with Fsw=768kHz
 };
 
 static const LogString *model_name() { return LOG_STR("TAS5805M"); }
@@ -67,17 +70,23 @@ const ModelInfo TAS5805M_MODEL = {
     .fault_name = fault_name,
     .fault_sensor_bits =
         {
-            3,   // FAULT_SENSOR_LEFT_CHANNEL_DC_FAULT
-            2,   // FAULT_SENSOR_RIGHT_CHANNEL_DC_FAULT
-            1,   // FAULT_SENSOR_LEFT_CHANNEL_OVER_CURRENT
-            0,   // FAULT_SENSOR_RIGHT_CHANNEL_OVER_CURRENT
-            15,  // FAULT_SENSOR_OTP_CRC_CHECK
-            14,  // FAULT_SENSOR_BQ_WRITE_FAILED
-            10,  // FAULT_SENSOR_CLOCK_FAULT
-            9,   // FAULT_SENSOR_PVDD_OVER_VOLTAGE
-            8,   // FAULT_SENSOR_PVDD_UNDER_VOLTAGE
-            16,  // FAULT_SENSOR_OVER_TEMP_SHUTDOWN
-            26,  // FAULT_SENSOR_OVER_TEMP_WARNING
+            3,       // FAULT_SENSOR_LEFT_CHANNEL_DC_FAULT
+            2,       // FAULT_SENSOR_RIGHT_CHANNEL_DC_FAULT
+            1,       // FAULT_SENSOR_LEFT_CHANNEL_OVER_CURRENT
+            0,       // FAULT_SENSOR_RIGHT_CHANNEL_OVER_CURRENT
+            15,      // FAULT_SENSOR_OTP_CRC_CHECK
+            14,      // FAULT_SENSOR_BQ_WRITE_FAILED
+            10,      // FAULT_SENSOR_CLOCK_FAULT
+            9,       // FAULT_SENSOR_PVDD_OVER_VOLTAGE
+            8,       // FAULT_SENSOR_PVDD_UNDER_VOLTAGE
+            16,      // FAULT_SENSOR_OVER_TEMP_SHUTDOWN
+            26,      // FAULT_SENSOR_OVER_TEMP_WARNING
+            NO_BIT,  // FAULT_SENSOR_LOAD_EEPROM_ERROR
+            NO_BIT,  // FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT
+            NO_BIT,  // FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT
+            NO_BIT,  // FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT_WARNING
+            NO_BIT,  // FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT_WARNING
+            NO_BIT,  // FAULT_SENSOR_OVER_TEMP_146C_WARNING
         },
 };
 

@@ -14,7 +14,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "esphome.ota";
+ESPHOME_LOG_TAG(TAG, "esphome.ota");
 
 #ifdef USE_ESP8266
 static constexpr char OTA_NOISE_PROLOGUE_INIT[] PROGMEM = "NoiseOTAInit";

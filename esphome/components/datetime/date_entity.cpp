@@ -7,7 +7,7 @@
 
 namespace esphome::datetime {
 
-static const char *const TAG = "datetime.date_entity";
+ESPHOME_LOG_TAG(TAG, "datetime.date_entity");
 
 void DateEntity::publish_state() {
   if (this->year_ == 0 || this->month_ == 0 || this->day_ == 0) {

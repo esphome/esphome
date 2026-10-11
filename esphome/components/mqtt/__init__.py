@@ -5,6 +5,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     idf_version,
     include_builtin_idf_component,
+    request_tls,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -67,6 +68,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+DOMAIN = "mqtt"
 
 
 def AUTO_LOAD():
@@ -222,6 +224,17 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+# The parsed JSON document is freed once the automation returns
+JSON_MESSAGE_AUTOMATION_SCHEMA = automation.validate_synchronous_automation(
+    "on_json_message",
+    "the parsed JSON document",
+    {
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTJsonMessageTrigger),
+        cv.Required(CONF_TOPIC): cv.subscribe_topic,
+        cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+    },
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -302,15 +315,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_PAYLOAD): cv.string_strict,
                 }
             ),
-            cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTJsonMessageTrigger
-                    ),
-                    cv.Required(CONF_TOPIC): cv.subscribe_topic,
-                    cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-                }
-            ),
+            cv.Optional(CONF_ON_JSON_MESSAGE): JSON_MESSAGE_AUTOMATION_SCHEMA,
             cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
             cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
@@ -358,8 +363,8 @@ async def to_code(config):
             add_idf_component(name="espressif/mqtt", ref="1.0.0")
         else:
             include_builtin_idf_component("mqtt")
-        # mqtt_client.h drags in esp_tls types; esp-tls is excluded by default
-        include_builtin_idf_component("esp-tls")
+        # esp-mqtt links transport_ssl.c (esp_tls) even for plain MQTT
+        request_tls()
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
