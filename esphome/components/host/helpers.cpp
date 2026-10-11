@@ -14,7 +14,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "helpers.host";
+ESPHOME_LOG_TAG(TAG, "helpers.host");
 
 bool random_bytes(uint8_t *data, size_t len) {
   FILE *fp = fopen("/dev/urandom", "r");

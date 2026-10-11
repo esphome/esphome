@@ -7,7 +7,7 @@
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
 void RemoteTransmitterComponent::setup() {
   this->pin_->setup();

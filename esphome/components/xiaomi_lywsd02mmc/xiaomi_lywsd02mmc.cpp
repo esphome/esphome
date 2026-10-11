@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_lywsd02mmc {
 
-static const char *const TAG = "xiaomi_lywsd02mmc";
+ESPHOME_LOG_TAG(TAG, "xiaomi_lywsd02mmc");
 
 static constexpr size_t LYWSD02MMC_BINDKEY_SIZE = 16;
 

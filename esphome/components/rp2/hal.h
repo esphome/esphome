@@ -4,6 +4,8 @@
 
 #include <cstdint>
 
+#include <pico/platform.h>
+
 #include "esphome/core/time_conversion.h"
 
 #define IRAM_ATTR __attribute__((noinline, long_call, section(".time_critical")))
@@ -39,6 +41,9 @@ __attribute__((always_inline)) inline bool in_isr_context() {
   __asm__ volatile("mrs %0, ipsr" : "=r"(ipsr));
   return ipsr != 0;
 }
+
+/// arduino-pico runs setup() and loop() on core 0; ESPHome never uses core 1.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return !in_isr_context() && get_core_num() == 0; }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }

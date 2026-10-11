@@ -7,7 +7,7 @@
 
 namespace esphome::zephyr {
 
-static const char *const TAG = "zephyr";
+ESPHOME_LOG_TAG(TAG, "zephyr");
 
 static size_t append_reset_reason(char *buf, size_t size, size_t pos, bool set, const char *reason) {
   if (!set) {
