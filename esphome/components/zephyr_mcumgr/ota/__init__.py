@@ -8,6 +8,7 @@ from esphome.components.zephyr import (
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
     zephyr_data,
 )
 from esphome.components.zephyr.const import (
@@ -114,6 +115,10 @@ def _validate_bootloader(config: ConfigType) -> None:
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
     _validate_bootloader(config)
+    if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
+        cdc_id = UARTS[uart][1]
+        if cdc_id >= 0:
+            zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

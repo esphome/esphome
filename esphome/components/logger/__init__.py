@@ -34,6 +34,7 @@ from esphome.components.zephyr import (
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -358,6 +359,19 @@ CONFIG_SCHEMA = cv.All(
     validate_wait_for_cdc,
     warn_ram_log_strings,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    # Serial logging over USB CDC uses CDC ACM port 0 (see to_code)
+    if (
+        CORE.is_nrf52
+        and config[CONF_BAUD_RATE] != 0
+        and config.get(CONF_HARDWARE_UART) == USB_CDC
+    ):
+        zephyr_claim_cdc_acm(0, "logger")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.EARLY_INIT)

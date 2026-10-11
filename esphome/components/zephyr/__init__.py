@@ -78,6 +78,8 @@ class ZephyrData(TypedDict):
     kconfig: str
     sysbuild: bool
     overlay_builder: list[Callable[[], str]]
+    # CDC ACM port number -> name of the component that uses it
+    cdc_acm_users: dict[int, str]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -89,6 +91,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
             "": "",
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
+        cdc_acm_users={},
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -203,6 +206,22 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     if isinstance(value, str):
         return f'"{value}"'
     raise ValueError
+
+
+def zephyr_claim_cdc_acm(id: int, user: str) -> None:
+    """Reserve CDC ACM port `id` for `user`. Call from FINAL_VALIDATE_SCHEMA.
+
+    Two components on the same port would share one device: the overlay entries
+    are simply merged, and the device has only one IRQ callback slot, so the
+    component set up last takes all received data from the other.
+    """
+    users = zephyr_data()["cdc_acm_users"]
+    if (other := users.get(id)) is not None and other != user:
+        raise cv.Invalid(
+            f"USB CDC ACM port {id} (cdc_acm_uart{id}) is used by both '{other}' "
+            f"and '{user}'. Each port can only be used by one component."
+        )
+    users[id] = user
 
 
 def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:

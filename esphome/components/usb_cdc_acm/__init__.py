@@ -9,7 +9,11 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
 )
 from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
-from esphome.components.zephyr import zephyr_add_cdc_acm, zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    zephyr_add_cdc_acm,
+    zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -50,6 +54,13 @@ INTERFACE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _validate_any_interface_enabled(config: ConfigType) -> ConfigType:
+    if all(conf.get(CONF_DISABLED, False) for conf in config[CONF_INTERFACES]):
+        raise cv.Invalid("At least one interface must be enabled")
+    return config
+
+
 # Main component schema
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -67,6 +78,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _validate_any_interface_enabled,
     cv.Any(
         cv.only_on_nrf52,
         cv.All(
@@ -83,6 +95,17 @@ CONFIG_SCHEMA = cv.All(
         ),
     ),
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if not CORE.using_zephyr:
+        return
+    for interface_index, interface_conf in enumerate(config[CONF_INTERFACES]):
+        if not interface_conf.get(CONF_DISABLED, False):
+            zephyr_claim_cdc_acm(interface_index, DOMAIN)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
