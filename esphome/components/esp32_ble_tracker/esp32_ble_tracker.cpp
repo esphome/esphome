@@ -286,7 +286,11 @@ void ESP32BLETracker::start_scan_(bool first) {
 #endif
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+  this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ONLY_WLST;
+#else
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
+#endif
   this->scan_params_.scan_interval = this->scan_interval_;
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   // Count fresh: an automation can start a scan before loop() refreshes the counts.
