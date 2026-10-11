@@ -6,7 +6,7 @@
 
 namespace esphome::es8311 {
 
-static const char *const TAG = "es8311";
+ESPHOME_LOG_TAG(TAG, "es8311");
 
 // Mark the component as failed; use only in setup
 #define ES8311_ERROR_FAILED(func) \
@@ -92,6 +92,21 @@ uint8_t ES8311::calculate_resolution_value(ES8311Resolution resolution) {
   }
 }
 
+/// Encodes the MCLK pre-multiplier for REG02 bits 3-4. The coefficient table stores the multiplier as the factor
+/// itself (1, 2, 4 or 8), while the register takes 0, 1, 2 or 3 (ES8311 datasheet, register 0x02 MULT_PRE).
+static uint8_t encode_pre_mult(uint8_t pre_mult) {
+  switch (pre_mult) {
+    case 2:
+      return 1;
+    case 4:
+      return 2;
+    case 8:
+      return 3;
+    default:
+      return 0;
+  }
+}
+
 const ES8311Coefficient *ES8311::get_coefficient(uint32_t mclk, uint32_t rate) {
   for (const auto &coefficient : ES8311_COEFFICIENTS) {
     if (coefficient.mclk == mclk && coefficient.rate == rate)
@@ -127,7 +142,7 @@ bool ES8311::configure_clock_() {
   ES8311_ERROR_CHECK(this->read_byte(ES8311_REG02_CLK_MANAGER, &reg02));
   reg02 &= 0x07;
   reg02 |= (coefficient->pre_div - 1) << 5;
-  reg02 |= coefficient->pre_mult << 3;
+  reg02 |= encode_pre_mult(coefficient->pre_mult) << 3;
   ES8311_ERROR_CHECK(this->write_byte(ES8311_REG02_CLK_MANAGER, reg02));
 
   // Register 0x03

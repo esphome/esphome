@@ -2,8 +2,10 @@ import platform
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["rp2"]
+DOMAIN = "rp2_pio"
 
 
 PIOASM_REPO_VERSION = "1.5.0-b"
@@ -25,7 +27,7 @@ PIOASM_DOWNLOADS = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # cg.add_platformio_option(
     #     "platform_packages",
     #     [

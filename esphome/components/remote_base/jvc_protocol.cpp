@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.jvc";
+ESPHOME_LOG_TAG(TAG, "remote.jvc");
 
 static constexpr uint8_t NBITS = 16;
 static constexpr uint32_t HEADER_HIGH_US = 8400;

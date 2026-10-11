@@ -7,7 +7,7 @@
 
 namespace esphome::seeed_mr60fda2 {
 
-static const char *const TAG = "seeed_mr60fda2";
+ESPHOME_LOG_TAG(TAG, "seeed_mr60fda2");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t MR60FDA2_MAX_LOG_BYTES = 64;
@@ -33,8 +33,6 @@ void MR60FDA2Component::dump_config() {
 
 // Initialisation functions
 void MR60FDA2Component::setup() {
-  this->check_uart_settings(115200);
-
   this->current_frame_locate_ = LOCATE_FRAME_HEADER;
   this->current_frame_id_ = 0;
   this->current_frame_len_ = 0;

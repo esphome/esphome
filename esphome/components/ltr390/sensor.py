@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AMBIENT_LIGHT,
@@ -13,6 +14,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@sjtrny", "@latonita"]
 DEPENDENCIES = ["i2c"]
@@ -27,7 +29,6 @@ CONF_UV_INDEX = "uv_index"
 CONF_UV = "uv"
 CONF_WINDOW_CORRECTION_FACTOR = "window_correction_factor"
 
-UNIT_COUNTS = "#"
 UNIT_UVI = "UVI"
 
 LTR390GAIN = ltr390_ns.enum("LTR390GAIN")
@@ -117,7 +118,7 @@ TYPES = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

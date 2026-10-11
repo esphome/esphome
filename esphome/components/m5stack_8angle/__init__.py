@@ -2,9 +2,11 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@rnauber"]
+DOMAIN = "m5stack_8angle"
 MULTI_CONF = True
 
 CONF_M5STACK_8ANGLE_ID = "m5stack_8angle_id"
@@ -26,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(i2c.i2c_device_schema(0x43))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
