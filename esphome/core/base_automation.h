@@ -538,9 +538,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
         : start(start), timeout(timeout), args(x...) {}
     uint32_t start;
     optional<uint32_t> timeout;
-    // Copies, not references: trigger arguments such as `const T &` refer to data that is gone once the
-    // trigger returns
-    std::tuple<std::remove_cvref_t<Ts>...> args;
+    std::tuple<stored_trigger_arg_t<Ts>...> args;
   };
 
   // Helper: Process queue, triggering completed items and removing them

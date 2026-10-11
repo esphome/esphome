@@ -73,4 +73,37 @@ TEST(WaitUntilActionTest, AcceptsMutableReferenceArguments) {
   EXPECT_EQ(counter.value, 0);
 }
 
+class Entity {
+ public:
+  Entity() = default;
+  Entity(const Entity &) = delete;
+  int value{0};
+};
+
+class EntityCondition : public Condition<Entity &> {
+ public:
+  bool check(Entity & /*entity*/) override { return this->ready; }
+  bool ready{false};
+};
+
+class EntityIncrementAction : public Action<Entity &> {
+ public:
+  void play(Entity &entity) override { entity.value++; }
+};
+
+// A type that cannot be copied, such as an entity, is kept by reference
+TEST(WaitUntilActionTest, KeepsReferenceToNonCopyableArguments) {
+  EntityCondition condition;
+  WaitUntilAction<Entity &> wait(&condition);
+  EntityIncrementAction increment;
+  ActionList<Entity &> actions;
+  actions.add_actions({&wait, &increment});
+
+  Entity entity;
+  actions.play(entity);
+  condition.ready = true;
+  wait.loop();
+  EXPECT_EQ(entity.value, 1);
+}
+
 }  // namespace esphome::testing

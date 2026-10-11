@@ -3,7 +3,6 @@
 #include <list>
 #include <memory>
 #include <tuple>
-#include <type_traits>
 #include "esphome/core/application.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -325,9 +324,7 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
 
  protected:
   C *script_;
-  // Copies, not references: trigger arguments such as `const T &` refer to data that is gone once the
-  // trigger returns
-  std::list<std::tuple<std::remove_cvref_t<Ts>...>> param_queue_;
+  std::list<std::tuple<stored_trigger_arg_t<Ts>...>> param_queue_;
 };
 
 }  // namespace esphome::script

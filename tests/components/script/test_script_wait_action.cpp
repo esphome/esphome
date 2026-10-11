@@ -66,4 +66,31 @@ TEST(ScriptWaitActionTest, KeepsCopyOfMutableReferenceArguments) {
   EXPECT_EQ(counter.value, 0);
 }
 
+class Entity {
+ public:
+  Entity() = default;
+  Entity(const Entity &) = delete;
+  int value{0};
+};
+
+class EntityIncrementAction : public Action<Entity &> {
+ public:
+  void play(Entity &entity) override { entity.value++; }
+};
+
+// A type that cannot be copied, such as an entity, is kept by reference
+TEST(ScriptWaitActionTest, KeepsReferenceToNonCopyableArguments) {
+  FakeScript script;
+  ScriptWaitAction<FakeScript, Entity &> wait(&script);
+  EntityIncrementAction increment;
+  ActionList<Entity &> actions;
+  actions.add_actions({&wait, &increment});
+
+  Entity entity;
+  actions.play(entity);
+  script.running = false;
+  wait.loop();
+  EXPECT_EQ(entity.value, 1);
+}
+
 }  // namespace esphome::script::testing

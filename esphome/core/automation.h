@@ -8,6 +8,7 @@
 #include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -493,6 +494,12 @@ template<typename... X> class TemplatableValue<std::string, X...> {
     const char *static_str_;               // For STATIC_STRING and FLASH_STRING types
   };
 };
+
+/// How deferring actions store a trigger argument: a copy, since a referenced object may be gone once the trigger
+/// returns, unless the type cannot be copied (e.g. an entity, which outlives the wait).
+template<typename T>
+using stored_trigger_arg_t =
+    std::conditional_t<std::is_copy_constructible_v<std::remove_cvref_t<T>>, std::remove_cvref_t<T>, T>;
 
 /** Base class for all automation conditions.
  *
