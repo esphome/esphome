@@ -63,19 +63,23 @@ bool StreamingModel::load_model_() {
   }
 
   if (this->tensor_arena_ == nullptr) {
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
     RAMAllocator<uint8_t> internal_allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
     this->tensor_arena_ = internal_allocator.allocate(this->tensor_arena_size_);
     if (this->tensor_arena_ == nullptr) {
       ESP_LOGW(TAG, "Could not allocate %zu bytes of internal RAM for tensor arena; using default memory",
                this->tensor_arena_size_);
-      this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
     }
+#endif
+    if (this->tensor_arena_ == nullptr)
+      this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
     if (this->tensor_arena_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate the streaming model's tensor arena.");
       return false;
     }
   }
 
+#ifdef USE_MICRO_WAKE_WORD_INTERNAL_RAM
   if (this->model_source_ != nullptr && this->model_copy_ == nullptr) {
     RAMAllocator<uint8_t> internal_allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
     this->model_copy_ = internal_allocator.make_unique_array_for_overwrite(this->model_size_);
@@ -87,6 +91,7 @@ bool StreamingModel::load_model_() {
       this->model_start_ = this->model_copy_.get();
     }
   }
+#endif
 
   if (this->interpreter_ == nullptr) {
     this->interpreter_ =
