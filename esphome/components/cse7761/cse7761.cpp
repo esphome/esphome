@@ -180,16 +180,17 @@ bool CSE7761Component::chip_init_() {
     calc_chksum += this->data_.coefficient[i];
   }
   calc_chksum = ~calc_chksum;
+  const bool energy_configured = this->energy_sensors_[0] != nullptr || this->energy_sensors_[1] != nullptr;
   uint16_t coeff_chksum = this->read_(CSE7761_REG_COEFFCHKSUM, 2);
   if ((calc_chksum != coeff_chksum) || (!calc_chksum)) {
     ESP_LOGD(TAG, "Default calibration");
     this->data_.coefficient[RMS_IAC] = CSE7761_IREF;
     this->data_.coefficient[RMS_UC] = CSE7761_UREF;
     this->data_.coefficient[POWER_PAC] = CSE7761_PREF;
-    if (this->energy_sensors_[0] != nullptr || this->energy_sensors_[1] != nullptr) {
+    if (energy_configured) {
       ESP_LOGW(TAG, "No energy calibration, energy unavailable");
     }
-  } else {
+  } else if (energy_configured) {
     uint32_t hf_const = 0;
     if (!this->read_(CSE7761_REG_HFCONST, 2, &hf_const)) {
       ESP_LOGW(TAG, "HFConst read failed, energy unavailable");
