@@ -20,6 +20,8 @@ from aioesphomeapi import (
     BinarySensorState,
     ButtonInfo,
     EntityState,
+    NumberInfo,
+    NumberState,
     TextInfo,
     TextState,
 )
@@ -118,6 +120,16 @@ async def test_uart_mock_ld2450_polygon_zones(
         await set_polygon("near", "0,0;1000,0", NEAR_POLYGON)
         await set_polygon("near", "junk", NEAR_POLYGON)
 
+        # Zone presence follows presence_timeout; keep the scenario short
+        timeout = require_entity(entities, "presence_timeout", NumberInfo)
+        timeout_set = expect(
+            lambda s: (
+                isinstance(s, NumberState) and s.key == timeout.key and s.state == 1
+            )
+        )
+        client.number_command(timeout.key, 1)
+        await asyncio.wait_for(timeout_set, timeout=5.0)
+
         left_cleared = expect(
             lambda s: (
                 isinstance(s, BinarySensorState)
@@ -139,8 +151,8 @@ async def test_uart_mock_ld2450_polygon_zones(
         await asyncio.wait_for(asyncio.gather(left_cleared, near_cleared), timeout=5.0)
 
         # Frame 1: (-500, 1000) is in the left zone and (200, 500) is in the near zone.
-        # Frame 2: (300, 400) is in the near zone only, so only the left zone clears.
-        # Frame 3: no targets, so the near zone clears.
+        # Frame 2: (300, 400) is in the near zone only; the left zone clears 1 s after frame 1.
+        # Frame 3 onwards: no targets; the near zone clears 1 s after frame 2.
         assert presence_history["left"] == [True, False]
         assert presence_history["near"] == [True, False]
         assert presence_history["unset"] == []
