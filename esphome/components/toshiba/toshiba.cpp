@@ -1052,8 +1052,6 @@ bool ToshibaClimate::compare_rac_pt1411hwru_packets_(const uint8_t *message1, co
 }
 
 bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
-  uint8_t checksum = 0;
-
   switch (this->is_valid_rac_pt1411hwru_header_(message)) {
     case RAC_PT1411HWRU_MESSAGE_HEADER0:
     case RAC_PT1411HWRU_CS_HEADER:
@@ -1065,10 +1063,7 @@ bool ToshibaClimate::is_valid_rac_pt1411hwru_message_(const uint8_t *message) {
       break;
 
     case RAC_PT1411HWRU_MESSAGE_HEADER1:
-      for (uint8_t i = 0; i < RAC_PT1411HWRU_MESSAGE_LENGTH - 1; i++) {
-        checksum += message[i];
-      }
-      if (checksum == message[RAC_PT1411HWRU_MESSAGE_LENGTH - 1]) {
+      if (sum_bytes(message, RAC_PT1411HWRU_MESSAGE_LENGTH - 1) == message[RAC_PT1411HWRU_MESSAGE_LENGTH - 1]) {
         return true;
       }
       break;
