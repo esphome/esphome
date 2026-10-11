@@ -13,7 +13,7 @@ enum ImageType {
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB = 2,
   IMAGE_TYPE_RGB565 = 3,
-  IMAGE_TYPE_RGB111 = 4,  // 3 bits per pixel, 8 colors, used for some e-paper displays
+  IMAGE_TYPE_RGB111 = 4,  // one bit per channel plus an optional alpha bit, for colour e-paper
 };
 
 enum Transparency {

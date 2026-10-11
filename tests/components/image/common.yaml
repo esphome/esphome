@@ -14,18 +14,11 @@ image:
     id: rgb111_image
     file: ../../pnglogo.png
     type: RGB111
-    transparency: opaque
   - platform: file
     id: rgb111_alpha_image
     file: ../../pnglogo.png
     type: RGB111
     transparency: alpha_channel
-  - platform: file
-    id: rgb111_dither_image
-    file: ../../pnglogo.png
-    type: RGB111
-    dither: FloydSteinberg
-    transparency: opaque
   - platform: file
     id: rgb111_dither_alpha_image
     file: ../../pnglogo.png

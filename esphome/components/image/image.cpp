@@ -3,8 +3,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-ESPHOME_LOG_TAG(TAG, "image");
-
 namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
@@ -136,8 +134,7 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         break;
 
       case IMAGE_TYPE_RGB111:
-        // Unsupported in LVGL; rejected at configuration time.
-        ESP_LOGE(TAG, "RGB111 images are not supported in LVGL.");
+        // Rejected by the lvgl config validation
         break;
       case IMAGE_TYPE_RGB:
         switch (this->transparency_) {
@@ -172,25 +169,17 @@ bool Image::get_binary_pixel_(int x, int y) const {
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
 Color Image::get_rgb111_pixel_(int x, int y) const {
-  const uint32_t bitpos = (y * this->width_ + x) * this->bpp_;
-
-  // Helper lambda to read a single bit at a given bit position.
-  auto get_bit = [this](uint32_t pos) {
-    const uint32_t byte_idx = pos / 8u;
-    const uint32_t bit_offset = pos % 8u;
-    return (progmem_read_byte(this->data_start_ + byte_idx) & (0x80 >> bit_offset)) != 0;
-  };
-
-  uint8_t r = get_bit(bitpos) ? 0xFF : 0x00;
-  uint8_t g = get_bit(bitpos + 1) ? 0xFF : 0x00;
-  uint8_t b = get_bit(bitpos + 2) ? 0xFF : 0x00;
-  uint8_t a = 0xFF;
-
-  if (this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL) {
-    a = get_bit(bitpos + 3) ? 0xFF : 0x00;
-  }
-
-  return Color(r, g, b, a);
+  const uint32_t bitpos = y * this->get_width_stride() * 8 + x * this->bpp_;
+  const uint8_t *byte = this->data_start_ + bitpos / 8;
+  const uint8_t shift = bitpos % 8;
+  // A pixel can straddle two bytes; read the second one only when it does.
+  uint16_t window = progmem_read_byte(byte) << 8;
+  if (shift + this->bpp_ > 8)
+    window |= progmem_read_byte(byte + 1);
+  const uint8_t bits = (window >> (16 - this->bpp_ - shift)) & ((1u << this->bpp_) - 1);
+  const uint8_t rgb = this->bpp_ == 4 ? bits >> 1 : bits;
+  const bool opaque = this->bpp_ == 3 || (bits & 1);
+  return Color(rgb & 4 ? 0xFF : 0x00, rgb & 2 ? 0xFF : 0x00, rgb & 1 ? 0xFF : 0x00, opaque ? 0xFF : 0x00);
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
