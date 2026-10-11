@@ -1,5 +1,6 @@
 #include "bq25186.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bq25186 {
@@ -8,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "bq25186");
 
 // Bits the configuration owns in each register; the rest are runtime state (VBAT_CTRL pg_mode,
 // SYS_REG GPO level), reset triggers (SHIP_RST) or the device id (MASK_ID) and are kept as read
-static constexpr std::array<uint8_t, BQ25186_CONFIG_REGISTER_COUNT> BQ25186_CONFIG_MASKS = {
+static const uint8_t BQ25186_CONFIG_MASKS[BQ25186_CONFIG_REGISTER_COUNT] PROGMEM = {
     0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x1F, 0xEF, 0xFF, 0xF0,
 };
 
@@ -38,8 +39,8 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
   }
   for (size_t i = 0; i < regs.size(); i++) {
     const uint8_t reg = BQ25186_REG_VBAT_CTRL + i;
-    const bool ok = BQ25186_CONFIG_MASKS[i] == 0xFF ? this->write_register_(reg, regs[i])
-                                                    : this->update_register_(reg, BQ25186_CONFIG_MASKS[i], regs[i]);
+    const uint8_t mask = progmem_read_byte(&BQ25186_CONFIG_MASKS[i]);
+    const bool ok = mask == 0xFF ? this->write_register_(reg, regs[i]) : this->update_register_(reg, mask, regs[i]);
     if (!ok) {
       this->status_set_warning();
       return false;
