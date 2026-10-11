@@ -13,6 +13,7 @@ class MAX31888Sensor final : public PollingComponent, public sensor::Sensor, pub
   void dump_config() override;
 
  protected:
+  bool send_checked_command_(uint8_t command);
   /// Reads the latest conversion from the FIFO; false when the bus or the checksum fails
   bool read_temperature_(int16_t &raw);
 };

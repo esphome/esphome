@@ -16,13 +16,27 @@ static constexpr uint8_t MAX31888_FIFO_READ_LENGTH = 0x01;  // number of bytes t
 static constexpr uint16_t MAX31888_CONVERSION_TIME_MS = 20;
 static constexpr float MAX31888_DEGREES_PER_LSB = 0.005f;
 
+// Sends a command and checks the checksum the device appends to it (Maxim CRC-16 over the command byte,
+// sent inverted and low byte first)
+bool MAX31888Sensor::send_checked_command_(uint8_t command) {
+  if (!this->send_command_(command)) {
+    this->status_set_warning(LOG_STR("bus reset failed"));
+    return false;
+  }
+  const uint8_t low = this->bus_->read8();
+  const uint8_t high = this->bus_->read8();
+  if (crc16(&command, 1, 0, 0xa001, false, true) != encode_uint16(high, low)) {
+    this->status_set_warning(LOG_STR("command checksum invalid"));
+    return false;
+  }
+  return true;
+}
+
 void MAX31888Sensor::setup() {
   if (!this->check_address_or_index_())
     return;
-  if (this->send_command_(MAX31888_COMMAND_SOFT_RESET)) {
-    // The device appends a checksum to every command, which has to be clocked out
-    this->bus_->read8();
-    this->bus_->read8();
+  if (!this->send_checked_command_(MAX31888_COMMAND_SOFT_RESET)) {
+    this->mark_failed();
   }
 }
 
@@ -40,12 +54,9 @@ void MAX31888Sensor::update() {
   if (this->address_ == 0)
     return;
 
-  if (!this->send_command_(MAX31888_COMMAND_START_CONVERSION)) {
-    this->status_set_warning(LOG_STR("bus reset failed"));
+  if (!this->send_checked_command_(MAX31888_COMMAND_START_CONVERSION)) {
     return;
   }
-  this->bus_->read8();
-  this->bus_->read8();
 
   this->set_timeout(CONVERSION_TIMEOUT_ID, MAX31888_CONVERSION_TIME_MS, [this] {
     int16_t raw;
@@ -72,7 +83,6 @@ bool MAX31888Sensor::read_temperature_(int16_t &raw) {
   for (size_t i = 3; i < sizeof(frame); i++) {
     frame[i] = this->bus_->read8();
   }
-  // Maxim CRC-16: starts at zero, reflected polynomial, result sent inverted and low byte first
   if (crc16(frame, 5, 0, 0xa001, false, true) != encode_uint16(frame[6], frame[5])) {
     this->status_set_warning(LOG_STR("checksum invalid"));
     return false;
