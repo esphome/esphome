@@ -9,6 +9,7 @@
 #include "esphome/components/daikin/daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/application.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::daikin::testing {
 
@@ -140,7 +141,11 @@ struct Fixture {
   CapturingTransmitter transmitter;
   DaikinClimate climate;
 
-  Fixture() {
+  /// Pass keep_preferences to restore what an earlier fixture saved
+  explicit Fixture(bool keep_preferences = false) {
+    // Every fixture shares one preference key, so clear what an earlier test saved or setup restores it
+    if (!keep_preferences && global_preferences != nullptr)
+      global_preferences->reset();
     // The test main does not construct App as generated code does; the boost timer needs its scheduler
     static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
     (void) APP_CONSTRUCTED;
@@ -331,9 +336,73 @@ TEST(Daikin, BoostToComfortTimerDoesNotChangePreset) {
   EXPECT_TRUE(f.receive(comfort_frame(0x10)));
   EXPECT_TRUE(f.receive(state_frame(0x00, 0x00)));
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_COMFORT);
-  // Whether or not a timer is still pending, it must not touch the comfort preset
-  f.fire_boost_timer();
+  // The state frame saw boost as the previous preset and cancelled the timer
+  EXPECT_FALSE(f.fire_boost_timer());
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_COMFORT);
+}
+
+TEST(Daikin, ComfortFrameAloneChangesNothing) {
+  Fixture f;
+  EXPECT_TRUE(f.receive(state_frame(0x00, 0x04)));
+  ASSERT_EQ(f.climate.preset, climate::CLIMATE_PRESET_ECO);
+
+  // The comfort frame is only recorded until a valid state frame follows
+  EXPECT_TRUE(f.receive(comfort_frame(0x10)));
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_ECO);
+  std::vector<uint8_t> bad = state_frame(0x00, 0x00);
+  bad[18] ^= 0x01;
+  EXPECT_FALSE(f.receive(bad));
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_ECO);
+  EXPECT_TRUE(f.receive(state_frame(0x00, 0x00)));
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_COMFORT);
+}
+
+TEST(Daikin, LostStateFrameKeepsComfortUntilNextTransmission) {
+  Fixture f;
+  EXPECT_TRUE(f.receive(comfort_frame(0x10)));
+  EXPECT_TRUE(f.receive(state_frame(0x00, 0x00)));
+  ASSERT_EQ(f.climate.preset, climate::CLIMATE_PRESET_COMFORT);
+
+  // Comfort off arrives but its state frame is lost: nothing changes
+  EXPECT_TRUE(f.receive(comfort_frame(0x00)));
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_COMFORT);
+
+  // The next transmission says comfort off again and its state frame arrives
+  EXPECT_TRUE(f.receive(comfort_frame(0x00)));
+  EXPECT_TRUE(f.receive(state_frame(0x00, 0x00)));
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
+}
+
+TEST(Daikin, StateFrameWithoutComfortFrameKeepsComfort) {
+  Fixture f;
+  EXPECT_TRUE(f.receive(comfort_frame(0x10)));
+  EXPECT_TRUE(f.receive(state_frame(0x00, 0x00)));
+  // A state frame whose 0xC5 frame was lost leaves a current comfort preset alone
+  EXPECT_TRUE(f.receive(state_frame(0x00, 0x00)));
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_COMFORT);
+}
+
+TEST(Daikin, RestoredBoostArmsTheTimer) {
+  {
+    Fixture first;
+    first.command(climate::CLIMATE_MODE_COOL, 22.0f, climate::CLIMATE_PRESET_BOOST);
+    ASSERT_EQ(first.climate.preset, climate::CLIMATE_PRESET_BOOST);
+  }
+  Fixture restored(true);
+  EXPECT_EQ(restored.climate.preset, climate::CLIMATE_PRESET_BOOST);
+  EXPECT_EQ(restored.climate.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_TRUE(App.scheduler.cancel_timeout(&restored.climate, BOOST_TIMEOUT_ID));
+}
+
+TEST(Daikin, FreshClimateHasNoBoostTimer) {
+  {
+    Fixture first;
+    first.command(climate::CLIMATE_MODE_COOL, 22.0f, climate::CLIMATE_PRESET_BOOST);
+  }
+  // A fixture that clears the saved state restores nothing and arms no timer
+  Fixture fresh;
+  EXPECT_NE(fresh.climate.preset, climate::CLIMATE_PRESET_BOOST);
+  EXPECT_FALSE(App.scheduler.cancel_timeout(&fresh.climate, BOOST_TIMEOUT_ID));
 }
 
 TEST(Daikin, RejectsBadStateChecksum) {
