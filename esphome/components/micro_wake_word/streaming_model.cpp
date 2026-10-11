@@ -4,6 +4,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
@@ -62,10 +63,28 @@ bool StreamingModel::load_model_() {
   }
 
   if (this->tensor_arena_ == nullptr) {
-    this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
+    RAMAllocator<uint8_t> internal_allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+    this->tensor_arena_ = internal_allocator.allocate(this->tensor_arena_size_);
+    if (this->tensor_arena_ == nullptr) {
+      ESP_LOGW(TAG, "Could not allocate %zu bytes of internal RAM for tensor arena; using default memory",
+               this->tensor_arena_size_);
+      this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
+    }
     if (this->tensor_arena_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate the streaming model's tensor arena.");
       return false;
+    }
+  }
+
+  if (this->model_source_ != nullptr && this->model_copy_ == nullptr) {
+    RAMAllocator<uint8_t> internal_allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+    this->model_copy_ = internal_allocator.make_unique_array_for_overwrite(this->model_size_);
+    if (this->model_copy_ == nullptr) {
+      ESP_LOGW(TAG, "Could not allocate %zu bytes of internal RAM for model; using original model data",
+               this->model_size_);
+    } else {
+      std::memcpy(this->model_copy_.get(), this->model_source_, this->model_size_);
+      this->model_start_ = this->model_copy_.get();
     }
   }
 
@@ -176,6 +195,9 @@ size_t StreamingModel::probe_arena_size_() {
 
 void StreamingModel::unload_model() {
   this->interpreter_.reset();
+  this->model_copy_.reset();
+  if (this->model_source_ != nullptr)
+    this->model_start_ = this->model_source_;
 
   RAMAllocator<uint8_t> arena_allocator;
 
@@ -255,11 +277,14 @@ void StreamingModel::reset_probabilities() {
   this->ignore_windows_ = -MIN_SLICES_BEFORE_DETECTION;
 }
 
-WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t default_probability_cutoff,
-                             size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
-                             bool default_enabled, bool internal_only) {
+WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, size_t model_size,
+                             uint8_t default_probability_cutoff, size_t sliding_window_average_size,
+                             const std::string &wake_word, size_t tensor_arena_size, bool default_enabled,
+                             bool internal_only) {
   this->id_ = id;
   this->model_start_ = model_start;
+  this->model_source_ = model_start;
+  this->model_size_ = model_size;
   this->default_probability_cutoff_ = default_probability_cutoff;
   this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_average_size;
@@ -354,9 +379,11 @@ DetectionEvent WakeWordModel::determine_detected() {
   return detection_event;
 }
 
-VADModel::VADModel(const uint8_t *model_start, uint8_t default_probability_cutoff, size_t sliding_window_size,
-                   size_t tensor_arena_size) {
+VADModel::VADModel(const uint8_t *model_start, size_t model_size, uint8_t default_probability_cutoff,
+                   size_t sliding_window_size, size_t tensor_arena_size) {
   this->model_start_ = model_start;
+  this->model_source_ = model_start;
+  this->model_size_ = model_size;
   this->default_probability_cutoff_ = default_probability_cutoff;
   this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_size;

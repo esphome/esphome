@@ -569,6 +569,7 @@ async def to_code(config):
             cg.add(
                 var.add_vad_model(
                     prog_arr,
+                    len(data),
                     quantized_probability_cutoff,
                     sliding_window_size,
                     manifest[KEY_MICRO][CONF_TENSOR_ARENA_SIZE],
@@ -581,6 +582,7 @@ async def to_code(config):
                 model_parameters[CONF_ID],
                 str(model_parameters[CONF_ID]),
                 prog_arr,
+                len(data),
                 quantized_probability_cutoff,
                 sliding_window_size,
                 manifest[KEY_WAKE_WORD],
