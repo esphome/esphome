@@ -161,7 +161,7 @@ struct Fixture {
     App.scheduler.cancel_timeout(&this->climate, BOOST_TIMEOUT_ID);
     App.scheduler.call(millis());
     // Other suites in the same binary read the loop clock and expect it at zero
-    LoopBlockingGuard clock(&this->climate, LOG_STR("test"), 0);
+    LoopBlockingGuard clock(nullptr, LOG_STR("test"), 0);
   }
 
   void command(climate::ClimateMode mode, float temperature, climate::ClimatePreset preset) {
