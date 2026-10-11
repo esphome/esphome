@@ -4,6 +4,7 @@ from esphome.components.motion import MotionComponent
 
 CODEOWNERS = ["@zebble"]
 DEPENDENCIES = ["i2c", "motion"]
+DOMAIN = "lis3dh"
 
 CONF_LIS3DH_ID = "lis3dh_id"
 

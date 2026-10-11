@@ -43,10 +43,6 @@ static constexpr uint8_t LIS3DH_CTRL_REG5_LIR_INT1 = 0x08;  // latch IA1 interru
 static constexpr uint8_t LIS3DH_CTRL_REG3_I1_IA1 = 0x40;        // route IA1 to INT1 pad
 static constexpr uint8_t LIS3DH_CTRL_REG6_I2_IA1 = 0x40;        // route IA1 to INT2 pad
 static constexpr uint8_t LIS3DH_CTRL_REG6_INT_POLARITY = 0x02;  // 1 = active low
-// INT1_CFG high-event bits
-static constexpr uint8_t LIS3DH_INT_CFG_XHIE = 0x02;
-static constexpr uint8_t LIS3DH_INT_CFG_YHIE = 0x08;
-static constexpr uint8_t LIS3DH_INT_CFG_ZHIE = 0x20;
 // TEMP_CFG_REG
 static constexpr uint8_t LIS3DH_TEMP_CFG_ADC_EN = 0x80;
 static constexpr uint8_t LIS3DH_TEMP_CFG_TEMP_EN = 0x40;
@@ -55,7 +51,7 @@ static constexpr uint8_t LIS3DH_TEMP_CFG_TEMP_EN = 0x40;
 // so this fixed reference is just a rough starting point for the °C output.
 static constexpr float LIS3DH_TEMP_REFERENCE_C = 25.0f;
 
-// Full-scale range: value is the index into the sensitivity tables and the
+// Full-scale range: value is the index into the scale tables and the
 // FS field of CTRL_REG4 (shifted left by 4).
 enum LIS3DHRange : uint8_t {
   LIS3DH_RANGE_2G = 0,
@@ -94,18 +90,18 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
+  void on_shutdown() override;
 
   void set_range(LIS3DHRange range) { this->range_ = range; }
   void set_data_rate(LIS3DHDataRate data_rate) { this->data_rate_ = data_rate; }
   void set_operating_mode(LIS3DHOperatingMode mode) { this->operating_mode_ = mode; }
-  void set_interrupt(LIS3DHInterruptPin pin, float threshold_g, uint8_t duration, bool x, bool y, bool z, bool latched,
+  // threshold is the INT1_THS value and axes_cfg the INT1_CFG mask, both computed in Python.
+  void set_interrupt(LIS3DHInterruptPin pin, uint8_t threshold, uint8_t duration, uint8_t axes_cfg, bool latched,
                      bool active_high, bool high_pass) {
-    this->interrupt_enabled_ = true;
     this->interrupt_pin_ = pin;
-    this->interrupt_threshold_g_ = threshold_g;
+    this->interrupt_threshold_ = threshold;
     this->interrupt_duration_ = duration;
-    this->interrupt_axes_cfg_ =
-        (x ? LIS3DH_INT_CFG_XHIE : 0) | (y ? LIS3DH_INT_CFG_YHIE : 0) | (z ? LIS3DH_INT_CFG_ZHIE : 0);
+    this->interrupt_axes_cfg_ = axes_cfg;
     this->interrupt_latched_ = latched;
     this->interrupt_active_high_ = active_high;
     this->interrupt_high_pass_ = high_pass;
@@ -122,13 +118,11 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
 
   LIS3DHRange range_{LIS3DH_RANGE_2G};
   LIS3DHDataRate data_rate_{LIS3DH_DATA_RATE_100HZ};
-  uint8_t interrupt_threshold_raw_{0};  // what the g threshold became, for dump_config
   LIS3DHOperatingMode operating_mode_{LIS3DH_MODE_HIGH_RESOLUTION};
 
-  // Motion (activity) interrupt configuration.
-  bool interrupt_enabled_{false};
+  // Motion (activity) interrupt configuration; a zero axis mask means disabled.
   LIS3DHInterruptPin interrupt_pin_{LIS3DH_INT_PIN_INT1};
-  float interrupt_threshold_g_{0.0f};
+  uint8_t interrupt_threshold_{0};
   uint8_t interrupt_duration_{0};
   uint8_t interrupt_axes_cfg_{0};
   bool interrupt_latched_{true};

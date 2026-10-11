@@ -2,12 +2,8 @@ motion:
   - platform: lis3dh
     id: lis3dh_main
     i2c_id: i2c_bus
-    address: 0x18
-    # Full-scale range: 2G | 4G | 8G | 16G
     accelerometer_range: 2G
-    # Output data rate: 1HZ | 10HZ | 25HZ | 50HZ | 100HZ | 200HZ | 400HZ | 1620HZ | 1344HZ
     accelerometer_odr: 100HZ
-    # Resolution / power mode: LOW_POWER | NORMAL | HIGH_RESOLUTION
     operating_mode: HIGH_RESOLUTION
     axis_map:
       x: y

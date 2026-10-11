@@ -1,7 +1,9 @@
+import math
+
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.const import CONF_ACCELEROMETER_ODR, CONF_ACCELEROMETER_RANGE
-from esphome.components.motion import motion_schema, new_motion_component
+from esphome.components.motion import AXES, motion_schema, new_motion_component
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_INTERRUPT, CONF_PIN, CONF_THRESHOLD
 from esphome.types import ConfigType
@@ -14,7 +16,7 @@ CONF_LATCHED = "latched"
 CONF_ACTIVE_HIGH = "active_high"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
-#  Enum proxies (must match the C++ enum values exactly)
+# Enum values must match the C++ enums.
 LIS3DHRange = lis3dh_ns.enum("LIS3DHRange")
 RANGE_OPTIONS = {
     "2G": LIS3DHRange.LIS3DH_RANGE_2G,
@@ -51,27 +53,23 @@ INTERRUPT_PIN_OPTIONS = {
     "INT2": LIS3DHInterruptPin.LIS3DH_INT_PIN_INT2,
 }
 
-AXES = ["x", "y", "z"]
+# INT1_CFG high-event bit per axis.
+INT_CFG_HIGH_EVENT = {"x": 0x02, "y": 0x08, "z": 0x20}
+
+# Motion interrupt threshold LSB in mg, per range.
+THRESHOLD_LSB_MG = {"2G": 16, "4G": 32, "8G": 62, "16G": 186}
 
 
-def _axes(value):
-    """A list of one or more of the axes 'x', 'y' and 'z'."""
-    value = cv.ensure_list(cv.one_of(*AXES, lower=True))(value)
-    if not value:
-        raise cv.Invalid("Specify at least one axis")
+def _axes(value: object) -> list[str]:
+    value = cv.All(cv.ensure_list(cv.one_of(*AXES, lower=True)), cv.Length(min=1))(
+        value
+    )
     if len(set(value)) != len(value):
         raise cv.Invalid("Each axis may be listed only once")
     return value
 
 
-# The motion (activity) interrupt keeps the physical INT pad asserted while the
-# device is moving. Wire the pad to a GPIO and use it as the `wakeup_pin` of the
-# `deep_sleep` component to wake an ESP32 from deep sleep on motion.
-#
-# By default the threshold is compared against the total measured acceleration,
-# which always includes the ~1 g of gravity, so it must be set above 1 g to avoid
-# triggering at rest. Enable `high_pass_filter` to remove gravity from the
-# comparison, which lets you use a small threshold (the change in acceleration).
+# Without high_pass_filter the threshold includes gravity, so it must exceed 1g.
 INTERRUPT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PIN, default="INT1"): cv.enum(
@@ -90,11 +88,7 @@ INTERRUPT_SCHEMA = cv.Schema(
 
 
 def _validate_odr_mode(config: ConfigType) -> ConfigType:
-    # Two output data rates are tied to the operating mode (they share a register
-    # code whose meaning depends on the mode): 1620Hz exists only in low-power
-    # mode, and code 1344Hz becomes 5376Hz in low-power mode.
-    # A validated enum is the option's name, not the value it maps to, so these
-    # are compared as the names.
+    # 1620Hz exists only in low power mode; the 1344Hz code runs at 5376Hz there.
     odr = config[CONF_ACCELEROMETER_ODR]
     low_power = config[CONF_OPERATING_MODE] == "LOW_POWER"
     if odr == "1620HZ" and not low_power:
@@ -111,7 +105,6 @@ def _validate_odr_mode(config: ConfigType) -> ConfigType:
     return config
 
 
-#  Top-level CONFIG_SCHEMA
 CONFIG_SCHEMA = cv.All(
     motion_schema(LIS3DHComponent, has_accel=True, has_gyro=False)
     .extend(
@@ -133,8 +126,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-#  Code generation
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await new_motion_component(config)
     await i2c.register_i2c_device(var, config)
 
@@ -143,15 +135,20 @@ async def to_code(config):
     cg.add(var.set_operating_mode(config[CONF_OPERATING_MODE]))
 
     if (interrupt := config.get(CONF_INTERRUPT)) is not None:
-        axes = interrupt[CONF_AXES]
+        # Nearest step, at least 1: a zero threshold holds the pad asserted.
+        lsb_mg = THRESHOLD_LSB_MG[config[CONF_ACCELEROMETER_RANGE]]
+        threshold = min(
+            max(math.floor(interrupt[CONF_THRESHOLD] * 1000 / lsb_mg + 0.5), 1), 0x7F
+        )
+        axes_cfg = 0
+        for axis in interrupt[CONF_AXES]:
+            axes_cfg |= INT_CFG_HIGH_EVENT[axis]
         cg.add(
             var.set_interrupt(
                 interrupt[CONF_PIN],
-                interrupt[CONF_THRESHOLD],
+                threshold,
                 interrupt[CONF_DURATION],
-                "x" in axes,
-                "y" in axes,
-                "z" in axes,
+                axes_cfg,
                 interrupt[CONF_LATCHED],
                 interrupt[CONF_ACTIVE_HIGH],
                 interrupt[CONF_HIGH_PASS_FILTER],

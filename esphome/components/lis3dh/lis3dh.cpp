@@ -1,27 +1,31 @@
 #include "lis3dh.h"
-#include <algorithm>
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <cmath>
 
 namespace esphome::lis3dh {
 
-static const char *const TAG = "lis3dh";
+ESPHOME_LOG_TAG(TAG, "lis3dh");
 
-// Acceleration sensitivity in mg per digit, indexed by [operating_mode][range].
-// The "digit" is the right-justified sample, so the raw register value must be
-// shifted down by RESOLUTION_SHIFT first. Values are taken from the datasheet
-// (note the ±16g column does not follow the doubling pattern).
-static constexpr float SENSITIVITY_MG[3][4] = {
-    {16.0f, 32.0f, 64.0f, 192.0f},  // low power (8-bit)
-    {4.0f, 8.0f, 16.0f, 48.0f},     // normal (10-bit)
-    {1.0f, 2.0f, 4.0f, 12.0f},      // high resolution (12-bit)
-};
-
-// Number of unused low bits in the left-justified 16-bit sample, per mode.
-static constexpr uint8_t RESOLUTION_SHIFT[3] = {8, 6, 4};
+// g per LSB of the left-justified 16-bit sample, indexed by range. The same in every
+// operating mode, since the chip leaves the unused low bits at zero.
+static const float SCALE_G[] PROGMEM = {0.0625e-3f, 0.125e-3f, 0.25e-3f, 0.75e-3f};
 
 // Motion interrupt threshold LSB in mg, indexed by range.
-static constexpr float THRESHOLD_LSB_MG[4] = {16.0f, 32.0f, 62.0f, 186.0f};
+static const uint8_t THRESHOLD_LSB_MG[] PROGMEM = {16, 32, 62, 186};
+
+static const LogString *mode_to_str(LIS3DHOperatingMode mode) {
+  switch (mode) {
+    case LIS3DH_MODE_LOW_POWER:
+      return LOG_STR("low power (8-bit)");
+    case LIS3DH_MODE_NORMAL:
+      return LOG_STR("normal (10-bit)");
+    default:
+      return LOG_STR("high resolution (12-bit)");
+  }
+}
+
+// Output data rate in Hz, indexed by the ODR field minus one.
+static const uint16_t RATE_HZ[] PROGMEM = {1, 10, 25, 50, 100, 200, 400, 1620, 1344};
 
 void LIS3DHComponent::setup() {
   MotionComponent::setup();
@@ -43,7 +47,7 @@ void LIS3DHComponent::setup() {
     this->mark_failed();
     return;
   }
-  if (this->interrupt_enabled_ && !this->setup_interrupt_()) {
+  if (this->interrupt_axes_cfg_ != 0 && !this->setup_interrupt_()) {
     ESP_LOGE(TAG, "Failed to configure motion interrupt");
     this->mark_failed();
     return;
@@ -80,15 +84,8 @@ bool LIS3DHComponent::setup_interrupt_() {
   if (!this->write_byte(LIS3DH_REG_CTRL_REG2, ctrl_reg2))
     return false;
 
-  // Convert the threshold from g to the 7-bit INT1_THS value for the active range.
-  // A threshold of zero is treated as always exceeded, which would hold the pad
-  // asserted, so keep the smallest step the range can express.
-  int32_t raw = lroundf(this->interrupt_threshold_g_ * 1000.0f / THRESHOLD_LSB_MG[this->range_]);
-  uint8_t threshold = (uint8_t) std::clamp<int32_t>(raw, 1, 0x7F);
-  this->interrupt_threshold_raw_ = threshold;
-
   if (!this->write_byte(LIS3DH_REG_INT1_CFG, this->interrupt_axes_cfg_) ||
-      !this->write_byte(LIS3DH_REG_INT1_THS, threshold) ||
+      !this->write_byte(LIS3DH_REG_INT1_THS, this->interrupt_threshold_) ||
       !this->write_byte(LIS3DH_REG_INT1_DURATION, this->interrupt_duration_))
     return false;
 
@@ -131,18 +128,14 @@ void LIS3DHComponent::dump_config() {
     return;
   }
 
-  static constexpr const char *const RANGE_STRS[] = {"±2g", "±4g", "±8g", "±16g"};
-  static constexpr const char *const MODE_STRS[] = {"low power (8-bit)", "normal (10-bit)", "high resolution (12-bit)"};
-  static constexpr const char *const RATE_STRS[] = {"powered down", "1Hz",   "10Hz",  "25Hz",   "50Hz",
-                                                    "100Hz",        "200Hz", "400Hz", "1620Hz", "1344Hz"};
   ESP_LOGCONFIG(TAG,
-                "  Range: %s\n"
+                "  Range: ±%ug\n"
                 "  Operating mode: %s\n"
-                "  Data rate: %s",
-                RANGE_STRS[this->range_], MODE_STRS[this->operating_mode_], RATE_STRS[this->data_rate_]);
-  if (this->interrupt_enabled_) {
-    // The threshold is reported as written, since converting it from g depends
-    // on the range and rounds.
+                "  Data rate: %uHz",
+                2u << this->range_, LOG_STR_ARG(mode_to_str(this->operating_mode_)),
+                (unsigned) progmem_read_uint16(&RATE_HZ[this->data_rate_ - 1]));
+  if (this->interrupt_axes_cfg_ != 0) {
+    const float threshold_g = this->interrupt_threshold_ * progmem_read_byte(&THRESHOLD_LSB_MG[this->range_]) / 1000.0f;
     ESP_LOGCONFIG(TAG,
                   "  Motion interrupt: %s (%s%s%s)\n"
                   "    Threshold: %.3fg (%u)\n"
@@ -150,10 +143,18 @@ void LIS3DHComponent::dump_config() {
                   this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? LOG_STR_LITERAL("INT1") : LOG_STR_LITERAL("INT2"),
                   this->interrupt_active_high_ ? LOG_STR_LITERAL("active high") : LOG_STR_LITERAL("active low"),
                   this->interrupt_high_pass_ ? LOG_STR_LITERAL(", high-pass") : LOG_STR_LITERAL(""),
-                  this->interrupt_latched_ ? LOG_STR_LITERAL(", latched") : LOG_STR_LITERAL(""),
-                  this->interrupt_threshold_g_, this->interrupt_threshold_raw_, this->interrupt_duration_);
+                  this->interrupt_latched_ ? LOG_STR_LITERAL(", latched") : LOG_STR_LITERAL(""), threshold_g,
+                  this->interrupt_threshold_, this->interrupt_duration_);
   }
   MotionComponent::dump_config();
+}
+
+void LIS3DHComponent::on_shutdown() {
+  // Clear a latched request from motion seen while awake, so it does not wake the device straight away.
+  if (this->interrupt_latched_ && this->interrupt_axes_cfg_ != 0 && !this->is_failed()) {
+    uint8_t src = 0;
+    this->read_byte(LIS3DH_REG_INT1_SRC, &src);
+  }
 }
 
 bool LIS3DHComponent::update_data(motion::MotionData &data) {
@@ -162,21 +163,22 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
 
   uint8_t raw[6];
   if (!this->read_bytes(LIS3DH_REG_OUT_X_L | LIS3DH_AUTO_INCREMENT, raw, 6)) {
-    ESP_LOGW(TAG, "Failed to read acceleration data");
+    this->status_set_warning(LOG_STR("Failed to read acceleration data"));
     return false;
   }
+  this->status_clear_warning();
 
-  const uint8_t shift = RESOLUTION_SHIFT[this->operating_mode_];
-  const float scale = SENSITIVITY_MG[this->operating_mode_][this->range_] / 1000.0f;  // g per digit
+  float scale;
+  progmem_memcpy(&scale, &SCALE_G[this->range_], sizeof(scale));
 
   // Data is little-endian and left-justified in a signed 16-bit register.
   int16_t raw_x = (int16_t) encode_uint16(raw[1], raw[0]);
   int16_t raw_y = (int16_t) encode_uint16(raw[3], raw[2]);
   int16_t raw_z = (int16_t) encode_uint16(raw[5], raw[4]);
   ESP_LOGV(TAG, "Read raw accel data: %d, %d, %d", raw_x, raw_y, raw_z);
-  data.acceleration[motion::X_AXIS] = (raw_x >> shift) * scale;
-  data.acceleration[motion::Y_AXIS] = (raw_y >> shift) * scale;
-  data.acceleration[motion::Z_AXIS] = (raw_z >> shift) * scale;
+  data.acceleration[motion::X_AXIS] = raw_x * scale;
+  data.acceleration[motion::Y_AXIS] = raw_y * scale;
+  data.acceleration[motion::Z_AXIS] = raw_z * scale;
 
   if (!this->temperature_callback_.empty())
     this->publish_temperature_();

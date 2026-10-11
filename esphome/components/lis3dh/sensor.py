@@ -10,6 +10,7 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_LIS3DH_ID, LIS3DHComponent
 
@@ -29,10 +30,10 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_LIS3DH_ID])
-    data = MockObj("x")
+    data = MockObj("data")
     value_lambda = await cg.process_lambda(
         var.publish_state(data),
         [(cg.float_, str(data))],
