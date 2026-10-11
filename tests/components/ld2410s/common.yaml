@@ -5,5 +5,3 @@ binary_sensor:
   - platform: ld2410s
     has_target:
       name: Presence
-    has_calibration_running:
-      name: Calibration Running

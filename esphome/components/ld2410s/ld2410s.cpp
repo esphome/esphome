@@ -39,27 +39,27 @@ static constexpr uint32_t COMMAND_GAP_MS = 300;     // pause after an acknowledg
 static constexpr uint32_t REINIT_PAUSE_MS = 15000;  // pause before starting over after the module stopped answering
 
 static constexpr uint8_t DATA_TYPE_STANDARD = 0x01;
-static constexpr uint8_t DATA_TYPE_CALIBRATION_PROGRESS = 0x03;
-static constexpr uint16_t CALIBRATION_DONE = 100;
 
 void LD2410S::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410S:");
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "Calibration Running", this->calibration_running_binary_sensor_);
 #endif
 }
 
 void LD2410S::loop() {
   uint8_t chunk[16];
-  while (this->available() > 0) {
-    const size_t len = std::min<size_t>(this->available(), sizeof(chunk));
+  // Take the count once so one pass handles a bounded number of bytes
+  size_t avail = this->available();
+  while (avail > 0) {
+    const size_t len = std::min(avail, sizeof(chunk));
     if (!this->read_array(chunk, len)) {
       break;
     }
     for (size_t i = 0; i < len; i++) {
       this->receive_byte_(chunk[i]);
     }
+    avail -= len;
   }
   this->run_init_sequence_(App.get_loop_component_start_time());
 }
@@ -130,13 +130,20 @@ void LD2410S::receive_byte_(uint8_t byte) {
       this->expected_len_ = SHORT_DATA_FRAME_SIZE;
       return;
     }
-    // The two long headers are told apart once all four bytes are in; drop bytes that match neither
+    // The two long headers are told apart once all four bytes are in
     const bool std_prefix = memcmp(this->rx_buffer_, STD_DATA_FRAME_HEADER, this->rx_len_) == 0;
     const bool cmd_prefix = memcmp(this->rx_buffer_, CMD_FRAME_HEADER, this->rx_len_) == 0;
-    if (!std_prefix && !cmd_prefix) {
-      this->reset_frame_();
-    } else if (this->rx_len_ == LONG_HEADER_SIZE) {
-      this->frame_type_ = std_prefix ? FrameType::STD_DATA : FrameType::COMMAND;
+    if (std_prefix || cmd_prefix) {
+      if (this->rx_len_ == LONG_HEADER_SIZE) {
+        this->frame_type_ = std_prefix ? FrameType::STD_DATA : FrameType::COMMAND;
+      }
+      return;
+    }
+    // Not a header: drop what was collected, and try this byte as the start of the next frame
+    const bool retry = this->rx_len_ > 1;
+    this->reset_frame_();
+    if (retry) {
+      this->receive_byte_(byte);
     }
     return;
   }
@@ -148,11 +155,12 @@ void LD2410S::receive_byte_(uint8_t byte) {
     // Standard data and command frames carry a little-endian payload length after the header
     const uint16_t payload_len =
         encode_uint16(this->rx_buffer_[LONG_HEADER_SIZE + 1], this->rx_buffer_[LONG_HEADER_SIZE]);
-    this->expected_len_ = LONG_PAYLOAD_POS + payload_len + sizeof(CMD_FRAME_FOOTER);
-    if (this->expected_len_ > RX_BUFFER_SIZE) {
-      ESP_LOGV(TAG, "Dropping %u byte frame, larger than the receive buffer", this->expected_len_);
+    if (payload_len > RX_BUFFER_SIZE - LONG_PAYLOAD_POS - sizeof(CMD_FRAME_FOOTER)) {
+      ESP_LOGV(TAG, "Dropping frame with a %u byte payload, larger than the receive buffer", payload_len);
       this->reset_frame_();
+      return;
     }
+    this->expected_len_ = LONG_PAYLOAD_POS + payload_len + sizeof(CMD_FRAME_FOOTER);
     return;
   }
 
@@ -205,25 +213,12 @@ void LD2410S::handle_frame_() {
 }
 
 void LD2410S::handle_data_frame_(const uint8_t *payload, uint16_t len) {
-  if (len < 1) {
-    return;
-  }
-  switch (payload[0]) {
-    case DATA_TYPE_STANDARD:
-      // [type][state][distance low][distance high]...
-      if (len >= 4) {
-        this->publish_presence_(payload[1] > 1);
-      }
-      break;
-    case DATA_TYPE_CALIBRATION_PROGRESS:
-      // [type][progress low][progress high]
-      if (len >= 3) {
-        this->publish_calibration_running_(encode_uint16(payload[2], payload[1]) != CALIBRATION_DONE);
-      }
-      break;
-    default:
-      ESP_LOGV(TAG, "Unknown data frame type %02X", payload[0]);
-      break;
+  // [type][state][distance low][distance high]...; the module only sends these before the init
+  // sequence switches it to minimal output
+  if (len >= 4 && payload[0] == DATA_TYPE_STANDARD) {
+    this->publish_presence_(payload[1] > 1);
+  } else if (len >= 1) {
+    ESP_LOGV(TAG, "Ignoring data frame type %02X", payload[0]);
   }
 }
 
@@ -268,14 +263,6 @@ void LD2410S::publish_presence_(bool presence) {
 #ifdef USE_BINARY_SENSOR
   if (this->presence_binary_sensor_ != nullptr) {
     this->presence_binary_sensor_->publish_state(presence);
-  }
-#endif
-}
-
-void LD2410S::publish_calibration_running_(bool running) {
-#ifdef USE_BINARY_SENSOR
-  if (this->calibration_running_binary_sensor_ != nullptr) {
-    this->calibration_running_binary_sensor_->publish_state(running);
   }
 #endif
 }
