@@ -10,6 +10,17 @@ namespace esphome::udp {
 
 ESPHOME_LOG_TAG(TAG, "udp");
 
+// A device running only as a Wi-Fi access point still exchanges UDP with its clients.
+static bool network_ready() {
+  if (network::is_connected())
+    return true;
+#ifdef USE_WIFI
+  return wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_ap_active();
+#else
+  return false;
+#endif
+}
+
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   size_t address_count = 0;
@@ -48,6 +59,9 @@ bool UDPComponent::retry_if_transient_(const LogString *what) {
 }
 
 bool UDPComponent::open_sockets_() {
+  // Clear the warning from the previous attempt; anything this attempt raises stays set
+  if (this->retry_delay_ms_ != 0)
+    this->status_clear_warning();
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   uint32_t mcast_ifindex = 0;
   if (this->should_listen_) {
@@ -129,8 +143,14 @@ bool UDPComponent::open_sockets_() {
     if (this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable)) != 0)
       this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
 #if USE_NETWORK_IPV6
-    const bool any_ipv6 = std::any_of(this->sockaddrs_.begin(), this->sockaddrs_.end(),
-                                      [](const SockaddrEntry &entry) { return entry.addr.sa.sa_family == AF_INET6; });
+    bool any_ipv6 = false;
+    bool ipv6_multicast = false;
+    for (const auto &entry : this->sockaddrs_) {
+      if (entry.addr.sa.sa_family != AF_INET6)
+        continue;
+      any_ipv6 = true;
+      ipv6_multicast = ipv6_multicast || IN6_IS_ADDR_MULTICAST(&entry.addr.in6.sin6_addr);
+    }
     if (any_ipv6) {
       this->send_socket_v6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
       if (this->send_socket_v6_ == nullptr) {
@@ -139,7 +159,8 @@ bool UDPComponent::open_sockets_() {
       }
       if (this->send_socket_v6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) != 0)
         this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
-      if (!socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), mcast_ifindex)) {
+      // Unicast destinations need no egress interface, so only a multicast destination requires one
+      if (ipv6_multicast && !socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), mcast_ifindex)) {
         if (this->retry_if_transient_(LOG_STR("Set IPv6 multicast interface"))) {
           return false;
         }
@@ -171,14 +192,12 @@ bool UDPComponent::open_sockets_() {
 
 void UDPComponent::loop() {
   if (!this->net_started_) {
-    if (!network::is_connected())
+    if (!network_ready())
       return;
     if (this->retry_delay_ms_ != 0 && (int32_t) (App.get_loop_component_start_time() - this->next_retry_ms_) < 0)
       return;
     if (!this->open_sockets_())
       return;
-    if (this->retry_delay_ms_ != 0)
-      this->status_clear_warning();
     this->net_started_ = true;
     if (!this->should_listen_) {
       this->disable_loop();
