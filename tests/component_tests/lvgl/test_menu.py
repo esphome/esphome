@@ -173,6 +173,25 @@ def test_root_page_of_another_menu_is_rejected(tmp_path: Path) -> None:
     assert any("'menu_b_page' is not a page of this menu" in err for err in errors)
 
 
+def test_empty_pages_list_is_rejected(tmp_path: Path) -> None:
+    """Without this, a menu with no pages of its own escapes the page-owner check."""
+    errors = _config_errors(
+        tmp_path,
+        """\
+    - menu:
+        id: menu_a
+        root_page: menu_b_page
+        pages: []
+    - menu:
+        id: menu_b
+        root_page: menu_b_page
+        pages:
+          - id: menu_b_page
+""",
+    )
+    assert any("length of value must be at least 1" in err for err in errors)
+
+
 def test_sidebar_page_of_another_menu_is_rejected(tmp_path: Path) -> None:
     errors = _config_errors(
         tmp_path,
@@ -300,6 +319,13 @@ def test_header_style_applied_via_main_header_accessor(main_cpp: str) -> None:
     assert (
         "lv_obj_t *menu_header_VAR_ = lv_menu_get_main_header(test_menu);\n"
         "lv_obj_set_style_bg_color(menu_header_VAR_, lv_color_make(255, 0, 0), LV_PART_MAIN);"
+    ) in main_cpp
+
+
+def test_sidebar_style_applied_via_sidebar_header_accessor(main_cpp: str) -> None:
+    assert (
+        "lv_obj_t *menu_sidebar_header_VAR_ = lv_menu_get_sidebar_header(test_menu);\n"
+        "lv_obj_set_style_bg_color(menu_sidebar_header_VAR_, lv_color_make(0, 255, 0), LV_PART_MAIN);"
     ) in main_cpp
 
 

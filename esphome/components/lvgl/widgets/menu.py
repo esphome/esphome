@@ -3,6 +3,8 @@ from esphome.automation import Trigger
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_BUTTON, CONF_ID, CONF_PAGES, CONF_TRIGGER_ID
+from esphome.final_validate import FinalValidateConfig
+from esphome.types import ConfigType
 
 from ..automation import action_to_code
 from ..defines import (
@@ -24,6 +26,7 @@ from ..defines import (
     TYPE_FLEX,
     get_menu_set_page_actions,
     get_widget_map,
+    literal,
 )
 from ..lv_validation import lv_text
 from ..lvcode import (
@@ -37,7 +40,7 @@ from ..lvcode import (
     lv_obj,
 )
 from ..schemas import container_schema, part_schema
-from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
+from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr, lvgl_ns
 from . import (
     Widget,
     WidgetType,
@@ -126,10 +129,13 @@ menu_page_spec = MenuPageType()
 
 MENU_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_PAGES): cv.ensure_list(
-            container_schema(
-                menu_page_spec, {cv.GenerateID(): cv.declare_id(lv_menu_page_t)}
-            )
+        cv.Required(CONF_PAGES): cv.All(
+            cv.ensure_list(
+                container_schema(
+                    menu_page_spec, {cv.GenerateID(): cv.declare_id(lv_menu_page_t)}
+                )
+            ),
+            cv.Length(min=1),
         ),
         cv.Required(CONF_ROOT_PAGE): cv.use_id(lv_menu_page_t),
         cv.Optional(CONF_SIDEBAR_PAGE): cv.use_id(lv_menu_page_t),
@@ -189,7 +195,7 @@ class MenuType(WidgetType):
 menu_spec = MenuType()
 
 
-def _menu_page_owners(global_config) -> dict[str, tuple]:
+def _menu_page_owners(global_config: FinalValidateConfig) -> dict[str, tuple]:
     """
     Map every declared menu page id to the config path of the menu that owns it.
 
@@ -203,7 +209,7 @@ def _menu_page_owners(global_config) -> dict[str, tuple]:
     }
 
 
-def validate_menu_pages(global_config) -> None:
+def validate_menu_pages(global_config: FinalValidateConfig) -> None:
     """
     Check that a menu only ever refers to pages of its own.
 
@@ -235,7 +241,7 @@ def validate_menu_pages(global_config) -> None:
             )
 
 
-async def add_root_back_button_triggers():
+async def add_root_back_button_triggers() -> None:
     """
     Wire up on_root_back_button_click for every menu, once all widgets exist.
     Actions like `lvgl.widget.hide` on the menu itself need the widget map fully
@@ -251,9 +257,7 @@ async def add_root_back_button_triggers():
             await automation.build_automation(trigger, [], conf)
             async with LambdaContext(EVENT_ARG, where=conf[CONF_TRIGGER_ID]) as context:
                 with LvConditional(
-                    cg.RawExpression(
-                        f"lvgl::lv_menu_back_button_is_root_click({w.obj}, event)"
-                    )
+                    lvgl_ns.lv_menu_back_button_is_root_click(w.obj, literal("event"))
                 ):
                     lv_add(trigger.trigger())
             lv_obj.add_event_cb(
@@ -261,7 +265,7 @@ async def add_root_back_button_triggers():
             )
 
 
-def _record_set_page_action(config: dict) -> dict:
+def _record_set_page_action(config: ConfigType) -> ConfigType:
     """Remember the action so validate_menu_pages() can check the page's owner once
     the whole config is known."""
     get_menu_set_page_actions().append(config)
