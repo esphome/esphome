@@ -15,16 +15,14 @@
 //    `x_air` is the value sampled during the clean-air calibration, so the model
 //    neither needs the board's load resistor nor its divider ratio.
 //
-// 2) "datasheet" - the log-log fit of the datasheet curve, the same chain the
-//    sibling mq_gas_sensors component uses:
+// 2) "datasheet" - the log-log fit of the datasheet curve:
 //
 //        RS    = (VCC * RL) / V_ao - RL
 //        ratio = RS / R0                         (R0 = RS in clean air -> 1.0)
 //        ppm   = a * ratio^b
 //
-// This header is intentionally free of ESPHome / ESP-IDF dependencies so the very
-// same code can be unit tested on the host
-// (tests/components/mics_5524_gas_sensor/mics_math_test.cpp).
+// This header is intentionally free of ESPHome / ESP-IDF dependencies so the same
+// code can be unit tested on the host.
 //
 
 #include <cfloat>

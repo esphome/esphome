@@ -67,20 +67,25 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void set_log_ppm(bool log_ppm) { this->log_ppm_ = log_ppm; }
 
   /// Console level of a `log_message_()` call.  The order mirrors the verbosity
-  /// of ESP-IDF's `esp_log_level_t`: `LOG_LEVEL_ERROR` is always printed, `LOG_LEVEL_DEBUG`
-  /// only with `logger: level: DEBUG`.  The message is mirrored to `log_sensor:`
-  /// either way, so the measurement chain stays readable from Home Assistant.
-  enum LogLevel : uint8_t {
-    LOG_LEVEL_DEBUG = 0,
-    LOG_LEVEL_INFO = 1,
-    LOG_LEVEL_WARN = 2,
-    LOG_LEVEL_ERROR = 3,
+  /// of ESP-IDF's `esp_log_level_t`: `LOG_SEVERITY_ERROR` is always printed,
+  /// `LOG_SEVERITY_DEBUG` only with `logger: level: DEBUG`.  The message is
+  /// mirrored to `log_sensor:` either way, so the measurement chain stays
+  /// readable from Home Assistant.
+  ///
+  /// The values are prefixed with the enum name because library headers that
+  /// ESPHome compiles in (`dudanov/MideaUART`, NimBLE-Arduino) `#define` the
+  /// bare `LOG_LEVEL_*` names, which the preprocessor would rewrite here.
+  enum LogSeverity : uint8_t {
+    LOG_SEVERITY_DEBUG = 0,
+    LOG_SEVERITY_INFO = 1,
+    LOG_SEVERITY_WARN = 2,
+    LOG_SEVERITY_ERROR = 3,
   };
 
   /// Size of the message buffer of `log_message_()` (also the text sensor limit).
   static constexpr size_t LOG_BUFFER_SIZE = 160;
 
-  /// Minimum interval between two *per-update* (`LOG_LEVEL_DEBUG`) messages mirrored to
+  /// Minimum interval between two *per-update* (`LOG_SEVERITY_DEBUG`) messages mirrored to
   /// `log_sensor_`.  The sensor may poll at 1 Hz, and a text state per second would
   /// flood the Home Assistant recorder - calibration messages, warnings and errors
   /// are always mirrored immediately (the console log is never throttled).
@@ -120,16 +125,16 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   bool load_reference_();
   void log_config_();
   /// Log the value published by the next `publish_state()` at `INFO`
-  /// (`'<gas>': <ppm> ppm`), the "normal mode" counterpart of the `LOG_LEVEL_DEBUG`
+  /// (`'<gas>': <ppm> ppm`), the "normal mode" counterpart of the `LOG_SEVERITY_DEBUG`
   /// chain in `update()`.  No-op when `log_ppm:` is off or the reading is
   /// invalid; console only - the chain is what reaches `log_sensor_`.
   void log_reading_(float ppm);
   /// Publish a message to `log_sensor_` (no-op when it is not configured);
-  /// `LOG_LEVEL_DEBUG` messages are rate limited to `LOG_SENSOR_DEBUG_INTERVAL_MS`.
-  void publish_log_(LogLevel level, const char *message);
+  /// `LOG_SEVERITY_DEBUG` messages are rate limited to `LOG_SENSOR_DEBUG_INTERVAL_MS`.
+  void publish_log_(LogSeverity level, const char *message);
   /// Log a message on the console and mirror it to `log_sensor_`; it is prefixed
   /// with the gas (`'H2': ...`) so several channels stay readable.
-  void log_message_(LogLevel level, const char *format, ...);
+  void log_message_(LogSeverity level, const char *format, ...);
 
   // ------------------------------------------------------------- configuration
   StringRef gas_{StringRef::from_lit("CUSTOM")};

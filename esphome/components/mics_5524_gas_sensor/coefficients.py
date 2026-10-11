@@ -18,8 +18,7 @@ different ones - they are *not* interchangeable:
     against the Python port ``python/raspberrypi/DFRobot_MICS.py``.
 
 ``datasheet``
-    The log-log fit of the datasheet curve, the same chain the sibling
-    ``mq_gas_sensors`` component uses::
+    The log-log fit of the datasheet curve::
 
         RS    = (VCC * RL) / V_AO - RL
         ratio = RS / R0                         (R0 = RS in clean air)

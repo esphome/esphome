@@ -96,9 +96,8 @@ def validate_gas(value: str) -> str:
 
 
 #: Private key under which the configuration of the generated, internal ``adc``
-#: sensor is kept (same trick as the sibling ``mq_gas_sensors`` component: the
-#: entry has to live inside the validated config so that ESPHome's ID pass sees
-#: the declared component ID).
+#: sensor is kept.  The entry has to live inside the validated config so that
+#: ESPHome's ID pass sees the declared component ID.
 _KEY_GENERATED_ADC = "_generated_adc"
 
 
