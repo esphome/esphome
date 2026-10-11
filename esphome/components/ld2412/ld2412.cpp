@@ -312,11 +312,6 @@ void LD2412Component::read_all_info() {
 void LD2412Component::restart_and_read_all_info() {
   this->set_config_mode_(true);
   this->restart_();
-#ifdef USE_NUMBER
-  // The module's thresholds may change across the restart, so a write waits for the re-read
-  this->gate_move_thresholds_.read = false;
-  this->gate_still_thresholds_.read = false;
-#endif
   this->set_timeout(1000, [this]() { this->read_all_info(); });
 }
 
@@ -628,18 +623,18 @@ bool LD2412Component::handle_ack_data_() {
         return false;  // the footer pattern appeared inside the payload, keep reading
       }
       const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
-      GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+      GateThresholds &group = this->gate_thresholds_(motion);
+      // A write held back for this answer is pending while its timeout is still running
+      const bool pending = this->cancel_timeout(GATE_QUERY_TIMEOUT_ID + motion);
       for (size_t i = 0; i < TOTAL_GATES; i++) {
         group.last_read[i] = this->buffer_data_[ACK_PAYLOAD + i];
         // While a write waits for this answer, the values the user set must survive it
-        if (!group.write_pending || !has_value(group.numbers[i])) {
+        if (!pending || !has_value(group.numbers[i])) {
           set_number_value(group.numbers[i], group.last_read[i]);
         }
       }
       group.read = true;
-      if (group.write_pending) {
-        group.write_pending = false;
-        this->cancel_timeout(GATE_QUERY_TIMEOUT_ID + motion);
+      if (pending) {
         this->set_config_mode_(true);
         this->send_gate_thresholds_(motion);
         this->set_config_mode_(false);
@@ -841,16 +836,12 @@ void LD2412Component::set_basic_config() {
 
 #ifdef USE_NUMBER
 void LD2412Component::send_gate_thresholds_(bool motion) {
-  GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+  GateThresholds &group = this->gate_thresholds_(motion);
   const uint8_t command = motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS;
   uint8_t value[TOTAL_GATES];
-  bool any_number = false;
   uint8_t configured = 0;
   for (uint8_t i = 0; i < TOTAL_GATES; i++) {
     number::Number *n = group.numbers[i];
-    if (n != nullptr) {
-      any_number = true;
-    }
     if (has_value(n)) {
       value[i] = static_cast<uint8_t>(n->state);
       configured++;
@@ -858,17 +849,10 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
       value[i] = group.last_read[i];
     }
   }
-  if (configured == 0) {
-    if (any_number) {
-      ESP_LOGD(TAG, "Command %02X not sent, none of its numbers has a value yet", command);
-    }
-    return;
-  }
   if (configured < TOTAL_GATES && !group.read) {
     // Without the module's values those gates would be sent as zero, which is maximum sensitivity.
     // Ask again and send the write once the answer arrives.
     ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
-    group.write_pending = true;
     this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
     this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, GATE_QUERY_TIMEOUT_MS,
                       [this, motion]() { this->gate_query_timeout_(motion); });
@@ -878,25 +862,20 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
 }
 
 void LD2412Component::gate_query_timeout_(bool motion) {
-  GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
-  if (!group.write_pending) {
-    return;
-  }
-  group.write_pending = false;
   ESP_LOGE(TAG, "Command %02X not sent, the module did not report its gate thresholds",
            motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS);
-  // The numbers already show the requested values; mark them unknown since the module never got them
-  for (number::Number *n : group.numbers) {
+  // Before the first answer every value a number holds was set by the user and never reached the module,
+  // so marking the group unknown hits only those values
+  for (number::Number *n : this->gate_thresholds_(motion).numbers) {
     if (n != nullptr) {
       n->publish_state(NAN);
     }
   }
 }
 
-void LD2412Component::set_gate_threshold() {
+void LD2412Component::set_gate_threshold(bool motion) {
   this->set_config_mode_(true);
-  this->send_gate_thresholds_(true);
-  this->send_gate_thresholds_(false);
+  this->send_gate_thresholds_(motion);
   this->set_config_mode_(false);
 }
 

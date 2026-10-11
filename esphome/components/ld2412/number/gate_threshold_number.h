@@ -7,11 +7,11 @@ namespace esphome::ld2412 {
 
 class GateThresholdNumber final : public number::Number, public Parented<LD2412Component> {
  public:
-  // Not "= default": that makes new(p) T() zero-fill the object at every codegen site before the ctor runs.
-  GateThresholdNumber() {}
+  explicit GateThresholdNumber(bool motion) : motion_(motion) {}
 
  protected:
   void control(float value) override;
+  bool motion_;
 };
 
 }  // namespace esphome::ld2412

@@ -21,37 +21,26 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
      must not receive garbage from stale buffer data or frame footer bytes
   3. Recovery frame with different values proves the component survived
 
-test_uart_mock_ld2412_gate_thresholds (partial gate threshold config):
-  1. Threshold queries are answered, so every gate has a known module value
-  2. Writing one threshold does not crash when most gates have no number
-  3. Gates without a number are written back with the module value, not a zero
-
 test_uart_mock_ld2412_footer_in_payload (frame footer bytes inside the thresholds):
   1. Threshold answers holding 04 03 02 01 before the real footer are parsed in full
   2. The answer that follows such a frame is still parsed
-  3. Writing a threshold sends back all 14 gates exactly as read
-
-test_uart_mock_ld2412_thresholds_not_read (module never reports its thresholds):
-  1. The threshold queries go unanswered, so no gate has a module value
-  2. Writing a threshold holds the command back instead of writing zeros
-  3. The group where no gate has a value at all is not sent either
-  4. Only the held back group is queried again, before configuration mode ends
-
-test_uart_mock_ld2412_requery_answered (module answers only the second query):
-  1. The setup query goes unanswered, so writing a threshold is held back
-  2. The module answers the query sent again for the held back write
-  3. The held back write is then sent with the user value and the module values
-  4. The module values do not overwrite the value the user wrote
+  3. Writing a threshold does not crash when most gates have no number
+  4. A motion write sends only the motion command with all 14 gates, the user value and the module
+     values exactly as read, and a still write does the same for the still command
 
 test_uart_mock_ld2412_truncated_answer (truncated threshold answer):
   1. A motion answer missing two gate bytes runs into the next acknowledgement
   2. The merged bytes are dropped with a warning, no number takes a value from them
   3. A complete motion answer that arrives later is parsed
 
-test_uart_mock_ld2412_requery_after_giveup (NaN gate refilled after a given up write):
-  1. The first write is given up because the module never answers, the motion numbers show NaN
-  2. The second write is held back again because a NaN number counts as not configured
-  3. The module answers this time, its value replaces the NaN and the write carries both values
+test_uart_mock_ld2412_requery_after_giveup (write before the module has reported its thresholds):
+  1. The setup queries go unanswered, so writing a motion threshold holds the command back instead of
+     writing zeros; only the motion group is queried again, before configuration mode ends, and the still
+     group is neither written nor queried
+  2. The query stays unanswered, the write is given up with an error and the motion numbers show NaN
+  3. A second write is held back again because a NaN number counts as not configured; the module answers
+     this time, its value replaces the NaN and the write goes out with the user value and the module values
+  4. The module values do not overwrite the value the user wrote
 """
 
 from __future__ import annotations
@@ -89,8 +78,9 @@ MOTION_QUERY = "02:00:13:00"
 STILL_QUERY = "02:00:14:00"
 # Length 2 and command 0xFE, the frame that leaves configuration mode
 CONFIG_MODE_LEFT = "02:00:FE:00"
-# Motion payload after writing 77 (0x4D) to gate 0, every other gate keeps the module value (11 to 23)
-EXPECTED_MOTION = "4D:0B:0C:0D:0E:0F:10:11:12:13:14:15:16:17"
+# Logged in place of the motion command when the write waits for the module's values, or was given up
+MOTION_HELD_BACK = "Command 03 held back"
+MOTION_GIVEN_UP = "Command 03 not sent, the module did not report"
 
 THRESHOLD_NUMBERS = (
     "gate_0_move_threshold",
@@ -147,6 +137,11 @@ async def _wait_initial(
 def _number_state_of(key: int) -> Callable[[EntityState], bool]:
     """Return a predicate that matches a number state with a value for ``key``."""
     return lambda s: isinstance(s, NumberState) and not s.missing_state and s.key == key
+
+
+def _is_nan_of(key: int) -> Callable[[EntityState], bool]:
+    """Return a predicate that matches the number ``key`` being marked unknown."""
+    return lambda s: _number_state_of(key)(s) and math.isnan(s.state)
 
 
 @pytest.mark.asyncio
@@ -470,75 +465,37 @@ async def test_uart_mock_ld2412_engineering_truncated(
 
 
 @pytest.mark.asyncio
-async def test_uart_mock_ld2412_gate_thresholds(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Test writing a threshold when only 2 of the 14 gates have numbers configured.
-
-    The threshold commands carry all 14 gates, so the component has to produce a value for every gate.
-    It used to dereference the numbers of gates that were never configured, which crashed on the first
-    write. The gates without a number must be written back with the value read from the module.
-    """
-    # Still: nothing was changed, so every gate keeps the module value (40 to 53)
-    expected_still = "28:29:2A:2B:2C:2D:2E:2F:30:31:32:33:34:35"
-    line_callback, written = _tx_waiter(EXPECTED_MOTION, expected_still)
-
-    async with (
-        run_compiled(yaml_config, line_callback=line_callback),
-        api_client_connected() as client,
-    ):
-        entities, _ = await client.list_entities_services()
-        initial_state_helper = await _wait_initial(client, entities)
-        numbers = _threshold_numbers(entities)
-
-        # The setup queries were answered, so the 2 configured gates show the module values
-        for name, value in {
-            "gate_0_move_threshold": 10.0,
-            "gate_5_move_threshold": 15.0,
-            "gate_0_still_threshold": 40.0,
-            "gate_5_still_threshold": 45.0,
-        }.items():
-            state = initial_state_helper.initial_states[numbers[name].key]
-            assert state.state == pytest.approx(value), name
-
-        # Write one threshold; this is what used to crash the device
-        client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
-
-        try:
-            await asyncio.wait_for(asyncio.gather(*written), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for the threshold commands.\n"
-                f"  expected motion payload: {EXPECTED_MOTION}\n"
-                f"  expected still payload:  {expected_still}"
-            )
-
-        # A round trip proves the device is still running after the write
-        entities_after, _ = await client.list_entities_services()
-        assert len(entities_after) == len(entities)
-
-
-@pytest.mark.asyncio
 async def test_uart_mock_ld2412_footer_in_payload(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test threshold answers whose values contain the command frame footer.
+    """Test threshold answers whose values contain the command frame footer, and the writes they feed.
 
     Gates holding 4, 3, 2, 1 in a row look like the footer 04 03 02 01, so the parser sees a footer
     before the frame is complete. A short frame is not a complete answer, so it has to keep reading up
     to the real footer, parse all 14 thresholds and then parse the next answer as well.
+
+    Only 2 of the 14 gates have numbers, which used to crash the first write because the numbers of the
+    other gates were dereferenced. Each threshold command carries all 14 gates, so the gates without a
+    number must be written back with the value read from the module, and a write only sends the command
+    of its own group.
     """
-    # Every gate except the changed gate 0 must match the answer byte for byte, which proves all 14
+    # Every gate except the changed one must match the answer byte for byte, which proves all 14
     # thresholds were parsed
     # Motion: gate 0 becomes 77 (0x4D), gates 5 to 8 keep 4, 3, 2, 1
     expected_motion = "4D:23:23:23:23:04:03:02:01:19:19:19:19:19"
-    # Still: nothing was changed, gates 10 to 13 keep 4, 3, 2, 1
-    expected_still = "00:23:23:23:23:19:19:19:19:19:04:03:02:01"
-    line_callback, written = _tx_waiter(expected_motion, expected_still)
+    # Still: gate 5 becomes 77 (0x4D), gates 10 to 13 keep 4, 3, 2, 1
+    expected_still = "00:23:23:23:23:4D:19:19:19:19:04:03:02:01"
+    tx_lines: list[str] = []
+    tx_callback, (motion_written, still_written) = _tx_waiter(
+        expected_motion, expected_still
+    )
+
+    def line_callback(line: str) -> None:
+        if _is_tx(line):
+            tx_lines.append(line)
+        tx_callback(line)
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
@@ -558,210 +515,37 @@ async def test_uart_mock_ld2412_footer_in_payload(
             state = initial_state_helper.initial_states[numbers[name].key]
             assert state.state == pytest.approx(value), name
 
+        # Write one motion threshold; this is what used to crash the device
         client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
-
-        try:
-            await asyncio.wait_for(asyncio.gather(*written), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for the threshold commands.\n"
-                f"  expected motion payload: {expected_motion}\n"
-                f"  expected still payload:  {expected_still}"
-            )
-
-
-@pytest.mark.asyncio
-async def test_uart_mock_ld2412_thresholds_not_read(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Test writing a threshold before the module has reported the values it holds.
-
-    The gates without a number are filled from the last values read back from the module. When the
-    module never answers the setup query there is nothing to fill them with, and sending the command
-    anyway would write a zero to every one of those gates, which is maximum sensitivity. The command
-    has to be held back instead, and only that group is queried again. The still group has no gate with
-    a value at all, so it is neither sent nor queried. When the query stays unanswered the write is
-    given up with an error and the motion numbers show NaN, since the module never received the value.
-    """
-    loop = asyncio.get_running_loop()
-
-    motion_held_back = loop.create_future()
-    write_finished = loop.create_future()
-    motion_given_up = loop.create_future()
-    tx_lines: list[str] = []
-    # TX lines sent between the warning and leaving configuration mode
-    write_tx_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        # The component logs the command it did not send in place of sending it
-        if "Command 03 held back" in line and not motion_held_back.done():
-            motion_held_back.set_result(True)
-            return
-        if "Command 03 not sent, the module did not report" in line:
-            motion_given_up.set_result(True)
-            return
-        if not _is_tx(line):
-            return
-        tx_lines.append(line)
-        if not motion_held_back.done() or write_finished.done():
-            return
-        # Configuration mode is left once both groups have been dealt with
-        if CONFIG_MODE_LEFT in line:
-            write_finished.set_result(True)
-            return
-        write_tx_lines.append(line)
-
-    async with (
-        run_compiled(yaml_config, line_callback=line_callback),
-        api_client_connected() as client,
-    ):
-        entities, _ = await client.list_entities_services()
-
-        numbers = _threshold_numbers(entities)
-        waiter = StateWaiter()
-        await _wait_initial(client, entities, waiter.on_state)
-        motion_unknown = [
-            waiter.expect(
-                lambda s, key=numbers[name].key: (
-                    _number_state_of(key)(s) and math.isnan(s.state)
-                ),
-                label=f"{name} NaN",
-            )
-            for name in ("gate_0_move_threshold", "gate_5_move_threshold")
-        ]
-
-        client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
-
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(motion_held_back, write_finished), timeout=5.0
-            )
-        except TimeoutError:
-            pytest.fail("Timeout waiting for the write to be handled")
-
-        # The unanswered query times out after 2 s and the write is given up
-        try:
-            await asyncio.wait_for(motion_given_up, timeout=3.0)
-            await asyncio.gather(*motion_unknown)
-        except TimeoutError as err:
-            pytest.fail(
-                f"Timeout waiting for the held back write to be given up: {err}"
-            )
-
-        # Neither threshold command reached the module, so no gate was reconfigured
-        assert not any(MOTION_COMMAND in line for line in tx_lines), (
-            "motion threshold command was sent without a value for the gates that have no number"
-        )
-        assert not any(STILL_COMMAND in line for line in tx_lines), (
-            "still threshold command was sent when no gate had a value to write"
-        )
-
-        # Only the held back motion group asks the module for its values again
-        assert any(MOTION_QUERY in line for line in write_tx_lines), (
-            "motion thresholds were not queried again after the command was held back"
-        )
-        assert not any(STILL_QUERY in line for line in write_tx_lines), (
-            "still thresholds were queried although that group was not held back"
-        )
-
-        # A round trip proves the device is still running after the write
-        entities_after, _ = await client.list_entities_services()
-        assert len(entities_after) == len(entities)
-
-
-@pytest.mark.asyncio
-async def test_uart_mock_ld2412_requery_answered(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Test that a held back threshold write is sent once the module answers the query again.
-
-    The module ignores the motion query sent during setup, so the first write is held back and the
-    motion thresholds are queried again. The module answers that query, and the held back write has to
-    go out with the value the user wrote for gate 0 and the module values for every other gate. The
-    answer must not overwrite the value the user wrote.
-    """
-    loop = asyncio.get_running_loop()
-
-    held_back = "Command 03 held back"
-    # Lines in the order they were logged: the warning and every TX line
-    events: list[str] = []
-    motion_written = loop.create_future()
-
-    def line_callback(line: str) -> None:
-        if held_back in line:
-            events.append(line)
-            return
-        if not _is_tx(line):
-            return
-        events.append(line)
-        if (
-            EXPECTED_MOTION in line
-            and len(events) >= 2
-            and MOTION_COMMAND in events[-2]
-            and not motion_written.done()
-        ):
-            motion_written.set_result(True)
-
-    async with (
-        run_compiled(yaml_config, line_callback=line_callback),
-        api_client_connected() as client,
-    ):
-        entities, _ = await client.list_entities_services()
-
-        gate_0_move = require_entity(entities, "gate_0_move_threshold", NumberInfo)
-        gate_5_move = require_entity(entities, "gate_5_move_threshold", NumberInfo)
-
-        gate_0_values: list[float] = []
-        waiter = StateWaiter()
-
-        def on_state(state: EntityState) -> None:
-            if _number_state_of(gate_0_move.key)(state):
-                gate_0_values.append(state.state)
-            waiter.on_state(state)
-
-        initial_state_helper = await _wait_initial(client, entities, on_state)
-
-        # Neither query was answered during setup, so no threshold has a value yet
-        for key in (gate_0_move.key, gate_5_move.key):
-            assert initial_state_helper.initial_states[key].missing_state
-
-        gate_5_read = waiter.expect(
-            _number_state_of(gate_5_move.key), label="gate 5 move threshold"
-        )
-        client.number_command(gate_0_move.key, 77.0)
-
         try:
             await asyncio.wait_for(motion_written, timeout=5.0)
-            gate_5_state = await gate_5_read
         except TimeoutError:
             pytest.fail(
-                "Timeout waiting for the held back motion write.\n"
-                f"  expected payload: {MOTION_COMMAND} then {EXPECTED_MOTION}\n"
-                f"  logged: {events}"
+                "Timeout waiting for the motion threshold command.\n"
+                f"  expected motion payload: {expected_motion}"
             )
 
-        # The warning, the query sent again and the write arrive in that order
-        warning_at = next(i for i, line in enumerate(events) if held_back in line)
-        query_at = next(
-            i
-            for i, line in enumerate(events)
-            if i > warning_at and MOTION_QUERY in line
-        )
-        write_at = next(i for i, line in enumerate(events) if EXPECTED_MOTION in line)
-        assert warning_at < query_at < write_at
-
-        assert not any(STILL_COMMAND in line for line in events), (
-            "still threshold command was sent although no still gate has a value"
+        # A motion write leaves the still thresholds alone
+        assert not any(STILL_COMMAND in line for line in tx_lines), (
+            "still threshold command was sent for a motion write"
         )
 
-        # The user value survives the answer, gate 5 takes the module value
-        assert gate_0_values
-        assert all(value == pytest.approx(77.0) for value in gate_0_values)
-        assert gate_5_state.state == pytest.approx(15.0)
+        client.number_command(numbers["gate_5_still_threshold"].key, 77.0)
+        try:
+            await asyncio.wait_for(still_written, timeout=5.0)
+        except TimeoutError:
+            pytest.fail(
+                "Timeout waiting for the still threshold command.\n"
+                f"  expected still payload: {expected_still}"
+            )
+
+        # Each group was written exactly once
+        assert sum(MOTION_COMMAND in line for line in tx_lines) == 1
+        assert sum(STILL_COMMAND in line for line in tx_lines) == 1
+
+        # A round trip proves the device is still running after the writes
+        entities_after, _ = await client.list_entities_services()
+        assert len(entities_after) == len(entities)
 
 
 @pytest.mark.asyncio
@@ -847,30 +631,43 @@ async def test_uart_mock_ld2412_requery_after_giveup(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test that a gate left at NaN by a given up write is refilled from the module.
+    """Test writing a threshold before the module has reported the values it holds.
 
-    The first write is given up because the module never answers, so both motion numbers show NaN. A NaN
-    number counts as not configured, so the second write is held back and queried again as well. The
-    module answers that query, its value replaces the NaN on gate 0, and the write carries the module
-    value for gate 0 and the user value for gate 5.
+    The gates without a number are filled from the last values read back from the module. When the
+    module never answers the setup query there is nothing to fill them with, and sending the command
+    anyway would write a zero to every one of those gates, which is maximum sensitivity. The command
+    has to be held back and only its own group queried again; the still group is neither written nor
+    queried. When the query stays unanswered the write is given up with an error and the motion numbers
+    show NaN, since the module never received the value.
+
+    A NaN number counts as not configured, so the second write is held back and queried again as well.
+    This time the module answers, its value replaces the NaN on gate 0, and the held back write goes out
+    with the module value for gate 0 and the user value for gate 5. The answer must not overwrite the
+    value the user wrote.
     """
     loop = asyncio.get_running_loop()
 
     # Gate 0 takes the module value 25 (0x19), gate 5 the user value 30 (0x1E)
     expected_motion = "19:0B:0C:0D:0E:1E:10:11:12:13:14:15:16:17"
-    tx_callback, (motion_written,) = _tx_waiter(expected_motion)
-    given_up = loop.create_future()
-    queries: list[str] = []
+    # The warnings, the error and every TX line in the order they were logged
+    events: list[str] = []
+    # Text of a log line a phase waits for, resolved by the next line that holds it
+    awaited: dict[str, asyncio.Future[None]] = {}
 
     def line_callback(line: str) -> None:
-        if (
-            "Command 03 not sent, the module did not report" in line
-            and not given_up.done()
-        ):
-            given_up.set_result(True)
-        if _is_tx(line) and MOTION_QUERY in line:
-            queries.append(line)
-        tx_callback(line)
+        if MOTION_HELD_BACK in line or MOTION_GIVEN_UP in line or _is_tx(line):
+            events.append(line)
+        for text, future in awaited.items():
+            if text in line and not future.done():
+                future.set_result(None)
+
+    def next_line_with(text: str) -> asyncio.Future[None]:
+        future: asyncio.Future[None] = loop.create_future()
+        awaited[text] = future
+        return future
+
+    def index_after(start: int, text: str) -> int:
+        return next(i for i, line in enumerate(events) if i > start and text in line)
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
@@ -889,22 +686,55 @@ async def test_uart_mock_ld2412_requery_after_giveup(
                 gate_5_values.append(state.state)
             waiter.on_state(state)
 
-        await _wait_initial(client, entities, on_state)
+        initial_state_helper = await _wait_initial(client, entities, on_state)
 
-        def is_nan_of(key: int) -> Callable[[EntityState], bool]:
-            return lambda s: _number_state_of(key)(s) and math.isnan(s.state)
+        # Neither query was answered during setup, so no threshold has a value yet
+        for key in (gate_0_key, gate_5_key):
+            assert initial_state_helper.initial_states[key].missing_state
 
+        # Phase 1: the write is held back, the query sent again stays unanswered and the write is given up
+        held_back = next_line_with(MOTION_HELD_BACK)
+        config_mode_left = next_line_with(CONFIG_MODE_LEFT)
+        given_up = next_line_with(MOTION_GIVEN_UP)
         unknown = [
-            waiter.expect(is_nan_of(key), label="NaN")
+            waiter.expect(_is_nan_of(key), label="NaN")
             for key in (gate_0_key, gate_5_key)
         ]
         client.number_command(gate_5_key, 20.0)
         try:
-            await asyncio.wait_for(given_up, timeout=5.0)
+            await asyncio.wait_for(
+                asyncio.gather(held_back, config_mode_left), timeout=5.0
+            )
+        except TimeoutError:
+            pytest.fail(f"Timeout waiting for the write to be handled: {events}")
+        # The unanswered query times out after 2 s
+        try:
+            await asyncio.wait_for(given_up, timeout=3.0)
             await asyncio.gather(*unknown)
         except TimeoutError as err:
             pytest.fail(f"Timeout waiting for the first write to be given up: {err}")
 
+        # Only the held back motion group asks the module for its values again, before configuration
+        # mode is left
+        warning_at = next(
+            i for i, line in enumerate(events) if MOTION_HELD_BACK in line
+        )
+        left_at = index_after(warning_at, CONFIG_MODE_LEFT)
+        write_window = events[warning_at:left_at]
+        assert any(MOTION_QUERY in line for line in write_window), (
+            "motion thresholds were not queried again after the command was held back"
+        )
+        assert not any(STILL_QUERY in line for line in write_window), (
+            "still thresholds were queried for a motion write"
+        )
+        # Neither threshold command reached the module, so no gate was reconfigured
+        assert not any(MOTION_COMMAND in line for line in events), (
+            "motion threshold command was sent without a value for the gates that have no number"
+        )
+
+        # Phase 2: the write is held back again and the module answers the query sent again
+        held_back_again = next_line_with(MOTION_HELD_BACK)
+        motion_written = next_line_with(expected_motion)
         gate_0_refilled = waiter.expect(
             lambda s: _number_state_of(gate_0_key)(s) and not math.isnan(s.state),
             label="gate 0 move threshold from the module",
@@ -912,16 +742,31 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         gate_5_values.clear()
         client.number_command(gate_5_key, 30.0)
         try:
-            await asyncio.wait_for(motion_written, timeout=5.0)
+            await asyncio.wait_for(
+                asyncio.gather(held_back_again, motion_written), timeout=5.0
+            )
             gate_0_state = await gate_0_refilled
         except TimeoutError as err:
             pytest.fail(
                 f"Timeout waiting for the second write: {err}\n"
-                f"  expected motion payload: {expected_motion}"
+                f"  expected motion payload: {expected_motion}\n"
+                f"  logged: {events}"
             )
 
+        # The warning, the query sent again and the write arrive in that order
+        warning_at = index_after(left_at, MOTION_HELD_BACK)
+        query_at = index_after(warning_at, MOTION_QUERY)
+        write_at = index_after(query_at, expected_motion)
+        assert MOTION_COMMAND in events[write_at - 1]
+
         # Setup, the given up write and the second write each queried the motion thresholds
-        assert len(queries) == 3
+        assert sum(MOTION_QUERY in line for line in events) == 3
+        # A motion write never touches the still group
+        assert not any(STILL_COMMAND in line for line in events), (
+            "still threshold command was sent for a motion write"
+        )
+
+        # The user value survives the answer, gate 0 takes the module value
         assert gate_0_state.state == pytest.approx(25.0)
         assert gate_5_values
         assert all(value == pytest.approx(30.0) for value in gate_5_values)

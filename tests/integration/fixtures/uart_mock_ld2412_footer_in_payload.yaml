@@ -59,7 +59,9 @@ ld2412:
   id: ld2412_dev
   uart_id: mock_uart
 
-# Gate 5 is one of the gates that holds a footer byte in the motion answer
+# Only 2 of the 14 gates are configured, which is the case that used to crash: a write walked all 14 entries
+# of the array and dereferenced the 12 gates that have no number. Gate 5 is one of the gates that holds a
+# footer byte in the motion answer
 number:
   - platform: ld2412
     ld2412_id: ld2412_dev

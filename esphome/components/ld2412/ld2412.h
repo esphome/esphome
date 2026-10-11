@@ -91,7 +91,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
     this->gate_still_thresholds_.numbers[gate] = n;
   }
-  void set_gate_threshold();
+  void set_gate_threshold(bool motion);
   void get_gate_threshold();
 #endif
 #ifdef USE_SENSOR
@@ -121,13 +121,16 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void restart_();
   void query_dynamic_background_correction_();
 #ifdef USE_NUMBER
-  // One threshold command carries every gate, so gates without a number are sent the value the module last reported
+  // One threshold command carries every gate, so gates without a number are sent the value the module last reported.
+  // Until the module has answered once, a configured number may still have no value, so a write waits for the answer
   struct GateThresholds {
     std::array<number::Number *, TOTAL_GATES> numbers{};
     std::array<uint8_t, TOTAL_GATES> last_read{};
-    bool read{false};           // the module has answered the query at least once
-    bool write_pending{false};  // a write waits for that answer
+    bool read{false};  // the module has answered the query at least once
   };
+  GateThresholds &gate_thresholds_(bool motion) {
+    return motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+  }
   void send_gate_thresholds_(bool motion);
   void gate_query_timeout_(bool motion);
 #endif

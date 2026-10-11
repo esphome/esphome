@@ -18,9 +18,9 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# The module ignores the motion threshold query sent during setup and the one sent again for the first
-# write, so that write is given up and the motion numbers show NaN. It answers the third motion query, sent
-# again for the second write. The static threshold query is never answered
+# The module ignores the motion threshold query sent during setup, so the first write is held back, and the
+# one sent again for that write, so it is given up and the motion numbers show NaN. It answers the third
+# motion query, sent again for the second write. The static threshold query is never answered
 #
 # Frame layout follows the 0x0013 answer in the HLK-LD2412 Serial Communication Protocol V1.05, section
 # 2.2.10: header, length 12 00, command 13 01, status 00 00, 14 threshold bytes, footer
@@ -51,6 +51,7 @@ ld2412:
   id: ld2412_dev
   uart_id: mock_uart
 
+# Gate 5 has a number, but it holds no value until the module answers or the user writes one
 number:
   - platform: ld2412
     ld2412_id: ld2412_dev
