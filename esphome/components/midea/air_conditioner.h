@@ -63,6 +63,9 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
+#ifdef USE_MIDEA_PURIFIER
+  PurifierSwitch *purifier_switch_{nullptr};
+#endif
 };
 
 }  // namespace esphome::midea::ac

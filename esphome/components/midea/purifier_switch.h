@@ -14,6 +14,7 @@ class AirConditioner;
 class PurifierSwitch final : public switch_::Switch {
  public:
   PurifierSwitch(AirConditioner *parent, uint32_t status_max_age) : parent_(parent), status_max_age_(status_max_age) {}
+  void dump_config();
 
  protected:
   void write_state(bool state) override;

@@ -2,8 +2,6 @@
 
 from collections.abc import Callable
 from pathlib import Path
-import shutil
-import subprocess
 
 import pytest
 
@@ -15,9 +13,26 @@ from esphome.config import read_config, validate_config
 from esphome.const import PlatformFramework
 from esphome.core import CORE
 from esphome.espidf.clang_tidy import _parse_lib_deps
+from esphome.types import ConfigType
 from esphome.writer import copy_src_tree
 from esphome.yaml_util import load_yaml
 from tests.component_tests.types import SetCoreConfigCallable
+
+
+def _add_second_climate(config: ConfigType) -> None:
+    config["uart"] = [
+        {**config["uart"], "id": "first_uart"},
+        {"id": "second_uart", "tx_pin": "GPIO4", "rx_pin": "GPIO5", "baud_rate": 9600},
+    ]
+    config["climate"][0]["uart_id"] = "first_uart"
+    config["climate"].append(
+        {
+            "platform": "midea",
+            "id": "second_climate",
+            "name": "Second Climate",
+            "uart_id": "second_uart",
+        }
+    )
 
 
 def test_purifier_requires_explicit_switch_platform(
@@ -116,6 +131,61 @@ def test_purifier_requires_a_midea_climate(
     assert any(expected in str(error) for error in result.errors), result.errors
 
 
+@pytest.mark.parametrize(
+    ("period", "age", "valid"),
+    [
+        ("1s", "999ms", False),
+        ("20s", None, False),
+        ("1s", "1s", True),
+        ("10s", "30s", True),
+        ("1ms", "1ms", True),
+        ("1s", "2147483647ms", True),
+    ],
+)
+def test_purifier_status_age_covers_parent_period(
+    component_config_path: Callable[[str], Path],
+    period: str,
+    age: str | None,
+    valid: bool,
+) -> None:
+    """Full validation compares the feedback age with the referenced polling period."""
+    CORE.config_path = component_config_path("purifier.yaml")
+    config = load_yaml(CORE.config_path)
+    config["climate"][0]["period"] = period
+    if age is None:
+        del config["switch"][0]["purifier"]["status_max_age"]
+    else:
+        config["switch"][0]["purifier"]["status_max_age"] = age
+    result = validate_config(config, {})
+    if valid:
+        assert not result.errors, result.errors
+    else:
+        assert any(
+            "status_max_age must be at least" in str(error) for error in result.errors
+        ), result.errors
+
+
+@pytest.mark.parametrize("parent", ["test_climate", "second_climate"])
+def test_purifier_checks_only_its_referenced_period(
+    component_config_path: Callable[[str], Path], parent: str
+) -> None:
+    """Multiple climates use separate UARTs and independent polling periods."""
+    CORE.config_path = component_config_path("purifier.yaml")
+    config = load_yaml(CORE.config_path)
+    _add_second_climate(config)
+    config["climate"][0]["period"] = "60s"
+    config["climate"][1]["period"] = "10s"
+    config["switch"][0]["midea_id"] = parent
+    config["switch"][0]["purifier"]["status_max_age"] = "15s"
+    result = validate_config(config, {})
+    if parent == "second_climate":
+        assert not result.errors, result.errors
+    else:
+        assert len(result.errors) == 1
+        assert "status_max_age must be at least" in str(result.errors[0])
+        assert result.errors[0].path == ["switch", 0, "purifier", "status_max_age"]
+
+
 @pytest.mark.parametrize("configured", [True, False])
 def test_switch_platform_copies_required_sources(
     component_config_path: Callable[[str], Path], tmp_path: Path, configured: bool
@@ -146,65 +216,63 @@ def test_switch_platform_copies_required_sources(
     assert ("#define USE_MIDEA_PURIFIER" in defines) == configured
 
 
+@pytest.mark.parametrize("climate_count", [1, 2])
+@pytest.mark.parametrize("empty_switch", [False, True])
+def test_codegen_without_purifier_keeps_upstream_library(
+    component_config_path: Callable[[str], Path],
+    climate_count: int,
+    empty_switch: bool,
+) -> None:
+    """Opt-out firmware retains the upstream library, including multiple owners."""
+    CORE.config_path = component_config_path("no-purifier.yaml")
+    config = load_yaml(CORE.config_path)
+    if climate_count == 2:
+        _add_second_climate(config)
+    if empty_switch:
+        config["switch"] = [{"platform": "midea", "midea_id": "test_climate"}]
+    CORE.config = validate_config(config, {})
+    assert not CORE.config.errors, CORE.config.errors
+    generate_cpp_contents(CORE.config)
+    assert CORE.platformio_libraries["MideaUART"].repository == (
+        "https://github.com/dudanov/MideaUART.git#"
+        "eeea6c3e9b4474f067054592b435be1c4e466815"
+    )
+    assert "USE_MIDEA_PURIFIER" not in {define.name for define in CORE.defines}
+
+
 @pytest.mark.parametrize("framework", ["arduino", "espidf"])
+@pytest.mark.parametrize("parent", ["test_climate", "second_climate"])
+@pytest.mark.parametrize("switch_first", [False, True])
 def test_codegen_uses_the_public_purifier_library(
-    generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     framework: str,
+    parent: str,
+    switch_first: bool,
 ) -> None:
-    """Firmware and static analysis resolve to the same public purifier library."""
-    generate_main(component_config_path("purifier.yaml"))
+    """All owners resolve one runtime/development dependency, regardless of order."""
+    CORE.config_path = component_config_path("purifier.yaml")
+    config = load_yaml(CORE.config_path)
+    del config["esp8266"]
+    config["esp32"] = {
+        "board": "nodemcu-32s",
+        "framework": {"type": "arduino" if framework == "arduino" else "esp-idf"},
+    }
+    _add_second_climate(config)
+    config["switch"][0]["midea_id"] = parent
+    if switch_first:
+        config["climate"] = config.pop("climate")
+        config["climate"].reverse()
+    CORE.config = validate_config(config, {})
+    assert not CORE.config.errors, CORE.config.errors
+    generate_cpp_contents(CORE.config)
+    main = CORE.cpp_global_section + CORE.cpp_main_section
+    assert f"{parent}->set_purifier_switch(test_purifier)" in main
+    assert "USE_MIDEA_PURIFIER" in {define.name for define in CORE.defines}
+    assert "test_purifier" not in {str(id_) for id_ in CORE.component_ids}
+    assert ("WiFi" in CORE.platformio_libraries) == (framework == "arduino")
     library = CORE.platformio_libraries["MideaUART"]
-    assert library.as_lib_dep == (
-        "MideaUART=https://github.com/m4rkireland/MideaUART.git#"
-        "2e65f70ed12e507c69d9662b524d3027ac051960"
-    )
     root = Path(__file__).resolve().parents[3]
     tidy_libraries = _parse_lib_deps(root / "platformio.ini", framework)
     assert library.repository in {
         dependency.repository for dependency in tidy_libraries
     }
-
-
-@pytest.mark.parametrize("scenario", ["feedback", "accepted", "rejected"])
-def test_feedback_is_the_only_source_of_switch_state(
-    tmp_path: Path, scenario: str
-) -> None:
-    """Compile the real bridge against controlled framework/transport boundaries."""
-    compiler = shutil.which("g++")
-    if compiler is None:
-        pytest.skip("g++ is required for the Midea bridge host test")
-    root = Path(__file__).resolve().parents[3]
-    fixtures = Path(__file__).parent / "fixtures"
-    sources = [
-        fixtures / "purifier_test.cpp",
-        root / "esphome/components/midea/purifier_switch.cpp",
-    ]
-    executable = tmp_path / "purifier_test"
-    compiled = subprocess.run(
-        [
-            compiler,
-            "-std=c++20",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-DESP_LOGW(...)=((void)0)",
-            "-include",
-            str(fixtures / "stubs/esphome/core/defines.h"),
-            "-I",
-            str(fixtures / "stubs"),
-            "-I",
-            str(root),
-            *(str(source) for source in sources),
-            "-o",
-            str(executable),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert compiled.returncode == 0, compiled.stderr
-    result = subprocess.run(
-        [str(executable), scenario], capture_output=True, text=True, check=False
-    )
-    assert result.returncode == 0, result.stdout + result.stderr

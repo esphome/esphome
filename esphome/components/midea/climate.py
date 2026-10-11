@@ -13,9 +13,11 @@ from esphome.const import (
     CONF_NUM_ATTEMPTS,
     CONF_OUTDOOR_TEMPERATURE,
     CONF_PERIOD,
+    CONF_PLATFORM,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
+    CONF_SWITCH,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_USE_FAHRENHEIT,
@@ -35,13 +37,13 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["sensor"]
+from . import CONF_PURIFIER, DOMAIN
+
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
-
+AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
-
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
@@ -227,9 +229,16 @@ async def to_code(config: ConfigType) -> None:
     # library talks to esp_wifi directly, so no library entry is needed.
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
-    # Temporary fork pin until purifier support is accepted upstream in MideaUART.
+    # Every owner must select the same library, regardless of codegen order.
+    repository = "https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815"
+    if any(
+        conf[CONF_PLATFORM] == DOMAIN and CONF_PURIFIER in conf
+        for conf in CORE.config.get(CONF_SWITCH, [])
+    ):
+        # Temporary fork until purifier support is accepted upstream.
+        repository = "https://github.com/m4rkireland/MideaUART.git#2e65f70ed12e507c69d9662b524d3027ac051960"
     cg.add_library(
         name="MideaUART",
         version=None,
-        repository="https://github.com/m4rkireland/MideaUART.git#2e65f70ed12e507c69d9662b524d3027ac051960",
+        repository=repository,
     )

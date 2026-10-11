@@ -72,6 +72,13 @@ void AirConditioner::on_status_change() {
   set_sensor(this->humidity_sensor_, this->base_.getIndoorHum());
 }
 
+#ifdef USE_MIDEA_PURIFIER
+void AirConditioner::set_purifier_switch(PurifierSwitch *purifier) {
+  this->purifier_switch_ = purifier;
+  this->base_.addOnPurifierStatusCallback([purifier](bool state) { purifier->publish_state(state); });
+}
+#endif
+
 void AirConditioner::control(const ClimateCall &call) {
   dudanov::midea::ac::Control ctrl{};
   auto target_temp_val = call.get_target_temperature();
@@ -145,6 +152,10 @@ void AirConditioner::dump_config() {
              "appliance options.");
   }
   this->dump_traits_(Constants::TAG);
+#ifdef USE_MIDEA_PURIFIER
+  if (this->purifier_switch_ != nullptr)
+    this->purifier_switch_->dump_config();
+#endif
 }
 
 /* ACTIONS */

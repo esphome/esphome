@@ -1,0 +1,3 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-h2-idf.yaml
+  midea: !include common-purifier.yaml
