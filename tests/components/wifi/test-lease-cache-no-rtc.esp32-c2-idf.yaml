@@ -1,0 +1,9 @@
+# The ESP32-C2 has no RTC memory. Enabling lease_cache here without an explicit storage leaves the
+# default unresolved, so to_code must warn and emit no define (feature disabled) while the build
+# still succeeds. Exercises the no-RTC branch in the wifi lease_cache codegen.
+wifi:
+  lease_cache:
+    enabled: true
+
+packages:
+  - !include common.yaml
