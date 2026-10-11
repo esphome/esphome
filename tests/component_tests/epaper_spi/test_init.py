@@ -468,6 +468,7 @@ def test_partial_update_after_deep_sleep_rtc_memory(
             "id": "test_display",
             "model": "ssd1681",
             "dc_pin": 21,
+            "reset_pin": 23,
             "full_update_every": 20,
             "partial_update_after_deep_sleep": {"rtc_memory": "6kB"},
         }
@@ -480,6 +481,7 @@ def test_partial_update_after_deep_sleep_rtc_memory(
                 "id": "test_display",
                 "model": "ssd1681",
                 "dc_pin": 21,
+                "reset_pin": 23,
                 "partial_update_after_deep_sleep": {"rtc_memory": "6kB"},
             }
         )
@@ -490,6 +492,7 @@ def test_partial_update_after_deep_sleep_rtc_memory(
                 "id": "test_display",
                 "model": "ssd1681",
                 "dc_pin": 21,
+                "reset_pin": 23,
                 "full_update_every": 20,
                 "partial_update_after_deep_sleep": {"rtc_memory": "16kB"},
             }
