@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdarg>
+#include <cstdio>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -10,12 +12,86 @@ namespace esphome::mics_5524_gas_sensor {
 
 ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
 
-/// Name of the clean-air reference in the log lines.
-static const char *reference_name() { return "air reference"; }
+/// Version tag mixed into the preference key: the conversion model is added to it, so
+/// a value stored for one model is never used by the other one.
+static constexpr uint32_t REFERENCE_PREFERENCE_VERSION = 0x00000010;
+
+/// Human readable name of the stored clean-air reference.
+static const char *reference_name(uint8_t conversion) {
+  return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? "air reference" : "R0";
+}
+
+/// Human readable name of a conversion model.
+static const char *conversion_name(uint8_t conversion) {
+  return conversion == micsmath::CONVERSION_MODEL_DFROBOT ? "dfrobot" : "datasheet";
+}
+
+void MiCS5524GasSensor::publish_log_(LogSeverity level, const char *message) {
+  if (this->log_sensor_ == nullptr)
+    return;
+  if (level == LOG_SEVERITY_DEBUG) {
+    // The per-update line is mirrored at most every LOG_SENSOR_DEBUG_INTERVAL_MS; the
+    // console log keeps every line.
+    const uint32_t now = App.get_loop_component_start_time();
+    if (this->last_log_sensor_debug_ != 0 && now - this->last_log_sensor_debug_ < LOG_SENSOR_DEBUG_INTERVAL_MS)
+      return;
+    this->last_log_sensor_debug_ = now;
+  }
+  this->log_sensor_->publish_state(message);
+}
+
+void MiCS5524GasSensor::log_message_(LogSeverity level, const char *format, ...) {
+  char message[LOG_BUFFER_SIZE];
+  const int prefix = std::snprintf(message, sizeof(message), "'%s': ", this->gas_.c_str());
+  if (prefix > 0) {
+    const size_t used = std::min(static_cast<size_t>(prefix), sizeof(message) - 1);
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(message + used, sizeof(message) - used, format, args);
+    va_end(args);
+  }
+
+  switch (level) {
+    case LOG_SEVERITY_ERROR:
+      ESP_LOGE(TAG, "%s", message);
+      break;
+    case LOG_SEVERITY_WARN:
+      ESP_LOGW(TAG, "%s", message);
+      break;
+    case LOG_SEVERITY_INFO:
+      ESP_LOGI(TAG, "%s", message);
+      break;
+    default:
+      ESP_LOGD(TAG, "%s", message);
+      break;
+  }
+
+  this->publish_log_(level, message);
+}
+
+void MiCS5524GasSensor::log_reading_(float ppm) {
+  if (!this->log_ppm_ || !std::isfinite(ppm))
+    return;
+  // Console only: the detailed chain is what reaches `log_sensor_`.
+  ESP_LOGI(TAG, "'%s': %.1f ppm", this->gas_.c_str(), ppm);
+}
 
 void MiCS5524GasSensor::setup() {
+  this->reference_pref_ = this->make_entity_preference<float>(REFERENCE_PREFERENCE_VERSION + this->conversion_);
+
+  if (this->enable_pin_ != nullptr) {
+    this->enable_pin_->setup();
+    // The DFRobot modules are enabled by a LOW level; the pin's own `inverted: true`
+    this->enable_pin_->digital_write(true);
+    this->log_message_(LOG_SEVERITY_INFO, "sensor enabled via the EN pin");
+  }
+
   if (this->reference_configured_) {
-    ESP_LOGI(TAG, "'%s': using the air reference from the configuration (%.4f)", this->gas_.c_str(), this->reference_);
+    this->log_message_(LOG_SEVERITY_INFO, "using the %s from the configuration (%.4f)",
+                       reference_name(this->conversion_), this->reference_);
+  } else if (this->persist_ && this->load_reference_()) {
+    this->log_message_(LOG_SEVERITY_INFO, "restored the %s from flash (%.4f)", reference_name(this->conversion_),
+                       this->reference_);
   }
 
   if (this->warmup_time_ > 0) {
@@ -25,18 +101,24 @@ void MiCS5524GasSensor::setup() {
   }
 
   if (this->calibration_enabled_) {
-    // Nothing is stored across reboots, so every boot calibrates when it is
-    // configured to; 'air_reference:' is the way to skip that.
-    const uint32_t delay = std::max(this->calibration_delay_, this->warmup_remaining_());
-    this->calibration_pending_ = true;
-    this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
-    ESP_LOGI(TAG, "'%s': air reference calibration in %" PRIu32 " s - the sensor must be in clean air",
-             this->gas_.c_str(), delay / 1000);
+    if (this->has_reference()) {
+      this->log_message_(LOG_SEVERITY_INFO,
+                         "%s already known (%.4f) - automatic calibration skipped, call "
+                         "request_calibration() (or clear the stored value) to recalibrate",
+                         reference_name(this->conversion_), this->reference_);
+    } else {
+      const uint32_t delay = std::max(this->calibration_delay_, this->warmup_remaining_());
+      this->calibration_pending_ = true;
+      this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+      this->log_message_(LOG_SEVERITY_INFO,
+                         "%s calibration scheduled in %" PRIu32 " s - the sensor must be in clean air",
+                         reference_name(this->conversion_), delay / 1000);
+    }
   } else if (!this->has_reference()) {
-    ESP_LOGW(TAG,
-             "'%s': no air reference available, set it in the configuration or enable 'calibration:' - the PPM "
-             "value stays unknown until then",
-             this->gas_.c_str());
+    this->log_message_(LOG_SEVERITY_WARN,
+                       "no %s available, set it in the configuration or enable 'calibration:' - "
+                       "the PPM value stays unknown until then",
+                       reference_name(this->conversion_));
   }
 
   // The loop only samples while a clean-air calibration runs; `update()` publishes.
@@ -45,18 +127,28 @@ void MiCS5524GasSensor::setup() {
 
 void MiCS5524GasSensor::log_config_() {
   ESP_LOGCONFIG(TAG, "  Gas: %s", this->gas_.c_str());
-  ESP_LOGCONFIG(TAG, "  Vendor curve: threshold %.4f, gain %.8f, range %.1f - %.1f ppm", this->threshold_, this->gain_,
-                this->vendor_min_ppm_, this->vendor_max_ppm_);
-  ESP_LOGCONFIG(TAG, "  VCC: %.2f V, AO multiplier: x%.3f", this->vcc_, this->voltage_multiplier_);
+  ESP_LOGCONFIG(TAG, "  Conversion: %s%s", conversion_name(this->conversion_),
+                this->is_vendor_model_() ? LOG_STR_LITERAL(" (DFRobot_MICS vendor model, no RL needed)")
+                                         : LOG_STR_LITERAL(" (a * (RS/R0)^b)"));
+  if (this->is_vendor_model_()) {
+    ESP_LOGCONFIG(TAG, "  Vendor curve: threshold %.4f, gain %.8f, range %.1f - %.1f ppm", this->threshold_,
+                  this->gain_, this->vendor_min_ppm_, this->vendor_max_ppm_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Curve: a=%.6g, b=%.6g", this->a_, this->b_);
+  }
+  ESP_LOGCONFIG(TAG, "  VCC: %.2f V, RL: %.2f kOhm, AO multiplier: x%.3f", this->vcc_, this->rl_,
+                this->voltage_multiplier_);
   ESP_LOGCONFIG(TAG, "  Range: %.1f - %.1f ppm, AO samples per reading: %u, calibration spacing: %" PRIu32 " ms",
                 this->min_ppm_, this->max_ppm_, static_cast<unsigned>(this->samples_), this->sample_interval_);
   if (this->has_reference()) {
-    ESP_LOGCONFIG(TAG, "  %s: %.4f", reference_name(), this->reference_);
+    ESP_LOGCONFIG(TAG, "  %s: %.4f (%s)", reference_name(this->conversion_), this->reference_,
+                  this->reference_configured_ ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("calibrated/restored"));
   } else {
-    ESP_LOGCONFIG(TAG, "  %s: not available yet", reference_name());
+    ESP_LOGCONFIG(TAG, "  %s: not available yet", reference_name(this->conversion_));
   }
-  ESP_LOGCONFIG(TAG, "  Warm-up: %" PRIu32 " s, auto calibration: %s", this->warmup_time_ / 1000,
-                this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
+  ESP_LOGCONFIG(TAG, "  Warm-up: %" PRIu32 " s, auto calibration: %s, EN pin: %s", this->warmup_time_ / 1000,
+                this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->enable_pin_ != nullptr ? LOG_STR_LITERAL("driven") : LOG_STR_LITERAL("not used"));
 }
 
 void MiCS5524GasSensor::dump_config() {
@@ -77,18 +169,37 @@ float MiCS5524GasSensor::sample_voltage_() {
   return (sum / static_cast<float>(this->samples_)) * this->voltage_multiplier_;
 }
 
+float MiCS5524GasSensor::current_rs_() const {
+  return micsmath::rs_from_voltage(this->sensor_voltage_, this->vcc_, this->rl_);
+}
+
 micsmath::VendorCurve MiCS5524GasSensor::vendor_curve_() const {
   return micsmath::VendorCurve{this->threshold_, this->gain_, this->vendor_min_ppm_, this->vendor_max_ppm_};
 }
 
 float MiCS5524GasSensor::current_ratio_() {
-  this->air_value_ = micsmath::air_value_from_voltage(this->sensor_voltage_, this->vcc_);
-  return micsmath::ratio_from_air_value(this->air_value_, this->reference_);
+  if (this->is_vendor_model_()) {
+    this->air_value_ = micsmath::air_value_from_voltage(this->sensor_voltage_, this->vcc_);
+    return micsmath::ratio_from_air_value(this->air_value_, this->reference_);
+  }
+  this->rs_ = this->current_rs_();
+  return micsmath::ratio_from_rs(this->rs_, this->reference_);
 }
 
 float MiCS5524GasSensor::read_ppm_() {
-  const float ppm = micsmath::ppm_from_vendor_curve(this->ratio_, this->vendor_curve_());
+  const float ppm = this->is_vendor_model_() ? micsmath::ppm_from_vendor_curve(this->ratio_, this->vendor_curve_())
+                                             : micsmath::ppm_from_power_law(this->a_, this->b_, this->ratio_);
   return micsmath::clamp_ppm(ppm, this->min_ppm_, this->max_ppm_);
+}
+
+void MiCS5524GasSensor::publish_diagnostics_() {
+  if (this->voltage_sensor_ != nullptr)
+    this->voltage_sensor_->publish_state(this->sensor_voltage_);
+  if (this->ratio_sensor_ != nullptr)
+    this->ratio_sensor_->publish_state(this->ratio_);
+  // RS only exists in the datasheet model (the vendor model never needs it).
+  if (this->rs_sensor_ != nullptr && !this->is_vendor_model_())
+    this->rs_sensor_->publish_state(this->rs_);
 }
 
 void MiCS5524GasSensor::update() {
@@ -122,8 +233,8 @@ void MiCS5524GasSensor::update() {
   if (!this->has_reference()) {
     if (!this->warned_no_reference_) {
       this->warned_no_reference_ = true;
-      ESP_LOGW(TAG, "'%s': %s unknown - publish it in the configuration or enable 'calibration:'", this->gas_.c_str(),
-               reference_name());
+      this->log_message_(LOG_SEVERITY_WARN, "%s unknown - publish it in the configuration or enable 'calibration:'",
+                         reference_name(this->conversion_));
     }
     this->publish_state(NAN);
     return;
@@ -140,7 +251,9 @@ void MiCS5524GasSensor::update() {
     // Nothing usable was read, so leave the internal values unknown instead of
     // reporting a ratio that looks like a measurement.
     this->air_value_ = NAN;
+    this->rs_ = NAN;
     this->ratio_ = NAN;
+    this->publish_diagnostics_();
     this->publish_state(NAN);
     return;
   }
@@ -149,16 +262,31 @@ void MiCS5524GasSensor::update() {
   this->ratio_ = this->current_ratio_();
   const float ppm = this->read_ppm_();
 
-  ESP_LOGD(TAG, "'%s': V_AO=%.4f V, x=%.4f, ratio=%.4f -> %.1f ppm", this->gas_.c_str(), this->sensor_voltage_,
-           this->air_value_, this->ratio_, ppm);
+  this->log_reading_(ppm);
 
+  // Log the quantity the active model actually uses.
+  if (this->is_vendor_model_()) {
+    this->log_message_(LOG_SEVERITY_DEBUG, "V_AO=%.4f V, x=%.4f, ratio=%.4f (dfrobot) -> %.1f ppm",
+                       this->sensor_voltage_, this->air_value_, this->ratio_, ppm);
+  } else {
+    this->log_message_(LOG_SEVERITY_DEBUG, "V_AO=%.4f V, RS=%.4f kOhm, ratio=%.4f (datasheet) -> %.1f ppm",
+                       this->sensor_voltage_, this->rs_, this->ratio_, ppm);
+  }
+
+  this->publish_diagnostics_();
   this->publish_state(ppm);
 }
 
-void MiCS5524GasSensor::set_calibration(bool enabled, uint32_t delay, uint32_t samples) {
+void MiCS5524GasSensor::set_calibration(bool enabled, uint32_t delay, uint32_t samples, bool persist) {
   this->calibration_enabled_ = enabled;
   this->calibration_delay_ = delay;
   this->calibration_samples_ = samples;
+  this->persist_ = persist;
+}
+
+void MiCS5524GasSensor::set_r0(float r0) {
+  this->reference_ = r0;
+  this->reference_configured_ = true;
 }
 
 void MiCS5524GasSensor::set_air_reference(float air_reference) {
@@ -225,8 +353,9 @@ void MiCS5524GasSensor::begin_calibration_() {
   this->calibration_sum_ = 0.0f;
   this->enable_loop();
 
-  ESP_LOGI(TAG, "'%s': calibrating the air reference, %" PRIu32 " samples - keep the sensor in clean air",
-           this->gas_.c_str(), this->calibration_samples_);
+  this->log_message_(LOG_SEVERITY_INFO,
+                     "calibrating the %s (%s model), %" PRIu32 " samples - keep the sensor in clean air",
+                     reference_name(this->conversion_), conversion_name(this->conversion_), this->calibration_samples_);
 }
 
 void MiCS5524GasSensor::process_calibration_() {
@@ -235,7 +364,8 @@ void MiCS5524GasSensor::process_calibration_() {
   const float voltage = this->sample_voltage_();
   if (std::isfinite(voltage) && voltage > 0.01f) {
     this->sensor_voltage_ = voltage;
-    const float reference = micsmath::air_value_from_voltage(voltage, this->vcc_);
+    const float reference =
+        this->is_vendor_model_() ? micsmath::air_value_from_voltage(voltage, this->vcc_) : this->current_rs_();
     if (std::isfinite(reference) && reference > 0.0f) {
       this->calibration_sum_ += reference;
       this->calibration_count_++;
@@ -262,17 +392,46 @@ void MiCS5524GasSensor::finish_calibration_() {
 
   const float reference = this->calibration_sum_ / static_cast<float>(valid);
   if (!std::isfinite(reference) || reference <= 0.0f) {
-    ESP_LOGE(TAG, "'%s': calibration produced an invalid %s (%.6f)", this->gas_.c_str(), reference_name(), reference);
+    this->log_message_(LOG_SEVERITY_ERROR, "calibration produced an invalid %s (%.6f)",
+                       reference_name(this->conversion_), reference);
     return;
   }
 
   this->reference_ = reference;
   this->reference_configured_ = true;
+  if (this->persist_)
+    this->save_reference_();
 
-  ESP_LOGI(TAG, "'%s': %s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)", this->gas_.c_str(), reference_name(),
-           this->reference_, valid, attempts);
-  ESP_LOGI(TAG, "'%s': hard-code 'air_reference: %.4f' in the YAML to skip the calibration at boot", this->gas_.c_str(),
-           this->reference_);
+  this->log_message_(LOG_SEVERITY_INFO, "%s = %.4f (%" PRIu32 "/%" PRIu32 " samples valid)%s",
+                     reference_name(this->conversion_), this->reference_, valid, attempts,
+                     this->persist_ ? ", stored in flash" : "");
+  if (!this->persist_) {
+    this->log_message_(LOG_SEVERITY_INFO, "hard-code '%s: %.4f' in the YAML to skip the calibration at boot",
+                       this->is_vendor_model_() ? "air_reference" : "r0", this->reference_);
+  }
+}
+
+void MiCS5524GasSensor::save_reference_() {
+  if (!this->reference_pref_.save(&this->reference_)) {
+    this->log_message_(LOG_SEVERITY_WARN, "could not store the %s in flash", reference_name(this->conversion_));
+    return;
+  }
+  if (!global_preferences->sync()) {
+    this->log_message_(LOG_SEVERITY_WARN, "%s stored but the flash sync failed (will be written later)",
+                       reference_name(this->conversion_));
+  }
+  this->log_message_(LOG_SEVERITY_DEBUG, "%s %.4f saved", reference_name(this->conversion_), this->reference_);
+}
+
+bool MiCS5524GasSensor::load_reference_() {
+  float stored = 0.0f;
+  if (!this->reference_pref_.load(&stored))
+    return false;
+  if (!std::isfinite(stored) || stored <= 0.0f)
+    return false;
+  this->reference_ = stored;
+  this->reference_configured_ = true;
+  return true;
 }
 
 }  // namespace esphome::mics_5524_gas_sensor
