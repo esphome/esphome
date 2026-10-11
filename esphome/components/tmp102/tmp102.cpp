@@ -31,7 +31,6 @@ static float decode_temperature(uint16_t raw, bool extended) {
 void TMP102Component::setup() {
   if (!this->configure_)
     return;
-  ESP_LOGCONFIG(TAG, "Setting up TMP102...");
   if (!this->write_configuration_())
     this->mark_failed();
 }
