@@ -1,14 +1,9 @@
-one_wire:
-  - platform: gpio
-    id: ow_max31888
-    pin: ${one_wire_pin}
-
 sensor:
   - platform: max31888
-    one_wire_id: ow_max31888
+    one_wire_id: one_wire_bus
     address: 0x1C0000031EDD2A54
     name: MAX31888 Temperature 1
   - platform: max31888
-    one_wire_id: ow_max31888
+    one_wire_id: one_wire_bus
     name: MAX31888 Temperature 2
     index: 1

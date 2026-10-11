@@ -1,5 +1,3 @@
-substitutions:
-  one_wire_pin: "10"
-
 packages:
+  one_wire: !include ../../test_build_components/common/one_wire/rp2040-ard.yaml
   max31888: !include common.yaml

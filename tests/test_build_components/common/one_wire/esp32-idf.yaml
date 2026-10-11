@@ -1,0 +1,10 @@
+# Common 1-Wire configuration for esp32-idf tests
+# Provides a shared 1-Wire bus that all components can use
+
+substitutions:
+  one_wire_pin: GPIO4
+
+one_wire:
+  - platform: gpio
+    id: one_wire_bus
+    pin: ${one_wire_pin}
