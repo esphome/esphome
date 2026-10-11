@@ -256,6 +256,15 @@ def final_validation(config_list):
             raise cv.Invalid(
                 "Using lambda:, pages:, auto_clear_enabled: true, or show_test_card: true in display config is not compatible with LVGL"
             )
+        if not config.get(df.CONF_UPDATE_WHEN_DISPLAY_IDLE):
+            for disp, meta in zip(config[df.CONF_DISPLAYS], metas, strict=True):
+                if meta.requires_update_when_display_idle:
+                    raise cv.Invalid(
+                        f"Display '{disp}' draws directly into the panel without a framebuffer, "
+                        "so LVGL must not render while it is refreshing. "
+                        f"Set '{df.CONF_UPDATE_WHEN_DISPLAY_IDLE}: true'.",
+                        [df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
+                    )
         if any(m.rotation != 0 for m in metas):
             raise cv.Invalid(
                 "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"

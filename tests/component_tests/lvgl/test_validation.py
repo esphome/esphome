@@ -134,6 +134,30 @@ class TestHasWriterCheck:
         final_validation(configs)
 
 
+class TestUpdateWhenDisplayIdleCheck:
+    """Test that LVGL enforces update_when_display_idle when a display requires it."""
+
+    def test_required_and_missing_raises(self) -> None:
+        """A display that requires it should be rejected when the option is off."""
+        add_metadata(ID("my_disp"), 320, 240, requires_update_when_display_idle=True)
+        configs = [_make_lvgl_config(["my_disp"])]
+        with pytest.raises(Invalid, match="update_when_display_idle: true"):
+            final_validation(configs)
+
+    def test_required_and_set_passes(self) -> None:
+        """A display that requires it should pass when the option is on."""
+        add_metadata(ID("my_disp"), 320, 240, requires_update_when_display_idle=True)
+        configs = [_make_lvgl_config(["my_disp"])]
+        configs[0]["update_when_display_idle"] = True
+        final_validation(configs)
+
+    def test_not_required_passes(self) -> None:
+        """A display that does not require it should pass with the option off."""
+        add_metadata(ID("my_disp"), 320, 240)
+        configs = [_make_lvgl_config(["my_disp"])]
+        final_validation(configs)
+
+
 class TestRotationCheck:
     """Test that LVGL rejects displays with non-zero rotation."""
 
