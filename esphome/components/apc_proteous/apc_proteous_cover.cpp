@@ -169,7 +169,6 @@ void APCProteousCover::update() {
 void APCProteousCover::dump_config() {
   LOG_COVER("", "APC Proteous Cover", this);
   LOG_UPDATE_INTERVAL(this);
-  this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
 CoverTraits APCProteousCover::get_traits() {
