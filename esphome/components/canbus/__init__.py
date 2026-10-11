@@ -21,6 +21,7 @@ CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
+DEFAULT_MAX_FRAMES_PER_LOOP = 50
 
 
 def validate_id(config: ConfigType) -> ConfigType:
@@ -90,7 +91,9 @@ CANBUS_SCHEMA = cv.Schema(
         cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
-        cv.Optional(CONF_MAX_FRAMES_PER_LOOP, default=50): cv.positive_not_null_int,
+        cv.Optional(
+            CONF_MAX_FRAMES_PER_LOOP, default=DEFAULT_MAX_FRAMES_PER_LOOP
+        ): cv.positive_not_null_int,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
@@ -114,7 +117,8 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
     cg.add(var.set_can_id([config[CONF_CAN_ID]]))
     cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
     cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
-    cg.add(var.set_max_frames_per_loop(config[CONF_MAX_FRAMES_PER_LOOP]))
+    if (max_frames := config[CONF_MAX_FRAMES_PER_LOOP]) != DEFAULT_MAX_FRAMES_PER_LOOP:
+        cg.add(var.set_max_frames_per_loop(max_frames))
 
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = conf[CONF_CAN_ID]
