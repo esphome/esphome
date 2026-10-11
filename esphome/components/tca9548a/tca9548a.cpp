@@ -3,7 +3,7 @@
 
 namespace esphome::tca9548a {
 
-static const char *const TAG = "tca9548a";
+ESPHOME_LOG_TAG(TAG, "tca9548a");
 
 i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                             uint8_t *read_buffer, size_t read_count) {

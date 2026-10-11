@@ -25,6 +25,7 @@ from esphome.yaml_util import (
 from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "substitutions"
 _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]
@@ -353,7 +354,7 @@ def resolve_include(
     strict_undefined: bool = True,
     errors: ErrList | None = None,
 ) -> Any:
-    """Resolve an include, substituting the filename if needed.
+    """Resolve an include, substituting the condition and filename if needed.
 
     Note: no path-traversal validation is performed on the resolved filename.
     A substitution that resolves to an absolute path will bypass the parent
@@ -362,19 +363,31 @@ def resolve_include(
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
     """
+    if isinstance(original_condition := include.condition, str):
+        condition = str(
+            _expand_substitutions(
+                original_condition,
+                path + ["condition"],
+                context_vars,
+                strict_undefined,
+                errors,
+            )
+        )
+        if condition != original_condition:
+            include = include.with_condition(condition)
+
     original = include.file
-    original_str = str(original)
     filename = str(
         _expand_substitutions(
-            original_str, path + ["file"], context_vars, strict_undefined, errors
+            original, path + ["file"], context_vars, strict_undefined, errors
         )
     )
-    substituted = filename != original_str
+    substituted = filename != original
     if substituted:
         include = include.with_file(filename)
     try:
-        return include.load()
-    except esphome.core.EsphomeError as err:
+        return include.load() if include.should_load() else {}
+    except (esphome.core.EsphomeError, cv.Invalid) as err:
         resolved = f" (expanded from '{original}')" if substituted else ""
         raise cv.Invalid(
             f"Error including file '{filename}'{resolved}: {err}"
@@ -505,7 +518,7 @@ def resolve_substitutions_block(
     """Resolve a deferred ``substitutions: !include file.yaml`` and validate the shape.
 
     The caller is responsible for wrapping the call in
-    ``cv.prepend_path(CONF_SUBSTITUTIONS)`` for error reporting.
+    ``cv.prepend_path(DOMAIN)`` for error reporting.
     ``command_line_substitutions`` seeds the filename context so
     ``substitutions: !include ${var}.yaml`` can reference CLI-provided vars.
     """
@@ -540,7 +553,7 @@ def do_substitution_pass(
     # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
-    with cv.prepend_path(CONF_SUBSTITUTIONS):
+    with cv.prepend_path(DOMAIN):
         substitutions = resolve_substitutions_block(
             substitutions, command_line_substitutions
         )

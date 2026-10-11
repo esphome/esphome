@@ -4,7 +4,7 @@
 
 namespace esphome::qmi8658 {
 
-static const char *const TAG = "qmi8658";
+ESPHOME_LOG_TAG(TAG, "qmi8658");
 
 // Acceleration scale (g per LSB), indexed by accel_range_ >> 4.
 // Full-scale = range_g, mapped over a signed 16-bit value (2^15 counts).

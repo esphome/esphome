@@ -4,3 +4,4 @@ output:
     gate_pin: ${gate_pin}
     zero_cross_pin: ${zero_cross_pin}
     zero_cross_interrupt_type: ANY
+    min_power: 0%

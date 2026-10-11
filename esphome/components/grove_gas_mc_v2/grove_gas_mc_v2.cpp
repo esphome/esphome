@@ -4,7 +4,7 @@
 
 namespace esphome::grove_gas_mc_v2 {
 
-static const char *const TAG = "grove_gas_mc_v2";
+ESPHOME_LOG_TAG(TAG, "grove_gas_mc_v2");
 
 // I2C Commands for Grove Gas Multichannel V2 Sensor
 // Taken from:

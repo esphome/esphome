@@ -3,6 +3,7 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.uart import DOMAIN as UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -16,6 +17,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@PolarGoose"]
+DOMAIN = "dsmr"
 
 MULTI_CONF = True
 
@@ -60,7 +62,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     if CONF_REQUEST_PIN in config:
         request_pin = await cg.gpio_pin_expression(config[CONF_REQUEST_PIN])
@@ -88,10 +90,10 @@ async def to_code(config):
     cg.add_library("esphome/dsmr_parser", "1.9.0")
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
-    for uart_conf in full_config["uart"]:
+    for uart_conf in full_config[UART_DOMAIN]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
             rx_buffer_size = uart_conf[CONF_RX_BUFFER_SIZE]
             if rx_buffer_size < 1500:
@@ -101,8 +103,6 @@ def final_validate(config: ConfigType) -> ConfigType:
                     rx_buffer_size,
                 )
             break
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = final_validate

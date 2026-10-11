@@ -29,7 +29,7 @@ extern "C" {
 
 namespace esphome::bk72xx_ble {
 
-static const char *const TAG = "bk72xx_ble";
+ESPHOME_LOG_TAG(TAG, "bk72xx_ble");
 
 // Pin the SDK surface this file depends on: a beken-bdk bump that moves these
 // must fail the build, not corrupt the kernel message.
@@ -62,8 +62,9 @@ BdkActivityState bdk_scan_state(uint8_t activity_idx) {
 
 uint8_t bdk_scan_acquire_activity() {
   uint8_t idx = app_ble_get_idle_actv_idx_handle(SCAN_ACTV);
-  if (idx == INVALID_ACTIVITY_IDX)
+  if (idx == INVALID_ACTIVITY_IDX) {
     ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
+  }
   return idx;
 }
 

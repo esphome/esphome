@@ -16,6 +16,7 @@ from esphome.core import EsphomeError
         ("test_bk7231t.yaml", "BK7231T.*BLE 4.2"),
         ("test_bk7252.yaml", "BK7251.*BLE 4.2"),
         ("test_bk7231q.yaml", "BK7231Q.*no BLE"),
+        ("test_bk7238.yaml", "BK7238.*bootloader"),
     ],
 )
 def test_unsupported_family_rejected(

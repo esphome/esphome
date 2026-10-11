@@ -194,8 +194,9 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     }
   }
 
-  if (cdc_devs.empty())
+  if (cdc_devs.empty()) {
     ESP_LOGE(TAG, "PL2303: failed to find bulk IN+OUT endpoints");
+  }
 
   return cdc_devs;
 }
@@ -226,7 +227,7 @@ static const Pl2303InitStep PL2303_INIT[] = {
 };
 static constexpr uint8_t PL2303_INIT_COUNT = sizeof(PL2303_INIT) / sizeof(PL2303_INIT[0]);
 
-bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   bool is_legacy = (this->chip_type_ == PL2303_TYPE_H);
   bool is_hxn = (this->chip_type_ == PL2303_TYPE_HXN);

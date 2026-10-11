@@ -18,18 +18,14 @@ class Kuntze final : public PollingComponent, public modbus::ModbusClientDevice 
   void set_ec_sensor(sensor::Sensor *ec_sensor) { ec_sensor_ = ec_sensor; }
   void set_oci_sensor(sensor::Sensor *oci_sensor) { oci_sensor_ = oci_sensor; }
 
-  void loop() override;
   void update() override;
 
-  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+  void on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                 modbus::ResponseStatus status) override;
 
   void dump_config() override;
 
  protected:
-  int state_{0};
-  bool waiting_{false};
-  uint32_t last_send_{0};
-
   sensor::Sensor *ph_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *dis1_sensor_{nullptr};

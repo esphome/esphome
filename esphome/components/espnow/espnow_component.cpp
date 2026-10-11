@@ -26,7 +26,7 @@
 
 namespace esphome::espnow {
 
-static constexpr const char *TAG = "espnow";
+ESPHOME_LOG_TAG(TAG, "espnow");
 
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -129,14 +129,17 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 
 void ESPNowComponent::dump_config() {
-  uint32_t version = 0;
-  esp_now_get_version(&version);
-
   ESP_LOGCONFIG(TAG, "espnow:");
-  if (this->is_disabled()) {
-    ESP_LOGCONFIG(TAG, "  Disabled");
+  // Only report driver details once enabled; with enable_on_boot: false the
+  // Wi-Fi driver is not initialized yet and esp_now_get_version() would crash,
+  // and after a failed enable_() the values would be meaningless.
+  if (this->state_ != ESPNOW_STATE_ENABLED) {
+    // OFF here means enable_() failed; the core logs the FAILED marker separately
+    ESP_LOGCONFIG(TAG, "  %s", this->is_disabled() ? LOG_STR_LITERAL("Disabled") : LOG_STR_LITERAL("Not enabled"));
     return;
   }
+  uint32_t version = 0;
+  esp_now_get_version(&version);
   char own_addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(this->own_address_, own_addr_buf);
   ESP_LOGCONFIG(TAG,
@@ -403,7 +406,7 @@ esp_err_t ESPNowComponent::send(const uint8_t *peer_address, const uint8_t *payl
   if (packet == nullptr) {
     this->send_packet_queue_.increment_dropped_count();
     ESP_LOGE(TAG, "Failed to allocate send packet from pool");
-    this->status_momentary_warning("send-packet-pool-full");
+    this->status_momentary_warning();
     return ESP_ERR_ESPNOW_NO_MEM;
   }
   // Load the packet data
@@ -431,7 +434,7 @@ void ESPNowComponent::send_() {
     if (packet->callback_ != nullptr) {
       packet->callback_(err);
     }
-    this->status_momentary_warning("send-failed");
+    this->status_momentary_warning();
     this->send_packet_pool_.release(packet);
     this->current_send_packet_ = nullptr;  // Reset current packet
     return;
@@ -444,7 +447,7 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
   }
 
   if (memcmp(peer, this->own_address_, ESP_NOW_ETH_ALEN) == 0) {
-    this->status_momentary_warning("peer-add-failed");
+    this->status_momentary_warning();
     return ESP_ERR_INVALID_MAC;
   }
 
@@ -459,7 +462,7 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer, peer_buf);
       ESP_LOGE(TAG, "Failed to add peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
-      this->status_momentary_warning("peer-add-failed");
+      this->status_momentary_warning();
       return err;
     }
   }
@@ -489,7 +492,7 @@ esp_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
       char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(peer, peer_buf);
       ESP_LOGE(TAG, "Failed to delete peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
-      this->status_momentary_warning("peer-del-failed");
+      this->status_momentary_warning();
       return err;
     }
   }

@@ -620,6 +620,23 @@ class LoadValidationStep(ConfigValidationStep):
             elif not isinstance(self.conf, list):
                 result[self.domain] = self.conf = [self.conf]
 
+            # Permanent expansion hook: a platform-tagged entry may expand into
+            # several (e.g. `image`'s `defaults:`/`files:`), for `platform:`-tagged dicts only.
+            if (expand := component.expand_platform_config) is not None and all(
+                isinstance(entry, dict) and CONF_PLATFORM in entry
+                for entry in self.conf
+            ):
+                with result.catch_error(path):
+                    expanded = expand(self.conf)
+                    if not isinstance(expanded, list):
+                        # A non-list return is a component bug (not a user error):
+                        # raise explicitly (survives -O/-OO) so it escapes catch_error.
+                        raise TypeError(
+                            f"{self.domain}: EXPAND_PLATFORM_CONFIG must "
+                            f"return a list, got {type(expanded).__name__}"
+                        )
+                    result[self.domain] = self.conf = expanded
+
         # Process AUTO_LOAD
         _process_auto_load(result, component, path)
 
@@ -1112,6 +1129,42 @@ class IDPassValidationStep(ConfigValidationStep):
                     if inherits:
                         matches.append(v[0])
 
+                if id.match_config:
+                    # Disambiguate among same-type candidates by comparing their own
+                    # declared config against the requested key/value pairs, e.g. an
+                    # I2C address, instead of requiring a single unambiguous candidate.
+                    criteria = ", ".join(f"{k}={v}" for k, v in id.match_config.items())
+                    filtered = [
+                        m
+                        for m in matches
+                        if isinstance(
+                            candidate_conf := result.get_config_for_path(
+                                result.get_path_for_id(m)[:-1]
+                            ),
+                            dict,
+                        )
+                        and all(
+                            candidate_conf.get(k) == v
+                            for k, v in id.match_config.items()
+                        )
+                    ]
+                    if len(filtered) == 1:
+                        id.id = filtered[0].id
+                    elif len(filtered) == 0:
+                        result.add_str_error(
+                            f"Couldn't find a '{id.type}' matching {criteria}. "
+                            "Are you missing a hub declaration, or is the address wrong?",
+                            path,
+                        )
+                    else:
+                        ids = ", ".join(f"'{m.id}'" for m in filtered)
+                        result.add_str_error(
+                            f"Multiple '{id.type}' instances match {criteria}: {ids}. "
+                            "You must assign an explicit ID to the one you want to use.",
+                            path,
+                        )
+                    continue
+
                 if len(matches) == 0:
                     result.add_str_error(
                         f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
@@ -1209,6 +1262,7 @@ class CoreFinalValidateStep(ConfigValidationStep):
         with result.catch_error([CONF_ESPHOME]):
             if CONF_ESPHOME in result:
                 core_config.validate_ids_and_references(result[CONF_ESPHOME])
+                core_config.validate_loop_interval(result[CONF_ESPHOME])
         fv.full_config.reset(token)
 
 

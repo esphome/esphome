@@ -3,24 +3,10 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
+#include "image_decoder.h"
+#include "image_format.h"
+
 namespace esphome::runtime_image {
-
-// Forward declaration
-class ImageDecoder;
-
-/**
- * @brief Image format types that can be decoded dynamically.
- */
-enum ImageFormat {
-  /** Automatically detect from data. Not implemented yet. */
-  AUTO,
-  /** JPEG format. */
-  JPEG,
-  /** PNG format. */
-  PNG,
-  /** BMP format. */
-  BMP,
-};
 
 /**
  * @brief A dynamic image that can be loaded and decoded at runtime.
@@ -76,9 +62,10 @@ class RuntimeImage : public image::Image {
    * @brief Begin decoding an image.
    *
    * @param expected_size Optional hint about the expected data size.
+   * @param format The image format to decode (defaults to AUTO, which uses the value set at construction).
    * @return true if decoder was successfully initialized.
    */
-  bool begin_decode(size_t expected_size = 0);
+  bool begin_decode(size_t expected_size = 0, ImageFormat format = AUTO);
 
   /**
    * @brief Feed data to the decoder.
@@ -99,7 +86,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Check if decoding is currently in progress.
    */
-  bool is_decoding() const { return this->decoder_ != nullptr; }
+  bool is_decoding() const { return this->decoder_ != nullptr && this->decoder_->is_active(); }
 
   /**
    * @brief Check if the decoder has finished processing all data.
@@ -117,12 +104,14 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Get the image format.
    */
+  /// Configured format; a format resolved per decode lives on the active decoder
   ImageFormat get_format() const { return this->format_; }
 
   /**
-   * @brief Release the image buffer and free memory.
+   * @brief Release the image buffer and free its memory, ending any decode session.
    *
-   * An external buffer is let go of rather than freed.
+   * An external buffer is let go of rather than freed. The decoder object is kept
+   * warm so the next decode can reuse it without churning the heap.
    */
   void release();
 
@@ -194,9 +183,11 @@ class RuntimeImage : public image::Image {
   int get_position_(int x, int y) const;
 
   /**
-   * @brief Create decoder instance for the image's format.
+   * @brief Create decoder instance for the requested format.
+   * @param format The image format to decode.
+   * @return Unique pointer to the created decoder, or nullptr on failure.
    */
-  std::unique_ptr<ImageDecoder> create_decoder_();
+  std::unique_ptr<ImageDecoder> create_decoder_(ImageFormat format);
 
   // Memory management
   uint8_t *buffer_{nullptr};
@@ -224,7 +215,6 @@ class RuntimeImage : public image::Image {
   int buffer_height_{0};
 
   // Decoding state
-  size_t total_size_{0};
   size_t decoded_bytes_{0};
 
   /** Fixed width requested on configuration, or 0 if not specified. */

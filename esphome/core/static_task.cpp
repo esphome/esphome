@@ -14,11 +14,8 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
   }
 
   if (this->stack_buffer_ != nullptr && (stack_size > this->stack_size_ || use_psram != this->use_psram_)) {
-    // Existing buffer is too small or wrong memory type; deallocate to reallocate below
-    RAMAllocator<StackType_t> allocator(this->use_psram_ ? RAMAllocator<StackType_t>::ALLOC_EXTERNAL
-                                                         : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-    allocator.deallocate(this->stack_buffer_, this->stack_size_);
-    this->stack_buffer_ = nullptr;
+    // Existing buffer is too small or wrong memory type; free it to reallocate below
+    this->stack_buffer_.reset();
   }
 
   if (this->stack_buffer_ == nullptr) {
@@ -26,13 +23,23 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
     this->use_psram_ = use_psram;
     RAMAllocator<StackType_t> allocator(use_psram ? RAMAllocator<StackType_t>::ALLOC_EXTERNAL
                                                   : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-    this->stack_buffer_ = allocator.allocate(stack_size);
+    this->stack_buffer_ = allocator.make_unique_array_for_overwrite(stack_size);
   }
   if (this->stack_buffer_ == nullptr) {
     return false;
   }
 
-  this->handle_ = xTaskCreateStatic(fn, name, this->stack_size_, param, priority, this->stack_buffer_, &this->tcb_);
+  if (this->tcb_ == nullptr) {
+    RAMAllocator<StaticTask_t> allocator(RAMAllocator<StaticTask_t>::ALLOC_INTERNAL);
+    this->tcb_ = allocator.make_unique();
+  }
+  if (this->tcb_ == nullptr) {
+    this->deallocate();
+    return false;
+  }
+
+  this->handle_ =
+      xTaskCreateStatic(fn, name, this->stack_size_, param, priority, this->stack_buffer_.get(), this->tcb_.get());
   if (this->handle_ == nullptr) {
     this->deallocate();
     return false;
@@ -40,23 +47,35 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
   return true;
 }
 
-void StaticTask::destroy() {
-  if (this->handle_ != nullptr) {
-    TaskHandle_t handle = this->handle_;
-    this->handle_ = nullptr;
-    vTaskDelete(handle);
+bool StaticTask::destroy() {
+  if (this->handle_ == nullptr) {
+    return true;
   }
+
+  // Suspending takes the task off the ready and event lists, so nothing can schedule it again. It only asks
+  // the other core to yield though, so the task may still be running on it for a moment.
+  vTaskSuspend(this->handle_);
+  if (eTaskGetState(this->handle_) != eSuspended) {
+    // The task is still running on the other core and using its stack. Deleting it now would only put it on
+    // the termination list and return, so the caller has to try again once it has been swapped out.
+    return false;
+  }
+
+  // The task cannot run again, so the delete completes right away instead of being left to the idle task.
+  TaskHandle_t handle = this->handle_;
+  this->handle_ = nullptr;
+  vTaskDelete(handle);
+  return true;
 }
 
-void StaticTask::deallocate() {
-  this->destroy();
-  if (this->stack_buffer_ != nullptr) {
-    RAMAllocator<StackType_t> allocator(this->use_psram_ ? RAMAllocator<StackType_t>::ALLOC_EXTERNAL
-                                                         : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-    allocator.deallocate(this->stack_buffer_, this->stack_size_);
-    this->stack_buffer_ = nullptr;
-    this->stack_size_ = 0;
+bool StaticTask::deallocate() {
+  if (!this->destroy()) {
+    return false;
   }
+  this->stack_buffer_.reset();
+  this->stack_size_ = 0;
+  this->tcb_.reset();
+  return true;
 }
 
 }  // namespace esphome
