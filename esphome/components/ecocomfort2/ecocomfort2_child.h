@@ -4,17 +4,12 @@
 
 namespace esphome::ecocomfort2 {
 
-// Forward declare hub
 class Ecocomfort2Hub;
 
 class Ecocomfort2Client : public Parented<Ecocomfort2Hub> {
  public:
+  /// Called after each successful C_OPER readback.
   virtual void on_status() = 0;
-  virtual void on_connect(bool connected) = 0;
-
- protected:
-  friend Ecocomfort2Hub;
-  virtual const char *describe() const = 0;
 };
 
 }  // namespace esphome::ecocomfort2
