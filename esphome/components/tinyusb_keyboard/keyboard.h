@@ -57,6 +57,7 @@ class TinyUSBKeyboard final : public Component {
   uint8_t modifiers_{0};
   bool keyboard_pending_{false};
   bool consumer_pending_{false};
+  bool wakeup_requested_{false};
 };
 
 }  // namespace esphome::tinyusb_keyboard

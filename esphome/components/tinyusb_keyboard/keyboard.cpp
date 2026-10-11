@@ -33,11 +33,19 @@ void TinyUSBKeyboard::flush_() {
     return;
   }
   if (tud_suspended()) {
-    // A key press wakes a sleeping host, like a real keyboard; the report goes out once the bus resumes
-    tud_remote_wakeup();
+    // A key press wakes a sleeping host, like a real keyboard; the report goes out once the bus resumes.
+    // Signal once per suspend: a host that did not arm remote wakeup will not answer, and one that did
+    // must not be signalled on every pass.
+    if (!this->wakeup_requested_) {
+      this->wakeup_requested_ = true;
+      if (!tud_remote_wakeup()) {
+        ESP_LOGV(TAG, "Host did not allow remote wakeup");
+      }
+    }
     this->enable_loop();
     return;
   }
+  this->wakeup_requested_ = false;
   // tud_hid_*_report() returns false while the endpoint still holds the previous report, which is
   // what happens for a press and a release in one action list. Keep retrying so the release gets out.
   if (this->keyboard_pending_) {
