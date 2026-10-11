@@ -56,11 +56,11 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
 }
 
 TEST(HelpersTest, SumBytes) {
-  static constexpr uint8_t frame[] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x10};
-  EXPECT_EQ(sum_bytes(frame, sizeof(frame)), 0xE7);  // the Daikin comfort frame checksum
-  EXPECT_EQ(sum_bytes(frame, 0), 0);
-  EXPECT_EQ(sum_bytes(frame, sizeof(frame), 0x19), 0x00);  // wraps at 8 bits
-  static_assert(sum_bytes(frame, 2) == 0xEB, "usable in constant expressions");
+  static constexpr uint8_t FRAME[] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x10};
+  EXPECT_EQ(sum_bytes(FRAME, sizeof(FRAME)), 0xE7);  // the Daikin comfort frame checksum
+  EXPECT_EQ(sum_bytes(FRAME, 0), 0);
+  EXPECT_EQ(sum_bytes(FRAME, sizeof(FRAME), 0x19), 0x00);  // wraps at 8 bits
+  static_assert(sum_bytes(FRAME, 2) == 0xEB, "usable in constant expressions");
 }
 
 TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {
