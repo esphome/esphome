@@ -40,10 +40,10 @@ class LD2410S : public Component, public uart::UARTDevice {
   void publish_presence_(bool presence);
   void publish_calibration_running_(bool running);
 
-  uint8_t rx_buffer_[RX_BUFFER_SIZE];
   uint32_t next_send_at_{0};
   uint16_t rx_len_{0};
   uint16_t expected_len_{0};
+  uint8_t rx_buffer_[RX_BUFFER_SIZE];
   uint8_t init_step_{0};
   uint8_t init_timeouts_{0};
   FrameType frame_type_{FrameType::NONE};
