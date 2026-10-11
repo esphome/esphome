@@ -3,42 +3,21 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include <cmath>
 
 namespace esphome::ina3221 {
 
-enum INA3221Mode {
-  INA3221_MODE_SINGLE_SHOT = 0b011,
-  INA3221_MODE_CONTINUOUS = 0b111,
-};
-
-enum INA3221Averaging {
-  INA3221_AVERAGING_1 = 0b000,
-  INA3221_AVERAGING_4 = 0b001,
-  INA3221_AVERAGING_16 = 0b010,
-  INA3221_AVERAGING_64 = 0b011,
-  INA3221_AVERAGING_128 = 0b100,
-  INA3221_AVERAGING_256 = 0b101,
-  INA3221_AVERAGING_512 = 0b110,
-  INA3221_AVERAGING_1024 = 0b111,
-};
-
-enum INA3221ConversionTime {
-  INA3221_CONVERSION_TIME_140US = 0b000,
-  INA3221_CONVERSION_TIME_204US = 0b001,
-  INA3221_CONVERSION_TIME_332US = 0b010,
-  INA3221_CONVERSION_TIME_588US = 0b011,
-  INA3221_CONVERSION_TIME_1100US = 0b100,
-  INA3221_CONVERSION_TIME_2116US = 0b101,
-  INA3221_CONVERSION_TIME_4156US = 0b110,
-  INA3221_CONVERSION_TIME_8244US = 0b111,
-};
-
 class INA3221Component final : public PollingComponent, public i2c::I2CDevice {
+#ifdef USE_INA3221_SUMMATION
+  SUB_SENSOR(sum_shunt_voltage)
+  SUB_SENSOR(sum_current)
+  SUB_SENSOR(sum_power)
+#endif
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
+  void on_powerdown() override;
 
   void set_bus_voltage_sensor(int channel, sensor::Sensor *obj) { this->channels_[channel].bus_voltage_sensor_ = obj; }
   void set_shunt_voltage_sensor(int channel, sensor::Sensor *obj) {
@@ -47,25 +26,14 @@ class INA3221Component final : public PollingComponent, public i2c::I2CDevice {
   void set_current_sensor(int channel, sensor::Sensor *obj) { this->channels_[channel].current_sensor_ = obj; }
   void set_power_sensor(int channel, sensor::Sensor *obj) { this->channels_[channel].power_sensor_ = obj; }
   void set_shunt_resistance(int channel, float resistance_ohm);
-  void set_power_down_on_shutdown(bool power_down) { this->power_down_on_shutdown_ = power_down; }
-
-  void set_mode(INA3221Mode mode) { this->mode_ = mode; }
-  void set_averaging(INA3221Averaging averaging) { this->averaging_ = averaging; }
-  void set_bus_conversion_time(INA3221ConversionTime ct) { this->bus_conversion_time_ = ct; }
-  void set_shunt_conversion_time(INA3221ConversionTime ct) { this->shunt_conversion_time_ = ct; }
-
-  void set_warning_current_limit(int channel, float current_a) {
-    this->channels_[channel].warning_current_limit_ = current_a;
-  }
-  void set_critical_current_limit(int channel, float current_a) {
-    this->channels_[channel].critical_current_limit_ = current_a;
-  }
-
-  void set_sum_shunt_voltage_sensor(sensor::Sensor *obj) { this->sum_shunt_voltage_sensor_ = obj; }
-  void set_sum_current_sensor(sensor::Sensor *obj) { this->sum_current_sensor_ = obj; }
-  void set_sum_power_sensor(sensor::Sensor *obj) { this->sum_power_sensor_ = obj; }
-
-  void on_shutdown() override;
+  /// Configuration register value built by code generation: channel enables, averaging, conversion times, mode
+  void set_config_register(uint16_t config) { this->config_ = config; }
+  /// Time one single-shot conversion of every enabled channel takes; zero means continuous mode
+  void set_single_shot_wait_ms(uint16_t wait_ms) { this->single_shot_wait_ms_ = wait_ms; }
+#ifdef USE_INA3221_ALERT_LIMITS
+  void set_warning_limit(int channel, uint16_t reg) { this->channels_[channel].warning_limit_ = reg; }
+  void set_critical_limit(int channel, uint16_t reg) { this->channels_[channel].critical_limit_ = reg; }
+#endif
 
  protected:
   void read_data_();
@@ -76,26 +44,17 @@ class INA3221Component final : public PollingComponent, public i2c::I2CDevice {
     sensor::Sensor *shunt_voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
     sensor::Sensor *power_sensor_{nullptr};
+#ifdef USE_INA3221_ALERT_LIMITS
+    // Alert limit register values; zero keeps the chip default, which never trips
+    uint16_t warning_limit_{0};
+    uint16_t critical_limit_{0};
+#endif
 
-    float warning_current_limit_{NAN};
-    float critical_current_limit_{NAN};
-
-    bool exists();
     bool should_measure_shunt_voltage();
     bool should_measure_bus_voltage();
   } channels_[3];
-  bool power_down_on_shutdown_{false};
-
-  INA3221Mode mode_{INA3221_MODE_CONTINUOUS};
-  INA3221Averaging averaging_{INA3221_AVERAGING_1};
-  INA3221ConversionTime bus_conversion_time_{INA3221_CONVERSION_TIME_1100US};
-  INA3221ConversionTime shunt_conversion_time_{INA3221_CONVERSION_TIME_1100US};
-
-  sensor::Sensor *sum_shunt_voltage_sensor_{nullptr};
-  sensor::Sensor *sum_current_sensor_{nullptr};
-  sensor::Sensor *sum_power_sensor_{nullptr};
-
-  bool has_summation_();
+  uint16_t config_{0};
+  uint16_t single_shot_wait_ms_{0};
 };
 
 }  // namespace esphome::ina3221
