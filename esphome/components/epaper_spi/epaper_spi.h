@@ -183,8 +183,6 @@ class EPaperBase : public Display,
   bool woke_from_deep_sleep_() const;
   void load_sleep_state_();
   void save_sleep_state_(bool panel_holds_image);
-  void hold_pins_() const;
-  void release_pins_() const;
   ESPPreferenceObject sleep_state_;
   uint32_t sleep_state_hash_{};
   bool parked_{};

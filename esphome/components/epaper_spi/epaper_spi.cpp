@@ -7,9 +7,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
-#include <driver/gpio.h>
 #include <esp_system.h>
-#include <soc/soc_caps.h>
 #endif
 #ifdef USE_ESP8266
 #include <user_interface.h>
@@ -38,7 +36,6 @@ void EPaperBase::setup() {
   }
   this->setup_pins_();
   this->spi_setup();
-  this->release_pins_();
   this->load_sleep_state_();
 }
 
@@ -76,33 +73,6 @@ void EPaperBase::save_sleep_state_(bool panel_holds_image) {
   this->sleep_state_.save(&state);
 }
 
-// Keeps the enable pins at their levels while the controller sleeps and boots, so the panel stays
-// powered. Released again in setup().
-void EPaperBase::hold_pins_() const {
-#ifdef USE_ESP32
-  bool held = false;
-  for (auto *pin : this->enable_pins_) {
-    if (pin->is_internal()) {
-      gpio_hold_en(gpio_num_t(static_cast<InternalGPIOPin *>(pin)->get_pin()));
-      held = true;
-    }
-  }
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
-  if (held)
-    gpio_deep_sleep_hold_en();
-#endif
-#endif
-}
-
-void EPaperBase::release_pins_() const {
-#ifdef USE_ESP32
-  for (auto *pin : this->enable_pins_) {
-    if (pin->is_internal())
-      gpio_hold_dis(gpio_num_t(static_cast<InternalGPIOPin *>(pin)->get_pin()));
-  }
-#endif
-}
-
 // Runs before the controller sleeps or reboots, after on_safe_shutdown(): finish an update in flight,
 // then note that the panel holds its image, so the first update after a wake is partial.
 bool EPaperBase::teardown() {
@@ -113,10 +83,8 @@ bool EPaperBase::teardown() {
   if (this->parked_)
     return true;
   this->parked_ = true;
-  if (this->sleep_state_hash_ != 0 && this->panel_holds_image_ && this->image_survives_sleep()) {
+  if (this->sleep_state_hash_ != 0 && this->panel_holds_image_ && this->image_survives_sleep())
     this->save_sleep_state_(true);
-    this->hold_pins_();
-  }
   return true;
 }
 
