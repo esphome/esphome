@@ -617,13 +617,19 @@ bool LD2412Component::handle_ack_data_() {
       GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
       for (size_t i = 0; i < TOTAL_GATES; i++) {
         group.last_read[i] = this->buffer_data_[ACK_PAYLOAD + i];
-        set_number_value(group.numbers[i], group.last_read[i]);
+        // While a write waits for this answer, the values the user set must survive it
+        number::Number *n = group.numbers[i];
+        if (!group.write_pending || n == nullptr || !n->has_state()) {
+          set_number_value(n, group.last_read[i]);
+        }
       }
       group.read = true;
       if (group.write_pending) {
-        // A write was held back until these values arrived; send it now
         group.write_pending = false;
-        this->set_gate_threshold();
+        this->set_config_mode_(true);
+        this->send_gate_thresholds_(motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS, this->buffer_data_[COMMAND],
+                                    group);
+        this->set_config_mode_(false);
       }
 #endif
       break;
