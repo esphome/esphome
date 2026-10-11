@@ -146,7 +146,6 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  // Calculate  checksum and compare with signal value.
   const uint8_t checksum = sum_bytes(remote_state, BALLU_STATE_LENGTH - 1);
 
   if (checksum != remote_state[BALLU_STATE_LENGTH - 1]) {

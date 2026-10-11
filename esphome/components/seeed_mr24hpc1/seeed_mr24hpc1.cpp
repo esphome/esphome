@@ -251,12 +251,11 @@ void MR24HPC1Component::loop() {
   }
 }
 
-// Calculate CRC check digit
 // Frames are at least 10 bytes, so the three trailing bytes can always be left out
 static uint8_t get_frame_crc_sum(const uint8_t *data, size_t len) { return sum_bytes(data, len - 3); }
 
 // Check that the check digit is correct
-static int get_frame_check_status(uint8_t *data, int len) {
+static int get_frame_check_status(const uint8_t *data, size_t len) {
   uint8_t crc_sum = get_frame_crc_sum(data, len);
   uint8_t verified = data[len - 3];
   return (verified == crc_sum) ? 1 : 0;

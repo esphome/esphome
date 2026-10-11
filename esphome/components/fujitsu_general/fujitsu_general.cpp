@@ -224,7 +224,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
 }
 
 uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
-  return 256 - sum_bytes(message + 7, FUJITSU_GENERAL_STATE_MESSAGE_LENGTH - 8);
+  return -sum_bytes(message + 7, FUJITSU_GENERAL_STATE_MESSAGE_LENGTH - 8);
 }
 
 uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }

@@ -71,7 +71,7 @@ bool PN532I2C::read_response(uint8_t command, pn532::PN532Frame &data) {
 
   // frame: status, preamble, start code (2), LEN, LCS, TFI, command response code, data, DCS, postamble
   constexpr size_t tfi_offset = 6;
-  const uint8_t checksum = static_cast<uint8_t>(-sum_bytes(data.data() + tfi_offset, len + 1U));
+  const uint8_t checksum = -sum_bytes(data.data() + tfi_offset, len + 1U);
 
   if (data[tfi_offset + len + 1] != checksum) {
     ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[tfi_offset + len + 1], checksum);

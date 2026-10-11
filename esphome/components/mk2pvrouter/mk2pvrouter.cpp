@@ -36,11 +36,7 @@ static size_t get_field(char *dest, const char *buf_start, const char *buf_end, 
 
 // Calculates the CRC (checksum) for a given group of characters.
 uint8_t Mk2PVRouter::calculate_crc_(const char *grp, size_t grp_len) {
-  const auto effective_len = grp_len - CRC_SUFFIX_LEN;
-  uint8_t crc_tmp = sum_bytes(reinterpret_cast<const uint8_t *>(grp), effective_len);
-  crc_tmp &= CRC_MASK;
-  crc_tmp += CRC_OFFSET;
-  return crc_tmp;
+  return (sum_bytes(reinterpret_cast<const uint8_t *>(grp), grp_len - CRC_SUFFIX_LEN) & CRC_MASK) + CRC_OFFSET;
 }
 
 // Verifies the CRC of a group against its trailing CRC byte.

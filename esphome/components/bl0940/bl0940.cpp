@@ -45,8 +45,8 @@ void BL0940::loop() {
 
 bool BL0940::validate_checksum_(DataPacket *data) {
   // Whole package but checksum
-  uint8_t checksum = sum_bytes((uint8_t *) data, sizeof(*data) - 1, this->read_command_);
-  checksum ^= 0xFF;
+  const uint8_t checksum =
+      sum_bytes(reinterpret_cast<const uint8_t *>(data), sizeof(*data) - 1, this->read_command_) ^ 0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "Invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }

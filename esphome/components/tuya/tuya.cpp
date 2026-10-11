@@ -138,7 +138,7 @@ bool Tuya::validate_message_() {
 
   // Byte 6+LEN: CHECKSUM - sum of all bytes (including header) modulo 256
   uint8_t rx_checksum = new_byte;
-  uint8_t calc_checksum = sum_bytes(data, 6 + length);
+  const uint8_t calc_checksum = sum_bytes(data, 6 + length);
 
   if (rx_checksum != calc_checksum) {
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);

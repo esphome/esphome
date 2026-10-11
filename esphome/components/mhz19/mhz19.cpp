@@ -31,9 +31,7 @@ static const LogString *detection_range_to_log_string(MHZ19DetectionRange range)
 }
 #endif
 
-uint8_t mhz19_checksum(const uint8_t *command) {
-  return 0xFF - sum_bytes(command + 1, MHZ19_REQUEST_LENGTH - 1) + 0x01;
-}
+uint8_t mhz19_checksum(const uint8_t *command) { return -sum_bytes(command + 1, MHZ19_REQUEST_LENGTH - 1); }
 
 void MHZ19Component::setup() {
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
