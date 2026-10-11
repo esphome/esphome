@@ -136,7 +136,7 @@ UDP_WINDOW = 4
 # Probe this long before falling back to TCP; the device waits 70 s
 UDP_PROBE_TIMEOUT = 5.0
 UDP_PROBE_INTERVAL = 0.1
-# Resend timeout bounds around srtt + 4 * rttvar; loss never grows it
+# Resend timeout bounds around srtt + 4 * rttvar; random loss never grows it
 UDP_RESEND_INITIAL = 0.5
 UDP_RESEND_MIN = 0.2
 UDP_RESEND_MAX = 2.0
@@ -604,8 +604,9 @@ class UdpChannel:
     """Byte stream over numbered UDP datagrams, standing in for the socket.
 
     The device acks every datagram on arrival and says how many it has room
-    for; each is resent after TCP's srtt + 4 * rttvar, without backoff, so loss
-    slows the transfer instead of ending it.
+    for; each is resent after TCP's srtt + 4 * rttvar, so loss slows the
+    transfer instead of ending it. It backs off only while acks come back
+    untimed, i.e. the link is slower than the timer, never on random loss.
     """
 
     def __init__(self, sock: socket.socket, token: bytes) -> None:
@@ -1173,6 +1174,16 @@ def perform_ota(
                             "No device error behind the send failure: %s", probe_err
                         )
                     raise OTANetworkError(f"sending data: {err}") from err
+                except OTANetworkError as err:
+                    if udp is None:
+                        raise
+                    # Over UDP: surface a device error code if one arrived, and
+                    # treat a failure on the last chunk like a lost final ack
+                    if udp.pending():
+                        receive_exactly(sock, 1, "data", [])
+                    if offset < upload_size:
+                        raise
+                    raise _committed_error(err) from err
 
                 # The UDP channel acks every message itself, so anything the device
                 # sends mid upload is an error code

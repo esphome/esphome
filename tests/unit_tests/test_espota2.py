@@ -1986,3 +1986,49 @@ def test_udp_channel_backs_off_when_acks_come_back_untimed() -> None:
     assert rtos[-1] == espota2.UDP_RESEND_MAX
     channel._sample_rtt(0.1)
     assert channel._rto() == pytest.approx(0.3)  # srtt 0.1 + 4 * rttvar 0.05
+
+
+@pytest.mark.usefixtures("mock_time")
+@pytest.mark.parametrize(
+    ("size", "pending", "match", "retryable"),
+    [
+        (100, False, "may have already committed", False),  # one, final chunk
+        (20000, False, "no progress", True),  # fails on an earlier chunk
+        (20000, True, "Writing OTA data", False),  # device error waiting
+    ],
+)
+def test_perform_ota_over_udp_send_failure(
+    mock_socket: Mock, size: int, pending: bool, match: str, retryable: bool
+) -> None:
+    """A UDP send failure surfaces a waiting device error, and on the last
+    chunk is not retried, like a lost final chunk ack over TCP."""
+    mock_socket.recv.side_effect = _udp_handshake()
+    udp = Mock()
+    udp.pending.return_value = pending
+    udp.recv.side_effect = [
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),
+        bytes([espota2.RESPONSE_ERROR_WRITING_FLASH]),
+    ]
+    # ota type, size and MD5 go through; the first data chunk fails
+    udp.sendall.side_effect = [None] * 3 + [espota2.OTANetworkError("no progress")]
+    with (
+        patch.object(espota2, "_start_udp", return_value=udp),
+        pytest.raises(espota2.OTAError, match=match) as exc,
+    ):
+        espota2.perform_ota(
+            mock_socket, None, io.BytesIO(bytes(size)), "test.bin", prefer_udp=True
+        )
+    assert isinstance(exc.value, espota2.OTANetworkError) is retryable
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_tcp_send_network_error_unchanged(mock_socket: Mock) -> None:
+    """Over TCP an OTANetworkError from a send stays retryable, even on the
+    last chunk."""
+    mock_socket.recv.side_effect = _no_auth_handshake(espota2.OTA_VERSION_2_0)
+    mock_socket.sendall.side_effect = [None] * 4 + [
+        espota2.OTANetworkError("sending frame")
+    ]
+    with pytest.raises(espota2.OTANetworkError, match="sending frame"):
+        espota2.perform_ota(mock_socket, None, io.BytesIO(b"x" * 100), "test.bin")
