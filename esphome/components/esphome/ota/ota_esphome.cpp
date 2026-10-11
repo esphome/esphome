@@ -44,11 +44,14 @@ const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
 }
 #endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
-static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
+static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 60000;  // milliseconds for initial handshake
 // Milliseconds for data transfer. Covers the lwIP retransmit run seen in
 // practice for a lost chunk ack (1.5 + 3 + 6 + 12 + 24 + 48 s); the CLI waits
 // longer (espota2.DATA_PHASE_TIMEOUT) so the device is free before it retries
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 105000;
+// A handshake this old gives way to a waiting connection: a client retrying over a lossy link otherwise queues
+// behind its own stalled attempt until both time out
+static constexpr uint32_t OTA_HANDSHAKE_PREEMPT = 10000;
 static constexpr uint32_t OTA_PROGRESS_INTERVAL_MS = 1000;
 static constexpr size_t OTA_SIZE_FIELD_BYTES = 4;  // sizes on the wire are 4 bytes MSB first
 
@@ -199,6 +202,9 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_NOISE = 0x08;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10;
+#ifdef ESPHOME_OTA_UDP
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_UDP = 0x20;
+#endif
 // Noise needs the extended protocol: the prologue binds the 2-byte feature ack
 static constexpr uint8_t CLIENT_NOISE_FEATURES =
     CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
@@ -208,6 +214,10 @@ static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
 // Raw deflate, window <= OTA_INFLATE_WINDOW_SIZE. Binding once offered: the
 // client must then send the image size frame and a deflate stream.
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
+#ifdef ESPHOME_OTA_UDP
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_UDP = 0x10;
+static constexpr uint8_t UDP_REQUEST_V1 = 0x01;  // espota2.UDP_REQUEST
+#endif
 
 #ifdef USE_OTA_ENCRYPTION
 inline bool ESPHomeOTAComponent::noise_offered_() const {
@@ -263,6 +273,12 @@ void ESPHomeOTAComponent::handle_handshake_() {
   uint32_t now = App.get_loop_component_start_time();
   if (now - this->client_connect_time_ > OTA_SOCKET_TIMEOUT_HANDSHAKE) {
     ESP_LOGW(TAG, "Handshake timeout");
+    this->cleanup_connection_();
+    return;
+  }
+  // Only unauthenticated handshakes reach here; the data phase blocks inside handle_data_
+  if (now - this->client_connect_time_ > OTA_HANDSHAKE_PREEMPT && this->server_->ready()) {
+    ESP_LOGD(TAG, "Newer connection waiting");
     this->cleanup_connection_();
     return;
   }
@@ -329,6 +345,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
         static_assert(HANDSHAKE_BUF_SIZE >= 2, "handshake_buf_ must hold the 2-byte extended-protocol feature ack");
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+#ifdef ESPHOME_OTA_UDP
+        this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_UDP;
+#endif
 #ifdef USE_OTA_PARTITIONS
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
 #endif
@@ -483,6 +502,10 @@ void ESPHomeOTAComponent::handle_data_() {
   char *sbuf = reinterpret_cast<char *>(buf);
   size_t image_size;
   ota::OTAType ota_type = ota::OTA_TYPE_UPDATE_APP;
+#ifdef ESPHOME_OTA_UDP
+  UdpLink udp_link;
+  this->udp_ = nullptr;  // client_connect_time_ is done with
+#endif
 
   // Set socket timeouts and blocking mode (see strategy table above)
   struct timeval tv;
@@ -497,6 +520,38 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Acknowledge auth OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_AUTH_OK);
+
+#ifdef ESPHOME_OTA_UDP
+  // The server always offers UDP on the extended protocol
+  if (this->extended_proto_() && (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_UDP) != 0) {
+    // Whether the client wants UDP (0: its link looks good), answered with our token
+    if (!this->data_readall_(buf, 1)) {
+      if (this->client_left_before_start_())
+        return;
+      this->log_read_error_(LOG_STR("UDP request"));
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    // 1 is this UDP format; other values are free for later ones, which we decline (a zero reply keeps TCP)
+    if (buf[0] == UDP_REQUEST_V1) {
+      this->udp_open_(udp_link);
+      if (udp_link.reply[0] == 0) {
+        ESP_LOGW(TAG, "UDP unavailable, using TCP");
+      }
+    }
+    if (!this->data_write_(udp_link.reply, sizeof(udp_link.reply)))
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    if (udp_link.reply[0] != 0) {
+      this->udp_ = &udp_link;
+      if (!this->udp_start_()) {
+        // Nothing started yet: just drop the session, which the client retries as a network failure
+        this->log_read_error_(LOG_STR("UDP start"));
+        this->cleanup_connection_();
+        return;
+      }
+    }
+  }
+
+#endif
 
   if (this->extended_proto_()) {
     // Read ota type, 1 byte
@@ -598,11 +653,17 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge Update end OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_UPDATE_END_OK);
 
-  // Read ACK
-  if (!this->data_readall_(buf, 1) || buf[0] != ota::OTA_RESPONSE_OK) {
-    this->log_read_error_(LOG_STR("ack"));
-    // do not go to error, this is not fatal
-  }
+#ifdef ESPHOME_OTA_UDP
+  // UDP never reports a close: wait only until the client has our responses, not for its final ack
+  if (this->udp_ != nullptr) {
+    this->udp_linger_();
+  } else
+#endif
+    // Read ACK
+    if (!this->data_readall_(buf, 1) || buf[0] != ota::OTA_RESPONSE_OK) {
+      this->log_read_error_(LOG_STR("ack"));
+      // do not go to error, this is not fatal
+    }
 
   this->cleanup_connection_();
   delay(10);
@@ -623,6 +684,9 @@ void ESPHomeOTAComponent::handle_data_() {
 
 error:
   this->data_write_byte_(static_cast<uint8_t>(error_code));
+#ifdef ESPHOME_OTA_UDP
+  this->udp_linger_();
+#endif
 
   // Abort backend before cleanup - cleanup_connection_() destroys the backend.
   // Always call abort() unconditionally: backends register external partitions before
@@ -651,7 +715,7 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
       return false;
     }
 
-    ssize_t read = this->client_->read(buf + at, len - at);
+    ssize_t read = this->transport_read_(buf + at, len - at);
     if (read == -1) {
       const int err = errno;
       if (!this->would_block_(err)) {
@@ -676,6 +740,10 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
   return true;
 }
 bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
+#ifdef ESPHOME_OTA_UDP
+  if (this->udp_ != nullptr)
+    return this->udp_send_(buf, len);
+#endif
   uint32_t start = millis();
   uint32_t at = 0;
   while (len - at > 0) {
@@ -728,7 +796,20 @@ void ESPHomeOTAComponent::log_read_error_(const LogString *what) {
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
   char peername[socket::SOCKADDR_STR_LEN];
-  this->client_->getpeername_to(peername);
+#ifdef ESPHOME_OTA_UDP
+  if (this->client_ == nullptr) {
+    // A committed UDP session has already dropped TCP
+#ifdef ESPHOME_OTA_UDP_LWIP
+    ipaddr_ntoa_r(&this->udp_->peer_ip, peername, sizeof(peername));
+#else
+    socket::format_sockaddr_to(reinterpret_cast<const struct sockaddr *>(&this->udp_->peer), this->udp_->peer_len,
+                               peername);
+#endif
+  } else
+#endif
+  {
+    this->client_->getpeername_to(peername);
+  }
   ESP_LOGD(TAG, "Starting %s from %s", LOG_STR_ARG(phase), peername);
 }
 
@@ -840,7 +921,7 @@ ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
       break;
     }
 #endif
-    read = this->client_->read(buf, requested);
+    read = this->transport_read_(buf, requested);
     if (read > 0)
       break;
     if (read == 0) {
@@ -874,6 +955,11 @@ ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
 
 void ESPHomeOTAComponent::send_chunk_acks_(DataTransfer &xfer) {
 #if USE_OTA_VERSION == 2
+#ifdef ESPHOME_OTA_UDP
+  // UDP acks every message itself
+  if (this->udp_ != nullptr)
+    return;
+#endif
   while (xfer.acknowledged + OTA_BLOCK_SIZE <= xfer.total ||
          (xfer.total == xfer.ota_size && xfer.acknowledged < xfer.ota_size)) {
     this->data_write_byte_(ota::OTA_RESPONSE_CHUNK_OK);
@@ -883,7 +969,12 @@ void ESPHomeOTAComponent::send_chunk_acks_(DataTransfer &xfer) {
 }
 
 void ESPHomeOTAComponent::cleanup_connection_() {
-  this->client_->close();
+#ifdef ESPHOME_OTA_UDP
+  this->udp_ = nullptr;  // the link itself lives on handle_data_'s stack
+#endif
+  // Already gone once a UDP session committed
+  if (this->client_ != nullptr)
+    this->client_->close();
   this->client_ = nullptr;
   this->client_connect_time_ = 0;
   this->handshake_buf_pos_ = 0;

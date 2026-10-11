@@ -70,8 +70,10 @@ class FakeEncryptedDevice(threading.Thread):
         prologue_features_override: int | None = None,
         connections: int = 1,
         drop_handshakes: int = 0,
+        udp: bool = False,
     ) -> None:
         super().__init__(daemon=True)
+        self.udp = udp  # offer UDP; the data phase then has no chunk acks
         self.connections = connections
         self.drop_handshakes = drop_handshakes  # hang up mid-handshake this many times
         self.psk = psk
@@ -116,6 +118,8 @@ class FakeEncryptedDevice(threading.Thread):
             sock.sendall(bytes([espota2.RESPONSE_ERROR_ENCRYPTION_REQUIRED]))
             return
         server_flags = espota2.SERVER_FEATURE_SUPPORTS_NOISE if self.offer_noise else 0
+        if self.udp:
+            server_flags |= espota2.SERVER_FEATURE_SUPPORTS_UDP
         sock.sendall(bytes([espota2.RESPONSE_FEATURE_FLAGS, server_flags]))
         if not (noise_negotiated and self.offer_noise):
             # A device that does not require encryption continues in
@@ -200,7 +204,7 @@ class FakeEncryptedDevice(threading.Thread):
         acked = 0
         while len(received) < size:
             received += recv_data(size - len(received))
-            if self.version >= espota2.OTA_VERSION_2_0:
+            if self.version >= espota2.OTA_VERSION_2_0 and not self.udp:
                 while acked + espota2.UPLOAD_BLOCK_SIZE <= len(received) or (
                     len(received) == size and acked < size
                 ):
@@ -598,3 +602,51 @@ def test_bare_block_refuses_a_device_that_cannot_encrypt(
     assert device.received != b"firmware"
     assert any("refusing to send the image" in r.message for r in caplog.records)
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
+
+
+class _TcpAsUdp:
+    """Stands in for a UdpChannel, carrying its byte stream over the TCP socket."""
+
+    def __init__(self, sock: socket.socket) -> None:
+        self._sock = sock
+        self.flushed = False
+        self.closed = False
+
+    def settimeout(self, timeout: float | None) -> None:
+        self._sock.settimeout(timeout)
+
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
+        self._sock.setsockopt(level, optname, value)
+
+    def sendall(self, data: bytes) -> None:
+        self._sock.sendall(data)
+
+    def recv(self, amount: int) -> bytes:
+        return self._sock.recv(amount)
+
+    def pending(self) -> bool:
+        return False
+
+    def flush(self, timeout: float) -> None:
+        self.flushed = True
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_encrypted_upload_over_udp() -> None:
+    """After the handshake, Noise frames continue on the UDP channel."""
+    pytest.importorskip("aioesphomeapi.noise")
+    firmware = bytes(range(256)) * 80
+    device = FakeEncryptedDevice(udp=True)
+    channels: list[_TcpAsUdp] = []
+
+    def start_udp(sock: Any, tcp_sock: socket.socket, lossy: bool) -> _TcpAsUdp:
+        channels.append(_TcpAsUdp(tcp_sock))
+        return channels[0]
+
+    with patch("time.sleep"), patch.object(espota2, "_start_udp", start_udp):
+        _upload(device, firmware, PSK)
+    device.join_and_check()
+    assert device.received == firmware
+    assert channels[0].flushed and channels[0].closed
