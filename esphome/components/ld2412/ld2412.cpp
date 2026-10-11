@@ -73,6 +73,7 @@ enum PeriodicDataValue : uint8_t {
 };
 
 enum AckData : uint8_t {
+  FRAME_LENGTH = 4,  // little-endian count of the bytes between the length field and the footer
   COMMAND = 6,
   COMMAND_STATUS = 7,
   ACK_PAYLOAD = 10,
@@ -601,9 +602,16 @@ bool LD2412Component::handle_ack_data_() {
     case CMD_QUERY_MOTION_GATE_SENS:
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      // buffer_pos_ counts the footer, so a frame that stops short of the full size is not a complete answer
-      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
-        return false;
+      const uint16_t frame_size =
+          ACK_PAYLOAD - 4 + encode_uint16(this->buffer_data_[FRAME_LENGTH + 1], this->buffer_data_[FRAME_LENGTH]) +
+          HEADER_FOOTER_SIZE;
+      if (frame_size != GATE_SENS_ACK_SIZE || this->buffer_pos_ > frame_size) {
+        // A truncated answer merged with the next frame, or a length this driver does not know
+        ESP_LOGW(TAG, "Dropping gate threshold answer of %u bytes", this->buffer_pos_);
+        return true;
+      }
+      if (this->buffer_pos_ < frame_size) {
+        return false;  // the footer pattern appeared inside the payload, keep reading
       }
       const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
       GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
@@ -612,6 +620,11 @@ bool LD2412Component::handle_ack_data_() {
         set_number_value(group.numbers[i], group.last_read[i]);
       }
       group.read = true;
+      if (group.write_pending) {
+        // A write was held back until these values arrived; send it now
+        group.write_pending = false;
+        this->set_gate_threshold();
+      }
 #endif
       break;
     }
@@ -808,12 +821,16 @@ void LD2412Component::set_basic_config() {
 }
 
 #ifdef USE_NUMBER
-void LD2412Component::send_gate_thresholds_(uint8_t command, uint8_t query_command, const GateThresholds &group) {
+void LD2412Component::send_gate_thresholds_(uint8_t command, uint8_t query_command, GateThresholds &group) {
   uint8_t value[TOTAL_GATES];
+  bool any_number = false;
   bool any_configured = false;
   bool any_from_module = false;
   for (uint8_t i = 0; i < TOTAL_GATES; i++) {
     number::Number *n = group.numbers[i];
+    if (n != nullptr) {
+      any_number = true;
+    }
     if (n != nullptr && n->has_state()) {
       value[i] = lowbyte(static_cast<int>(n->state));
       any_configured = true;
@@ -823,12 +840,17 @@ void LD2412Component::send_gate_thresholds_(uint8_t command, uint8_t query_comma
     }
   }
   if (!any_configured) {
+    if (any_number) {
+      ESP_LOGD(TAG, "Command %02X not sent, none of its numbers has a value yet", command);
+    }
     return;
   }
   if (any_from_module && !group.read) {
-    // Without the module's values those gates would be sent as zero, which is maximum sensitivity
-    ESP_LOGW(TAG, "Command %02X not sent, the module has not reported its gate thresholds yet", command);
-    this->send_command_(query_command, nullptr, 0);  // ask again so the next write has values to fill in
+    // Without the module's values those gates would be sent as zero, which is maximum sensitivity.
+    // Ask again and send the write once the answer arrives.
+    ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
+    group.write_pending = true;
+    this->send_command_(query_command, nullptr, 0);
     return;
   }
   this->send_command_(command, value, sizeof(value));

@@ -648,7 +648,7 @@ async def test_uart_mock_ld2412_thresholds_not_read(
 
     def line_callback(line: str) -> None:
         # The component logs the command it did not send in place of sending it
-        if "Command 03 not sent" in line and not motion_held_back.done():
+        if "Command 03 held back" in line and not motion_held_back.done():
             motion_held_back.set_result(True)
             return
         if "uart_mock" not in line or "TX " not in line:
