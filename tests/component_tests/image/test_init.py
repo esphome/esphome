@@ -1017,8 +1017,8 @@ async def test_rgb111_layout_per_frame(
     _, raw_data = mock_progmem_array.call_args.args
     data = [int(x) for x in raw_data]
 
-    rgb_size = (width * height * 3 + 7) // 8
-    frame_size = rgb_size
+    row_stride = (width * 3 + 7) // 8
+    frame_size = row_stride * height
     assert len(data) == frame_size * frame_count, (
         f"RGB111 animation buffer must be {frame_size} bytes per frame, not {len(data) // frame_count}"
     )
