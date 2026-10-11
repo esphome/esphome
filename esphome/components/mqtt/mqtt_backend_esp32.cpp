@@ -46,16 +46,13 @@ bool MQTTBackendESP32::initialize_() {
 #ifdef USE_MQTT_TLS
   mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
   mqtt_cfg_.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
-  if (this->ca_certificate_.has_value()) {
-    mqtt_cfg_.broker.verification.certificate = this->ca_certificate_.value().c_str();
-  }
+  mqtt_cfg_.broker.verification.certificate = this->ca_certificate_;
 #ifdef USE_MQTT_CERT_BUNDLE
   mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
-  if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
-    mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
-    mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
-  }
+  // Validation only accepts the client certificate together with its key
+  mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_;
+  mqtt_cfg_.credentials.authentication.key = this->cl_key_;
 #else
   mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
 #endif

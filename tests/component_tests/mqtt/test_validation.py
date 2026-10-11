@@ -4,7 +4,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.const import CONF_VERIFY_SSL
-from esphome.components.mqtt import CONF_TLS, validate_config
+from esphome.components.mqtt import CONF_TLS, _validate_tls
 from esphome.const import (
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
@@ -19,7 +19,7 @@ BASE: ConfigType = {CONF_BROKER: "broker.local", CONF_TOPIC_PREFIX: "node"}
 
 
 def _validate(**extra: object) -> ConfigType:
-    return validate_config({**BASE, **extra})
+    return _validate_tls({**BASE, **extra})
 
 
 def test_plain_defaults_to_port_1883() -> None:

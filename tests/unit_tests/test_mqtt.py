@@ -13,6 +13,7 @@ import pytest
 
 from esphome import mqtt as mqtt_module
 from esphome.components.const import CONF_VERIFY_SSL
+from esphome.components.mqtt import CONF_TLS
 from esphome.const import (
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
@@ -367,13 +368,9 @@ def test_get_esphome_device_ip_invalid_address_values_skipped(
     )
 
 
-def _tls_config(**mqtt_options: object) -> dict:
+def _mqtt_config(options: dict | None = None) -> dict:
     return {
-        CONF_MQTT: {
-            CONF_BROKER: "broker.local",
-            CONF_PORT: 8883,
-            **mqtt_options,
-        }
+        CONF_MQTT: {CONF_BROKER: "broker.local", CONF_PORT: 8883, **(options or {})}
     }
 
 
@@ -390,15 +387,17 @@ def _prepare_with_mocks(config: dict) -> tuple[MagicMock, MagicMock, MagicMock]:
 
 
 def test_prepare_without_tls_connects_in_plaintext() -> None:
-    client, create_context, _ = _prepare_with_mocks(_tls_config())
+    client, create_context, _ = _prepare_with_mocks(_mqtt_config({CONF_PORT: 1883}))
 
     create_context.assert_not_called()
     client.tls_set_context.assert_not_called()
-    client.connect.assert_called_once_with("broker.local", 8883)
+    client.connect.assert_called_once_with("broker.local", 1883)
 
 
 def test_prepare_tls_without_ca_uses_system_trust_store() -> None:
-    client, create_context, context = _prepare_with_mocks(_tls_config(tls=True))
+    client, create_context, context = _prepare_with_mocks(
+        _mqtt_config({CONF_TLS: True})
+    )
 
     create_context.assert_called_once_with(cadata=None)
     assert context.check_hostname is not False
@@ -407,9 +406,12 @@ def test_prepare_tls_without_ca_uses_system_trust_store() -> None:
 
 def test_prepare_tls_with_ca_and_skip_cn_check() -> None:
     client, create_context, context = _prepare_with_mocks(
-        _tls_config(
-            tls=True,
-            **{CONF_CERTIFICATE_AUTHORITY: "---cert---", CONF_SKIP_CERT_CN_CHECK: True},
+        _mqtt_config(
+            {
+                CONF_TLS: True,
+                CONF_CERTIFICATE_AUTHORITY: "---cert---",
+                CONF_SKIP_CERT_CN_CHECK: True,
+            }
         )
     )
 
@@ -420,7 +422,7 @@ def test_prepare_tls_with_ca_and_skip_cn_check() -> None:
 
 def test_prepare_verify_ssl_false_disables_verification() -> None:
     client, create_context, context = _prepare_with_mocks(
-        _tls_config(tls=True, **{CONF_VERIFY_SSL: False})
+        _mqtt_config({CONF_TLS: True, CONF_VERIFY_SSL: False})
     )
 
     create_context.assert_called_once_with()
@@ -431,12 +433,12 @@ def test_prepare_verify_ssl_false_disables_verification() -> None:
 
 def test_prepare_loads_client_certificate() -> None:
     _, _, context = _prepare_with_mocks(
-        _tls_config(
-            tls=True,
-            **{
+        _mqtt_config(
+            {
+                CONF_TLS: True,
                 CONF_CLIENT_CERTIFICATE: "---client cert---",
                 CONF_CLIENT_CERTIFICATE_KEY: "---client key---",
-            },
+            }
         )
     )
 

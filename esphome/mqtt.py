@@ -105,22 +105,21 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    # validate_config sets tls whenever a certificate option implies it
-    if config[CONF_MQTT].get(CONF_TLS):
-        if config[CONF_MQTT].get(CONF_VERIFY_SSL) is False:
+    mqtt_conf = config[CONF_MQTT]
+    # Validation sets tls whenever a certificate option implies it
+    if mqtt_conf.get(CONF_TLS):
+        if mqtt_conf.get(CONF_VERIFY_SSL) is False:
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
         else:
             # Without a CA the system trust store stands in for the firmware's bundle
             context = ssl.create_default_context(
-                cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
+                cadata=mqtt_conf.get(CONF_CERTIFICATE_AUTHORITY)
             )
-            if config[CONF_MQTT].get(CONF_SKIP_CERT_CN_CHECK):
+            if mqtt_conf.get(CONF_SKIP_CERT_CN_CHECK):
                 context.check_hostname = False
-        if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(
-            CONF_CLIENT_CERTIFICATE_KEY
-        ):
+        if mqtt_conf.get(CONF_CLIENT_CERTIFICATE):
             with (
                 tempfile.NamedTemporaryFile(
                     encoding="utf-8", mode="w+", delete=False
@@ -130,8 +129,8 @@ def prepare(
                 ) as key_file,
             ):
                 try:
-                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE])
+                    key_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE_KEY])
                     cert_file.close()
                     key_file.close()
                     context.load_cert_chain(cert_file.name, key_file.name)
