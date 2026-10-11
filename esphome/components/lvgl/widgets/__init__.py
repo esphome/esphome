@@ -37,6 +37,8 @@ from ..defines import (
     CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
+    CUSTOM_FLAGS,
+    FLAG_SETTER_ALIASES,
     LOGGER,
     OBJ_FLAGS,
     PARTS,
@@ -47,13 +49,11 @@ from ..defines import (
     get_part_state_selector,
     get_styles_used,
     get_widget_map,
-    join_enums,
     literal,
     next_debug_outline_color,
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
-    LvConditional,
     add_line_marks,
     lv,
     lv_add,
@@ -331,15 +331,19 @@ class Widget:
     def is_checked(self):
         return self.has_state(LV_STATE.CHECKED)
 
-    def add_flag(self, flag):
-        if "|" in flag:
-            flag = f"(lv_obj_flag_t)({flag})"
-        return lv_obj.add_flag(self.obj, literal(flag))
-
-    def clear_flag(self, flag):
-        if "|" in flag:
-            flag = f"(lv_obj_flag_t)({flag})"
-        return lv_obj.remove_flag(self.obj, literal(flag))
+    def set_flag(self, flag: str, value: bool | Expression):
+        """
+        Set or clear an object flag, given as the lower case name without the LV_OBJ_FLAG_ prefix
+        """
+        flag = FLAG_SETTER_ALIASES.get(flag, flag)
+        if flag in CUSTOM_FLAGS:
+            lv_add(
+                lvgl_static.lv_obj_set_custom_flag(
+                    self.obj, literal(f"LV_OBJ_FLAG_{flag.upper()}"), value
+                )
+            )
+        else:
+            lv_obj.call(f"set_{flag}", self.obj, value)
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
@@ -630,29 +634,14 @@ async def set_obj_properties(w: Widget, config):
         group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)
     props = parts[CONF_MAIN][CONF_DEFAULT]
-    lambs = {}
-    flag_set = set()
-    flag_clr = set()
-    for prop, value in {k: v for k, v in props.items() if k in OBJ_FLAGS}.items():
+    for flag, value in props.items():
+        if flag not in OBJ_FLAGS:
+            continue
         if isinstance(value, cv.Lambda):
-            lambs[prop] = value
-        elif value:
-            flag_set.add(prop)
-        else:
-            flag_clr.add(prop)
-    if flag_set:
-        adds = join_enums(flag_set, "LV_OBJ_FLAG_")
-        w.add_flag(adds)
-    if flag_clr:
-        clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
-        w.clear_flag(clrs)
-    for key, value in lambs.items():
-        lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
-        flag = f"LV_OBJ_FLAG_{key.upper()}"
-        with LvConditional(call_lambda(lamb)) as cond:
-            w.add_flag(flag)
-            cond.else_()
-            w.clear_flag(flag)
+            value = call_lambda(
+                await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
+            )
+        w.set_flag(flag, value)
 
     for key, value in config.get(CONF_STATE, {}).items():
         if isinstance(value, cv.Lambda):

@@ -269,6 +269,9 @@ class LvglComponent final : public PollingComponent {
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3, void *user_data = nullptr);
 
+  // Set or clear LV_OBJ_FLAG_LAYOUT_2, LV_OBJ_FLAG_WIDGET_1 or LV_OBJ_FLAG_WIDGET_2, which have no setter in LVGL 9.6
+  static void lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value);
+
   // change the state of a widget and fire an event if changed (only needed for CHECKED)
 
   static void lv_obj_set_state_value(lv_obj_t *obj, lv_state_t state, bool value) {
