@@ -11,6 +11,8 @@ enum Model {
   MODEL_RAC_PT1411HWRU_C = 1,  // Temperature range is from 16 to 30
   MODEL_RAC_PT1411HWRU_F = 2,  // Temperature range is from 16 to 30
   MODEL_RAS_2819T = 3,         // RAS-2819T protocol variant, temperature range 18 to 30
+  MODEL_SEIYA = 4,             // Seiya family (RAS-B13E2KVG-E etc.), generic frame with a swing byte
+  MODEL_RAS_B10N3KV2 = 5,      // RAS-B13 remote family, generic frame with IRremoteESP8266's TOSHIBA_AC timings
 };
 
 // Supported temperature ranges
@@ -50,7 +52,7 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
  private:
-  // RAS-2819T state tracking for swing mode optimization
+  // Last swing mode sent or received, for models whose swing is a one-shot command
   climate::ClimateSwingMode last_swing_mode_{climate::CLIMATE_SWING_OFF};
   climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};
   optional<climate::ClimateFanMode> last_fan_mode_{};
@@ -71,12 +73,23 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
     return TOSHIBA_GENERIC_TEMP_C_MAX;  // Default to GENERIC for unknown models
   }
   climate::ClimateSwingModeMask toshiba_swing_modes_() {
-    return (this->model_ == MODEL_GENERIC)
-               ? climate::ClimateSwingModeMask()
-               : climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
+    if (this->model_ == MODEL_GENERIC || this->model_ == MODEL_RAS_B10N3KV2)
+      return climate::ClimateSwingModeMask();
+    if (this->model_ == MODEL_SEIYA) {
+      // No captured code stops the swing, so OFF is not offered; the remote only selects a direction
+      return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
+                                           climate::CLIMATE_SWING_BOTH};
+    }
+    return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
   }
   void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
   bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);
+
+  // Shared by every model that uses the F2 0D frame
+  uint8_t encode_mode_fan_() const;
+  void decode_mode_fan_temperature_(const uint8_t *message);
+  uint8_t seiya_swing_code_() const;
+  void seiya_decode_swing_(uint8_t code);
 
   Model model_;
 };

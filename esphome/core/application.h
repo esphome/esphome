@@ -673,8 +673,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
   // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
   // subsequent Socket::ready() checks in this iter observe the published state
-  // without a per-call memw. Wake is independent (xTaskNotifyGive/
-  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // without a per-call memw. Wake is independent (esphome_main_task_notify/
+  // esphome_main_task_wait), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
   // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
   // instead.
   std::atomic_thread_fence(std::memory_order_acquire);

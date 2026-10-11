@@ -11,6 +11,7 @@ CONF_NEXTION_ID = "nextion_id"
 CONF_PUBLISH_STATE = "publish_state"
 CONF_SEND_TO_NEXTION = "send_to_nextion"
 
+DOMAIN = "nextion"
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "nextion_upload_esp32.cpp": {
