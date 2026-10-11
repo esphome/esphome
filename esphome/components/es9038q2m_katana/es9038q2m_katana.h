@@ -47,6 +47,7 @@ class ES9038Q2MKatana : public audio_dac::AudioDac, public Component, public i2c
  protected:
   bool set_mute_state_(bool mute_state);
   bool write_volume_();
+  bool check_write_(bool ok);
 
   FilterShape filter_shape_{FILTER_SHAPE_APODIZING};
   DeemphasisMode deemphasis_mode_{DEEMPHASIS_BYPASS};

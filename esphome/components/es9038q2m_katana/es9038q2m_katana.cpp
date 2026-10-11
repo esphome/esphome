@@ -62,13 +62,17 @@ const LogString *deemphasis_to_str(DeemphasisMode mode) {
 
 void ES9038Q2MKatana::setup() {
   uint8_t chip_id = 0;
-  if (!this->read_byte(KATANA_REG_CHIP_ID, &chip_id) || !this->write_byte(KATANA_REG_RESET, 0x01)) {
+  if (!this->read_byte(KATANA_REG_CHIP_ID, &chip_id)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != KATANA_CHIP_ID) {
     ESP_LOGE(TAG, "Unexpected chip ID 0x%02X", chip_id);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unexpected chip ID"));
+    return;
+  }
+  if (!this->write_byte(KATANA_REG_RESET, 0x01)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(RESET_SETTLE_DELAY_MS);
@@ -94,10 +98,8 @@ void ES9038Q2MKatana::dump_config() {
                 LOG_STR_ARG(filter_shape_to_str(this->filter_shape_)),
                 LOG_STR_ARG(deemphasis_to_str(this->deemphasis_mode_)), this->format_, ONOFF(this->dop_enabled_));
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   for (uint8_t reg = KATANA_REG_CHIP_ID; reg <= KATANA_REG_MUTE_STREAM; reg++) {
     uint8_t value = 0;
@@ -116,18 +118,34 @@ bool ES9038Q2MKatana::write_volume_() {
          this->write_byte(KATANA_REG_VOLUME_2, this->volume_reg_);
 }
 
+// Records the outcome of a runtime write; the cached state only changes on success.
+bool ES9038Q2MKatana::check_write_(bool ok) {
+  if (ok) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  }
+  return ok;
+}
+
 bool ES9038Q2MKatana::set_volume(float volume) {
   if (this->is_failed())
     return false;
+  const uint8_t previous = this->volume_reg_;
   this->volume_reg_ = remap<uint8_t, float>(clamp(volume, 0.0f, 1.0f), 0.0f, 1.0f, 255, 0);
-  return this->write_volume_();
+  if (this->check_write_(this->write_volume_()))
+    return true;
+  this->volume_reg_ = previous;
+  return false;
 }
 
 bool ES9038Q2MKatana::set_mute_state_(bool mute_state) {
   if (this->is_failed())
     return false;
+  if (!this->check_write_(this->write_byte(KATANA_REG_MUTE, mute_state ? 1 : 0)))
+    return false;
   this->is_muted_ = mute_state;
-  return this->write_byte(KATANA_REG_MUTE, mute_state ? 1 : 0);
+  return true;
 }
 
 }  // namespace esphome::es9038q2m_katana
