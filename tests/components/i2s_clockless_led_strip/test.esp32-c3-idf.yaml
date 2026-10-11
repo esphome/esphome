@@ -1,0 +1,6 @@
+light:
+  - platform: i2s_clockless_led_strip
+    id: i2s_clockless_led_strip1
+    pin: GPIO3
+    num_leds: 100
+    channel_colors: GRB
