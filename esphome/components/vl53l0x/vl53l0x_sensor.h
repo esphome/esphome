@@ -59,6 +59,7 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
 
   bool perform_single_ref_calibration_(uint8_t vhv_init_byte, uint32_t timeout_ms = 1000);
   bool init_sensor_(uint8_t final_address, bool recovery = false);
+  bool has_default_address_conflict_() const;
 
   float signal_rate_limit_;
   bool long_range_;

@@ -23,6 +23,15 @@ bool VL53L0XSensor::enable_pin_setup_complete = false;   // NOLINT(cppcoreguidel
 
 VL53L0XSensor::VL53L0XSensor() { VL53L0XSensor::vl53_sensors.push_back(this); }
 
+bool VL53L0XSensor::has_default_address_conflict_() const {
+  for (const auto *sensor : vl53_sensors) {
+    if (sensor != this && sensor->configured_address_ == DEFAULT_I2C_ADDRESS) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void VL53L0XSensor::dump_config() {
   LOG_SENSOR("", "VL53L0X", this);
   LOG_UPDATE_INTERVAL(this);
@@ -421,6 +430,16 @@ void VL53L0XSensor::loop() {
     // enough, every following measurement keeps timing out. Recover with the
     // sensor's soft reset (register 0xBF, the software equivalent of the
     // XSHUT pin) plus a full re-init: no ESP reboot, no power cycle.
+    // A reset returns this device to 0x29. If another sensor is configured
+    // at 0x29, resetting this sensor would make both devices answer to the
+    // same address and corrupt the healthy sensor. Wait for the I2C-level
+    // recovery instead of attempting a destructive soft reset.
+    if (this->configured_address_ != DEFAULT_I2C_ADDRESS && this->has_default_address_conflict_()) {
+      ESP_LOGE(TAG, "'%s' - skipping soft reset: another VL53L0X uses default I2C address 0x%02X", this->name_.c_str(),
+               DEFAULT_I2C_ADDRESS);
+      this->set_timeout("vl53_backoff_retry", backoff_ms, [this]() { this->update(); });
+      return;
+    }
     if (this->recovery_attempts_ >= MAX_RECOVERY_ATTEMPTS) {
       ESP_LOGE(TAG, "'%s' - sensor did not recover after %d soft resets, marking as failed", this->name_.c_str(),
                this->recovery_attempts_);
