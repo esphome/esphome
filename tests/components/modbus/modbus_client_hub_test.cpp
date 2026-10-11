@@ -2524,7 +2524,7 @@ template<typename... Ts> struct AddressRecorder {
 }  // namespace
 
 // One action, overlapping sends with a moving address: each handler reports its own request's address, not the
-// action's latest stamp, also when another queued request is dropped between its send and its outcome.
+// action's latest stamp. The requests dropped in between cover on_not_sent from the hub.
 TEST(ModbusClientHubRequestAddress, ActionHandlersReportTheirOwnRequestsAddress) {
   NullUART uart;
   NoResponseProbeHub hub;
