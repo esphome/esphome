@@ -7,8 +7,6 @@ from esphome.types import ConfigType
 
 from . import CONF_TMP102_ID, TMP102Component, validate_unique_child
 
-DEPENDENCIES = ["sensor"]
-
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
     {
         cv.GenerateID(CONF_TMP102_ID): cv.use_id(TMP102Component),

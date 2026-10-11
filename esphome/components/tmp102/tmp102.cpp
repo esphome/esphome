@@ -12,6 +12,8 @@ static constexpr uint8_t TMP102_REGISTER_TEMPERATURE = 0x00;
 static constexpr float TMP102_CONVERSION_FACTOR = 0.0625f;
 #if defined(USE_TMP102_CONFIGURE) || defined(USE_TMP102_BINARY_SENSOR)
 static constexpr uint8_t TMP102_REGISTER_CONFIGURATION = 0x01;
+static constexpr uint16_t TMP102_ALERT_BIT = 0x0020;
+static constexpr uint16_t TMP102_ALERT_POLARITY_BIT = 0x0400;
 #endif
 #ifdef USE_TMP102_CONFIGURE
 static constexpr uint8_t TMP102_REGISTER_LOW_LIMIT = 0x02;
@@ -22,7 +24,6 @@ static constexpr uint16_t TMP102_RESET_CONFIGURATION = 0x60A0;
 static constexpr uint16_t TMP102_ONE_SHOT_BIT = 0x8000;
 static constexpr uint16_t TMP102_SHUTDOWN_BIT = 0x0100;
 static constexpr uint16_t TMP102_THERMOSTAT_MODE_BIT = 0x0200;
-static constexpr uint16_t TMP102_ALERT_POLARITY_BIT = 0x0400;
 static constexpr uint16_t TMP102_EXTENDED_MODE_BIT = 0x0010;
 static constexpr uint32_t TMP102_ONESHOT_DELAY_MS = 40;
 
@@ -88,19 +89,13 @@ void TMP102Component::update() {
   }
 #endif
   if (this->write(&TMP102_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
-    this->status_set_warning();
-#ifdef USE_TMP102_BINARY_SENSOR
-    this->invalidate_alert_();
-#endif
+    this->set_warning_and_invalidate_alert_();
     return;
   }
   this->set_timeout(READ_TEMP_TIMEOUT_ID, 50, [this]() {
     int16_t raw_temperature;
     if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
-      this->status_set_warning();
-#ifdef USE_TMP102_BINARY_SENSOR
-      this->invalidate_alert_();
-#endif
+      this->set_warning_and_invalidate_alert_();
       return;
     }
     raw_temperature = i2c::i2ctohs(raw_temperature);
@@ -123,10 +118,7 @@ void TMP102Component::update_configured_() {
     return;
   if (this->config_ & TMP102_SHUTDOWN_BIT) {
     if (!this->write_register_(TMP102_REGISTER_CONFIGURATION, this->config_ | TMP102_ONE_SHOT_BIT)) {
-      this->status_set_warning();
-#ifdef USE_TMP102_BINARY_SENSOR
-      this->invalidate_alert_();
-#endif
+      this->set_warning_and_invalidate_alert_();
       return;
     }
     this->set_timeout(READ_TEMP_TIMEOUT_ID, TMP102_ONESHOT_DELAY_MS, [this]() { this->read_temperature_(); });
@@ -152,10 +144,7 @@ bool TMP102Component::write_configuration_() {
 bool TMP102Component::check_configuration_() {
   uint16_t config;
   if (!this->read_byte_16(TMP102_REGISTER_CONFIGURATION, &config)) {
-    this->status_set_warning();
-#ifdef USE_TMP102_BINARY_SENSOR
-    this->invalidate_alert_();
-#endif
+    this->set_warning_and_invalidate_alert_();
     return false;
   }
   bool matches = (config & TMP102_CONFIGURATION_MASK) == (this->config_ & TMP102_CONFIGURATION_MASK);
@@ -165,10 +154,7 @@ bool TMP102Component::check_configuration_() {
     uint16_t high, low;
     if (!this->read_byte_16(TMP102_REGISTER_HIGH_LIMIT, &high) ||
         !this->read_byte_16(TMP102_REGISTER_LOW_LIMIT, &low)) {
-      this->status_set_warning();
-#ifdef USE_TMP102_BINARY_SENSOR
-      this->invalidate_alert_();
-#endif
+      this->set_warning_and_invalidate_alert_();
       return false;
     }
     matches = high == this->high_limit_ && low == this->low_limit_;
@@ -177,10 +163,7 @@ bool TMP102Component::check_configuration_() {
     return true;
 
   ESP_LOGW(TAG, "Configuration changed; restoring configured settings and thresholds");
-  this->status_set_warning();
-#ifdef USE_TMP102_BINARY_SENSOR
-  this->invalidate_alert_();
-#endif
+  this->set_warning_and_invalidate_alert_();
   if (!this->write_configuration_()) {
     ESP_LOGW(TAG, "Failed to restore configuration and thresholds");
   }
@@ -190,10 +173,7 @@ bool TMP102Component::check_configuration_() {
 void TMP102Component::read_temperature_() {
   uint16_t raw;
   if (!this->read_byte_16(TMP102_REGISTER_TEMPERATURE, &raw)) {
-    this->status_set_warning();
-#ifdef USE_TMP102_BINARY_SENSOR
-    this->invalidate_alert_();
-#endif
+    this->set_warning_and_invalidate_alert_();
     return;
   }
   const float temperature = decode_temperature(raw, raw & 0x0001);
@@ -216,12 +196,12 @@ void TMP102Component::invalidate_alert_() {
 bool TMP102Component::read_alert_state_() {
   uint16_t config;
   if (!this->read_byte_16(TMP102_REGISTER_CONFIGURATION, &config)) {
-    this->status_set_warning();
-    this->invalidate_alert_();
+    this->set_warning_and_invalidate_alert_();
     ESP_LOGW(TAG, "Failed to read alert state");
     return false;
   }
-  const bool alert = bool(config & 0x0020) == bool(config & 0x0400);
+  // AL equals POL while the comparator status is active.
+  const bool alert = bool(config & TMP102_ALERT_BIT) == bool(config & TMP102_ALERT_POLARITY_BIT);
   this->alert_binary_sensor_->publish_state(alert);
   return true;
 }

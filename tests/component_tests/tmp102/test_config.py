@@ -47,9 +47,15 @@ def test_alert_entity_is_read_only(
 
 def test_duplicate_alert_entities_are_rejected(
     component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     CORE.config_path = component_config_path("duplicate_alert.yaml")
     assert read_config({}) is None
+    captured = capsys.readouterr()
+    assert (
+        "Only one TMP102 binary_sensor may reference each temperature sensor"
+        in captured.out
+    )
 
 
 @pytest.mark.parametrize(

@@ -30,6 +30,12 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   void update() override;
 
  protected:
+  void set_warning_and_invalidate_alert_() {
+    this->status_set_warning();
+#ifdef USE_TMP102_BINARY_SENSOR
+    this->invalidate_alert_();
+#endif
+  }
 #ifdef USE_TMP102_BINARY_SENSOR
   bool read_alert_state_();
   void invalidate_alert_();
