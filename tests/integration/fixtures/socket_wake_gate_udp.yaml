@@ -1,17 +1,18 @@
 esphome:
   name: socket-wake-gate-udp
   on_boot:
-    priority: -100
-    then:
-      - lambda: |-
-          // Raise loop_interval_ to 2000ms. Without socket_loop_monitored()
-          // the loop does not wake on UDP data and the packet sits in the
-          // kernel buffer until loop_interval_ expires.
-          App.set_loop_interval(2000);
-      # Let boot transients and API handshake settle.
-      - delay: 500ms
-      - lambda: |-
-          ESP_LOGI("test", "BOOT_DONE");
+    # Runs during setup, before the first loop() has opened the sockets
+    - priority: 800
+      then:
+        - udp.write: "early"
+    - priority: -100
+      then:
+        - lambda: |-
+            // Without a loop-monitored socket a packet waits for loop_interval_ to expire.
+            App.set_loop_interval(2000);
+        - delay: 500ms
+        - lambda: |-
+            ESP_LOGI("test", "BOOT_DONE");
 
 host:
 
@@ -23,6 +24,7 @@ logger:
 udp:
   - id: test_udp
     port: UDP_LISTEN_PORT_PLACEHOLDER
+    addresses: ["127.0.0.1"]
     on_receive:
       - logger.log:
           format: "PONG"

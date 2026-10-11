@@ -1,0 +1,12 @@
+network:
+  enable_ipv6: true
+
+udp:
+  - id: my_udp_v6
+    listen_address: ff12::cafe
+    addresses:
+      - "ff12::cafe"
+    on_receive:
+      - logger.log:
+          format: "Received %zu IPv6 bytes"
+          args: [data.size()]

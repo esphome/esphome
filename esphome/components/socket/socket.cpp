@@ -1,6 +1,5 @@
 #include "socket.h"
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
-#include <array>
 #include <cerrno>
 #include <cstring>
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
@@ -220,14 +219,14 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
 #else
   // The netif list must be read under the core lock, but the callback calls setsockopt(),
   // which takes that lock itself, so collect the indices first and call back after unlocking.
+  // Devices have a handful of interfaces at most; any beyond the first MAX_IFS are ignored.
   static constexpr size_t MAX_IFS = 8;
-  std::array<uint8_t, MAX_IFS> indices;
-  size_t count = 0;
+  StaticVector<uint8_t, MAX_IFS> indices;
   {
     LwIPLock lock;
     struct netif *netif;
     NETIF_FOREACH(netif) {
-      if (count == MAX_IFS) {
+      if (indices.size() == MAX_IFS) {
         break;
       }
       if (netif->name[0] == 'l' && netif->name[1] == 'o') {
@@ -236,18 +235,18 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
       if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
         continue;
       }
-      indices[count++] = netif_get_index(netif);
+      indices.push_back(netif_get_index(netif));
     }
   }
-  for (size_t i = 0; i < count; i++) {
-    if (callback(indices[i])) {
+  for (uint8_t index : indices) {
+    if (callback(index)) {
       break;
     }
   }
-  if (count == 0) {
+  if (indices.empty()) {
     errno = EADDRNOTAVAIL;
   }
-  return count != 0;
+  return !indices.empty();
 #endif
 }
 

@@ -1,9 +1,11 @@
+from ipaddress import IPv4Address, IPv6Address
 from typing import Any
 
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
 from esphome.components.const import CONF_ON_RECEIVE
+from esphome.components.network import DOMAIN as NETWORK_DOMAIN
 from esphome.components.packet_transport import (
     CONF_BINARY_SENSORS,
     CONF_ENCRYPTION,
@@ -70,46 +72,44 @@ RELOCATED = {
 }
 
 
-def _ipv6_multicast_address(value):
+def _ipv6_multicast_address(value: Any) -> IPv6Address:
     addr = cv.ipv6address(value)
     if not addr.is_multicast:
         raise cv.Invalid(f"{value} is not an IPv6 multicast address")
     return addr
 
 
-def _listen_address(value):
-    """Accept IPv4 multicast/broadcast or IPv6 multicast address."""
+def _listen_address(value: Any) -> IPv4Address | IPv6Address:
+    """Accept an IPv4 multicast/broadcast or an IPv6 multicast address, with a family-specific error."""
     if ":" in str(value):
         return _ipv6_multicast_address(value)
     return cv.ipv4address_multi_broadcast(value)
 
 
-def _final_validate(config):
-    if fv.full_config.get().get("network", {}).get(CONF_ENABLE_IPV6, False):
+def _final_validate(config: ConfigType) -> None:
+    if fv.full_config.get().get(NETWORK_DOMAIN, {}).get(CONF_ENABLE_IPV6, False):
         return
-    for addr in config.get(CONF_ADDRESSES, []):
-        if ":" in str(addr):
-            raise cv.Invalid(
-                f"IPv6 address '{addr}' requires 'enable_ipv6: true' in the 'network' component",
-                [CONF_ADDRESSES],
-            )
-    if ":" in str(config.get(CONF_LISTEN_ADDRESS, "")):
-        raise cv.Invalid(
-            f"IPv6 listen address '{config[CONF_LISTEN_ADDRESS]}' requires 'enable_ipv6: true' in the 'network' component",
-            [CONF_LISTEN_ADDRESS],
-        )
+    for key, addresses in (
+        (CONF_ADDRESSES, config[CONF_ADDRESSES]),
+        (CONF_LISTEN_ADDRESS, [config[CONF_LISTEN_ADDRESS]]),
+    ):
+        for addr in addresses:
+            if addr.version == 6:
+                raise cv.Invalid(
+                    f"IPv6 address '{addr}' requires 'enable_ipv6: true' in the 'network' component",
+                    [key],
+                )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _consume_udp_sockets(config: ConfigType) -> ConfigType:
-    """Register socket needs for UDP component."""
+    """Reserve the listen and IPv4 send sockets, plus an IPv6 send socket when a destination needs it."""
     from esphome.components import socket
 
-    # UDP uses up to 3 sockets: 1 IPv4 send + 1 IPv6 send (when needed) + 1 listen
-    # Whether each is used depends on code generation, so register worst case
-    socket.consume_sockets(3, "udp", socket.SocketType.UDP)(config)
+    count = 2 + any(addr.version == 6 for addr in config[CONF_ADDRESSES])
+    socket.consume_sockets(count, "udp", socket.SocketType.UDP)(config)
     return config
 
 
@@ -130,7 +130,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LISTEN_ADDRESS, default="255.255.255.255"
             ): _listen_address,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-                cv.Any(cv.ipv4address, cv.ipv6address),
+                cv.ipaddress
             ),
             cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
                 {

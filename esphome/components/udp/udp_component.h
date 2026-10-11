@@ -4,7 +4,6 @@
 #ifdef USE_NETWORK
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
 #endif
@@ -33,7 +32,8 @@ class UDPComponent final : public Component {
  public:
   /// nullptr-terminated table of addresses; must outlive the component.
   void set_addresses(const char *const *addresses) { this->addresses_ = addresses; }
-  void set_listen_address(const char *listen_addr) { this->listen_address_ = network::IPAddress(listen_addr); }
+  /// Multicast group to join; a string literal that must outlive the component.
+  void set_listen_address(const char *listen_addr) { this->listen_address_ = listen_addr; }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast() { this->should_broadcast_ = true; }
@@ -46,9 +46,9 @@ class UDPComponent final : public Component {
   void send_packet(const std::vector<uint8_t> &buf) { this->send_packet(buf.data(), buf.size()); }
 
  protected:
-  /// Returns false when a temporary error means it should be retried later.
+  /// Opens the sockets; false means setup failed or will be retried later.
   bool open_sockets_();
-  /// If errno is a temporary error, closes any open sockets, schedules a retry with back-off and returns true.
+  /// If errno is a temporary error, closes the sockets and arms a retry with back-off; true when it did.
   bool retry_if_transient_(const LogString *what);
 
   uint16_t listen_port_{};
@@ -56,14 +56,19 @@ class UDPComponent final : public Component {
   bool should_broadcast_{};
   bool should_listen_{};
   bool net_started_{false};
-  bool retry_pending_{false};
-  bool invalid_address_{false};
   uint32_t retry_delay_ms_{0};
+  uint32_t next_retry_ms_{0};
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   struct SockaddrEntry {
-    sockaddr_storage addr{};
+    union {
+      sockaddr sa;
+      sockaddr_in in4;
+#if USE_NETWORK_IPV6
+      sockaddr_in6 in6;
+#endif
+    } addr{};
     socklen_t len{0};
   };
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
@@ -76,8 +81,7 @@ class UDPComponent final : public Component {
   WiFiUDP udp_client_{};
 #endif
   const char *const *addresses_{nullptr};
-
-  optional<network::IPAddress> listen_address_{};
+  const char *listen_address_{nullptr};
 };
 
 }  // namespace esphome::udp
