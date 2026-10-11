@@ -233,7 +233,8 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   }
   uart_irq_tx_enable(this->uart_dev_);
 #ifdef USE_UART_DEBUGGER
-  for (size_t i = 0; i < len; i++) {
+  // Only report the bytes that were queued, not the dropped ones
+  for (size_t i = 0; i < recv_len; i++) {
     this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
   }
 #endif
