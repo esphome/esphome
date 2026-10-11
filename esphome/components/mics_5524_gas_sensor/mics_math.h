@@ -3,7 +3,7 @@
 // Pure math of the MiCS-5524 vendor model; per-gas constants live in `coefficients.py`.
 //
 // x = VCC - V_ao, ratio = x / x_air (the value sampled during the clean-air
-// calibration), ppm = (threshold - ratio) / gain, per gas clamped to its range.
+// calibration), ppm = (threshold - ratio) / gain, per gas clamped to the vendor range.
 //
 // Free of ESPHome / ESP-IDF dependencies so the same code can be tested on the host.
 //
@@ -62,22 +62,6 @@ inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
   if (ppm > static_cast<double>(curve.max_ppm))
     return curve.max_ppm;
   return static_cast<float>(ppm);
-}
-
-/// Clamp a PPM reading to the configured range (NaN stays NaN).
-///
-/// 0 ppm is the vendor's way of saying "no gas detected" and is never lifted to
-/// `min_ppm`; only a reading that the vendor counts as detected can be.
-inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
-  if (!std::isfinite(ppm))
-    return NAN;
-  if (ppm <= 0.0f)
-    return 0.0f;
-  if (ppm < min_ppm)
-    return min_ppm;
-  if (ppm > max_ppm)
-    return max_ppm;
-  return ppm;
 }
 
 }  // namespace esphome::mics_5524_gas_sensor::micsmath

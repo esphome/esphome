@@ -21,18 +21,18 @@ DOMAIN = "mics_5524_gas_sensor"
 
 mics_5524_gas_sensor_ns = cg.esphome_ns.namespace("mics_5524_gas_sensor")
 
-# C++ class: class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent
-MiCS5524GasSensor = mics_5524_gas_sensor_ns.class_(
-    "MiCS5524GasSensor", sensor.Sensor, cg.PollingComponent
+# C++ classes: ``MiCS5524Component`` reads the analog output and hands its ratio to
+# every gas sub-sensor, ``MiCS5524GasSensor`` converts it with its own vendor curve.
+MiCS5524Component = mics_5524_gas_sensor_ns.class_(
+    "MiCS5524Component", cg.PollingComponent
 )
+MiCS5524GasSensor = mics_5524_gas_sensor_ns.class_("MiCS5524GasSensor", sensor.Sensor)
 
 # Configuration keys local to this component; `warmup_time` is imported from
 # esphome.const by the platform schema.
-CONF_GAS = "gas"
 CONF_VOLTAGE_MULTIPLIER = "voltage_multiplier"
 CONF_VCC = "vcc"
 CONF_AIR_REFERENCE = "air_reference"
 CONF_SAMPLE_COUNT = "sample_count"
 CONF_SAMPLE_INTERVAL = "sample_interval"
-CONF_MIN_PPM = "min_ppm"
 CONF_MAX_PPM = "max_ppm"

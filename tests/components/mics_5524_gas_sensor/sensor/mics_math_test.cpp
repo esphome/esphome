@@ -12,15 +12,13 @@ TEST(MicsMath, SaturatedSensorReportsTheTopOfTheRange) {
   EXPECT_FLOAT_EQ(CH4.max_ppm, ppm_from_vendor_curve(0.0f, CH4));
 }
 
-TEST(MicsMath, GasFreeAirReadsZeroNotTheMinimum) {
+TEST(MicsMath, GasFreeAirReadsZero) {
   // At or above the threshold the vendor reports no gas, and so does a value below
-  // its own measuring range.  Neither may be lifted to `min_ppm` by the caller.
+  // its own measuring range.
   EXPECT_FLOAT_EQ(0.0f, ppm_from_vendor_curve(CO.threshold, CO));
   EXPECT_FLOAT_EQ(0.0f, ppm_from_vendor_curve(CO.threshold + 0.01f, CO));
   EXPECT_FLOAT_EQ(0.0f, ppm_from_vendor_curve(1.0f, CO));
   EXPECT_FLOAT_EQ(0.0f, ppm_from_vendor_curve(0.4249f, CO));  // 0.25 ppm, below the range
-  EXPECT_FLOAT_EQ(0.0f, clamp_ppm(ppm_from_vendor_curve(CO.threshold, CO), 1.0f, 1000.0f));
-  EXPECT_FLOAT_EQ(0.0f, clamp_ppm(0.0f, 5.0f, 1000.0f));
 }
 
 TEST(MicsMath, MidRangeReadingsFollowTheVendorFormula) {
@@ -35,7 +33,6 @@ TEST(MicsMath, MidRangeReadingsFollowTheVendorFormula) {
 TEST(MicsMath, UnusableInputReadsUnknown) {
   EXPECT_TRUE(std::isnan(ppm_from_vendor_curve(NAN, CO)));
   EXPECT_TRUE(std::isnan(ppm_from_vendor_curve(INFINITY, CO)));
-  EXPECT_TRUE(std::isnan(clamp_ppm(NAN, 0.0f, 1000.0f)));
   EXPECT_TRUE(std::isnan(air_value_from_voltage(NAN, 5.0f)));
   EXPECT_TRUE(std::isnan(air_value_from_voltage(4.0f, NAN)));
   EXPECT_TRUE(std::isnan(ratio_from_air_value(1.0f, NAN)));
@@ -54,11 +51,12 @@ TEST(MicsMath, AirValueIsTheVoltageBelowVcc) {
   EXPECT_FLOAT_EQ(0.0f, ratio_from_air_value(air_value_from_voltage(5.0f, 5.0f), 1.0f));
 }
 
-TEST(MicsMath, ClampLiftsOnlyDetectedReadings) {
-  EXPECT_FLOAT_EQ(1.0f, clamp_ppm(0.5f, 1.0f, 1000.0f));
-  EXPECT_FLOAT_EQ(1000.0f, clamp_ppm(2000.0f, 1.0f, 1000.0f));
-  EXPECT_FLOAT_EQ(500.0f, clamp_ppm(555.0f, 0.0f, 500.0f));
-  EXPECT_FLOAT_EQ(10.0f, clamp_ppm(5.0f, 10.0f, 500.0f));
+TEST(MicsMath, ConfiguredCeilingCapsTheReading) {
+  // `max_ppm:` narrows the vendor range: a reading above the ceiling is reported as
+  // the ceiling, never as a value the sensor is not configured for.
+  const micsmath::VendorCurve narrow{0.425f, 0.000405f, 1.0f, 500.0f};
+  EXPECT_FLOAT_EQ(500.0f, ppm_from_vendor_curve(0.2f, narrow));  // 555.56 ppm
+  EXPECT_FLOAT_EQ(0.0f, ppm_from_vendor_curve(0.5f, narrow));    // above the threshold
 }
 
 TEST(MicsMath, SaturatedSensorEndToEnd) {
@@ -68,7 +66,7 @@ TEST(MicsMath, SaturatedSensorEndToEnd) {
   const float ratio = ratio_from_air_value(x, 1.0f);
 
   EXPECT_FLOAT_EQ(0.0f, ratio);
-  EXPECT_FLOAT_EQ(1000.0f, clamp_ppm(ppm_from_vendor_curve(ratio, CO), 1.0f, 1000.0f));
+  EXPECT_FLOAT_EQ(CO.max_ppm, ppm_from_vendor_curve(ratio, CO));
 }
 
 }  // namespace esphome::mics_5524_gas_sensor::testing
