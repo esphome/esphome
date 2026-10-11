@@ -6,6 +6,9 @@ namespace esphome::ms5611 {
 
 ESPHOME_LOG_TAG(TAG, "ms5611");
 
+static constexpr uint32_t TEMPERATURE_TIMEOUT_ID = 0;
+static constexpr uint32_t PRESSURE_TIMEOUT_ID = 1;
+
 static const uint8_t MS5611_ADDRESS = 0x77;
 static const uint8_t MS5611_CMD_ADC_READ = 0x00;
 static const uint8_t MS5611_CMD_RESET = 0x1E;
@@ -44,7 +47,7 @@ void MS5611Component::update() {
     return;
   }
 
-  this->set_timeout("temperature", 10, [this]() { this->read_temperature_(); });
+  this->set_timeout(TEMPERATURE_TIMEOUT_ID, 10, [this]() { this->read_temperature_(); });
 }
 void MS5611Component::read_temperature_() {
   uint8_t bytes[3];
@@ -60,7 +63,7 @@ void MS5611Component::read_temperature_() {
     return;
   }
 
-  this->set_timeout("pressure", 10, [this, raw_temperature]() { this->read_pressure_(raw_temperature); });
+  this->set_timeout(PRESSURE_TIMEOUT_ID, 10, [this, raw_temperature]() { this->read_pressure_(raw_temperature); });
 }
 void MS5611Component::read_pressure_(uint32_t raw_temperature) {
   uint8_t bytes[3];
