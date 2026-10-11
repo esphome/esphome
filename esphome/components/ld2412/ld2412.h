@@ -129,6 +129,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
     bool write_pending{false};  // a write waits for that answer
   };
   void send_gate_thresholds_(bool motion);
+  void gate_query_timeout_(bool motion);
 #endif
 
   uint8_t light_function_ = 0;

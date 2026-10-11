@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+import math
 
 from aioesphomeapi import (
     APIClient,
@@ -576,12 +577,14 @@ async def test_uart_mock_ld2412_thresholds_not_read(
     module never answers the setup query there is nothing to fill them with, and sending the command
     anyway would write a zero to every one of those gates, which is maximum sensitivity. The command
     has to be held back instead, and only that group is queried again. The still group has no gate with
-    a value at all, so it is neither sent nor queried.
+    a value at all, so it is neither sent nor queried. When the query stays unanswered the write is
+    given up with an error and the motion numbers show NaN, since the module never received the value.
     """
     loop = asyncio.get_running_loop()
 
     motion_held_back = loop.create_future()
     write_finished = loop.create_future()
+    motion_given_up = loop.create_future()
     tx_lines: list[str] = []
     # TX lines sent between the warning and leaving configuration mode
     write_tx_lines: list[str] = []
@@ -590,6 +593,9 @@ async def test_uart_mock_ld2412_thresholds_not_read(
         # The component logs the command it did not send in place of sending it
         if "Command 03 held back" in line and not motion_held_back.done():
             motion_held_back.set_result(True)
+            return
+        if "Command 03 not sent, the module did not report" in line:
+            motion_given_up.set_result(True)
             return
         if not _is_tx(line):
             return
@@ -608,9 +614,20 @@ async def test_uart_mock_ld2412_thresholds_not_read(
     ):
         entities, _ = await client.list_entities_services()
 
-        gate_0_move = require_entity(entities, "gate_0_move_threshold", NumberInfo)
+        numbers = _threshold_numbers(entities)
+        waiter = StateWaiter()
+        await _wait_initial(client, entities, waiter.on_state)
+        motion_unknown = [
+            waiter.expect(
+                lambda s, key=numbers[name].key: (
+                    _number_state_of(key)(s) and math.isnan(s.state)
+                ),
+                label=f"{name} NaN",
+            )
+            for name in ("gate_0_move_threshold", "gate_5_move_threshold")
+        ]
 
-        client.number_command(gate_0_move.key, 77.0)
+        client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
 
         try:
             await asyncio.wait_for(
@@ -618,6 +635,15 @@ async def test_uart_mock_ld2412_thresholds_not_read(
             )
         except TimeoutError:
             pytest.fail("Timeout waiting for the write to be handled")
+
+        # The unanswered query times out after 2 s and the write is given up
+        try:
+            await asyncio.wait_for(motion_given_up, timeout=3.0)
+            await asyncio.gather(*motion_unknown)
+        except TimeoutError as err:
+            pytest.fail(
+                f"Timeout waiting for the held back write to be given up: {err}"
+            )
 
         # Neither threshold command reached the module, so no gate was reconfigured
         assert not any(MOTION_COMMAND in line for line in tx_lines), (

@@ -468,6 +468,10 @@ void set_number_value(number::Number *n, float value) {
 }
 
 static inline bool has_value(number::Number *n) { return n != nullptr && n->has_state(); }
+
+// Scheduler ids 0 (still) and 1 (motion) time out a re-query that a held-back write waits for
+static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
+static constexpr uint32_t GATE_QUERY_TIMEOUT_MS = 2000;
 #endif
 
 bool LD2412Component::handle_ack_data_() {
@@ -627,6 +631,7 @@ bool LD2412Component::handle_ack_data_() {
       group.read = true;
       if (group.write_pending) {
         group.write_pending = false;
+        this->cancel_timeout(GATE_QUERY_TIMEOUT_ID + motion);
         this->set_config_mode_(true);
         this->send_gate_thresholds_(motion);
         this->set_config_mode_(false);
@@ -857,9 +862,27 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
     ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
     group.write_pending = true;
     this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
+    this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, GATE_QUERY_TIMEOUT_MS,
+                      [this, motion]() { this->gate_query_timeout_(motion); });
     return;
   }
   this->send_command_(command, value, sizeof(value));
+}
+
+void LD2412Component::gate_query_timeout_(bool motion) {
+  GateThresholds &group = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+  if (!group.write_pending) {
+    return;
+  }
+  group.write_pending = false;
+  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its gate thresholds",
+           motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS);
+  // The numbers already show the requested values; mark them unknown since the module never got them
+  for (number::Number *n : group.numbers) {
+    if (n != nullptr) {
+      n->publish_state(NAN);
+    }
+  }
 }
 
 void LD2412Component::set_gate_threshold() {
