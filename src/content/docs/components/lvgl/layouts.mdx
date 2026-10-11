@@ -15,17 +15,18 @@ The layout configuration options are applied to any parent widget or page, influ
 The position and size calculated by the layout override the *normal* `x`, `y`, `width`, and `height` settings of the
 children.
 
-Check out [Flex layout positioning](/cookbook/lvgl#lvgl-cookbook-flex), [Grid layout positioning](/cookbook/lvgl#lvgl-cookbook-grid)
-and [Weather forecast panel](/cookbook/lvgl#lvgl-cookbook-weather) in the Cookbook for examples which demonstrate how to automate
-widget positioning, potentially reducing the size of your device's YAML configuration, and saving you from lots of
-manual calculations.
+Check out [Flex layout positioning](/cookbook/lvgl#lvgl-cookbook-flex), [Grid layout
+positioning](/cookbook/lvgl#lvgl-cookbook-grid) and [Weather forecast panel](/cookbook/lvgl#lvgl-cookbook-weather) in
+the Cookbook for examples which demonstrate how to automate widget positioning, potentially reducing the size of your
+device's YAML configuration, and saving you from lots of manual calculations.
 
-The `hidden`, `ignore_layout` and `floating` [flags](/components/lvgl/widgets#lvgl-widget-flags) can be used on widgets to ignore them in layout
-calculations.
+The `hidden`, `ignore_layout` and `floating` [flags](/components/lvgl/widgets#lvgl-widget-flags) can be used on widgets
+to ignore them in layout calculations.
 
 ### Configuration variables
 
-- **layout** (*Optional*, dict): One of `HORIZONTAL`, `VERTICAL`, a grid shorthand, or a dictionary describing the layout configuration:
+- **layout** (*Optional*, dict): One of `HORIZONTAL`, `VERTICAL`, a grid shorthand, or a dictionary describing the
+  layout configuration:
   - **type** (*Optional*, string): `FLEX`, `GRID` or `NONE`. Defaults to `NONE`.
   - Further options from below depending on the chosen type.
 
@@ -66,7 +67,8 @@ The Flex layout in LVGL is a subset implementation
 of [CSS Flexbox](https://css-tricks.com/snippets/css/a-guide-to-flexbox/).
 
 It can arrange items into rows or columns (tracks), handle wrapping, adjust spacing between items and tracks and even
-handle growing the layout to make the item(s) fill the remaining space with respect to minimum/maximum width and height.
+handle growing the layout to make the item(s) fill the remaining space with respect to minimum/maximum width and
+height.
 
 **Terms used:**
 
@@ -76,10 +78,10 @@ handle growing the layout to make the item(s) fill the remaining space with resp
 - *wrap*: if there is no more space in the track a new track is started.
 - *gap*: the space between the rows and columns or the items on a track.
 - *grow*: if set on an item it will grow to fill the remaining space on the track. The available space will be
-  distributed among items respective to their grow value (larger value means more space). It dictates what amount of the
-  available space the widget should take up. For example if all items on the track have a `grow` set to `1`, the space
-  in the track will be distributed equally to all of them. If one of the items has a value of 2, that one would take up
-  twice as much of the space as either one of the others.
+  distributed among items respective to their grow value (larger value means more space). It dictates what amount of
+  the available space the widget should take up. For example if all items on the track have a `grow` set to `1`, the
+  space in the track will be distributed equally to all of them. If one of the items has a value of 2, that one would
+  take up twice as much of the space as either one of the others.
 
 **Configuration variables:**
 
@@ -157,11 +159,11 @@ distribute the free space proportionally.
 
 - *tracks*: the rows or the columns.
 - *gap*: the space between the rows and columns or the items on a track.
-- *free unit (FR)*: a proportional distribution unit for the space available on the track. It accepts a unitless integer
-  value that serves as a proportion. It dictates what amount of the available space the widget should take up. For
-  example if all items on the track have a `FR` set to `1`, the space in the track will be distributed equally to all of
-  them. If one of the items has a value of 2, that one would take up twice as much of the space as either one of the
-  others.
+- *free unit (FR)*: a proportional distribution unit for the space available on the track. It accepts a unitless
+  integer value that serves as a proportion. It dictates what amount of the available space the widget should take up.
+  For example if all items on the track have a `FR` set to `1`, the space in the track will be distributed equally to
+  all of them. If one of the items has a value of 2, that one would take up twice as much of the space as either one of
+  the others.
 
 **Cell positioning:**
 
@@ -215,11 +217,12 @@ If there are no widgets, the missing dimension defaults to `1`.
   column size since any free space will be allocated to a column. Possible options below.
 - **pad_row** (*Optional*, int16): Set the padding between the rows, in pixels.
 - **pad_column** (*Optional*, int16): Set the padding between the columns, in pixels.
-- **multiple_widgets_per_cell** (*Optional*, bool): If true, multiple widgets can be placed in the same cell. Defaults to `false`.
-- **grid_cell_x_align** (*Optional*, string): A default value for `grid_cell_x_align` for cells. Will default to `center`
-  if a shorthand layout is used. Can be overridden on individual widgets.
-- **grid_cell_y_align** (*Optional*, string): A default value for `grid_cell_y_align` for cells. Will default to `center`
-  if a shorthand layout is used. Can be overridden on individual widgets.
+- **multiple_widgets_per_cell** (*Optional*, bool): If true, multiple widgets can be placed in the same cell. Defaults
+  to `false`.
+- **grid_cell_x_align** (*Optional*, string): A default value for `grid_cell_x_align` for cells. Will default to
+  `center` if a shorthand layout is used. Can be overridden on individual widgets.
+- **grid_cell_y_align** (*Optional*, string): A default value for `grid_cell_y_align` for cells. Will default to
+  `center` if a shorthand layout is used. Can be overridden on individual widgets.
 
 At least one of `grid_rows` and `grid_columns` must be specified. The number of rows and number of columns must
 both be greater than zero.
@@ -302,8 +305,8 @@ container while the device is running. This is useful, for example, to re-flow a
 changes.
 
 Only the layout *options* may be changed this way. The layout **type** (`FLEX`/`GRID`) and the grid structure
-(`grid_rows`/`grid_columns`) are fixed when the widget is created, because they determine which options are available to
-the child widgets and which grid cells those children occupy. Attempting to set them in an update is a configuration
+(`grid_rows`/`grid_columns`) are fixed when the widget is created, because they determine which options are available
+to the child widgets and which grid cells those children occupy. Attempting to set them in an update is a configuration
 error. The options that may be updated are:
 
 - For flex layouts: `flex_flow`, `flex_align_main`, `flex_align_cross`, `flex_align_track`
