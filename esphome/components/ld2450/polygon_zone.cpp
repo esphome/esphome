@@ -30,18 +30,19 @@ void PolygonZone::dump_config() {
 }
 
 void PolygonZone::control(const std::string &value) {
-  if (this->polygon_.parse(value.c_str(), value.size())) {
-    if (!this->pref_.save(&this->polygon_)) {
-      // On ESP8266, preference storage is small and can run out with several zones
-      ESP_LOGW(TAG, "'%s': could not save the polygon; it will be lost on reboot", this->get_name().c_str());
-    }
+  Polygon polygon;
+  if (!polygon.parse(value.c_str(), value.size())) {
+    ESP_LOGW(TAG, "'%s': invalid polygon '%s'; expected 'x,y;x,y;...' with %u to %u points", this->get_name().c_str(),
+             value.c_str(), MIN_POLYGON_POINTS, MAX_POLYGON_POINTS);
+  } else if (!this->pref_.save(&polygon)) {
+    // On ESP8266, the space for saved settings is small and can run out with several zones
+    ESP_LOGW(TAG, "'%s': could not save the polygon; keeping the previous one", this->get_name().c_str());
+  } else {
+    this->polygon_ = polygon;
     // A target seen inside the previous polygon must not keep the new one on
     this->last_inside_ms_ = 0;
     if (this->polygon_.empty())
       this->presence_->invalidate_state();
-  } else {
-    ESP_LOGW(TAG, "'%s': invalid polygon '%s'; expected 'x,y;x,y;...' with %u to %u points", this->get_name().c_str(),
-             value.c_str(), MIN_POLYGON_POINTS, MAX_POLYGON_POINTS);
   }
   // On error this publishes the previous polygon again, so the frontend shows the value in use
   this->publish_polygon_();
