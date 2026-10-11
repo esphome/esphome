@@ -1,0 +1,14 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+switch:
+  - platform: template
+    id: plain_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF

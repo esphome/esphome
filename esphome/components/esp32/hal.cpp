@@ -41,6 +41,34 @@ void arch_restart() {
   }
 }
 
+// Measured on ESP32-S3: cold power-up -> ESP_RST_POWERON; OTA and restart button -> ESP_RST_SW.
+// Values newer than ESP-IDF 5.0 are not named, so they fall through to UNKNOWN. On some ESP32-S3 SPIRAM configurations
+// esp_restart() reads as ESP_RST_WDT; debug/debug_esp32.cpp corrects that with a stored marker, but that would put a
+// flash write on every reboot into core, so the docs suggest giving `watchdog` the same value as `software` instead.
+ResetCause arch_get_reset_cause() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:
+      return ResetCause::RESET_CAUSE_POWER_ON;
+    case ESP_RST_SW:
+      return ResetCause::RESET_CAUSE_SOFTWARE;
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:
+      return ResetCause::RESET_CAUSE_WATCHDOG;
+    case ESP_RST_PANIC:
+      return ResetCause::RESET_CAUSE_PANIC;
+    case ESP_RST_BROWNOUT:
+      return ResetCause::RESET_CAUSE_BROWNOUT;
+    // No ESP-IDF target returns this (a reset-pin press reads as ESP_RST_POWERON); mapped for completeness.
+    case ESP_RST_EXT:
+      return ResetCause::RESET_CAUSE_EXTERNAL;
+    case ESP_RST_DEEPSLEEP:
+      return ResetCause::RESET_CAUSE_SLEEP_WAKE;
+    default:
+      return ResetCause::RESET_CAUSE_UNKNOWN;
+  }
+}
+
 void arch_init() {
   // Enable the task watchdog only on the loop task (from which we're currently running)
   esp_task_wdt_add(nullptr);
