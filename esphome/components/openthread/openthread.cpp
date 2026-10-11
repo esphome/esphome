@@ -326,7 +326,8 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
     }
   }
 
-  uint32_t poll_period_sec = (this->poll_period_ + 500) / 1000;
+  // Round up so the derived timeouts are never below their multiples of poll_period.
+  uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
   // Minimums match OpenThread defaults: src/core/config/mle.h OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT
   static constexpr uint32_t child_timeout_min_sec = 240;
   // Minimums match OpenThread defaults: src/core/config/child_supervision.h
