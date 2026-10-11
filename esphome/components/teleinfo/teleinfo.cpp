@@ -24,12 +24,12 @@ static int get_field(char *dest, char *buf_start, char *buf_end, int sep, int ma
 /* TeleInfo methods */
 bool TeleInfo::check_crc_(const char *grp, const char *grp_end) {
   int grp_len = grp_end - grp;
+  if (grp_len < this->checksum_area_end_) {
+    ESP_LOGE(TAG, "Empty or too short group");
+    return false;
+  }
   uint8_t raw_crc = grp[grp_len - 1];
-  uint8_t crc_tmp = 0;
-  int i;
-
-  for (i = 0; i < grp_len - checksum_area_end_; i++)
-    crc_tmp += grp[i];
+  uint8_t crc_tmp = sum_bytes(reinterpret_cast<const uint8_t *>(grp), grp_len - this->checksum_area_end_);
 
   crc_tmp &= 0x3F;
   crc_tmp += 0x20;
