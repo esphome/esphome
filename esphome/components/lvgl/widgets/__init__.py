@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 import sys
 from typing import Any
 
@@ -295,7 +295,9 @@ class Widget:
     This class has a lot of methods. Adding any more runs foul of lint checks ("too many public methods").
     """
 
-    def __init__(self, var, wtype: WidgetType, config: dict = None):
+    def __init__(
+        self, var: MockObj | ID, wtype: WidgetType, config: dict | None = None
+    ) -> None:
         self.var = var
         self.type = wtype
         self.config = config
@@ -314,24 +316,26 @@ class Widget:
         self.parent = None
 
     @staticmethod
-    def create(name, var, wtype: WidgetType, config: dict = None):
+    def create(
+        name: ID | str, var: MockObj, wtype: WidgetType, config: dict | None = None
+    ) -> "Widget":
         w = Widget(var, wtype, config)
         get_widget_map()[name] = w
         return w
 
-    def set_state(self, state: MockObj, value: bool | Expression):
+    def set_state(self, state: MockObj, value: bool | Expression) -> None:
         lv_add(lvgl_static.lv_obj_set_state_value(self.obj, state, value))
 
-    def has_state(self, state: MockObj):
+    def has_state(self, state: MockObj) -> MockObj:
         return lv_expr.obj_has_state(self.obj, state)
 
-    def is_pressed(self):
+    def is_pressed(self) -> MockObj:
         return self.has_state(LV_STATE.PRESSED)
 
-    def is_checked(self):
+    def is_checked(self) -> MockObj:
         return self.has_state(LV_STATE.CHECKED)
 
-    def set_flag(self, flag: str, value: bool | Expression):
+    def set_flag(self, flag: str, value: bool | Expression) -> None:
         """
         Set or clear an object flag, given as the lower case name without the LV_OBJ_FLAG_ prefix
         """
@@ -345,12 +349,17 @@ class Widget:
         else:
             lv_obj.call(f"set_{flag}", self.obj, value)
 
-    def add_style(self, style_id, state=LV_STATE.DEFAULT):
+    def add_style(self, style_id: ID, state: MockObj | str = LV_STATE.DEFAULT) -> None:
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(
-        self, prop, value, animated: bool = None, lv_name=None, processor=None
-    ):
+        self,
+        prop: str,
+        value: Any,
+        animated: bool | None = None,
+        lv_name: str | None = None,
+        processor: LValidator | Callable[[Any], Awaitable[Any]] | None = None,
+    ) -> None:
         """
         Set a property of the widget.
         :param prop:  The property name
@@ -391,11 +400,13 @@ class Widget:
                 literal("LV_ANIM_ON" if animated else "LV_ANIM_OFF"),
             )
 
-    def get_property(self, prop, ltype=None):
+    def get_property(self, prop: str, ltype: str | None = None) -> cg.RawExpression:
         ltype = ltype or self.__type_base()
         return cg.RawExpression(f"lv_{ltype}_get_{prop}({self.obj})")
 
-    def set_style(self, prop: str, value, state=LV_STATE.DEFAULT):
+    def set_style(
+        self, prop: str, value: Any, state: MockObj | str = LV_STATE.DEFAULT
+    ) -> None:
         if value is None:
             return
         get_styles_used().add(prop)
@@ -403,22 +414,22 @@ class Widget:
             value = literal(value)
         lv.call(f"obj_set_style_{prop}", self.obj, value, state)
 
-    def __type_base(self):
+    def __type_base(self) -> str:
         wtype = self.type.w_type
         base = str(wtype)
         if base.startswith("Lv"):
             return f"{wtype}".removeprefix("Lv").removesuffix("Type").lower()
         return f"{wtype}".removeprefix("lv_").removesuffix("_t")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.var}, {self.type})"
 
-    def get_args(self):
+    def get_args(self) -> list[tuple[MockObj, str]]:
         if isinstance(self.type.w_type, LvType):
             return self.type.w_type.args.copy()
         return [(lv_obj_t_ptr, "obj")]
 
-    def get_value(self):
+    def get_value(self) -> Expression:
         if isinstance(self.type.w_type, LvType):
             result = self.type.w_type.value(self)
             if isinstance(result, list):
@@ -426,7 +437,7 @@ class Widget:
             return result
         return self.obj
 
-    def get_values(self):
+    def get_values(self) -> list[Expression]:
         if isinstance(self.type.w_type, LvType):
             result = self.type.w_type.value(self)
             if isinstance(result, list):
@@ -434,13 +445,13 @@ class Widget:
             return [result]
         return [self.obj]
 
-    def get_number_value(self):
+    def get_number_value(self) -> Expression:
         value = self.type.mock_obj.get_value(self.obj)
         if self.scale == 1.0:
             return value
         return value / float(self.scale)
 
-    def is_selected(self):
+    def is_selected(self) -> MockObj | None:
         """
         Overridable property to determine if the widget is selected. Will be None except
         for matrix buttons
@@ -448,7 +459,7 @@ class Widget:
         """
         return
 
-    def get_scale(self):
+    def get_scale(self) -> float:
         return self.type.get_scale(self.config)
 
 
