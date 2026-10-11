@@ -18,6 +18,9 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
+  // Only USB serial adapters (usb_uart) support these
+  UART_CONFIG_PARITY_MARK,
+  UART_CONFIG_PARITY_SPACE,
 };
 
 #ifdef USE_UART_DEBUGGER
@@ -85,6 +88,10 @@ class UARTComponent {
   // Returns how many bytes write_array() accepts right now without blocking.
   // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
   virtual size_t available_for_write() { return SIZE_MAX; }
+
+  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the line time since
+  // last_write_ms, a loop start time: at most one loop interval and 4 s, at least one byte.
+  size_t paced_write_room(uint32_t last_write_ms);
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.

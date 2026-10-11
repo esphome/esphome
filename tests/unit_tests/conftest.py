@@ -18,12 +18,28 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome.core import CORE
+from esphome.espidf import toolchain
 
 here = Path(__file__).parent
 
 # Configure location of package root
 package_root = here.parent.parent
 sys.path.insert(0, package_root.as_posix())
+
+
+@pytest.fixture(autouse=True)
+def _no_idf_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any test that would install ESP-IDF for real.
+
+    An unmocked ``_get_idf_env`` reaches ``check_esp_idf_install``, which
+    downloads the framework on a bare CI runner (minutes on Windows). The
+    install path's own tests call it through ``esphome.espidf.framework``.
+    """
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("test would install ESP-IDF; mock _get_idf_env")
+
+    monkeypatch.setattr(toolchain, "check_esp_idf_install", refuse)
 
 
 @pytest.fixture(autouse=True)

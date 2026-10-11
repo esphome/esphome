@@ -5,6 +5,8 @@ namespace esphome::max6675 {
 
 ESPHOME_LOG_TAG(TAG, "max6675");
 
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
+
 void MAX6675Sensor::update() {
   this->enable();
   delay(1);
@@ -12,7 +14,7 @@ void MAX6675Sensor::update() {
   this->disable();
 
   // Conversion time typ: 170ms, max: 220ms
-  this->set_timeout("value", 250, [this]() { this->read_data_(); });
+  this->set_timeout(READ_TIMEOUT_ID, 250, [this]() { this->read_data_(); });
 }
 
 void MAX6675Sensor::setup() { this->spi_setup(); }

@@ -21,6 +21,10 @@ namespace esphome::improv_ble {
 using namespace bytebuffer;
 
 ESPHOME_LOG_TAG(TAG, "improv_ble.component");
+
+static constexpr uint32_t STOP_SERVICE_TIMEOUT_ID = 0;
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 1;
+
 static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
 static constexpr char ESPHOME_MY_LINK[] = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 // command + data length + trailing byte
@@ -322,7 +326,7 @@ void ImprovBLEComponent::stop() {
   // Wait before stopping the service to ensure all BLE clients see the state change.
   // This prevents clients from repeatedly reconnecting and wasting resources by allowing
   // them to observe that the device is provisioned before the service disappears.
-  this->set_timeout("end-service", STOP_ADVERTISING_DELAY, [this] {
+  this->set_timeout(STOP_SERVICE_TIMEOUT_ID, STOP_ADVERTISING_DELAY, [this] {
     if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
       return;
     // Release first so removing the service UUID does not restart advertising on the way out
@@ -398,7 +402,7 @@ void ImprovBLEComponent::process_incoming_data_() {
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
 
-        this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
+        this->set_timeout(WIFI_CONNECT_TIMEOUT_ID, 30000, [this]() { this->on_wifi_connect_timeout_(); });
         this->incoming_data_.clear();
         break;
       }
@@ -438,7 +442,7 @@ void ImprovBLEComponent::check_wifi_connection_() {
   if (this->state_ == improv::STATE_PROVISIONING) {
     wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
     this->connecting_sta_ = {};
-    this->cancel_timeout("wifi-connect-timeout");
+    this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
 
     // Build the URL list directly into a stack buffer with no heap allocation
     std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
