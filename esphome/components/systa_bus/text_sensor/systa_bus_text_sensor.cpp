@@ -3,7 +3,7 @@
 
 namespace esphome::systa_bus {
 
-static const char *const TAG = "systa_bus.text_sensor";
+ESPHOME_LOG_TAG(TAG, "systa_bus.text_sensor");
 
 void SystaSolarAquaTextSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "SystaSolar Aqua:");
