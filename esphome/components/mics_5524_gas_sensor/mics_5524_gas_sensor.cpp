@@ -12,9 +12,8 @@ namespace esphome::mics_5524_gas_sensor {
 
 ESPHOME_LOG_TAG(TAG, "mics_5524_gas_sensor");
 
-/// Version tag mixed into the preference key of the persisted calibration value.
-/// The conversion model is added to it, so a value stored for one model can
-/// never be used by the other one.
+/// Version tag mixed into the preference key: the conversion model is added to it, so
+/// a value stored for one model is never used by the other one.
 static constexpr uint32_t REFERENCE_PREFERENCE_VERSION = 0x00000010;
 
 /// Human readable name of the stored clean-air reference.
@@ -31,9 +30,8 @@ void MiCS5524GasSensor::publish_log_(LogSeverity level, const char *message) {
   if (this->log_sensor_ == nullptr)
     return;
   if (level == LOG_SEVERITY_DEBUG) {
-    // The per-update line: at a 1 s update interval a text state per second would
-    // flood the Home Assistant recorder, so it is mirrored at most every
-    // LOG_SENSOR_DEBUG_INTERVAL_MS (the console log keeps every line).
+    // The per-update line is mirrored at most every LOG_SENSOR_DEBUG_INTERVAL_MS; the
+    // console log keeps every line.
     const uint32_t now = App.get_loop_component_start_time();
     if (this->last_log_sensor_debug_ != 0 && now - this->last_log_sensor_debug_ < LOG_SENSOR_DEBUG_INTERVAL_MS)
       return;
@@ -74,8 +72,7 @@ void MiCS5524GasSensor::log_message_(LogSeverity level, const char *format, ...)
 void MiCS5524GasSensor::log_reading_(float ppm) {
   if (!this->log_ppm_ || !std::isfinite(ppm))
     return;
-  // Console only: the detailed chain is what reaches `log_sensor_` (rate
-  // limited there), and a text state per second would flood the recorder.
+  // Console only: the detailed chain is what reaches `log_sensor_`.
   ESP_LOGI(TAG, "'%s': %.1f ppm", this->gas_.c_str(), ppm);
 }
 
@@ -84,8 +81,7 @@ void MiCS5524GasSensor::setup() {
 
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();
-    // "enabled": the DFRobot modules are enabled by a LOW level, which the pin's
-    // own `inverted: true` configuration takes care of.
+    // The DFRobot modules are enabled by a LOW level; the pin's own `inverted: true`
     this->enable_pin_->digital_write(true);
     this->log_message_(LOG_SEVERITY_INFO, "sensor enabled via the EN pin");
   }
@@ -168,9 +164,8 @@ float MiCS5524GasSensor::sample_voltage_() {
   if (this->source_ == nullptr)
     return NAN;
 
-  // The conversions are taken back to back: the sampler averages internally as
-  // configured (`samples` / `sampling_mode`), and waiting between them would block
-  // the main loop for the whole `sample_count x sample_interval` window.
+  // Taken back to back: the sampler averages internally as configured (`samples` /
+  // `sampling_mode`), and waiting between the two would block the main loop.
   float sum = 0.0f;
   for (uint8_t i = 0; i < this->samples_; i++)
     sum += this->source_->sample();
@@ -216,7 +211,7 @@ void MiCS5524GasSensor::update() {
 
   if (this->calibrating_) {
     // The persisted reference is about to change: never keep a value that was
-    // computed with the previous one.  The message also reaches `log_sensor:`.
+    // computed with the previous one.
     this->publish_state(NAN);
     this->log_message_(LOG_SEVERITY_DEBUG,
                        "update skipped, a calibration is running - the sensor must be in clean air");
@@ -271,8 +266,7 @@ void MiCS5524GasSensor::update() {
 
   this->log_reading_(ppm);
 
-  // The vendor model has no RS, the datasheet model has no x - log the quantity
-  // the active model actually uses.
+  // Log the quantity the active model actually uses.
   if (this->is_vendor_model_()) {
     this->log_message_(LOG_SEVERITY_DEBUG, "V_AO=%.4f V, x=%.4f, ratio=%.4f (dfrobot) -> %.1f ppm",
                        this->sensor_voltage_, this->air_value_, this->ratio_, ppm);
@@ -321,8 +315,8 @@ void MiCS5524GasSensor::request_calibration() {
   const uint32_t now = App.get_loop_component_start_time();
   this->calibration_due_ = now;
   this->calibration_pending_ = true;
-  // A request (button, on_boot lambda) must never capture an unstable reading, so
-  // it is deferred until the warm-up/burn-in window of this sensor has ended.
+  // A request (button, on_boot lambda) must never capture an unstable reading, so it
+  // is deferred until the warm-up / burn-in window of this sensor has ended.
   if (this->warmup_time_ > 0 && now < this->warmup_end_) {
     this->calibration_due_ = this->warmup_end_;
     this->log_message_(LOG_SEVERITY_INFO,

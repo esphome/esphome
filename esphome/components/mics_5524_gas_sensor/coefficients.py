@@ -1,34 +1,20 @@
 """Data tables for the MiCS-5524 gas sensor platform.
 
-Two conversion models are supported because the published references use two
-different ones - they are *not* interchangeable:
+Two conversion models, which are *not* interchangeable:
 
-``dfrobot`` (default, used by the makerguides tutorial)
-    The vendor model of the `DFRobot_MICS` library (MIT), which is what the
-    DFRobot "Fermion" analog breakout and its clones are sold for::
+``dfrobot`` (default) - vendor model of the `DFRobot_MICS` library (MIT), which is
+what the "Fermion" analog breakout and its clones are sold for:
+``x = VCC - V_AO``, ``ratio = x / x_air`` (~1.0 in clean air, drops with gas),
+``ppm = (threshold - ratio) / gain`` clamped to the gas range.  ``x_air`` is
+sampled during the clean-air calibration, so the board's load resistor and its
+divider ratio do not matter.  Source: ``DFRobot_MICS.cpp`` (``getGasData()`` and
+the per-gas helpers), cross-checked against ``python/raspberrypi/DFRobot_MICS.py``.
 
-        x     = VCC - V_AO                      (VCC = module supply, 5 V)
-        ratio = x / x_air                       (~1.0 in clean air, drops with gas)
-        ppm   = (threshold - ratio) / gain      clamped to the gas range
-
-    ``x_air`` is sampled during the clean-air calibration, so the model needs
-    neither the board's load resistor nor its divider ratio - handy for the
-    common unlabeled breakout.  Source: ``DFRobot_MICS.cpp``, ``getGasData()``
-    and the per-gas ``getXXX()`` helpers (threshold/gain pairs), cross-checked
-    against the Python port ``python/raspberrypi/DFRobot_MICS.py``.
-
-``datasheet``
-    The log-log fit of the datasheet curve::
-
-        RS    = (VCC * RL) / V_AO - RL
-        ratio = RS / R0                         (R0 = RS in clean air)
-        ppm   = a * ratio^b
-
-    Only CO ships with coefficients: ``a = 6.3``, ``b = -1.1``, derived from two
-    points of the datasheet curve (10 ppm at RS/R0 = 0.5 and 1000 ppm at
-    RS/R0 = 0.01) in the Home Assistant community thread "CO sensor - MICS-5524
-    or MICS-6814" (post 8).  All other gases need explicit ``coefficient_a:``/
-    ``coefficient_b:``.
+``datasheet`` - ``RS = (VCC * RL) / V_AO - RL``, ``ratio = RS / R0`` (R0 = RS in
+clean air), ``ppm = a * ratio^b``.  Only CO ships with coefficients (``a = 6.3``,
+``b = -1.1``, from 10 ppm at RS/R0 = 0.5 and 1000 ppm at RS/R0 = 0.01 in the Home
+Assistant community thread "CO sensor - MICS-5524 or MICS-6814"); all other gases
+need explicit ``coefficient_a:``/``coefficient_b:``.
 
 Both tables are resolved at code generation time, so a wrong ``gas:`` /
 ``conversion:`` combination fails the build instead of producing nonsense.
@@ -74,10 +60,9 @@ class GasDefinition:
     note: str = ""
 
 
-#: Per-gas constants.  The vendor values are the DFRobot_MICS `getGasData()`
-#: thresholds/gains; the ranges are the vendor's documented measuring ranges (the
-#: Fermion module reaches 1000 ppm for CO and H2, which is exactly the trace /
-#: early-warning band this project uses the sensor for).
+#: Per-gas constants: the DFRobot_MICS `getGasData()` thresholds/gains and the
+#: vendor's documented measuring ranges (the Fermion module reaches 1000 ppm for CO
+#: and H2, the trace / early-warning band this project uses the sensor for).
 GASES: dict[str, GasDefinition] = {
     "CO": GasDefinition(
         key="CO",
@@ -118,22 +103,18 @@ GASES: dict[str, GasDefinition] = {
     ),
 }
 
-#: Every MQ/MiCS gas sensor responds to several reducing gases at once - the
-#: MiCS-5524 has a single analog output, so a reading is always a sum of CO, H2,
-#: ethanol, ammonia and methane.  Stated once here, quoted by the docs.
+#: Every MQ/MiCS gas sensor responds to several reducing gases at once, and the
+#: MiCS-5524 has a single analog output, so a reading is a mixture of CO, H2,
+#: ethanol, ammonia and methane; it cannot say which of them is present.
 SELECTIVITY_NOTE = (
     "single analog output: the reading is a mixture of CO, H2, C2H5OH, NH3 and "
     "CH4, it cannot identify which gas is present"
 )
 
-#: Load resistor of the common analog breakouts (10 kOhm), the value the Home
-#: Assistant community thread derives `RS = (5 V * 10 kOhm) / V_AO - 10 kOhm`
-#: with.  Only the datasheet model uses it: measure your own board if in doubt.
+#: Load resistor of the common analog breakouts; only the datasheet model uses it.
 DEFAULT_RL_KOHM = 10.0
 
-#: Friendly aliases accepted by ``gas:``, because the vendor and the datasheet
-#: name the gases differently (Hydrogen, Methane, Ethanol, Ammonia, Carbon
-#: Monoxide).
+#: Friendly aliases accepted by ``gas:`` (the two references name gases differently).
 GAS_ALIASES: dict[str, str] = {
     "CARBONMONOXIDE": "CO",
     "CO": "CO",
@@ -157,9 +138,8 @@ def normalize_gas(value: str) -> str:
 def resolve_gas_key(value: str) -> str:
     """Map a user supplied gas name to a key of :data:`GASES`.
 
-    Accepts the vendor keys (``H2``, ``CH4``, ``C2H5OH``, ``NH3``, ``CO``) and the
-    datasheet names (``hydrogen``, ``methane``, ``ethanol``/``alcohol``,
-    ``ammonia``, ``carbon monoxide``).
+    Accepts the vendor keys and the datasheet names (``hydrogen``, ``methane``,
+    ``ethanol``/``alcohol``, ``ammonia``, ``carbon monoxide``).
     """
     normalized = normalize_gas(value)
     return GAS_ALIASES.get(normalized, normalized)
@@ -176,13 +156,8 @@ def label_for(gas_key: str) -> str:
 
 
 def datasheet_gases() -> list[str]:
-    """Gases that ship with datasheet coefficients.
-
-    The rest need explicit ``coefficient_a:``/``coefficient_b:`` overrides.
-    """
-    return [
-        key for key, definition in GASES.items() if definition.datasheet is not None
-    ]
+    """Gases that ship with datasheet coefficients (the others need ``coefficient_a:``)."""
+    return [key for key, definition in GASES.items() if definition.datasheet is not None]
 
 
 def vendor_gases() -> list[str]:
@@ -219,8 +194,8 @@ def resolve_gas(
 ) -> ResolvedGas:
     """Merge the built-in table of `gas`/`conversion` with explicit YAML overrides.
 
-    Raises :class:`ValueError` for an unknown gas/conversion, coefficients that
-    belong to the other model, or a missing coefficient.
+    Raises :class:`ValueError` for an unknown gas/conversion, coefficients of the
+    other model, or a missing coefficient.
     """
     if conversion not in CONVERSIONS:
         raise ValueError(

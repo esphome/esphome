@@ -20,11 +20,10 @@ namespace esphome::mics_5524_gas_sensor {
 /// One MiCS-5524 channel: samples the analog output, converts it with the
 /// configured model and publishes the gas concentration.
 ///
-/// The clean-air calibration value is stored in a single field because only one
-/// model is active per sensor: it holds `x_air` in volts for the vendor model
-/// (`x = VCC - V_AO`) and `R0` in kOhm for the datasheet model. The flash
-/// preference key is versioned with the conversion model, so switching models
-/// cannot resurrect a value that belongs to the other one.
+/// The clean-air reference is one field because only one model is active per
+/// sensor: `x_air` in volts (vendor) or `R0` in kOhm (datasheet).  The preference
+/// key carries the conversion model, so a stored value of the other model is never
+/// used.
 class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
  public:
   void setup() override;
@@ -33,9 +32,7 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
 
   // ------------------------------------------------------------------ config
-  /// Name of the gas this channel reports (e.g. `'H2'`).  Code generation passes a
-  /// literal that lives in flash for the life of the program, so it is kept as a
-  /// view instead of copied onto the heap.
+  /// Name of the reported gas (e.g. `'H2'`); a code generation literal kept as a view.
   void set_gas(const char *gas) { this->gas_ = StringRef(gas); }
   void set_conversion(uint8_t conversion) { this->conversion_ = conversion; }
   void set_threshold(float threshold) { this->threshold_ = threshold; }
@@ -61,20 +58,15 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void set_rs_sensor(sensor::Sensor *sensor) { this->rs_sensor_ = sensor; }
   void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
   void set_log_sensor(text_sensor::TextSensor *sensor) { this->log_sensor_ = sensor; }
-  /// Log the value that is about to be published at `INFO` on every update.  It
-  /// is the "normal mode" line: the detailed chain (V_AO / x or RS / ratio)
-  /// stays at `DEBUG` and only appears with the logger tag back at `DEBUG`.
+  /// Log the published value at `INFO` on every update (the detailed `DEBUG` chain
+  /// needs the logger tag at `DEBUG`).
   void set_log_ppm(bool log_ppm) { this->log_ppm_ = log_ppm; }
 
-  /// Console level of a `log_message_()` call.  The order mirrors the verbosity
-  /// of ESP-IDF's `esp_log_level_t`: `LOG_SEVERITY_ERROR` is always printed,
-  /// `LOG_SEVERITY_DEBUG` only with `logger: level: DEBUG`.  The message is
-  /// mirrored to `log_sensor:` either way, so the measurement chain stays
-  /// readable from Home Assistant.
+  /// Console level of a `log_message_()` call, ordered like ESP-IDF's
+  /// `esp_log_level_t`: ERROR is always printed, DEBUG only with `logger: level: DEBUG`.
   ///
-  /// The values are prefixed with the enum name because library headers that
-  /// ESPHome compiles in (`dudanov/MideaUART`, NimBLE-Arduino) `#define` the
-  /// bare `LOG_LEVEL_*` names, which the preprocessor would rewrite here.
+  /// The enum name prefixes the values because library headers ESPHome compiles in
+  /// (`dudanov/MideaUART`, NimBLE-Arduino) `#define` the bare `LOG_LEVEL_*` names.
   enum LogSeverity : uint8_t {
     LOG_SEVERITY_DEBUG = 0,
     LOG_SEVERITY_INFO = 1,
@@ -85,10 +77,9 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   /// Size of the message buffer of `log_message_()` (also the text sensor limit).
   static constexpr size_t LOG_BUFFER_SIZE = 160;
 
-  /// Minimum interval between two *per-update* (`LOG_SEVERITY_DEBUG`) messages mirrored to
-  /// `log_sensor_`.  The sensor may poll at 1 Hz, and a text state per second would
-  /// flood the Home Assistant recorder - calibration messages, warnings and errors
-  /// are always mirrored immediately (the console log is never throttled).
+  /// Minimum interval between two `LOG_SEVERITY_DEBUG` messages mirrored to
+  /// `log_sensor_`: a text state per second would flood the Home Assistant recorder.
+  /// Calibration messages, warnings and errors are mirrored immediately.
   static constexpr uint32_t LOG_SENSOR_DEBUG_INTERVAL_MS = 30000;
 
   // ----------------------------------------------------------------- runtime
@@ -105,8 +96,8 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   bool is_vendor_model_() const { return this->conversion_ == micsmath::CONVERSION_MODEL_DFROBOT; }
-  /// Averaged, scaled analog output voltage of the sensor (V).  The `samples_`
-  /// conversions are taken back to back, so the call returns without waiting.
+  /// Averaged, scaled output voltage of the sensor (V); the `samples_` conversions
+  /// run back to back, so the call returns without waiting.
   float sample_voltage_();
   /// Sensor resistance (kOhm) for the datasheet model.
   float current_rs_() const;
@@ -124,16 +115,14 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   void save_reference_();
   bool load_reference_();
   void log_config_();
-  /// Log the value published by the next `publish_state()` at `INFO`
-  /// (`'<gas>': <ppm> ppm`), the "normal mode" counterpart of the `LOG_SEVERITY_DEBUG`
-  /// chain in `update()`.  No-op when `log_ppm:` is off or the reading is
-  /// invalid; console only - the chain is what reaches `log_sensor_`.
+  /// Log the next published value at `INFO` (`'<gas>': <ppm> ppm`, the "normal mode"
+  /// counterpart of the `DEBUG` chain).  Console only; no-op when off or invalid.
   void log_reading_(float ppm);
-  /// Publish a message to `log_sensor_` (no-op when it is not configured);
+  /// Publish a message to `log_sensor_` (no-op when it is not configured); the
   /// `LOG_SEVERITY_DEBUG` messages are rate limited to `LOG_SENSOR_DEBUG_INTERVAL_MS`.
   void publish_log_(LogSeverity level, const char *message);
-  /// Log a message on the console and mirror it to `log_sensor_`; it is prefixed
-  /// with the gas (`'H2': ...`) so several channels stay readable.
+  /// Log on the console and mirror the message to `log_sensor_`, prefixed with the
+  /// gas (`'H2': ...`) so several channels stay readable.
   void log_message_(LogSeverity level, const char *format, ...);
 
   // ------------------------------------------------------------- configuration
@@ -151,8 +140,8 @@ class MiCS5524GasSensor : public sensor::Sensor, public PollingComponent {
   float vcc_{5.0f};
   float voltage_multiplier_{1.0f};
   uint8_t samples_{4};
-  /// Minimum spacing between two clean-air calibration samples (ms); a normal
-  /// reading never waits for it.  The ~16 ms main loop tick is the practical floor.
+  /// Minimum spacing between two clean-air calibration samples (ms); a normal reading
+  /// never waits for it.  The ~16 ms main loop tick is the practical floor.
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};
   bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)

@@ -1,28 +1,15 @@
 #pragma once
 //
-// Pure math of the MiCS-5524 gas sensor models.
+// Pure math of the MiCS-5524 models; per-gas constants are in `coefficients.py`.
 //
-// Two conversion models are implemented, because the published references use
-// two different ones (see `coefficients.py` for the per-gas constants):
+// "dfrobot"   - vendor model of the DFRobot_MICS library (MIT), used by the
+//               analog breakout: x = VCC - V_ao, ratio = x / x_air (the value
+//               sampled in the clean-air calibration), ppm = (threshold - ratio)
+//               / gain, per gas clamped to its range.
+// "datasheet" - log-log fit of the datasheet curve: RS = (VCC * RL) / V_ao - RL,
+//               ratio = RS / R0 (R0 = RS in clean air), ppm = a * ratio^b.
 //
-// 1) "dfrobot" - the vendor model of the DFRobot_MICS library (MIT), used by the
-//    DFRobot/Fermion analog breakout and by the makerguides tutorial:
-//
-//        x     = VCC - V_ao                      (VCC = module supply, 5 V)
-//        ratio = x / x_air                       (~1.0 in clean air, drops with gas)
-//        ppm   = (threshold - ratio) / gain      per gas, clamped to its range
-//
-//    `x_air` is the value sampled during the clean-air calibration, so the model
-//    neither needs the board's load resistor nor its divider ratio.
-//
-// 2) "datasheet" - the log-log fit of the datasheet curve:
-//
-//        RS    = (VCC * RL) / V_ao - RL
-//        ratio = RS / R0                         (R0 = RS in clean air -> 1.0)
-//        ppm   = a * ratio^b
-//
-// This header is intentionally free of ESPHome / ESP-IDF dependencies so the same
-// code can be unit tested on the host.
+// Free of ESPHome / ESP-IDF dependencies so the same code can be tested on the host.
 //
 
 #include <cfloat>
@@ -82,8 +69,7 @@ inline float ratio_from_rs(float rs, float r0) {
   return static_cast<float>(static_cast<double>(rs) / static_cast<double>(r0));
 }
 
-/// The vendor model's raw quantity: how far the analog output sits below the
-/// supply (`x = VCC - V_ao`). Clamped to >= 0, 0 for unusable input.
+/// Vendor model input `x = VCC - V_ao` (clamped to >= 0, 0 for unusable input).
 inline float air_value_from_voltage(float voltage, float vcc) {
   if (!std::isfinite(voltage) || !std::isfinite(vcc))
     return 0.0f;
@@ -104,11 +90,8 @@ inline float ratio_from_air_value(float x, float x_air) {
 }
 
 /// Vendor model: ratio -> ppm for one gas (DFRobot_MICS `getGasData()`).
-///
-/// A ratio above the gas threshold means "not detected" and reports 0 ppm, a
-/// value below the vendor's lower limit is reported as 0 ppm as well; the result
-/// is clamped to [min_ppm, max_ppm]. NaN input stays NaN so the caller can
-/// publish `unknown` instead of a fake 0.
+/// Ratio above the threshold (not detected) or below the vendor minimum -> 0 ppm,
+/// clamped to [min_ppm, max_ppm]; NaN stays NaN so the caller publishes `unknown`.
 inline float ppm_from_vendor_curve(float ratio, const VendorCurve &curve) {
   if (!std::isfinite(ratio))
     return NAN;

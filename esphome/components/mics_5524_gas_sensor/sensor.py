@@ -1,12 +1,11 @@
 """``mics_5524_gas_sensor`` - ESPHome sensor platform for the MiCS-5524.
 
-One entry configures one gas of one sensor (the MiCS-5524 has a single analog
-output, so two entries on the same physical sensor are possible but will report
-the same mixture with different calibrations - see ``SELECTIVITY_NOTE``).
+One entry configures one gas of one sensor.  The MiCS-5524 has a single analog
+output, so several entries on the same physical sensor report the same mixture
+with different calibrations (see ``SELECTIVITY_NOTE``).
 
-The analog signal comes either from an existing voltage sampler (``voltage:``,
-e.g. an ``adc`` or ``ads1115`` sensor) or from a pin that this component owns
-(``pin:``, which creates a hidden internal ``adc`` sensor).
+The signal comes from an existing voltage sampler (``voltage:``) or from a pin
+this component owns (``pin:``, which creates a hidden internal ``adc`` sensor).
 """
 
 import logging
@@ -95,9 +94,8 @@ def validate_gas(value: str) -> str:
     return key
 
 
-#: Private key under which the configuration of the generated, internal ``adc``
-#: sensor is kept.  The entry has to live inside the validated config so that
-#: ESPHome's ID pass sees the declared component ID.
+#: Private key holding the generated, internal ``adc`` sensor configuration; the
+#: entry lives inside the validated config so ESPHome's ID pass sees its ID.
 _KEY_GENERATED_ADC = "_generated_adc"
 
 
@@ -131,13 +129,10 @@ DIVIDER_SCHEMA = cv.Schema(
 
 
 def _voltage_multiplier(config: ConfigType) -> float:
-    """Inverse of the divider ratio, derived from the wiring if possible.
+    """Inverse of the divider ratio: ``voltage_divider:`` r1/r2 yields ``(r1 + r2) / r2``.
 
-    ``voltage_divider: {r1: 10.0, r2: 20.0}`` (kOhm, r1 in series with the sensor output,
-    r2 to ground) documents the hardware and yields ``(r1 + r2) / r2`` = 1.5 for the
-    recommended 10k/20k.  ``voltage_multiplier:`` stays available as the low-level
-    escape hatch; it also covers a directly connected sensor (1.0) or a sampler
-    with a wider input range, e.g. an ADS1115.
+    ``voltage_multiplier:`` is the low-level escape hatch (1.0 for a directly
+    connected sensor, more for a sampler with a wider input range, e.g. an ADS1115).
     """
     divider = config.get(CONF_VOLTAGE_DIVIDER)
     if divider is not None:
@@ -313,11 +308,10 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def _create_internal_adc(config: ConfigType):
-    """Instantiate the hidden, internal ``adc`` sensor used by ``pin:`` configurations.
+    """Instantiate the hidden ``adc`` sensor of a ``pin:`` configuration.
 
-    The entry was validated by :func:`_build_internal_adc`; here the ADC platform's
-    own ``to_code`` is reused so attenuation, sampling count and platform specifics
-    behave exactly like a hand written ``sensor: - platform: adc`` entry.
+    The entry was validated by :func:`_build_internal_adc`; the ADC platform's own
+    ``to_code`` is reused, so it behaves like a hand written ``adc`` entry.
     """
     from esphome.components.adc import sensor as adc_sensor
 
