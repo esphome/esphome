@@ -22,6 +22,9 @@ STORAGE_RTC = "rtc"
 def rtc_supported() -> bool:
     """Whether the active platform has an RTC-backed preferences backend.
 
+    Call it at validation time, from a validator or a callable default; while a schema is
+    being built at import time the target is not known yet and it returns False.
+
     Mirrors the C++ ``SOC_RTC_MEM_SUPPORTED`` guard in the ESP32 backend: the ESP32-C2
     and -C61 have no RTC memory at all, so RTC storage is unavailable there. Lets a
     component decide its own storage default (e.g. prefer RTC when it is available).
