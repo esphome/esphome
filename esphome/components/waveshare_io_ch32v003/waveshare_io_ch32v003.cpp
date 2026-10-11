@@ -10,7 +10,7 @@ static const uint8_t IO_EXTENSION_PWM_ADDR = 0x05;
 static const uint8_t IO_EXTENSION_ADC_ADDR = 0x06;
 static const uint8_t IO_EXTENSION_RTC_INT_ADDR = 0x07;
 
-static const char *const TAG = "waveshare_io_ch32v003";
+ESPHOME_LOG_TAG(TAG, "waveshare_io_ch32v003");
 
 void WaveshareIOCH32V003Component::setup() {
   this->mode_mask_ = 0xFF;    // Set all pins to output mode

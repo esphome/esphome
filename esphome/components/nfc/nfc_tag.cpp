@@ -2,6 +2,6 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc.tag";
+ESPHOME_LOG_TAG(TAG, "nfc.tag");
 
 }  // namespace esphome::nfc

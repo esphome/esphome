@@ -10,11 +10,15 @@
 /// Prefer the stack-based alternatives documented on each function instead.
 /// New code should avoid using these functions.
 
+#include <array>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <type_traits>
 #include <vector>
+
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
@@ -70,6 +74,19 @@ std::string format_hex(const uint8_t *data, size_t length);
 /// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
 std::string format_hex(const std::vector<uint8_t> &data);
 
+/// Format an unsigned integer in lowercased hex, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
+  val = convert_big_endian(val);
+  return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+}
+
+/// Format the std::array \p data in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
+  return format_hex(data.data(), data.size());
+}
+
 /// Format a byte array in pretty-printed, human-readable hex format.
 /// @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
 std::string format_hex_pretty(const uint8_t *data, size_t length, char separator = '.', bool show_length = true);
@@ -90,9 +107,24 @@ std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator 
 /// @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
 std::string format_hex_pretty(const std::string &data, char separator = '.', bool show_length = true);
 
+/// Format an unsigned integer in pretty-printed, human-readable hex format.
+/// @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
+  val = convert_big_endian(val);
+  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
+}
+
 /// Format the byte array \p data of length \p len in binary.
 /// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
 std::string format_bin(const uint8_t *data, size_t length);
+
+/// Format an unsigned integer in binary, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
+  val = convert_big_endian(val);
+  return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+}
 
 // --- Base64 helpers (allocating) ---
 

@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.event";
+ESPHOME_LOG_TAG(TAG, "mqtt.event");
 
 using namespace esphome::event;
 

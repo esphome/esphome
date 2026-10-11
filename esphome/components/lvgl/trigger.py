@@ -59,7 +59,10 @@ async def generate_triggers():
     all_triggers = (
         LV_EVENT_TRIGGERS + LV_DISPLAY_EVENT_TRIGGERS + LV_SCREEN_EVENT_TRIGGERS
     )
-    for w in get_widget_map().values():
+    # Snapshot: building a trigger below can recurse into widget creation (e.g. a
+    # buttonmatrix's or tabview's to_code registers its own child widgets), which
+    # would otherwise mutate this dict mid-iteration.
+    for w in list(get_widget_map().values()):
         config = w.config
         if isinstance(w.type, LvScrActType):
             w = get_screen_active(w.var)
@@ -141,7 +144,21 @@ def _get_event_literal(trigger: str | MockObj) -> MockObj:
     return literal("LV_EVENT_" + TRIGGER_MAP[trigger.upper()])
 
 
-async def add_trigger(conf, w, *events: str | MockObj, is_selected=None):
+async def add_trigger(
+    conf, w, *events: str | MockObj, is_selected=None, attach_obj=None, user_data=None
+):
+    """
+    :param attach_obj: The object to actually register the callback on, if different
+        from `w.obj` - used when `w.obj` isn't valid at the point the callback gets
+        registered (e.g. a local variable that's only in scope inside the very
+        block this is called from, not from within the callback body itself; see
+        widgets/lv_list.py's dynamic widget creation). Defaults to `w.obj`.
+    :param user_data: Opaque pointer passed through to the registered event callback,
+        retrievable inside it via `lv_event_get_user_data(event)` - used to recover a
+        compound widget's C++ wrapper, which a captureless callback has no other way
+        to reach when it isn't a global variable (see widgets/lv_list.py). Defaults to
+        `nullptr`.
+    """
     is_selected = is_selected or w.is_selected()
     tid = conf[CONF_TRIGGER_ID]
     trigger = cg.new_Pvariable(tid)
@@ -158,12 +175,14 @@ async def add_trigger(conf, w, *events: str | MockObj, is_selected=None):
             lv_add(trigger.trigger(*value, literal("event")))
     callback = await context.get_lambda()
     event_literals = [_get_event_literal(event) for event in events]
+    attach_obj = w.obj if attach_obj is None else attach_obj
+    user_data = nullptr if user_data is None else user_data
     if str(events[0]) in DISPLAY_TRIGGERS:
         assert len(events) == 1
         lv.display_add_event_cb(
-            lv_expr.obj_get_display(w.obj), callback, event_literals[0], nullptr
+            lv_expr.obj_get_display(attach_obj), callback, event_literals[0], user_data
         )
     else:
         lv_add(
-            lvgl_static.add_event_cb(w.obj, await context.get_lambda(), *event_literals)
+            lvgl_static.add_event_cb(attach_obj, callback, *event_literals, user_data)
         )
