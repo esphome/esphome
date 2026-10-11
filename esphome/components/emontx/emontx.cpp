@@ -4,7 +4,7 @@
 
 namespace esphome::emontx {
 
-static const char *const TAG = "emontx";
+ESPHOME_LOG_TAG(TAG, "emontx");
 
 void EmonTx::setup() { this->buffer_pos_ = 0; }
 

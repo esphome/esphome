@@ -10,6 +10,7 @@ from esphome.components.http_request import (
     validate_url,
 )
 from esphome.components.sun import parse_latlon
+from esphome.components.time import DOMAIN as TIME_DOMAIN
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -19,7 +20,6 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_SERVERS,
     CONF_SERVICE,
-    CONF_TIME,
     CONF_TIMEZONE,
     CONF_UPDATE_INTERVAL,
     PLATFORM_BK72XX,
@@ -35,11 +35,12 @@ import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
 
+from . import DOMAIN
+
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["network"]
 
-CONF_SNTP = "sntp"
 CONF_SNTP_ID = "sntp_id"
 
 sntp_ns = cg.esphome_ns.namespace("sntp")
@@ -138,8 +139,8 @@ def _check_set_timezone_actions() -> None:
     full_conf = fv.full_config.get()
     sntp_configs = {
         conf[CONF_ID].id: conf
-        for conf in full_conf.get(CONF_TIME, [])
-        if conf.get(CONF_PLATFORM) == CONF_SNTP
+        for conf in full_conf.get(TIME_DOMAIN, [])
+        if conf.get(CONF_PLATFORM) == DOMAIN
     }
     for action in _find_actions(full_conf, SET_TIMEZONE_ACTION):
         if (sntp_conf := sntp_configs.get(action[CONF_ID].id)) is not None:
@@ -149,13 +150,13 @@ def _check_set_timezone_actions() -> None:
 def _merge_sntp_configs() -> None:
     """Merge multiple SNTP instances into one, similar to OTA merging behavior."""
     full_conf = fv.full_config.get()
-    time_confs = full_conf.get(CONF_TIME, [])
+    time_confs = full_conf.get(TIME_DOMAIN, [])
 
     sntp_configs: list[ConfigType] = []
     other_time_configs: list[ConfigType] = []
 
     for time_conf in time_confs:
-        if time_conf.get(CONF_PLATFORM) == CONF_SNTP:
+        if time_conf.get(CONF_PLATFORM) == DOMAIN:
             sntp_configs.append(time_conf)
         else:
             other_time_configs.append(time_conf)
@@ -195,7 +196,7 @@ def _merge_sntp_configs() -> None:
 
     # Replace time configs with merged SNTP + other time platforms
     other_time_configs.append(merged)
-    full_conf[CONF_TIME] = other_time_configs
+    full_conf[TIME_DOMAIN] = other_time_configs
     fv.full_config.set(full_conf)
 
 

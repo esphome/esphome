@@ -7,7 +7,7 @@
 
 namespace esphome::ds1603l {
 
-static const char *const TAG = "ds1603l.sensor";
+ESPHOME_LOG_TAG(TAG, "ds1603l.sensor");
 
 void DS1603L::loop() {
   // Assemble frames one byte at a time so a stream that starts mid-frame can realign

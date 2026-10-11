@@ -1,6 +1,6 @@
 #include "sendspin_hub.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/components/network/util.h"
 #ifdef USE_ETHERNET
@@ -17,26 +17,122 @@
 
 #include <esp_log.h>
 
+#include <cstring>
+#include <memory>
+
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.hub";
+ESPHOME_LOG_TAG(TAG, "sendspin.hub");
+
+namespace {
+
+// The reason passed to on_pairing_failed automations, in the protocol's own spelling.
+StringRef pair_abort_reason_to_string(sendspin::SendspinPairAbortReason reason) {
+  using sendspin::SendspinPairAbortReason;
+  switch (reason) {
+    case SendspinPairAbortReason::ATTEMPT_TIMEOUT:
+      return StringRef::from_lit("attempt_timeout");
+    case SendspinPairAbortReason::CONCURRENT_ATTEMPT:
+      return StringRef::from_lit("concurrent_attempt");
+    case SendspinPairAbortReason::METHOD_NOT_SUPPORTED:
+      return StringRef::from_lit("method_not_supported");
+    case SendspinPairAbortReason::PAIRING_CODE_MISMATCH:
+      return StringRef::from_lit("pairing_code_mismatch");
+    case SendspinPairAbortReason::USER_CANCELLED:
+      return StringRef::from_lit("user_cancelled");
+    case SendspinPairAbortReason::UNKNOWN:
+      break;
+  }
+  return StringRef::from_lit("unknown");
+}
+
+// Zeroes through a volatile pointer so dead-store elimination cannot drop it.
+void secure_wipe(void *data, size_t len) {
+  volatile auto *p = static_cast<volatile uint8_t *>(data);
+  for (size_t i = 0; i < len; ++i) {
+    p[i] = 0;
+  }
+}
+
+// Call once per key, from setup().
+ESPPreferenceObject make_blob_pref(const std::string &name, size_t size) {
+  return global_preferences->make_preference(size, fnv1a_hash("sendspin_" + name));
+}
+
+// Loads straight into the returned buffer, which the library wipes after use. A failed load can
+// leave part of a stored private key or PSK behind, so that path wipes it here. This only covers
+// this buffer: the preference backend keeps its own copy of a pending write until it syncs.
+std::optional<std::vector<uint8_t>> read_blob(ESPPreferenceObject &pref, size_t size) {
+  std::vector<uint8_t> out(size);
+  if (!pref.load(out.data(), out.size())) {
+    secure_wipe(out.data(), out.size());
+    return std::nullopt;
+  }
+  return out;
+}
+
+// The library always writes a key's fixed size; any other length is misuse and is not stored.
+bool write_blob(ESPPreferenceObject &pref, const char *key, size_t size, const uint8_t *data, size_t len) {
+  if (len != size) {
+    ESP_LOGW(TAG, "\"%s\" blob of %zu bytes does not match its size of %zu; rejecting write", key, len, size);
+    return false;
+  }
+  if (!pref.save(data, len)) {
+    ESP_LOGW(TAG, "Failed to persist \"%s\" blob (%zu bytes)", key, len);
+    return false;
+  }
+  return true;
+}
+
+// "rec_<n>" to n; nullopt for any other key or a slot with no storage here.
+std::optional<size_t> parse_record_slot(const std::string &key) {
+  const char *const prefix = sendspin::persistence_keys::RECORD_SLOT_PREFIX;
+  const size_t prefix_len = std::strlen(prefix);
+  if (key.size() <= prefix_len || key.compare(0, prefix_len, prefix) != 0) {
+    return std::nullopt;
+  }
+  size_t slot = 0;
+  for (size_t i = prefix_len; i < key.size(); i++) {
+    const char c = key[i];
+    if (c < '0' || c > '9') {
+      return std::nullopt;
+    }
+    slot = slot * 10 + static_cast<size_t>(c - '0');
+    if (slot >= SENDSPIN_RECORD_SLOTS) {
+      return std::nullopt;
+    }
+  }
+  return slot;
+}
+
+}  // namespace
 
 #ifdef USE_SENDSPIN_ARTWORK
 // Indexed by the library enums, which start at zero and are contiguous.
 static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
-static const char *const IMAGE_FORMAT_NAMES[] = {"JPEG", "PNG", "BMP"};
+static const char *const IMAGE_FORMAT_NAMES[] = {"JPEG", "PNG"};
 #endif
+
+SendspinHub *global_sendspin_hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+SendspinHub::SendspinHub() { global_sendspin_hub = this; }
 
 void SendspinHub::setup() {
   auto config = this->build_client_config_();
   this->client_ = std::make_unique<sendspin::SendspinClient>(std::move(config));
 
-  // Set up persistence (preferences must be initialized before providers are added to the client)
-  this->last_played_server_pref_ =
-      global_preferences->make_preference<LastPlayedServerPref>(fnv1a_hash("sendspin_last_played"));
-#ifdef USE_SENDSPIN_PLAYER
-  this->static_delay_pref_ = global_preferences->make_preference<StaticDelayPref>(fnv1a_hash("sendspin_static_delay"));
-#endif
+  // Set up persistence (preferences must be initialized before providers are added to the client). These key names
+  // are frozen; see PREFERENCE KEYS in sendspin_hub.h.
+  namespace keys = sendspin::persistence_keys;
+  this->keypair_pref_ = make_blob_pref("keypair", keys::KEYPAIR_SIZE);
+  this->pairing_psk_pref_ = make_blob_pref("pair_psk", keys::PAIRING_PSK_SIZE);
+  this->last_played_pref_ = make_blob_pref("last_played", keys::LAST_PLAYED_SIZE);
+  // Released firmware's name, so a calibrated delay survives.
+  this->output_delay_pref_ = make_blob_pref("static_delay", keys::OUTPUT_DELAY_SIZE);
+  for (size_t slot = 0; slot < SENDSPIN_RECORD_SLOTS; slot++) {
+    this->record_slot_prefs_[slot] = make_blob_pref(keys::record_slot_key(slot), keys::RECORD_SLOT_SIZE);
+  }
+  this->record_order_pref_ = make_blob_pref(keys::RECORD_ORDER, SENDSPIN_RECORD_SLOTS);
 
   // Wire providers and client listener
   this->client_->set_listener(this);
@@ -62,14 +158,15 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-#ifndef USE_SENDSPIN_SWITCH
-  this->enabled_ = true;
-#endif
+  // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
+  if (this->unpaired_access_.has_value()) {
+    this->client_->set_unpaired_access_enabled(*this->unpaired_access_);
+  }
 }
 
 void SendspinHub::loop() {
-  if (this->enabled_.has_value() && this->enabled_.value() != this->client_->is_started() &&
-      !this->status_has_error()) {
+  if (this->enabled_.has_value() && this->unpaired_access_.has_value() &&
+      this->enabled_.value() != this->client_->is_started() && !this->status_has_error()) {
     if (!this->enabled_.value()) {
       this->client_->stop();
     } else if (!this->client_->start()) {
@@ -83,17 +180,37 @@ void SendspinHub::loop() {
 #endif
 }
 
+// Sends each server a goodbye and writes what the client still owed its provider. Wi-Fi sets up
+// before this hub, so it shuts down after it and the goodbyes can still go out.
+void SendspinHub::on_shutdown() {
+  // Keeps loop() from starting the client again.
+  this->enabled_ = false;
+  if (this->is_client_running()) {
+    this->client_->stop();
+  }
+}
+
 void SendspinHub::dump_config() {
+  // client_id exists only once start() has run.
+  const char *client_id = "(unavailable)";
+  if (this->client_ != nullptr && !this->client_->client_id().empty()) {
+    client_id = this->client_->client_id().c_str();
+  }
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Sendspin Hub:\n"
                 "  Client ID: %s\n"
+                "  MAC address: %s\n"
                 "  Manufacturer: %s\n"
                 "  Model: %s\n"
                 "  Firmware version: %s\n"
-                "  Task stack in PSRAM: %s",
-                get_client_id_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
-                this->firmware_version_, YESNO(this->task_stack_in_psram_));
+                "  Task stack in PSRAM: %s\n"
+                "  Unpaired access: %s\n"
+                "  Pairing code method: %s",
+                client_id, get_mac_address_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
+                this->firmware_version_, YESNO(this->task_stack_in_psram_),
+                YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()),
+                this->pairing_code_method_());
 
 #ifdef USE_SENDSPIN_ARTWORK
   // Slot indices come from the order the image platform entries were declared, so the log is the
@@ -108,7 +225,7 @@ void SendspinHub::dump_config() {
 #endif
 }
 
-// THREAD CONTEXT: Main loop (invoked from Sendspin components)
+// THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)
 void SendspinHub::set_enabled(bool enabled) {
   if (this->status_has_error()) {
     ESP_LOGE(TAG, "Cannot %s: Sendspin failed to start, reboot to retry",
@@ -116,6 +233,23 @@ void SendspinHub::set_enabled(bool enabled) {
     return;
   }
   this->enabled_ = enabled;
+}
+
+// THREAD CONTEXT: Main loop
+std::optional<std::string> SendspinHub::get_pairing_token() const {
+  if (this->client_ == nullptr) {
+    return std::nullopt;
+  }
+  return this->client_->pairing_token();
+}
+
+// THREAD CONTEXT: Main loop (invoked from codegen before setup(), or from Sendspin components)
+void SendspinHub::set_unpaired_access_enabled(bool enabled) {
+  this->unpaired_access_ = enabled;
+  // Before setup() there is no client yet; setup() applies the stored value.
+  if (this->client_ != nullptr) {
+    this->client_->set_unpaired_access_enabled(enabled);
+  }
 }
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
@@ -154,22 +288,58 @@ void SendspinHub::disconnect_from_server(sendspin::SendspinGoodbyeReason reason)
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
-void SendspinHub::update_state(sendspin::SendspinClientState state) {
-  if (this->is_client_running()) {
-    this->client_->update_state(state);
+void SendspinHub::leave_group() {
+  if (this->is_client_running() &&
+      this->client_->get_group_state().playback_state == sendspin::SendspinPlaybackState::PLAYING) {
+    this->client_->leave();
   }
 }
 
-const char *SendspinHub::get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  // The server matches client_id against the L2 source MAC of the device's multicast traffic.
+// THREAD CONTEXT: Main loop (invoked from the sendspin.confirm_pairing_window action)
+void SendspinHub::confirm_pairing_window() {
+  if (this->is_client_running()) {
+    this->client_->confirm_pairing_window();
+  }
+}
+
+// THREAD CONTEXT: Main loop (invoked from the sendspin.cancel_pairing_window action)
+void SendspinHub::cancel_pairing_window() {
+  if (this->is_client_running()) {
+    this->client_->cancel_pairing_window();
+  }
+}
+
+const char *SendspinHub::get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
+  // The server matches this MAC against the L2 source MAC of the device's multicast traffic.
   // ESP-IDF derives the ethernet MAC as base+3 by default on ESP32-S3, so we cannot use the
   // eFuse base MAC when ethernet is the active interface.
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr) {
-    return ethernet::global_eth_component->get_eth_mac_address_pretty_into_buffer(buf);
+    ethernet::global_eth_component->get_eth_mac_address_pretty_into_buffer(buf);
+  } else {
+    get_mac_address_pretty_into_buffer(buf);
   }
+#else
+  get_mac_address_pretty_into_buffer(buf);
 #endif
-  return get_mac_address_pretty_into_buffer(buf);
+  // The pretty format is uppercase, but SendspinClientConfig::mac_address must be lowercase.
+  for (char &c : buf) {
+    if (c >= 'A' && c <= 'F') {
+      c += 'a' - 'A';
+    }
+  }
+  return buf.data();
+}
+
+// Validation rejects a static code together with the dynamic code, so at most one is set.
+const char *SendspinHub::pairing_code_method_() const {
+  if (this->pairing_code_display_supported_) {
+    return LOG_STR_LITERAL("dynamic");
+  }
+  if (this->static_pairing_code_ != nullptr) {
+    return LOG_STR_LITERAL("static");
+  }
+  return LOG_STR_LITERAL("none");
 }
 
 const char *SendspinHub::get_product_name_() const {
@@ -180,12 +350,26 @@ sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
   sendspin::SendspinClientConfig config;
 
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  config.client_id = SendspinHub::get_client_id_into_buffer(mac_buf);
+  config.mac_address = SendspinHub::get_mac_address_into_buffer(mac_buf);
   config.name = App.get_friendly_name();
   config.product_name = this->get_product_name_();
   config.manufacturer = this->manufacturer_;
   config.software_version = this->firmware_version_;
   config.httpd_psram_stack = this->task_stack_in_psram_;
+  config.protocol_task_psram_stack = this->task_stack_in_psram_;
+  config.max_pairing_records = SENDSPIN_RECORD_SLOTS;
+
+  // The dynamic code needs a channel and a format. Only digits, since automations get the bare string and could not
+  // tell a QR code token apart.
+  if (this->pairing_code_display_supported_) {
+    config.pairing_code_out_channels = {sendspin::SendspinPairingCodeChannel::DISPLAY};
+    config.pairing_code_formats = {sendspin::SendspinPairingCodeFormat::DIGITS};
+  }
+
+  if (this->static_pairing_code_ != nullptr) {
+    config.static_pairing_code_locations = {"operator"};
+    config.static_pairing_code = this->static_pairing_code_;
+  }
 
   return config;
 }
@@ -215,34 +399,76 @@ void SendspinHub::on_release_high_performance() {
 #endif
 }
 
+void SendspinHub::on_open_pairing_window() { this->open_pairing_window_callbacks_.call(); }
+
+void SendspinHub::on_close_pairing_window() { this->close_pairing_window_callbacks_.call(); }
+
+// Only digits are offered, and the library refuses an activation in any other format.
+void SendspinHub::on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat /*format*/) {
+  this->display_pairing_code_callbacks_.call(code);
+}
+
+void SendspinHub::on_clear_pairing_code() { this->clear_pairing_code_callbacks_.call(); }
+
+void SendspinHub::on_pairing_succeeded(const std::string &server_id) {
+  this->pairing_succeeded_callbacks_.call(server_id);
+}
+
+void SendspinHub::on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) {
+  this->pairing_failed_callbacks_.call(server_id, pair_abort_reason_to_string(reason));
+}
+
 // --- SendspinNetworkProvider override ---
 
-// THREAD CONTEXT: Main loop (polled by client_->loop())
+// THREAD CONTEXT: Main loop (polled by start() and client_->loop())
 bool SendspinHub::is_network_ready() { return network::is_connected(); }
 
 // --- SendspinPersistenceProvider overrides ---
+// THREAD CONTEXT: Main loop (the library makes every provider call there, including from start() and stop())
 
-// THREAD CONTEXT: Main loop (invoked by client_->loop() during lifecycle events)
-bool SendspinHub::save_last_server_hash(uint32_t hash) {
-  LastPlayedServerPref pref{.server_id_hash = hash};
-  bool ok = this->last_played_server_pref_.save(&pref);
-  if (ok) {
-    ESP_LOGD(TAG, "Persisted last played server hash: 0x%08" PRIX32, hash);
-  } else {
-    ESP_LOGW(TAG, "Failed to persist last played server hash");
+std::pair<ESPPreferenceObject *, size_t> SendspinHub::pref_for_key_(const std::string &key) {
+  namespace keys = sendspin::persistence_keys;
+  if (auto slot = parse_record_slot(key); slot.has_value()) {
+    return {&this->record_slot_prefs_[*slot], keys::RECORD_SLOT_SIZE};
   }
-  return ok;
+  if (key == keys::RECORD_ORDER) {
+    return {&this->record_order_pref_, SENDSPIN_RECORD_SLOTS};
+  }
+  if (key == keys::KEYPAIR) {
+    return {&this->keypair_pref_, keys::KEYPAIR_SIZE};
+  }
+  if (key == keys::PAIRING_PSK) {
+    return {&this->pairing_psk_pref_, keys::PAIRING_PSK_SIZE};
+  }
+  if (key == keys::LAST_PLAYED) {
+    return {&this->last_played_pref_, keys::LAST_PLAYED_SIZE};
+  }
+  if (key == keys::OUTPUT_DELAY) {
+    return {&this->output_delay_pref_, keys::OUTPUT_DELAY_SIZE};
+  }
+  return {nullptr, 0};
 }
 
-// THREAD CONTEXT: Main loop (invoked by client_->loop() during lifecycle events)
-std::optional<uint32_t> SendspinHub::load_last_server_hash() {
-  LastPlayedServerPref pref{};
-  if (this->last_played_server_pref_.load(&pref)) {
-    ESP_LOGI(TAG, "Loaded last played server hash: 0x%08" PRIX32, pref.server_id_hash);
-    return pref.server_id_hash;
+std::optional<std::vector<uint8_t>> SendspinHub::load_blob(const std::string &key) {
+  auto [pref, size] = this->pref_for_key_(key);
+  if (pref == nullptr) {
+    ESP_LOGW(TAG, "load_blob: unknown key \"%s\"", key.c_str());
+    return std::nullopt;
   }
-  return std::nullopt;
+  return read_blob(*pref, size);
 }
+
+bool SendspinHub::save_blob(const std::string &key, const uint8_t *data, size_t len) {
+  auto [pref, size] = this->pref_for_key_(key);
+  if (pref == nullptr) {
+    ESP_LOGW(TAG, "save_blob: unknown key \"%s\"", key.c_str());
+    return false;
+  }
+  return write_blob(*pref, key.c_str(), size, data, len);
+}
+
+// Writes every component's queued preferences, so a failure may belong to another component.
+bool SendspinHub::commit() { return global_preferences->sync(); }
 
 // --- Sendspin role specific methods/overrides ---
 
@@ -285,11 +511,7 @@ void SendspinHub::send_client_command(sendspin::SendspinControllerCommand comman
 }
 
 // THREAD CONTEXT: Main loop (invoked from the sendspin.switch action)
-void SendspinHub::switch_client() {
-  // Clear any EXTERNAL_SOURCE state so the switch command is followed
-  this->update_state(sendspin::SendspinClientState::SYNCHRONIZED);
-  this->send_client_command(sendspin::SendspinControllerCommand::SWITCH);
-}
+void SendspinHub::switch_client() { this->send_client_command(sendspin::SendspinControllerCommand::SWITCH); }
 
 // THREAD CONTEXT: Main loop (ControllerRoleListener override, fired from client_->loop())
 void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObject &state) {
@@ -332,31 +554,8 @@ sendspin::PlayerRole *SendspinHub::get_player_role() {
   }
   return nullptr;
 }
-
-// THREAD CONTEXT: Main loop (SendspinPersistenceProvider override)
-bool SendspinHub::save_static_delay(uint16_t delay_ms) {
-  StaticDelayPref pref{.delay_ms = delay_ms};
-  bool ok = this->static_delay_pref_.save(&pref);
-  if (ok) {
-    ESP_LOGD(TAG, "Persisted static delay: %u ms", delay_ms);
-  } else {
-    ESP_LOGW(TAG, "Failed to persist static delay");
-  }
-  return ok;
-}
-
-// THREAD CONTEXT: Main loop (SendspinPersistenceProvider override)
-std::optional<uint16_t> SendspinHub::load_static_delay() {
-  StaticDelayPref pref{};
-  if (this->static_delay_pref_.load(&pref)) {
-    ESP_LOGI(TAG, "Loaded static delay: %u ms", pref.delay_ms);
-    return pref.delay_ms;
-  }
-  return std::nullopt;
-}
-
 #endif
 
 }  // namespace esphome::sendspin_
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

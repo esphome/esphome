@@ -1,5 +1,3 @@
-import logging
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
@@ -43,8 +41,6 @@ from .base_component import (
     CONF_WAKE_UP_PAGE,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 DEPENDENCIES = ["uart"]
 
@@ -54,15 +50,6 @@ def AUTO_LOAD() -> list[str]:
     if CORE.is_esp32:
         base.append("watchdog")
     return base
-
-
-def _deprecated_dump_device_info(value):
-    _LOGGER.warning(
-        "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
-        "Device info is now always logged at connection time. "
-        "Please remove this option from your configuration."
-    )
-    return value
 
 
 def _validate_tft_upload(config):
@@ -91,9 +78,11 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
-            # Deprecated — device info is now always logged. Remove before 2026.11.0.
-            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.All(
-                cv.boolean, _deprecated_dump_device_info
+            # Removed in 2026.11.0 - kept to provide helpful error message
+            # Remove before 2027.5.0
+            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.invalid(
+                "The 'dump_device_info' option has been removed in ESPHome 2026.11.0.\n"
+                "Device info is now always logged, so remove this option from your configuration."
             ),
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
@@ -271,10 +260,7 @@ async def to_code(config):
             )
 
         if CORE.is_esp32:
-            # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
-            # and esp-tls, whose sdkconfig options below need the component present
-            esp32.include_builtin_idf_component("esp_http_client")
-            esp32.include_builtin_idf_component("esp-tls")
+            esp32.request_http_client()
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True

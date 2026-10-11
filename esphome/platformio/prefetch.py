@@ -37,13 +37,14 @@ from esphome.framework_helpers import (
     content_length,
     discard_partial_download,
     downloaded_bytes,
+    extract_workers,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
     wait_for_download_lock,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
-from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
+from esphome.helpers import get_bool_env, rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +61,9 @@ def _preserved_sys_path() -> Iterator[None]:
 
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
+
+# Concurrent VCS clones; network-bound, so wider than the extraction pool
+_CLONE_WORKERS = 8
 
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
@@ -371,42 +375,64 @@ def _registry_jobs(
     return jobs, failed, installable
 
 
+def _is_vcs_spec_uri(url: str) -> bool:
+    """Whether pio's ``install_from_uri`` would clone this URI rather than
+    copy or download it (PackageSpec normalizes git URLs to ``git+``)."""
+    return not url.startswith(("file://", "symlink://", "http://", "https://"))
+
+
+def _is_clone_entry(entry: tuple) -> bool:
+    """Whether this pre-install entry's spec is cloned, not extracted."""
+    url = entry[1].uri
+    return bool(url) and _is_vcs_spec_uri(url)
+
+
+def _spec_name(spec: Any, url: str) -> str:
+    """The spec's name; the URL basename fallback is defensive only
+    (PackageSpec derives a name from the URI itself)."""
+    return spec.name or url.split("#", 1)[0].rsplit("/", 1)[-1]
+
+
 def _uri_jobs(
-    manager: Any, specs: list[Any], seen: set[str]
+    manager: Any, specs: list[Any], seen: set[str], trusted_names: bool = False
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
     Also returns how many HEAD probes errored (an absent length is not an
-    error) and the ``(name, spec)`` pairs whose archives will be
-    installable.
+    error) and the ``(name, spec)`` pairs to pre-install, including VCS
+    specs, which the pre-install clones itself. ``trusted_names`` marks
+    platform packages, whose platform.json keys match their manifests.
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
-    candidates: list[tuple[str, str, Path, Any]] = []
+    candidates: list[tuple[str, str, Path, Any, bool]] = []
     installable: list[tuple[str, Any]] = []
     for spec in specs:
         url = spec.uri
-        if not url or not url.startswith(("http://", "https://")):
-            continue  # git+/file specs are cloned/copied, not downloaded
-        if url.split("#", 1)[0].endswith(".git"):
-            continue  # bare-URL VCS spec; PlatformIO clones it
+        if not url:
+            continue
+        is_vcs = _is_vcs_spec_uri(url)
+        if not is_vcs and not url.startswith(("http://", "https://")):
+            continue  # file/symlink specs are copied in place by pio run
         if manager.get_package(spec):
             continue
-        name = spec.name or url.rsplit("/", 1)[-1]
+        name = _spec_name(spec, url)
+        # Only a name that is also the install dir may pre-install
+        safe_name = trusted_names or spec.has_custom_name()
+        if is_vcs:
+            if safe_name:
+                installable.append((name, spec))
+            continue
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
-            if spec.has_custom_name():
-                # Only a custom name (Foo=https://...) is the destination
-                # dir; a URI-derived name's destination comes from the
-                # archive manifest, so its dedupe key could collide with
-                # another name and race one directory. pio run installs it.
+            if safe_name:
                 installable.append((name, spec))  # fetched by an earlier run
             continue
         if str(dl_path) in seen:
             continue  # another spec already claimed this .part
         seen.add(str(dl_path))
-        candidates.append((spec.name, url, dl_path, spec))
+        candidates.append((name, url, dl_path, spec, safe_name))
 
     errors: list[str] = []
 
@@ -433,16 +459,17 @@ def _uri_jobs(
     if not candidates:
         return [], 0, installable
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(candidates))) as ex:
-        sizes = list(ex.map(_head_size, [url for _, url, _, _ in candidates]))
+        sizes = list(ex.map(_head_size, [url for _, url, _, _, _ in candidates]))
     jobs: list[tuple[str, int, Any]] = []
     failed = 0
-    for (name, url, dl_path, spec), size in zip(candidates, sizes, strict=True):
+    for (name, url, dl_path, spec, safe_name), size in zip(
+        candidates, sizes, strict=True
+    ):
         if size < 0:
             failed += 1
         elif size:
             jobs.append((name, size, _uri_fetch_job(manager, url, dl_path, size)))
-            if spec.has_custom_name():
-                # See above: derived-name specs stay with pio run's installer
+            if safe_name:
                 installable.append((name, spec))
         else:
             # Missing or unusable Content-Length; visible under -v
@@ -702,7 +729,11 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    workers = min(get_usable_cpu_count(), len(entries))
+    # Clones wait on the network: sort them first, dependency waves too
+    entries = sorted(entries, key=lambda entry: not _is_clone_entry(entry))
+    clones = sum(map(_is_clone_entry, entries))
+    # Network-bound clones get a wider pool than CPU-bound extraction
+    workers = max(extract_workers(len(entries)), min(clones, _CLONE_WORKERS))
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -734,8 +765,9 @@ def _preinstall(
             raise
 
     _LOGGER.info(
-        "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
+        "Installing %d PlatformIO package(s)%s with %d worker(s): %s",
         len(entries),
+        f" ({clones} clone(s))" if clones else "",
         workers,
         ", ".join(name for name, *_ in entries),
     )
@@ -870,8 +902,10 @@ def _prefetch(build_dir: Path, env: str) -> None:
     unresolved = 0
     for mgr, batch, is_platform in ((p.pm, specs, True), (lm, lib_specs, False)):
         entries: list[tuple[str, Any]] = []
-        for build_jobs in (_registry_jobs, _uri_jobs):
-            batch_jobs, failed, installable = build_jobs(mgr, batch, seen)
+        for batch_jobs, failed, installable in (
+            _registry_jobs(mgr, batch, seen),
+            _uri_jobs(mgr, batch, seen, trusted_names=is_platform),
+        ):
             jobs += batch_jobs
             unresolved += failed
             entries += installable
@@ -891,7 +925,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         )
         # PlatformIO retries failed packages itself, without resume
         failures = run_batch_downloads("Downloading PlatformIO packages", jobs)
-        warn_prefetch_failures(failures)
+        warn_batch_failures(failures, "Could not prefetch %s: %s")
         failed_names = {name for name, _ in failures}
     elif not groups and not unresolved:
         # Record the no-work run so the parent skips the next spawn.

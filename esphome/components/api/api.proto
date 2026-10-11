@@ -20,6 +20,8 @@ service APIConnection {
     option (needs_authentication) = false;
   }
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
+  rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
+  rpc wizard_input_set (WizardInputSetRequest) returns (void) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -76,8 +78,11 @@ service APIConnection {
   rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
+  rpc subscribe_serial_proxy_identity(SubscribeSerialProxyIdentityRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
+
+  rpc sendspin_pairing_token(SendspinPairingTokenRequest) returns (SendspinPairingTokenResponse) {}
 }
 
 
@@ -113,6 +118,11 @@ message HelloRequest {
   string client_info = 1;
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
+
+  // Set by clients that can accept connections the device opens to them
+  // (see api: outgoing_connection:). The device remembers this client's
+  // address as the target to dial when no such client is connected.
+  bool outgoing_connection_target = 4 [(field_ifdef) = "USE_API_OUTGOING_CONNECTION"];
 }
 
 // Confirmation of successful connection request.
@@ -228,6 +238,7 @@ enum SerialProxyPortType {
   SERIAL_PROXY_PORT_TYPE_TTL = 0;
   SERIAL_PROXY_PORT_TYPE_RS232 = 1;
   SERIAL_PROXY_PORT_TYPE_RS485 = 2;
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3;  // since API 1.18
 }
 
 message SerialProxyInfo {
@@ -332,6 +343,10 @@ message DeviceInfoResponse {
   // all-zeros PSK, so the api encryption key can be provisioned without being
   // sent in plaintext (protects against passive sniffing, not active MITM)
   bool api_encryption_provisionable = 26 [(field_ifdef) = "USE_API_NOISE"];
+
+  // Device is built with the api outgoing_connection option and can open
+  // the TCP connection to a dial-back target itself
+  bool api_outgoing_connection_supported = 27 [(field_ifdef) = "USE_API_OUTGOING_CONNECTION"];
 }
 
 // ==================== DEVICE CAPABILITIES ====================
@@ -380,6 +395,16 @@ message ZWaveProxyCapabilities {
   uint32 home_id = 2;
 }
 
+message WizardCapabilities {
+  // True when the device has a wizard configured, so DeviceWizardRequest will be answered
+  bool configured = 1;
+}
+
+message SendspinCapabilities {
+  // Bitmask of the Sendspin features this device supports
+  uint32 feature_flags = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -389,6 +414,89 @@ message DeviceCapabilitiesResponse {
   ZWaveProxyCapabilities zwave_proxy = 3 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   repeated SerialProxyInfo serial_proxies = 4
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
+  WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
+  SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
+}
+
+// ==================== DEVICE WIZARD ====================
+
+// Asks the device for the onboarding wizard that Home Assistant presents when the
+// device is added.
+//
+// The wizard is read once, when the device is added, whereas capabilities are read
+// on every connect, so it is a separate message rather than part of
+// DeviceCapabilitiesResponse. It is only served on an authenticated connection.
+//
+// A device without a wizard does not have this message at all and never answers it,
+// as a device ignores messages it does not know. Clients therefore check
+// DeviceCapabilitiesResponse.wizard.configured before sending it.
+message DeviceWizardRequest {
+  option (id) = 156;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_WIZARD";
+  // Empty
+}
+
+// The wizard, as UTF-8 JSON compressed into a single zstd frame. The device builds it
+// when it is compiled and sends it unchanged, so its size varies with the wizard and
+// its format can grow without new fields here. Clients decompress it, then read:
+//
+//   {"version": 1,
+//    "pages": [{"title": "...", "description": "...",
+//      "entities": [{"key": 123, "device_id": 456, "description": "..."}],
+//      "inputs": [{"key": 789, "description": "...",
+//        "entity_filters": [{"integration": "...", "domain": ["..."],
+//                            "device_class": ["..."], "supported_features": ["..."]}]}]}]}
+//
+// Values that are empty or unset are left out, and so are empty lists. Strings may be
+// Home Assistant translation placeholders such as "[%key:component::domain::name%]",
+// passed through verbatim. The pages are shown in the order listed. A client that does
+// not know the version must not use the wizard.
+//
+// An entity is an entity of this device that the page shows to the user (for example to
+// turn it on or off). Its key is the key ListEntitiesResponse sends for it. Its
+// device_id is the device_id ListEntitiesResponse sends, and is left out when that is 0.
+//
+// An input is filled in by the user with the id of a Home Assistant entity. It either
+// stands for one entity of the device's homeassistant platform (sensor, binary_sensor,
+// text_sensor, number, switch, text, select or button) that sets no entity_id of its own,
+// as Home Assistant supplies it, or it is a standalone input that only stores the entity
+// id for the device's own automations. Its key is the FNV-1 hash
+// of the input's ESPHome id, not an entity key. The client sends the chosen entity id to
+// the device with a WizardInputSetRequest. entity_filters says which Home Assistant
+// entities the user may choose, and mirrors Home Assistant's EntityFilterSelectorConfig:
+// an entity matches a filter when it satisfies every field that is set, and an entity
+// that matches any one of the filters is accepted.
+//
+// The device keeps the entity id of an input in RAM only and does not store it across
+// restarts. The client therefore stores the choice itself and, after every connection
+// and before it sends SubscribeHomeAssistantStatesRequest, sends a WizardInputSetRequest
+// for each input. It sends one again whenever the user changes the choice.
+message DeviceWizardResponse {
+  option (id) = 157;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_WIZARD";
+
+  // The data is in flash, and the device sends it from there
+  bytes data = 1 [(pointer_to_buffer) = true, (progmem) = true];
+}
+
+// Sets the entity id of a wizard input (see WizardInputField.key). Clients send
+// this only when DeviceCapabilitiesResponse.wizard.configured is set. There is no
+// reply. The device ignores a request whose key matches no input or whose entity_id
+// is empty, longer than 255 bytes or has no '.'. Otherwise it keeps the id in RAM,
+// not across restarts, and when the input belongs to a homeassistant platform entity
+// it subscribes to that entity's state. Clients send this for every input right
+// after connecting, before SubscribeHomeAssistantStatesRequest. A request that
+// arrives later still works: the device then sends the affected state subscriptions
+// again.
+message WizardInputSetRequest {
+  option (id) = 158;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_API_WIZARD_INPUTS";
+
+  fixed32 key = 1;
+  string entity_id = 2 [(max_data_length) = 255];
 }
 
 message ListEntitiesRequest {
@@ -652,7 +760,7 @@ message ListEntitiesLightResponse {
   bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
-  repeated string effects = 11 [(container_pointer_no_template) = "FixedVector<const char *>"];
+  repeated string effects = 11 [(container_pointer_no_template) = "light::LightEffectNames"];
   bool disabled_by_default = 13;
   string icon = 14 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 15;
@@ -1439,7 +1547,7 @@ message ListEntitiesSelectResponse {
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
-  repeated string options = 6 [(container_pointer_no_template) = "FixedVector<const char *>"];
+  repeated string options = 6 [(container_pointer_no_template) = "std::span<const char *const>"];
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
@@ -2683,7 +2791,7 @@ message ListEntitiesInfraredResponse {
 message InfraredRFTransmitRawTimingsRequest {
   option (id) = 136;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
+  option (ifdef) = "USE_IR_RF";
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2 [(force) = true];     // Key identifying the transmitter instance
@@ -2697,13 +2805,35 @@ message InfraredRFTransmitRawTimingsRequest {
 message InfraredRFReceiveEvent {
   option (id) = 137;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
+  option (ifdef) = "USE_IR_RF";
   option (no_delay) = true;
   option (speed_optimized) = true;
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2 [(force) = true];     // Key identifying the receiver instance
   repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+}
+
+// Sent only to the client that issued an InfraredRFTransmitRawTimingsRequest, once the
+// transmitter reports that the transmission (all repeats) has finished, or immediately with
+// success=false if it was refused before reaching the transmitter (unknown key, no transmitter,
+// no or invalid timings) or the transmitter could not send it (not set up, hardware error).
+// success=false also answers a request superseded by a newer request on the same entity, from
+// any client, and a transmit that reported nothing within 30 s past its expected air time, so a
+// client should not retry on it blindly. The device serializes transmits per transmitter and
+// several entities may share one, so a client should keep at most one transmit outstanding per
+// device, not per entity. A reply for an unknown key or a refused request is sent once and can be lost
+// when the device's send buffer is full, so a client should also stop waiting on its own after the
+// expected air time plus a margin. Lets clients pace requests instead of estimating durations (since API 1.18)
+message InfraredRFTransmitCompleteResponse {
+  option (id) = 153;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_IR_RF";
+  option (no_delay) = true;
+
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2 [(force) = true];  // Key of the transmitter entity from the request
+  bool success = 3;                  // false if the request was refused, not sent, superseded, or never reported
 }
 
 // ==================== RADIO FREQUENCY ====================
@@ -2876,6 +3006,56 @@ message SerialProxySetModeRequest {
   SerialProxyMode mode = 2;
 }
 
+// Subscribe to the identity of every serial proxy port. The device answers with one
+// SerialProxyIdentity per port, then sends another whenever a port's identity changes,
+// for the life of the connection (since API 1.18).
+message SubscribeSerialProxyIdentityRequest {
+  option (id) = 154;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+}
+
+// Where a port's identity comes from
+enum SerialProxyIdentitySource {
+  SERIAL_PROXY_IDENTITY_SOURCE_NONE = 0;        // The port carries no identity
+  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1;  // Reserved for identities stated in the device configuration; not sent yet
+  SERIAL_PROXY_IDENTITY_SOURCE_USB = 2;         // Read from the descriptors of the USB device behind the port;
+                                                // changes when a device is attached or removed
+}
+
+enum SerialProxyIdentityFlag {
+  SERIAL_PROXY_IDENTITY_FLAG_NONE = 0;
+  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1;  // The backend believes the device is present and usable on this port
+  SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2;      // The USB host stack refused the descriptor query; the strings and
+                                             // IDs below are empty
+}
+
+// The descriptor fields of a USB device as seen by the host stack
+message UsbDeviceDescriptor {
+  uint32 vendor_id = 1;
+  uint32 product_id = 2;
+  uint32 bcd_device = 3;
+  uint32 interface_number = 4;   // bInterfaceNumber the host driver binds to
+}
+
+// The identity of the device behind a port. Identifies one physical device among others of
+// the same kind, so a client matches on manufacturer and product regardless of source. The
+// strings are empty for source NONE, and for source USB while nothing is connected
+// (since API 1.18).
+message SerialProxyIdentity {
+  option (id) = 155;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+  SerialProxyIdentitySource source = 2;
+  uint32 flags = 3;               // Bitmask of SerialProxyIdentityFlag
+  string manufacturer = 4;
+  string product = 5;
+  string serial_number = 6;
+  UsbDeviceDescriptor usb = 7;    // Only sent for source USB
+}
+
 // ==================== BLUETOOTH CONNECTION PARAMS ====================
 message BluetoothSetConnectionParamsRequest {
   option (id) = 145;
@@ -2896,4 +3076,35 @@ message BluetoothSetConnectionParamsResponse {
 
   uint64 address = 1;
   int32 error = 2;
+}
+
+// ==================== SENDSPIN ====================
+enum SendspinPairingTokenStatus {
+  // The Sendspin client has not started yet, so the token does not exist yet. Ask again later.
+  SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY = 0;
+  SENDSPIN_PAIRING_TOKEN_STATUS_OK = 1;
+  // The device has no API encryption key, so it will not send the token. Ask again once a key is set.
+  SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED = 2;
+  // Sendspin is turned off and has not started since boot, so the token does not exist yet.
+  SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED = 3;
+  // The Sendspin client failed to start, and will not start until the device reboots.
+  SENDSPIN_PAIRING_TOKEN_STATUS_FAILED = 4;
+}
+
+// Requests the Sendspin pairing token, which a Sendspin server uses to pair with this device
+message SendspinPairingTokenRequest {
+  option (id) = 159;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SENDSPIN";
+  // Empty
+}
+
+message SendspinPairingTokenResponse {
+  option (id) = 160;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SENDSPIN";
+
+  SendspinPairingTokenStatus status = 1;
+  // The pairing token (Sendspin pairing.md "Pairing Token"). Set only when status is OK.
+  string token = 2 [(max_data_length) = 127];
 }

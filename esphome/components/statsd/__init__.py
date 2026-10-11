@@ -14,6 +14,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@Links2004"]
 DEPENDENCIES = ["network"]
+DOMAIN = "statsd"
 
 CONF_PREFIX = "prefix"
 

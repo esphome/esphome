@@ -4,7 +4,7 @@
 
 namespace esphome::cse7761 {
 
-static const char *const TAG = "cse7761";
+ESPHOME_LOG_TAG(TAG, "cse7761");
 
 /*********************************************************************************************\
  * CSE7761 - Energy  (Sonoff Dual R3 Pow v1.x)

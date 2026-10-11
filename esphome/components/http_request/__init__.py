@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.const import CONF_REQUEST_HEADERS
+from esphome.components.const import CONF_REQUEST_HEADERS, CONF_VERIFY_SSL
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -30,6 +30,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
+DOMAIN = "http_request"
 
 http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)
@@ -52,7 +53,6 @@ HttpRequestResponseTrigger = http_request_ns.class_(
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 CONF_USERAGENT = "useragent"
-CONF_VERIFY_SSL = "verify_ssl"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
@@ -202,11 +202,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
-        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time).
-        # esp-tls is re-enabled too because http_request includes <esp_tls.h>
-        # directly and esp_http_client only pulls it in as a private dependency.
-        esp32.include_builtin_idf_component("esp_http_client")
-        esp32.include_builtin_idf_component("esp-tls")
+        esp32.request_http_client()
 
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))

@@ -25,6 +25,8 @@ light:
 
 text_sensor:
   - platform: hoermann_hcp
+    door_state:
+      name: Garage Door State
     serial_number:
       name: Garage Motor Serial Number
     version:

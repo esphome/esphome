@@ -8,7 +8,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::display {
-static const char *const TAG = "display";
+ESPHOME_LOG_TAG(TAG, "display");
 
 // COLOR_OFF and COLOR_ON are now inline constexpr in display.h
 

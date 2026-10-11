@@ -3,7 +3,7 @@
 
 namespace esphome::stts22h {
 
-static const char *const TAG = "stts22h";
+ESPHOME_LOG_TAG(TAG, "stts22h");
 
 static const uint8_t WHOAMI_REG = 0x01;
 static const uint8_t CTRL_REG = 0x04;

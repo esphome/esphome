@@ -78,6 +78,25 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 #endif
 #endif
 
+bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out) {
+  if (addr->sa_family == AF_INET) {
+    *out = reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr;
+    return true;
+  }
+#if USE_NETWORK_IPV6
+  if (addr->sa_family == AF_INET6) {
+    // ::ffff:a.b.c.d; s6_addr is the portable byte view on every stack.
+    static constexpr uint8_t V4_MAPPED_PREFIX[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF};
+    const uint8_t *bytes = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr.s6_addr;
+    if (memcmp(bytes, V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX)) == 0) {
+      memcpy(out, bytes + sizeof(V4_MAPPED_PREFIX), sizeof(*out));
+      return true;
+    }
+  }
+#endif
+  return false;
+}
+
 // Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf) {
   if (addr_ptr->sa_family == AF_INET && len >= sizeof(const struct sockaddr_in)) {
@@ -88,29 +107,10 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 #if USE_NETWORK_IPV6
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
-#ifdef USE_HOST
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
-    if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr) &&
-        esphome_inet_ntop4(&addr->sin6_addr.s6_addr[12], buf.data(), buf.size()) != nullptr) {
+    uint32_t v4;
+    // Format a v4 mapped peer as plain IPv4.
+    if (sockaddr_to_ipv4(addr_ptr, &v4) && esphome_inet_ntop4(&v4, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
-    }
-#elif defined(USE_ZEPHYR)
-    // Format IPv4-mapped IPv6 addresses as regular IPv4. Zephyr uses the standard POSIX
-    // s6_addr layout (not the LWIP union) but provides no IN6_IS_ADDR_V4MAPPED macro, so
-    // detect the ::ffff:0:0/96 prefix directly on the address words.
-    if (addr->sin6_addr.s6_addr32[0] == 0 && addr->sin6_addr.s6_addr32[1] == 0 &&
-        addr->sin6_addr.s6_addr32[2] == htonl(0xFFFF) &&
-        esphome_inet_ntop4(&addr->sin6_addr.s6_addr32[3], buf.data(), buf.size()) != nullptr) {
-      return strlen(buf.data());
-    }
-#elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
-    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
-        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
-        esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
-      return strlen(buf.data());
-    }
-#endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
   }

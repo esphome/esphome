@@ -21,7 +21,7 @@
 
 namespace esphome::sntp {
 
-static const char *const TAG = "sntp";
+ESPHOME_LOG_TAG(TAG, "sntp");
 
 #ifdef USE_SNTP_TIMEZONE_SERVICE
 static constexpr const char *TIMEZONE_REFRESH = "tz_refresh";

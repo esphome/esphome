@@ -6,7 +6,7 @@
 
 namespace esphome::systa_bus {
 
-static const char *const TAG = "systa_bus";
+ESPHOME_LOG_TAG(TAG, "systa_bus");
 
 void SystaBus::dump_config() { ESP_LOGCONFIG(TAG, "SystaBus:"); }
 

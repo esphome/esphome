@@ -253,30 +253,19 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
   void (*f_)(Ts...);
 };
 
-/// Runs one codegen-generated function that has the parent and every field baked in, so the
-/// action holds one pointer. Args pass by const reference so a std::string arg is never copied;
+/// Runs one codegen-generated function that has the parent and every field baked in. The
+/// function is a template argument, so play() calls it directly and the object is just the
+/// Action base. Args pass by const reference so a std::string arg is never copied;
 /// StatelessLambdaAction keeps by-value parameters because user `lambda:` code owns them.
-template<typename... Ts> class ApplyAction final : public Action<Ts...> {
+template<auto Fn, typename... Ts> class ApplyAction final : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(const std::remove_cvref_t<Ts> &...);
-  explicit ApplyAction(ApplyFn apply) : apply_(apply) {}
-
-  void play(const Ts &...x) override { this->apply_(x...); }
-
- protected:
-  ApplyFn apply_;
+  void play(const Ts &...x) override { Fn(x...); }
 };
 
 /// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
-template<typename... Ts> class ApplyCondition final : public Condition<Ts...> {
+template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<Ts...> {
  public:
-  using CheckFn = bool (*)(const std::remove_cvref_t<Ts> &...);
-  explicit ApplyCondition(CheckFn check) : check_(check) {}
-
-  bool check(const Ts &...x) override { return this->check_(x...); }
-
- protected:
-  CheckFn check_;
+  bool check(const Ts &...x) override { return Fn(x...); }
 };
 
 /// Simple continuation action that calls play_next_ on a parent action.

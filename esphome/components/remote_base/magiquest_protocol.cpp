@@ -7,7 +7,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.magiquest";
+ESPHOME_LOG_TAG(TAG, "remote.magiquest");
 
 static constexpr uint32_t MAGIQUEST_UNIT = 288;  // us
 static constexpr uint32_t MAGIQUEST_ONE_MARK = 2 * MAGIQUEST_UNIT;

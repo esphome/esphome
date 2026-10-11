@@ -137,6 +137,10 @@ inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int prot
 /// @return Size of the sockaddr structure used, or 0 on error
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port);
 
+/// Network order IPv4 of an AF_INET or v4 mapped AF_INET6 peer; false for anything else.
+/// addr must hold the family's full struct.
+bool sockaddr_to_ipv4(const struct sockaddr *addr, uint32_t *out);
+
 /// Convenience overload for std::string (backward compatible).
 inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
   return set_sockaddr(addr, addrlen, ip_address.c_str(), port);

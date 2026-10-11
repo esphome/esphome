@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING
 
-from esphome.build_helpers.ccache import resolve_ccache_path
+from esphome.build_helpers.ccache import resolve_absolute_ccache_path
+from esphome.build_helpers.native import warn_ignored_platformio_options
+from esphome.build_helpers.ninja import refresh_compile_commands
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
 )
-from esphome.core import CORE, EsphomeError
-from esphome.helpers import write_file
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 if TYPE_CHECKING:
@@ -26,20 +26,6 @@ _LOGGER = logging.getLogger(__name__)
 
 # ESP8266 user RAM (matches upload.maximum_ram_size in every board manifest)
 _MAX_RAM_SIZE = 81920
-
-
-def _warn_ignored_platformio_options() -> None:
-    """Warn for component-added platformio options the native build drops."""
-    from esphome.core.config import NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
-
-    consumed = NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
-    for key in sorted(CORE.platformio_options or {}):
-        if key not in consumed:
-            _LOGGER.warning(
-                "platformio_options->%s is ignored when building with the "
-                "native 'arduino' toolchain",
-                key,
-            )
 
 
 _RAM_SECTIONS = (".data", ".rodata", ".bss")
@@ -84,21 +70,17 @@ def get_readelf_path() -> Path:
 def run_compile(config: ConfigType, verbose: bool) -> int:
     from esphome.arduino8266 import framework
     from esphome.build_gen import arduino8266 as build_gen
+    from esphome.core.config import NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
 
-    _warn_ignored_platformio_options()
+    warn_ignored_platformio_options(NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS)
     paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     # Resolved once: the probe is not free and three consumers need it
-    ccache = resolve_ccache_path()
-    build_gen.write_project(paths, ccache)
+    ccache = resolve_absolute_ccache_path()
+    ninja_changed = build_gen.write_project(paths, ccache)
 
     build_dir = get_build_dir()
     env = framework.get_build_env(paths.toolchain, ccache)
-
-    # The DB is a pure function of build.ninja; regenerate when it is older
-    compdb = build_dir / "compile_commands.json"
-    ninja_file = build_dir / "build.ninja"
-    if not compdb.is_file() or compdb.stat().st_mtime < ninja_file.stat().st_mtime:
-        _write_compile_commands(paths.ninja, build_dir, env)
+    refresh_compile_commands(paths.ninja, build_dir, env, ninja_changed)
 
     cmd = [str(paths.ninja)]
     if verbose:
@@ -138,42 +120,6 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
 
     warn_if_idedata_missing(lambda: get_idedata(ccache))
     return 0
-
-
-def _write_compile_commands(
-    ninja_path: Path, build_dir: Path, env: dict[str, str]
-) -> None:
-    compdb = build_dir / "compile_commands.json"
-    result = subprocess.run(
-        [str(ninja_path), "-C", str(build_dir), "-t", "compdb", "c", "cxx", "asm"],
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-        close_fds=False,
-    )
-    if result.returncode != 0:
-        # Drop any stale database so consumers (IDE integration, clang-tidy,
-        # the memory analyzer) can't silently read outdated data.
-        compdb.unlink(missing_ok=True)
-        raise EsphomeError(f"Could not generate compile_commands.json: {result.stderr}")
-    try:
-        entries = json.loads(result.stdout)
-    except ValueError as err:
-        compdb.unlink(missing_ok=True)
-        raise EsphomeError(
-            f"ninja produced an unparsable compile database: {err} "
-            f"(output starts {result.stdout[:120]!r})"
-        ) from err
-    if not entries:
-        # compdb exits 0 with [] for unknown rule names; a renamed compile
-        # rule must fail the build, not silently strand every consumer
-        compdb.unlink(missing_ok=True)
-        raise EsphomeError(
-            "ninja produced an empty compile database; the generator's rule "
-            "names no longer match"
-        )
-    write_file(compdb, result.stdout)
 
 
 def _parse_app_size(build_dir: Path, paths: InstalledPaths) -> int | None:
@@ -253,7 +199,7 @@ def get_idedata(ccache: str | None = None) -> dict | None:
 
     # A disabled ccache resolves to None without spawning anything, so
     # re-resolving here costs nothing when the caller has no answer
-    launcher = ccache or resolve_ccache_path()
+    launcher = ccache or resolve_absolute_ccache_path()
     return load_or_build_idedata(
         get_build_dir() / "compile_commands.json",
         get_elf_path(),

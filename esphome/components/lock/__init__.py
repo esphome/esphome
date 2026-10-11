@@ -22,6 +22,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "lock"
 IS_PLATFORM_COMPONENT = True
 
 lock_ns = cg.esphome_ns.namespace("lock")

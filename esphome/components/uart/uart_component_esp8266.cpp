@@ -15,7 +15,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart";
+ESPHOME_LOG_TAG(TAG, "uart");
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t ESP8266UartComponent::get_config() {
@@ -220,6 +220,12 @@ size_t ESP8266UartComponent::available() {
   } else {
     return this->sw_serial_->available();
   }
+}
+size_t ESP8266UartComponent::available_for_write() {
+  if (this->hw_serial_ != nullptr) {
+    return this->hw_serial_->availableForWrite();
+  }
+  return SIZE_MAX;  // software serial bit-bangs each byte synchronously; there is no buffer to fill
 }
 UARTFlushResult ESP8266UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
