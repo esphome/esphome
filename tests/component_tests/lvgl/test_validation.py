@@ -196,12 +196,16 @@ class TestImageTypeValidation:
                 "RGB111", pytest.raises(Invalid, match="does not support RGB111")
             ),
             pytest.param("RGB565", nullcontext()),
+            pytest.param(None, nullcontext(), id="nested_image_without_type"),
         ],
     )
-    def test_image_type(self, image_type: str, expectation) -> None:
+    def test_image_type(self, image_type: str | None, expectation) -> None:
         image_id = ID("my_image", True)
         fc = full_config.get()
-        fc["image"] = [{CONF_ID: image_id, CONF_TYPE: image_type}]
+        image_conf = {CONF_ID: image_id}
+        if image_type is not None:
+            image_conf[CONF_TYPE] = image_type
+        fc["image"] = [image_conf]
         fc.declare_ids.append((image_id, ["image", 0, CONF_ID]))
         get_lv_images_used().add(image_id)
 
