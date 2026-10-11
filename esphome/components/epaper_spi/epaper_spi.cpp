@@ -1,8 +1,21 @@
 #include "epaper_spi.h"
+#include <algorithm>
 #include <cinttypes>
+#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#ifdef USE_ESP32
+#include <esp_system.h>
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+#include <esp_attr.h>
+#include <miniz.h>
+#endif
+#endif
+#ifdef USE_ESP8266
+#include <user_interface.h>
+#endif
 
 namespace esphome::epaper_spi {
 
@@ -27,6 +40,180 @@ void EPaperBase::setup() {
   }
   this->setup_pins_();
   this->spi_setup();
+  this->load_sleep_state_();
+}
+
+bool EPaperBase::woke_from_deep_sleep_() const {
+#if defined(USE_ESP32)
+  return esp_reset_reason() == ESP_RST_DEEPSLEEP;
+#elif defined(USE_ESP8266)
+  return system_get_rst_info()->reason == REASON_DEEP_SLEEP_AWAKE;
+#else
+  return false;
+#endif
+}
+
+// The sleep state survives the controller's deep sleep in RTC memory: the update count, and whether
+// the panel was left holding its image, so the first update after the wake can be partial.
+void EPaperBase::load_sleep_state_() {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  this->sleep_state_ = global_preferences->make_preference<SleepState>(this->sleep_state_hash_, false);
+  SleepState state{};
+  if (this->woke_from_deep_sleep_() && this->sleep_state_.load(&state)) {
+    if (state.panel_holds_image) {
+      this->update_count_ = state.update_count % this->full_update_every_;
+      this->panel_holds_image_ = true;
+      ESP_LOGD(TAG, "Panel kept its image through deep sleep; next update is %s",
+               this->update_count_ != 0 ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
+    }
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+    // The comparison frame does not exist yet; the image is restored into it once it is allocated
+    if (state.image_size != 0)
+      this->stored_image_ = state;
+#endif
+  }
+  // Only a wake from deep sleep may use the state, so it is cleared once read
+  this->save_sleep_state_(false);
+}
+
+void EPaperBase::save_sleep_state_(bool panel_holds_image, bool image_compressed, uint16_t image_size) {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  SleepState state{this->update_count_, panel_holds_image, image_compressed, image_size, 0};
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+  if (image_size != 0)
+    state.image_hash = this->image_store_hash_(image_size);
+#endif
+  this->sleep_state_.save(&state);
+}
+
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+static RTC_NOINIT_ATTR uint8_t s_image_store[EPAPER_SPI_IMAGE_STORE_SIZE];  // NOLINT
+
+uint32_t EPaperBase::image_store_hash_(size_t size) const {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i != size; i++)
+    hash = fnv1_hash_extend(hash, s_image_store[i]);
+  return hash;
+}
+
+struct StoreWriter {
+  size_t position;
+};
+
+static mz_bool write_to_store(const void *data, int length, void *user) {
+  auto *writer = static_cast<StoreWriter *>(user);
+  if (writer->position + length > EPAPER_SPI_IMAGE_STORE_SIZE)
+    return MZ_FALSE;
+  memcpy(s_image_store + writer->position, data, length);
+  writer->position += length;
+  return MZ_TRUE;
+}
+
+// Copies the comparison frame into RTC memory as it is when it fits, otherwise as a DEFLATE stream
+// made by the miniz in the chip's ROM.
+bool EPaperBase::store_image_(bool &compressed, uint16_t &size) {
+  const size_t length = this->sent_.size();
+  if (length <= EPAPER_SPI_IMAGE_STORE_SIZE) {
+    for (size_t index = 0; index != length;) {
+      size_t span;
+      const uint8_t *data = this->sent_.get_span(index, span);
+      memcpy(s_image_store + index, data, span);
+      index += span;
+    }
+    compressed = false;
+    size = length;
+    return true;
+  }
+  RAMAllocator<tdefl_compressor> allocator;
+  tdefl_compressor *compressor = allocator.allocate(1);
+  if (compressor == nullptr) {
+    ESP_LOGW(TAG, "No memory to compress the image; the next update after the wake will be full");
+    return false;
+  }
+  StoreWriter writer{};
+  tdefl_status status = tdefl_init(compressor, write_to_store, &writer, TDEFL_DEFAULT_MAX_PROBES);
+  for (size_t index = 0; index != length && status == TDEFL_STATUS_OKAY;) {
+    size_t span;
+    const uint8_t *data = this->sent_.get_span(index, span);
+    index += span;
+    status = tdefl_compress_buffer(compressor, data, span, index == length ? TDEFL_FINISH : TDEFL_NO_FLUSH);
+  }
+  allocator.deallocate(compressor, 1);
+  if (status != TDEFL_STATUS_DONE) {
+    ESP_LOGW(TAG, "Image does not compress into %u bytes; the next update after the wake will be full",
+             (unsigned) EPAPER_SPI_IMAGE_STORE_SIZE);
+    return false;
+  }
+  compressed = true;
+  size = writer.position;
+  return true;
+}
+
+bool EPaperBase::restore_image_() {
+  const SleepState &state = this->stored_image_;
+  const size_t length = this->sent_.size();
+  if (state.image_size > EPAPER_SPI_IMAGE_STORE_SIZE || this->image_store_hash_(state.image_size) != state.image_hash) {
+    ESP_LOGW(TAG, "Image in RTC memory is damaged; the next update will be full");
+    return false;
+  }
+  if (!state.image_compressed) {
+    if (state.image_size != length)
+      return false;
+    this->sent_.write(0, s_image_store, length);
+    return true;
+  }
+  RAMAllocator<uint8_t> frame_allocator;
+  RAMAllocator<tinfl_decompressor> allocator;
+  uint8_t *frame = frame_allocator.allocate(length);
+  tinfl_decompressor *decompressor = allocator.allocate(1);
+  bool ok = false;
+  if (frame != nullptr && decompressor != nullptr) {
+    tinfl_init(decompressor);
+    size_t in_size = state.image_size;
+    size_t out_size = length;
+    const tinfl_status status = tinfl_decompress(decompressor, s_image_store, &in_size, frame, frame, &out_size,
+                                                 TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
+    ok = status == TINFL_STATUS_DONE && out_size == length;
+    if (ok)
+      this->sent_.write(0, frame, length);
+  }
+  if (decompressor != nullptr)
+    allocator.deallocate(decompressor, 1);
+  if (frame != nullptr)
+    frame_allocator.deallocate(frame, length);
+  if (!ok) {
+    ESP_LOGW(TAG, "Image in RTC memory could not be restored; the next update will be full");
+  }
+  return ok;
+}
+#endif
+
+// Runs before the controller sleeps or reboots, after on_safe_shutdown(): finish an update in flight,
+// then note that the panel holds its image, so the first update after a wake is partial.
+bool EPaperBase::teardown() {
+  if (this->state_ != EPaperState::IDLE) {
+    this->loop();
+    return false;
+  }
+  if (this->parked_)
+    return true;
+  this->parked_ = true;
+  if (this->sleep_state_hash_ == 0)
+    return true;
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+  // With the image kept on this side the panel may lose its RAM, or its power, while asleep
+  bool compressed;
+  uint16_t size;
+  if (this->image_in_rtc_memory_ && this->sent_valid_ && this->store_image_(compressed, size)) {
+    this->save_sleep_state_(false, compressed, size);
+    return true;
+  }
+#endif
+  if (this->panel_holds_image_ && this->image_survives_sleep())
+    this->save_sleep_state_(true);
+  return true;
 }
 
 bool EPaperBase::init_buffer_(size_t buffer_length) {
@@ -35,6 +222,76 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
   }
   this->clear();
   return true;
+}
+
+bool EPaperBase::init_sent_frame_(size_t length) {
+  if (!this->is_using_partial_update_())
+    return false;
+  if (!this->sent_.init(length)) {
+    ESP_LOGW(TAG, "No memory for the comparison frame; every update will be refreshed");
+    return false;
+  }
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+  if (this->stored_image_.image_size != 0 && this->restore_image_()) {
+    this->sent_valid_ = true;
+    this->restore_previous_ = true;
+    this->update_count_ = this->stored_image_.update_count % this->full_update_every_;
+    ESP_LOGD(TAG, "Image restored from RTC memory; next update is %s",
+             this->update_count_ != 0 ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
+  }
+  this->stored_image_.image_size = 0;
+#endif
+  return true;
+}
+
+bool EPaperBase::frame_unchanged_() const {
+  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
+    return false;
+  size_t index = 0;
+  while (index != this->buffer_.size()) {
+    size_t length;
+    size_t sent_length;
+    const uint8_t *data = this->buffer_.get_span(index, length);
+    const uint8_t *sent = this->sent_.get_span(index, sent_length);
+    length = std::min(length, sent_length);
+    if (memcmp(data, sent, length) != 0)
+      return false;
+    index += length;
+  }
+  return true;
+}
+
+bool EPaperBase::bounds_from_changes_() {
+  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
+    return true;
+  bool changed = false;
+  uint16_t row_low = this->height_, row_high = 0, col_low = this->row_width_, col_high = 0;
+  for (uint16_t row = 0; row != this->height_; row++) {
+    const size_t base = row * this->row_width_;
+    for (uint16_t col = 0; col != this->row_width_; col++) {
+      if (this->buffer_[base + col] == this->sent_[base + col])
+        continue;
+      changed = true;
+      row_low = std::min(row_low, row);
+      row_high = std::max<uint16_t>(row_high, row + 1);
+      col_low = std::min(col_low, col);
+      col_high = std::max<uint16_t>(col_high, col + 1);
+    }
+  }
+  if (!changed)
+    return false;
+  this->x_low_ = col_low * 8;
+  this->x_high_ = std::min<uint16_t>(col_high * 8, this->width_);
+  this->y_low_ = row_low;
+  this->y_high_ = row_high;
+  return true;
+}
+
+void EPaperBase::reset_bounds_() {
+  this->x_low_ = this->width_;
+  this->x_high_ = 0;
+  this->y_low_ = this->height_;
+  this->y_high_ = 0;
 }
 
 void EPaperBase::setup_pins_() const {
@@ -209,6 +466,14 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      if (this->update_count_ != 0 && this->frame_unchanged_()) {
+        ESP_LOGD(TAG, "Frame unchanged, refresh skipped");
+        this->reset_bounds_();
+        this->set_state_(EPaperState::IDLE);
+        return;
+      }
+      this->full_window_ =
+          this->x_low_ == 0 && this->y_low_ == 0 && this->x_high_ == this->width_ && this->y_high_ == this->height_;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
@@ -221,10 +486,10 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
-      this->x_low_ = this->width_;
-      this->x_high_ = 0;
-      this->y_low_ = this->height_;
-      this->y_high_ = 0;
+      if (this->full_window_)
+        this->sent_valid_ = this->sent_.is_valid();
+      this->restore_previous_ = false;
+      this->reset_bounds_();
       this->set_state_(EPaperState::POWER_ON);
       break;
     case EPaperState::POWER_ON:
@@ -242,6 +507,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->panel_holds_image_ = this->is_using_partial_update_();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
       break;
@@ -351,10 +617,16 @@ void EPaperBase::dump_config() {
                 "  Model: %s\n"
                 "  SPI Data Rate: %uMHz\n"
                 "  Full update every: %d\n"
+                "  Partial update after deep sleep: %s\n"
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s",
                 this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
+                this->sleep_state_hash_ == 0 ? LOG_STR_LITERAL("no")
+#ifdef EPAPER_SPI_IMAGE_STORE_SIZE
+                : this->image_in_rtc_memory_ ? LOG_STR_LITERAL("RTC memory")
+#endif
+                                             : LOG_STR_LITERAL("panel"),
                 YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
                 YESNO(this->transform_ & MIRROR_Y));
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
