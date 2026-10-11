@@ -4,6 +4,7 @@ from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from esphome.components.mapping import mapping_class
 from esphome.components.time import RealTimeClock
 from esphome.config_validation import prepend_path
@@ -148,7 +149,8 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(LVEncoderListener), cv.requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener),
+            cv.requires_component(BINARY_SENSOR_DOMAIN),
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
@@ -292,8 +294,8 @@ BASE_PROPS = {
         "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
     ).several_of,
     "text_font": lv_font,
-    "text_letter_space": lvalid.lv_positive_int,
-    "text_line_space": lvalid.lv_positive_int,
+    "text_letter_space": lvalid.lv_int,
+    "text_line_space": lvalid.lv_int,
     "text_opa": lvalid.opacity,
     "text_outline_stroke_color": lvalid.lv_color,
     "text_outline_stroke_opa": lvalid.opacity,
@@ -670,11 +672,7 @@ def theme_update_schema(value: dict) -> dict:
     for w_name, style in validated.items():
         for part, states in collect_parts(style).items():
             for state, props in states.items():
-                # collect_parts() unconditionally seeds a main/default entry
-                # even when nothing was set for it (e.g. `{pressed: {...}}`
-                # alone) -- skip combos with no properties so a request for
-                # one state doesn't also create an unused, empty main/default
-                # style that gets attached to every widget of this type.
+                # Skip states with no properties
                 if not props:
                     continue
                 df.get_theme_update_requests().setdefault(w_name, {})[(part, state)] = (

@@ -8,7 +8,7 @@ packages:
 # exercised, not the user-override path.
 
 sensor:
-  # Energy sensor (E prefix): expects state_class=total_increasing, unit=Wh,
+  # Energy sensor (E prefix): expects state_class=total, unit=Wh,
   # device_class=energy, accuracy_decimals=0
   - platform: emontx
     tag_name: E1

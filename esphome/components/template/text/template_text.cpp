@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.text";
+ESPHOME_LOG_TAG(TAG, "template.text");
 
 void TemplateText::setup() {
   if (this->f_.has_value())

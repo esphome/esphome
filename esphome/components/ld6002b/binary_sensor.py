@@ -40,9 +40,8 @@ CONFIG_SCHEMA = (
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
-    if target_config := config.get(CONF_TARGET):
-        sens = await binary_sensor.new_binary_sensor(target_config)
-        cg.add(hub.set_presence_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_TARGET, hub.set_presence_binary_sensor)
 
     for i in range(MAX_TARGETS):
         if target_config := config.get(f"target_{i + 1}"):

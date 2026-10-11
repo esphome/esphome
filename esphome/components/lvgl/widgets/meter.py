@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.image import get_image_metadata
+from esphome.components.image import DOMAIN as IMAGE_DOMAIN, get_image_metadata
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -214,7 +214,7 @@ INDICATOR_SCHEMA = cv.Schema(
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
-            cv.requires_component("image"),
+            cv.requires_component(IMAGE_DOMAIN),
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
@@ -612,9 +612,7 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     async def set_value(w: Widget):
         await set_indicator_values(w.parent, w, config)
 
-    return await action_to_code(
-        widget, set_value, action_id, template_arg, args, config
-    )
+    return await action_to_code(widget, set_value, action_id, template_arg, args)
 
 
 async def set_indicator_values(scale: MockObj, indicator: Widget, config):

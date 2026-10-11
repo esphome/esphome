@@ -16,9 +16,9 @@ struct SonyData {
 
 class SonyProtocol : public RemoteProtocol<SonyData> {
  public:
-  void encode(RemoteTransmitData *dst, const SonyData &data) override;
-  optional<SonyData> decode(RemoteReceiveData src) override;
-  void dump(const SonyData &data) override;
+  void encode(RemoteTransmitData *dst, const SonyData &data);
+  optional<SonyData> decode(RemoteReceiveData src);
+  void dump(const SonyData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Sony)

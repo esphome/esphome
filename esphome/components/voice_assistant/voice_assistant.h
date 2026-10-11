@@ -44,7 +44,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
 };
 
-enum class State {
+enum class State : uint8_t {
   IDLE,
   START_MICROPHONE,
   STARTING_MICROPHONE,
@@ -96,7 +96,7 @@ struct Configuration {
 };
 
 #ifdef USE_MEDIA_PLAYER
-enum class MediaPlayerResponseState {
+enum class MediaPlayerResponseState : uint8_t {
   IDLE,
   URL_SENT,
   PLAYING,
@@ -182,6 +182,8 @@ class VoiceAssistant final : public Component {
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
+  /// The voice_assistant.is_running condition: a pipeline is running or continuous mode keeps one coming.
+  bool is_running_or_continuous() const { return this->is_running() || this->is_continuous(); }
 
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
 
@@ -235,6 +237,7 @@ class VoiceAssistant final : public Component {
 
   void set_state_(State state);
   void set_state_(State state, State desired_state);
+  bool start_udp_socket_();
   void signal_stop_();
   void start_playback_timeout_();
 
@@ -278,8 +281,6 @@ class VoiceAssistant final : public Component {
   Trigger<Timer> timer_updated_trigger_;
   Trigger<Timer> timer_cancelled_trigger_;
   Trigger<const std::vector<Timer> &> timer_tick_trigger_;
-  bool has_timers_{false};
-  bool timer_tick_running_{false};
 
   microphone::MicrophoneSource *mic_source_{nullptr};
   microphone::MicrophoneSource *mic_source2_{nullptr};
@@ -290,18 +291,11 @@ class VoiceAssistant final : public Component {
   size_t speaker_buffer_index_{0};
   size_t speaker_buffer_size_{0};
   size_t speaker_bytes_received_{0};
-  bool wait_for_stream_end_{false};
-  bool stream_ended_{false};
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
   std::string tts_response_url_;
-  bool started_streaming_tts_{false};
-
-  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
-
-  bool local_output_{false};
 
   std::string conversation_id_;
 
@@ -322,64 +316,37 @@ class VoiceAssistant final : public Component {
   // prolonged one can be detected and stopped; 0 means no imbalance is currently being timed.
   uint32_t audio_channel_stall_start_{0};
 
-  bool use_wake_word_;
-  uint8_t noise_suppression_level_;
-  uint8_t auto_gain_;
   float volume_multiplier_;
   uint32_t conversation_timeout_;
-
-  bool continuous_{false};
-  bool silence_detection_;
-
-  bool continue_conversation_{false};
-
-  State state_{State::IDLE};
-  State desired_state_{State::IDLE};
-
-  AudioMode audio_mode_{AUDIO_MODE_UDP};
-  bool udp_socket_running_{false};
-  bool start_udp_socket_();
 
   Configuration config_{};
 
 #ifdef USE_MICRO_WAKE_WORD
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
 #endif
-};
 
-template<typename... Ts> class StartAction final : public Action<Ts...>, public Parented<VoiceAssistant> {
-  TEMPLATABLE_VALUE(std::string, wake_word);
-
- public:
-  void play(const Ts &...x) override {
-    this->parent_->set_wake_word(this->wake_word_.value(x...));
-    this->parent_->request_start(false, this->silence_detection_);
-  }
-
-  void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
-
- protected:
+  // 1 byte members grouped at the end so they share padding instead of each taking a word
+  State state_{State::IDLE};
+  State desired_state_{State::IDLE};
+  AudioMode audio_mode_{AUDIO_MODE_UDP};
+  bool has_timers_{false};
+  bool timer_tick_running_{false};
+#ifdef USE_SPEAKER
+  bool wait_for_stream_end_{false};
+  bool stream_ended_{false};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
+  bool started_streaming_tts_{false};
+#endif
+  bool local_output_{false};
+  bool use_wake_word_;
+  uint8_t noise_suppression_level_;
+  uint8_t auto_gain_;
+  bool continuous_{false};
   bool silence_detection_;
-};
-
-template<typename... Ts> class StartContinuousAction final : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<VoiceAssistant> {
- public:
-  void play(const Ts &...x) override { this->parent_->request_stop(); }
-};
-
-template<typename... Ts> class IsRunningCondition final : public Condition<Ts...>, public Parented<VoiceAssistant> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
-};
-
-template<typename... Ts> class ConnectedCondition final : public Condition<Ts...>, public Parented<VoiceAssistant> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
+  bool continue_conversation_{false};
+  bool udp_socket_running_{false};
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

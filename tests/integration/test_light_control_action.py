@@ -1,4 +1,4 @@
-"""Integration test for LightControlAction.
+"""Integration test for the light control apply actions.
 
 Tests that light.turn_on, light.turn_off, and light.control automation actions
 work correctly with the compact per-field union storage. Exercises both constant
@@ -19,7 +19,7 @@ async def test_light_control_action(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LightControlAction with constants and lambdas."""
+    """Test light.turn_on, light.turn_off and light.control with constants and lambdas."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         state_futures: dict[int, asyncio.Future[Any]] = {}
 

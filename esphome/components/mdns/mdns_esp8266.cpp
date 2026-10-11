@@ -13,8 +13,47 @@
 
 namespace esphome::mdns {
 
+// Main-loop calls into LEAmDNS that send (update() and close(); begin(), addService() and
+// the scheduled restart never reach a send) can yield inside UdpContext::sendTimeout(); a
+// packet arriving then re-enters LEAmDNS from lwIP on the same UdpContext and both sides
+// free the same tx pbufs (#18760). Received packets stay queued during such a call and are
+// processed from the main loop afterwards.
+class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder {
+ public:
+  void update_guarded() { this->run_guarded_(&GuardedMDNSResponder::update); }
+  void close_guarded() { this->run_guarded_(&GuardedMDNSResponder::close); }
+
+ private:
+  void run_guarded_(bool (GuardedMDNSResponder::*fn)()) {
+    UdpContext *ctx = this->m_pUDPContext;
+    if (ctx == nullptr) {
+      (this->*fn)();
+      return;
+    }
+    // Set every time: a restart replaces the context together with its stock handler. Only
+    // begin() and the scheduled netif callback restart, never update() or close(), so the
+    // context cannot change underneath this call.
+    ctx->onRx([this]() {
+      if (!this->in_loop_call_) {
+        this->_callProcess();
+      }
+    });
+    this->in_loop_call_ = true;
+    (this->*fn)();
+    // close() releases the context; a yield in here queues further packets for this loop too
+    while (this->m_pUDPContext != nullptr && this->m_pUDPContext->next()) {
+      this->_parseMessage();
+    }
+    this->in_loop_call_ = false;
+  }
+
+  volatile bool in_loop_call_{false};
+};
+
+static GuardedMDNSResponder mdns_responder;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-  MDNS.begin(App.get_name().c_str());
+  mdns_responder.begin(App.get_name().c_str());
 
   for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
@@ -30,10 +69,10 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
       service_type++;
     }
     uint16_t port = service.port.value();
-    MDNS.addService(FPSTR(service_type), FPSTR(proto), port);
+    mdns_responder.addService(FPSTR(service_type), FPSTR(proto), port);
     for (const auto &record : service.txt_records) {
-      MDNS.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
-                         FPSTR(MDNS_STR_ARG(record.value)));
+      mdns_responder.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
+                                   FPSTR(MDNS_STR_ARG(record.value)));
     }
   }
 }
@@ -52,7 +91,7 @@ void MDNSComponent::start_polling_window_() {
     if (wifi->is_roaming() || (!wifi->is_connected() && !wifi->is_ap_active()))
       return;
 #endif
-    MDNS.update();
+    mdns_responder.update_guarded();
   });
   this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
 }
@@ -81,7 +120,7 @@ void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::
 #endif
 
 void MDNSComponent::on_shutdown() {
-  MDNS.close();
+  mdns_responder.close_guarded();
   delay(10);
 }
 
