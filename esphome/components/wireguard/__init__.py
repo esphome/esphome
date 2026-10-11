@@ -34,6 +34,7 @@ CONF_WIREGUARD_ID = "wireguard_id"
 
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
+DOMAIN = "wireguard"
 
 # The key validation regex has been described by Jason Donenfeld himself
 # url: https://lists.zx2c4.com/pipermail/wireguard/2020-December/006222.html
@@ -122,16 +123,19 @@ async def to_code(config):
         )
     )
 
+    # Shared flash table ended by an empty entry, so the component stores only a pointer.
+    entries = [
+        cg.StructInitializer(
+            AllowedIP,
+            ("ip", str(ip.network_address)),
+            ("netmask", str(ip.netmask)),
+        )
+        for ip in allowed_ips
+    ]
+    end = cg.StructInitializer(AllowedIP, ("ip", cg.nullptr), ("netmask", cg.nullptr))
     cg.add(
         var.set_allowed_ips(
-            [
-                cg.StructInitializer(
-                    AllowedIP,
-                    ("ip", str(ip.network_address)),
-                    ("netmask", str(ip.netmask)),
-                )
-                for ip in allowed_ips
-            ]
+            cg.shared_progmem_array("wireguard_allowed_ips", AllowedIP, [*entries, end])
         )
     )
 
@@ -150,7 +154,7 @@ async def to_code(config):
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("esphome/wireguard", "0.4.7")
+    cg.add_library("esphome/wireguard", "0.4.8")
 
     await cg.register_component(var, config)
 

@@ -30,7 +30,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "esphome.ota";
+ESPHOME_LOG_TAG(TAG, "esphome.ota");
 
 #ifdef USE_OTA_ENCRYPTION
 const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
@@ -635,7 +635,7 @@ error:
 
   this->cleanup_connection_();
 
-  this->status_momentary_error("err", 5000);
+  this->status_momentary_error(5000);
 #ifdef USE_OTA_STATE_LISTENER
   this->notify_state_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif

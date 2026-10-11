@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_mbedtls_tls,
     require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
@@ -62,7 +63,6 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
-    CONF_WIFI,
     PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
@@ -82,6 +82,7 @@ from . import wpa2_eap
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
+DOMAIN = "wifi"
 
 NO_WIFI_VARIANTS = [
     const.VARIANT_ESP32H2,
@@ -557,7 +558,7 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    functools.partial(require_ipv4, name=CONF_WIFI),
+    functools.partial(require_ipv4, name=DOMAIN),
 )
 
 
@@ -686,10 +687,10 @@ async def to_code(config):
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
         if has_eap:
-            # wpa_supplicant's EAP client negotiates with whatever the RADIUS
-            # server offers, and a failed handshake leaves the device off the
-            # network, so keep every mbedTLS client feature the esp32 platform
-            # would otherwise trim.
+            # The supplicant's Kconfig select cannot override the IDF 5 TLS
+            # role choice; the EAP client talks to mbedTLS directly (no
+            # esp-tls) and needs every trimmed extra.
+            require_mbedtls_tls()
             require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
@@ -1090,7 +1091,7 @@ def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
     values still appear. Empty list means no placeholders were found.
     """
     placeholders: list[str] = []
-    wifi_conf = config.get(CONF_WIFI)
+    wifi_conf = config.get(DOMAIN)
     if not wifi_conf:
         return placeholders
 

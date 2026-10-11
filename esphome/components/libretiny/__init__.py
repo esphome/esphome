@@ -60,6 +60,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "libretiny"
 IS_TARGET_PLATFORM = True
 
 # BLE 5.x BK SDK options to disable unused features.
@@ -494,6 +495,9 @@ async def component_to_code(config):
         # The -D wins over the #ifndef default in FreeRTOS.h.
         # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
         cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
+
+    # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
+    cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
 
     # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
     if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:

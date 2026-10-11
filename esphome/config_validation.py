@@ -113,7 +113,7 @@ from esphome.schema_extractors import (
 # Deprecated re-export for external components; remove before 2027.2.0
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
-from esphome.voluptuous_schema import _Schema
+from esphome.voluptuous_schema import KeyInvalid, _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
 
 if typing.TYPE_CHECKING:
@@ -450,6 +450,20 @@ def with_visibility(schema: Schema, visibility: Visibility, *keys: str) -> Schem
     if missing := wanted - {str(m) for m in overrides}:
         raise ValueError(f"with_visibility: keys not in schema: {sorted(missing)}")
     return schema.extend(overrides)
+
+
+class SourceTraceInvalid(Invalid):
+    """An error whose message is followed by where the bad value came from.
+
+    ``detail`` is the message without that trace, for output that already
+    gives the location.
+    """
+
+    def __init__(
+        self, detail: str, source_trace: str, path: list[typing.Hashable] | None = None
+    ) -> None:
+        super().__init__(f"{detail}\n{source_trace}", path)
+        self.detail = detail
 
 
 class FinalExternalInvalid(Invalid):
@@ -2293,7 +2307,7 @@ def validate_registry_entry(name, registry):
         if key is None:
             raise Invalid(f"Key missing from {name}! Got {value}")
         if key not in registry:
-            raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
+            raise KeyInvalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(
@@ -2872,9 +2886,14 @@ def rename_key(
     When ``removed_in`` is set, a deprecation warning is logged if the old key is
     present. Pass ``component`` (the platform/component name) alongside
     ``removed_in`` so the warning identifies where it originates.
+
+    Input that is not a dictionary is returned unchanged, so the schema that
+    follows reports it as a normal configuration error.
     """
 
     def validator(config: dict) -> dict:
+        if not isinstance(config, dict):
+            return config
         config = config.copy()
         if old_key in config:
             has_at_most_one_key(old_key, new_key)(config)

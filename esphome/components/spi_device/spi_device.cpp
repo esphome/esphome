@@ -5,7 +5,7 @@
 
 namespace esphome::spi_device {
 
-static const char *const TAG = "spi_device";
+ESPHOME_LOG_TAG(TAG, "spi_device");
 
 void SPIDeviceComponent::setup() { this->spi_setup(); }
 
