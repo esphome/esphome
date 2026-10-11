@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, time, web_server
@@ -27,9 +29,11 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@rfdarter", "@jesserockz"]
+DOMAIN = "datetime"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -39,14 +43,6 @@ DateEntity = datetime_ns.class_("DateEntity", DateTimeBase)
 TimeEntity = datetime_ns.class_("TimeEntity", DateTimeBase)
 DateTimeEntity = datetime_ns.class_("DateTimeEntity", DateTimeBase)
 
-# Actions
-DateSetAction = datetime_ns.class_("DateSetAction", automation.Action)
-TimeSetAction = datetime_ns.class_("TimeSetAction", automation.Action)
-DateTimeSetAction = datetime_ns.class_("DateTimeSetAction", automation.Action)
-
-DateTimeStateTrigger = datetime_ns.class_(
-    "DateTimeStateTrigger", automation.Trigger.template(cg.ESPTime)
-)
 
 OnTimeTrigger = datetime_ns.class_(
     "OnTimeTrigger", automation.Trigger, cg.Component, cg.Parented.template(TimeEntity)
@@ -65,7 +61,7 @@ DATETIME_MODES = [
 ]
 
 
-def _validate_time_present(config):
+def _validate_time_present(config: ConfigType) -> ConfigType:
     config = config.copy()
     if CONF_ON_TIME in config and CONF_TIME_ID not in config:
         time_id = cv.use_id(time.RealTimeClock)(None)
@@ -76,11 +72,7 @@ def _validate_time_present(config):
 _DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     cv.Schema(
         {
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DateTimeStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         }
     )
@@ -139,15 +131,22 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
 
 
 @setup_entity("datetime")
-async def setup_datetime_core_(var, config):
+async def setup_datetime_core_(var: MockObj, config: ConfigType) -> None:
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
+    # The state callback carries nothing; the automation gets the value as an ESPTime.
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.ESPTime, "x")], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.ESPTime, "x")],
+            conf,
+            params=[],
+            forward=[automation.parent_ref(var).state_as_esptime()],
+        )
 
     if CONF_TIME_ID in config:
         rtc = await cg.get_variable(config[CONF_TIME_ID])
@@ -160,7 +159,7 @@ async def setup_datetime_core_(var, config):
         await cg.register_parented(trigger, var)
 
 
-async def register_datetime(var, config):
+async def register_datetime(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     entity_type = config[CONF_TYPE].lower()
@@ -169,114 +168,75 @@ async def register_datetime(var, config):
     await setup_datetime_core_(var, config)
 
 
-async def new_datetime(config, *args):
+async def new_datetime(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_datetime(var, config)
     return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(datetime_ns.using)
 
 
-@automation.register_action(
-    "datetime.date.set",
-    DateSetAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(DateEntity),
-            cv.Required(CONF_DATE): cv.Any(
-                cv.returning_lambda, cv.date_time(date=True, time=False)
-            ),
-        }
-    ),
-    synchronous=True,
-)
-async def datetime_date_set_to_code(config, action_id, template_arg, args):
-    action_var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(action_var, config[CONF_ID])
-
-    date_config = config[CONF_DATE]
-    if cg.is_template(date_config):
-        template_ = await cg.templatable(date_config, args, cg.ESPTime)
-        cg.add(action_var.set_date(template_))
-    else:
-        date_struct = cg.StructInitializer(
-            cg.ESPTime,
-            ("day_of_month", date_config[CONF_DAY]),
-            ("month", date_config[CONF_MONTH]),
-            ("year", date_config[CONF_YEAR]),
+def _esptime_initializer(
+    members: tuple[tuple[str, str], ...],
+) -> Callable[[ConfigType, ConfigType], str]:
+    def const_fn(config: ConfigType, value: ConfigType) -> str:
+        return str(
+            cg.StructInitializer(
+                cg.ESPTime, *((member, value[key]) for member, key in members)
+            )
         )
-        template_ = await cg.templatable(date_struct, args, cg.ESPTime)
-        cg.add(action_var.set_date(template_))
-    return action_var
+
+    return const_fn
 
 
-@automation.register_action(
-    "datetime.time.set",
-    TimeSetAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(TimeEntity),
-            cv.Required(CONF_TIME): cv.Any(
-                cv.returning_lambda, cv.date_time(date=False, time=True)
-            ),
-        }
+# ESPTime member order, so the designated initializer compiles.
+_TIME_MEMBERS = (("second", CONF_SECOND), ("minute", CONF_MINUTE), ("hour", CONF_HOUR))
+_DATE_MEMBERS = (("day_of_month", CONF_DAY), ("month", CONF_MONTH), ("year", CONF_YEAR))
+
+for _name, _entity, _key, _target, _date, _time, _members in (
+    (
+        "datetime.date.set",
+        DateEntity,
+        CONF_DATE,
+        "set_date",
+        True,
+        False,
+        _DATE_MEMBERS,
     ),
-    synchronous=True,
-)
-async def datetime_time_set_to_code(config, action_id, template_arg, args):
-    action_var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(action_var, config[CONF_ID])
-
-    time_config = config[CONF_TIME]
-    if cg.is_template(time_config):
-        template_ = await cg.templatable(time_config, args, cg.ESPTime)
-        cg.add(action_var.set_time(template_))
-    else:
-        time_struct = cg.StructInitializer(
-            cg.ESPTime,
-            ("second", time_config[CONF_SECOND]),
-            ("minute", time_config[CONF_MINUTE]),
-            ("hour", time_config[CONF_HOUR]),
-        )
-        template_ = await cg.templatable(time_struct, args, cg.ESPTime)
-        cg.add(action_var.set_time(template_))
-    return action_var
-
-
-@automation.register_action(
-    "datetime.datetime.set",
-    DateTimeSetAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(DateTimeEntity),
-            cv.Required(CONF_DATETIME): cv.Any(
-                cv.returning_lambda, cv.date_time(date=True, time=True)
-            ),
-        },
+    (
+        "datetime.time.set",
+        TimeEntity,
+        CONF_TIME,
+        "set_time",
+        False,
+        True,
+        _TIME_MEMBERS,
     ),
-    synchronous=True,
-)
-async def datetime_datetime_set_to_code(config, action_id, template_arg, args):
-    action_var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(action_var, config[CONF_ID])
-
-    datetime_config = config[CONF_DATETIME]
-    if cg.is_template(datetime_config):
-        template_ = await cg.templatable(datetime_config, args, cg.ESPTime)
-        cg.add(action_var.set_datetime(template_))
-    else:
-        datetime_struct = cg.StructInitializer(
-            cg.ESPTime,
-            ("second", datetime_config[CONF_SECOND]),
-            ("minute", datetime_config[CONF_MINUTE]),
-            ("hour", datetime_config[CONF_HOUR]),
-            ("day_of_month", datetime_config[CONF_DAY]),
-            ("month", datetime_config[CONF_MONTH]),
-            ("year", datetime_config[CONF_YEAR]),
-        )
-        template_ = await cg.templatable(datetime_struct, args, cg.ESPTime)
-        cg.add(action_var.set_datetime(template_))
-    return action_var
+    (
+        "datetime.datetime.set",
+        DateTimeEntity,
+        CONF_DATETIME,
+        "set_datetime",
+        True,
+        True,
+        _TIME_MEMBERS + _DATE_MEMBERS,
+    ),
+):
+    automation.register_apply_action(
+        _name,
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(_entity),
+                cv.Required(_key): cv.Any(
+                    cv.returning_lambda, cv.date_time(date=_date, time=_time)
+                ),
+            }
+        ),
+        automation.ApplyField(
+            _key, _target, cg.ESPTime, const_fn=_esptime_initializer(_members)
+        ),
+        call="make_call",
+    )

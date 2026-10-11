@@ -57,7 +57,12 @@ def test_bk72xx_defaults_are_valid() -> None:
 
 
 def test_esp32_defaults_are_valid() -> None:
-    """esp32 pins the ESP-IDF reference rate and exposes active (default on)."""
+    """esp32 pins the ESP-IDF reference rate and exposes active (default on).
+
+    Without wifi loaded, the conditional window default falls back to the
+    historical 30 ms; the wifi-aware resolution is covered by the
+    esp32_ble_tracker component tests.
+    """
     config = ESP32_SCHEMA({})
     assert to_ble_units(config["interval"]) == 512
     assert to_ble_units(config["window"]) == 48

@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.select";
+ESPHOME_LOG_TAG(TAG, "template.select");
 
 void dump_config_helper(BaseTemplateSelect *sel_comp, bool optimistic, bool has_lambda,
                         const size_t initial_option_index, bool restore_value) {

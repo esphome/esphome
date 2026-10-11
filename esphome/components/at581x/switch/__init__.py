@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SWITCH, ICON_WIFI
+from esphome.types import ConfigType
 
 from .. import CONF_AT581X_ID, AT581XComponent, at581x_ns
 
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = switch.switch_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     at581x_component = await cg.get_variable(config[CONF_AT581X_ID])
     s = await switch.new_switch(config)
     await cg.register_parented(s, config[CONF_AT581X_ID])

@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/color.h"
+#include "image_format.h"
 
 namespace esphome::runtime_image {
 
@@ -36,18 +37,41 @@ class ImageDecoder {
    * @brief Construct a new Image Decoder object
    *
    * @param image The RuntimeImage to decode the stream into.
+   * @param format The image format this decoder handles.
    */
-  ImageDecoder(RuntimeImage *image) : image_(image) {}
+  ImageDecoder(RuntimeImage *image, ImageFormat format) : image_(image), format_(format) {}
   virtual ~ImageDecoder() = default;
 
+  /// @brief Get the image format handled by this decoder.
+  ImageFormat get_format() const { return this->format_; }
+
+  /// @brief Check if a decoding session is in progress (prepare() called, reset() not yet).
+  bool is_active() const { return this->active_; }
+
   /**
-   * @brief Initialize the decoder.
+   * @brief Reset the decoder state, ending any decoding session.
+   *        Subclasses should override this method to reset any format-specific state.
+   *        Buffers the next decode can reuse should be kept allocated to avoid heap churn.
+   */
+  virtual void reset() {
+    this->active_ = false;
+    this->expected_size_ = 0;
+    this->decoded_bytes_ = 0;
+    this->size_valid_ = true;
+    this->x_scale_ = 1.0;
+    this->y_scale_ = 1.0;
+  }
+
+  /**
+   * @brief Initialize the decoder, starting a new decoding session.
    *
    * @param expected_size Hint about the expected data size (0 if unknown).
    * @return int          Returns 0 on success, a {@see DecodeError} value in case of an error.
    */
   virtual int prepare(size_t expected_size) {
+    this->reset();
     this->expected_size_ = expected_size;
+    this->active_ = true;
     return 0;
   }
 
@@ -103,11 +127,13 @@ class ImageDecoder {
   }
 
  protected:
+  double x_scale_ = 1.0;
+  double y_scale_ = 1.0;
   RuntimeImage *image_;
   size_t expected_size_ = 0;  // Expected data size (0 if unknown)
   size_t decoded_bytes_ = 0;  // Bytes processed so far
-  double x_scale_ = 1.0;
-  double y_scale_ = 1.0;
+  const ImageFormat format_;
+  bool active_ = false;     // A decoding session is in progress
   bool size_valid_ = true;  // Last set_size() result; draw() no-ops while false
 };
 
