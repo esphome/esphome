@@ -11,6 +11,7 @@
 
 #include <array>
 #include <list>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 
@@ -532,7 +533,10 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
  protected:
-  using QueueItem = std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>;
+  // Store copies, not references: trigger arguments such as `const T &` refer to data that is gone once the
+  // trigger returns
+  using ArgsTuple = std::tuple<std::remove_cvref_t<Ts>...>;
+  using QueueItem = std::tuple<uint32_t, optional<uint32_t>, ArgsTuple>;
 
   // Helper: Process queue, triggering completed items and removing them
   // Returns true if queue still has pending items
@@ -553,7 +557,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       auto expired = timeout && (now - start) >= *timeout;
 
       // Keep waiting if not expired and condition not met
-      if (!expired && !this->condition_->check_tuple(std::get<std::tuple<Ts...>>(*it))) {
+      if (!expired &&
+          !std::apply([this](auto &...args) { return this->condition_->check(args...); }, std::get<ArgsTuple>(*it))) {
         pending.splice(pending.end(), queue, it);
         continue;
       }
@@ -564,7 +569,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       std::list<QueueItem> completed;
       completed.splice(completed.begin(), queue, it);
       uint8_t generation = this->stop_generation_;
-      this->play_next_tuple_(std::get<std::tuple<Ts...>>(completed.front()));
+      std::apply([this](auto &...args) { this->play_next_(args...); }, std::get<ArgsTuple>(completed.front()));
       if (generation != this->stop_generation_) {
         // stop() ran inside the chain - the items still held locally were cancelled
         pending.clear();
