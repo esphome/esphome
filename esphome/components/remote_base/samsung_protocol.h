@@ -14,9 +14,9 @@ struct SamsungData {
 
 class SamsungProtocol : public RemoteProtocol<SamsungData> {
  public:
-  void encode(RemoteTransmitData *dst, const SamsungData &data) override;
-  optional<SamsungData> decode(RemoteReceiveData src) override;
-  void dump(const SamsungData &data) override;
+  void encode(RemoteTransmitData *dst, const SamsungData &data);
+  optional<SamsungData> decode(RemoteReceiveData src);
+  void dump(const SamsungData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Samsung)

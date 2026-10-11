@@ -1,0 +1,10 @@
+button:
+  - platform: template
+    name: PN532 write state
+    on_press:
+      - if:
+          condition:
+            pn532.is_writing:
+              id: pn532_nfcc_i2c
+          then:
+            - logger.log: Writing

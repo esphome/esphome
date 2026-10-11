@@ -37,11 +37,20 @@ class Anova final : public climate::Climate, public esphome::ble_client::BLEClie
   void set_unit_of_measurement(const char *unit);
 
  protected:
+  // A poll cycle re-asserts the configured unit, then reads device state.
+  // Re-asserting every cycle prevents the cooker from silently reverting to
+  // its default (Celsius); previously the unit was only set once on
+  // connection, so a drift persisted (and corrupted the F/C interpretation of
+  // subsequent readings) until the BLE link was re-established.
+  enum class PollStep : uint8_t { SET_UNIT, STATUS, TARGET, CURRENT, IDLE };
+
+  void write_request_(AnovaPacket *pkt);
+
   std::unique_ptr<AnovaCodec> codec_;
   void control(const climate::ClimateCall &call) override;
   uint16_t char_handle_;
-  uint8_t current_request_;
-  bool fahrenheit_;
+  bool want_fahrenheit_{true};  // configured target unit; never overwritten by device replies
+  PollStep poll_step_{PollStep::IDLE};
 };
 
 }  // namespace esphome::anova

@@ -1,0 +1,16 @@
+esphome:
+  name: slotcount-esp32-proxy
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+bluetooth_proxy:
+  active: true

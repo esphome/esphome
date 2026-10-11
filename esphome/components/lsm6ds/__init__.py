@@ -3,6 +3,7 @@ from esphome.components import i2c
 from esphome.components.motion import MotionComponent
 
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "lsm6ds"
 
 CONF_LSM6DS_ID = "lsm6ds_id"
 #  C++ namespace / class

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.component_aliases import COMPONENT_ALIASES
 from esphome.loader import (
     AliasMeta,
     ComponentManifest,
@@ -479,6 +480,33 @@ def test_real_alias_map_includes_rp2040() -> None:
     assert "rp2040" in meta
     assert meta["rp2040"].canonical == "rp2"
     assert meta["rp2040"].removal_version == "2027.7.0"
+
+
+def test_alias_registry_matches_component_tree() -> None:
+    """The checked-in registry must match a live scan of the component tree."""
+    _, meta_map = _build_alias_map()
+    expected = {
+        alias: (meta.canonical, meta.removal_version)
+        for alias, meta in meta_map.items()
+    }
+    assert expected == COMPONENT_ALIASES, (
+        "esphome/component_aliases.py is out of date; "
+        "run script/build_alias_registry.py"
+    )
+
+
+def test_alias_map_built_from_registry() -> None:
+    """The runtime alias map comes from the generated registry, not a scan."""
+    with (
+        patch(
+            "esphome.component_aliases.COMPONENT_ALIASES",
+            {"legacy": ("modern", "2099.1.0")},
+        ),
+        patch("esphome.loader._ALIAS_META_CACHE", None),
+    ):
+        assert get_alias_metadata() == {
+            "legacy": AliasMeta(canonical="modern", removal_version="2099.1.0")
+        }
 
 
 def test_get_component_resolves_alias() -> None:

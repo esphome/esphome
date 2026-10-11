@@ -6,7 +6,7 @@
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "image_decoder";
+ESPHOME_LOG_TAG(TAG, "image_decoder");
 
 bool ImageDecoder::set_size(int width, int height) {
   bool success = this->image_->resize(width, height) > 0;

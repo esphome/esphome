@@ -7,6 +7,7 @@ from typing import Any
 
 from esphome import git, yaml_util
 from esphome.components.substitutions import (
+    DOMAIN as SUBSTITUTIONS_DOMAIN,
     ContextVars,
     ErrList,
     push_context,
@@ -38,7 +39,7 @@ from esphome.core import EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = CONF_PACKAGES
+DOMAIN = "packages"
 # Guard against infinite include chains (e.g. A includes B includes A).
 MAX_INCLUDE_DEPTH = 20
 
@@ -88,7 +89,7 @@ def valid_package_contents(package_config: dict) -> dict:
     return package_config
 
 
-def expand_file_to_files(config: dict):
+def expand_file_to_files(config: dict) -> dict:
     if CONF_FILE in config:
         new_config = config
         new_config[CONF_FILES] = [config[CONF_FILE]]
@@ -97,7 +98,7 @@ def expand_file_to_files(config: dict):
     return config
 
 
-def validate_yaml_filename(value):
+def validate_yaml_filename(value: Any) -> str:
     value = cv.string(value)
 
     if not value.endswith((".yaml", ".yml")):
@@ -106,7 +107,7 @@ def validate_yaml_filename(value):
     return value
 
 
-def validate_source_shorthand(value):
+def validate_source_shorthand(value: Any) -> dict:
     if not isinstance(value, str):
         raise cv.Invalid("Git URL shorthand only for strings")
 
@@ -128,7 +129,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
             cv.Required(CONF_URL): cv.url,
             cv.Optional(CONF_PATH): cv.string,
             cv.Optional(CONF_USERNAME): cv.string,
-            cv.Optional(CONF_PASSWORD): cv.string,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.string),
             cv.Exclusive(CONF_FILE, CONF_FILES): validate_yaml_filename,
             cv.Exclusive(CONF_FILES, CONF_FILES): cv.All(
                 cv.ensure_list(
@@ -200,6 +201,14 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     repo_dir = repo_root
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
+
+    # Deferred import: keeps esphome.bundle off the device builder's
+    # startup path, since packages is loaded on every config parse.
+    from esphome.bundle import add_secret_scan_dir
+
+    # Register the path-narrowed dir, not repo_root, so example configs
+    # elsewhere in the repo do not widen the shipped secrets.
+    add_secret_scan_dir(repo_dir)
 
     for file in config[CONF_FILES]:
         if isinstance(file, str):
@@ -345,7 +354,7 @@ def _walk_packages(
     packages = config[CONF_PACKAGES]
     packages_path = (path or []) + [CONF_PACKAGES]
 
-    with cv.prepend_path(CONF_PACKAGES):
+    with cv.prepend_path(DOMAIN):
         if isinstance(packages, yaml_util.IncludeFile):
             # If the packages key is an IncludeFile, resolve it first before processing.
             packages = resolve_include(
@@ -591,7 +600,7 @@ def do_packages_pass(
     if CONF_PACKAGES not in config:
         return config
 
-    with cv.prepend_path(CONF_SUBSTITUTIONS):
+    with cv.prepend_path(SUBSTITUTIONS_DOMAIN):
         substitutions = UserDict(
             resolve_substitutions_block(
                 config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions

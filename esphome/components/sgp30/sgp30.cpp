@@ -8,7 +8,7 @@
 
 namespace esphome::sgp30 {
 
-static const char *const TAG = "sgp30";
+ESPHOME_LOG_TAG(TAG, "sgp30");
 
 static const uint16_t SGP30_CMD_GET_SERIAL_ID = 0x3682;
 static const uint16_t SGP30_CMD_GET_FEATURESET = 0x202f;

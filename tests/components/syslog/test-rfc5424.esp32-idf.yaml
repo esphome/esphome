@@ -1,0 +1,8 @@
+<<: !include common.yaml
+
+syslog:
+  port: 514
+  strip: true
+  level: info
+  facility: 16
+  format: RFC5424
