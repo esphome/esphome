@@ -31,25 +31,34 @@ void MAX17048Component::setup() {
   }
 }
 
-bool MAX17048Component::read_register_(uint8_t reg, uint16_t &value) {
-  if (!this->read_byte_16(reg, &value)) {
-    this->status_set_warning(LOG_STR("Register read failed"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
-}
-
 void MAX17048Component::update() {
+  bool ok = true;
   uint16_t raw;
-  if (this->battery_voltage_sensor_ != nullptr && this->read_register_(REG_VCELL, raw)) {
-    this->battery_voltage_sensor_->publish_state(raw * VCELL_VOLTS_PER_LSB);
+  if (this->battery_voltage_sensor_ != nullptr) {
+    if (this->read_byte_16(REG_VCELL, &raw)) {
+      this->battery_voltage_sensor_->publish_state(raw * VCELL_VOLTS_PER_LSB);
+    } else {
+      ok = false;
+    }
   }
-  if (this->battery_level_sensor_ != nullptr && this->read_register_(REG_SOC, raw)) {
-    this->battery_level_sensor_->publish_state(raw * SOC_PERCENT_PER_LSB);
+  if (this->battery_level_sensor_ != nullptr) {
+    if (this->read_byte_16(REG_SOC, &raw)) {
+      this->battery_level_sensor_->publish_state(raw * SOC_PERCENT_PER_LSB);
+    } else {
+      ok = false;
+    }
   }
-  if (this->rate_sensor_ != nullptr && this->read_register_(REG_CRATE, raw)) {
-    this->rate_sensor_->publish_state(static_cast<int16_t>(raw) * CRATE_PERCENT_PER_HOUR_PER_LSB);
+  if (this->rate_sensor_ != nullptr) {
+    if (this->read_byte_16(REG_CRATE, &raw)) {
+      this->rate_sensor_->publish_state(static_cast<int16_t>(raw) * CRATE_PERCENT_PER_HOUR_PER_LSB);
+    } else {
+      ok = false;
+    }
+  }
+  if (ok) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(LOG_STR("Register read failed"));
   }
 }
 
