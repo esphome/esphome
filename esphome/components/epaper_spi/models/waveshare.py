@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components.mipi import flatten_sequence
 from esphome.core import ID
@@ -10,15 +13,15 @@ from . import EpaperModel
 class WaveshareModel(EpaperModel):
     def __init__(
         self,
-        name,
-        lut,
-        lut_partial=None,
-        sequence_full=(),
-        sequence_partial=(),
-        base_image_required=False,
-        class_name="EpaperWaveshare",
-        **defaults,
-    ):
+        name: str,
+        lut: tuple[int, ...],
+        lut_partial: tuple[int, ...] | None = None,
+        sequence_full: tuple[tuple[int, ...], ...] = (),
+        sequence_partial: tuple[tuple[int, ...], ...] = (),
+        base_image_required: bool = False,
+        class_name: str = "EpaperWaveshare",
+        **defaults: Any,
+    ) -> None:
         # A partial LUT is what lets EpaperWaveshare do partial refresh
         defaults.setdefault("partial_update", lut_partial is not None)
         super().__init__(name, class_name=class_name, **defaults)
@@ -28,7 +31,9 @@ class WaveshareModel(EpaperModel):
         self.sequence_partial = sequence_partial
         self.base_image_required = base_image_required
 
-    def _array_arg(self, config, suffix, data) -> tuple:
+    def _array_arg(
+        self, config: ConfigType, suffix: str, data: Sequence[int] | None
+    ) -> tuple:
         if not data:
             return cg.nullptr, 0
         return (
