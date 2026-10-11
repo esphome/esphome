@@ -482,22 +482,21 @@ def test_install_tree_aware_shim_is_idempotent(
     )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="shim is POSIX only")
 def test_install_tree_aware_shim_missing_console_script_raises(
     script_setup: ModuleType, tmp_path: Path
 ) -> None:
-    with (
-        patch.object(script_setup.os, "name", "posix"),
-        pytest.raises(SystemExit, match="esphome console script not found"),
-    ):
+    with pytest.raises(SystemExit, match="esphome console script not found"):
         script_setup.install_tree_aware_shim(tmp_path / "venv")
 
 
 def test_install_tree_aware_shim_skipped_on_windows(
     script_setup: ModuleType, tmp_path: Path
 ) -> None:
+    venv = tmp_path / "missing-venv"
     with patch.object(script_setup.os, "name", "nt"):
-        script_setup.install_tree_aware_shim(tmp_path / "missing-venv")
-    assert not (tmp_path / "missing-venv").exists()
+        script_setup.install_tree_aware_shim(venv)
+    assert not venv.exists()
 
 
 # --- report ------------------------------------------------------------------
