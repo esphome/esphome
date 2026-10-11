@@ -5,7 +5,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.e6.dual";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.e6.dual");
 
 static constexpr uint8_t CMD_AN_TM = 0x74;
 static constexpr uint8_t CMD_CMD66 = 0xF0;
@@ -127,7 +127,7 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
     // chunks resets the IC's internal data pointer, so we call enable() once here and
     // disable() only after all data has been sent.
     if (this->current_data_index_ == 0) {
-      ESP_LOGI(TAG, "DTM transfer to master IC (left half, %u bytes)", HALF_FRAME_BYTES);
+      ESP_LOGI(TAG, "DTM transfer to master IC (left half, %" PRIu32 " bytes)", HALF_FRAME_BYTES);
       this->dc_command_();
       this->enable();  // assert master CS — held for entire transfer
       this->write_byte(CMD_DTM);
@@ -159,7 +159,7 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
   // Phase 2: secondary IC — right 600px columns (bytes 300..599 of each row, all 1600 rows)
   // Same principle: secondary CS held low for the entire DTM + data stream.
   if (this->current_data_index_ == 0) {
-    ESP_LOGI(TAG, "DTM transfer to secondary IC (right half, %u bytes)", HALF_FRAME_BYTES);
+    ESP_LOGI(TAG, "DTM transfer to secondary IC (right half, %" PRIu32 " bytes)", HALF_FRAME_BYTES);
     this->dc_command_();
     this->cs_secondary_->digital_write(false);  // assert secondary CS — held for entire transfer
     this->enable();                             // begin_transaction; also asserts master CS briefly
