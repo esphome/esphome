@@ -124,15 +124,19 @@ void RenogyInverterBle::on_frame_complete_(uint16_t len) {
     this->abort_cycle_();
     return;
   }
-  const uint8_t word_count = this->frame_[2] / 2;
+  // Only the reply to the outstanding read is accepted: same device, same function, the requested word count
+  const bool awaiting_reply = this->state_ == State::MAIN || this->state_ == State::LOAD;
+  const uint16_t expected_words = this->state_ == State::MAIN ? REG_MAIN_WORDS : REG_LOAD_WORDS;
+  if (!awaiting_reply || this->frame_[0] != MODBUS_DEVICE_ID || this->frame_[1] != MODBUS_READ_HOLDING ||
+      this->frame_[2] != 2 * expected_words) {
+    ESP_LOGW(TAG, "Unexpected response %02X %02X %02X (state=%u)", this->frame_[0], this->frame_[1], this->frame_[2],
+             static_cast<uint8_t>(this->state_));
+    this->abort_cycle_();
+    return;
+  }
   auto reg16 = [this](uint8_t i) { return encode_uint16(this->frame_[3 + 2 * i], this->frame_[4 + 2 * i]); };
 
   if (this->state_ == State::MAIN) {
-    if (word_count < 10) {
-      ESP_LOGW(TAG, "Main response too short: %u words", word_count);
-      this->abort_cycle_();
-      return;
-    }
     publish(this->ac_input_voltage_sensor_, reg16(0) * 0.1f);
     publish(this->ac_output_voltage_sensor_, reg16(2) * 0.1f);
     publish(this->ac_output_current_sensor_, reg16(3) * 0.01f);
@@ -147,15 +151,9 @@ void RenogyInverterBle::on_frame_complete_(uint16_t len) {
     });
     return;
   }
-  if (this->state_ == State::LOAD) {
-    if (word_count < 3) {
-      ESP_LOGW(TAG, "Load response too short: %u words", word_count);
-    } else {
-      publish(this->load_current_sensor_, reg16(0) * 0.01f);
-      publish(this->load_active_power_sensor_, static_cast<float>(reg16(1)));
-      publish(this->load_apparent_power_sensor_, static_cast<float>(reg16(2)));
-    }
-  }
+  publish(this->load_current_sensor_, reg16(0) * 0.01f);
+  publish(this->load_active_power_sensor_, static_cast<float>(reg16(1)));
+  publish(this->load_apparent_power_sensor_, static_cast<float>(reg16(2)));
   this->abort_cycle_();
 }
 
@@ -190,6 +188,14 @@ void RenogyInverterBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      // Other nodes on the same client see this event too
+      if (param->reg_for_notify.handle != this->notify_handle_) {
+        break;
+      }
+      if (param->reg_for_notify.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Notification registration failed, status=%d", param->reg_for_notify.status);
+        break;
+      }
       this->node_state = espbt::ClientState::ESTABLISHED;
       ESP_LOGI(TAG, "Connected; will poll the inverter every update interval");
       break;
