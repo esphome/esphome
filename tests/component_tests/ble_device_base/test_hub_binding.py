@@ -1,6 +1,6 @@
 """Tests for the BLE hub provider registry and the missing-hub diagnostics."""
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from importlib import import_module
 from pathlib import Path
 
@@ -202,3 +202,30 @@ def test_add_service_uuid_dispatches_by_width(monkeypatch: pytest.MonkeyPatch) -
     assert "0x00,0xff,0xee,0xdd" in emitted[2]
     with pytest.raises(ValueError, match="Unsupported UUID format"):
         ble_device_base.add_service_uuid(var, "123")
+
+
+@pytest.mark.parametrize(
+    ("config_name", "define"),
+    [
+        ("esp32_tracker_only.yaml", "USE_ESP32_BLE_TRACKER"),
+        ("rp2_tracker.yaml", "USE_RP2_BLE_TRACKER"),
+        ("bk72xx_tracker.yaml", "USE_BK72XX_BLE_TRACKER"),
+        ("ln882h_tracker.yaml", "USE_LN882H_BLE_TRACKER"),
+    ],
+)
+def test_every_tracker_emits_its_alias_define(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_name: str,
+    define: str,
+) -> None:
+    """Each tracker's codegen must emit its USE_*_BLE_TRACKER define - the
+    ble_hub_impl.h alias ladder selects on it. Checked through real codegen
+    (the other two legs of the invariant, the ladder arm and the defines.h
+    mirror, are compile-enforced: a missing arm fails any build containing a
+    BLEHub consumer - today bluetooth_proxy, which CI compiles or tidy-parses
+    on every tracker platform - and clang-tidy compiles each arm's
+    static_assert)."""
+    generate_main(component_config_path(config_name))
+
+    assert define in {d.name for d in CORE.defines}, f"{define} not emitted by codegen"

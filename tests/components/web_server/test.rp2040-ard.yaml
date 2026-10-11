@@ -4,5 +4,5 @@ packages:
 web_server:
   auth:
     username: admin
-    password: password
+    password: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     type: basic

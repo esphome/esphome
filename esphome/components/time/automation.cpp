@@ -1,4 +1,5 @@
 #include "automation.h"
+#ifdef USE_TIME_TRIGGERS
 
 #include "esphome/core/log.h"
 
@@ -6,7 +7,7 @@
 
 namespace esphome::time {
 
-static const char *const TAG = "automation";
+ESPHOME_LOG_TAG(TAG, "automation");
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
@@ -93,8 +94,6 @@ void CronTrigger::add_days_of_week(const std::vector<uint8_t> &days_of_week) {
 }
 float CronTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-SyncTrigger::SyncTrigger(RealTimeClock *rtc) : rtc_(rtc) {
-  rtc->add_on_time_sync_callback([this]() { this->trigger(); });
-}
-
 }  // namespace esphome::time
+
+#endif  // USE_TIME_TRIGGERS

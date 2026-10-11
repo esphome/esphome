@@ -14,7 +14,7 @@
 
 namespace esphome::rp2 {
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 static constexpr uint32_t RP2040_FLASH_STORAGE_SIZE = 512;
 

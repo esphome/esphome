@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 // #include "esphome/core/helpers.h"
@@ -159,63 +158,6 @@ class GroveMotorDriveTB6612FNG final : public Component, public i2c::I2CDevice {
 
  private:
   uint8_t buffer_[16];
-};
-
-template<typename... Ts>
-class GROVETB6612FNGMotorRunAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, channel)
-  TEMPLATABLE_VALUE(uint16_t, speed)
-
-  void set_direction(bool forward) { this->forward_ = forward; }
-
-  void play(const Ts &...x) override {
-    auto channel = this->channel_.value(x...);
-    int16_t speed = this->speed_.value(x...);
-    if (!this->forward_) {
-      speed = -speed;
-    }
-    this->parent_->dc_motor_run(channel, speed);
-  }
-
- protected:
-  bool forward_{true};
-};
-
-template<typename... Ts>
-class GROVETB6612FNGMotorBrakeAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, channel)
-
-  void play(const Ts &...x) override { this->parent_->dc_motor_brake(this->channel_.value(x...)); }
-};
-
-template<typename... Ts>
-class GROVETB6612FNGMotorStopAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, channel)
-
-  void play(const Ts &...x) override { this->parent_->dc_motor_stop(this->channel_.value(x...)); }
-};
-
-template<typename... Ts>
-class GROVETB6612FNGMotorStandbyAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
- public:
-  void play(const Ts &...x) override { this->parent_->standby(); }
-};
-
-template<typename... Ts>
-class GROVETB6612FNGMotorNoStandbyAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
- public:
-  void play(const Ts &...x) override { this->parent_->not_standby(); }
-};
-
-template<typename... Ts>
-class GROVETB6612FNGMotorChangeAddressAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-
-  void play(const Ts &...x) override { this->parent_->set_i2c_addr(this->address_.value(x...)); }
 };
 
 }  // namespace esphome::grove_tb6612fng

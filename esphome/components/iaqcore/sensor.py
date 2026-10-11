@@ -11,6 +11,7 @@ from esphome.const import (
     UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@yozik04"]
@@ -42,16 +43,12 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if co2_config := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2_config)
-        cg.add(var.set_co2(sens))
-
-    if tvoc_config := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(tvoc_config)
-        cg.add(var.set_tvoc(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2)
+    await sensors(CONF_TVOC, var.set_tvoc)
 
     await i2c.register_i2c_device(var, config)

@@ -1,0 +1,31 @@
+esphome:
+  name: test-sensor-raw-state-no-filter
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# No sensor in this config has filters, so USE_SENSOR_FILTER is not defined and
+# get_raw_state() falls back to state
+sensor:
+  - platform: template
+    name: "No Filter Sensor"
+    id: no_filter_sensor
+    accuracy_decimals: 1
+
+button:
+  - platform: template
+    name: "Test No Filter Button"
+    id: test_no_filter_button
+    on_press:
+      - sensor.template.publish:
+          id: no_filter_sensor
+          state: 21.5
+      - delay: 50ms
+      - logger.log:
+          format: "NO_FILTER: state=%.1f raw_state=%.1f"
+          args:
+            - id(no_filter_sensor).state
+            - id(no_filter_sensor).get_raw_state()

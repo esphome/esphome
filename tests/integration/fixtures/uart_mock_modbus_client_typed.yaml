@@ -133,8 +133,8 @@ button:
           on_error:
             then:
               - lambda: "id(error_code).publish_state((int) exception_code);"
-      # The mock server is register-only, so a coil read draws ILLEGAL_FUNCTION - proving the bit-read
-      # action's request PDU and its typed error delivery.
+      # The mock server maps no bits, so it does not implement the coil function: a coil read draws
+      # ILLEGAL_FUNCTION - proving the bit-read action's request PDU and its typed error delivery.
       - modbus_client.read_coils:
           address: 1
           start_address: 0x00
@@ -166,7 +166,7 @@ button:
           on_not_sent:
             then:
               - lambda: "id(not_sent_flag).publish_state(1);"
-      # Multi-coil write (fc 0x0F): the register-only server answers ILLEGAL_FUNCTION.
+      # Multi-coil write (fc 0x0F): the server maps no bits, so it answers ILLEGAL_FUNCTION.
       - modbus_client.write_multiple_coils:
           address: 1
           start_address: 0x00

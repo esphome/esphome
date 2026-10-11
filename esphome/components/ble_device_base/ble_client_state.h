@@ -17,6 +17,16 @@ namespace esphome::ble_device_base {
 /// client backend.
 static constexpr int GATT_ERR_NOT_CONNECTED = -1;
 static constexpr int GATT_ERR_NO_MEMORY = -2;
+/// ATT "Unlikely Error" (spec 0x0E): a client-side internal inconsistency,
+/// e.g. a service table failing its own bounds checks.
+static constexpr int GATT_ERR_UNLIKELY = 0x0E;
+
+/// Safety net shared by every GATT backend: force IDLE when the stack never
+/// delivers its disconnect completion.
+static constexpr uint32_t GATT_DISCONNECT_TIMEOUT_MS = 10000;
+
+/// ATT MTU before negotiation completes (Bluetooth spec default).
+static constexpr uint16_t DEFAULT_ATT_MTU = 23;
 
 // Preferred connection parameters shared by every platform's GATT client so
 // the backends cannot drift (units: interval 1.25 ms, timeout 10 ms; latency
