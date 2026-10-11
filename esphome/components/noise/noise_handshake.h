@@ -10,7 +10,8 @@
 
 namespace esphome::noise {
 
-/** Sans-IO responder side of a Noise_NNpsk0_25519_ChaChaPoly_SHA256 handshake.
+/** Sans-IO Noise_NNpsk0_25519_ChaChaPoly_SHA256 handshake: the responder for api and ota, and with
+ * USE_NOISE_STREAM also the initiator of a device-to-device stream.
  *
  * Owns only the noise-c handshake state; the caller moves the raw handshake
  * messages (no framing) over its own transport, driven by action():
@@ -39,7 +40,16 @@ class NoiseResponderHandshake {
   /// Create and start the handshake with the context's PSK and the prologue.
   /// A repeated call frees the previous handshake state and starts over. A
   /// spare ephemeral key, when one is ready, is used instead of generating.
-  [[nodiscard]] int init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len);
+  [[nodiscard]] int init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {
+    return this->init_<NOISE_ROLE_RESPONDER>(ctx, prologue, prologue_len);
+  }
+#ifdef USE_NOISE_STREAM
+  /// The same handshake from the side that speaks first, for a link between
+  /// two devices. It generates its own ephemeral key and leaves the spare.
+  [[nodiscard]] int init_initiator(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {
+    return this->init_<NOISE_ROLE_INITIATOR>(ctx, prologue, prologue_len);
+  }
+#endif
   /// ACTION_FAILED is the catch-all: returned before init(), after split()
   /// has released the state, and when noise-c reports a failed handshake.
   [[nodiscard]] Action action() const;
@@ -55,6 +65,7 @@ class NoiseResponderHandshake {
   [[nodiscard]] int split(NoiseCipherState *&send_cipher, NoiseCipherState *&recv_cipher);
 
  protected:
+  template<int Role> int init_(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len);
   int fail_init_(int err);
 
   NoiseHandshakeState *handshake_{nullptr};

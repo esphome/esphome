@@ -12,6 +12,7 @@ uart_tcp:
     host: 192.0.2.20
     port: 502
     reconnect_interval: 10s
+    timeout: 30s
     connected:
       name: UART TCP Connected
     disconnects:

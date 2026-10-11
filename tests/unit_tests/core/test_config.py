@@ -26,8 +26,11 @@ from esphome.const import (
 )
 from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_LOOP_INTERVAL,
     CONF_SUSPEND_LOOP,
+    DEFAULT_LOOP_INTERVAL,
     Area,
+    get_loop_interval,
     make_app_name_cpp,
     preload_core_config,
     valid_include,
@@ -35,6 +38,7 @@ from esphome.core.config import (
     validate_area_config,
     validate_hostname,
 )
+import esphome.final_validate as fv
 
 from .common import load_config_from_fixture
 
@@ -288,6 +292,22 @@ def test_loop_interval_warn_esp32(
         "wake every 2400ms. Raise esp32.watchdog_timeout to sleep longer."
         in caplog.text
     )
+
+
+@pytest.mark.parametrize(
+    ("esphome_config", "expected_ms"),
+    [
+        ({}, DEFAULT_LOOP_INTERVAL.total_milliseconds),
+        ({CONF_LOOP_INTERVAL: cv.positive_time_period_milliseconds("100ms")}, 100),
+    ],
+)
+def test_get_loop_interval(esphome_config: dict[str, Any], expected_ms: int) -> None:
+    """The configured loop_interval, or Application's default when none is set."""
+    token = fv.full_config.set({CONF_ESPHOME: esphome_config})
+    try:
+        assert get_loop_interval().total_milliseconds == expected_ms
+    finally:
+        fv.full_config.reset(token)
 
 
 @pytest.mark.parametrize(
