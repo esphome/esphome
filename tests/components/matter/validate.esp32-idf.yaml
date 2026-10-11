@@ -1,0 +1,20 @@
+# Config-only test: baseline validation on classic ESP32 (Wi-Fi + IPv6).
+# The compile test is on ESP32-S3 so this one keeps the classic ESP32 code
+# path covered without paying the compile cost — the interesting bits
+# (only_on_variant, endpoint-count derivation, sdkconfig option assembly)
+# all run at config time.
+packages:
+  matter_network: !include common.yaml
+
+matter:
+  vendor_id: 0xFFF1
+  product_id: 0x8000
+  setup_code: "20202021"
+  discriminator: 0x0F0F
+  vendor_name: ESPHome
+  product_name: Matter ESP32 Test
+
+switch:
+  - platform: template
+    name: Matter ESP32 Switch
+    optimistic: true
