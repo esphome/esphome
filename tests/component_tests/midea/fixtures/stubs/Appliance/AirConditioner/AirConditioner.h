@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 #include "Appliance/ApplianceBase.h"
 namespace dudanov::midea::ac {
 // A controlled transport boundary: protocol validation is tested in MideaUART.

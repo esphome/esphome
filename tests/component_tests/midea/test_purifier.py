@@ -14,6 +14,7 @@ from esphome.components.midea.switch import CONFIG_SCHEMA
 from esphome.config import read_config, validate_config
 from esphome.const import PlatformFramework
 from esphome.core import CORE
+from esphome.espidf.clang_tidy import _parse_lib_deps
 from esphome.writer import copy_src_tree
 from esphome.yaml_util import load_yaml
 from tests.component_tests.types import SetCoreConfigCallable
@@ -145,17 +146,24 @@ def test_switch_platform_copies_required_sources(
     assert ("#define USE_MIDEA_PURIFIER" in defines) == configured
 
 
+@pytest.mark.parametrize("framework", ["arduino", "espidf"])
 def test_codegen_uses_the_public_purifier_library(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    framework: str,
 ) -> None:
-    """Firmware dependencies resolve to the immutable public purifier implementation."""
+    """Firmware and static analysis resolve to the same public purifier library."""
     generate_main(component_config_path("purifier.yaml"))
     library = CORE.platformio_libraries["MideaUART"]
     assert library.as_lib_dep == (
         "MideaUART=https://github.com/m4rkireland/MideaUART.git#"
         "2e65f70ed12e507c69d9662b524d3027ac051960"
     )
+    root = Path(__file__).resolve().parents[3]
+    tidy_libraries = _parse_lib_deps(root / "platformio.ini", framework)
+    assert library.repository in {
+        dependency.repository for dependency in tidy_libraries
+    }
 
 
 @pytest.mark.parametrize("scenario", ["feedback", "accepted", "rejected"])
