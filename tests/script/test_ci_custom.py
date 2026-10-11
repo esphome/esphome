@@ -386,3 +386,153 @@ def test_ternary_error_message_names_the_literal() -> None:
     )
     assert len(errs) == 1
     assert 'LOG_STR_LITERAL("enabled")' in errs[0][2]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'static const char *const TAG = "x";',
+        'static const char* const TAG = "x";',
+        'static const char *TAG = "x";',
+        'constexpr const char *TAG = "x";',
+        'static const char *const TAG{"x"};',
+        'static constexpr char TAG[] = "x";',
+        'static constexpr char TAG[] = {"x"};',
+        'static const char TAG[8] = "x";',
+        '  static const char *const TAG = "x";',
+    ],
+)
+def test_log_tag_macro_flags_plain_tags(line: str) -> None:
+    assert ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    ['ESPHOME_LOG_TAG(TAG, "x");', 'static const char *const NAME = "x";'],
+)
+def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:
+    assert not ci_custom.lint_log_tag_macro("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "this->set_timeout(TAG, 100, cb);",
+        "strcmp(TAG, name);",
+        "strcmp(name, TAG);",
+        "strncpy(buf, TAG, sizeof(buf));",
+        "strcmp(get_name(), TAG);",
+        "this->set_timeout(make_id(x), TAG, cb);",
+        "std::string(TAG);",
+        "std::string name = TAG;",
+        "std::string name{TAG};",
+    ],
+)
+def test_log_tag_as_string_flags_string_uses(line: str) -> None:
+    assert ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'ESP_LOGD(TAG, "x");',
+        'this->set_timeout(100, [this]() { ESP_LOGD(TAG, "x"); });',
+        "strcmp(name, OTHER_TAG);",
+    ],
+)
+def test_log_tag_as_string_ignores_logging(line: str) -> None:
+    assert not ci_custom.lint_log_tag_as_string("test.cpp", line + "\n")
+
+
+@pytest.mark.parametrize(
+    ("content", "flagged"),
+    [
+        ("auto s = format_hex_pretty(data, len);\n", True),
+        # Explicit template arguments must not hide the call
+        ("auto s = format_hex_pretty<uint32_t>(v, '\\0', false);\n", True),
+        ("auto s = format_hex<std::array<uint8_t, 4>>(arr);\n", True),
+        (
+            "auto s = format_hex<std::conditional_t<true, std::make_unsigned_t<int>, uint64_t>>(v);\n",
+            True,
+        ),
+        ("auto s = format_hex < 3;\n", False),
+        ("format_hex_pretty_to(buf, sizeof(buf), data, len);\n", False),
+    ],
+)
+def test_heap_allocating_helpers_detection(content: str, flagged: bool) -> None:
+    errs = ci_custom.lint_no_heap_allocating_helpers(
+        Path("esphome/components/x/x.cpp"), content
+    )
+    assert bool(errs) is flagged
+
+
+# --- rule: every component __init__.py defines DOMAIN as its own name ---
+
+
+def _domain_check() -> dict:
+    return next(
+        c
+        for c in ci_custom.LINT_CONTENT_CHECKS
+        if c["func"] is ci_custom.lint_component_domain
+    )
+
+
+def _lint_domain(fname: str, content: str) -> str | None:
+    return ci_custom.run_check(_domain_check(), fname, Path(fname), content)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'CODEOWNERS = ["@x"]\nDOMAIN = "uart"\n',
+        'DOMAIN: str = "uart"\n',
+    ],
+)
+def test_domain_matching_component_name_passes(content: str) -> None:
+    assert _lint_domain("esphome/components/uart/__init__.py", content) is None
+
+
+def test_domain_leaves_syntax_errors_to_the_python_linters() -> None:
+    assert _lint_domain("esphome/components/uart/__init__.py", "def (\n") is None
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'CODEOWNERS = ["@x"]\n',
+        'DOMAIN = "spi"\n',
+        "DOMAIN = CONF_UART\n",
+        '"""Docstring.\n\nDOMAIN = "uart"\n"""\n',
+        'def f() -> None:\n    DOMAIN = "uart"\n',
+        'OTHER = "uart"\n',
+        "DOMAIN: str\n",
+    ],
+)
+def test_domain_missing_or_wrong_is_flagged(content: str) -> None:
+    err = _lint_domain("esphome/components/uart/__init__.py", content)
+    assert err is not None
+    assert 'DOMAIN = "uart"' in err
+
+
+@pytest.mark.parametrize(
+    "fname",
+    [
+        "esphome/components/uart/sensor/__init__.py",
+        "esphome/components/uart/sensor.py",
+        "esphome/core/__init__.py",
+    ],
+)
+def test_domain_ignores_files_other_than_component_init(fname: str) -> None:
+    assert _lint_domain(fname, "") is None
+
+
+def test_every_component_defines_its_domain() -> None:
+    components = SCRIPT_DIR.parent / "esphome" / "components"
+    missing = [
+        init.parent.name
+        for init in sorted(components.glob("*/__init__.py"))
+        if ci_custom.lint_component_domain(
+            init.relative_to(SCRIPT_DIR.parent), init.read_text(encoding="utf-8")
+        )
+    ]
+    assert missing == []

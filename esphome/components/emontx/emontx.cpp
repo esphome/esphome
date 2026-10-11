@@ -4,7 +4,7 @@
 
 namespace esphome::emontx {
 
-static const char *const TAG = "emontx";
+ESPHOME_LOG_TAG(TAG, "emontx");
 
 void EmonTx::setup() { this->buffer_pos_ = 0; }
 
@@ -16,15 +16,31 @@ void EmonTx::setup() { this->buffer_pos_ = 0; }
  * 2. If line starts with '{', parse as JSON and update sensors/callbacks
  */
 void EmonTx::loop() {
+  if (this->is_paused()) {
+    this->was_paused_ = true;
+    return;
+  }
+  if (this->was_paused_) {
+    // Drop what arrived during the pause and resync at the next line start
+    this->was_paused_ = false;
+    this->buffer_pos_ = 0;
+    this->discarding_line_ = true;
+    uint8_t dropped;
+    while (this->available() > 0 && this->read_byte(&dropped))
+      this->discarding_line_ = dropped != '\n';
+  }
+
   // Read all available data to prevent UART buffer overflow
   while (this->available() > 0) {
-    uint8_t received = this->read();
+    uint8_t received;
+    if (!this->read_byte(&received))
+      break;
 
-    if (received == '\r') {
-      continue;  // Ignore CR
-    } else if (received == '\n') {
+    if (received == '\n') {
       // End of line - process the buffer
-      if (this->buffer_pos_ > 0) {
+      if (this->discarding_line_) {
+        this->discarding_line_ = false;
+      } else if (this->buffer_pos_ > 0) {
         // Null-terminate for safe logging and c_str() use
         size_t len = this->buffer_pos_;
         this->buffer_[len] = '\0';
@@ -42,9 +58,12 @@ void EmonTx::loop() {
           this->parse_json_(this->buffer_.data(), len);
         }
       }
+    } else if (received == '\r' || this->discarding_line_) {
+      // Ignore CR, and the rest of a line that overflowed or was interrupted by a pause
     } else if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
-      ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding buffer", MAX_LINE_LENGTH);
+      ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
       this->buffer_pos_ = 0;
+      this->discarding_line_ = true;
     } else {
       this->buffer_[this->buffer_pos_++] = static_cast<char>(received);
     }
@@ -95,6 +114,10 @@ void EmonTx::dump_config() {
  * @param command The command string to send (LF will be appended automatically).
  */
 void EmonTx::send_command(const char *command) {
+  if (this->is_paused()) {
+    ESP_LOGW(TAG, "Not sending command, UART is paused: %s", command);
+    return;
+  }
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command);
   this->write_str(command);
   this->write_byte('\n');

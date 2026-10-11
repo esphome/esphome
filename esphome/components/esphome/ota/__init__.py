@@ -6,7 +6,12 @@ from esphome.components.noise import (
     new_psk_progmem,
     static_encryption_key,
 )
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    DOMAIN as OTA_DOMAIN,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -30,6 +35,8 @@ from esphome.coroutine import CoroPriority
 from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+from .. import DOMAIN
 
 CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
 
@@ -56,12 +63,12 @@ ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
 
 def ota_esphome_final_validate(config: ConfigType) -> None:
     full_conf = fv.full_config.get()
-    full_ota_conf = full_conf[CONF_OTA]
+    full_ota_conf = full_conf[OTA_DOMAIN]
     new_ota_conf = []
     merged_ota_esphome_configs_by_port = {}
     ports_with_merged_configs = []
     for ota_conf in full_ota_conf:
-        if ota_conf.get(CONF_PLATFORM) == CONF_ESPHOME:
+        if ota_conf.get(CONF_PLATFORM) == DOMAIN:
             if (
                 conf_port := ota_conf.get(CONF_PORT)
             ) not in merged_ota_esphome_configs_by_port:
@@ -133,20 +140,12 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             _resolve_encryption_key(encryption_conf, api_conf)
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
-                "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
-                "bytes plus the password on the heap): the device already offers "
-                "encryption with the '%s' %s %s, which authenticates any uploader "
-                "that takes it, and a password only matters for uploaders without "
-                "encryption support; remove '%s' and add '%s' under '%s' so "
-                "uploads use the key and encryption is required",
+                "'%s' %s wastes significant flash and RAM; "
+                "using '%s' instead is recommended - "
+                "see https://esphome.io/components/ota/esphome/#configuration-variables",
                 CONF_OTA,
                 CONF_PASSWORD,
-                CONF_API,
                 CONF_ENCRYPTION,
-                CONF_KEY,
-                CONF_PASSWORD,
-                CONF_ENCRYPTION,
-                CONF_OTA,
             )
         elif (
             CONF_PASSWORD in ota_conf
@@ -190,7 +189,7 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             CONF_WEB_SERVER,
         )
 
-    full_conf[CONF_OTA] = new_ota_conf
+    full_conf[OTA_DOMAIN] = new_ota_conf
     fv.full_config.set(full_conf)
 
     if len(ports_with_merged_configs) > 0:
@@ -315,8 +314,17 @@ FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION"}
+    {
+        "ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION",
+        "ota_esphome_inflate_session.cpp": "USE_OTA_DEFLATE",
+        "ota_esphome_inflate.c": "USE_OTA_DEFLATE",
+    }
 )
+
+
+def enable_deflate() -> None:
+    """Compile the on-the-fly inflater for compressed uploads."""
+    cg.add_define("USE_OTA_DEFLATE")
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
@@ -340,6 +348,10 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
 
+    # ESP8266 and RP2040 inflate gzip at reboot; the rest inflate on the fly
+    if not (CORE.is_esp8266 or CORE.is_rp2):
+        enable_deflate()
+
     # One key per device: an api encryption block supplies it (static or
     # runtime) and offers; the ota block only adds the requirement
     api_conf = CORE.config.get(CONF_API) or {}
@@ -347,7 +359,7 @@ async def to_code(config: ConfigType) -> None:
         # Build time key: the ota keeps its own pointer so safe mode, which
         # has no api server, still has it
         cg.add_define("USE_OTA_ENCRYPTION")
-        cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
+        cg.add(var.set_noise_psk(new_psk_progmem(key)))
     elif CONF_ENCRYPTION in api_conf:
         # Runtime key: found in the api server, or in preferences in safe mode
         cg.add_define("USE_OTA_ENCRYPTION")

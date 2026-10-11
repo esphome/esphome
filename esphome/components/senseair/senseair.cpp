@@ -4,7 +4,7 @@
 
 namespace esphome::senseair {
 
-static const char *const TAG = "senseair";
+ESPHOME_LOG_TAG(TAG, "senseair");
 static const uint8_t SENSEAIR_REQUEST_LENGTH = 8;
 static const uint8_t SENSEAIR_PPM_STATUS_RESPONSE_LENGTH = 13;
 static const uint8_t SENSEAIR_ABC_PERIOD_RESPONSE_LENGTH = 7;

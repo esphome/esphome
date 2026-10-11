@@ -3,7 +3,7 @@
 
 namespace esphome::gps {
 
-static const char *const TAG = "gps.time";
+ESPHOME_LOG_TAG(TAG, "gps.time");
 
 void GPSTime::from_tiny_gps_(TinyGPSPlus &tiny_gps) {
   if (!tiny_gps.time.isValid() || !tiny_gps.date.isValid() || !tiny_gps.time.isUpdated() ||

@@ -3,7 +3,7 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.water_heater";
+ESPHOME_LOG_TAG(TAG, "tuya.water_heater");
 
 void TuyaWaterHeater::setup() {
   if (this->switch_id_.has_value()) {

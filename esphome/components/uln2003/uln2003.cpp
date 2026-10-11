@@ -3,7 +3,7 @@
 
 namespace esphome::uln2003 {
 
-static const char *const TAG = "uln2003.stepper";
+ESPHOME_LOG_TAG(TAG, "uln2003.stepper");
 
 static const LogString *step_mode_to_log_string(ULN2003StepMode mode) {
   switch (mode) {

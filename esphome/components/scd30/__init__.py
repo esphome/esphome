@@ -1,0 +1,1 @@
+DOMAIN = "scd30"
