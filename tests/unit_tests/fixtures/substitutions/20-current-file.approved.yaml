@@ -4,9 +4,11 @@ substitutions:
 
 test_list:
   - Current dir is: substitutions
-  - Current file is: 11-this-variable.input.yaml
+  - Current file is: 20-current-file.input.yaml
   - Parent dir is: fixtures
   - Last three parts of path:
       - fixtures
       - substitutions
       - some_file.txt
+  - file_is_absolute: true
+  - file_parent_equals_dir: true

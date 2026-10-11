@@ -11,7 +11,7 @@ import logging
 import math
 import os
 from pathlib import Path, PurePath
-from typing import Any
+from typing import Any, NamedTuple
 import uuid
 
 import yaml
@@ -162,6 +162,19 @@ def make_literal(value: Any) -> ESPLiteralValue | Any:
         return value
 
 
+# Sentinel key under which every parsed document carries its own location.
+# Dots are invalid in substitution names, so this can never collide with — or be
+# overridden by — a user-defined variable. Same technique as ``jinja.Resolver``.
+FILE_CONTEXT = ".file_context"
+
+
+class FileContext(NamedTuple):
+    """Location of the YAML document a node was parsed from."""
+
+    file: PurePath
+    dir: PurePath
+
+
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     """Tags a list/string/dict value with context vars that must be applied to it and its children
     during the substitution pass. If no vars are given, no tagging is done.
@@ -182,6 +195,22 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     if context_vars and isinstance(value, (dict, list, str, Lambda)):
         value = add_class_to_obj(value, ConfigContext)
         value.set_context(context_vars)
+    return value
+
+
+def tag_file_context(value: Any, file_context: FileContext) -> Any:
+    """Records the file a parsed document came from under the sentinel key.
+
+    Unlike add_context this never consumes a ``defaults:`` key, so tagging every
+    parsed document (secrets, the main config, include_dir files) does not change
+    how they are parsed. The key holds a dot, which substitution names may not,
+    so a user variable can neither shadow nor forge it. Read back by the
+    this_file()/this_dir() globals.
+    """
+    # A document that is only an include arrives as an IncludeFile and is tagged when it loads
+    if isinstance(value, (dict, list, str, Lambda)):
+        value = add_class_to_obj(value, ConfigContext)
+        value.set_context({FILE_CONTEXT: file_context})
     return value
 
 
@@ -1072,16 +1101,12 @@ def parse_yaml(
             yaml_loader,
             track_document_range=track_document_range,
         )
-    # Add built-in context variables scoped to this file
-    # Note: built-in 'this' takes precedence over user substitutions
-    return add_context(
+    return tag_file_context(
         content,
-        {
-            "this": {
-                "file": PurePath(file_name.absolute()),
-                "dir": PurePath(file_name.parent.absolute()),
-            }
-        },
+        FileContext(
+            file=PurePath(file_name.absolute()),
+            dir=PurePath(file_name.parent.absolute()),
+        ),
     )
 
 
@@ -1476,6 +1501,6 @@ ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
-ESPHomeDumper.add_multi_representer(PurePath, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_path)
+ESPHomeDumper.add_multi_representer(PurePath, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(IncludeFile, ESPHomeDumper.represent_include_file)

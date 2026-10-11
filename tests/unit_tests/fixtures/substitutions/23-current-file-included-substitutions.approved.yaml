@@ -1,0 +1,8 @@
+substitutions:
+  here: current_file_subs
+  file: vars.yaml
+
+test_list:
+  - defined in: current_file_subs
+  - by file: vars.yaml
+  - used from: substitutions

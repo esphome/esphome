@@ -13,6 +13,7 @@ from esphome.expression import JINJA_PROG
 from esphome.types import ConfigType
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
+    FILE_CONTEXT,
     ConfigContext,
     DocumentPath,
     ESPHomeDataBase,
@@ -22,7 +23,15 @@ from esphome.yaml_util import (
     make_data_base,
 )
 
-from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
+from .jinja import (
+    Jinja,
+    JinjaError,
+    Missing,
+    Resolver,
+    UndefinedError,
+    has_jinja,
+    jinja_pass_context,
+)
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "substitutions"
@@ -42,6 +51,26 @@ _STRING_LITERAL_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()
+
+
+def _file_context(ctx: Any) -> Any:
+    """Return the FileContext of the document the expression appears in."""
+    file_context = ctx.resolve_or_missing(FILE_CONTEXT)
+    if file_context is Missing:
+        raise UndefinedError(
+            "The current file is unknown here; this_file()/this_dir() are only "
+            "available in expressions that come from a YAML document."
+        )
+    return file_context
+
+
+jinja.globals.update(
+    # Exposed as globals, not context variables, so a user substitution of the
+    # same name still wins — adding these can never change what an existing
+    # configuration means.
+    this_file=jinja_pass_context(lambda ctx: _file_context(ctx).file),
+    this_dir=jinja_pass_context(lambda ctx: _file_context(ctx).dir),
+)
 
 
 def raise_first_undefined(
@@ -558,6 +587,8 @@ def do_substitution_pass(
         substitutions = resolve_substitutions_block(
             substitutions, command_line_substitutions
         )
+        # Keep the resolved node: merging below copies it and drops its file tag
+        substitutions_node = substitutions
         substitutions = merge_dicts_ordered(
             substitutions, command_line_substitutions or {}
         )
@@ -574,10 +605,16 @@ def do_substitution_pass(
 
     errors: ErrList = []  # Collect undefined errors during substitution
 
-    # Read top-level context first, which contains built-in variables:
+    # Push the root document's context, then the substitutions block's own, so the
+    # block can call this_file()/this_dir() even when it comes from an include.
     parent_context = push_context(config, ContextVars(), errors)
-
-    # Resolve substitutions, which may depend on built-in variables:
+    # Only the file tag of an included block applies everywhere; its vars stay its own
+    if isinstance(substitutions_node, ConfigContext) and (
+        file_context := substitutions_node.vars.get(FILE_CONTEXT)
+    ):
+        parent_context, _ = _push_context(
+            {FILE_CONTEXT: file_context}, parent_context, errors
+        )
     parent_context, substitutions = _push_context(substitutions, parent_context, errors)
 
     config = substitute(config, [], parent_context, False, errors)

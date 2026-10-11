@@ -1,0 +1,10 @@
+test_list:
+  - level1:
+      file: current_file_level1.yaml
+      dir: substitutions
+      level2:
+        - level2:
+            file: current_file_level2.yaml
+            dir: substitutions
+  - file: 21-current-file-in-includes.input.yaml
+    dir: substitutions

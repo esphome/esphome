@@ -1,0 +1,2 @@
+here: ${ this_dir().name }
+file: ${ this_file().name }

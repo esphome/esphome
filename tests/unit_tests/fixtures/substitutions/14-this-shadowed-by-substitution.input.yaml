@@ -1,5 +1,0 @@
-substitutions:
-  this: overridden
-
-test_list:
-  - file_name: ${this.file.name}

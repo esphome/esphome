@@ -1,0 +1,7 @@
+# included by 21-current-file-in-includes.input.yaml
+level1:
+  file: ${this_file().name}
+  dir: ${this_dir().name}
+  level2:
+    - !include
+      file: current_file_level2.yaml

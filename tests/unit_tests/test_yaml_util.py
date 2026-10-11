@@ -2103,3 +2103,36 @@ def test_load_yaml_fast_mode_records_dropped_merge_keys(
 
     yaml_util.load_yaml(yaml_file, track_document_range=False)
     assert yaml_util.take_dropped_merge_keys() == [("port", str(yaml_file))]
+
+
+def test_parse_yaml_keeps_defaults_key_and_tags_file(tmp_path: Path) -> None:
+    """Tagging a document with its file must not consume a top-level defaults key."""
+    secrets = tmp_path / "secrets.yaml"
+    secrets.write_text("defaults: hunter2\nwifi_password: letmein\n")
+
+    loaded = yaml_util.load_yaml(secrets)
+
+    assert loaded["defaults"] == "hunter2"
+    assert loaded["wifi_password"] == "letmein"
+    assert isinstance(loaded, yaml_util.ConfigContext)
+    assert loaded.vars[yaml_util.FILE_CONTEXT].dir == secrets.parent.absolute()
+
+
+def test_parse_yaml_root_include_keeps_the_included_file(tmp_path: Path) -> None:
+    """A document that is nothing but an include reports the included file as its own."""
+    inner = tmp_path / "inner.yaml"
+    inner.write_text("value: 1\n")
+    outer = tmp_path / "outer.yaml"
+    outer.write_text("!include inner.yaml\n")
+
+    loaded = yaml_util.load_yaml(outer)
+
+    assert loaded["value"] == 1
+    assert loaded.vars[yaml_util.FILE_CONTEXT].file == inner.absolute()
+
+
+def test_parse_yaml_scalar_document_is_returned_as_is(tmp_path: Path) -> None:
+    scalar = tmp_path / "scalar.yaml"
+    scalar.write_text("42\n")
+
+    assert yaml_util.load_yaml(scalar) == 42
