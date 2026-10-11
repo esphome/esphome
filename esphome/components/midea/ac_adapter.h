@@ -17,7 +17,6 @@ using MideaPreset = dudanov::midea::ac::Preset;
 
 class Constants {
  public:
-  static constexpr const char *TAG = "midea";
   static constexpr const char *FREEZE_PROTECTION = "Freeze Protection";
   static constexpr const char *SILENT = "Silent";
   static constexpr const char *TURBO = "Turbo";

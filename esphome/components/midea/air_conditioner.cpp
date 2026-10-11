@@ -9,6 +9,8 @@
 
 namespace esphome::midea::ac {
 
+ESPHOME_LOG_TAG(TAG, "midea");
+
 static void set_sensor(Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
     sensor->publish_state(value);
@@ -128,23 +130,22 @@ ClimateTraits AirConditioner::traits() {
 }
 
 void AirConditioner::dump_config() {
-  ESP_LOGCONFIG(Constants::TAG,
+  ESP_LOGCONFIG(TAG,
                 "MideaDongle:\n"
                 "  [x] Period: %" PRIu32 "ms\n"
                 "  [x] Response timeout: %" PRIu32 "ms\n"
                 "  [x] Request attempts: %d",
                 this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Using RemoteTransmitter");
+  ESP_LOGCONFIG(TAG, "  [x] Using RemoteTransmitter");
 #endif
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     this->base_.getCapabilities().dump();
   } else if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_ERROR) {
-    ESP_LOGW(Constants::TAG,
-             "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
-             "appliance options.");
+    ESP_LOGW(TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
+                  "appliance options.");
   }
-  this->dump_traits_(Constants::TAG);
+  this->dump_traits_(TAG);
 }
 
 /* ACTIONS */
@@ -153,7 +154,7 @@ void AirConditioner::do_follow_me(float temperature, bool use_fahrenheit, bool b
 #ifdef USE_REMOTE_TRANSMITTER
   // Check if temperature is finite (not NaN or infinite)
   if (!std::isfinite(temperature)) {
-    ESP_LOGW(Constants::TAG, "Follow me action requires a finite temperature, got: %f", temperature);
+    ESP_LOGW(TAG, "Follow me action requires a finite temperature, got: %f", temperature);
     return;
   }
 
@@ -162,14 +163,14 @@ void AirConditioner::do_follow_me(float temperature, bool use_fahrenheit, bool b
       static_cast<uint8_t>(esphome::clamp<long>(std::lroundf(temperature), 0L, static_cast<long>(UINT8_MAX)));
 
   char temp_symbol = use_fahrenheit ? 'F' : 'C';
-  ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %.5f °%c, rounded to: %u °%c", temperature,
-           temp_symbol, temp_uint8, temp_symbol);
+  ESP_LOGD(TAG, "Follow me action called with temperature: %.5f °%c, rounded to: %u °%c", temperature, temp_symbol,
+           temp_uint8, temp_symbol);
 
   // Create and transmit the data
   IrFollowMeData data(temp_uint8, use_fahrenheit, beeper);
   this->transmitter_.transmit(data);
 #else
-  ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
+  ESP_LOGW(TAG, "Action needs remote_transmitter component");
 #endif
 }
 
@@ -178,7 +179,7 @@ void AirConditioner::do_swing_step() {
   IrSpecialData data(0x01);
   this->transmitter_.transmit(data);
 #else
-  ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
+  ESP_LOGW(TAG, "Action needs remote_transmitter component");
 #endif
 }
 
@@ -190,7 +191,7 @@ void AirConditioner::do_display_toggle() {
     IrSpecialData data(0x08);
     this->transmitter_.transmit(data);
 #else
-    ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
+    ESP_LOGW(TAG, "Action needs remote_transmitter component");
 #endif
   }
 }
