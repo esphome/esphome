@@ -220,7 +220,7 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
 }
 
 void PMSX003Component::parse_data_() {
-  // PM mass concentrations (all types)
+  // PM mass concentrations
   const uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
   const uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
   const uint16_t pm_10_0_std_concentration = this->get_16_bit_uint_(8);
@@ -257,7 +257,7 @@ void PMSX003Component::parse_data_() {
       this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
   }
 
-  // Particle counts at pc_offset: >0.3, >0.5, >1.0, >2.5µm (all types)
+  // Particle counts at pc_offset: >0.3, >0.5, >1.0, >2.5µm
   const uint16_t pm_particles_03um = this->get_16_bit_uint_(pc_offset);
   const uint16_t pm_particles_05um = this->get_16_bit_uint_(pc_offset + 2);
   const uint16_t pm_particles_10um = this->get_16_bit_uint_(pc_offset + 4);

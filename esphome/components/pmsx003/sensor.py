@@ -51,7 +51,6 @@ TYPE_PMS5003S = "PMS5003S"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
 TYPE_PMS9003M = "PMS9003M"
-# Luftmy LD10, LD11, LD13, LD15, LD16: standard PM + particle counts, no atmospheric PM values
 TYPE_LUFTMY = "LUFTMY"
 
 Type = pmsx003_ns.enum("Type", is_class=True)
