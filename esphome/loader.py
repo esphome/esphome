@@ -144,9 +144,11 @@ class ComponentManifest:  # pylint: disable=too-many-public-methods
             return None
         if (base_url := data.urls.get(parts[2])) is None:
             return None
-        from esphome.helpers import external_component_doc_url
-
-        return external_component_doc_url(base_url, self.module.__name__)
+        # Mirrors the esphome.io layout: platforms live under components/<platform>/<name>/
+        base_url = base_url.rstrip("/")
+        if len(parts) >= 4:
+            return f"{base_url}/components/{parts[3]}/{parts[2]}/"
+        return f"{base_url}/components/{parts[2]}/"
 
     @property
     def aliases(self) -> list[str]:

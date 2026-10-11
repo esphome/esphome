@@ -138,7 +138,7 @@ def _process_single_config(config: dict[str, Any]) -> None:
     if (base_url := config.get(CONF_DOC_URL)) is not None:
         for name in component_names:
             loader.register_external_component_doc_url(name, base_url)
-        _LOGGER.info(
+        _LOGGER.debug(
             "External component source '%s' provides documentation at %s for components: %s",
             conf.get(CONF_URL) or conf.get(CONF_PATH),
             base_url,
