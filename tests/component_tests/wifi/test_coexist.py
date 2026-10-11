@@ -142,6 +142,16 @@ def test_ap_defaults_stay_plain(
             {"networks": [_STA_NETWORK], "ap": {"ssid": "fallback", "napt": True}},
             "only supported on ESP32",
         ),
+        # ap_timeout only gates the fallback AP; the coexist AP stays up.
+        (
+            PlatformFramework.ESP32_IDF,
+            {
+                "networks": [_STA_NETWORK],
+                "post_connect_roaming": False,
+                "ap": {"ssid": "fallback", "coexist": True, "ap_timeout": "60s"},
+            },
+            "no effect with",
+        ),
     ],
 )
 def test_invalid_combinations(

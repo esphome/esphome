@@ -379,6 +379,13 @@ def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
                 "AP+STA coexistence (coexist: true) is incompatible with post_connect_roaming. "
                 "Please set post_connect_roaming: false in the wifi block."
             )
+        # The coexist AP stays up permanently; ap_timeout only gates the
+        # fallback AP, so a non-default value would be silently ignored.
+        if ap_config.get(CONF_AP_TIMEOUT) != cv.time_period(DEFAULT_AP_TIMEOUT):
+            raise cv.Invalid(
+                "ap_timeout has no effect with AP+STA coexistence (coexist: true); "
+                "the AP stays up while the station is connected. Please remove ap_timeout."
+            )
     elif napt:
         if not CORE.is_esp32 or CORE.using_arduino:
             raise cv.Invalid(

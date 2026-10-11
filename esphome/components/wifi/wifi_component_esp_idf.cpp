@@ -892,6 +892,29 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
+#ifdef USE_WIFI_AP_NAPT
+    // The coexist AP usually starts before the station has an address, so no
+    // usable DNS could be offered then. Refresh it now that the STA DNS is known.
+    if (this->ap_napt_ && this->ap_setup_ && s_ap_netif != nullptr && s_sta_netif != nullptr) {
+      esp_netif_dns_info_t sta_dns{};
+      if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &sta_dns) == ESP_OK &&
+          sta_dns.ip.u_addr.ip4.addr != 0) {
+        esp_netif_dns_info_t ap_dns{};
+        bool same = esp_netif_get_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &ap_dns) == ESP_OK &&
+                    ap_dns.ip.u_addr.ip4.addr == sta_dns.ip.u_addr.ip4.addr;
+        if (!same) {
+          // DNS changes only propagate while the DHCP server is stopped.
+          esp_netif_dhcps_stop(s_ap_netif);
+          uint8_t offer_dns = 0x02;  // DHCPS_OFFER_DNS: advertise a DNS option
+          esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns,
+                                 sizeof(offer_dns));
+          esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+          esp_netif_dhcps_start(s_ap_netif);
+        }
+      }
+      esp_netif_set_default_netif(s_sta_netif);
+    }
+#endif
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
@@ -1184,6 +1207,23 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 #endif
 
+#ifdef USE_WIFI_AP_NAPT
+  // Hand the station's DNS to AP clients while the DHCP server is stopped
+  // (required for the setting to propagate). Without this, clients are told
+  // the AP's own IP is the DNS server and no resolver answers there.
+  // When the station has no DNS yet (AP started before STA connects) the
+  // server is refreshed on IP_EVENT_STA_GOT_IP below.
+  if (this->ap_napt_ && s_sta_netif != nullptr) {
+    esp_netif_dns_info_t sta_dns{};
+    if (esp_netif_get_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &sta_dns) == ESP_OK &&
+        sta_dns.ip.u_addr.ip4.addr != 0) {
+      uint8_t offer_dns = 0x02;  // DHCPS_OFFER_DNS: advertise a DNS option
+      esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &offer_dns, sizeof(offer_dns));
+      esp_netif_set_dns_info(s_ap_netif, ESP_NETIF_DNS_MAIN, &sta_dns);
+    }
+  }
+#endif
+
   err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
@@ -1193,6 +1233,11 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 
 #ifdef USE_WIFI_AP_NAPT
   if (this->ap_napt_) {
+    // The AP subnet routes out through the station, so keep it the default
+    // interface (mirrors IDF's wifi/softap_sta example).
+    if (s_sta_netif != nullptr) {
+      esp_netif_set_default_netif(s_sta_netif);
+    }
     err = esp_netif_napt_enable(s_ap_netif);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_netif_napt_enable failed: %d", err);

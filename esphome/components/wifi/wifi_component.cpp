@@ -400,6 +400,11 @@ static constexpr uint32_t WIFI_AP_EXCLUSIVE_MAX_DWELL_MS = 3 * WIFI_AP_EXCLUSIVE
 static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 #endif
+#ifdef USE_WIFI_APSTA
+/// A failed coexist AP start leaves ap_setup_ false; without a throttle it
+/// would be retried (and logged) on every loop pass.
+static constexpr uint32_t WIFI_AP_COEXIST_RETRY_MS = 5000;
+#endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
 /// Longer interval gives users time to configure WiFi without constant connection attempts
@@ -921,14 +926,33 @@ void WiFiComponent::loop() {
     if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
 #ifdef USE_WIFI_APSTA
       if (this->ap_coexist_) {
-        ESP_LOGI(TAG, "Starting coexist AP");
-        this->setup_ap_config_();
+        // A failed start leaves ap_setup_ false; throttle retries so a
+        // failure is not retried (and logged) on every loop pass.
+        if (now - this->ap_coexist_last_attempt_ >= WIFI_AP_COEXIST_RETRY_MS) {
+          this->ap_coexist_last_attempt_ = now;
+          ESP_LOGI(TAG, "Starting coexist AP");
+          this->setup_ap_config_();
+          if (!this->ap_setup_) {
+            ESP_LOGW(TAG, "Coexist AP start failed; retrying");
+          }
 #ifdef USE_CAPTIVE_PORTAL
-        this->start_captive_portal_();
+          else {
+            this->start_captive_portal_();
+          }
 #endif
+        }
       } else
 #endif
-          if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
+          if (this->ap_timeout_ != 0 &&
+              (now - this->last_connected_ > this->ap_timeout_)
+#ifdef USE_WIFI_AP_EXCLUSIVE
+              // After a pause, or a start that failed, the networks get a full
+              // ap_timeout before the AP is tried again. Without this the AP
+              // restarts right after pause_exclusive_ap_() and the networks
+              // are never tried (the LN882H radio runs AP or STA, not both).
+              && (now - this->ap_exclusive_changed_ > this->ap_timeout_)
+#endif
+          ) {
         ESP_LOGI(TAG, "Starting fallback AP");
 #ifdef USE_WIFI_AP_EXCLUSIVE
         this->ap_exclusive_changed_ = now;
@@ -1737,24 +1761,13 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->num_retried_ = 0;
 #ifdef USE_WIFI_AP
     if (this->has_ap()) {
-#ifdef USE_CAPTIVE_PORTAL
-      if (this->is_captive_portal_active_()) {
-        captive_portal::global_captive_portal->end();
-      }
-#endif
 #ifdef USE_WIFI_APSTA
       if (this->ap_coexist_) {
         // Coexistence mode: AP stays up permanently; do not disable after STA connects.
         ESP_LOGD(TAG, "STA connected; AP remains active (coexist mode)");
-#ifdef USE_ESP32
-        wifi_mode_t mode;
-        esp_wifi_get_mode(&mode);
-        ESP_LOGVV(TAG, "WiFi mode after STA connect (coexist): %d", mode);
-#endif
       } else {
 #endif
-        ESP_LOGD(TAG, "Disabling AP");
-        this->wifi_mode_({}, false);
+        this->disable_ap_();
 #ifdef USE_WIFI_APSTA
       }
 #endif
