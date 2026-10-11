@@ -262,7 +262,9 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
       break;
   }
 
-  // Comfort lives in the first frame, which arrives before this one and sets the preset itself
+  // Comfort lives in the first frame, recorded as pending until this frame proves the transmission valid
+  const PendingComfort comfort = this->pending_comfort_;
+  this->pending_comfort_ = PendingComfort::UNKNOWN;
   if (frame[13] & DAIKIN_PRESET_POWERFUL_ON) {
     this->preset = climate::CLIMATE_PRESET_BOOST;
   } else if (frame[13] & DAIKIN_PRESET_QUIET_ON) {
@@ -271,7 +273,10 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
     this->preset = climate::CLIMATE_PRESET_ECO;
   } else if (frame[16] & DAIKIN_PRESET_SENSOR_ON) {
     this->preset = climate::CLIMATE_PRESET_ACTIVITY;
-  } else if (this->preset != climate::CLIMATE_PRESET_COMFORT) {
+  } else if (comfort == PendingComfort::ON) {
+    this->preset = climate::CLIMATE_PRESET_COMFORT;
+  } else if (comfort == PendingComfort::OFF || this->preset != climate::CLIMATE_PRESET_COMFORT) {
+    // Without a comfort frame in this transmission a current comfort preset is left alone
     this->preset = climate::CLIMATE_PRESET_NONE;
   }
   this->update_boost_timer_(was_boost);
@@ -327,14 +332,8 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   if (frame_size == DAIKIN_COMFORT_FRAME_SIZE) {
-    // Only enter or leave comfort here, so the state frame that follows still sees the previous preset
-    const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
-    if (frame[6] & DAIKIN_PRESET_COMFORT_ON) {
-      this->preset = climate::CLIMATE_PRESET_COMFORT;
-    } else if (this->preset == climate::CLIMATE_PRESET_COMFORT) {
-      this->preset = climate::CLIMATE_PRESET_NONE;
-    }
-    this->update_boost_timer_(was_boost);
+    // Nothing changes yet: the state frame that follows applies it once it has passed its own checksum
+    this->pending_comfort_ = (frame[6] & DAIKIN_PRESET_COMFORT_ON) ? PendingComfort::ON : PendingComfort::OFF;
     return true;
   }
   return this->parse_state_frame_(frame);

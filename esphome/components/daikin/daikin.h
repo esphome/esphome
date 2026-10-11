@@ -78,6 +78,10 @@ class DaikinClimate final : public climate_ir::ClimateIR {
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
+
+  /// What the 0xC5 frame of the current transmission said about comfort, applied by the state frame
+  enum class PendingComfort : uint8_t { UNKNOWN, OFF, ON };
+  PendingComfort pending_comfort_{PendingComfort::UNKNOWN};
 };
 
 }  // namespace esphome::daikin
