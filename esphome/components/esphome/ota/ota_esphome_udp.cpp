@@ -36,8 +36,8 @@ static constexpr uint8_t UDP_FLAG_COMMITTED = 0x80;
 static constexpr uint8_t UDP_MSG_ACK = 0x40;
 static constexpr size_t UDP_HEADER_SIZE = 9;
 static constexpr size_t UDP_ACK_HEADER_SIZE = 12;
-// The client's 60 s wait for the token over a lossy TCP link, plus its 5 s probe
-static constexpr uint32_t UDP_COMMIT_TIMEOUT = 70000;
+// The client's 60 s wait for the token over a lossy TCP link, plus its 15 s probe
+static constexpr uint32_t UDP_COMMIT_TIMEOUT = 80000;
 // Like the TCP socket's SO_RCVTIMEO in handle_data_, so readall_ treats both alike
 static constexpr uint32_t UDP_READ_WAIT_MS = 2000;
 // How often the commit wait looks at the UDP link between reads of the TCP fallback byte

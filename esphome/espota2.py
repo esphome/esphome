@@ -133,8 +133,9 @@ UDP_MAX_PAYLOAD = 1400
 # Messages the device queues unconsumed (UDP_WINDOW in ota_esphome.h); as many
 # as TCP's window holds, so UDP costs the device no more memory than TCP
 UDP_WINDOW = 4
-# Probe this long before falling back to TCP; the device waits 70 s
-UDP_PROBE_TIMEOUT = 5.0
+# Probe this long before falling back to TCP, enough to ride out a radio busy
+# with BLE; the device waits 80 s
+UDP_PROBE_TIMEOUT = 15.0
 UDP_PROBE_INTERVAL = 0.1
 # Resend timeout bounds around srtt + 4 * rttvar; random loss never grows it
 UDP_RESEND_INITIAL = 0.5
