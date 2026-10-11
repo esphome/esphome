@@ -8,6 +8,11 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
+// flush() depends on how the legacy cdc_acm driver reports TX state (see uart_tx_process_())
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+#error "usb_cdc_acm supports only the legacy USB device stack (CONFIG_USB_DEVICE_STACK_NEXT must be disabled)"
+#endif
+
 //==============================================================================
 // USBCDCACMInstance Implementation
 //==============================================================================
@@ -23,7 +28,7 @@ void USBCDCACMInstance::uart_tx_process_() {
     // Our ring buffer is empty. Here (tx_ready set) cdc_acm reports the free space in its own
     // TX ring buffer. tx_ready is cleared before each USB transfer and set again when it
     // completes, so a fully free driver buffer means the host has received everything.
-    if (uart_irq_tx_ready(this->uart_dev_) >= CONFIG_USB_CDC_ACM_RINGBUF_SIZE) {
+    if (uart_irq_tx_ready(this->uart_dev_) == CONFIG_USB_CDC_ACM_RINGBUF_SIZE) {
       this->tx_drained_ = true;
     }
     uart_irq_tx_disable(this->uart_dev_);
