@@ -27,9 +27,20 @@ const uint8_t WHIRLPOOL_FAN_HIGH = 1;
 const uint8_t WHIRLPOOL_FAN_MED = 2;
 const uint8_t WHIRLPOOL_FAN_LOW = 3;
 
-const uint8_t WHIRLPOOL_SWING_MASK = 128;
+const uint8_t WHIRLPOOL_FAN_MASK = 0x03;
+
+const uint8_t WHIRLPOOL_SWING_MASK = 128;    // byte 2
+const uint8_t WHIRLPOOL_SWING_BYTE8 = 0x40;  // byte 8
 
 const uint8_t WHIRLPOOL_POWER = 0x04;
+
+#ifdef USE_WHIRLPOOL_HISENSE_ARG
+static constexpr uint8_t HISENSE_ARG_DISPLAY_ON = 0x80;     // byte 11
+static constexpr uint8_t HISENSE_ARG_AMBIENT_TEMP = 0x18;   // byte 12, 24 C
+static constexpr uint8_t HISENSE_ARG_POWER_TOGGLE = 0x01;   // byte 15
+static constexpr uint8_t HISENSE_ARG_SETTINGS_ONLY = 0x02;  // byte 15
+static constexpr uint8_t HISENSE_ARG_FIXED_TEMP_STEP = 7;   // auto and fan-only send 23 C
+#endif
 
 WhirlpoolClimate::WhirlpoolClimate()
     : climate_ir::ClimateIR(
@@ -44,11 +55,11 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[0] = 0x83;
   remote_state[1] = 0x06;
   remote_state[6] = 0x80;
-  // MODEL DG11J191
-  remote_state[18] = 0x08;
+  remote_state[18] = 0x08;  // the same on every supported model
 
   auto powered_on = this->mode != climate::CLIMATE_MODE_OFF;
-  if (powered_on != this->powered_on_assumed) {
+  const bool power_toggle = powered_on != this->powered_on_assumed;
+  if (power_toggle) {
     // Set power toggle command
     remote_state[2] = 4;
     remote_state[15] = 1;
@@ -85,7 +96,15 @@ void WhirlpoolClimate::transmit_state() {
 
   // Temperature
   auto temp = (uint8_t) roundf(clamp(this->target_temperature, this->temperature_min_(), this->temperature_max_()));
-  remote_state[3] |= (uint8_t) (temp - this->temperature_min_()) << 4;
+  const auto temp_step = (uint8_t) (temp - this->temperature_min_());
+#ifdef USE_WHIRLPOOL_HISENSE_ARG
+  if (this->model_ == MODEL_HISENSE_ARG && this->fixed_temp_mode_()) {
+    remote_state[3] |= HISENSE_ARG_FIXED_TEMP_STEP << 4;
+  } else
+#endif
+  {
+    remote_state[3] |= temp_step << 4;
+  }
 
   // Fan speed
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
@@ -104,10 +123,20 @@ void WhirlpoolClimate::transmit_state() {
 
   // Swing
   ESP_LOGV(TAG, "send swing %s", this->send_swing_cmd_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
-  if (this->send_swing_cmd_) {
+#ifdef USE_WHIRLPOOL_HISENSE_ARG
+  if (this->model_ == MODEL_HISENSE_ARG) {
+    // This model sends swing as a state on every frame; the DG11J1 remotes send a toggle
+    if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+      remote_state[2] |= WHIRLPOOL_SWING_MASK;
+      remote_state[8] = WHIRLPOOL_SWING_BYTE8;
+    }
+    this->encode_hisense_arg_(remote_state, power_toggle, temp_step);
+  } else
+#endif
+      if (this->send_swing_cmd_) {
     if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_OFF) {
-      remote_state[2] |= 128;
-      remote_state[8] |= 64;
+      remote_state[2] |= WHIRLPOOL_SWING_MASK;
+      remote_state[8] |= WHIRLPOOL_SWING_BYTE8;
     }
   }
 
@@ -154,6 +183,43 @@ void WhirlpoolClimate::transmit_state() {
 
   transmit.perform();
 }
+
+#ifdef USE_WHIRLPOOL_HISENSE_ARG
+bool WhirlpoolClimate::fixed_temp_mode_() const {
+  return this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_FAN_ONLY;
+}
+
+void WhirlpoolClimate::encode_hisense_arg_(uint8_t *remote_state, bool power_toggle, uint8_t temp_step) const {
+  remote_state[11] = HISENSE_ARG_DISPLAY_ON;
+  remote_state[12] = HISENSE_ARG_AMBIENT_TEMP;
+  remote_state[15] = power_toggle ? HISENSE_ARG_POWER_TOGGLE : HISENSE_ARG_SETTINGS_ONLY;
+
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_DRY:
+      remote_state[2] &= ~WHIRLPOOL_FAN_MASK;  // dry forces fan auto
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      if ((remote_state[2] & WHIRLPOOL_FAN_MASK) == WHIRLPOOL_FAN_AUTO) {
+        remote_state[2] |= WHIRLPOOL_FAN_MED;
+      }
+      break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      // Auto sends the target as a range code in byte 2 bits 6:4 instead of the temperature nibble
+      if (temp_step < 6) {
+        remote_state[2] |= 0x30;
+      } else if (temp_step == 6) {
+        remote_state[2] |= 0x50;
+      } else if (temp_step == 8) {
+        remote_state[2] |= 0x40;
+      } else {
+        remote_state[2] |= 0x20;
+      }
+      break;
+    default:
+      break;
+  }
+}
+#endif
 
 bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Check if the esp isn't currently transmitting.
@@ -265,16 +331,25 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  // Set received temp
-  int temp = remote_state[3] & 0xF0;
-  ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
-  temp = (uint8_t) temp >> 4;
-  temp += static_cast<int>(this->temperature_min_());
-  ESP_LOGVV(TAG, "Temperature Climate: %u", temp);
-  this->target_temperature = temp;
+  // Set received temp; Hisense ARG sends fixed values in auto and fan-only
+#ifdef USE_WHIRLPOOL_HISENSE_ARG
+  const bool hisense_arg = this->model_ == MODEL_HISENSE_ARG;
+  const bool fixed_temp = hisense_arg && this->fixed_temp_mode_();
+#else
+  const bool hisense_arg = false;
+  const bool fixed_temp = false;
+#endif
+  if (!fixed_temp) {
+    int temp = remote_state[3] & 0xF0;
+    ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
+    temp = (uint8_t) temp >> 4;
+    temp += static_cast<int>(this->temperature_min_());
+    ESP_LOGVV(TAG, "Temperature Climate: %u", temp);
+    this->target_temperature = temp;
+  }
 
   // Set received fan speed
-  auto fan = remote_state[2] & 0x03;
+  auto fan = remote_state[2] & WHIRLPOOL_FAN_MASK;
   ESP_LOGVV(TAG, "Fan: %02X", fan);
   switch (fan) {
     case WHIRLPOOL_FAN_HIGH:
@@ -293,7 +368,11 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Set received swing status
-  if ((remote_state[2] & WHIRLPOOL_SWING_MASK) == WHIRLPOOL_SWING_MASK && remote_state[8] == 0x40) {
+  if (hisense_arg) {
+    this->swing_mode =
+        (remote_state[8] & WHIRLPOOL_SWING_BYTE8) ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+  } else if ((remote_state[2] & WHIRLPOOL_SWING_MASK) == WHIRLPOOL_SWING_MASK &&
+             remote_state[8] == WHIRLPOOL_SWING_BYTE8) {
     ESP_LOGVV(TAG, "Swing toggle pressed ");
     if (this->swing_mode == climate::CLIMATE_SWING_OFF) {
       this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
