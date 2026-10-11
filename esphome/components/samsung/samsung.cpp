@@ -48,41 +48,44 @@ static bool is_powered_on(const uint8_t *state) {
   return get_field(state, POWER_1) == POWER_ON && get_field(state, POWER_2) == POWER_ON;
 }
 
-template<typename T> struct Code {
-  T value;
+struct Code {
+  uint8_t value;  // a climate enum, all of which are uint8_t
   uint8_t code;
 };
 // The first entry of each table is the fallback in both directions
-static constexpr Code<climate::ClimateMode> MODES[] = {
+static constexpr Code MODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, 0}, {climate::CLIMATE_MODE_COOL, 1}, {climate::CLIMATE_MODE_DRY, 2},
     {climate::CLIMATE_MODE_FAN_ONLY, 3},  {climate::CLIMATE_MODE_HEAT, 4},
 };
-static constexpr Code<climate::ClimateFanMode> FANS[] = {
+static constexpr Code FANS[] PROGMEM = {
     {climate::CLIMATE_FAN_AUTO, 0},
     {climate::CLIMATE_FAN_LOW, 2},
     {climate::CLIMATE_FAN_MEDIUM, 4},
     {climate::CLIMATE_FAN_HIGH, 5},
 };
-static constexpr Code<climate::ClimateSwingMode> SWINGS[] = {
+static constexpr Code SWINGS[] PROGMEM = {
     {climate::CLIMATE_SWING_OFF, 0b111},
     {climate::CLIMATE_SWING_VERTICAL, 0b010},
     {climate::CLIMATE_SWING_HORIZONTAL, 0b011},
     {climate::CLIMATE_SWING_BOTH, 0b100},
 };
 
-template<typename T, size_t N> static uint8_t to_code(const Code<T> (&table)[N], T value) {
-  for (const auto &entry : table) {
-    if (entry.value == value)
-      return entry.code;
+// Returns the entry whose value (or code) matches key, else the first entry. Entries are copied out of PROGMEM.
+static Code find_entry(const Code *table, size_t count, uint8_t key, bool match_code) {
+  Code entry{};
+  for (size_t i = 0; i < count; i++) {
+    progmem_memcpy(&entry, &table[i], sizeof(entry));
+    if ((match_code ? entry.code : entry.value) == key)
+      return entry;
   }
-  return table[0].code;
+  progmem_memcpy(&entry, table, sizeof(entry));
+  return entry;
 }
-template<typename T, size_t N> static T from_code(const Code<T> (&table)[N], uint8_t code) {
-  for (const auto &entry : table) {
-    if (entry.code == code)
-      return entry.value;
-  }
-  return table[0].value;
+template<size_t N> static uint8_t to_code(const Code (&table)[N], uint8_t value) {
+  return find_entry(table, N, value, false).code;
+}
+template<typename T, size_t N> static T from_code(const Code (&table)[N], uint8_t code) {
+  return static_cast<T>(find_entry(table, N, code, true).value);
 }
 
 // Inverted count of the one bits in a section, skipping the two nibbles that hold the checksum itself.
@@ -218,10 +221,11 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   memcpy(state, frame, SAMSUNG_AC_SECTION_LENGTH);
   memcpy(state + SAMSUNG_AC_SECTION_LENGTH, frame + length - SAMSUNG_AC_SECTION_LENGTH, SAMSUNG_AC_SECTION_LENGTH);
 
-  this->swing_mode = from_code(SWINGS, get_field(state, SWING));
+  this->swing_mode = from_code<climate::ClimateSwingMode>(SWINGS, get_field(state, SWING));
   this->target_temperature = get_field(state, TEMP) + SAMSUNG_AC_TEMP_MIN;
-  this->fan_mode = from_code(FANS, get_field(state, FAN));
-  this->mode = is_powered_on(state) ? from_code(MODES, get_field(state, MODE)) : climate::CLIMATE_MODE_OFF;
+  this->fan_mode = from_code<climate::ClimateFanMode>(FANS, get_field(state, FAN));
+  this->mode =
+      is_powered_on(state) ? from_code<climate::ClimateMode>(MODES, get_field(state, MODE)) : climate::CLIMATE_MODE_OFF;
 
   ESP_LOGD(TAG, "Received %u byte frame, power %s", length, ONOFF(is_powered_on(state)));
   this->publish_state();
