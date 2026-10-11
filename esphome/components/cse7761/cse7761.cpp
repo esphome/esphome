@@ -190,7 +190,10 @@ bool CSE7761Component::chip_init_() {
       ESP_LOGW(TAG, "No energy calibration, energy unavailable");
     }
   } else {
-    uint32_t hf_const = this->read_(CSE7761_REG_HFCONST, 2);
+    uint32_t hf_const = 0;
+    if (!this->read_(CSE7761_REG_HFCONST, 2, &hf_const)) {
+      ESP_LOGW(TAG, "HFConst read failed, energy unavailable");
+    }
     for (uint8_t channel = 0; channel < 2; channel++) {
       uint32_t scale = this->data_.coefficient[ENERGY_AC + channel] * hf_const;
       this->energy_[channel].wh_per_pulse = static_cast<float>(scale) * CSE7761_ENERGY_WH_SCALE;
@@ -241,16 +244,16 @@ void CSE7761Component::get_data_() {
     this->voltage_sensor_->publish_state(voltage);
   }
 
-  if (this->frequency_sensor_ != nullptr) {
+  uint32_t raw_reg = 0;
+  if (this->frequency_sensor_ != nullptr && this->read_(CSE7761_REG_UFREQ, 2, &raw_reg)) {
     // Ufreq highest bit set means no signal
-    value = this->read_(CSE7761_REG_UFREQ, 2);
-    float frequency = (value == 0 || value >= 0x8000) ? 0.0f : CSE7761_UFREQ_CLOCK / value;
+    float frequency = (raw_reg == 0 || raw_reg >= 0x8000) ? 0.0f : CSE7761_UFREQ_CLOCK / raw_reg;
     this->frequency_sensor_->publish_state(frequency);
   }
 
-  if (this->power_factor_sensor_1_ != nullptr) {
+  if (this->power_factor_sensor_1_ != nullptr && this->read_(CSE7761_REG_POWERFACTOR, 3, &raw_reg)) {
     // ADC2ON makes the chip report channel A
-    int24_t pf{static_cast<int32_t>(this->read_(CSE7761_REG_POWERFACTOR, 3))};
+    int24_t pf{static_cast<int32_t>(raw_reg)};
     this->power_factor_sensor_1_->publish_state(static_cast<float>(static_cast<int32_t>(pf)) / 0x800000);
   }
 
@@ -264,7 +267,7 @@ void CSE7761Component::get_data_() {
     CSE7761EnergyChannel &energy = this->energy_[channel];
     uint8_t energy_reg = (channel == 0) ? CSE7761_REG_ENERGY_PA : CSE7761_REG_ENERGY_PB;
     uint32_t raw = 0;
-    if (energy_sensor != nullptr && this->read_(energy_reg, 3, &raw)) {
+    if (energy_sensor != nullptr && energy.wh_per_pulse > 0.0f && this->read_(energy_reg, 3, &raw)) {
       // 24-bit counter, not cleared on read
       energy.pulses += (raw - energy.last_pulses) & 0xFFFFFF;
       energy.last_pulses = raw;
