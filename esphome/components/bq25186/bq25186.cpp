@@ -35,9 +35,12 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
     const uint8_t reg = BQ25186_REG_VBAT_CTRL + i;
     const bool ok = BQ25186_CONFIG_MASKS[i] == 0xFF ? this->write_register_(reg, regs[i])
                                                     : this->update_register_(reg, BQ25186_CONFIG_MASKS[i], regs[i]);
-    if (!ok)
+    if (!ok) {
+      this->status_set_warning();
       return false;
+    }
   }
+  this->status_clear_warning();
   return true;
 }
 
@@ -49,9 +52,12 @@ void BQ25186Component::setup() {
     return;
   }
 
+  // Another charger at this address could lay its registers out differently, so do not write into it
   const uint8_t device_id = mask_id & 0x0F;
   if (device_id != 0x01) {
-    ESP_LOGW(TAG, "Unexpected device id 0x%X (expected 0x1)", device_id);
+    ESP_LOGE(TAG, "Unexpected device id 0x%X (expected 0x1)", device_id);
+    this->mark_failed();
+    return;
   }
 
   if (this->configure_on_boot_ && !this->apply_config(this->setup_regs_)) {

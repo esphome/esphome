@@ -197,11 +197,11 @@ def _battery_regulation_code(volts: float) -> int:
 
 
 def _fast_charge_code(amps: float) -> int:
-    """ICHG_CTRL[6:0]: 1 mA steps from 5 mA to 35 mA, then 10 mA steps from 40 mA."""
+    """ICHG_CTRL[6:0]: 1 mA steps from 5 mA to 35 mA, then 10 mA steps from 40 mA, never rounding up."""
     milliamps = round(amps * 1000)
-    if milliamps <= 35:
-        return milliamps - 5
-    return max(milliamps // 10 * 10, 40) // 10 + 27
+    if milliamps < 40:
+        return min(milliamps, 35) - 5
+    return milliamps // 10 + 27
 
 
 _ENCODERS: dict[str, Callable[[Any], int]] = {

@@ -41,9 +41,12 @@ def test_fast_charge_current_code() -> None:
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "5mA"}) == 0x00
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "20mA"}) == 0x0F
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "35mA"}) == 0x1E
+    # 36 to 39 mA have no code of their own and must not round up to 40 mA
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "36mA"}) == 0x1E
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "39mA"}) == 0x1E
     # 10 mA steps from 40 mA, rounded down
-    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "36mA"}) == 0x1F
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "40mA"}) == 0x1F
+    assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "49mA"}) == 0x1F
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "200mA"}) == 0x2F
     assert _packed(REG_ICHG_CTRL, {CONF_FAST_CHARGE_CURRENT: "1A"}) == 0x7F
 
