@@ -102,7 +102,13 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "kamstrup_kmp", baud_rate=1200, require_rx=True, require_tx=True
+    "kamstrup_kmp",
+    baud_rate=1200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=2,
 )
 
 

@@ -5,7 +5,7 @@
 
 namespace esphome::mcp4728 {
 
-static const char *const TAG = "mcp4728";
+ESPHOME_LOG_TAG(TAG, "mcp4728");
 
 void MCP4728Component::setup() {
   auto err = this->write(nullptr, 0);

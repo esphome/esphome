@@ -4,14 +4,14 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, logger, uart
 from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
+from esphome.components.logger import DOMAIN as LOGGER_DOMAIN
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BEEPER,
     CONF_CURRENT_TEMPERATURE,
     CONF_DISPLAY,
-    CONF_ID,
     CONF_LEVEL,
-    CONF_LOGGER,
     CONF_LOGS,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -23,7 +23,6 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_STEP,
     CONF_VISUAL,
-    CONF_WIFI,
 )
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
@@ -254,23 +253,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-# Actions
-DisplayOnAction = haier_ns.class_("DisplayOnAction", automation.Action)
-DisplayOffAction = haier_ns.class_("DisplayOffAction", automation.Action)
-BeeperOnAction = haier_ns.class_("BeeperOnAction", automation.Action)
-BeeperOffAction = haier_ns.class_("BeeperOffAction", automation.Action)
-StartSelfCleaningAction = haier_ns.class_("StartSelfCleaningAction", automation.Action)
-StartSteriCleaningAction = haier_ns.class_(
-    "StartSteriCleaningAction", automation.Action
-)
-VerticalAirflowAction = haier_ns.class_("VerticalAirflowAction", automation.Action)
-HorizontalAirflowAction = haier_ns.class_("HorizontalAirflowAction", automation.Action)
-HealthOnAction = haier_ns.class_("HealthOnAction", automation.Action)
-HealthOffAction = haier_ns.class_("HealthOffAction", automation.Action)
-PowerOnAction = haier_ns.class_("PowerOnAction", automation.Action)
-PowerOffAction = haier_ns.class_("PowerOffAction", automation.Action)
-PowerToggleAction = haier_ns.class_("PowerToggleAction", automation.Action)
-
 HAIER_BASE_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(HaierClimateBase),
@@ -284,62 +266,35 @@ HAIER_HON_BASE_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "climate.haier.display_on",
-    DisplayOnAction,
-    HAIER_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "climate.haier.display_off",
-    DisplayOffAction,
-    HAIER_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def display_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _schema, _call in (
+    ("climate.haier.display_on", HAIER_BASE_ACTION_SCHEMA, "set_display_state(true)"),
+    ("climate.haier.display_off", HAIER_BASE_ACTION_SCHEMA, "set_display_state(false)"),
+    ("climate.haier.beeper_on", HAIER_HON_BASE_ACTION_SCHEMA, "set_beeper_state(true)"),
+    (
+        "climate.haier.beeper_off",
+        HAIER_HON_BASE_ACTION_SCHEMA,
+        "set_beeper_state(false)",
+    ),
+    (
+        "climate.haier.start_self_cleaning",
+        HAIER_HON_BASE_ACTION_SCHEMA,
+        "start_self_cleaning()",
+    ),
+    (
+        "climate.haier.start_steri_cleaning",
+        HAIER_HON_BASE_ACTION_SCHEMA,
+        "start_steri_cleaning()",
+    ),
+    ("climate.haier.health_on", HAIER_BASE_ACTION_SCHEMA, "set_health_mode(true)"),
+    ("climate.haier.health_off", HAIER_BASE_ACTION_SCHEMA, "set_health_mode(false)"),
+    ("climate.haier.power_on", HAIER_BASE_ACTION_SCHEMA, "send_power_on_command()"),
+    ("climate.haier.power_off", HAIER_BASE_ACTION_SCHEMA, "send_power_off_command()"),
+    ("climate.haier.power_toggle", HAIER_BASE_ACTION_SCHEMA, "toggle_power()"),
+):
+    automation.register_apply_action(_name, _schema, automation.ApplyCall(_call))
 
-
-@automation.register_action(
-    "climate.haier.beeper_on",
-    BeeperOnAction,
-    HAIER_HON_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "climate.haier.beeper_off",
-    BeeperOffAction,
-    HAIER_HON_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def beeper_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-# Start self cleaning or steri-cleaning action action
-@automation.register_action(
-    "climate.haier.start_self_cleaning",
-    StartSelfCleaningAction,
-    HAIER_HON_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "climate.haier.start_steri_cleaning",
-    StartSteriCleaningAction,
-    HAIER_HON_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def start_cleaning_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-# Set vertical airflow direction action
-@automation.register_action(
+automation.register_apply_action(
     "climate.haier.set_vertical_airflow",
-    VerticalAirflowAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HonClimate),
@@ -348,22 +303,13 @@ async def start_cleaning_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(
+        CONF_VERTICAL_AIRFLOW, "set_vertical_airflow", AirflowVerticalDirection
+    ),
 )
-async def haier_set_vertical_airflow_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(
-        config[CONF_VERTICAL_AIRFLOW], args, AirflowVerticalDirection
-    )
-    cg.add(var.set_direction(template_))
-    return var
 
-
-# Set horizontal airflow direction action
-@automation.register_action(
+automation.register_apply_action(
     "climate.haier.set_horizontal_airflow",
-    HorizontalAirflowAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HonClimate),
@@ -372,63 +318,17 @@ async def haier_set_vertical_airflow_to_code(config, action_id, template_arg, ar
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(
+        CONF_HORIZONTAL_AIRFLOW, "set_horizontal_airflow", AirflowHorizontalDirection
+    ),
 )
-async def haier_set_horizontal_airflow_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(
-        config[CONF_HORIZONTAL_AIRFLOW], args, AirflowHorizontalDirection
-    )
-    cg.add(var.set_direction(template_))
-    return var
-
-
-@automation.register_action(
-    "climate.haier.health_on",
-    HealthOnAction,
-    HAIER_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "climate.haier.health_off",
-    HealthOffAction,
-    HAIER_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def health_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
-    "climate.haier.power_on",
-    PowerOnAction,
-    HAIER_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "climate.haier.power_off",
-    PowerOffAction,
-    HAIER_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "climate.haier.power_toggle",
-    PowerToggleAction,
-    HAIER_BASE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def power_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def _final_validate(config) -> None:
     full_config = fv.full_config.get()
-    if CONF_LOGGER in full_config:
+    if LOGGER_DOMAIN in full_config:
         _level = "NONE"
-        logger_config = full_config[CONF_LOGGER]
+        logger_config = full_config[LOGGER_DOMAIN]
         if CONF_LOGS in logger_config:
             if "haier.protocol" in logger_config[CONF_LOGS]:
                 _level = logger_config[CONF_LOGS]["haier.protocol"]
@@ -444,7 +344,7 @@ def _final_validate(config) -> None:
             "No logger component found, logging for Haier protocol is disabled"
         )
         cg.add_build_flag("-DHAIER_LOG_LEVEL=0")
-    if config.get(CONF_WIFI_SIGNAL) and CONF_WIFI not in full_config:
+    if config.get(CONF_WIFI_SIGNAL) and WIFI_DOMAIN not in full_config:
         raise cv.Invalid(
             f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration"
         )

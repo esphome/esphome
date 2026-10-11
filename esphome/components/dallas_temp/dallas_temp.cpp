@@ -3,9 +3,12 @@
 
 namespace esphome::dallas_temp {
 
-static const char *const TAG = "dallas.temp.sensor";
+ESPHOME_LOG_TAG(TAG, "dallas.temp.sensor");
+
+static constexpr uint32_t CONVERSION_TIMEOUT_ID = 0;
 
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
+static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
 static const uint8_t DALLAS_COMMAND_START_CONVERSION = 0x44;
 static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
@@ -43,7 +46,7 @@ void DallasTemperatureSensor::update() {
 
   this->send_command_(DALLAS_COMMAND_START_CONVERSION);
 
-  this->set_timeout(this->get_address_name().c_str(), this->millis_to_wait_for_conversion_(), [this] {
+  this->set_timeout(CONVERSION_TIMEOUT_ID, this->millis_to_wait_for_conversion_(), [this] {
     if (!this->read_scratch_pad_() || !this->check_scratch_pad_()) {
       this->publish_state(NAN);
       return;
@@ -154,7 +157,14 @@ float DallasTemperatureSensor::get_temp_c_() {
     default:
       break;
   }
-
+  // undocumented test for powerup measurement of 85
+  // https://github.com/cpetrich/counterfeit_DS18B20#solution-to-the-85-c-problem
+  if ((this->address_ & 0xff) == DALLAS_MODEL_DS18B20) {
+    if ((temp == 85 * 16) && (this->scratch_pad_[6] == 0xc)) {
+      ESP_LOGD(TAG, "dropping reading caused by sensor reset");
+      return NAN;
+    }
+  }
   return temp / 16.0f;
 }
 

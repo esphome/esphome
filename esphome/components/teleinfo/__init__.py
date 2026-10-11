@@ -4,7 +4,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@0hax"]
+CODEOWNERS = ["@0hax", "@FredM67"]
+DOMAIN = "teleinfo"
 MULTI_CONF = True
 
 teleinfo_ns = cg.esphome_ns.namespace("teleinfo")
@@ -33,6 +34,22 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Historical mode runs at 1200 baud, standard mode at 9600 baud.
+    baud_rate = 1200 if config[CONF_HISTORICAL_MODE] else 9600
+    uart.final_validate_device_schema(
+        "teleinfo",
+        baud_rate=baud_rate,
+        data_bits=7,
+        parity="EVEN",
+        stop_bits=1,
+    )(config)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

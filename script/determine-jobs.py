@@ -31,7 +31,7 @@ The CI workflow uses this information to:
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
-- Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
+- Skip or run pylint
 - Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
@@ -50,23 +50,32 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from collections.abc import Callable
 from enum import StrEnum
 from functools import cache
 import json
+import math
 import os
 from pathlib import Path
+import statistics
 import sys
 from typing import Any
 
-from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES, SDKCONFIG_DEFAULTS_PREFIX
+from clang_tidy_hash import (
+    CLANG_TIDY_GLOBAL_FILES,
+    ESP_IDF_INFRA_TRIGGER_FILES,
+    ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
+    SDKCONFIG_DEFAULTS_PREFIX,
+)
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
+    INTEGRATION_TESTS_PATH,
     PYTHON_FILE_EXTENSIONS,
+    all_integration_test_files,
     base_python_changed,
     changed_files,
     core_changed,
-    filter_component_and_test_cpp_files,
     filter_component_and_test_files,
     get_changed_components,
     get_component_from_path,
@@ -79,6 +88,8 @@ from helpers import (
     get_target_branch,
     git_ls_files,
     is_validate_only_file,
+    load_integration_durations,
+    lpt_partition,
     root_path,
 )
 from split_components_for_ci import create_intelligent_batches
@@ -88,28 +99,35 @@ from split_components_for_ci import create_intelligent_batches
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
 
-# Component test batch size (weighted)
-# Isolated components count as 10x, groupable components count as 1x
-COMPONENT_TEST_BATCH_SIZE = 40
-
-# Integration test bucketing: when more than the threshold tests are scheduled,
-# fan out across this many parallel jobs. Below the threshold, a single job runs.
+# Above the threshold, fan out across up to this many jobs, balanced by the
+# recorded per-file durations. The target is serial junit-time weight per
+# bucket, not wall time (calibrated with the conftest compile cap); it
+# sizes the bucket count for small subsets.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
-INTEGRATION_TESTS_SPLIT_BUCKETS = 3
+INTEGRATION_TESTS_SPLIT_BUCKETS = 5
+INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
 
-
-def _split_list(items: list[str], n: int) -> list[list[str]]:
-    """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
-    k, m = divmod(len(items), n)
-    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
-
-
-def _all_integration_test_files() -> list[str]:
-    """Return all integration test file paths, sorted, relative to repo root."""
-    return sorted(
-        str(p.relative_to(root_path))
-        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
-    )
+# aioesphomeapi (requirements.txt), the pytest stack (requirements_test.txt)
+# and the native host build backend every test compiles with; a change to
+# any runs the full matrix
+INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "esphome/arduino/library.py",
+        "esphome/build_gen/build_tool.py",
+        "esphome/build_gen/host.py",
+        "esphome/build_helpers/ccache.py",
+        "esphome/build_helpers/idedata.py",
+        "esphome/build_helpers/native.py",
+        "esphome/build_helpers/ninja.py",
+        "esphome/build_helpers/ninja_gen.py",
+        "esphome/build_helpers/tools_cache.py",
+        "esphome/framework_helpers.py",
+        "esphome/host/toolchain.py",
+        "esphome/platformio/library.py",
+    }
+)
 
 
 def _compute_integration_test_buckets(
@@ -118,7 +136,7 @@ def _compute_integration_test_buckets(
 ) -> tuple[bool, list[dict[str, Any]]]:
     """Compute (run_integration, buckets) from the determine_integration_tests result.
 
-    Pure function for unit testing — no I/O beyond `_all_integration_test_files`
+    Pure function for unit testing — no I/O beyond `all_integration_test_files`
     when `integration_run_all` is set.
 
     `buckets` is a list of `{name, tests}` dicts where `tests` is a JSON-friendly
@@ -126,7 +144,7 @@ def _compute_integration_test_buckets(
     shell word-splitting / glob hazards.
     """
     if integration_run_all:
-        files = _all_integration_test_files()
+        files = all_integration_test_files()
     else:
         files = sorted(integration_test_files)
 
@@ -137,12 +155,23 @@ def _compute_integration_test_buckets(
         return False, []
 
     if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
-        parts = [
-            part for part in _split_list(files, INTEGRATION_TESTS_SPLIT_BUCKETS) if part
-        ]
+        durations = load_integration_durations()
+        # Unrecorded files weigh the recording's median; with no recording a
+        # file weighs a whole bucket, which keeps the full fan-out
+        default = (
+            statistics.median(durations.values())
+            if durations
+            else INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT
+        )
+        weights = {f: durations.get(f, default) for f in files}
+        count = min(
+            INTEGRATION_TESTS_SPLIT_BUCKETS,
+            math.ceil(sum(weights.values()) / INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT),
+        )
+        # count <= SPLIT_BUCKETS < threshold < len(files): no group is empty
+        parts = [sorted(part) for part in lpt_partition(files, weights, count)]
         buckets = [
-            {"name": f"{i + 1}/{len(parts)}", "tests": part}
-            for i, part in enumerate(parts)
+            {"name": f"{i + 1}/{count}", "tests": part} for i, part in enumerate(parts)
         ]
     else:
         buckets = [{"name": "1/1", "tests": files}]
@@ -217,12 +246,15 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     3. Integration test infrastructure files changed
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
+    4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
+       - The dependency pins and the host build backend affect every test
+
     Returns (run_all=False, [test_files...]) when:
 
-    4. Specific integration test files changed
+    5. Specific integration test files changed
        - Only those specific test files are returned
 
-    5. Components used by integration tests (or their dependencies) changed
+    6. Components used by integration tests (or their dependencies) changed
        - Only test files whose fixtures use the changed components are returned
 
     Args:
@@ -240,12 +272,15 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
         # If any core files changed, run all integration tests
         return (True, [])
 
+    if any(f in INTEGRATION_TESTS_TRIGGER_FILES for f in files):
+        return (True, [])
+
     # If infrastructure Python files changed (conftest, utils, etc.), run all tests
     # Excludes test files (test_*.py), fixtures, and non-Python files (README.md)
     if any(
-        f.startswith("tests/integration/")
+        f.startswith(INTEGRATION_TESTS_PATH)
         and f.endswith(".py")
-        and not f.startswith("tests/integration/test_")
+        and not f.startswith(f"{INTEGRATION_TESTS_PATH}test_")
         and "/fixtures/" not in f
         for f in files
     ):
@@ -256,9 +291,9 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     fixture_to_test_files = get_fixture_to_test_files()
 
     for f in files:
-        if f.startswith("tests/integration/test_") and f.endswith(".py"):
+        if f.startswith(f"{INTEGRATION_TESTS_PATH}test_") and f.endswith(".py"):
             test_files.add(f)
-        elif f.startswith("tests/integration/fixtures/"):
+        elif f.startswith(f"{INTEGRATION_TESTS_PATH}fixtures/"):
             if f.endswith(".yaml"):
                 # Fixture YAML changed - add corresponding test file(s)
                 test_files.update(fixture_to_test_files.get(Path(f).stem, ()))
@@ -368,21 +403,33 @@ def should_run_clang_format(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)
 
 
+# Linter pins, dependencies and linter config can change findings without a .py change.
+PYTHON_LINTERS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "pyproject.toml",
+    }
+)
+
+
 def should_run_python_linters(branch: str | None = None) -> bool:
-    """Determine if Python linters (ruff, flake8, pylint, pyupgrade) should run based on changed files.
+    """Determine if the pylint job should run based on changed files.
 
-    This function is used by the CI workflow to skip Python linting checks when no Python files
-    have changed, saving CI time and resources.
-
-    Python linters will run when any Python source files have changed.
+    The CI workflow skips pylint unless a Python file or a file in
+    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff, flake8 and pyupgrade run in
+    lint-format, which this flag does not gate.
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if Python linters should run, False otherwise.
+        True if pylint should run, False otherwise.
     """
-    return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
+    return any(
+        file.endswith(PYTHON_FILE_EXTENSIONS) or file in PYTHON_LINTERS_TRIGGER_FILES
+        for file in changed_files(branch)
+    )
 
 
 # Files outside esphome/**/*.py whose changes can affect `import esphome.__main__`
@@ -493,65 +540,78 @@ ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
     }
 )
 
+# Shared by every toolchain smoke-test job: the base config and the bus
+# packages each generated build includes
+_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES = ("tests/test_build_components/",)
+
 # Path prefixes whose changes always trigger the PlatformIO compile test:
 # anything under esphome/platformio/ (the PlatformIO runner / toolchain that
 # drives every PlatformIO build). The esp32 platform component is already in
 # ESP32_PLATFORMIO_TEST_COMPONENTS, so its changes are covered by the normal
 # component-narrowing path.
-ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = ("esphome/platformio/",)
+ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
+    "esphome/platformio/",
+    *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
+)
 
-# Standalone files that, when changed, trigger the PlatformIO compile test:
-#   - esphome/build_gen/platformio.py -- the PlatformIO build generator
-#   - script/test_build_components.py -- the harness the job invokes
-#   - .github/workflows/ci.yml -- the job's own definition
-ESP32_PLATFORMIO_TRIGGER_FILES = frozenset(
+# Shared by every toolchain smoke-test job: the harness it invokes and the
+# workflow that defines it
+_SMOKE_HARNESS_TRIGGER_FILES = frozenset(
     {
-        "esphome/build_gen/platformio.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
     }
 )
 
+# Standalone files that, when changed, trigger the PlatformIO compile test
+ESP32_PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
+    # The PlatformIO build generator
+    "esphome/build_gen/platformio.py",
+    # Decides which platforms take the pch script in esphome/platformio/,
+    # and the module that parses its switch and the ccache settings
+    "esphome/build_helpers/pch.py",
+    "esphome/build_helpers/ccache.py",
+}
+
+
+def _path_or_file_trigger(
+    files: list[str],
+    trigger_files: frozenset[str],
+    trigger_prefixes: tuple[str, ...],
+) -> bool:
+    """Whether any changed file matches the given infrastructure triggers."""
+    return any(
+        file in trigger_files or file.startswith(trigger_prefixes) for file in files
+    )
+
+
+@cache
+def _cached_components_closure(files: tuple[str, ...]) -> frozenset[str]:
+    """Dependency closure of the changed components; cached because the
+    walk is expensive and every smoke-test job asks for the same list."""
+    component_files = [f for f in files if filter_component_and_test_files(f)]
+    return frozenset(get_components_with_dependencies(component_files, True))
+
 
 def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     """Whether any changed file is a PlatformIO infrastructure / harness trigger."""
-    for file in files:
-        if file in ESP32_PLATFORMIO_TRIGGER_FILES:
-            return True
-        if any(
-            file.startswith(prefix) for prefix in ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES
-        ):
-            return True
-    return False
+    return _path_or_file_trigger(
+        files, ESP32_PLATFORMIO_TRIGGER_FILES, ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES
+    )
 
 
-# Native-build infra: changes under esphome/espidf/, the shared
-# esphome/build_helpers/ package, or the modules the native ESP-IDF build
-# imports affect every esp32 IDF build (now the default toolchain) but aren't
-# components, so the component matrix wouldn't otherwise force any esp32
-# compile. When they change we fold the `esp32` component into the matrix so
-# the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
-    {
-        "esphome/build_gen/espidf.py",
-        "esphome/framework_helpers.py",
-        "esphome/platformio/library.py",
-        "esphome/platformio/extra_script.py",
-    }
-)
+# Checks the native ESP-IDF build in CI but does not shape it, so it is kept
+# out of ESP_IDF_INFRA_TRIGGER_FILES (hashed into the clang-tidy cache key).
+_ESP_IDF_CHECK_TRIGGER_FILES = frozenset({"script/check_idf_py_equivalence.py"})
 
 
 def _esp_idf_infra_changed(files: list[str]) -> bool:
     """Whether any changed file is ESP-IDF build/runner infrastructure."""
-    for file in files:
-        if file in ESP_IDF_INFRA_TRIGGER_FILES:
-            return True
-        if any(
-            file.startswith(prefix) for prefix in ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
-        ):
-            return True
-    return False
+    return _path_or_file_trigger(
+        files,
+        ESP_IDF_INFRA_TRIGGER_FILES | _ESP_IDF_CHECK_TRIGGER_FILES,
+        ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
+    )
 
 
 def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
@@ -589,15 +649,23 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
     Returns:
         Sorted list of component names to compile.
     """
+    return _toolchain_components_to_test(
+        branch, ESP32_PLATFORMIO_TEST_COMPONENTS, _esp32_platformio_path_or_file_trigger
+    )
+
+
+def _toolchain_components_to_test(
+    branch: str | None,
+    test_set: frozenset[str],
+    infra_trigger: Callable[[list[str]], bool],
+) -> list[str]:
+    """The shared narrowing rule for the per-toolchain smoke-test jobs."""
     files = changed_files(branch)
 
-    if core_changed(files) or _esp32_platformio_path_or_file_trigger(files):
-        return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
+    if core_changed(files) or infra_trigger(files):
+        return sorted(test_set)
 
-    component_files = [f for f in files if filter_component_and_test_files(f)]
-    changed = get_components_with_dependencies(component_files, True)
-
-    return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS & set(changed))
+    return sorted(test_set & _cached_components_closure(tuple(files)))
 
 
 def should_run_esp32_platformio(branch: str | None = None) -> bool:
@@ -618,6 +686,85 @@ def should_run_esp32_platformio(branch: str | None = None) -> bool:
     return bool(esp32_platformio_components_to_test(branch))
 
 
+# The `--toolchain arduino` smoke-test set: covers the core, the bundled and
+# converted registry libraries, and the waveform path.
+ESP8266_NATIVE_TEST_COMPONENTS = frozenset(
+    {
+        "esp8266",
+        "api",
+        "web_server",
+        "captive_portal",
+        "mqtt",
+        "esp8266_pwm",
+        "neopixelbus",
+        "bme280_i2c",
+        "uart",
+    }
+)
+
+# Infrastructure whose changes always trigger the native ESP8266
+# compile test
+ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
+    "esphome/arduino8266/",
+    "esphome/arduino/",
+    "esphome/build_helpers/",
+    *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
+)
+# Shared library-conversion modules every native build imports; espidf-only
+# infra (build_gen/espidf.py) deliberately stays out of the esp8266 set.
+_NATIVE_SHARED_TRIGGER_FILES = frozenset(
+    {
+        "esphome/framework_helpers.py",
+        "esphome/platformio/library.py",
+        "esphome/platformio/extra_script.py",
+    }
+)
+# Tripwire: the shared modules must stay in the ESP-IDF trigger set too
+# (now defined in clang_tidy_hash), or its smoke test silently skips them
+assert _NATIVE_SHARED_TRIGGER_FILES <= ESP_IDF_INFRA_TRIGGER_FILES
+ESP8266_NATIVE_TRIGGER_FILES = (
+    _NATIVE_SHARED_TRIGGER_FILES
+    | _SMOKE_HARNESS_TRIGGER_FILES
+    | {
+        "esphome/build_gen/arduino8266.py",
+        "esphome/build_gen/build_tool.py",
+        "esphome/components/esp8266/build_surgery.py",
+        "esphome/components/esp8266/boards.py",
+        "esphome/platformio/registry.py",
+        # esp8266/__init__.py imports copy_ccache_script from it
+        "esphome/platformio/toolchain.py",
+        ".github/actions/cache-arduino8266/action.yml",
+    }
+)
+
+
+def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
+    """Whether any changed file is native-ESP8266 infrastructure / harness."""
+    # base_python_changed covers the top-level esphome/*.py modules the
+    # native backend imports directly (framework_helpers, helpers, writer,
+    # __main__); without it a change there would silently skip this job.
+    # base_python_changed is deliberately broad (any top-level esphome/*.py)
+    # as belt-and-braces while the backend is new; narrow it to the modules
+    # the backend imports once the toolchain has soaked a few releases
+    return base_python_changed(files) or _path_or_file_trigger(
+        files, ESP8266_NATIVE_TRIGGER_FILES, ESP8266_NATIVE_TRIGGER_PATH_PREFIXES
+    )
+
+
+def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
+    """The smoke set on a native-build change, nothing otherwise.
+
+    Unlike the esp32 PlatformIO job, this one does not narrow to the changed
+    components: the component matrix already compiles every esp8266 fixture
+    with this toolchain, so the only gap left is a change to the native build
+    itself that brings no component along.
+    """
+    files = changed_files(branch)
+    if core_changed(files) or _esp8266_native_path_or_file_trigger(files):
+        return sorted(ESP8266_NATIVE_TEST_COMPONENTS)
+    return []
+
+
 def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
@@ -628,12 +775,17 @@ def determine_cpp_unit_tests(
 
     C++ unit tests will run when any of the following conditions are met:
 
-    1. Any C++ core source files changed (esphome/core/*), in which case
+    1. Any core C++ or Python files changed (esphome/core/*), in which case
        all cpp unit tests run.
     2. A test file for a component changed, which triggers tests for that
        component.
     3. The code for a component changed, which triggers tests for that
-       component and all components that depend on it.
+       component and all components that depend on it. Python files count
+       too: a component's Python decides which sources and defines go into
+       the host test build, so a Python-only change can break the link.
+
+    Components without C++ test sources are dropped from the list, so the
+    job is only scheduled when there is something to build.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -647,9 +799,7 @@ def determine_cpp_unit_tests(
     if core_changed(files):
         return (True, [])
 
-    # Filter to only C++ files
-    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
-    return (False, get_cpp_changed_components(cpp_files))
+    return (False, get_cpp_changed_components(files))
 
 
 # Paths within tests/benchmarks/ that contain component benchmark files
@@ -1170,6 +1320,7 @@ def detect_memory_impact_config(
         "components": compatible_components,
         "platform": platform,
         "use_merged_config": "true",
+        "needs_arduino8266": platform.startswith("esp8266"),
     }
 
 
@@ -1213,6 +1364,8 @@ def main() -> None:
         run_device_builder = True
         esp32_platformio_components = sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
         run_esp32_platformio = True
+        esp8266_native_components = sorted(ESP8266_NATIVE_TEST_COMPONENTS)
+        run_esp8266_native = True
     else:
         integration_run_all, integration_test_files = determine_integration_tests(
             args.branch
@@ -1224,6 +1377,8 @@ def main() -> None:
         run_device_builder = should_run_device_builder(args.branch)
         esp32_platformio_components = esp32_platformio_components_to_test(args.branch)
         run_esp32_platformio = bool(esp32_platformio_components)
+        esp8266_native_components = esp8266_native_components_to_test(args.branch)
+        run_esp8266_native = bool(esp8266_native_components)
     run_integration, integration_test_buckets = _compute_integration_test_buckets(
         integration_run_all, integration_test_files
     )
@@ -1387,27 +1542,50 @@ def main() -> None:
         batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
-            batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=batch_directly_changed,
         )
         # Convert batches to CI matrix entries: the component list plus which
         # native toolchain installs the batch's test platforms need, so the
         # workflow only restores the matching multi-GB toolchain caches.
+        # The idf.py check does not depend on the components, so it runs once
+        # per workflow, in the first batch that compiles an esp32 test (a
+        # validate-only component is never compiled).
+        idf_py_check_assigned = False
+        skip_compile = set(validate_only_components)
         for batch in batches:
             platforms: set[str] = set()
+            compiled_platforms: set[str] = set()
             for component in batch:
-                platforms.update(get_component_test_platforms(component))
+                # Variants included: the compile stage builds them, so a
+                # component tested only by test-<variant>.<platform>.yaml
+                # still needs that platform's toolchain
+                component_platforms = get_component_test_platforms(
+                    component, base_only=False
+                )
+                platforms.update(component_platforms)
+                if component not in skip_compile:
+                    compiled_platforms.update(component_platforms)
+            needs_idf = any(p.startswith("esp32") for p in platforms)
+            check_idf_py = not idf_py_check_assigned and any(
+                p.startswith("esp32") for p in compiled_platforms
+            )
+            idf_py_check_assigned |= check_idf_py
             component_test_batches.append(
                 {
                     "components": " ".join(batch),
-                    "needs_idf": any(p.startswith("esp32") for p in platforms),
+                    "needs_idf": needs_idf,
+                    "check_idf_py": check_idf_py,
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
+                    "needs_arduino8266": any(
+                        p.startswith("esp8266") for p in platforms
+                    ),
                 }
             )
 
     output: dict[str, Any] = {
         "core_ci": run_core_ci,
         "integration_tests": run_integration,
+        "integration_run_all": integration_run_all,
         "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
@@ -1418,6 +1596,8 @@ def main() -> None:
         "device_builder": run_device_builder,
         "esp32_platformio": run_esp32_platformio,
         "esp32_platformio_components": ",".join(esp32_platformio_components),
+        "esp8266_native": run_esp8266_native,
+        "esp8266_native_components": ",".join(esp8266_native_components),
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),
