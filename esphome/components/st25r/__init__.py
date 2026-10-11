@@ -3,10 +3,12 @@ import esphome.codegen as cg
 from esphome.components import nfc
 import esphome.config_validation as cv
 from esphome.const import CONF_IRQ_PIN, CONF_ON_TAG, CONF_ON_TAG_REMOVED, CONF_RESET_PIN
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@JohnMcLear"]
 AUTO_LOAD = ["nfc"]
+CODEOWNERS = ["@JohnMcLear"]
+DOMAIN = "st25r"
 MULTI_CONF = True
 
 CONF_ST25R_ID = "st25r_id"
@@ -26,26 +28,25 @@ ST25R_SCHEMA = cv.Schema(
     }
 ).extend(cv.polling_component_schema("1s"))
 
+_TAG_ARGS = [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")]
 
-async def setup_st25r(var: cg.Pvariable, config: ConfigType) -> None:
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_TAG, "add_on_tag_callback", _TAG_ARGS),
+    automation.CallbackAutomation(
+        CONF_ON_TAG_REMOVED, "add_on_tag_removed_callback", _TAG_ARGS
+    ),
+)
+
+
+async def setup_st25r(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    if CONF_IRQ_PIN in config:
-        irq = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
-        cg.add(var.set_irq_pin(irq))
+    if (irq_pin := config.get(CONF_IRQ_PIN)) is not None:
+        cg.add(var.set_irq_pin(await cg.gpio_pin_expression(irq_pin)))
 
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
+    if (reset_pin := config.get(CONF_RESET_PIN)) is not None:
+        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
 
     cg.add(var.set_rf_power(config[CONF_RF_POWER]))
 
-    for conf in config.get(CONF_ON_TAG, []):
-        await automation.build_callback_automation(
-            var, "add_on_tag_callback", [(cg.std_string, "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_TAG_REMOVED, []):
-        await automation.build_callback_automation(
-            var, "add_on_tag_removed_callback", [(cg.std_string, "x")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
