@@ -58,6 +58,13 @@ Here is another example output for a Tuya ME-81H thermostat:
 - **time_id** (*Optional*, [ID](/guides/configuration-types#id)): Some Tuya devices support obtaining local time from ESPHome.
   Specify the ID of the [Time](/components/time/) which will be used.
 
+- **force_time_sync** (*Optional*, boolean): Send the local time to the MCU once a minute, on top of the replies to
+  its own time requests and the resend after each time source sync. Use it for MCUs whose display clock drifts
+  between updates. Requires `time_id`. Defaults to `false`.
+  A Tuya MCU asks for time in one of two ways: a local time request (command `0x1C`, time zone applied) or a GMT
+  request (command `0x0C`). This option only sends local time, so it has no effect on an MCU that asks for GMT. With
+  the logger at `DEBUG`, the line "Sending local time" or "Sending gmt time" shows which one your MCU uses.
+
 - **status_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): Some Tuya devices support WiFi status reporting ONLY
   through gpio pin.
   Specify the pin reported in the config dump or leave empty otherwise.
