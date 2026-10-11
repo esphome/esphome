@@ -224,6 +224,9 @@ climate:
 - **vertical_default** (*Optional*, string): What to default to when the AC unit's vertical direction is *not* set to swing. Defaults to `middle`.
 
   - Options are: `down`, `middle-down`, `middle`, `middle-up`, `up`, `auto`
+- **vertical_vanes** (*Optional*, int): Set to `2` on units with separately controlled left and right vertical vanes, such
+  as the FH, FS and FX series, so both vanes receive the swing and default position commands. Both vanes always get the
+  same setting. Defaults to `1`.
 
 > [!NOTE]
 > - This climate IR component is also known to work with some Stiebel Eltron Units. It has been tested with Stiebel Eltron IR-Remote `KM07F` and unit `ACW 25 i`
