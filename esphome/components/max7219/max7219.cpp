@@ -146,11 +146,8 @@ void MAX7219Component::display() {
   for (uint8_t i = 0; i < 8; i++) {
     this->enable();
     for (uint8_t j = 0; j < this->num_chips_; j++) {
-      if (reverse_) {
-        this->send_byte_(8 - i, buffer_[(num_chips_ - j - 1) * 8 + i]);
-      } else {
-        this->send_byte_(8 - i, buffer_[j * 8 + i]);
-      }
+      this->send_byte_(8 - i, reverse_ ? this->byte_mapping[buffer_[this->digit_mapping[(num_chips_ - j - 1) * 8 + i]]]
+                                       : this->byte_mapping[buffer_[this->digit_mapping[j * 8 + i]]]);
     }
     this->disable();
   }
@@ -228,6 +225,22 @@ void MAX7219Component::set_intensity(uint8_t intensity) {
   if (intensity != this->intensity_) {
     this->intensity_changed_ = true;
     this->intensity_ = intensity;
+  }
+}
+void MAX7219Component::set_bitmapping(const std::array<uint8_t, 8> &bitmapping) {
+  for (uint16_t u = 0; u < 256; u++) {
+    this->byte_mapping[u] = 0;
+    for (uint8_t i = 0; i < 8; i++) {
+      if (u & (1 << i)) {
+        this->byte_mapping[u] |= (1 << bitmapping[i]);
+      }
+    }
+  }
+}
+
+void MAX7219Component::set_digitmapping(const std::vector<uint8_t> &digitmapping) {
+  for (uint16_t u = 0; u < digitmapping.size(); u++) {
+    this->digit_mapping[u] = digitmapping[u];
   }
 }
 
