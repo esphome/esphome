@@ -42,26 +42,18 @@ to the coordinator.
 ## Full Configuration
 
 ```yaml
-# Example configuration entry on ESP32
 zigbee:
   id: my_zigbee
   router: true
-```
-```yaml
-# Example configuration entry on nRF52
-zigbee:
-  id: my_zigbee
+  power_source: MAINS_SINGLE_PHASE
   on_join:
     then:
       - logger.log:
           format: "%s network."
           args: ['x ? "Joined" : "Rejoined"']
-  power_source: BATTERY
 ```
 
 ## Configuration variables
-
-- **model** (*Optional*, string): Model Identifier of the Zigbee device. Defaults to the ESPHome node name.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for this `zigbee` component.
 
@@ -70,14 +62,23 @@ zigbee:
   for a stable Zigbee network. For this reasons battery-powered devices should not be used as routers.
   Defaults to `false`.
 
-- **power_source** (*Optional*, enum): Indicates what kind of power the device uses. Affects
-  sleep behavior. One of `UNKNOWN`, `MAINS_SINGLE_PHASE`, `MAINS_THREE_PHASE`, `BATTERY`,
-  `DC_SOURCE`, `EMERGENCY_MAINS_CONST`, or `EMERGENCY_MAINS_TRANSF`. Defaults to `DC_SOURCE`.
-
 - **sleepy** (*Optional*, boolean): Disable RX during idle to reduce power consumption for battery-powered devices.
   Only valid for end devices, not routers. The device polls for data typically every 3-5 s, or at the interval set
   with `polling_interval` on `ESP32`. Device interview is considerably slower and can take a long time if many
   sensors are used. Defaults to `false`.
+
+- **power_source** (*Optional*, enum): Indicates what kind of power the device uses. Affects
+  sleep behavior. One of `UNKNOWN`, `MAINS_SINGLE_PHASE`, `MAINS_THREE_PHASE`, `BATTERY`,
+  `DC_SOURCE`, `EMERGENCY_MAINS_CONST`, or `EMERGENCY_MAINS_TRANSF`. Defaults to `DC_SOURCE`.
+
+- **version** (*Optional*, int): Application version number in range `0` to `255`. Defaults to `0`.
+
+- **model** (*Optional*, string): Model Identifier of the Zigbee device. Maximum length is 31 ASCII
+  characters. Defaults to the ESPHome node name.
+
+- **manufacturer** (*Optional*, string): Manufacturer name of the Zigbee device. Change this only if you want
+  to provide your own converter/quirks as it might break some default handling in ZHA or Zigbee2MQTT. Maximum
+  length is 31 ASCII characters. Defaults to `esphome`.
 
 - **on_start** (*Optional*, [Automation](/automations#automation)): Automation to run when the Zigbee stack is fully
   initialized and can be interacted with. It will then try to (re-)join a network.
