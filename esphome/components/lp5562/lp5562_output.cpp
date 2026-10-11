@@ -19,7 +19,7 @@ static constexpr uint8_t LP5562_CONFIG_INT_CLK_EN = 0x01;
 static constexpr uint8_t LP5562_LED_MAP_ALL_PWM_REGISTERS = 0x00;  // every channel driven by its PWM register
 
 // PWM duty-cycle registers, indexed the same way as the LP5562_CHANNELS enum in output.py
-static constexpr uint8_t LP5562_REG_PWM[4] = {
+static const uint8_t LP5562_REG_PWM[4] PROGMEM = {
     0x02,  // blue
     0x03,  // green
     0x04,  // red
@@ -56,7 +56,7 @@ void LP5562Output::dump_config() {
 void LP5562Output::set_channel_value_(uint8_t channel, uint8_t value) {
   if (this->is_failed())
     return;
-  if (!this->write_byte(LP5562_REG_PWM[channel], value)) {
+  if (!this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), value)) {
     this->status_set_warning();
     return;
   }
