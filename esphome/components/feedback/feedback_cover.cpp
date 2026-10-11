@@ -249,7 +249,8 @@ void FeedbackCover::loop() {
         // Keep driving past the end position for a while so accumulated timing error is squeezed out
         if (!this->start_overshoot_time_) {
           this->start_overshoot_time_ = now;
-        } else if (now - this->start_overshoot_time_ > this->overshoot_duration_) {
+        } else if (now - this->start_overshoot_time_ > this->overshoot_duration_ ||
+                   now - this->start_dir_time_ > this->max_duration_) {
           ESP_LOGD(TAG, "'%s' - Overshoot duration reached. Stopping cover.", this->name_.c_str());
           this->start_direction_(COVER_OPERATION_IDLE);
         }
