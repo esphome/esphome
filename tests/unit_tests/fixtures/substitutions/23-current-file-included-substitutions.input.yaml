@@ -1,6 +1,0 @@
-substitutions: !include current_file_subs/vars.yaml
-
-test_list:
-  - defined in: ${here}
-  - by file: ${file}
-  - used from: ${ this_dir().name }

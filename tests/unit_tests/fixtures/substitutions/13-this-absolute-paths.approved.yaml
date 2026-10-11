@@ -1,0 +1,4 @@
+test_list:
+  - file_is_absolute: true
+  - dir_is_absolute: true
+  - file_parent_equals_dir: true

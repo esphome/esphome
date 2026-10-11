@@ -1,5 +1,0 @@
-substitutions:
-  this_file: my own value
-
-test_list:
-  - user_wins: ${this_file}
