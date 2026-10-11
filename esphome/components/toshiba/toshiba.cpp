@@ -1181,8 +1181,9 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   } else {
     // First checksum was valid so continue receiving the remaining bits
-    if (message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
-      return false;  // length byte would overrun the buffer
+    // The shortest frame is 9 bytes (length byte 3); longer ones must still fit the buffer
+    if (message[2] < 3 || message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
+      return false;
     }
     message_length = message[2] + 2;
   }

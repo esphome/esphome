@@ -75,8 +75,9 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
     if (this->model_ == MODEL_GENERIC)
       return climate::ClimateSwingModeMask();
     if (this->model_ == MODEL_SEIYA) {
-      return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
-                                           climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH};
+      // No captured code stops the swing, so OFF is not offered; the remote only selects a direction
+      return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
+                                           climate::CLIMATE_SWING_BOTH};
     }
     return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
   }
