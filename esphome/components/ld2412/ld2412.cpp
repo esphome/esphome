@@ -10,6 +10,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <cmath>
+
 namespace esphome::ld2412 {
 
 ESPHOME_LOG_TAG(TAG, "ld2412");
@@ -467,7 +469,8 @@ void set_number_value(number::Number *n, float value) {
   }
 }
 
-static inline bool has_value(number::Number *n) { return n != nullptr && n->has_state(); }
+// A number set to NaN after a failed write counts as not configured
+static inline bool has_value(number::Number *n) { return n != nullptr && n->has_state() && !std::isnan(n->state); }
 
 // Scheduler ids 0 (still) and 1 (motion) time out a re-query that a held-back write waits for
 static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
