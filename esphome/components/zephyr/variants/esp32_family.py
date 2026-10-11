@@ -12,7 +12,11 @@ from ..const import (
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_ESP32_S3,
 )
+
+# Xtensa: hardware FPU, but no arch_stack_walk(). The others are RISC-V.
+_XTENSA_VARIANTS = (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3)
 
 # Devicetree property esp32-family pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "pinmux"
@@ -28,17 +32,17 @@ def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
-    # Original ESP32 is Xtensa LX6, which has a hardware FPU; esp32_h2/c6/c5/c3 are
+    # Original ESP32 (LX6) and S3 (LX7) have a hardware FPU; esp32_h2/c6/c5/c3 are
     # RV32IMAC/RV32IMC, none of which do.
-    if zephyr_variant() == ZEPHYR_VARIANT_ESP32:
+    if zephyr_variant() in _XTENSA_VARIANTS:
         zephyr_add_prj_conf("FPU", True)
     # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
     zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
-    # arch_stack_walk() isn't implemented for Xtensa (original ESP32); RISC-V
+    # arch_stack_walk() isn't implemented for Xtensa (ESP32, S3); RISC-V
     # (esp32_h2/c6/c5/c3) does implement it and enables ARCH_HAS_STACKWALK
     # unconditionally, so no EXTRA_EXCEPTION_INFO is needed there either.
     log_level = config.get(CONF_LOG_LEVEL, "ERROR")
-    if log_level != "NONE" and zephyr_variant() != ZEPHYR_VARIANT_ESP32:
+    if log_level != "NONE" and zephyr_variant() not in _XTENSA_VARIANTS:
         zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every esp32-family variant (core.cpp, etc.).
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_ESP32")
@@ -64,6 +68,7 @@ _I2C_INSTANCE_SIGNAL_IDS = {
     ZEPHYR_VARIANT_ESP32_C5: {0: {"scl": 46, "sda": 47}},
     ZEPHYR_VARIANT_ESP32_C6: {0: {"scl": 45, "sda": 46}},
     ZEPHYR_VARIANT_ESP32_H2: {0: {"scl": 45, "sda": 46}, 1: {"scl": 55, "sda": 56}},
+    ZEPHYR_VARIANT_ESP32_S3: {0: {"scl": 89, "sda": 90}, 1: {"scl": 91, "sda": 92}},
 }
 
 
@@ -118,6 +123,7 @@ _UART_INSTANCE_SIGNAL_BASE = {
     ZEPHYR_VARIANT_ESP32_C5: {0: 6, 1: 9},
     ZEPHYR_VARIANT_ESP32_C6: {0: 6, 1: 9},
     ZEPHYR_VARIANT_ESP32_H2: {0: 6, 1: 9},
+    ZEPHYR_VARIANT_ESP32_S3: {0: 12, 1: 15, 2: 18},
 }
 
 
@@ -191,14 +197,15 @@ def uart_pinctrl(
 # controllers, spi2=HSPI/spi3=VSPI (esp32_common.dtsi's
 # `clocks = <&clock ESP32_HSPI_MODULE>`/`ESP32_VSPI_MODULE`). C3/C5/C6/H2 each have
 # only a single one, spi2=FSPI (confirmed via each chip's own -gpio-sigmap.h; no
-# spi3 node exists on any of them). S2/S3/P4 are not supported variants in this repo
-# yet and are deliberately not included here.
+# spi3 node exists on any of them). S3 has spi2=FSPI and spi3=SPI3_ (its signals
+# are named ESP_SPI3_CLK_OUT etc., hence the trailing underscore).
 SPI_INSTANCE_SIGNAL_PREFIX = {
     ZEPHYR_VARIANT_ESP32: {2: "HSPI", 3: "VSPI"},
     ZEPHYR_VARIANT_ESP32_C3: {2: "FSPI"},
     ZEPHYR_VARIANT_ESP32_C5: {2: "FSPI"},
     ZEPHYR_VARIANT_ESP32_C6: {2: "FSPI"},
     ZEPHYR_VARIANT_ESP32_H2: {2: "FSPI"},
+    ZEPHYR_VARIANT_ESP32_S3: {2: "FSPI", 3: "SPI3_"},
 }
 
 # esp32-family SPI instance -> {"clk": id, "miso": id, "mosi": id, "wp": id, "hd":
@@ -222,6 +229,10 @@ _SPI_INSTANCE_SIGNAL_IDS = {
     },
     ZEPHYR_VARIANT_ESP32_H2: {
         2: {"clk": 63, "miso": 64, "mosi": 65, "hd": 66, "wp": 67}
+    },
+    ZEPHYR_VARIANT_ESP32_S3: {
+        2: {"clk": 101, "miso": 102, "mosi": 103, "hd": 104, "wp": 105},
+        3: {"clk": 66, "miso": 67, "mosi": 68, "hd": 69, "wp": 70},
     },
 }
 

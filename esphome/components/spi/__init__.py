@@ -32,6 +32,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_ESP32_S3,
 )
 from esphome.components.zephyr.dts_lookup import normalize_dts_label, resolve_zephyr_bus
 from esphome.config_helpers import filter_source_files_from_platform
@@ -472,6 +473,7 @@ _ZEPHYR_QUAD_VARIANTS = (
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_ESP32_S3,
 )
 
 
