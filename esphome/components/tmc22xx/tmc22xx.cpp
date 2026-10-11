@@ -311,7 +311,7 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
   // On the single wire bus every byte sent is also received, drop that echo
   uint8_t echo[DATAGRAM_SIZE];
   if (!this->read_array(echo, DATAGRAM_SIZE) || memcmp(echo, datagram, DATAGRAM_SIZE) != 0) {
-    ESP_LOGW(TAG, "No echo writing register 0x%02X", reg);
+    ESP_LOGV(TAG, "No echo writing register 0x%02X", reg);
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
