@@ -85,7 +85,8 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   ESP8266SoftwareSerial *sw_serial_{nullptr};
 
  private:
-  static bool serial0_in_use;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static bool serial0_in_use;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static bool serial0_swapped;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 }  // namespace esphome::uart

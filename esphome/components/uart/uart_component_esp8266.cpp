@@ -18,6 +18,8 @@ namespace esphome::uart {
 ESPHOME_LOG_TAG(TAG, "uart");
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+bool ESP8266UartComponent::serial0_swapped = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 uint32_t ESP8266UartComponent::get_config() {
   uint32_t config = 0;
 
@@ -105,6 +107,7 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
+    ESP8266UartComponent::serial0_swapped = true;
   } else
 #endif  // USE_ESP8266_UART_SERIAL
 #ifdef USE_ESP8266_UART_SERIAL1
@@ -127,6 +130,11 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
     SerialConfig config = static_cast<SerialConfig>(get_config());
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
+#ifdef USE_ESP8266_UART_SERIAL
+    // begin() puts UART0 back on GPIO1/GPIO3, so swap it again like setup() did for GPIO15/GPIO13
+    if (this->hw_serial_ == &Serial && ESP8266UartComponent::serial0_swapped)
+      this->hw_serial_->swap();
+#endif  // USE_ESP8266_UART_SERIAL
   } else {
     this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
                             this->parity_, this->rx_buffer_size_);
