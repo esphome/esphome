@@ -1,6 +1,9 @@
 #include "pd_pioneer_ir.h"
+#include "esphome/core/log.h"
 
 namespace esphome::pd_pioneer_ir {
+
+ESPHOME_LOG_TAG(TAG, "pd_pioneer_ir");
 
 void PDPioneerIR::setup() {
   climate_ir::ClimateIR::setup();
@@ -35,8 +38,11 @@ bool PDPioneerIR::on_receive(remote_base::RemoteReceiveData data) {
   if (!decoded.has_value())
     return false;
   // An auto-mode frame from the remote must not publish HEAT_COOL when the traits leave it out
-  if (this->get_traits().supports_mode(*decoded))
+  if (this->get_traits().supports_mode(*decoded)) {
     this->mode = *decoded;
+  } else {
+    ESP_LOGD(TAG, "Received auto mode is not enabled (supports_heat_cool), keeping the current mode");
+  }
   // Off and fan-only bursts carry no target temperature
   if (*decoded != climate::CLIMATE_MODE_OFF && *decoded != climate::CLIMATE_MODE_FAN_ONLY)
     this->target_temperature = ControlData::get_temp(*frame);
