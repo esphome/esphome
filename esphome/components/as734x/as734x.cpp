@@ -1,341 +1,273 @@
 #include "as734x.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/progmem.h"
 
 #include <algorithm>
 
-#ifdef USE_AS7341
-#include "as7341.h"
-#endif
-
-#ifdef USE_AS7343
-#include "as7343.h"
-#endif
-
 namespace esphome::as734x {
 
-static const char *const TAG = "as734x";
+ESPHOME_LOG_TAG(TAG, "as734x");
 
+// Registers and bits shared by both chips
+static constexpr uint8_t REG_ENABLE = 0x80;
+static constexpr uint8_t REG_ATIME = 0x81;
+static constexpr uint8_t REG_ASTATUS = 0x94;
+static constexpr uint8_t ENABLE_PON = 0x01;
+static constexpr uint8_t ENABLE_SP_EN = 0x02;
+static constexpr uint8_t ENABLE_SMUX_EN = 0x10;
+static constexpr uint8_t CFG0_REG_BANK = 0x10;
+static constexpr uint8_t STATUS2_AVALID = 0x40;
+static constexpr uint8_t ASTATUS_ASAT = 0x80;
+
+static constexpr uint8_t AS7341_CFG6 = 0xAF;
+static constexpr uint8_t AS7341_SMUX_CMD_WRITE = 0x10;  // copy the SMUX image from RAM to the chain
+static constexpr uint8_t AS7341_SMUX_RAM = 0x00;
+static constexpr uint8_t AS7343_CHAIN_CMD = 0xE4;
+static constexpr uint8_t AS7343_CHAIN_SMUX = 0xE7;
+static constexpr uint8_t AS7343_CHAINS = 3;
+
+static constexpr uint8_t NO_SLOT = 0xFF;
+static constexpr uint8_t CLEAR_BAND = NUM_BANDS - 1;
+static constexpr uint8_t MAX_SMUX_LEN = 20;
+static constexpr uint8_t MAX_ADC_SLOTS = 18;
 static constexpr uint32_t MIN_COLLECTION_TIMEOUT_MS = 30 * 1000;
-static constexpr uint8_t COLLECTION_TIMEOUT_MARGIN = 2;
 
-PROGMEM_STRING_TABLE(BandNames41, "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "NIR", "Clear");
-PROGMEM_STRING_TABLE(BandNames43, "F1", "F2", "FZ", "F3", "F4", "FY", "F5", "FXL", "F6", "F7", "F8", "NIR", "Clear");
-
-namespace {
-
-float integration_time_ms(uint8_t atime, uint16_t astep) { return (1.0f + atime) * (1.0f + astep) * 2.78e-3f; }
-[[maybe_unused]] float gain_multiplier(Gain gain) {
-  return gain == GAIN_0_5X ? 0.5f : static_cast<float>(1 << (gain - 1));
-}
-
-[[maybe_unused]] const char *model_name(Model model) {
-  switch (model) {
-    case Model::AS7341:
-      return "AS7341";
-    case Model::TCS3448:
-      return "TCS3448";
-    default:
-      return "AS7343";
-  }
-}
-
-}  // namespace
-
-void AS734XComponent::setup_model(Model model) {
-  this->model_ = model;
-
-  switch (this->model_) {
 #ifdef USE_AS7341
-    case Model::AS7341:
-      this->device_ = new AS7341(this);  // NOLINT(cppcoreguidelines-owning-memory)
-      break;
+static const char AS7341_NAME[] PROGMEM = "AS7341";
+static const RegValue AS7341_INIT[] PROGMEM = {{0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
+static const uint8_t AS7341_SMUX[] PROGMEM = {
+    0x30, 0x01, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x50, 0x00,  // step 0: F1 to F4, NIR, Clear
+    0x00, 0x00, 0x20, 0x04, 0x00, 0x30, 0x01, 0x50, 0x00, 0x06,  // step 0, continued
+    0x00, 0x00, 0x00, 0x40, 0x02, 0x00, 0x10, 0x03, 0x50, 0x10,  // step 1: F5 to F8, NIR, Clear
+    0x03, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x50, 0x00, 0x06,  // step 1, continued
+};
+static constexpr uint8_t N = NO_SLOT;
+static const uint8_t AS7341_READOUT[] PROGMEM = {
+    0, 1, N, 2, 3, N, N, N, N, N, N, N, N,  // step 0
+    N, N, N, N, N, N, 0, N, 1, 2, 3, 5, 4,  // step 1: SMUX routes clear to ADC4 and NIR to ADC5
+};
+const ChipInfo AS7341_CHIP PROGMEM = {
+    .name = AS7341_NAME,
+    .init = AS7341_INIT,
+    .smux = AS7341_SMUX,
+    .readout = AS7341_READOUT,
+    .init_count = 1,
+    .astep_reg = 0xCA,
+    .cfg0_reg = 0xA9,
+    .cfg1_reg = 0xAA,
+    .status2_reg = 0xA3,
+    .id_reg = 0x92,
+    .id_mask = 0xFC,
+    .id_value = 0x09 << 2,
+    .adc_slots = 6,
+    .smux_steps = 2,
+    .integration_cycles = 1,
+    .smux_len = 20,
+    .auto_smux = false,
+    .extra_clear_slot = NO_SLOT,
+};
 #endif
+
 #ifdef USE_AS7343
-    case Model::AS7343:
-    case Model::TCS3448:
-      this->device_ = new AS7343(this);  // NOLINT(cppcoreguidelines-owning-memory)
-      break;
-#endif
-    default:
-      ESP_LOGE(TAG, "Unknown model");
-  }
+static const char AS7343_NAME[] PROGMEM = "AS7343";
+static const char TCS3448_NAME[] PROGMEM = "TCS3448";
+// CFG6, FD_CFG0, CFG10, CFG1, CFG8, CFG20 (auto_smux, 18 channels in 3 cycles), AGC_GAIN_MAX, FD_TIME_1, FD_TIME_2
+static const RegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC6, 0x0C}, {0xC9, 0xC8},
+                                               {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
+static const uint8_t AS7343_SMUX[] PROGMEM = {0x00, 0x04, 0x65, 0x02, 0x00, 0x05, 0x00, 0x01, 0x00, 0x30,
+                                              0x00, 0x00, 0x60, 0x20, 0x04, 0x50, 0x03, 0x00, 0x01, 0x05,
+                                              0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00};
+// Clear is the average of the cycle 1 (slot 4) and cycle 2 (slot 10) readings; cycle 3 always reads 0.
+static const uint8_t AS7343_READOUT[] PROGMEM = {12, 6, 0, 7, 8, 1, 15, 2, 9, 13, 14, 3, 10};
+static constexpr ChipInfo as7343_chip(const char *name) {
+  return {
+      .name = name,
+      .init = AS7343_INIT,
+      .smux = AS7343_SMUX,
+      .readout = AS7343_READOUT,
+      .init_count = sizeof(AS7343_INIT) / sizeof(RegValue),
+      .astep_reg = 0xD4,
+      .cfg0_reg = 0xBF,
+      .cfg1_reg = 0xC6,
+      .status2_reg = 0x90,
+      .id_reg = 0x5A,
+      .id_mask = 0xFF,
+      .id_value = 0x81,
+      .adc_slots = 18,
+      .smux_steps = 1,
+      .integration_cycles = 3,
+      .smux_len = 10,
+      .auto_smux = true,
+      .extra_clear_slot = 4,
+  };
 }
+const ChipInfo AS7343_CHIP PROGMEM = as7343_chip(AS7343_NAME);
+const ChipInfo TCS3448_CHIP PROGMEM = as7343_chip(TCS3448_NAME);  // AS7343 register map, address 0x59
+#endif
 
 void AS734XComponent::setup() {
-  if (this->device_ == nullptr) {
-    this->mark_failed();
+  const ChipInfo *chip = this->chip_;
+  const uint8_t cfg0 = pgm_(chip->cfg0_reg);
+  uint8_t id = 0;
+  bool ok = this->write_byte(REG_ENABLE, ENABLE_PON);
+  delayMicroseconds(200);  // oscillator start-up
+  // The AS7343 ID and some init registers are only reachable with the low bank selected.
+  ok = ok && this->write_byte(cfg0, CFG0_REG_BANK) && this->read_byte(pgm_(chip->id_reg), &id);
+  if (ok && (id & pgm_(chip->id_mask)) != pgm_(chip->id_value)) {
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
-
-  if (!this->device_->verify_device_id()) {
-    ESP_LOGE(TAG, "Invalid chip ID");
-    this->mark_failed();
+  const RegValue *init = pgm_(chip->init);
+  for (uint8_t i = 0, n = pgm_(chip->init_count); ok && i < n; i++) {
+    RegValue rv;
+    progmem_memcpy(&rv, &init[i], sizeof(rv));
+    ok = this->write_byte(rv.reg, rv.value);
+  }
+  ok = ok && this->write_byte(cfg0, 0) && this->write_byte(REG_ATIME, this->atime_) &&
+       this->write_byte_16(pgm_(chip->astep_reg), byteswap(this->astep_)) &&
+       this->write_byte(pgm_(chip->cfg1_reg), this->gain_);
+  if (pgm_(chip->auto_smux)) {
+    const uint8_t *smux = pgm_(chip->smux);
+    const uint8_t len = pgm_(chip->smux_len);
+    for (uint8_t i = 0; ok && i < AS7343_CHAINS * len; i++) {
+      ok = this->write_byte(AS7343_CHAIN_SMUX, progmem_read_byte(&smux[i])) &&
+           this->write_byte(AS7343_CHAIN_CMD, 0x46 + (i / len) * 0x10);
+    }
+  }
+  if (!ok) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-
-  this->device_->enable_power(false);
-  delay(10);  // wait for power off
-  if (!this->device_->enable_power(true)) {
-    ESP_LOGE(TAG, "Power on failed");
-    this->mark_failed();
-    return;
-  }
-  delay(10);  // wait for power on
-
-  if (!this->device_->write_default_config() || !this->device_->write_atime(this->atime_) ||
-      !this->device_->write_astep(this->astep_) || !this->device_->write_gain(this->gain_)) {
-    ESP_LOGE(TAG, "Configuration failed");
-    this->mark_failed();
-    return;
-  }
-
-  this->state_ = State::STATE_IDLE;
+  // One integration cycle lasts (ATIME + 1) * (ASTEP + 1) * 2.78 us.
+  const uint32_t cycle_ms = (this->atime_ + 1UL) * (this->astep_ + 1UL) * 139 / 50000;
+  this->integration_ms_ = cycle_ms * pgm_(chip->integration_cycles);
+  this->timeout_ms_ = std::max(MIN_COLLECTION_TIMEOUT_MS, 2 * this->integration_ms_);
   this->disable_loop();
 }
 
 void AS734XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "AS734x:");
-  LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AS734x failed");
-  }
-  LOG_UPDATE_INTERVAL(this);
+  const float gain = this->gain_ == GAIN_0_5X ? 0.5f : static_cast<float>(1 << (this->gain_ - 1));
   ESP_LOGCONFIG(TAG,
-                "  Model: %s\n"
+                "AS734x:\n"
+                "  Chip: %s\n"
                 "  Gain: %gx\n"
                 "  ATIME: %u\n"
                 "  ASTEP: %u",
-                model_name(this->model_), gain_multiplier(this->gain_), this->atime_, this->astep_);
-
-  if (this->device_ != nullptr) {
-    for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
-      if (this->band_counts_sensors_[i] == nullptr) {
-        continue;
-      }
-      const LogString *band = this->model_ == Model::AS7341 ? BandNames41::get_log_str(i, BandNames41::LAST_INDEX)
-                                                            : BandNames43::get_log_str(i, BandNames43::LAST_INDEX);
-      sensor::log_sensor(TAG, "  ", LOG_STR_ARG(band), this->band_counts_sensors_[i]);
-    }
+                LOG_STR_ARG(pgm_(this->chip_->name)), gain, this->atime_, this->astep_);
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
+  for (auto *sens : this->sensors_) {
+    LOG_SENSOR("  ", "Counts", sens);
+  }
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 
 void AS734XComponent::update() {
-  if (!this->is_ready()) {
+  if (this->state_ != State::STATE_IDLE) {
+    ESP_LOGW(TAG, "Skipping update, previous measurement still running");
     return;
   }
-  if (this->state_ == State::STATE_IDLE) {
-    ESP_LOGV(TAG, "Initiating new data collection");
-    this->state_ = State::STATE_START_MEASUREMENT;
-    this->enable_loop();
-  } else {
-    ESP_LOGW(TAG, "Skipping update, previous measurement still running");
+  this->step_ = 0;
+  this->enable_loop();
+  if (!this->start_step_()) {
+    this->abort_measurement_(LOG_STR("Failed to start measurement"));
   }
+}
+
+bool AS734XComponent::start_step_() {
+  this->start_ms_ = App.get_loop_component_start_time();
+  if (pgm_(this->chip_->auto_smux)) {
+    this->state_ = State::STATE_READ_DATA;
+    return this->write_byte(REG_ENABLE, ENABLE_PON | ENABLE_SP_EN);
+  }
+  // Load this step's image into SMUX RAM; SMUX_EN copies it to the chain and clears itself when done.
+  std::array<uint8_t, MAX_SMUX_LEN> image{};
+  const uint8_t len = pgm_(this->chip_->smux_len);
+  progmem_memcpy(image.data(), pgm_(this->chip_->smux) + this->step_ * len, len);
+  this->state_ = State::STATE_WAIT_SMUX;
+  return this->write_byte(AS7341_CFG6, AS7341_SMUX_CMD_WRITE) &&
+         this->write_bytes(AS7341_SMUX_RAM, image.data(), len) &&
+         this->write_byte(REG_ENABLE, ENABLE_PON | ENABLE_SMUX_EN);
 }
 
 void AS734XComponent::loop() {
-  if (!this->is_ready()) {
-    return;
-  }
-
+  const uint32_t now = App.get_loop_component_start_time();
+  uint8_t value = 0;
   switch (this->state_) {
-    case State::STATE_NOT_INITIALIZED:
-      // we shall not be here
-      ESP_LOGE(TAG, "State machine not initialized");
-      this->mark_failed();
-      break;
-
-    case State::STATE_IDLE:
-      break;
-
-    case State::STATE_START_MEASUREMENT:
-      ESP_LOGVV(TAG, "START_MEASUREMENT");
-      this->readings_.millis_start = App.get_loop_component_start_time();
-      this->readings_.timeout_ms =
-          std::max(MIN_COLLECTION_TIMEOUT_MS,
-                   static_cast<uint32_t>(COLLECTION_TIMEOUT_MARGIN * this->device_->get_number_of_smux_steps() *
-                                         this->device_->get_integration_cycles() *
-                                         integration_time_ms(this->atime_, this->astep_)));
-      this->device_->write_atime(this->atime_);
-      this->device_->write_astep(this->astep_);
-      this->device_->write_gain(this->gain_);
-      this->readings_.smux_step = 0;
-      this->state_ = State::STATE_CONFIGURE_SMUX;
-      break;
-
-    case State::STATE_CONFIGURE_SMUX:
-      ESP_LOGVV(TAG, "CONFIGURE_SMUX");
-      this->device_->enable_spectral_measurement(false);
-      delay(5);
-      if (!this->device_->prepare_for_smux_step(this->readings_.smux_step)) {
-        this->abort_measurement_("Failed to configure SMUX");
-        break;
-      }
-      this->state_ = State::STATE_WAIT_SMUX;
-      break;
-
     case State::STATE_WAIT_SMUX:
-      ESP_LOGVV(TAG, "WAIT_SMUX");
-      if (!this->device_->is_smux_busy()) {
-        this->device_->enable_spectral_measurement(true);
+      // A failed read counts as busy, so the timeout below catches a chip that stops answering.
+      if (this->read_byte(REG_ENABLE, &value) && !(value & ENABLE_SMUX_EN)) {
+        this->start_ms_ = now;
         this->state_ = State::STATE_READ_DATA;
-      } else if (App.get_loop_component_start_time() - this->readings_.millis_start > this->readings_.timeout_ms) {
-        this->abort_measurement_("SMUX configuration timeout");
+        if (!this->write_byte(REG_ENABLE, ENABLE_PON | ENABLE_SP_EN)) {
+          this->abort_measurement_(LOG_STR("Failed to start integration"));
+        }
+        return;
       }
       break;
-
     case State::STATE_READ_DATA:
-      ESP_LOGVV(TAG, "READ_DATA");
-      if (this->device_->is_data_ready()) {
-        bool device_saturated = false;
-        if (!this->device_->read_channels(this->readings_.smux_step, this->readings_.raw_counts, device_saturated)) {
-          this->abort_measurement_("Failed to read channel data");
-          break;
-        }
-        if (device_saturated) {
-          ESP_LOGV(TAG, "Latched data affected by saturation");
-        }
-        ++this->readings_.smux_step;
-        if (this->readings_.smux_step == this->device_->get_number_of_smux_steps()) {
-          this->device_->enable_spectral_measurement(false);
-          this->state_ = State::STATE_READY_TO_PUBLISH;
-        } else {
-          this->state_ = State::STATE_CONFIGURE_SMUX;
-        }
-      } else if (App.get_loop_component_start_time() - this->readings_.millis_start > this->readings_.timeout_ms) {
-        this->abort_measurement_("Data collection timeout");
+      if (now - this->start_ms_ < this->integration_ms_) {
+        return;
+      }
+      if (this->read_byte(pgm_(this->chip_->status2_reg), &value) && (value & STATUS2_AVALID)) {
+        this->read_step_();
+        return;
       }
       break;
-
-    case State::STATE_READY_TO_PUBLISH:
-      ESP_LOGVV(TAG, "READY_TO_PUBLISH");
-      this->publish_channel_readings_();
-      this->status_clear_warning();
-      this->state_ = State::STATE_IDLE;
+    case State::STATE_IDLE:
       this->disable_loop();
-      break;
+      return;
+  }
+  if (now - this->start_ms_ > this->timeout_ms_) {
+    this->abort_measurement_(LOG_STR("Measurement timeout"));
   }
 }
 
-void AS734XComponent::abort_measurement_(const char *reason) {
-  ESP_LOGW(TAG, "%s", reason);
-  this->device_->enable_spectral_measurement(false);
-  this->status_set_warning(reason);
+void AS734XComponent::read_step_() {
+  // Reading ASTATUS latches the data, which is only consistent within one burst starting there.
+  std::array<uint8_t, 1 + 2 * MAX_ADC_SLOTS> frame{};
+  if (!this->read_bytes(REG_ASTATUS, frame.data(), 1 + 2 * pgm_(this->chip_->adc_slots)) ||
+      !this->write_byte(REG_ENABLE, ENABLE_PON)) {
+    this->abort_measurement_(LOG_STR("Failed to read channel data"));
+    return;
+  }
+  if (frame[0] & ASTATUS_ASAT) {
+    ESP_LOGV(TAG, "Step %u saturated", this->step_);
+  }
+  auto slot_value = [&frame](uint8_t slot) { return encode_uint16(frame[2 + 2 * slot], frame[1 + 2 * slot]); };
+  const uint8_t *readout = pgm_(this->chip_->readout) + this->step_ * NUM_BANDS;
+  const uint8_t extra_clear = pgm_(this->chip_->extra_clear_slot);
+  for (uint8_t band = 0; band < NUM_BANDS; band++) {
+    const uint8_t slot = progmem_read_byte(&readout[band]);
+    if (slot == NO_SLOT || this->sensors_[band] == nullptr) {
+      continue;
+    }
+    uint32_t counts = slot_value(slot);
+    if (band == CLEAR_BAND && extra_clear != NO_SLOT) {
+      counts = (counts + slot_value(extra_clear)) / 2;
+    }
+    this->sensors_[band]->publish_state(counts);
+  }
+  if (++this->step_ < pgm_(this->chip_->smux_steps)) {
+    if (!this->start_step_()) {
+      this->abort_measurement_(LOG_STR("Failed to configure SMUX"));
+    }
+    return;
+  }
+  this->status_clear_warning();
   this->state_ = State::STATE_IDLE;
   this->disable_loop();
 }
 
-void AS734XComponent::publish_channel_readings_() {
-  for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
-    if (this->band_counts_sensors_[i] != nullptr) {
-      this->band_counts_sensors_[i]->publish_state(this->readings_.raw_counts[i]);
-    }
-  }
-}
-
-AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
-    : i2c_device_(i2c_device), number_of_channels_(number_of_channels) {}
-
-bool AS734xBase::write_gain(Gain gain) { return this->write_byte_(this->registers().cfg1, gain); }
-bool AS734xBase::write_atime(uint8_t atime) { return this->write_byte_(this->registers().atime, atime); }
-bool AS734xBase::write_astep(uint16_t astep) {  // ASTEP is above 0x80 on both parts
-  return this->i2c_device_->write_byte_16(this->registers().astep, this->swap_bytes_(astep));
-}
-
-bool AS734xBase::enable_power(bool enable) {
-  return this->write_register_bit_(this->registers().enable, enable, this->registers().enable_pon_bit);
-}
-
-bool AS734xBase::enable_spectral_measurement(bool enable) {
-  return this->write_register_bit_(this->registers().enable, enable, this->registers().enable_sp_en_bit);
-}
-
-bool AS734xBase::enable_smux() {
-  return this->set_register_bit_(this->registers().enable, this->registers().enable_smux_en_bit);
-}
-
-bool AS734xBase::is_smux_busy() {
-  bool busy = true;  // a failed read reads as busy, so the caller times out instead of moving on
-  this->read_register_bit_(this->registers().enable, this->registers().enable_smux_en_bit, busy);
-  return busy;
-}
-
-bool AS734xBase::is_data_ready() {
-  bool ready = false;  // a failed read reads as not ready
-  this->read_register_bit_(this->registers().status2, this->registers().status2_avalid_bit, ready);
-  return ready;
-}
-
-bool AS734xBase::select_low_bank_(bool low) {  // CFG0 is outside the low window, so reach it directly
-  const uint8_t mask = 1 << this->registers().cfg0_reg_bank_bit;
-  uint8_t data{0};
-  if (!this->i2c_device_->read_byte(this->registers().cfg0, &data)) {
-    ESP_LOGW(TAG, "Could not read CFG0, register bank left unchanged");
-    return false;
-  }
-  data = low ? (data | mask) : (data & ~mask);
-  if (!this->i2c_device_->write_byte(this->registers().cfg0, data)) {
-    ESP_LOGW(TAG, "Could not write CFG0, register bank left unchanged");
-    return false;
-  }
-  return true;
-}
-
-bool AS734xBase::read_byte_(uint8_t address, uint8_t *value) {
-  if (!this->needs_low_bank_(address)) {
-    return this->i2c_device_->read_byte(address, value);
-  }
-  if (!this->select_low_bank_(true)) {
-    return false;
-  }
-  const bool ok = this->i2c_device_->read_byte(address, value);
-  return this->select_low_bank_(false) && ok;
-}
-
-bool AS734xBase::write_byte_(uint8_t address, uint8_t value) {
-  if (!this->needs_low_bank_(address)) {
-    return this->i2c_device_->write_byte(address, value);
-  }
-  if (!this->select_low_bank_(true)) {
-    return false;
-  }
-  const bool ok = this->i2c_device_->write_byte(address, value);
-  return this->select_low_bank_(false) && ok;
-}
-
-bool AS734xBase::read_register_bit_(uint8_t address, uint8_t bit_position, bool &bit_value) {
-  uint8_t data{0};
-  if (!this->read_byte_(address, &data)) {
-    ESP_LOGW(TAG, "Read of register 0x%02X failed", address);
-    return false;
-  }
-  bit_value = (data & (1 << bit_position)) != 0;
-  return true;
-}
-
-bool AS734xBase::write_register_bit_(uint8_t address, bool value, uint8_t bit_position) {
-  return value ? this->set_register_bit_(address, bit_position) : this->clear_register_bit_(address, bit_position);
-}
-
-bool AS734xBase::set_register_bit_(uint8_t address, uint8_t bit_position) {
-  return this->update_register_bit_(address, bit_position, true);
-}
-
-bool AS734xBase::clear_register_bit_(uint8_t address, uint8_t bit_position) {
-  return this->update_register_bit_(address, bit_position, false);
-}
-
-bool AS734xBase::update_register_bit_(uint8_t address, uint8_t bit_position, bool value) {
-  uint8_t data{0};
-  if (!this->read_byte_(address, &data)) {
-    ESP_LOGW(TAG, "Read of register 0x%02X failed, not writing bit %u", address, bit_position);
-    return false;
-  }
-  const uint8_t mask = 1 << bit_position;
-  data = value ? (data | mask) : (data & ~mask);
-  return this->write_byte_(address, data);
+void AS734XComponent::abort_measurement_(const LogString *reason) {
+  ESP_LOGW(TAG, "%s", LOG_STR_ARG(reason));
+  this->write_byte(REG_ENABLE, ENABLE_PON);
+  this->status_set_warning(reason);
+  this->state_ = State::STATE_IDLE;
+  this->disable_loop();
 }
 
 }  // namespace esphome::as734x

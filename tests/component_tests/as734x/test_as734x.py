@@ -1,60 +1,62 @@
-"""Tests for the as734x band to channel index mapping.
+"""Tests for the as734x band to counts index mapping and band validation.
 
-The C++ drivers publish each band from a fixed slot of the channel array, so the order of
-BANDS_41 and BANDS_43 in the Python schema is a contract with the readout code. Reordering
-either side keeps every YAML test passing and only moves the readings to the wrong entity,
-which no bench test would notice, so the indices are pinned here.
+The C++ readout maps publish each band from a fixed index, so the order of BANDS_43 is a
+contract with as734x.cpp. Reordering either side only moves readings to the wrong entity,
+which no build test would notice, so the indices are pinned here.
 """
 
 import pytest
 
+from esphome import config_validation as cv
+from esphome.components.as734x import CONF_AS734X_ID, sensor as as734x_sensor
+from esphome.config import Config
+from esphome.const import CONF_COUNTS, CONF_ID, CONF_TYPE, PlatformFramework
+from esphome.core import ID
+from tests.component_tests.types import SetCoreConfigCallable
+
 CONFIG = "tests/component_tests/as734x/test_as734x.yaml"
 
-# Index of every AS7341 band, matching values[] in as7341.cpp read_channels().
-AS7341_CHANNELS = (
-    ("f1", 0),
-    ("f2", 1),
-    ("f3", 2),
-    ("f4", 3),
-    ("f5", 4),
-    ("f6", 5),
-    ("f7", 6),
-    ("f8", 7),
-    ("nir", 8),
-    ("clear", 9),
-)
-
-# Index of every AS7343 band, matching SMUX_CHANNEL_MAP in as7343.cpp.
-AS7343_CHANNELS = (
-    ("f1", 0),
-    ("f2", 1),
-    ("fz", 2),
-    ("f3", 3),
-    ("f4", 4),
-    ("fy", 5),
-    ("f5", 6),
-    ("fxl", 7),
-    ("f6", 8),
-    ("f7", 9),
-    ("f8", 10),
-    ("nir", 11),
-    ("clear", 12),
-)
+BAND_INDEX = {
+    "f1": 0,
+    "f2": 1,
+    "fz": 2,
+    "f3": 3,
+    "f4": 4,
+    "fy": 5,
+    "f5": 6,
+    "fxl": 7,
+    "f6": 8,
+    "f7": 9,
+    "f8": 10,
+    "nir": 11,
+    "clear": 12,
+}
+AS7341_BANDS = ("f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "nir", "clear")
 
 
-@pytest.mark.parametrize(("band", "channel"), AS7341_CHANNELS)
-def test_as7341_band_keeps_its_channel_index(
-    generate_main, band: str, channel: int
-) -> None:
+def test_as7341_bands_keep_their_index(generate_main) -> None:
     main_cpp = generate_main(CONFIG)
 
-    assert f"chip_41->set_counts_sensor(chip_41_{band}, {channel});" in main_cpp
+    for band in AS7341_BANDS:
+        assert f"hub41->set_counts_sensor(s41_{band}, {BAND_INDEX[band]});" in main_cpp
 
 
-@pytest.mark.parametrize(("band", "channel"), AS7343_CHANNELS)
-def test_as7343_band_keeps_its_channel_index(
-    generate_main, band: str, channel: int
-) -> None:
+def test_as7343_bands_keep_their_index(generate_main) -> None:
     main_cpp = generate_main(CONFIG)
 
-    assert f"chip_43->set_counts_sensor(chip_43_{band}, {channel});" in main_cpp
+    for band, index in BAND_INDEX.items():
+        assert f"hub43->set_counts_sensor(s43_{band}, {index});" in main_cpp
+
+
+def test_as7341_rejects_as7343_only_band(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    full = Config()
+    full["as734x"] = [{CONF_ID: ID("hub41"), CONF_TYPE: "AS7341"}]
+    full.declare_ids.append((ID("hub41"), ["as734x", 0, CONF_ID]))
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+
+    with pytest.raises(cv.Invalid, match="no fz band"):
+        as734x_sensor.FINAL_VALIDATE_SCHEMA(
+            {CONF_AS734X_ID: ID("hub41"), CONF_COUNTS: {"f1": {}, "fz": {}}}
+        )

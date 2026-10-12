@@ -64,15 +64,11 @@ SENSOR_SCHEMA = sensor.sensor_schema(
 
 
 def _warn_deprecated(config: ConfigType) -> ConfigType:
-    # Remove before 2027.2.0
+    # Remove before 2027.5.0
     _LOGGER.warning(
-        "The 'as7341' component is deprecated and will be removed in 2027.2.0. "
-        "Migrate to the 'as734x' platform with 'type: AS7341', which supports the "
-        "AS7341, AS7343 and TCS3448 sensors. Two things change: the band sensors move "
-        "under a 'counts:' block, and the published counts change value, because this "
-        "component reads the two bytes of each count in the wrong order and 'as734x' "
-        "reads them correctly. Expect a jump in your Home Assistant history and check "
-        "any automation that compares these counts with a number."
+        "'as7341' is deprecated and will be removed in 2027.5.0. Use an 'as734x:' hub with "
+        "'type: AS7341' and a 'sensor:' entry with 'platform: as734x' and the bands under "
+        "'counts:'. The count values change because 'as734x' reads the bytes in the right order."
     )
     return config
 
