@@ -21,7 +21,6 @@ _request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
 
 
 async def register_listener(keypad: cg.MockObj, var: cg.MockObj) -> None:
-    """Register a listener with its keypad and count it toward that keypad's list size."""
     _request_listener_slot(str(keypad))
     cg.add(keypad.register_listener(var))
 
@@ -29,10 +28,8 @@ async def register_listener(keypad: cg.MockObj, var: cg.MockObj) -> None:
 CONF_GPI_EVENTS = "gpi_events"
 CONF_KEYPAD_ID = "keypad_id"
 
-# How the device numbers its keys. Matrix keys are numbered row by row with ten
-# columns per row, starting at 1, so ROW0/COL0 is 1 and ROW7/COL9 is 80. Pins
-# outside the matrix report as individual inputs from 97 up: ROW0..ROW7 are
-# 97..104 and COL0..COL9 are 105..114.
+# Matrix keys are numbered row by row from 1 with ten columns per row; pins outside
+# the matrix report as individual inputs 97..114 (ROW0..7, then COL0..9)
 MATRIX_COLUMNS = 10
 MATRIX_KEY_MAX = 80
 GPI_KEY_MIN = 97
@@ -40,7 +37,6 @@ GPI_KEY_MAX = 114
 
 
 def _matrix_key(row: int, col: int) -> int:
-    """The key number the device reports for a matrix position."""
     return row * MATRIX_COLUMNS + col + 1
 
 

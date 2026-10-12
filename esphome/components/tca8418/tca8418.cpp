@@ -96,10 +96,7 @@ void TCA8418Component::loop() {
   }
   this->status_clear_warning();
 
-  //  With an interrupt pin, wait for the next interrupt once the device has
-  //  nothing left. Events that arrive while the queue is being read keep the
-  //  interrupt output asserted without producing another edge, so the level has
-  //  to be clear before the loop stops.
+  // Events that arrive during a read keep INT asserted without a new edge, so only stop once it is clear
   if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())
     this->disable_loop();
 }
@@ -112,7 +109,7 @@ bool TCA8418Component::drain_events_(bool dispatch) {
   // An idle poll has no flags to clear, unless INT is still asserted from a failed clear
   if (count == 0 && dispatch && (this->interrupt_pin_ == nullptr || this->interrupt_pin_->digital_read()))
     return true;
-  //  The device's overflow flag stays clear even with a full queue, so check the count instead.
+  // The overflow flag stays clear with a full queue, so check the count
   if (dispatch && count >= TCA8418_FIFO_DEPTH) {
     ESP_LOGW(TAG, "Event queue is full - some key presses may have been lost");
   }
@@ -156,19 +153,16 @@ void TCA8418Component::dispatch_(uint8_t key, bool pressed) {
 }
 
 void TCA8418Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "TCA8418:");
+  ESP_LOGCONFIG(TAG,
+                "TCA8418:\n"
+                "  Key matrix: %u rows x %u columns\n"
+                "  Individual inputs: %s",
+                this->rows_, this->columns_, YESNO(this->gpi_events_));
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    return;
   }
-  if (this->rows_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Key matrix: %u rows x %u columns", this->rows_, this->columns_);
-  } else {
-    ESP_LOGCONFIG(TAG, "  Key matrix: none");
-  }
-  ESP_LOGCONFIG(TAG, "  Individual inputs: %s", YESNO(this->gpi_events_));
-  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
 
 }  // namespace esphome::tca8418

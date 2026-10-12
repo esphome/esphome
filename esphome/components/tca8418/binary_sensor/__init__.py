@@ -64,13 +64,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    """Check the key against the keypad, and work out its key number.
-
-    The number is stored back into the configuration so that code generation
-    does not have to repeat the lookup, and so the sensor only has to compare
-    key numbers at runtime. Final validation is where this happens because it is
-    the first point at which the keypad's own configuration can be read.
-    """
+    """Resolve the key to the number the device reports, checked against the keypad's matrix."""
     full_config = fv.full_config.get()
     keypad_path = full_config.get_path_for_id(config[CONF_KEYPAD_ID])[:-1]
     keypad = full_config.get_config_for_path(keypad_path)
