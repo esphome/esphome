@@ -479,6 +479,19 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` (NaN only) with the
+/// same period, as one object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  explicit TimeoutThrottleFilter(uint32_t time_period) : TimeoutFilterLast(time_period) {}
+
+  optional<float> new_value(float value) override;
+  void loop() override;
+
+ protected:
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
+};
+
 class DebounceFilter : public Filter {
  public:
   explicit DebounceFilter(uint32_t time_period);
@@ -532,6 +545,9 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
 template<size_t N> class OrFilter : public Filter {
  public:
   explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
+  // Codegen passes each filter as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Fs>
+  requires(sizeof...(Fs) == N) explicit OrFilter(Fs *...filters) : filters_{filters...} {}
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);

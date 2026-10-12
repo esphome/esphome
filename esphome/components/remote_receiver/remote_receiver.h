@@ -88,8 +88,8 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   rmt_channel_handle_t channel_{NULL};
   uint32_t filter_symbols_{0};
   uint32_t receive_symbols_{0};
-  bool with_dma_{false};
   uint32_t carrier_frequency_{0};
+  bool with_dma_{false};
   uint8_t carrier_duty_percent_{100};
 #endif
 
