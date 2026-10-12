@@ -1,3 +1,11 @@
+esphome:
+  area:
+    id: testing_area
+    name: Testing Area
+  project:
+    name: esphome.test
+    version: "1.1"
+
 binary_sensor:
   - platform: template
     name: "Garage Door Open 1"
@@ -45,6 +53,7 @@ number:
     max_value: 100
     step: 1
     unit_of_measurement: "°C"
+    device_class: temperature
 
 time:
   - platform: zigbee

@@ -4,7 +4,7 @@
 
 namespace esphome::ezo_pmp {
 
-static const char *const TAG = "ezo-pmp";
+ESPHOME_LOG_TAG(TAG, "ezo-pmp");
 
 static const uint16_t EZO_PMP_COMMAND_NONE = 0;
 static const uint16_t EZO_PMP_COMMAND_TYPE_READ = 1;

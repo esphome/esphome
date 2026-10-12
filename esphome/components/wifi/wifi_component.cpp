@@ -51,7 +51,7 @@
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi";
+ESPHOME_LOG_TAG(TAG, "wifi");
 
 // CompactString implementation
 CompactString::CompactString(const char *str, size_t len) {
@@ -701,6 +701,15 @@ void WiFiComponent::start() {
   this->fast_connect_pref_ =
       global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
+#ifdef USE_WIFI_LEASE_CACHE
+#ifdef USE_WIFI_LEASE_CACHE_IN_FLASH
+  const bool lease_cache_in_flash = true;
+#else
+  const bool lease_cache_in_flash = false;
+#endif
+  this->lease_cache_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiLeaseSettings>(hash + 2, lease_cache_in_flash);
+#endif
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
@@ -711,6 +720,10 @@ void WiFiComponent::start() {
     sta.set_password(save.password);
     this->set_sta(sta);
   }
+#ifdef USE_WIFI_LEASE_CACHE
+  // After the saved credentials: set_sta() clears the cache, and the lease belongs to that same network
+  this->load_lease_settings_();
+#endif
 
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
@@ -1035,30 +1048,17 @@ void WiFiComponent::setup_ap_config_() {
     return;
 
   if (this->ap_.ssid_.empty()) {
-    // Build AP SSID from app name without heap allocation
-    // WiFi SSID max is 32 bytes, with MAC suffix we keep first 25 + last 7
+    // Build AP SSID from app name without heap allocation; WiFi SSID max is 32 bytes
     static constexpr size_t AP_SSID_MAX_LEN = 32;
-    static constexpr size_t AP_SSID_PREFIX_LEN = 25;
-    static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
 
     const auto &app_name = App.get_name();
-    const char *name_ptr = app_name.c_str();
-    size_t name_len = app_name.length();
-
-    if (name_len <= AP_SSID_MAX_LEN) {
+    if (app_name.length() <= AP_SSID_MAX_LEN) {
       // Name fits, use directly
-      this->ap_.set_ssid(name_ptr);
+      this->ap_.set_ssid(app_name.c_str());
     } else {
-      // Name too long, need to truncate into stack buffer
       char ssid_buf[AP_SSID_MAX_LEN + 1];
-      if (App.is_name_add_mac_suffix_enabled()) {
-        // Keep first 25 chars and last 7 chars (MAC suffix), remove middle
-        memcpy(ssid_buf, name_ptr, AP_SSID_PREFIX_LEN);
-        memcpy(ssid_buf + AP_SSID_PREFIX_LEN, name_ptr + name_len - AP_SSID_SUFFIX_LEN, AP_SSID_SUFFIX_LEN);
-      } else {
-        memcpy(ssid_buf, name_ptr, AP_SSID_MAX_LEN);
-      }
-      ssid_buf[AP_SSID_MAX_LEN] = '\0';
+      truncate_name_to(ssid_buf, sizeof(ssid_buf), app_name.c_str(), app_name.length(),
+                       App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
       this->ap_.set_ssid(ssid_buf);
     }
   }
@@ -1148,6 +1148,10 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->selected_sta_index_ = 0;
   // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
   this->skip_cooldown_next_cycle_ = true;
+#ifdef USE_WIFI_LEASE_CACHE
+  // Index 0 is a different network now, so its cached lease must not be re-applied
+  this->clear_lease_settings_();
+#endif
 }
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
@@ -1222,7 +1226,7 @@ void WiFiComponent::connect_soon_() {
   // New credentials from the portal: the AP pauses for them once its answer
   // is out, and the STA state machine picks them up from there.
   if (this->ap_setup_) {
-    this->set_timeout("wifi-ap-handover", WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
+    this->set_timeout(AP_HANDOVER_TIMEOUT_ID, WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
       if (this->ap_setup_)
         this->pause_exclusive_ap_();
     });
@@ -1447,6 +1451,9 @@ void WiFiComponent::disable() {
 
   ESP_LOGD(TAG, "Disabling");
   this->state_ = WIFI_COMPONENT_STATE_DISABLED;
+#ifdef USE_WIFI_LEASE_CACHE
+  this->cancel_timeout(LEASE_RENEW_TIMEOUT_ID);
+#endif
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
 }
@@ -2436,6 +2443,26 @@ void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t ch
   this->fast_connect_pref_.save(&fast_connect_save);
 
   ESP_LOGD(TAG, "Saved fast_connect settings");
+}
+#endif
+
+#ifdef USE_WIFI_LEASE_CACHE
+void WiFiComponent::load_lease_settings_() {
+  if (!this->lease_cache_pref_.load(&this->cached_lease_) || this->cached_lease_.version != SAVED_WIFI_LEASE_VERSION) {
+    this->cached_lease_ = {};
+    return;
+  }
+  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&this->cached_lease_.ip);  // network byte order
+  ESP_LOGD(TAG, "Loaded cached lease %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
+           this->cached_lease_.ap_index, this->cached_lease_.lease_secs);
+}
+
+void WiFiComponent::clear_lease_settings_() {
+  if (this->cached_lease_.version == 0)
+    return;
+  this->cached_lease_ = {};
+  this->lease_cache_pref_.save(&this->cached_lease_);
+  ESP_LOGD(TAG, "Lease cache: cleared");
 }
 #endif
 

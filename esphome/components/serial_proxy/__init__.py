@@ -17,10 +17,12 @@ from dataclasses import dataclass
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.usb_uart import is_usb_uart_channel
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME
+from esphome.const import CONF_ID, CONF_NAME, CONF_UART_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -38,6 +40,7 @@ SERIAL_PROXY_PORT_TYPES = {
     "TTL": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_TTL,
     "RS232": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS232,
     "RS485": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS485,
+    "USB_SERIAL": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_USB_SERIAL,
 }
 
 CONF_DTR_PIN = "dtr_pin"
@@ -73,6 +76,18 @@ CONFIG_SCHEMA = (
 )
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    is_usb = is_usb_uart_channel(config[CONF_UART_ID], fv.full_config.get())
+    if config[CONF_PORT_TYPE] == "USB_SERIAL" and not is_usb:
+        raise cv.Invalid(
+            f"{CONF_PORT_TYPE} USB_SERIAL requires {CONF_UART_ID} to be a usb_uart channel"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_serial_proxy_count_define() -> None:
     """Emit the SERIAL_PROXY_COUNT define once with the final instance count."""
@@ -88,6 +103,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.App.register_serial_proxy(var))
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
+    # port_type names the electrical interface (a USB RS485 adapter is RS485), so every
+    # usb_uart channel reports USB identity whatever port type it declares
+    if is_usb_uart_channel(config[CONF_UART_ID], CORE.config):
+        channel = await cg.get_variable(config[CONF_UART_ID])
+        cg.add(var.set_usb_channel(channel))
+        cg.add_define("USE_SERIAL_PROXY_USB_IDENTITY")
     cg.add_define("USE_SERIAL_PROXY")
 
     # Track instance count for the FINAL priority define

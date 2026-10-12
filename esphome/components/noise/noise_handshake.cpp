@@ -6,7 +6,7 @@
 
 namespace esphome::noise {
 
-static const char *const TAG = "noise";
+ESPHOME_LOG_TAG(TAG, "noise");
 
 // Log the failing noise-c call at the same verbosity the api helper used
 // before this class existed; callers only see one collapsed error code.

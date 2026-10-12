@@ -6,7 +6,7 @@
 
 namespace esphome::es8311 {
 
-static const char *const TAG = "es8311";
+ESPHOME_LOG_TAG(TAG, "es8311");
 
 // Mark the component as failed; use only in setup
 #define ES8311_ERROR_FAILED(func) \

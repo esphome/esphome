@@ -4,7 +4,7 @@
 
 namespace esphome::openthread_info {
 
-static const char *const TAG = "openthread_info";
+ESPHOME_LOG_TAG(TAG, "openthread_info");
 
 void ParentAverageRssiOpenThreadInfo::dump_config() { LOG_SENSOR("", "Parent Average RSSI", this); }
 void ParentLastRssiOpenThreadInfo::dump_config() { LOG_SENSOR("", "Parent Last RSSI", this); }

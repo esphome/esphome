@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "mcp23016"
 MULTI_CONF = True
 
 mcp23016_ns = cg.esphome_ns.namespace("mcp23016")
@@ -60,7 +61,7 @@ MCP23016_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_MCP23016): cv.use_id(MCP23016),
+        cv.Required(CONF_MCP23016): pins.use_id_or_address(MCP23016),
     }
 )
 

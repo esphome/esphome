@@ -35,13 +35,46 @@ def test_build_seconds() -> None:
     """Known platforms use the table; nrf52 boards share one estimate."""
     build_seconds = split_components_for_ci.build_seconds
     assert build_seconds("host") == 10
-    assert build_seconds("esp32-idf") == 45
+    assert build_seconds("esp32-idf") == 55
     assert (
         build_seconds("nrf52-xiao-ble") == split_components_for_ci.NRF52_BUILD_SECONDS
     )
     assert (
-        build_seconds("esp32-s3-idf") == split_components_for_ci.DEFAULT_BUILD_SECONDS
+        build_seconds("esp32-c5-idf") == split_components_for_ci.DEFAULT_BUILD_SECONDS
     )
+    assert (
+        build_seconds("esp32-c3-ard")
+        == split_components_for_ci.ESP32_ARDUINO_BUILD_SECONDS
+    )
+
+
+def test_heavy_components(tests_dir: Path) -> None:
+    """A heavy component, or a test that enables one, costs its library time."""
+    heavy_components = split_components_for_ci.heavy_components
+    heavy_seconds = split_components_for_ci.heavy_seconds
+    table = split_components_for_ci.HEAVY_COMPONENT_SECONDS
+    _add_component(tests_dir, "dht", ["test.esp32-idf.yaml"])
+    _add_component(tests_dir, "micro_wake_word", ["test.esp32-idf.yaml"])
+    assert heavy_components("dht", tests_dir / "dht/test.esp32-idf.yaml") == set()
+    assert heavy_components(
+        "micro_wake_word", tests_dir / "micro_wake_word/test.esp32-idf.yaml"
+    ) == {"micro_wake_word"}
+    assert heavy_seconds(frozenset({"micro_wake_word"})) == table["micro_wake_word"]
+
+    display = tests_dir / "mipi_spi"
+    display.mkdir()
+    (display / "common.yaml").write_text("web_server:\n  port: 80\n")
+    (display / "test-lvgl.esp32-s3-idf.yaml").write_text(
+        "packages:\n"
+        "  mipi_spi: !include common.yaml\n"
+        "lvgl:\n  pages: []\n"
+        "light:\n  - platform: fastled_spi\n    num_leds: 1\n"
+    )
+    assert heavy_components("mipi_spi", display / "test-lvgl.esp32-s3-idf.yaml") == {
+        "lvgl",
+        "web_server",
+        "fastled_spi",
+    }
 
 
 def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
@@ -61,27 +94,91 @@ def test_make_item_isolated_and_grouped(tests_dir: Path) -> None:
     isolated = split_components_for_ci._make_item(
         tests_dir, "comp", "isolated_comp", True
     )
-    assert isolated.own_seconds == 45 + 10 + 45 + 50
+    assert isolated.own_seconds == 55 + 10 + 55 + 45
     assert isolated.grouped_builds == {}
 
     # The rp2040 variant has no base test to group with, so it always runs
     grouped = split_components_for_ci._make_item(tests_dir, "comp", "i2c", False)
-    assert grouped.own_seconds == 50
-    assert grouped.grouped_builds == {("i2c", "esp32-idf"): 90, ("i2c", "host"): 10}
+    assert grouped.own_seconds == 45
+    assert grouped.grouped_builds == {
+        ("i2c", "esp32-idf"): (110, frozenset()),
+        ("i2c", "host"): (10, frozenset()),
+    }
+
+
+def test_make_item_heavy_component(tests_dir: Path) -> None:
+    """A heavy component's library cost follows it into every build."""
+    _add_component(tests_dir, "lvgl", ["test.esp32-idf.yaml", "test-a.host.yaml"])
+    extra = split_components_for_ci.HEAVY_COMPONENT_SECONDS["lvgl"]
+
+    item = split_components_for_ci._make_item(tests_dir, "lvgl", "spi", False)
+    assert item.own_seconds == 10 + extra
+    assert item.grouped_builds == {
+        ("spi", "esp32-idf"): (55 + extra, frozenset({"lvgl"}))
+    }
+
+
+def test_heavy_cost_is_per_platform(tests_dir: Path) -> None:
+    """A base test that enables a heavy component only charges its own platform."""
+    comp = tests_dir / "web_server_idf"
+    comp.mkdir()
+    (comp / "test.esp32-idf.yaml").write_text("web_server:\n  port: 80\n")
+    (comp / "test.host.yaml").write_text("logger:\n")
+    extra = split_components_for_ci.HEAVY_COMPONENT_SECONDS["web_server"]
+
+    item = split_components_for_ci._make_item(
+        tests_dir, "web_server_idf", "none", False
+    )
+    assert item.grouped_builds == {
+        ("none", "esp32-idf"): (55 + extra, frozenset({"web_server"})),
+        ("none", "host"): (10, frozenset()),
+    }
 
 
 def test_grouped_component_joins_existing_build() -> None:
     """A second member turns a lone build into a group that skips variants."""
     item = split_components_for_ci._BatchItem
+    share = split_components_for_ci._GroupedShare
     batch = split_components_for_ci._Batch()
-    batch.add(item("a", 0, {("i2c", "esp32-idf"): 90}))
-    assert batch.seconds == 90
+    batch.add(item("a", 0, {("i2c", "esp32-idf"): share(110, frozenset())}))
+    assert batch.seconds == 110
 
-    other = item("b", 0, {("i2c", "esp32-idf"): 45, ("i2c", "host"): 10})
-    grouped = 45 + split_components_for_ci.GROUPED_COMPONENT_SECONDS
-    assert batch.added_seconds(other) == grouped - 90 + 10
+    other = item(
+        "b",
+        0,
+        {
+            ("i2c", "esp32-idf"): share(55, frozenset()),
+            ("i2c", "host"): share(10, frozenset()),
+        },
+    )
+    grouped = 55 + split_components_for_ci.GROUPED_COMPONENT_SECONDS
+    assert batch.added_seconds(other) == grouped - 110 + 10
     batch.add(other)
     assert batch.seconds == grouped + 10
+
+
+def test_heavy_component_charges_the_shared_build() -> None:
+    """A heavy member makes the whole grouped build slower, once per library."""
+    item = split_components_for_ci._BatchItem
+    share = split_components_for_ci._GroupedShare
+    batch = split_components_for_ci._Batch()
+    extra = split_components_for_ci.HEAVY_COMPONENT_SECONDS["lvgl"]
+    per_member = split_components_for_ci.GROUPED_COMPONENT_SECONDS
+    lvgl = frozenset({"lvgl"})
+    batch.add(item("a", 0, {("spi", "esp32-idf"): share(55, frozenset())}))
+
+    heavy = item("lvgl", 0, {("spi", "esp32-idf"): share(55 + extra, lvgl)})
+    grouped = 55 + per_member + extra
+    assert batch.added_seconds(heavy) == grouped - 55
+    batch.add(heavy)
+    assert batch.seconds == grouped
+
+    light = item("b", 0, {("spi", "esp32-idf"): share(55, frozenset())})
+    assert batch.added_seconds(light) == per_member
+
+    # A second member that also draws with lvgl compiles the library once
+    also_heavy = item("c", 0, {("spi", "esp32-idf"): share(55 + extra, lvgl)})
+    assert batch.added_seconds(also_heavy) == per_member
 
 
 def test_isolated_components_balance_across_runners(tests_dir: Path) -> None:
@@ -138,7 +235,7 @@ def test_groupable_components_split_evenly(tests_dir: Path) -> None:
         components=names, tests_dir=tests_dir, target_seconds=100
     )
 
-    assert sorted(len(batch) for batch in batches) == [2, 2, 2, 3, 3]
+    assert sorted(len(batch) for batch in batches) == [3, 3, 3, 3]
     assert sorted(c for batch in batches for c in batch) == names
 
 
@@ -149,7 +246,25 @@ def test_make_item_reads_tests_dir(tmp_path: Path) -> None:
     _add_component(other, "comp", ["test.esp32-idf.yaml"])
 
     item = split_components_for_ci._make_item(other, "comp", "isolated_comp", True)
-    assert item.own_seconds == 45
+    assert item.own_seconds == 55
+
+
+def test_balance_batches_keeps_partners_together() -> None:
+    """Two components sharing a build land on one runner even when the
+    lightest runner is the other one."""
+    share = {
+        ("i2c", "esp32-idf"): split_components_for_ci._GroupedShare(55, frozenset()),
+        ("i2c", "esp8266-ard"): split_components_for_ci._GroupedShare(30, frozenset()),
+    }
+    items = [
+        split_components_for_ci._BatchItem("partner_a", 0, dict(share)),
+        split_components_for_ci._BatchItem("partner_b", 0, dict(share)),
+        split_components_for_ci._BatchItem("alone", 80),
+    ]
+
+    batches = split_components_for_ci.balance_batches(items, target_seconds=120)
+
+    assert sorted(batches) == [["alone"], ["partner_a", "partner_b"]]
 
 
 def test_balance_batches_empty() -> None:

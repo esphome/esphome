@@ -30,44 +30,32 @@ from .const import (
 
 DEPENDENCIES = ["ld6002b"]
 
-# The ld2450 defaults for a streamed value: hold the last reading for a second so a
-# dropped frame does not read as absence, then rate-limit what reaches the frontend.
-_VALUE_SENSOR_FILTERS = [
-    {
-        "timeout": {
-            "timeout": cv.TimePeriod(milliseconds=1000),
-            "value": "last",
-        }
-    },
-    {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
-]
-
 TARGET_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_X): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_Y): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_Z): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_DOPPLER_INDEX): sensor.sensor_schema(
             accuracy_decimals=0,
-            filters=_VALUE_SENSOR_FILTERS,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CLUSTER_ID): sensor.sensor_schema(
