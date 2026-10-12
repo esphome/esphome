@@ -206,9 +206,11 @@ bool CSE7761Component::chip_init_() {
     if (!this->read_(CSE7761_REG_HFCONST, 2, &hf_const)) {
       ESP_LOGW(TAG, "HFConst read failed, energy unavailable");
     }
+    // The pulse counters follow the raw power, so they need the same front end factor as power
+    const float input_scale = this->is_current_transformer_() ? CURRENT_TRANSFORMER_COEFFICIENT_SCALE : 1.0f;
     for (uint8_t channel = 0; channel < 2; channel++) {
       uint32_t scale = this->data_.coefficient[ENERGY_AC + channel] * hf_const;
-      this->energy_[channel].wh_per_pulse = static_cast<float>(scale) * CSE7761_ENERGY_WH_SCALE;
+      this->energy_[channel].wh_per_pulse = static_cast<float>(scale) * CSE7761_ENERGY_WH_SCALE * input_scale;
     }
   }
 
@@ -238,14 +240,15 @@ void CSE7761Component::get_data_() {
   uint32_t value = this->read_(CSE7761_REG_RMSU, 3);
   this->data_.voltage_rms = (value >= 0x800000) ? 0 : value;
 
+  // No load threshold of 10mA with a shunt; the raw value stands for 5 times more with a current transformer
   value = this->read_(CSE7761_REG_RMSIA, 3);
-  this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
+  this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;
   value = this->read_(CSE7761_REG_POWERPA, 4);
   // PowerPA is two's complement signed 32-bit per datasheet
   this->data_.active_power[0] = (0 == this->data_.current_rms[0]) ? 0 : static_cast<int32_t>(value);
 
   value = this->read_(CSE7761_REG_RMSIB, 3);
-  this->data_.current_rms[1] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
+  this->data_.current_rms[1] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;
   value = this->read_(CSE7761_REG_POWERPB, 4);
   // PowerPB is two's complement signed 32-bit per datasheet
   this->data_.active_power[1] = (0 == this->data_.current_rms[1]) ? 0 : static_cast<int32_t>(value);
