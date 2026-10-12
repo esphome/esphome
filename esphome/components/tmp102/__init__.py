@@ -16,6 +16,7 @@ tmp102_ns = cg.esphome_ns.namespace("tmp102")
 TMP102Component = tmp102_ns.class_(
     "TMP102Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
+TMP102LimitType = tmp102_ns.enum("TMP102LimitType")
 
 CONF_EXTENDED_MODE = "extended_mode"
 CONF_ONE_SHOT_MODE = "one_shot_mode"

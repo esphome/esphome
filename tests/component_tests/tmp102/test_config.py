@@ -58,6 +58,57 @@ def test_duplicate_alert_entities_are_rejected(
     )
 
 
+def test_threshold_numbers_enable_configuration_once(
+    generate_main: Callable[[Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = generate_main(component_config_path("numbers.yaml"))
+    assert source.count("set_configuration(") == 1
+    assert "set_configuration(128, 7680, 7168)" in source
+    assert "set_high_limit_control" in source
+    assert "set_low_limit_control" in source
+    assert source.count("set_initial_value(") == 2
+    defines = " ".join(define.name for define in CORE.defines)
+    assert "USE_TMP102_NUMBER" in defines
+    assert "USE_TMP102_CONFIGURE" in defines
+
+
+def test_threshold_numbers_inherit_parent_values(
+    generate_main: Callable[[Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = generate_main(component_config_path("numbers_inherit.yaml"))
+    assert source.count("set_configuration(") == 1
+    assert "set_configuration(144, 17920, 15360)" in source
+    assert "set_initial_value(140.0f)" in source
+    assert "set_initial_value(120.0f)" in source
+
+
+@pytest.mark.parametrize(
+    ("filename", "message"),
+    [
+        (
+            "numbers_conflict.yaml",
+            "Set temperature_high on the sensor or initial_value on its number, not both",
+        ),
+        ("numbers_inverted.yaml", "low limit (25.0°C) must be <= high limit (20.0°C)"),
+        (
+            "duplicate_numbers.yaml",
+            "Only one TMP102 number may reference each temperature sensor",
+        ),
+    ],
+)
+def test_invalid_number_configurations_are_rejected(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+    filename: str,
+    message: str,
+) -> None:
+    CORE.config_path = component_config_path(filename)
+    assert read_config({}) is None
+    assert message in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     ("extended", "high", "low"),
     [
