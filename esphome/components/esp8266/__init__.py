@@ -444,6 +444,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
     cg.add_build_flag("-Wno-nonnull-compare")
+    # .rodata is linked into RAM on ESP8266; keep switch lookup tables (CSWTCH) out of it
+    cg.add_build_flag("-fno-tree-switch-conversion")
     if use_platformio:
         cg.add_platformio_option("framework", "arduino")
         cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])

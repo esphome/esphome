@@ -6,6 +6,8 @@ namespace esphome::dps310 {
 
 ESPHOME_LOG_TAG(TAG, "dps310");
 
+static constexpr uint32_t READ_RETRY_TIMEOUT_ID = 0;
+
 void DPS310Component::setup() {
   uint8_t coef_data_raw[DPS310_NUM_COEF_REGS];
   auto timer = DPS310_INIT_TIMEOUT;
@@ -126,7 +128,7 @@ void DPS310Component::read_() {
     this->update_in_progress_ = false;
     this->status_clear_warning();
   } else {
-    this->set_timeout("dps310", 10, [this]() { this->read_(); });
+    this->set_timeout(READ_RETRY_TIMEOUT_ID, 10, [this]() { this->read_(); });
   }
 }
 

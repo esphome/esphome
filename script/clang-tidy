@@ -279,6 +279,14 @@ def clang_options(idedata, environment):
 
 pids = set()
 
+# Generated files the static analyzer is skipped on. The analyzer inlines the
+# small dump helpers into every generated dump function and takes
+# over 200 s on this file in CI, 99% of its clang-tidy time; any finding there
+# would be fixed in script/api_protobuf anyway. The other checks still run.
+ANALYZER_SKIPPED_FILES: frozenset[str] = frozenset(
+    {"esphome/components/api/api_pb2_dump.cpp"}
+)
+
 
 def run_tidy(
     executable, args, options, tmpdir, path_queue, lock, failed_files, timings
@@ -302,16 +310,22 @@ def run_tidy(
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
+        disabled_checks = []
         if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
             # MMIO peripheral access on these bare-metal platforms is all
             # fixed-address.
             # bugprone-pointer-arithmetic-on-polymorphic-object (and its
             # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
             # recursion on lvgl_esphome.h under the RP2 defines.
-            invocation.append(
-                "--checks=-clang-analyzer-core.FixedAddressDereference,"
-                "-bugprone-pointer-arithmetic-on-polymorphic-object,-cert-ctr56-cpp"
-            )
+            disabled_checks += [
+                "-clang-analyzer-core.FixedAddressDereference",
+                "-bugprone-pointer-arithmetic-on-polymorphic-object",
+                "-cert-ctr56-cpp",
+            ]
+        if os.path.normpath(path) in ANALYZER_SKIPPED_FILES:
+            disabled_checks.append("-clang-analyzer-*")
+        if disabled_checks:
+            invocation.append("--checks=" + ",".join(disabled_checks))
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")

@@ -18,6 +18,8 @@ namespace esphome::improv_serial {
 
 ESPHOME_LOG_TAG(TAG, "improv_serial");
 
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 0;
+
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
 #ifdef USE_IMPROV_SERIAL_UART
@@ -73,7 +75,7 @@ void ImprovSerialComponent::loop() {
       wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
                                                  this->connecting_sta_.get_password());
       this->connecting_sta_ = {};
-      this->cancel_timeout("wifi-connect-timeout");
+      this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
       this->set_state_(improv::STATE_PROVISIONED);
 
       this->send_settings_response_(improv::WIFI_SETTINGS);
@@ -93,16 +95,9 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   const uint8_t header_checksum_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE - 2;
   // Only transmit the full buffer length if there is no data (only state/error byte is provided in this case)
   const uint8_t header_tx_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE;
-  // Calculate checksum for message
-  uint8_t checksum = 0;
-  for (uint8_t i = 0; i < header_checksum_len; i++) {
-    checksum += this->tx_header_[i];
-  }
+  uint8_t checksum = sum_bytes(this->tx_header_, header_checksum_len);
   if (there_is_data) {
-    // Include data in checksum
-    for (size_t i = 0; i < size; i++) {
-      checksum += data[i];
-    }
+    checksum = sum_bytes(data, size, checksum);
   }
   this->tx_header_[TX_CHECKSUM_IDX] = checksum;
 
@@ -302,7 +297,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      this->set_timeout("wifi-connect-timeout", switching ? WIFI_SWITCH_TIMEOUT_MS : WIFI_CONNECT_TIMEOUT_MS,
+      this->set_timeout(WIFI_CONNECT_TIMEOUT_ID, switching ? WIFI_SWITCH_TIMEOUT_MS : WIFI_CONNECT_TIMEOUT_MS,
                         [this]() { this->on_wifi_connect_timeout_(); });
 #else
       // No Wi-Fi support compiled in; there is nothing to provision.

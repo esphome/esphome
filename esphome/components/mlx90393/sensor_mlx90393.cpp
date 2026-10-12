@@ -7,6 +7,8 @@ namespace esphome::mlx90393 {
 
 ESPHOME_LOG_TAG(TAG, "mlx90393");
 
+static constexpr uint32_t VERIFY_SETTINGS_TIMEOUT_ID = 0;
+
 const LogString *settings_to_string(MLX90393Setting setting) {
   switch (setting) {
     case MLX90393_GAIN_SEL:
@@ -114,7 +116,7 @@ void MLX90393Cls::setup() {
   }
 
   // start verify settings process
-  this->set_timeout("verify settings", 3000, [this]() { this->verify_settings_timeout_(MLX90393_GAIN_SEL); });
+  this->set_timeout(VERIFY_SETTINGS_TIMEOUT_ID, 3000, [this]() { this->verify_settings_timeout_(MLX90393_GAIN_SEL); });
 }
 
 void MLX90393Cls::dump_config() {
@@ -268,7 +270,8 @@ void MLX90393Cls::verify_settings_timeout_(MLX90393Setting stage) {
     next_stage = static_cast<MLX90393Setting>(0);
   }
 
-  this->set_timeout("verify settings", 3000, [this, next_stage]() { this->verify_settings_timeout_(next_stage); });
+  this->set_timeout(VERIFY_SETTINGS_TIMEOUT_ID, 3000,
+                    [this, next_stage]() { this->verify_settings_timeout_(next_stage); });
 }
 
 }  // namespace esphome::mlx90393
