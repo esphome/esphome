@@ -115,6 +115,7 @@ from esphome.schema_extractors import (
 from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import KeyInvalid, _Schema
 from esphome.yaml_util import (
+    Sensitive,
     SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
@@ -567,14 +568,17 @@ class SensitiveValidator:
 
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
-        if isinstance(validated, (SensitiveStr, SensitiveInt)):
+        # Already-tagged values are returned as-is so nested cv.sensitive is
+        # idempotent; bool is an int subclass and must stay bool. Other types
+        # (e.g. lambdas) pass through unmasked.
+        if isinstance(validated, (Sensitive, bool)):
             return validated
         if isinstance(validated, str):
             return SensitiveStr(validated)
-        if isinstance(validated, HexInt):
-            return SensitiveHexInt(validated)
-        if isinstance(validated, int) and not isinstance(validated, bool):
-            return SensitiveInt(validated)
+        if isinstance(validated, int):
+            return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
+                validated
+            )
         return validated
 
     def __repr__(self) -> str:

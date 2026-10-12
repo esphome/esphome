@@ -70,6 +70,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
 from esphome.yaml_util import (
     ESPHomeDataBase,
+    SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
     load_yaml,
@@ -203,12 +204,13 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert result == "hunter2"
 
 
-def test_sensitive__does_not_double_tag_already_sensitive() -> None:
-    # If the inner validator already returns a SensitiveStr (e.g., nested
+@pytest.mark.parametrize(
+    "pre_tagged", [SensitiveStr("hunter2"), SensitiveInt(5), SensitiveHexInt(0x12)]
+)
+def test_sensitive__does_not_double_tag_already_sensitive(pre_tagged: object) -> None:
+    # If the inner validator already returns a tagged value (e.g., nested
     # cv.sensitive wrappers), re-tagging is a no-op rather than a new
-    # SensitiveStr around the same value.
-    pre_tagged = SensitiveStr("hunter2")
-
+    # wrapper around the same value.
     def inner(_value):
         return pre_tagged
 
@@ -218,22 +220,20 @@ def test_sensitive__does_not_double_tag_already_sensitive() -> None:
     assert result is pre_tagged
 
 
-def test_sensitive__non_string_result_passes_through() -> None:
-    # If an inner validator returns something other than a string (e.g., a
-    # Lambda template), the sensitive wrapper must not coerce it.
-    sentinel = object()
-
+@pytest.mark.parametrize("passthrough", [object(), True, False])
+def test_sensitive__non_string_result_passes_through(passthrough: object) -> None:
+    # If an inner validator returns something other than a string or integer
+    # (e.g., a Lambda template or a bool), the sensitive wrapper must not
+    # coerce it.
     def inner(_value):
-        return sentinel
+        return passthrough
 
     validator = cv.sensitive(inner)
-    assert validator("anything") is sentinel
+    assert validator("anything") is passthrough
 
 
 @pytest.mark.parametrize("inner", [cv.uint32_t, cv.hex_int])
-def test_sensitive__integer_preserves_codegen_and_is_idempotent(
-    inner: Callable[[str], int],
-) -> None:
+def test_sensitive__integer_preserves_codegen(inner: Callable[[str], int]) -> None:
     """Tag credentials without changing their firmware expressions."""
     original = inner("0x12345678")
     tagged = cv.sensitive(inner)("0x12345678")
@@ -241,19 +241,12 @@ def test_sensitive__integer_preserves_codegen_and_is_idempotent(
     assert tagged == original
     assert str(cpp_generator.safe_exp(tagged)) == str(cpp_generator.safe_exp(original))
     assert isinstance(tagged, HexInt) == isinstance(original, HexInt)
-    assert cv.sensitive(lambda value: value)(tagged) is tagged
 
 
 def test_sensitive__integer_validation_still_rejects_out_of_range() -> None:
     """Keep the inner validator's range checks."""
     with pytest.raises(Invalid):
         cv.sensitive(cv.uint32_t)(1 << 32)
-
-
-@pytest.mark.parametrize("value", [False, True])
-def test_sensitive__boolean_is_not_coerced_to_integer(value: bool) -> None:
-    """Boolean validators remain boolean despite bool being an int subclass."""
-    assert cv.sensitive(cv.boolean)(value) is value
 
 
 def test_sensitive__is_detectable_via_isinstance() -> None:
