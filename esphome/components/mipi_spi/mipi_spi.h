@@ -5,6 +5,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::mipi_spi {
@@ -71,6 +72,12 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
                           GPIOPin *cs, GPIOPin *reset, GPIOPin *dc, int spi_mode, uint32_t data_rate, int bus_width,
                           bool has_hardware_rotation);
 
+// Lets a light set the display brightness without knowing the display's template parameters.
+class MipiSpiBrightness {
+ public:
+  virtual void set_brightness(uint8_t brightness) = 0;
+};
+
 /**
  * Base class for MIPI SPI displays.
  * All the methods are defined here in the header file, as it is not possible to define templated methods in a cpp file.
@@ -93,6 +100,7 @@ template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMo
          int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, int PAD_WIDTH, int PAD_HEIGHT, uint16_t MADCTL,
          bool HAS_HARDWARE_ROTATION>
 class MipiSpi : public display::Display,
+                public MipiSpiBrightness,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
  public:
@@ -107,9 +115,11 @@ class MipiSpi : public display::Display,
     this->invert_colors_ = invert_colors;
     this->reset_params_();
   }
-  void set_brightness(uint8_t brightness) {
+  void set_brightness(uint8_t brightness) override {
     this->brightness_ = brightness;
-    this->reset_params_();
+    // Before setup the stored value is applied by reset_params_()
+    if (this->is_ready())
+      this->write_command_(BRIGHTNESS, brightness);
   }
   void set_rotation(display::DisplayRotation rotation) override {
     this->rotation_ = rotation;
@@ -133,7 +143,10 @@ class MipiSpi : public display::Display,
     return HEIGHT;
   }
 
-  void set_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequence_ = sequence; }
+  void set_init_sequence(const uint8_t *sequence, size_t len) {
+    this->init_sequence_ = sequence;
+    this->init_sequence_len_ = len;
+  }
 
   // reset the display, and write the init sequence
   void setup() override {
@@ -159,15 +172,16 @@ class MipiSpi : public display::Display,
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
     size_t index = 0;
-    auto &vec = this->init_sequence_;
-    while (index != vec.size()) {
-      if (vec.size() - index < 2) {
+    const uint8_t *seq = this->init_sequence_;
+    const size_t len = this->init_sequence_len_;
+    while (index != len) {
+      if (len - index < 2) {
         esph_log_e(TAG, "Malformed init sequence");
         this->mark_failed();
         return;
       }
-      uint8_t cmd = vec[index++];
-      uint8_t x = vec[index++];
+      uint8_t cmd = progmem_read_byte(seq + index++);
+      uint8_t x = progmem_read_byte(seq + index++);
       if (x == DELAY_FLAG) {
         if (cmd == 0) {
           cmd = clamp_at_least((int) (when - millis()), 0);
@@ -176,19 +190,21 @@ class MipiSpi : public display::Display,
         delay(cmd);
       } else {
         uint8_t num_args = x & 0x7F;
-        if (vec.size() - index < num_args) {
+        if (len - index < num_args) {
           esph_log_e(TAG, "Malformed init sequence");
           this->mark_failed();
           return;
         }
-        const auto *ptr = vec.data() + index;
-        this->write_command_(cmd, ptr, num_args);
+        // The sequence is in flash, which SPI DMA (and ESP8266 byte loads) cannot read
+        uint8_t args[0x80];
+        progmem_memcpy(args, seq + index, num_args);
+        this->write_command_(cmd, args, num_args);
         index += num_args;
       }
     }
     this->reset_params_();
-    // init sequence no longer needed
-    this->init_sequence_.clear();
+    // Marks init as done, so later commands log at verbose level instead of debug
+    this->init_sequence_len_ = 0;
   }
 
   // Drawing operations
@@ -236,7 +252,7 @@ class MipiSpi : public display::Display,
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
     // Don't spam the log after setup
-    if (this->init_sequence_.empty()) {
+    if (this->init_sequence_len_ == 0) {
       esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     } else {
       esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
@@ -246,20 +262,18 @@ class MipiSpi : public display::Display,
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
       this->disable();
     } else if constexpr (BUS_TYPE == BUS_TYPE_OCTAL) {
-      // Toggle D/C only while holding the bus; on boards where D/C doubles as
-      // another bus signal, driving it while another device owns the bus
-      // corrupts that device's transfer.
       this->enable();
       this->dc_pin_->digital_write(false);
       this->write_cmd_addr_data(0, 0, 0, 0, &cmd, 1, 8);
       this->dc_pin_->digital_write(true);
-      this->disable();
+      // hold the bus between command and data to avoid a glitch on the D/C line
       if (len != 0) {
-        this->enable();
         this->write_cmd_addr_data(0, 0, 0, 0, bytes, len, 8);
-        this->disable();
       }
+      this->disable();
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE) {
+      // Toggle D/C only while holding the bus; works around a quirk in the CoreS3 and W5500 ethernet combination.
+      // See https://github.com/esphome/esphome/pull/18529
       this->enable();
       this->dc_pin_->digital_write(false);
       this->write_byte(cmd);
@@ -271,12 +285,14 @@ class MipiSpi : public display::Display,
         this->disable();
       }
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE_16) {
-      this->enable();
+      // DC must be stable before CS as the clock is gated by CS
       this->dc_pin_->digital_write(false);
+      this->enable();
       this->write_byte(cmd);
-      this->dc_pin_->digital_write(true);
       this->disable();
+      this->dc_pin_->digital_write(true);
       for (size_t i = 0; i != len; i++) {
+        // must enable and disable for each byte based on empirical testing
         this->enable();
         this->write_byte(0);
         this->write_byte(bytes[i]);
@@ -486,7 +502,9 @@ class MipiSpi : public display::Display,
   bool invert_colors_{};
   optional<uint8_t> brightness_{};
   const char *model_{"Unknown"};
-  std::vector<uint8_t> init_sequence_{};
+  // Shared PROGMEM table
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
 };
 
 /**
@@ -604,7 +622,7 @@ class MipiSpiBuffer
 
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {
-    if (!this->get_clipping().inside(x, y))
+    if (this->is_point_clipped(x, y))
       return;
     if constexpr (not HAS_HARDWARE_ROTATION) {
       if (this->rotation_ == display::DISPLAY_ROTATION_180_DEGREES) {

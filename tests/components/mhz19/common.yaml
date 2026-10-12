@@ -1,5 +1,6 @@
 sensor:
   - platform: mhz19
+    id: mhz19_sensor
     co2:
       name: MH-Z19 CO2 Value
     temperature:
