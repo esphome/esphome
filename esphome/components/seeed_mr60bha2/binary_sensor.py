@@ -17,8 +17,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    mr60bha2_component = await cg.get_variable(config[CONF_MR60BHA2_ID])
+    hub = await cg.get_variable(config[CONF_MR60BHA2_ID])
 
-    if has_target_config := config.get(CONF_HAS_TARGET):
-        sens = await binary_sensor.new_binary_sensor(has_target_config)
-        cg.add(mr60bha2_component.set_has_target_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_HAS_TARGET, hub.set_has_target_binary_sensor)

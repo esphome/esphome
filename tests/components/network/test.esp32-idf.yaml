@@ -2,3 +2,4 @@
 
 network:
   enable_high_performance: true
+  tcp_send_buffer: 32kB

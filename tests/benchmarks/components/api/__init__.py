@@ -3,8 +3,9 @@ from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    # api must run its to_code to define USE_API, USE_API_PLAINTEXT,
-    # and add the noise-c library dependency.
+    # api must run its to_code to define USE_API and USE_API_NOISE. The
+    # AUTO_LOADed noise component runs its own to_code via the override in
+    # tests/benchmarks/components/noise/__init__.py.
     manifest.enable_codegen()
 
     original_to_code = manifest.to_code

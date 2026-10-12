@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_TO,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 partitions_ns = cg.esphome_ns.namespace("partition")
 AddressableSegment = partitions_ns.class_("AddressableSegment")
@@ -25,7 +26,7 @@ PartitionLightOutput = partitions_ns.class_(
 )
 
 
-def validate_from_to(value):
+def validate_from_to(value: ConfigType) -> ConfigType:
     if CONF_ID in value and value[CONF_FROM] > value[CONF_TO]:
         raise cv.Invalid(
             f"From ({value[CONF_FROM]}) must not be larger than to ({value[CONF_TO]})"
@@ -33,7 +34,7 @@ def validate_from_to(value):
     return value
 
 
-def validate_segment(config):
+def validate_segment(config: ConfigType) -> None:
     fconf = fv.full_config.get()
 
     if CONF_ID in config:  # only validate addressable segments
@@ -94,7 +95,7 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     segments = []
     for conf in config[CONF_SEGMENTS]:
         if CONF_SINGLE_LIGHT_ID in conf:
