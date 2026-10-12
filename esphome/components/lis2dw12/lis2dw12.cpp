@@ -118,6 +118,13 @@ void LIS2DW12Component::setup() {
   this->scale_ = mg * 0.001f * GRAVITY_EARTH;
   this->shift_ = lp1 ? 4 : 2;
 
+#ifdef USE_BINARY_SENSOR
+  for (auto *sensor : this->event_binary_sensors_) {
+    if (sensor != nullptr) {
+      sensor->publish_initial_state(false);
+    }
+  }
+#endif
 #ifdef USE_TEXT_SENSOR
   RegSixdSrc sixd;
   if (this->read_byte(static_cast<uint8_t>(RegisterMap::SIXD_SRC), &sixd.raw)) {
