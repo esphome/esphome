@@ -44,7 +44,15 @@ def test_esp8266_rejects_wpa3(
 def test_supported_modes(
     set_core_config: SetCoreConfigCallable, platform: PlatformFramework, mode: str
 ) -> None:
-    set_core_config(platform, platform_data={KEY_VARIANT: VARIANT_ESP32})
+    set_core_config(
+        platform,
+        platform_data=(
+            {KEY_VARIANT: VARIANT_ESP32}
+            if platform
+            in (PlatformFramework.ESP32_IDF, PlatformFramework.ESP32_ARDUINO)
+            else None
+        ),
+    )
     assert _validate(mode)[CONF_MIN_AUTH_MODE] == mode.upper()
 
 
@@ -59,5 +67,13 @@ def test_supported_modes(
 def test_default_remains_wpa2(
     set_core_config: SetCoreConfigCallable, platform: PlatformFramework
 ) -> None:
-    set_core_config(platform, platform_data={KEY_VARIANT: VARIANT_ESP32})
+    set_core_config(
+        platform,
+        platform_data=(
+            {KEY_VARIANT: VARIANT_ESP32}
+            if platform
+            in (PlatformFramework.ESP32_IDF, PlatformFramework.ESP32_ARDUINO)
+            else None
+        ),
+    )
     assert _validate()[CONF_MIN_AUTH_MODE] == "WPA2"
