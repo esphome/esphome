@@ -1,11 +1,11 @@
-#include "lis2dw12_base.h"
+#include "lis2dw12.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome::lis2dw12_base {
+namespace esphome::lis2dw12 {
 
-ESPHOME_LOG_TAG(TAG, "lis2dw12_base");
+ESPHOME_LOG_TAG(TAG, "lis2dw12");
 
 static constexpr uint8_t LIS2DW12_WHO_AM_I_VALUE = 0x44;
 static constexpr float GRAVITY_EARTH = 9.80665f;
@@ -344,4 +344,4 @@ void LIS2DW12Component::set_transform(bool mirror_x, bool mirror_y, bool mirror_
   this->swap_xy_ = swap_xy;
 }
 
-}  // namespace esphome::lis2dw12_base
+}  // namespace esphome::lis2dw12

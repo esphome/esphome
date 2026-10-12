@@ -7,12 +7,12 @@ ESPHOME_LOG_TAG(TAG, "lis2dw12_spi");
 
 void LIS2DW12SPIComponent::setup() {
   this->spi_setup();
-  lis2dw12_base::LIS2DW12Component::setup();
+  lis2dw12::LIS2DW12Component::setup();
 }
 
 void LIS2DW12SPIComponent::dump_config() {
   LOG_SPI_DEVICE(this);
-  lis2dw12_base::LIS2DW12Component::dump_config();
+  lis2dw12::LIS2DW12Component::dump_config();
 }
 
 bool LIS2DW12SPIComponent::write_byte(uint8_t a_register, uint8_t data) {

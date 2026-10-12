@@ -18,7 +18,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
-DOMAIN = "lis2dw12_base"
+DOMAIN = "lis2dw12"
 
 CONF_LIS2DW12_ID = "lis2dw12_id"
 
@@ -33,10 +33,10 @@ CONF_LOW_NOISE = "low_noise"
 CONF_FILTER_BANDWIDTH = "filter_bandwidth"
 CONF_OUTPUT_DATA_RATE = "output_data_rate"
 
-lis2dw12_base_ns = cg.esphome_ns.namespace("lis2dw12_base")
-LIS2DW12Component = lis2dw12_base_ns.class_("LIS2DW12Component", cg.PollingComponent)
+lis2dw12_ns = cg.esphome_ns.namespace("lis2dw12")
+LIS2DW12Component = lis2dw12_ns.class_("LIS2DW12Component", cg.PollingComponent)
 
-LIS2DW12Range = lis2dw12_base_ns.enum("Range", True)
+LIS2DW12Range = lis2dw12_ns.enum("Range", True)
 RANGES = {
     "2G": LIS2DW12Range.RANGE_2G,
     "4G": LIS2DW12Range.RANGE_4G,
@@ -44,7 +44,7 @@ RANGES = {
     "16G": LIS2DW12Range.RANGE_16G,
 }
 
-LIS2DW12PowerMode = lis2dw12_base_ns.enum("PowerMode", True)
+LIS2DW12PowerMode = lis2dw12_ns.enum("PowerMode", True)
 POWER_MODES = {
     "high_performance": LIS2DW12PowerMode.HIGH_PERF,
     "low_power_1": LIS2DW12PowerMode.LOW_POWER_1,
@@ -53,7 +53,7 @@ POWER_MODES = {
     "low_power_4": LIS2DW12PowerMode.LOW_POWER_4,
 }
 
-LIS2DW12DataRate = lis2dw12_base_ns.enum("DataRate", True)
+LIS2DW12DataRate = lis2dw12_ns.enum("DataRate", True)
 DATA_RATES = {
     "1.6Hz": LIS2DW12DataRate.RATE_1_6HZ,
     "12.5Hz": LIS2DW12DataRate.RATE_12_5HZ,
@@ -66,7 +66,7 @@ DATA_RATES = {
     "1600Hz": LIS2DW12DataRate.RATE_1600HZ,
 }
 
-LIS2DW12FilterBandwidth = lis2dw12_base_ns.enum("FilterBandwidth", True)
+LIS2DW12FilterBandwidth = lis2dw12_ns.enum("FilterBandwidth", True)
 FILTER_BANDWIDTHS = {
     "odr_div_2": LIS2DW12FilterBandwidth.BW_ODR_DIV_2,
     "odr_div_4": LIS2DW12FilterBandwidth.BW_ODR_DIV_4,

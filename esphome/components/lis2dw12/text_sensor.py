@@ -7,7 +7,7 @@ from esphome.types import ConfigType
 from . import CONF_LIS2DW12_ID, LIS2DW12_SENSOR_SCHEMA
 
 CODEOWNERS = ["@latonita"]
-DEPENDENCIES = ["lis2dw12_base"]
+DEPENDENCIES = ["lis2dw12"]
 
 CONF_ORIENTATION = "orientation"
 

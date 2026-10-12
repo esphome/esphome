@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.lis2dw12_base import (
+from esphome.components.lis2dw12 import (
     CONFIG_SCHEMA_BASE,
     LIS2DW12Component,
     to_code_base,
@@ -10,7 +10,7 @@ import esphome.config_validation as cv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
-AUTO_LOAD = ["lis2dw12_base"]
+AUTO_LOAD = ["lis2dw12"]
 DEPENDENCIES = ["spi"]
 DOMAIN = "lis2dw12_spi"
 MULTI_CONF = True

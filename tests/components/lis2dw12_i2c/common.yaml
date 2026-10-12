@@ -35,19 +35,19 @@ lis2dw12_i2c:
         - logger.log: "Orientation changed"
 
 sensor:
-  - platform: lis2dw12_base
+  - platform: lis2dw12
     lis2dw12_id: lis2dw12_i2c_accel
     acceleration_x: Accel X
     acceleration_y: Accel Y
     acceleration_z: Accel Z
 
 text_sensor:
-  - platform: lis2dw12_base
+  - platform: lis2dw12
     lis2dw12_id: lis2dw12_i2c_accel
     orientation: Orientation
 
 binary_sensor:
-  - platform: lis2dw12_base
+  - platform: lis2dw12
     lis2dw12_id: lis2dw12_i2c_accel
     tap: Single tap
     double_tap:

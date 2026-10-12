@@ -36,19 +36,19 @@ lis2dw12_spi:
         - logger.log: "Orientation changed"
 
 sensor:
-  - platform: lis2dw12_base
+  - platform: lis2dw12
     lis2dw12_id: lis2dw12_spi_accel
     acceleration_x: Accel X
     acceleration_y: Accel Y
     acceleration_z: Accel Z
 
 text_sensor:
-  - platform: lis2dw12_base
+  - platform: lis2dw12
     lis2dw12_id: lis2dw12_spi_accel
     orientation: Orientation
 
 binary_sensor:
-  - platform: lis2dw12_base
+  - platform: lis2dw12
     lis2dw12_id: lis2dw12_spi_accel
     tap: Single tap
     double_tap:

@@ -13,7 +13,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome::lis2dw12_base {
+namespace esphome::lis2dw12 {
 
 // LIS2DW12 Register Map
 enum class RegisterMap : uint8_t {
@@ -197,4 +197,4 @@ class LIS2DW12Component : public PollingComponent {
   LazyCallbackManager<void()> orientation_callback_;
 };
 
-}  // namespace esphome::lis2dw12_base
+}  // namespace esphome::lis2dw12
