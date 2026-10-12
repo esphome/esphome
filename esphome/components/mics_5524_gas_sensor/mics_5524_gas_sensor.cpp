@@ -46,16 +46,14 @@ void MiCS5524Component::setup() {
 void MiCS5524Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MiCS-5524:");
   LOG_UPDATE_INTERVAL(this);
-#ifdef MICS_5524_GAS_COUNT
   for (auto *gas : this->gases_) {
     LOG_SENSOR("  ", "Gas", gas);
     ESP_LOGCONFIG(TAG, "    Range: %.1f - %.1f ppm", gas->get_min_ppm(), gas->get_max_ppm());
   }
-#endif
   ESP_LOGCONFIG(TAG, "  VCC: %.2f V, AO multiplier: x%.3f", this->vcc_, this->voltage_multiplier_);
   ESP_LOGCONFIG(TAG, "  AO samples per reading: %u", static_cast<unsigned>(this->samples_));
   if (this->has_reference_()) {
-    ESP_LOGCONFIG(TAG, "  Air reference: %.4f V", this->reference_);
+    ESP_LOGCONFIG(TAG, "  Air reference (vcc - V_AO): %.4f V", this->reference_);
   } else {
     ESP_LOGCONFIG(TAG, "  Air reference: not available yet");
   }
@@ -74,11 +72,9 @@ float MiCS5524Component::sample_voltage_() {
 }
 
 void MiCS5524Component::publish_ratio_(float ratio) {
-#ifdef MICS_5524_GAS_COUNT
   for (auto *gas : this->gases_) {
     gas->publish_ratio(ratio);
   }
-#endif
 }
 
 bool MiCS5524Component::in_warmup_() {
@@ -233,12 +229,9 @@ void MiCS5524Component::finish_calibration_() {
     return;
   }
 
+  // Every counted sample is finite and positive (`process_calibration_()`), so their
+  // average is usable without another check.
   const float reference = this->calibration_sum_ / static_cast<float>(valid);
-  if (!std::isfinite(reference) || reference <= 0.0f) {
-    ESP_LOGW(TAG, "calibration produced an invalid air reference (%.6f)", reference);
-    this->schedule_calibration_retry_();
-    return;
-  }
 
   // A sensor that is still settling, or one that is not in clean air, varies too much
   // for its average to be the reference of every later reading.
@@ -260,8 +253,11 @@ void MiCS5524Component::finish_calibration_() {
 void MiCS5524Component::schedule_calibration_retry_() {
   this->status_set_warning();
   this->calibration_pending_ = true;
-  this->set_timeout(CALIBRATION_START_ID, this->calibration_delay_, [this]() { this->begin_calibration_(); });
-  ESP_LOGW(TAG, "retrying the calibration in %" PRIu32 " s", this->calibration_delay_ / 1000);
+  // A delay of zero restarts the run straight away and logs the same failure again about
+  // five times per second, so anything below the floor is raised to it.
+  const uint32_t delay = std::max(this->calibration_delay_, CALIBRATION_RETRY_MIN_MS);
+  this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
+  ESP_LOGW(TAG, "retrying the calibration in %" PRIu32 " s", delay / 1000);
 }
 
 }  // namespace esphome::mics_5524_gas_sensor

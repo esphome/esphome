@@ -53,10 +53,8 @@ class MiCS5524Component : public PollingComponent {
   void update() override;
   void dump_config() override;
 
-#ifdef MICS_5524_GAS_COUNT
   /// Add one gas of this sensor; code generation calls it once per configured gas.
   void register_gas_sensor(MiCS5524GasSensor *gas) { this->gases_.push_back(gas); }
-#endif
 
   // ------------------------------------------------------------------ config
   void set_vcc(float vcc) { this->vcc_ = vcc; }
@@ -109,6 +107,9 @@ class MiCS5524Component : public PollingComponent {
   /// Scheduler id of the deferred calibration start: it waits for the warm-up window to
   /// end and is re-armed for another attempt when a calibration fails.
   static constexpr uint32_t CALIBRATION_START_ID = 0;
+  /// Floor of the delay between two calibration attempts (ms): a failed attempt runs the
+  /// whole sample run again, so a shorter delay only repeats the same failure.
+  static constexpr uint32_t CALIBRATION_RETRY_MIN_MS = 10000;
 
   bool calibrating_{false};
   /// A calibration waits for its start time; `calibrating_` takes over from there.
@@ -132,9 +133,7 @@ class MiCS5524Component : public PollingComponent {
   /// Clean-air reference: `x_air` in volts, 0 while there is none.
   float reference_{0.0f};
 
-#ifdef MICS_5524_GAS_COUNT
   StaticVector<MiCS5524GasSensor *, MICS_5524_GAS_COUNT> gases_;
-#endif
 };
 
 }  // namespace esphome::mics_5524_gas_sensor

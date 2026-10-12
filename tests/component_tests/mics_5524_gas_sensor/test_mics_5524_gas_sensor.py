@@ -6,7 +6,15 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.mics_5524_gas_sensor.coefficients import GASES, VendorCurve
 from esphome.components.mics_5524_gas_sensor.sensor import CONFIG_SCHEMA
+from esphome.const import (
+    CONF_AMMONIA,
+    CONF_CARBON_MONOXIDE,
+    CONF_ETHANOL,
+    CONF_HYDROGEN,
+    CONF_METHANE,
+)
 
 
 def test_voltage_source_is_a_constructor_argument(
@@ -184,3 +192,16 @@ def test_voltage_multiplier_defaults_to_one() -> None:
     )
 
     assert config["voltage_multiplier"] == 1.0
+
+
+def test_vendor_table_is_the_datasheet_one() -> None:
+    """The whole table is pinned, not only the gases a config file happens to use."""
+    expected = {
+        CONF_CARBON_MONOXIDE: VendorCurve("CO", 0.425, 0.000405, 1.0, 1000.0),
+        CONF_HYDROGEN: VendorCurve("H2", 0.279, 0.00026, 1.0, 1000.0),
+        CONF_ETHANOL: VendorCurve("C2H5OH", 0.306, 0.00057, 10.0, 500.0),
+        CONF_AMMONIA: VendorCurve("NH3", 0.8, 0.0015, 10.0, 500.0),
+        CONF_METHANE: VendorCurve("CH4", 0.786, 0.000023, 1000.0, 25000.0),
+    }
+
+    assert expected == GASES
