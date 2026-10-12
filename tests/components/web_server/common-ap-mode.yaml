@@ -1,0 +1,9 @@
+# AP mode: with a WiFi access point and the interface embedded in the firmware, web_server
+# runs its own captive portal (DNS server, unknown URLs redirect to the page).
+wifi:
+  ap:
+    ssid: "ESPHome-Test"
+    password: "Test1234!"
+
+web_server:
+  local: true

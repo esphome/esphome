@@ -3,13 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-#include <WiFiUdp.h>
-#endif
 #include <array>
 #include <initializer_list>
 #include <span>
@@ -22,7 +16,8 @@ class UDPComponent final : public Component {
  public:
   /// nullptr-terminated table of addresses; must outlive the component.
   void set_addresses(const char *const *addresses) { this->addresses_ = addresses; }
-  void set_listen_address(const char *listen_addr) { this->listen_address_ = network::IPAddress(listen_addr); }
+  /// Multicast group literal; must outlive the component.
+  void set_listen_address(const char *listen_addr) { this->listen_address_ = listen_addr; }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast() { this->should_broadcast_ = true; }
@@ -36,24 +31,22 @@ class UDPComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
+  bool join_multicast_();
+
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
+  bool join_failed_{};
+  bool join_warning_{};
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
-  std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
+  std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
+  std::unique_ptr<socket::UDPSocket> listen_socket_ = nullptr;
   std::vector<struct sockaddr> sockaddrs_{};
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-  std::vector<IPAddress> ipaddrs_{};
-  WiFiUDP udp_client_{};
-#endif
   const char *const *addresses_{nullptr};
 
-  optional<network::IPAddress> listen_address_{};
+  const char *listen_address_{nullptr};
 };
 
 }  // namespace esphome::udp

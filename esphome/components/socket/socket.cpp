@@ -218,8 +218,9 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   return found_any;
 #endif
 }
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
-bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out) {
+bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_index_out) {
   if (strchr(ip_address, ':') == nullptr) {
     struct in_addr ipv4mc {};
 #ifdef USE_ZEPHYR
@@ -249,7 +250,8 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
     }
     return true;
   }
-#if USE_NETWORK_IPV6
+  // The raw lwIP implementation has no IPv6 membership support
+#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
   struct ipv6_mreq imreq6 {};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #ifdef USE_ZEPHYR
@@ -300,9 +302,10 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 #else
   errno = EINVAL;
   return false;
-#endif  // USE_NETWORK_IPV6
+#endif  // USE_NETWORK_IPV6 && fd based sockets
 }
 
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
 #if defined(USE_ZEPHYR) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
