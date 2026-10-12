@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,9 @@ class FakeContainer : public http_request::HttpContainer {
   }
 
   void set_content_length(size_t length) { this->content_length = length; }
+  void add_response_header(const std::string &name, const std::string &value) {
+    this->response_headers_.push_back({name, value});
+  }
 
  protected:
   std::vector<uint8_t> body_;
@@ -49,11 +53,18 @@ class FakeContainer : public http_request::HttpContainer {
 class FakeHttpRequest : public http_request::HttpRequestComponent {
  public:
   std::shared_ptr<http_request::HttpContainer> next;
+  std::vector<http_request::Header> sent_headers;
+
+  bool sent_header(const std::string &name) const {
+    return std::any_of(this->sent_headers.begin(), this->sent_headers.end(),
+                       [&name](const http_request::Header &header) { return header.name == name; });
+  }
 
  protected:
   std::shared_ptr<http_request::HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                                        const std::vector<http_request::Header> &request_headers,
                                                        const std::vector<std::string> &collect_headers) override {
+    this->sent_headers = request_headers;
     return std::move(this->next);
   }
 };
@@ -104,11 +115,14 @@ class OnlineImageDownloadEnd : public ::testing::Test {
 };
 
 // A chunked stream can end without the decoder reporting it is finished (PNG never does).
-// When the decoder used every byte, the download succeeds.
-TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishes) {
+// When the decoder used every byte, the download succeeds, but the image is not cached:
+// it may be cut off, and a 304 response must not keep it.
+TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishesWithoutCaching) {
   std::vector<uint8_t> bmp = make_bmp();
   bmp.resize(BMP_HEADER_SIZE + BMP_ROW_SIZE);  // only the first row, so the decoder is not finished
   auto container = std::make_shared<FakeContainer>(bmp, bmp.size(), true);
+  container->add_response_header("etag", "\"abc\"");
+  container->add_response_header("last-modified", "Mon, 12 Oct 2026 10:00:00 GMT");
   auto image = this->make_image_(runtime_image::BMP);
   this->start_(*image, container);
 
@@ -117,6 +131,30 @@ TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishes) {
 
   EXPECT_EQ(this->finished_, 1);
   EXPECT_EQ(this->errors_, 0);
+
+  this->http_.next = std::make_shared<FakeContainer>(make_bmp(), 0, false);
+  image->update();
+  EXPECT_FALSE(this->http_.sent_header("if-none-match"));
+  EXPECT_FALSE(this->http_.sent_header("if-modified-since"));
+}
+
+// An image the decoder confirmed as complete is cached.
+TEST_F(OnlineImageDownloadEnd, CompleteImageIsCached) {
+  std::vector<uint8_t> bmp = make_bmp();
+  auto container = std::make_shared<FakeContainer>(bmp, bmp.size(), false);
+  container->add_response_header("etag", "\"abc\"");
+  container->add_response_header("last-modified", "Mon, 12 Oct 2026 10:00:00 GMT");
+  auto image = this->make_image_(runtime_image::BMP);
+  this->start_(*image, container);
+
+  for (int i = 0; i < 4 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+  ASSERT_EQ(this->finished_, 1);
+
+  this->http_.next = std::make_shared<FakeContainer>(bmp, 0, false);
+  image->update();
+  EXPECT_TRUE(this->http_.sent_header("if-none-match"));
+  EXPECT_TRUE(this->http_.sent_header("if-modified-since"));
 }
 
 // ESP-IDF keeps returning 0 after the server closes the connection early.

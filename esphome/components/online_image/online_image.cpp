@@ -251,14 +251,22 @@ void OnlineImage::loop() {
 }
 
 void OnlineImage::finish_download_() {
+  // Must be read before end_decode() ends the decoding session
+  bool decoder_finished = this->is_decode_finished();
   this->end_decode();
 
   ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
            millis() - this->start_time_);
 
-  // Save caching headers
-  this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
-  this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+  // Only cache an image the decoder confirmed as complete; otherwise a cut-off image would be kept by 304 responses
+  if (decoder_finished) {
+    this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
+    this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+  } else {
+    ESP_LOGD(TAG, "Decoder could not confirm the image is complete; not caching it");
+    this->etag_.clear();
+    this->last_modified_.clear();
+  }
 
   this->download_finished_callback_.call(false);
   this->end_connection_();
