@@ -24,6 +24,10 @@ void WakeOnLanButton::dump_config() {
 }
 
 void WakeOnLanButton::press_action() {
+  if (this->broadcast_socket_ == nullptr) {
+    ESP_LOGW(TAG, "Socket not available");
+    return;
+  }
   if (!network::is_connected()) {
     ESP_LOGW(TAG, "Network not connected");
     return;
