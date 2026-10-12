@@ -5,7 +5,7 @@
 
 namespace esphome::micronova {
 
-class MicroNovaSensor : public sensor::Sensor, public MicroNovaListener {
+class MicroNovaSensor final : public sensor::Sensor, public MicroNovaListener {
  public:
   MicroNovaSensor(MicroNova *m) : MicroNovaListener(m) {}
   void dump_config() override;

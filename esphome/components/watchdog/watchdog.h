@@ -4,8 +4,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace watchdog {
+namespace esphome::watchdog {
 
 class WatchdogManager {
  public:
@@ -20,5 +19,4 @@ class WatchdogManager {
   uint32_t timeout_ms_{0};
 };
 
-}  // namespace watchdog
-}  // namespace esphome
+}  // namespace esphome::watchdog

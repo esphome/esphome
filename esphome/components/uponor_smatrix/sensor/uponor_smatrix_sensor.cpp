@@ -3,10 +3,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
-static const char *const TAG = "uponor_smatrix.sensor";
+ESPHOME_LOG_TAG(TAG, "uponor_smatrix.sensor");
 
 void UponorSmatrixSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -42,5 +41,4 @@ void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t d
   }
 }
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

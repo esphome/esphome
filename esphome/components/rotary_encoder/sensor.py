@@ -12,8 +12,10 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_VALUE,
     ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_STEPS,
 )
+from esphome.types import ConfigType
 
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
 
@@ -38,18 +40,15 @@ CONF_PUBLISH_INITIAL_VALUE = "publish_initial_value"
 RotaryEncoderSensor = rotary_encoder_ns.class_(
     "RotaryEncoderSensor", sensor.Sensor, cg.Component
 )
-RotaryEncoderSetValueAction = rotary_encoder_ns.class_(
-    "RotaryEncoderSetValueAction", automation.Action
-)
 
 
-def validate_min_max_value(config):
+def validate_min_max_value(config: ConfigType) -> ConfigType:
     if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
         min_val = config[CONF_MIN_VALUE]
         max_val = config[CONF_MAX_VALUE]
         if min_val >= max_val:
             raise cv.Invalid(
-                f"Max value {max_val} must be smaller than min value {min_val}"
+                f"Max value {max_val} must be greater than min value {min_val}"
             )
     return config
 
@@ -60,6 +59,7 @@ CONFIG_SCHEMA = cv.All(
         unit_of_measurement=UNIT_STEPS,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
@@ -82,7 +82,15 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CLOCKWISE, "add_on_clockwise_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_ANTICLOCKWISE, "add_on_anticlockwise_callback"
+    ),
+)
+
+
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
@@ -102,30 +110,16 @@ async def to_code(config):
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
 
-    for conf in config.get(CONF_ON_CLOCKWISE, []):
-        await automation.build_callback_automation(
-            var, "add_on_clockwise_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
-        await automation.build_callback_automation(
-            var, "add_on_anticlockwise_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sensor.rotary_encoder.set_value",
-    RotaryEncoderSetValueAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_ID): cv.use_id(RotaryEncoderSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.int_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.int_),
 )
-async def sensor_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, int)
-    cg.add(var.set_value(template_))
-    return var

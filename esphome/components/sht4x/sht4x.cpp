@@ -2,10 +2,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sht4x {
+namespace esphome::sht4x {
 
-static const char *const TAG = "sht4x";
+ESPHOME_LOG_TAG(TAG, "sht4x");
 
 static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
 static const uint8_t SERIAL_NUMBER_COMMAND = 0x89;
@@ -127,5 +126,4 @@ void SHT4XComponent::update() {
   });
 }
 
-}  // namespace sht4x
-}  // namespace esphome
+}  // namespace esphome::sht4x

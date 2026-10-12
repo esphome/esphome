@@ -1,9 +1,8 @@
 #include "hitachi_ac424.h"
 
-namespace esphome {
-namespace hitachi_ac424 {
+namespace esphome::hitachi_ac424 {
 
-static const char *const TAG = "climate.hitachi_ac424";
+ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac424");
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
@@ -367,5 +366,4 @@ void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
   ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
 }
 
-}  // namespace hitachi_ac424
-}  // namespace esphome
+}  // namespace esphome::hitachi_ac424

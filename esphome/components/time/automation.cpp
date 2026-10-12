@@ -1,4 +1,5 @@
 #include "automation.h"
+#ifdef USE_TIME_TRIGGERS
 
 #include "esphome/core/log.h"
 
@@ -6,7 +7,7 @@
 
 namespace esphome::time {
 
-static const char *const TAG = "automation";
+ESPHOME_LOG_TAG(TAG, "automation");
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
                                              // there has been a drastic time synchronization
 
@@ -31,13 +32,14 @@ void CronTrigger::check_time_() {
     return;
 
   if (this->last_check_.has_value()) {
-    if (*this->last_check_ > time && this->last_check_->timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
+    auto &last_check = *this->last_check_;
+    if (last_check > time && last_check.timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
       // We went back in time (a lot), probably caused by time synchronization
       ESP_LOGW(TAG, "Time has jumped back!");
-    } else if (*this->last_check_ >= time) {
+    } else if (last_check >= time) {
       // already handled this one
       return;
-    } else if (time > *this->last_check_ && time.timestamp - this->last_check_->timestamp > MAX_TIMESTAMP_DRIFT) {
+    } else if (time > last_check && time.timestamp - last_check.timestamp > MAX_TIMESTAMP_DRIFT) {
       // We went ahead in time (a lot), probably caused by time synchronization
       ESP_LOGW(TAG, "Time has jumped ahead!");
       this->last_check_ = time;
@@ -45,11 +47,11 @@ void CronTrigger::check_time_() {
     }
 
     while (true) {
-      this->last_check_->increment_second();
-      if (*this->last_check_ >= time)
+      last_check.increment_second();
+      if (last_check >= time)
         break;
 
-      if (this->matches(*this->last_check_))
+      if (this->matches(last_check))
         this->trigger();
     }
   }
@@ -92,8 +94,6 @@ void CronTrigger::add_days_of_week(const std::vector<uint8_t> &days_of_week) {
 }
 float CronTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-SyncTrigger::SyncTrigger(RealTimeClock *rtc) : rtc_(rtc) {
-  rtc->add_on_time_sync_callback([this]() { this->trigger(); });
-}
-
 }  // namespace esphome::time
+
+#endif  // USE_TIME_TRIGGERS

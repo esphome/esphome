@@ -49,10 +49,9 @@ const uint8_t TRIGGER_KEEP_TIME_ADDR = 0x42;  // 4 bytes, so up to 0x45
 const uint8_t TIME41_VALUE = 1;
 const uint8_t SELF_CHECK_TIME_ADDR = 0x38;  // 2 bytes, up to 0x39
 
-namespace esphome {
-namespace at581x {
+namespace esphome::at581x {
 
-static const char *const TAG = "at581x";
+ESPHOME_LOG_TAG(TAG, "at581x");
 
 bool AT581XComponent::i2c_write_reg(uint8_t addr, uint8_t data) {
   return this->write_register(addr, &data, 1) == esphome::i2c::NO_ERROR;
@@ -199,5 +198,4 @@ void AT581XComponent::set_rf_mode(bool enable) {
   }
 }
 
-}  // namespace at581x
-}  // namespace esphome
+}  // namespace esphome::at581x

@@ -80,7 +80,7 @@ async def udp_listener(port: int = 0) -> AsyncGenerator[tuple[int, UDPReceiver]]
                     receiver.on_message(data)
             except BlockingIOError:
                 await asyncio.sleep(0.01)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 break
 
     task = asyncio.create_task(receive_messages())

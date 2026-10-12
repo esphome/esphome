@@ -1,0 +1,9 @@
+nrf52:
+  dfu:
+    reset_pin:
+      number: 14
+      inverted: true
+      mode:
+        output: true
+  reg0:
+    voltage: 1.8V

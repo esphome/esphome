@@ -15,13 +15,14 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_PH,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
 
 AUTO_LOAD = ["modbus"]
 
 kuntze_ns = cg.esphome_ns.namespace("kuntze")
-Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusDevice)
+Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusClientDevice)
 
 CONF_DIS1 = "dis1"
 CONF_DIS2 = "dis2"
@@ -88,36 +89,23 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("kuntze", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
-    if CONF_PH in config:
-        conf = config[CONF_PH]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_ph_sensor(sens))
-    if CONF_TEMPERATURE in config:
-        conf = config[CONF_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_temperature_sensor(sens))
-    if CONF_DIS1 in config:
-        conf = config[CONF_DIS1]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_dis1_sensor(sens))
-    if CONF_DIS2 in config:
-        conf = config[CONF_DIS2]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_dis2_sensor(sens))
-    if CONF_REDOX in config:
-        conf = config[CONF_REDOX]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_redox_sensor(sens))
-    if CONF_EC in config:
-        conf = config[CONF_EC]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_ec_sensor(sens))
-    if CONF_OCI in config:
-        conf = config[CONF_OCI]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_oci_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PH, var.set_ph_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_DIS1, var.set_dis1_sensor)
+    await sensors(CONF_DIS2, var.set_dis2_sensor)
+    await sensors(CONF_REDOX, var.set_redox_sensor)
+    await sensors(CONF_EC, var.set_ec_sensor)
+    await sensors(CONF_OCI, var.set_oci_sensor)

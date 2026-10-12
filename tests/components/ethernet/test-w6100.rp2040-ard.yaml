@@ -1,0 +1,1 @@
+<<: !include common-w6100-rp2040.yaml

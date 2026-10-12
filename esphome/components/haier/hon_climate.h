@@ -18,8 +18,7 @@
 #include "haier_base.h"
 #include "hon_packet.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -36,7 +35,7 @@ struct HonSettings {
   bool quiet_mode_state{false};
 };
 
-class HonClimate : public HaierClimateBase {
+class HonClimate final : public HaierClimateBase {
 #ifdef USE_SENSOR
  public:
   enum class SubSensorType {
@@ -90,7 +89,7 @@ class HonClimate : public HaierClimateBase {
   void set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSensor *sens);
 
  protected:
-  void update_sub_text_sensor_(SubTextSensorType type, const std::string &value);
+  void update_sub_text_sensor_(SubTextSensorType type, const char *value);
   text_sensor::TextSensor *sub_text_sensors_[(size_t) SubTextSensorType::SUB_TEXT_SENSOR_TYPE_COUNT]{nullptr};
 #endif
 #ifdef USE_SWITCH
@@ -116,7 +115,7 @@ class HonClimate : public HaierClimateBase {
   void set_vertical_airflow(hon_protocol::VerticalSwingMode direction);
   esphome::optional<hon_protocol::HorizontalSwingMode> get_horizontal_airflow() const;
   void set_horizontal_airflow(hon_protocol::HorizontalSwingMode direction);
-  std::string get_cleaning_status_text() const;
+  const char *get_cleaning_status_text() const;
   CleaningState get_cleaning_status() const;
   void start_self_cleaning();
   void start_steri_cleaning();
@@ -166,11 +165,12 @@ class HonClimate : public HaierClimateBase {
   void fill_control_messages_queue_();
   void clear_control_messages_queue_();
 
+  static constexpr size_t HARDWARE_INFO_STR_SIZE = 9;
   struct HardwareInfo {
-    std::string protocol_version_;
-    std::string software_version_;
-    std::string hardware_version_;
-    std::string device_name_;
+    char protocol_version_[HARDWARE_INFO_STR_SIZE];
+    char software_version_[HARDWARE_INFO_STR_SIZE];
+    char hardware_version_[HARDWARE_INFO_STR_SIZE];
+    char device_name_[HARDWARE_INFO_STR_SIZE];
     bool functions_[5];
   };
 
@@ -197,8 +197,7 @@ class HonClimate : public HaierClimateBase {
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
   HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
-  SwitchState quiet_mode_state_{SwitchState::OFF};
+  SwitchState quiet_mode_state_{SwitchState::SWITCH_OFF};
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

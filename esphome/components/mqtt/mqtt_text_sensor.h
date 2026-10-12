@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTTextSensor : public mqtt::MQTTComponent {
+class MQTTTextSensor final : public mqtt::MQTTComponent {
  public:
   explicit MQTTTextSensor(text_sensor::TextSensor *sensor);
 

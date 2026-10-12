@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLEAR_IMPEDANCE,
@@ -7,21 +7,24 @@ from esphome.const import (
     CONF_IMPEDANCE,
     CONF_MAC_ADDRESS,
     CONF_WEIGHT,
+    DEVICE_CLASS_WEIGHT,
     ICON_OMEGA,
     ICON_SCALE_BATHROOM,
     STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
     UNIT_OHM,
 )
+from esphome.types import ConfigType
 
-DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["ble_device_base"]
 
 xiaomi_miscale_ns = cg.esphome_ns.namespace("xiaomi_miscale")
 XiaomiMiscale = xiaomi_miscale_ns.class_(
-    "XiaomiMiscale", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+    "XiaomiMiscale", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("xiaomi_miscale"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XiaomiMiscale),
@@ -31,6 +34,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_KILOGRAM,
                 icon=ICON_SCALE_BATHROOM,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_WEIGHT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(
@@ -41,22 +45,19 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_clear_impedance(config[CONF_CLEAR_IMPEDANCE]))
 
-    if CONF_WEIGHT in config:
-        sens = await sensor.new_sensor(config[CONF_WEIGHT])
-        cg.add(var.set_weight(sens))
-    if CONF_IMPEDANCE in config:
-        sens = await sensor.new_sensor(config[CONF_IMPEDANCE])
-        cg.add(var.set_impedance(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_WEIGHT, var.set_weight)
+    await sensors(CONF_IMPEDANCE, var.set_impedance)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
 #include <array>
@@ -8,8 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static constexpr uint8_t MAX_DATA_LENGTH = 15;
 static constexpr uint8_t DATA_LENGTH_MASK = 0x3f;
@@ -112,14 +112,21 @@ class ABBWelcomeData {
     return (this->data_[7] << 16) + (this->data_[8] << 8) + this->data_[9];
   }
   void set_message_id(uint8_t message_id) { this->data_[4 + 2 * this->get_address_length()] = message_id; }
+  /// A configured id, which finalize() keeps instead of picking one
+  void set_fixed_message_id(uint8_t message_id) {
+    this->set_message_id(message_id);
+    this->auto_message_id = false;
+  }
   uint8_t get_message_id() const { return this->data_[4 + 2 * this->get_address_length()]; }
-  void set_data(std::vector<uint8_t> data) {
-    uint8_t size = std::min(MAX_DATA_LENGTH, static_cast<uint8_t>(data.size()));
+  /// data may be a PROGMEM table
+  void set_data(const uint8_t *data, size_t len) {
+    uint8_t size = static_cast<uint8_t>(std::min<size_t>(MAX_DATA_LENGTH, len));
     this->data_[2] &= (0xff ^ DATA_LENGTH_MASK);
     this->data_[2] |= (size & DATA_LENGTH_MASK);
     if (size)
-      std::copy_n(data.begin(), size, this->data_.begin() + 5 + 2 * this->get_address_length());
+      progmem_memcpy(this->data_.data() + 5 + 2 * this->get_address_length(), data, size);
   }
+  void set_data(const std::vector<uint8_t> &data) { this->set_data(data.data(), data.size()); }
   std::vector<uint8_t> get_data() const {
     std::vector<uint8_t> data(this->data_.begin() + 5 + 2 * this->get_address_length(),
                               this->data_.begin() + 5 + 2 * this->get_address_length() + this->get_data_size());
@@ -192,9 +199,9 @@ class ABBWelcomeData {
 
 class ABBWelcomeProtocol : public RemoteProtocol<ABBWelcomeData> {
  public:
-  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src) override;
-  optional<ABBWelcomeData> decode(RemoteReceiveData src) override;
-  void dump(const ABBWelcomeData &data) override;
+  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src);
+  optional<ABBWelcomeData> decode(RemoteReceiveData src);
+  void dump(const ABBWelcomeData &data);
 
  protected:
   void encode_byte_(RemoteTransmitData *dst, uint8_t data) const;
@@ -226,51 +233,4 @@ class ABBWelcomeBinarySensor : public RemoteReceiverBinarySensorBase {
 using ABBWelcomeTrigger = RemoteReceiverTrigger<ABBWelcomeProtocol>;
 using ABBWelcomeDumper = RemoteReceiverDumper<ABBWelcomeProtocol>;
 
-template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(uint32_t, source_address)
-  TEMPLATABLE_VALUE(uint32_t, destination_address)
-  TEMPLATABLE_VALUE(bool, retransmission)
-  TEMPLATABLE_VALUE(bool, three_byte_address)
-  TEMPLATABLE_VALUE(uint8_t, message_type)
-  TEMPLATABLE_VALUE(uint8_t, message_id)
-  TEMPLATABLE_VALUE(bool, auto_message_id)
-  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
-    this->data_.func = func;
-    this->len_ = -1;  // Sentinel value indicates template mode
-  }
-  void set_data_static(const uint8_t *data, size_t len) {
-    this->data_.data = data;
-    this->len_ = len;  // Length >= 0 indicates static mode
-  }
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    ABBWelcomeData data;
-    data.set_three_byte_address(this->three_byte_address_.value(x...));
-    data.set_source_address(this->source_address_.value(x...));
-    data.set_destination_address(this->destination_address_.value(x...));
-    data.set_retransmission(this->retransmission_.value(x...));
-    data.set_message_type(this->message_type_.value(x...));
-    data.set_message_id(this->message_id_.value(x...));
-    data.auto_message_id = this->auto_message_id_.value(x...);
-    std::vector<uint8_t> data_vec;
-    if (this->len_ > 0) {
-      // Static mode: copy from flash to vector
-      data_vec.assign(this->data_.data, this->data_.data + this->len_);
-    } else if (this->len_ < 0) {
-      // Template mode: call function
-      data_vec = this->data_.func(x...);
-    }
-    data.set_data(data_vec);
-    data.finalize();
-    ABBWelcomeProtocol().encode(dst, data);
-  }
-
- protected:
-  ssize_t len_{0};  // <0 = template mode, >=0 = static mode with length
-  union Data {
-    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
-    const uint8_t *data;                  // Pointer to static data in flash
-  } data_;
-};
-
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

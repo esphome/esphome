@@ -4,10 +4,9 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-class TuyaFan : public Component, public fan::Fan {
+class TuyaFan final : public Component, public fan::Fan {
  public:
   TuyaFan(Tuya *parent, int speed_count) : parent_(parent), speed_count_(speed_count) {}
   void setup() override;
@@ -32,5 +31,4 @@ class TuyaFan : public Component, public fan::Fan {
   TuyaDatapointType oscillation_type_{};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

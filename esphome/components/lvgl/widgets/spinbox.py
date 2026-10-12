@@ -125,10 +125,10 @@ class SpinboxType(WidgetType):
     def get_uses(self):
         return CONF_TEXTAREA, CONF_LABEL
 
-    def get_max(self, config: dict):
+    async def get_max(self, config: dict):
         return config[CONF_RANGE_TO]
 
-    def get_min(self, config: dict):
+    async def get_min(self, config: dict):
         return config[CONF_RANGE_FROM]
 
     def get_step(self, config: dict):

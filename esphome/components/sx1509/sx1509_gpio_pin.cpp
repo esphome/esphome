@@ -3,10 +3,9 @@
 #include "sx1509.h"
 #include "sx1509_gpio_pin.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
-static const char *const TAG = "sx1509_gpio_pin";
+ESPHOME_LOG_TAG(TAG, "sx1509_gpio_pin");
 
 void SX1509GPIOPin::setup() { pin_mode(flags_); }
 void SX1509GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
@@ -16,5 +15,4 @@ size_t SX1509GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via sx1509", this->pin_);
 }
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

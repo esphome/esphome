@@ -98,7 +98,7 @@ speed_t get_baud(int baud) {
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.host";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 HostUartComponent::~HostUartComponent() {
   if (this->file_descriptor_ != -1) {
@@ -157,6 +157,8 @@ void HostUartComponent::setup() {
     case UART_CONFIG_PARITY_ODD:
       options.c_cflag |= PARENB;
       options.c_cflag |= PARODD;
+      break;
+    default:
       break;
   };
   // Set stop bits
@@ -276,9 +278,12 @@ UARTFlushResult HostUartComponent::flush() {
   if (this->file_descriptor_ == -1) {
     return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
-  tcflush(this->file_descriptor_, TCIOFLUSH);
   ESP_LOGV(TAG, "    Flushing");
-  return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
+  if (tcdrain(this->file_descriptor_) == -1) {
+    this->update_error_(strerror(errno));
+    return UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  }
+  return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 void HostUartComponent::update_error_(const std::string &error) {

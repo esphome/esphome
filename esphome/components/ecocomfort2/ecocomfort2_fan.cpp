@@ -1,29 +1,59 @@
+#include "esphome/core/defines.h"
 #ifdef USE_ESP32
-
 #include "ecocomfort2_fan.h"
 #include "esphome/core/log.h"
 
-#include <cstring>
+#include <iterator>
 
-namespace esphome {
-namespace ecocomfort2 {
+namespace esphome::ecocomfort2 {
 
-static const char *const TAG = "ecocomfort2.fan";
+ESPHOME_LOG_TAG(TAG, "ecocomfort2.fan");
+
+static constexpr int SPEED_COUNT = SPEED_VEL3;
+
+struct Preset {
+  const char *name;
+  uint8_t mode;
+  bool auto_mode;
+};
+
+// Order matters: the fan core persists the preset as an index into this list.
+static constexpr Preset PRESETS[] = {
+    {"In", OPER_IN, false},
+    {"Out", OPER_OUT, false},
+    {"In-Out", OPER_IN_OUT, false},
+    {"Sensor", OPER_SENSOR_OR_AUTO, false},
+    {"Auto", OPER_SENSOR_OR_AUTO, true},
+};
+static constexpr const Preset &PRESET_IN_OUT = PRESETS[2];
+static constexpr const Preset &PRESET_SENSOR = PRESETS[3];
+
+static const Preset *find_preset(const char *name) {
+  for (const auto &preset : PRESETS) {
+    if (preset.name == name)
+      return &preset;
+  }
+  return nullptr;
+}
+
+static const Preset *find_preset(uint8_t mode, bool auto_mode) {
+  for (const auto &preset : PRESETS) {
+    if (preset.mode == mode && preset.auto_mode == auto_mode)
+      return &preset;
+  }
+  return nullptr;
+}
 
 void Ecocomfort2Fan::setup() {
-  auto mode = this->parent_->get_desired_preset();
-  auto speed = this->parent_->get_desired_speed();
-  bool auto_active = this->parent_->get_desired_auto_mode();
-
-  this->state = (mode != OPER_OFF);
-  this->speed = this->device_speed_to_fan_(speed);
-  const char *pm = this->mode_to_preset_name_(mode, auto_active);
-  if (pm != nullptr) {
-    this->set_preset_mode_(pm);
-  } else {
-    this->clear_preset_mode_();
+  this->set_supported_preset_modes(
+      {PRESETS[0].name, PRESETS[1].name, PRESETS[2].name, PRESETS[3].name, PRESETS[4].name});
+  // Restore the last preset and speed so turning on resumes them; on/off comes from the device.
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
+    this->speed = restore->speed;
+    if (restore->preset_mode < std::size(PRESETS))
+      this->set_preset_mode_(PRESETS[restore->preset_mode].name);
   }
-  // Wait for the first BLE readback before publishing a state guess.
 }
 
 void Ecocomfort2Fan::dump_config() { LOG_FAN("", "Ecocomfort2 Fan", this); }
@@ -31,99 +61,77 @@ void Ecocomfort2Fan::dump_config() { LOG_FAN("", "Ecocomfort2 Fan", this); }
 fan::FanTraits Ecocomfort2Fan::get_traits() {
   fan::FanTraits traits;
   traits.set_speed(true);
-  traits.set_supported_speed_count(4);  // Sleep, Vel1, Vel2, Vel3
-  traits.set_supported_preset_modes({PRESET_IN, PRESET_OUT, PRESET_IN_OUT, PRESET_SENSOR, PRESET_AUTO});
+  traits.set_supported_speed_count(SPEED_COUNT);
+  this->wire_preset_modes_(traits);
   return traits;
 }
 
 void Ecocomfort2Fan::control(const fan::FanCall &call) {
-  // Skip-send guard: don't write back during readback updates
-  if (this->parent_->skip_send_)
-    return;
-
   if (!this->parent_->is_ready()) {
     ESP_LOGW(TAG, "Not ready, cannot handle control call");
     return;
   }
 
-  // Handle state change (on/off)
-  auto opt_state = call.get_state();
-  if (opt_state.has_value()) {
-    this->state = *opt_state;
-    if (!this->state) {
-      // Turning off
-      this->parent_->send_operation_command(OPER_OFF, SPEED_OFF, false);
-      this->publish_state();
-      return;
+  // Any call that does not turn the fan off turns it on
+  auto state = call.get_state();
+  this->state = !state.has_value() || *state;
+  // The core clears the preset in a speed call; here the preset is the air flow mode, so keep it.
+  if (call.has_preset_mode())
+    this->set_preset_mode_(call.get_preset_mode());
+
+  const Preset *preset = find_preset(this->get_preset_mode().c_str());
+  if (preset == nullptr) {
+    preset = &PRESET_IN_OUT;
+    this->set_preset_mode_(preset->name);
+  }
+  auto speed = call.get_speed();
+  if (speed.has_value()) {
+    this->speed = *speed;
+    // A manual speed leaves automatic speed control
+    if (preset->auto_mode) {
+      preset = &PRESET_SENSOR;
+      this->set_preset_mode_(preset->name);
     }
   }
+  this->speed = clamp(this->speed, 1, SPEED_COUNT);
 
-  uint8_t preset = this->parent_->get_desired_preset();
-  uint8_t speed = this->parent_->get_desired_speed();
-  bool auto_mode = this->parent_->get_desired_auto_mode();
-
-  if (call.has_preset_mode()) {
-    const char *preset_name = call.get_preset_mode();
-    preset = this->preset_name_to_mode_(preset_name);
-    auto_mode = std::strcmp(preset_name, PRESET_AUTO) == 0;
-    this->set_preset_mode_(preset_name);
+  if (!this->state) {
+    this->parent_->write_oper(OPER_OFF, SPEED_OFF);
+  } else {
+    this->parent_->write_oper(preset->mode, preset->auto_mode ? FLAG_AUTO : static_cast<uint8_t>(this->speed));
   }
-
-  auto opt_speed = call.get_speed();
-  if (opt_speed.has_value()) {
-    int fan_speed = *opt_speed;
-    speed = this->fan_speed_to_device_(fan_speed);
-    this->speed = fan_speed;
-
-    if (preset == OPER_SENSOR_OR_AUTO && auto_mode) {
-      auto_mode = false;
-      this->set_preset_mode_(PRESET_SENSOR);
-    }
-  }
-
-  if (preset != OPER_SENSOR_OR_AUTO) {
-    auto_mode = false;
-  }
-
-  if (preset == OPER_SENSOR_OR_AUTO && !auto_mode && speed == 0) {
-    uint8_t fallback_speed = this->parent_->get_actual_speed();
-    if (fallback_speed == 0) {
-      fallback_speed = this->parent_->get_desired_speed();
-    }
-    if (fallback_speed == 0) {
-      fallback_speed = SPEED_VEL1;
-    }
-    speed = fallback_speed;
-    this->speed = this->device_speed_to_fan_(speed);
-  }
-
-  this->state = (preset != OPER_OFF);
-  this->parent_->send_operation_command(preset, speed, auto_mode);
   this->publish_state();
 }
 
 void Ecocomfort2Fan::on_status() {
-  if (!this->parent_->has_oper_data()) {
+  uint8_t mode = this->parent_->get_mode();
+  uint8_t raw_speed = this->parent_->get_speed();
+
+  // Off keeps the preset and speed so turning on resumes them
+  if (mode == OPER_OFF) {
+    if (!this->state)
+      return;
+    this->state = false;
+    this->publish_state();
     return;
   }
 
-  uint8_t mode = this->parent_->get_actual_mode();
-  uint8_t actual_speed = this->parent_->get_actual_speed();
-  bool boost = this->parent_->get_boost_active();
-
-  bool new_state = (mode != OPER_OFF);
-  int new_speed = new_state ? this->device_speed_to_fan_(actual_speed) : 0;
-  if (new_state && boost) {
-    new_speed = 4;  // Vel3
+  int new_speed = this->speed;
+  uint8_t base_speed = raw_speed & SPEED_MASK;
+  if (raw_speed & FLAG_BOOST) {
+    new_speed = SPEED_COUNT;
+  } else if (raw_speed & FLAG_NIGHT) {
+    new_speed = SPEED_SLEEP;
+  } else if (base_speed >= SPEED_SLEEP && base_speed <= SPEED_VEL3) {
+    new_speed = base_speed;
   }
+  const Preset *preset = find_preset(mode, (raw_speed & FLAG_AUTO) != 0);
+  const char *new_preset = preset != nullptr ? preset->name : nullptr;
+  bool same_preset = new_preset == nullptr ? !this->has_preset_mode() : this->get_preset_mode().c_str() == new_preset;
+  if (this->state && this->speed == new_speed && same_preset)
+    return;
 
-  // Determine preset from readback using auto_active_ flag
-  bool auto_active = this->parent_->get_auto_active();
-  const char *new_preset = this->mode_to_preset_name_(mode, auto_active);
-
-  // Use skip-send guard to prevent feedback loop
-  this->parent_->skip_send_ = true;
-  this->state = new_state;
+  this->state = true;
   this->speed = new_speed;
   if (new_preset != nullptr) {
     this->set_preset_mode_(new_preset);
@@ -131,78 +139,8 @@ void Ecocomfort2Fan::on_status() {
     this->clear_preset_mode_();
   }
   this->publish_state();
-  this->parent_->skip_send_ = false;
 }
 
-void Ecocomfort2Fan::on_connect(bool connected) { (void) connected; }
+}  // namespace esphome::ecocomfort2
 
-uint8_t Ecocomfort2Fan::preset_name_to_mode_(const char *preset) const {
-  if (preset == nullptr) {
-    return OPER_IN_OUT;
-  }
-  if (std::strcmp(preset, PRESET_IN) == 0)
-    return OPER_IN;
-  if (std::strcmp(preset, PRESET_OUT) == 0)
-    return OPER_OUT;
-  if (std::strcmp(preset, PRESET_IN_OUT) == 0)
-    return OPER_IN_OUT;
-  if (std::strcmp(preset, PRESET_SENSOR) == 0)
-    return OPER_SENSOR_OR_AUTO;
-  if (std::strcmp(preset, PRESET_AUTO) == 0)
-    return OPER_SENSOR_OR_AUTO;
-  return OPER_IN_OUT;
-}
-
-const char *Ecocomfort2Fan::mode_to_preset_name_(uint8_t mode, bool auto_active) const {
-  switch (mode) {
-    case OPER_OFF:
-      return nullptr;
-    case OPER_IN:
-      return PRESET_IN;
-    case OPER_OUT:
-      return PRESET_OUT;
-    case OPER_IN_OUT:
-      return PRESET_IN_OUT;
-    case OPER_SENSOR_OR_AUTO:
-      return auto_active ? PRESET_AUTO : PRESET_SENSOR;
-    default:
-      return PRESET_IN_OUT;
-  }
-}
-
-uint8_t Ecocomfort2Fan::fan_speed_to_device_(int speed) const {
-  switch (speed) {
-    case 1:
-      return SPEED_SLEEP;
-    case 2:
-      return SPEED_VEL1;
-    case 3:
-      return SPEED_VEL2;
-    case 4:
-      return SPEED_VEL3;
-    default:
-      return SPEED_VEL1;
-  }
-}
-
-int Ecocomfort2Fan::device_speed_to_fan_(uint8_t speed) const {
-  switch (speed) {
-    case SPEED_OFF:
-      return 0;
-    case SPEED_SLEEP:
-      return 1;
-    case SPEED_VEL1:
-      return 2;
-    case SPEED_VEL2:
-      return 3;
-    case SPEED_VEL3:
-      return 4;
-    default:
-      return 0;
-  }
-}
-
-}  // namespace ecocomfort2
-}  // namespace esphome
-
-#endif
+#endif  // USE_ESP32

@@ -4,14 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ms8607 {
+namespace esphome::ms8607 {
 
 /**
  Class for I2CDevice used to communicate with the Humidity sensor
  on the chip. See MS8607Component instead
  */
-class MS8607HumidityDevice : public i2c::I2CDevice {
+class MS8607HumidityDevice final : public i2c::I2CDevice {
  public:
   uint8_t get_address() { return address_; }
 };
@@ -31,9 +30,9 @@ class MS8607HumidityDevice : public i2c::I2CDevice {
  - https://github.com/adafruit/Adafruit_MS8607
  - https://github.com/sparkfun/SparkFun_PHT_MS8607_Arduino_Library
  */
-class MS8607Component : public PollingComponent, public i2c::I2CDevice {
+class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
  public:
-  virtual ~MS8607Component() = default;
+  ~MS8607Component() = default;
   void setup() override;
   void update() override;
   void dump_config() override;
@@ -108,5 +107,4 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t reset_attempts_remaining_{0};
 };
 
-}  // namespace ms8607
-}  // namespace esphome
+}  // namespace esphome::ms8607

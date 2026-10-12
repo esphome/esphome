@@ -40,6 +40,9 @@ template<typename K, typename V> class Mapping {
     if (it != this->map_.end()) {
       return V{it->second};
     }
+    if (this->default_value_.has_value()) {
+      return this->default_value_.value();
+    }
     if constexpr (std::is_pointer_v<K>) {
       esph_log_e(TAG, "Key '%p' not found in mapping", key);
     } else if constexpr (std::is_same_v<K, std::string>) {
@@ -69,11 +72,17 @@ template<typename K, typename V> class Mapping {
     if (it != this->map_.end()) {
       return it->second.c_str();  // safe since value remains in map
     }
+    if (this->default_value_.has_value()) {
+      return this->default_value_.value();
+    }
     return "";
   }
 
+  void set_default_value(const V &default_value) { this->default_value_ = default_value; }
+
  protected:
   std::map<key_t, value_t, std::less<key_t>, RAMAllocator<std::pair<key_t, value_t>>> map_;
+  std::optional<V> default_value_{};
 };
 
 }  // namespace esphome::mapping

@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 class NdefRecordText : public NdefRecord {
  public:
@@ -39,5 +38,4 @@ class NdefRecordText : public NdefRecord {
   std::string language_code_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

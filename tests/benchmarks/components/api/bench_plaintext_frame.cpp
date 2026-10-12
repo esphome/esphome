@@ -33,7 +33,7 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
   // Pre-init buffer to typical TCP MSS size to avoid benchmarking
   // heap allocation — in real use the buffer is reused across writes.
   APIBuffer buffer;
-  buffer.reserve(1460);
+  (void) buffer.reserve(1460);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -44,7 +44,7 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
       msg.missing_state = false;
 
       uint32_t size = msg.calculate_size();
-      buffer.resize(padding + size);
+      (void) buffer.resize(padding + size);
       ProtoWriteBuffer writer(&buffer, padding);
       msg.encode(writer);
 
@@ -70,12 +70,12 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
   // Pre-init buffer to typical TCP MSS size to avoid benchmarking
   // heap allocation — in real use the buffer is reused across writes.
   APIBuffer buffer;
-  buffer.reserve(1460);
+  (void) buffer.reserve(1460);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       buffer.clear();
-      MessageInfo messages[5] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+      MessageInfo messages[5] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
 
       for (int j = 0; j < 5; j++) {
         uint16_t offset = buffer.size();
@@ -85,11 +85,11 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
         msg.missing_state = false;
 
         uint32_t size = msg.calculate_size();
-        buffer.resize(offset + padding + size + footer);
+        (void) buffer.resize(offset + padding + size + footer);
         ProtoWriteBuffer writer(&buffer, offset + padding);
         msg.encode(writer);
 
-        messages[j] = MessageInfo(SensorStateResponse::MESSAGE_TYPE, offset, size);
+        messages[j] = MessageInfo(SensorStateResponse::MESSAGE_TYPE, offset, size, padding);
       }
 
       helper->write_protobuf_messages(ProtoWriteBuffer(&buffer, 0), std::span<const MessageInfo>(messages, 5));

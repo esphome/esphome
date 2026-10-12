@@ -1,23 +1,20 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
+
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace ecocomfort2 {
+namespace esphome::ecocomfort2 {
 
-// Forward declare hub
 class Ecocomfort2Hub;
 
 class Ecocomfort2Client : public Parented<Ecocomfort2Hub> {
  public:
+  /// Called after each successful C_OPER readback.
   virtual void on_status() = 0;
-  virtual void on_config() = 0;
-  virtual void on_connect(bool connected) = 0;
-
- protected:
-  friend Ecocomfort2Hub;
-  virtual const char *describe() const = 0;
 };
 
-}  // namespace ecocomfort2
-}  // namespace esphome
+}  // namespace esphome::ecocomfort2
+
+#endif  // USE_ESP32

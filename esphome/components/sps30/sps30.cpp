@@ -4,10 +4,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace sps30 {
+namespace esphome::sps30 {
 
-static const char *const TAG = "sps30";
+ESPHOME_LOG_TAG(TAG, "sps30");
 
 static const uint16_t SPS30_CMD_GET_ARTICLE_CODE = 0xD025;
 static const uint16_t SPS30_CMD_GET_SERIAL_NUMBER = 0xD033;
@@ -291,5 +290,4 @@ bool SPS30Component::start_fan_cleaning() {
   return true;
 }
 
-}  // namespace sps30
-}  // namespace esphome
+}  // namespace esphome::sps30

@@ -3,10 +3,9 @@
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace spi_device {
+namespace esphome::spi_device {
 
-static const char *const TAG = "spi_device";
+ESPHOME_LOG_TAG(TAG, "spi_device");
 
 void SPIDeviceComponent::setup() { this->spi_setup(); }
 
@@ -23,5 +22,4 @@ void SPIDeviceComponent::dump_config() {
   }
 }
 
-}  // namespace spi_device
-}  // namespace esphome
+}  // namespace esphome::spi_device

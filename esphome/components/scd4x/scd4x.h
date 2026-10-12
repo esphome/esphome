@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace scd4x {
+namespace esphome::scd4x {
 
 enum ErrorCode : uint8_t {
   COMMUNICATION_FAILED,
@@ -23,7 +22,7 @@ enum MeasurementMode : uint8_t {
   SINGLE_SHOT_RHT_ONLY,
 };
 
-class SCD4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SCD4XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -59,5 +58,4 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
   MeasurementMode measurement_mode_{PERIODIC};
 };
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

@@ -26,6 +26,7 @@ async def test_runtime_stats(
 
     # Track component stats
     component_stats_found = set()
+    main_loop_lines: list[dict[str, str]] = []
 
     # Patterns to match - need to handle ANSI color codes and timestamps
     # The log format is: [HH:MM:SS][color codes][I][tag]: message
@@ -33,6 +34,14 @@ async def test_runtime_stats(
     # Match component names that may include dots (e.g., template.sensor)
     component_pattern = re.compile(
         r"^\[[^\]]+\].*?\s+([\w.]+):\s+count=(\d+),\s+avg=([\d.]+)ms"
+    )
+    # Main loop overhead line emitted by runtime_stats
+    main_loop_pattern = re.compile(
+        r"main_loop:\s+iters=(?P<iters>\d+),\s+"
+        r"active_avg=(?P<active_avg>[\d.]+)ms,\s+"
+        r"active_max=(?P<active_max>[\d.]+)ms,\s+"
+        r"active_total=(?P<active_total>[\d.]+)ms,\s+"
+        r"overhead_total=(?P<overhead_total>[\d.]+)ms"
     )
 
     def check_output(line: str) -> None:
@@ -53,6 +62,11 @@ async def test_runtime_stats(
         if match:
             component_name = match.group(1)
             component_stats_found.add(component_name)
+
+        # Check for main_loop overhead line
+        ml_match = main_loop_pattern.search(line)
+        if ml_match:
+            main_loop_lines.append(ml_match.groupdict())
 
     async with (
         run_compiled(yaml_config, line_callback=check_output),
@@ -86,3 +100,22 @@ async def test_runtime_stats(
         assert "template.switch" in component_stats_found, (
             f"Expected template.switch stats, found: {component_stats_found}"
         )
+
+        # Verify the main_loop overhead line is emitted (at least once for
+        # the period section and once for the total section, per log cycle).
+        assert len(main_loop_lines) >= 2, (
+            f"Expected at least 2 main_loop lines, got {len(main_loop_lines)}"
+        )
+        for fields in main_loop_lines:
+            assert int(fields["iters"]) > 0, f"iters should be > 0: {fields}"
+            assert float(fields["active_total"]) > 0.0, (
+                f"active_total should be > 0: {fields}"
+            )
+            assert float(fields["active_avg"]) >= 0.0, (
+                f"active_avg should be >= 0: {fields}"
+            )
+            # overhead_total is derived and may be 0 if components dominate,
+            # but the field must still be present and parseable as a float.
+            assert float(fields["overhead_total"]) >= 0.0, (
+                f"overhead_total should be >= 0: {fields}"
+            )

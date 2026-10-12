@@ -2,10 +2,11 @@
 #include "ufire_ec.h"
 #include <cmath>
 
-namespace esphome {
-namespace ufire_ec {
+namespace esphome::ufire_ec {
 
-static const char *const TAG = "ufire_ec";
+ESPHOME_LOG_TAG(TAG, "ufire_ec");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 void UFireECComponent::setup() {
   uint8_t version;
@@ -46,7 +47,7 @@ void UFireECComponent::update() {
   }
 
   if (wait > 0) {
-    this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+    this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
   }
 }
 
@@ -122,5 +123,4 @@ void UFireECComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
 }
 
-}  // namespace ufire_ec
-}  // namespace esphome
+}  // namespace esphome::ufire_ec

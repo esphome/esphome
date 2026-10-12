@@ -146,11 +146,11 @@ async def water_heater_template_publish_to_code(
     await cg.register_parented(var, config[CONF_ID])
 
     if current_temp := config.get(CONF_CURRENT_TEMPERATURE):
-        template_ = await cg.templatable(current_temp, args, float)
+        template_ = await cg.templatable(current_temp, args, cg.float_)
         cg.add(var.set_current_temperature(template_))
 
     if target_temp := config.get(CONF_TARGET_TEMPERATURE):
-        template_ = await cg.templatable(target_temp, args, float)
+        template_ = await cg.templatable(target_temp, args, cg.float_)
         cg.add(var.set_target_temperature(template_))
 
     if mode := config.get(CONF_MODE):
@@ -158,11 +158,11 @@ async def water_heater_template_publish_to_code(
         cg.add(var.set_mode(template_))
 
     if CONF_AWAY in config:
-        template_ = await cg.templatable(config[CONF_AWAY], args, bool)
+        template_ = await cg.templatable(config[CONF_AWAY], args, cg.bool_)
         cg.add(var.set_away(template_))
 
     if CONF_IS_ON in config:
-        template_ = await cg.templatable(config[CONF_IS_ON], args, bool)
+        template_ = await cg.templatable(config[CONF_IS_ON], args, cg.bool_)
         cg.add(var.set_is_on(template_))
 
     return var
