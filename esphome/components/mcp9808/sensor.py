@@ -8,7 +8,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@k7hpn"]
+CODEOWNERS = []
 DEPENDENCIES = ["i2c"]
 
 mcp9808_ns = cg.esphome_ns.namespace("mcp9808")
