@@ -1,0 +1,8 @@
+# Waveform commands from a lambda with no waveform sensor configured, so
+# USE_NEXTION_WAVEFORM is not defined.
+display:
+  - platform: nextion
+    id: main_lcd
+    lambda: |-
+      id(main_lcd).open_waveform_channel(37, 0, 10);
+      id(main_lcd).add_waveform_data(37, 0, 42);

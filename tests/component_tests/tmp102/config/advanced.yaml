@@ -1,0 +1,23 @@
+---
+esphome:
+  name: tmp102-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+sensor:
+  - platform: tmp102
+    id: chip
+    name: Temperature
+    extended_mode: false
+    conversion_rate: 1Hz
+    one_shot_mode: false
+    alert_polarity: active_high
+    thermostat_mode: interrupt
+    fault_queue: 2
+    temperature_high: 30
+    temperature_low: 25

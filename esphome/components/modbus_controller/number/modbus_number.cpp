@@ -4,7 +4,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus.number";
+ESPHOME_LOG_TAG(TAG, "modbus.number");
 
 // Maximum uint16_t registers to log in verbose hex output
 static constexpr size_t MODBUS_NUMBER_MAX_LOG_REGISTERS = 32;
@@ -23,7 +23,6 @@ void ModbusNumber::parse_and_publish(std::span<const uint8_t> data) {
     }
   }
   ESP_LOGD(TAG, "Number new state : %.02f", result);
-  // this->sensor_->raw_state = result;
   this->publish_state(result);
 }
 

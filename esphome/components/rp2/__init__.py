@@ -57,6 +57,7 @@ from .gpio import rp2_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "rp2"
 IS_TARGET_PLATFORM = True
 
 # Legacy top-level YAML keys that route here. The framework
@@ -197,20 +198,21 @@ def _parse_platform_version(value: Any) -> str:
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 1, 1)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
-# develop-branch commit carrying the arduino-pico 6.0.0 / pico-quick-toolchain
-# 5.0.0 (GCC 16.1) update; replace with a release tag when one is cut
-RECOMMENDED_ARDUINO_PLATFORM_VERSION = "9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0"
+# develop-branch commit carrying the arduino-pico 6.1.0 update; it predates
+# 6.1.1, so the boards that release adds have no board JSON on it yet; replace
+# with a release tag when one is cut
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "5d4561a05e3b212660ac6fdd3fbfb328d1988aa1"
 
 
 def _arduino_check_versions(value: ConfigType) -> ConfigType:
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(6, 0, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(6, 0, 0), None),
+        "dev": (cv.Version(6, 1, 1), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(6, 1, 1), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 

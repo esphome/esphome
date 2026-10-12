@@ -1,0 +1,13 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+  encryption:
+    key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+
+ota:
+  - platform: esphome
+    password: "superlongpasswordthatnoonewillknow"
+    encryption:
+      allow_plaintext_upload: true

@@ -5,7 +5,7 @@
 
 namespace esphome::pca9685 {
 
-static const char *const TAG = "pca9685";
+ESPHOME_LOG_TAG(TAG, "pca9685");
 
 // PCA9685 mode constants are now inline constexpr in pca9685_output.h
 

@@ -378,23 +378,6 @@ class MQTTDisconnectTrigger final : public Trigger<MQTTClientDisconnectReason> {
   }
 };
 
-template<typename... Ts> class MQTTPublishAction final : public Action<Ts...> {
- public:
-  MQTTPublishAction(MQTTClientComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, topic)
-  TEMPLATABLE_VALUE(std::string, payload)
-  TEMPLATABLE_VALUE(uint8_t, qos)
-  TEMPLATABLE_VALUE(bool, retain)
-
-  void play(const Ts &...x) override {
-    this->parent_->publish(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
-                           this->retain_.value(x...));
-  }
-
- protected:
-  MQTTClientComponent *parent_;
-};
-
 template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...> {
  public:
   MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
@@ -414,35 +397,6 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
 
  protected:
   std::function<void(Ts..., JsonObject)> payload_;
-  MQTTClientComponent *parent_;
-};
-
-template<typename... Ts> class MQTTConnectedCondition final : public Condition<Ts...> {
- public:
-  MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
-  bool check(const Ts &...x) override { return this->parent_->is_connected(); }
-
- protected:
-  MQTTClientComponent *parent_;
-};
-
-template<typename... Ts> class MQTTEnableAction final : public Action<Ts...> {
- public:
-  MQTTEnableAction(MQTTClientComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->enable(); }
-
- protected:
-  MQTTClientComponent *parent_;
-};
-
-template<typename... Ts> class MQTTDisableAction final : public Action<Ts...> {
- public:
-  MQTTDisableAction(MQTTClientComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->disable(); }
-
- protected:
   MQTTClientComponent *parent_;
 };
 
