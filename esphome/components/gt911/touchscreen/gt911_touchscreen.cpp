@@ -6,7 +6,7 @@
 
 namespace esphome::gt911 {
 
-static const char *const TAG = "gt911.touchscreen";
+ESPHOME_LOG_TAG(TAG, "gt911.touchscreen");
 
 static const uint8_t PRIMARY_ADDRESS = 0x5D;    // default I2C address for GT911
 static const uint8_t SECONDARY_ADDRESS = 0x14;  // secondary I2C address for GT911

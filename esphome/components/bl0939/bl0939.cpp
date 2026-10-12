@@ -4,7 +4,7 @@
 
 namespace esphome::bl0939 {
 
-static const char *const TAG = "bl0939";
+ESPHOME_LOG_TAG(TAG, "bl0939");
 
 // https://www.belling.com.cn/media/file_object/bel_product/BL0939/datasheet/BL0939_V1.2_cn.pdf
 // (unfortunately chinese, but the protocol can be understood with some translation tool)
@@ -51,12 +51,8 @@ void BL0939::loop() {
 }
 
 bool BL0939::validate_checksum(const DataPacket *data) {
-  uint8_t checksum = BL0939_READ_COMMAND;
   // Whole package but checksum
-  for (uint32_t i = 0; i < sizeof(data->raw) - 1; i++) {
-    checksum += data->raw[i];
-  }
-  checksum ^= 0xFF;
+  const uint8_t checksum = sum_bytes(data->raw, sizeof(data->raw) - 1, BL0939_READ_COMMAND) ^ 0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "BL0939 invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }

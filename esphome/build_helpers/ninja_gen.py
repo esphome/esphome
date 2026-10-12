@@ -13,12 +13,23 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
+from esphome.build_helpers.idedata import is_joined_include
 from esphome.build_helpers.ninja import (
     escape as _e,
     quote_path as _q,
     shell_token as _shell_token,
 )
+from esphome.build_helpers.pch import (
+    PCH_GCH_NAME,
+    PCH_SUM_NAME,
+    log_pch_in_use,
+    pch_consumer_flags,
+    pch_identity,
+    pch_usable,
+    write_pch_headers,
+)
 from esphome.framework_helpers import strip_win_long_path_prefix
+from esphome.helpers import write_file_if_changed
 from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX
 
 if TYPE_CHECKING:
@@ -63,35 +74,100 @@ def tool_lines(
         # path gets
         f"python = {_q(strip_win_long_path_prefix(sys.executable))}",
         f"buildtool = {_q(_BUILD_TOOL)}",
-        f"ccache = {_q(ccache) if ccache else ''}",
+        *([f"ccache = {_q(ccache)}"] if ccache else []),
         "",
     ]
 
 
-def compile_rule_lines() -> list[str]:
-    """The compile rules; ``$own_includes`` is empty unless an edge sets it."""
+def compile_rule_lines(ccache: str | None) -> list[str]:
+    """The compile rules; ``$own_includes`` is empty unless an edge sets it.
+
+    ``ccache`` is the launcher ``tool_lines`` was given; the same test here
+    keeps the variable and the rules in step. It is spliced in rather than
+    left as an empty variable: a leading space on the command line makes
+    CreateProcess fail on Windows.
+    """
+    launcher = "$ccache " if ccache else ""
     return [
         "rule c",
-        "  command = $ccache $cc -MMD -MF $out.d $own_includes $cflags $flags -c $in -o $out",
+        f"  command = {launcher}$cc -MMD -MF $out.d $own_includes $cflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CC $out",
         "rule cxx",
-        "  command = $ccache $cxx -MMD -MF $out.d $own_includes $cxxflags $flags -c $in -o $out",
+        f"  command = {launcher}$cxx -MMD -MF $out.d $own_includes $cxxflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CXX $out",
         "rule aspp",
-        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $own_includes $asflags $flags -c $in -o $out",
+        f"  command = {launcher}$cc -MMD -MF $out.d -x assembler-with-cpp $own_includes $asflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = AS $out",
         # Plain assembler, as SCons's ASCOM: no preprocessor, so no
         # depfile and no $flags (defines/includes) either
         "rule asm",
-        "  command = $ccache $cc -x assembler $asflags -c $in -o $out",
+        f"  command = {launcher}$cc -x assembler $asflags -c $in -o $out",
         "  description = AS $out",
     ]
+
+
+def pch_rule_lines() -> list[str]:
+    """The precompiled header rule, for a generator that emits one."""
+    return [
+        # No $ccache: the .gch embeds build dir paths
+        "rule pch",
+        "  command = $cxx -MMD -MF $out.d -x c++-header $cxxflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = PCH $out",
+    ]
+
+
+def pch_edges(
+    lines: list[str],
+    build_dir: Path,
+    src_dir: Path,
+    headers: Sequence[str],
+    cxxflags: Sequence[str],
+    src_flags: Sequence[str],
+    identity: Sequence[str],
+    cxx: Sequence[Path | str],
+) -> tuple[str, str] | None:
+    """Emit the precompiled header for the C++ src edges.
+
+    ``headers`` are folded into one prefix header, ``src_flags`` are the
+    flags every src edge carries, ``identity`` names what else the compile
+    depends on, the compiler included, and ``cxx`` is what the host rule
+    asks. Returns the ``cxx_override`` for ``compile_edges``, or None
+    without a pch.
+    """
+    if not pch_usable(cxx):
+        return None
+    if any(
+        tok == "-include" or tok.startswith("--include") or is_joined_include(tok)
+        for tok in cxxflags
+    ):
+        # $cxxflags expands first and GCC only loads a .gch for the first
+        # -include
+        _LOGGER.warning(
+            "A -include in the compiler flags prevents the precompiled header from "
+            "loading; compiling without it"
+        )
+        return None
+    log_pch_in_use()
+    source = write_pch_headers(build_dir, headers)
+    write_file_if_changed(
+        build_dir / PCH_SUM_NAME,
+        pch_identity([*cxxflags, *src_flags], src_dir, tuple(headers), identity) + "\n",
+    )
+    gch = _e(PCH_GCH_NAME)
+    # The checksum file changes with anything the .gch depends on
+    lines.append(f"build {gch}: pch {_e(source)} | {_e(PCH_SUM_NAME)}")
+    if src_flags:
+        lines.append(f"  flags = {' '.join(src_flags)}")
+    lines.append(f"srccxxflags = {' '.join([*src_flags, *pch_consumer_flags()])}")
+    return ("$srccxxflags", gch)
 
 
 def ar_rule_lines(ar: Path | str) -> list[str]:
@@ -111,20 +187,26 @@ def compile_edges(
     group: str,
     flags: str = "",
     own_includes: str = "",
+    cxx_override: tuple[str, str] | None = None,
 ) -> list[str]:
-    """Emit compile edges for ``sources``; return the object paths."""
+    """Emit compile edges for ``sources``; return the object paths.
+
+    ``cxx_override`` is a (flags, implicit-dep) pair applied to C++ edges
+    only, replacing ``flags`` (used for the precompiled header).
+    """
     objects = []
     for src in sources:
         rel = src.relative_to(root).as_posix()
         obj = f"obj/{group}/{rel}.o"
         escaped_obj = _e(obj)
-        lines.append(
-            f"build {escaped_obj}: {SOURCE_KIND_FOR_SUFFIX[src.suffix]} {_e(src)}"
-        )
+        kind = SOURCE_KIND_FOR_SUFFIX[src.suffix]
+        override = cxx_override if kind == "cxx" else None
+        implicit = f" | {override[1]}" if override else ""
+        lines.append(f"build {escaped_obj}: {kind} {_e(src)}{implicit}")
         if own_includes:
             lines.append(f"  own_includes = {own_includes}")
-        if flags:
-            lines.append(f"  flags = {flags}")
+        if edge_flags := override[0] if override else flags:
+            lines.append(f"  flags = {edge_flags}")
         # Escaped once here: the returned paths only ever appear in build
         # statements (archive/link inputs), which use ninja escaping
         objects.append(escaped_obj)
@@ -132,9 +214,11 @@ def compile_edges(
 
 
 def library_edges(
-    lines: list[str], libraries: list[ArduinoLibrary]
+    lines: list[str], libraries: list[ArduinoLibrary], extra_flags: str = ""
 ) -> tuple[list[str], list[str]]:
     """Emit every library's compile and archive edges.
+
+    ``extra_flags`` (raw ninja text) precede each library's own flags.
 
     Returns the archive names and the objects that link directly. A
     library's own include dirs lead its compile lines, as PlatformIO searched
@@ -157,7 +241,7 @@ def library_edges(
             lib.sources,
             common_parent(lib.sources),
             f"lib/{lib.name}",
-            flags=" ".join(_shell_token(f) for f in lib.flags),
+            flags=" ".join(filter(None, [extra_flags, *map(_shell_token, lib.flags)])),
             own_includes=" ".join(f"-I{_q(d)}" for d in lib.include_dirs),
         )
         if not lib.lib_archive:

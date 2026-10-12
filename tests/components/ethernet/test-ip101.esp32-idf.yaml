@@ -1,1 +1,6 @@
-<<: !include common-ip101.yaml
+packages:
+  ethernet: !include common-ip101.yaml
+
+# IPv6 on the internal EMAC: compiles the IPv6 event handler and multicast filter
+network:
+  enable_ipv6: true

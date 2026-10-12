@@ -31,7 +31,7 @@ The CI workflow uses this information to:
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
-- Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
+- Skip or run pylint
 - Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
@@ -98,10 +98,6 @@ from split_components_for_ci import create_intelligent_batches
 # For small PRs (< 65 files), use nosplit for faster CI
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
-
-# Component test batch size (weighted)
-# Isolated components count as 10x, groupable components count as 1x
-COMPONENT_TEST_BATCH_SIZE = 40
 
 # Above the threshold, fan out across up to this many jobs, balanced by the
 # recorded per-file durations. The target is serial junit-time weight per
@@ -407,21 +403,33 @@ def should_run_clang_format(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)
 
 
+# Linter pins, dependencies and linter config can change findings without a .py change.
+PYTHON_LINTERS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "pyproject.toml",
+    }
+)
+
+
 def should_run_python_linters(branch: str | None = None) -> bool:
-    """Determine if Python linters (ruff, flake8, pylint, pyupgrade) should run based on changed files.
+    """Determine if the pylint job should run based on changed files.
 
-    This function is used by the CI workflow to skip Python linting checks when no Python files
-    have changed, saving CI time and resources.
-
-    Python linters will run when any Python source files have changed.
+    The CI workflow skips pylint unless a Python file or a file in
+    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff, flake8 and pyupgrade run in
+    lint-format, which this flag does not gate.
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if Python linters should run, False otherwise.
+        True if pylint should run, False otherwise.
     """
-    return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
+    return any(
+        file.endswith(PYTHON_FILE_EXTENSIONS) or file in PYTHON_LINTERS_TRIGGER_FILES
+        for file in changed_files(branch)
+    )
 
 
 # Files outside esphome/**/*.py whose changes can affect `import esphome.__main__`
@@ -546,10 +554,6 @@ ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
     *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
 )
 
-# Standalone files that, when changed, trigger the PlatformIO compile test:
-#   - esphome/build_gen/platformio.py -- the PlatformIO build generator
-#   - script/test_build_components.py -- the harness the job invokes
-#   - .github/workflows/ci.yml -- the job's own definition
 # Shared by every toolchain smoke-test job: the harness it invokes and the
 # workflow that defines it
 _SMOKE_HARNESS_TRIGGER_FILES = frozenset(
@@ -559,8 +563,14 @@ _SMOKE_HARNESS_TRIGGER_FILES = frozenset(
     }
 )
 
+# Standalone files that, when changed, trigger the PlatformIO compile test
 ESP32_PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
+    # The PlatformIO build generator
     "esphome/build_gen/platformio.py",
+    # Decides which platforms take the pch script in esphome/platformio/,
+    # and the module that parses its switch and the ccache settings
+    "esphome/build_helpers/pch.py",
+    "esphome/build_helpers/ccache.py",
 }
 
 
@@ -590,10 +600,17 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     )
 
 
+# Checks the native ESP-IDF build in CI but does not shape it, so it is kept
+# out of ESP_IDF_INFRA_TRIGGER_FILES (hashed into the clang-tidy cache key).
+_ESP_IDF_CHECK_TRIGGER_FILES = frozenset({"script/check_idf_py_equivalence.py"})
+
+
 def _esp_idf_infra_changed(files: list[str]) -> bool:
     """Whether any changed file is ESP-IDF build/runner infrastructure."""
     return _path_or_file_trigger(
-        files, ESP_IDF_INFRA_TRIGGER_FILES, ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
+        files,
+        ESP_IDF_INFRA_TRIGGER_FILES | _ESP_IDF_CHECK_TRIGGER_FILES,
+        ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
     )
 
 
@@ -1525,25 +1542,39 @@ def main() -> None:
         batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
-            batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=batch_directly_changed,
         )
         # Convert batches to CI matrix entries: the component list plus which
         # native toolchain installs the batch's test platforms need, so the
         # workflow only restores the matching multi-GB toolchain caches.
+        # The idf.py check does not depend on the components, so it runs once
+        # per workflow, in the first batch that compiles an esp32 test (a
+        # validate-only component is never compiled).
+        idf_py_check_assigned = False
+        skip_compile = set(validate_only_components)
         for batch in batches:
             platforms: set[str] = set()
+            compiled_platforms: set[str] = set()
             for component in batch:
                 # Variants included: the compile stage builds them, so a
                 # component tested only by test-<variant>.<platform>.yaml
                 # still needs that platform's toolchain
-                platforms.update(
-                    get_component_test_platforms(component, base_only=False)
+                component_platforms = get_component_test_platforms(
+                    component, base_only=False
                 )
+                platforms.update(component_platforms)
+                if component not in skip_compile:
+                    compiled_platforms.update(component_platforms)
+            needs_idf = any(p.startswith("esp32") for p in platforms)
+            check_idf_py = not idf_py_check_assigned and any(
+                p.startswith("esp32") for p in compiled_platforms
+            )
+            idf_py_check_assigned |= check_idf_py
             component_test_batches.append(
                 {
                     "components": " ".join(batch),
-                    "needs_idf": any(p.startswith("esp32") for p in platforms),
+                    "needs_idf": needs_idf,
+                    "check_idf_py": check_idf_py,
                     "needs_nrf": any(p.startswith("nrf52") for p in platforms),
                     "needs_arduino8266": any(
                         p.startswith("esp8266") for p in platforms

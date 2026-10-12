@@ -12,7 +12,7 @@
 
 namespace esphome::esp32 {
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 struct NVSData {
   uint32_t key;

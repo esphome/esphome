@@ -67,21 +67,11 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_E25 in config:
-        sens = await sensor.new_sensor(config[CONF_E25])
-        cg.add(var.set_e25_sensor(sens))
-
-    if CONF_EC in config:
-        sens = await sensor.new_sensor(config[CONF_EC])
-        cg.add(var.set_ec_sensor(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-
-    if CONF_VWC in config:
-        sens = await sensor.new_sensor(config[CONF_VWC])
-        cg.add(var.set_vwc_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_E25, var.set_e25_sensor)
+    await sensors(CONF_EC, var.set_ec_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_VWC, var.set_vwc_sensor)
 
 
 # Actions

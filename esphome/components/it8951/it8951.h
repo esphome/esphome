@@ -150,6 +150,7 @@ class IT8951Display : public Display,
   void loop() override;
   void dump_config() override;
   void on_safe_shutdown() override;
+  void on_powerdown() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   // --- Config setters (called from generated code) ---

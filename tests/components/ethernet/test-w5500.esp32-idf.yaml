@@ -1,20 +1,47 @@
+# W5500 on a shared SPI bus, started from an automation instead of on boot.
+# Covers the spi_id attach path and the enable/disable lifecycle in one build.
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
 ethernet:
+  id: eth
   type: W5500
-  clk_pin: 19
-  mosi_pin: 21
-  miso_pin: 23
-  cs_pin: 18
+  spi_id: spi_bus
+  cs_pin: 5
   interrupt_pin: 36
   reset_pin: 22
   clock_speed: 10Mhz
+  enable_on_boot: false
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
   mac_address: "02:AA:BB:CC:DD:01"
-  interface: spi2
   on_connect:
     - logger.log: "Ethernet connected!"
   on_disconnect:
     - logger.log: "Ethernet disconnected!"
+
+esphome:
+  on_boot:
+    priority: 200
+    then:
+      - if:
+          condition:
+            not:
+              ethernet.enabled:
+          then:
+            - ethernet.enable:
+
+button:
+  - platform: template
+    name: "Disable Ethernet"
+    on_press:
+      - ethernet.disable:
+
+binary_sensor:
+  - platform: template
+    name: "Ethernet Connected"
+    lambda: |-
+      return id(eth).is_connected();

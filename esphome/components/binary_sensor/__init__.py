@@ -106,6 +106,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "binary_sensor"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -606,7 +607,8 @@ async def setup_binary_sensor_core_(var, config):
     if filters_config := config.get(CONF_FILTERS):
         cg.add_define("USE_BINARY_SENSOR_FILTER")
         filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
-        cg.add(var.add_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_binary_sensor_automations, var, config)
 

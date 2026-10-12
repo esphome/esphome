@@ -5,7 +5,7 @@
 
 namespace esphome::pn7160 {
 
-static const char *const TAG = "pn7160";
+ESPHOME_LOG_TAG(TAG, "pn7160");
 
 void PN7160::setup() {
   if (this->dwl_req_pin_ != nullptr) {

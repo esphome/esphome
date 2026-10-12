@@ -2,13 +2,13 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import time as time_
+from esphome.components.time import DOMAIN as TIME_DOMAIN
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PLATFORM,
     CONF_SERVERS,
-    CONF_TIME,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -20,11 +20,12 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+from . import DOMAIN
+
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["network"]
 
-CONF_SNTP = "sntp"
 
 sntp_ns = cg.esphome_ns.namespace("sntp")
 SNTPComponent = sntp_ns.class_("SNTPComponent", time_.RealTimeClock)
@@ -35,13 +36,13 @@ DEFAULT_SERVERS = ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"]
 def _sntp_final_validate(config: ConfigType) -> None:
     """Merge multiple SNTP instances into one, similar to OTA merging behavior."""
     full_conf = fv.full_config.get()
-    time_confs = full_conf.get(CONF_TIME, [])
+    time_confs = full_conf.get(TIME_DOMAIN, [])
 
     sntp_configs: list[ConfigType] = []
     other_time_configs: list[ConfigType] = []
 
     for time_conf in time_confs:
-        if time_conf.get(CONF_PLATFORM) == CONF_SNTP:
+        if time_conf.get(CONF_PLATFORM) == DOMAIN:
             sntp_configs.append(time_conf)
         else:
             other_time_configs.append(time_conf)
@@ -81,7 +82,7 @@ def _sntp_final_validate(config: ConfigType) -> None:
 
     # Replace time configs with merged SNTP + other time platforms
     other_time_configs.append(merged)
-    full_conf[CONF_TIME] = other_time_configs
+    full_conf[TIME_DOMAIN] = other_time_configs
     fv.full_config.set(full_conf)
 
 
