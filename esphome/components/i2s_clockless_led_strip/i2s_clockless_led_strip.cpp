@@ -47,10 +47,10 @@ constexpr size_t I2S_BUFFER_SAMPLES = (num_i2s_samples_from_duration_us(I2S_BUFF
 constexpr uint32_t I2S_BUFFER_DURATION_US_ACTUAL = num_i2s_samples_to_duration_us(I2S_BUFFER_SAMPLES);
 
 I2SClocklessLedStrip::I2SClocklessLedStrip(uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors)
-    : pin_(pin),
-      num_leds_(num_leds),
+    : color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
       channel_colors_(channel_colors),
-      color_data_bytes_(num_leds * channel_colors_.bytes_per_led()) {}
+      num_leds_(num_leds),
+      pin_(pin) {}
 
 void I2SClocklessLedStrip::dump_config() {
   ESP_LOGCONFIG(TAG,

@@ -39,18 +39,16 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
   bool allocate_buffers_();
   light::ESPColorView get_view_internal(int32_t index) const override;
 
-  const uint8_t pin_;
-  const uint16_t num_leds_;
-  const light::ChannelColors channel_colors_;
   const size_t color_data_bytes_;
-
   uint8_t *effect_data_{nullptr};
   uint8_t *color_data_{nullptr};
   uint8_t *i2s_data_{nullptr};
-  std::atomic<bool> i2s_data_ready_{false};
   size_t i2s_data_sent_{0};
-
   i2s_chan_handle_t tx_handle_{};
+  const light::ChannelColors channel_colors_;
+  const uint16_t num_leds_;
+  const uint8_t pin_;
+  std::atomic<bool> i2s_data_ready_{false};
 };
 
 }  // namespace esphome::i2s_clockless_led_strip
