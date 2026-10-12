@@ -22,6 +22,8 @@ from ..const import (
     CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE,
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_MODE,
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_MANUAL_CHANGE_PRIORITY,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_PROGRAM_CHANGE_PRIORITY,
     CONF_OPENTHERM42_ID,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_DHW_SETPOINT,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_MAX_CHSETPOINT,
@@ -164,6 +166,19 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status (Standby/
     # Loading By Sun/Loading By Boiler/Anti-Legionella).
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS: text_sensor.text_sensor_schema(),
+    # §5.3.8.3 Class 8, ID 100 LB bit 0: Manual change priority [ disable overruling remote Setpoint
+    # by manual Setpoint change, enable overruling remote Setpoint by manual Setpoint change ] -- a
+    # small named enum, so a text_sensor showing the spec's own wording rather than a bare on/off,
+    # same reasoning as id=6/86's remote-parameter flags. A fixed installation-time behavior flag, not
+    # watched day-to-day, so DIAGNOSTIC.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_MANUAL_CHANGE_PRIORITY: (
+        text_sensor.text_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC)
+    ),
+    # §5.3.8.3 Class 8, ID 100 LB bit 1: Program change priority [ disable overruling remote Setpoint
+    # by program Setpoint change, enable overruling remote Setpoint by program Setpoint change ].
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_PROGRAM_CHANGE_PRIORITY: (
+        text_sensor.text_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC)
+    ),
     # §5.3.4 Class 4, IDs 20/21/22 (read side): the boiler's own reported Day-of-week/Time, Date and
     # Year, combined into one "<Weekday>, YYYY-MM-DD HH:MM"-formatted string -- each of the three
     # underlying conversations (id=20/21/22) can succeed or fail independently, so a field this
