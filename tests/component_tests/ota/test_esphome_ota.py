@@ -560,7 +560,7 @@ def test_encryption_offer_codegen(
     own_key = encrypted and "USE_OTA_ENCRYPTION_PROVISIONED" not in defines_present
     assert ("esphome_esphomeotacomponent_id->set_noise_psk(" in main_cpp) is own_key
     # The api shares the ota's array instead of emitting the same key twice
-    assert main_cpp.count("_psk[] PROGMEM") == (1 if own_key else 0)
+    assert main_cpp.count("noise_psk[] PROGMEM") == (1 if own_key else 0)
     assert ("set_auth_password(" in main_cpp) is ("USE_OTA_PASSWORD" in defines_present)
     # The noise transport source compiles only when the define is set
     assert FILTER_SOURCE_FILES() == ([] if encrypted else ["ota_esphome_noise.cpp"])

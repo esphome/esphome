@@ -3,7 +3,7 @@
 
 namespace esphome::number {
 
-static const char *const TAG = "number.sensor";
+ESPHOME_LOG_TAG(TAG, "number.sensor");
 
 void NumberSensor::setup() {
   this->source_->add_on_state_callback([this](float value) { this->publish_state(value); });

@@ -5,7 +5,7 @@
 
 namespace esphome::switch_ {
 
-static const char *const TAG = "switch";
+ESPHOME_LOG_TAG(TAG, "switch");
 
 Switch::Switch() : state(false) {}
 

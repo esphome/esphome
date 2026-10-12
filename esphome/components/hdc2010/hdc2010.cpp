@@ -5,7 +5,7 @@
 
 namespace esphome::hdc2010 {
 
-static const char *const TAG = "hdc2010";
+ESPHOME_LOG_TAG(TAG, "hdc2010");
 
 // Register addresses
 static constexpr uint8_t REG_TEMPERATURE_LOW = 0x00;

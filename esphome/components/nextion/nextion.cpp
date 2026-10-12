@@ -11,7 +11,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion";
+ESPHOME_LOG_TAG(TAG, "nextion");
 
 // A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the sleeping flag
 static bool is_sleep_wake_command(const NextionComponentBase *component) {

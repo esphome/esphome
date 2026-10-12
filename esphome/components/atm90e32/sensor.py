@@ -241,12 +241,9 @@ async def to_code(config: ConfigType) -> None:
         if peak_current_config := conf.get(CONF_PEAK_CURRENT):
             sens = await sensor.new_sensor(peak_current_config)
             cg.add(var.set_peak_current_sensor(i, sens))
-    if frequency_config := config.get(CONF_FREQUENCY):
-        sens = await sensor.new_sensor(frequency_config)
-        cg.add(var.set_freq_sensor(sens))
-    if chip_temperature_config := config.get(CONF_CHIP_TEMPERATURE):
-        sens = await sensor.new_sensor(chip_temperature_config)
-        cg.add(var.set_chip_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FREQUENCY, var.set_freq_sensor)
+    await sensors(CONF_CHIP_TEMPERATURE, var.set_chip_temperature_sensor)
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))

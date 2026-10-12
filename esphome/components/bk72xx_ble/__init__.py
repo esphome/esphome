@@ -38,6 +38,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["bk72xx"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "bk72xx_ble"
 
 _LOGGER = logging.getLogger(__name__)
 

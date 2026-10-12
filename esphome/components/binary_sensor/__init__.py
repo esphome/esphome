@@ -61,14 +61,16 @@ from esphome.const import (
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -104,6 +106,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "binary_sensor"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -604,7 +607,8 @@ async def setup_binary_sensor_core_(var, config):
     if filters_config := config.get(CONF_FILTERS):
         cg.add_define("USE_BINARY_SENSOR_FILTER")
         filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
-        cg.add(var.add_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_binary_sensor_automations, var, config)
 
@@ -630,6 +634,13 @@ async def new_binary_sensor(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_binary_sensor(var, config)
     return var
+
+
+def sub_binary_sensors(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_binary_sensor."""
+    return SubEntities(new_binary_sensor, config, parent)
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
