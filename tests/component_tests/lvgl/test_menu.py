@@ -192,6 +192,22 @@ def test_empty_pages_list_is_rejected(tmp_path: Path) -> None:
     assert any("length of value must be at least 1" in err for err in errors)
 
 
+def test_sidebar_style_without_sidebar_page_is_rejected(tmp_path: Path) -> None:
+    errors = _config_errors(
+        tmp_path,
+        """\
+    - menu:
+        id: menu_a
+        root_page: menu_a_page
+        sidebar_style:
+          bg_color: 0x101010
+        pages:
+          - id: menu_a_page
+""",
+    )
+    assert any("'sidebar_style' requires 'sidebar_page'" in err for err in errors)
+
+
 def test_sidebar_page_of_another_menu_is_rejected(tmp_path: Path) -> None:
     errors = _config_errors(
         tmp_path,

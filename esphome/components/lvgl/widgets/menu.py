@@ -161,6 +161,15 @@ class MenuType(WidgetType):
     def get_uses(self):
         return CONF_BUTTON, CONF_IMAGE, TYPE_FLEX
 
+    def validate(self, value: ConfigType) -> ConfigType:
+        # The sidebar header only exists once a sidebar page has been set.
+        if CONF_SIDEBAR_STYLE in value and CONF_SIDEBAR_PAGE not in value:
+            raise cv.Invalid(
+                f"'{CONF_SIDEBAR_STYLE}' requires '{CONF_SIDEBAR_PAGE}'",
+                path=[CONF_SIDEBAR_STYLE],
+            )
+        return value
+
     async def to_code(self, w: Widget, config: dict):
         await w.set_property(
             "mode_header", await LV_MENU_MODES.process(config[CONF_HEADER_MODE])
