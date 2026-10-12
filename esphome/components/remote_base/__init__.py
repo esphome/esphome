@@ -2176,16 +2176,14 @@ register_protocol_action(
 
 NEXUS_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CHANNEL): cv.All(cv.uint8_t, cv.Range(min=1, max=4)),
-        cv.Required(CONF_ADDRESS): cv.All(cv.uint8_t, cv.Range(min=0, max=255)),
-        cv.Optional(CONF_TEMPERATURE, default="25.5"): cv.All(
+        cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=4),
+        cv.Required(CONF_ADDRESS): cv.uint8_t,
+        cv.Optional(CONF_TEMPERATURE, default=25.5): cv.All(
             cv.float_, cv.Range(min=-204.8, max=204.7)
         ),
-        cv.Optional(CONF_HUMIDITY, default="42"): cv.All(
-            cv.uint8_t, cv.Range(min=0, max=255)
-        ),
-        cv.Optional(CONF_BATTERY_LEVEL, default="true"): cv.boolean,
-        cv.Optional(CONF_FORCE_UPDATE, default="false"): cv.boolean,
+        cv.Optional(CONF_HUMIDITY, default=42): cv.uint8_t,
+        cv.Optional(CONF_BATTERY_LEVEL, default=True): cv.boolean,
+        cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
     }
 )
 
