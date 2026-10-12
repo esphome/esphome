@@ -92,7 +92,7 @@ void UDPComponent::setup() {
 bool UDPComponent::join_multicast_() {
   if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_)) {
     ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
-    // Only undo this path's own warning; setup() may have set one for a bad address
+    // One warning bit: a join that simply succeeds must not erase setup()'s bad address warning
     if (this->join_failed_) {
       this->join_failed_ = false;
       this->status_clear_warning();
