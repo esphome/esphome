@@ -280,12 +280,14 @@ void LIS2DW12Component::loop() {
   }
   this->last_poll_ms_ = now;
 
-  // SIXD_SRC and ALL_INT_SRC are adjacent; one read captures the orientation before the latch clears
+  // SIXD_SRC and ALL_INT_SRC are adjacent, so one read captures both before any latch clears
   uint8_t regs[2];
   if (!this->read_bytes(static_cast<uint8_t>(RegisterMap::SIXD_SRC), regs, sizeof(regs))) {
     this->status_set_warning();
     return;
   }
+  RegSixdSrc sixd;
+  sixd.raw = regs[0];
   RegAllIntSrc src;
   src.raw = regs[1];
 
@@ -294,11 +296,10 @@ void LIS2DW12Component::loop() {
   this->handle_event_(EVENT_FREEFALL, src.ff_ia, now, this->freefall_callback_);
   this->handle_event_(EVENT_ACTIVE, src.wu_ia, now, this->active_callback_);
 
-  if (src.d6d_ia) {
+  // The 6D flag is taken from SIXD_SRC itself, the first byte read
+  if (sixd.d6d_ia) {
     this->orientation_callback_.call();
 #ifdef USE_TEXT_SENSOR
-    RegSixdSrc sixd;
-    sixd.raw = regs[0];
     this->publish_orientation_(sixd);
 #endif
   }
