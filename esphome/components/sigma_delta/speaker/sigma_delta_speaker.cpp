@@ -68,6 +68,7 @@ void SigmaDeltaSpeaker::dump_config() {
 
 void SigmaDeltaSpeaker::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+  this->apply_command_();
   this->report_played_();
   if (this->state_ == speaker::STATE_STOPPING && !this->has_buffered_data()) {
     this->disarm_timer_();
@@ -86,10 +87,10 @@ void SigmaDeltaSpeaker::loop() {
   this->disarm_timer_();
   this->report_played_();
   if (!active) {
-    // Load the write index before re-checking the state: if play() restarted the speaker and published data,
-    // seeing that data means also seeing the new state, so a fresh chunk is never dropped.
+    // Load the write index before re-checking for a restart: play() publishes its data before it posts
+    // COMMAND_START, so a pending start means the drop below would discard a fresh chunk.
     const uint32_t write = this->ring_write_.load(std::memory_order_acquire);
-    if (!this->is_stopped())
+    if (this->command_.load(std::memory_order_acquire) != COMMAND_NONE)
       return;
     // The ISR is stopped, so dropping what stop() left behind cannot race it. Dropped frames were never played.
     this->ring_read_.store(write, std::memory_order_release);
@@ -112,34 +113,51 @@ void SigmaDeltaSpeaker::report_played_() {
   }
 }
 
+void SigmaDeltaSpeaker::apply_command_() {
+  switch (this->command_.exchange(COMMAND_NONE, std::memory_order_acq_rel)) {
+    case COMMAND_START:
+      if (!this->is_running()) {
+        ESP_LOGV(TAG, "Starting");
+        this->state_ = speaker::STATE_RUNNING;
+      }
+      break;
+    case COMMAND_STOP:
+      if (!this->is_stopped()) {
+        ESP_LOGV(TAG, "Stopping");
+        this->state_ = speaker::STATE_STOPPED;
+      }
+      break;
+    case COMMAND_FINISH:
+      if (this->is_running()) {
+        ESP_LOGV(TAG, "Finishing");
+        this->state_ = speaker::STATE_STOPPING;
+      }
+      break;
+    default:
+      break;
+  }
+}
+
 void SigmaDeltaSpeaker::start() {
-  if (this->is_failed() || this->is_running())
+  if (this->is_failed())
     return;
-  ESP_LOGV(TAG, "Starting");
-  this->state_ = speaker::STATE_RUNNING;
+  this->command_.store(COMMAND_START, std::memory_order_release);
+  this->enable_loop_soon_any_context();
 }
 
 void SigmaDeltaSpeaker::stop() {
-  if (this->is_stopped())
-    return;
-  ESP_LOGV(TAG, "Stopping");
-  this->state_ = speaker::STATE_STOPPED;
+  this->command_.store(COMMAND_STOP, std::memory_order_release);
   this->enable_loop_soon_any_context();
 }
 
 void SigmaDeltaSpeaker::finish() {
-  if (this->is_stopped())
-    return;
-  ESP_LOGV(TAG, "Finishing");
-  this->state_ = speaker::STATE_STOPPING;
+  this->command_.store(COMMAND_FINISH, std::memory_order_release);
   this->enable_loop_soon_any_context();
 }
 
 size_t SigmaDeltaSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
   if (this->is_failed())
     return 0;
-  if (!this->is_running())
-    this->start();
 
   size_t written = this->write_frames_(data, length);
   const TickType_t start_ticks = xTaskGetTickCount();
@@ -148,9 +166,14 @@ size_t SigmaDeltaSpeaker::play(const uint8_t *data, size_t length, TickType_t ti
     written = this->write_frames_(data, length);
   }
   if (written > 0) {
-    std::atomic_thread_fence(std::memory_order_seq_cst);
-    if (!this->timer_armed_.load(std::memory_order_relaxed))
-      this->enable_loop_soon_any_context();
+    // The data is published before the start request, so loop() never drops it as leftovers
+    if (!this->is_running()) {
+      this->start();
+    } else {
+      std::atomic_thread_fence(std::memory_order_seq_cst);
+      if (!this->timer_armed_.load(std::memory_order_relaxed))
+        this->enable_loop_soon_any_context();
+    }
   }
   return written;
 }

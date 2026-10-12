@@ -42,6 +42,7 @@ class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
   size_t write_frames_(const uint8_t *data, size_t length);
   void update_gain_();
   void report_played_();
+  void apply_command_();
   void arm_timer_();
   void disarm_timer_();
 
@@ -60,6 +61,10 @@ class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
   uint32_t last_data_ms_{0};
   uint32_t last_reported_read_{0};        // Main loop only
   std::atomic<bool> timer_armed_{false};  // Written only from the main loop
+  // start(), stop() and finish() may run on an audio task; they only post a request here
+  // and loop() applies it to state_, so state_ is written from one task only.
+  enum Command : uint8_t { COMMAND_NONE, COMMAND_START, COMMAND_STOP, COMMAND_FINISH };
+  std::atomic<uint8_t> command_{COMMAND_NONE};
 
  private:
   void teardown_();
