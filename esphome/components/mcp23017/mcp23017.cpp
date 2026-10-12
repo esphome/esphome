@@ -3,7 +3,7 @@
 
 namespace esphome::mcp23017 {
 
-static const char *const TAG = "mcp23017";
+ESPHOME_LOG_TAG(TAG, "mcp23017");
 
 static constexpr uint8_t IOCON_MIRROR = 0x40;  // Mirror INTA/INTB pins
 static constexpr uint8_t IOCON_ODR = 0x04;     // Open-drain output for INT pin

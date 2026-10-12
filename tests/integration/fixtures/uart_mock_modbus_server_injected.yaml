@@ -26,6 +26,20 @@ uart_mock:
     rx_timeout: 2
     auto_start: false
     debug:
+    # Each burst-case reply from device 1 (single-register FC 0x03, told apart by its register
+    # value) fires its own sensor when it reaches the wire. One sensor per reply, because the API
+    # merges updates to the same entity that land within its batching window.
+    on_tx:
+      - then:
+          - lambda: |-
+              if (data.size() != 7 || data[0] != 0x01 || data[1] != 0x03 || data[3] != 0x00)
+                return;
+              switch (data[4]) {
+                case 0xA1: id(burst_tx_a).publish_state(1); break;
+                case 0xB2: id(burst_tx_b).publish_state(1); break;
+                case 0xC3: id(burst_tx_before_peer).publish_state(1); break;
+                case 0xD4: id(burst_tx_probe).publish_state(1); break;
+              }
     injections:
       - delay: 100ms
         inject_rx: [0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A] #  Read holding register 3 on device 1 (basic_read)
@@ -52,6 +66,21 @@ uart_mock:
       - delay: 100ms
         inject_rx:
           [0x01, 0x17, 0x00, 0x06, 0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x02, 0x56, 0x78, 0x8B, 0x55]
+      # Two reads of device 1 (regs 0x0B then 0x0C) in one injection so both land in the rx buffer
+      # together. The reply to 0x0B is deferred because 0x0C is still queued behind it, and must be
+      # dropped once 0x0C is parsed: only the reply to 0x0C may reach the wire (burst_read_a/b).
+      - delay: 100ms
+        inject_rx: [0x01, 0x03, 0x00, 0x0B, 0x00, 0x01, 0xF5, 0xC8,
+                    0x01, 0x03, 0x00, 0x0C, 0x00, 0x01, 0x44, 0x09]
+      # Read of device 1 (reg 0x0D) followed in the same injection by a read of device 2. The client
+      # has moved on to another device, so the deferred reply to 0x0D must never be sent
+      # (burst_read_before_peer).
+      - delay: 100ms
+        inject_rx: [0x01, 0x03, 0x00, 0x0D, 0x00, 0x01, 0x15, 0xC9,
+                    0x02, 0x03, 0x00, 0x07, 0x00, 0x01, 0x35, 0xF8]
+      # Plain read of device 1 (reg 0x0E) whose reply on the wire marks the burst cases as settled.
+      - delay: 100ms
+        inject_rx: [0x01, 0x03, 0x00, 0x0E, 0x00, 0x01, 0xE5, 0xC9]
 
 globals:
   - id: stored_1
@@ -110,6 +139,24 @@ modbus_server:
         read_lambda: |-
           id(read_after_peer_timeout).publish_state(1);
           return 1;
+      - address: 0x0B
+        value_type: U_WORD
+        read_lambda: |-
+          id(burst_read_a).publish_state(1);
+          return 0xA1;
+      - address: 0x0C
+        value_type: U_WORD
+        read_lambda: |-
+          id(burst_read_b).publish_state(1);
+          return 0xB2;
+      - address: 0x0D
+        value_type: U_WORD
+        read_lambda: |-
+          id(burst_read_before_peer).publish_state(1);
+          return 0xC3;
+      - address: 0x0E
+        value_type: U_WORD
+        read_lambda: return 0xD4;
 
 sensor:
   - platform: template
@@ -136,6 +183,27 @@ sensor:
   - platform: template
     name: "rw_read_3"
     id: rw_read_3
+  - platform: template
+    name: "burst_read_a"
+    id: burst_read_a
+  - platform: template
+    name: "burst_read_b"
+    id: burst_read_b
+  - platform: template
+    name: "burst_read_before_peer"
+    id: burst_read_before_peer
+  - platform: template
+    name: "burst_tx_a"
+    id: burst_tx_a
+  - platform: template
+    name: "burst_tx_b"
+    id: burst_tx_b
+  - platform: template
+    name: "burst_tx_before_peer"
+    id: burst_tx_before_peer
+  - platform: template
+    name: "burst_tx_probe"
+    id: burst_tx_probe
 
 button:
   - platform: template

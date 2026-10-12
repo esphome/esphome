@@ -5,7 +5,7 @@
 
 namespace esphome::kamstrup_kmp {
 
-static const char *const TAG = "kamstrup_kmp";
+ESPHOME_LOG_TAG(TAG, "kamstrup_kmp");
 
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");

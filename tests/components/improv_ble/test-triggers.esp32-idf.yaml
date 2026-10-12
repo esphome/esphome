@@ -1,0 +1,21 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+binary_sensor:
+  - platform: gpio
+    pin: 0
+    id: improv_trigger_authorizer
+
+improv_ble:
+  authorizer: improv_trigger_authorizer
+  on_start:
+    - logger.log: Improv started
+  on_provisioning:
+    - logger.log: Provisioning
+  on_provisioned:
+    - logger.log: Provisioned
+  on_stop:
+    - logger.log: Improv stopped
+  on_state:
+    - lambda: ESP_LOGD("improv", "State %d error %d", (int) state, (int) error);

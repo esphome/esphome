@@ -6,7 +6,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.date";
+ESPHOME_LOG_TAG(TAG, "template.date");
 
 void TemplateDate::setup() {
   if (this->f_.has_value())
