@@ -60,12 +60,8 @@ union E131RawPacket {
 const size_t E131_MIN_PACKET_SIZE = offsetof(E131RawPacket, property_values) + sizeof(uint8_t);
 
 bool E131Component::join_igmp_groups_() {
-  if (this->listen_method_ != E131_MULTICAST)
+  if (this->listen_method_ != E131_MULTICAST || this->socket_ == nullptr)
     return false;
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  if (this->socket_ == nullptr)
-    return false;
-#endif
 
   for (auto &entry : this->universe_consumers_) {
     if (!entry.consumers)

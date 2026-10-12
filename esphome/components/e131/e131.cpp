@@ -13,18 +13,18 @@ static const int PORT = 5568;
 E131Component::E131Component() {}
 
 E131Component::~E131Component() {
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   if (this->socket_) {
     this->socket_->close();
   }
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-  this->udp_.stop();
-#endif
 }
 
 void E131Component::setup() {
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+  this->socket_ = socket::socket_ip_udp(IPPROTO_IP);
+  if (!this->socket_) {
+    ESP_LOGW(TAG, "Could not create socket: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
 
   int enable = 1;
   int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
@@ -54,13 +54,6 @@ void E131Component::setup() {
     this->mark_failed();
     return;
   }
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-  if (!this->udp_.begin(PORT)) {
-    ESP_LOGW(TAG, "Cannot bind E1.31 to port %d.", PORT);
-    this->mark_failed();
-    return;
-  }
-#endif
 
   join_igmp_groups_();
 }
@@ -74,7 +67,7 @@ void E131Component::loop() {
   // Drain all queued packets so multi-universe frames are applied
   // atomically before the light writes. Without this, each universe
   // packet would trigger a separate full-strip write causing tearing.
-  while ((len = this->read_(buf, sizeof(buf))) > 0) {
+  while ((len = this->socket_->read(buf, sizeof(buf))) > 0) {
     if (!this->packet_(buf, (size_t) len, universe, packet)) {
       ESP_LOGV(TAG, "Invalid packet received of size %d.", (int) len);
       continue;

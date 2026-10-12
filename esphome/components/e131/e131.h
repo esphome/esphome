@@ -1,11 +1,7 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-#include <WiFiUdp.h>
-#endif
 #include "esphome/core/component.h"
 
 #include <cinttypes>
@@ -45,17 +41,6 @@ class E131Component final : public esphome::Component {
   void set_method(E131ListenMethod listen_method) { this->listen_method_ = listen_method; }
 
  protected:
-  inline ssize_t read_(uint8_t *buf, size_t len) {
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-    return this->socket_->read(buf, len);
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-    if (!this->udp_.parsePacket())
-      return -1;
-    return this->udp_.read(buf, len);
-#else
-    return -1;
-#endif
-  }
   bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);
   bool process_(int universe, const E131Packet &packet);
   bool join_igmp_groups_();
@@ -64,11 +49,7 @@ class E131Component final : public esphome::Component {
   void leave_(int universe);
 
   E131ListenMethod listen_method_{E131_MULTICAST};
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  std::unique_ptr<socket::Socket> socket_;
-#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
-  WiFiUDP udp_;
-#endif
+  std::unique_ptr<socket::UDPSocket> socket_;
   std::vector<E131AddressableLightEffect *> light_effects_;
   std::vector<UniverseConsumer> universe_consumers_;
 };
