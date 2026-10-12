@@ -398,7 +398,6 @@ static constexpr uint32_t WIFI_AP_EXCLUSIVE_DWELL_MS = 300000;
 /// disconnect event cannot keep the networks from being tried for good.
 static constexpr uint32_t WIFI_AP_EXCLUSIVE_MAX_DWELL_MS = 3 * WIFI_AP_EXCLUSIVE_DWELL_MS;
 static constexpr uint32_t WIFI_AP_EXCLUSIVE_HANDOVER_MS = 1000;
-static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 #endif
 
 /// Cooldown duration when fallback AP is active and captive portal may be running
@@ -701,6 +700,16 @@ void WiFiComponent::start() {
 #endif
   this->fast_connect_pref_ =
       global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+#ifdef USE_WIFI_LEASE_CACHE_IN_FLASH
+  const bool lease_cache_in_flash = true;
+#else
+  const bool lease_cache_in_flash = false;
+#endif
+  this->lease_cache_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiLeaseSettings>(hash + 2, lease_cache_in_flash);
+  this->load_lease_settings_();
 #endif
 
   SavedWifiSettings save{};
@@ -1448,6 +1457,9 @@ void WiFiComponent::disable() {
 
   ESP_LOGD(TAG, "Disabling");
   this->state_ = WIFI_COMPONENT_STATE_DISABLED;
+#ifdef USE_WIFI_LEASE_CACHE
+  this->cancel_timeout(LEASE_RENEW_TIMEOUT_ID);
+#endif
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
 }
@@ -2437,6 +2449,18 @@ void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t ch
   this->fast_connect_pref_.save(&fast_connect_save);
 
   ESP_LOGD(TAG, "Saved fast_connect settings");
+}
+#endif
+
+#ifdef USE_WIFI_LEASE_CACHE
+void WiFiComponent::load_lease_settings_() {
+  if (!this->lease_cache_pref_.load(&this->cached_lease_) || this->cached_lease_.version != SAVED_WIFI_LEASE_VERSION) {
+    this->cached_lease_ = {};
+    return;
+  }
+  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&this->cached_lease_.ip);  // network byte order
+  ESP_LOGD(TAG, "Loaded cached lease %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
+           this->cached_lease_.ap_index, this->cached_lease_.lease_secs);
 }
 #endif
 
