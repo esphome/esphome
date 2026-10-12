@@ -1,6 +1,6 @@
 #include "datalink.h"
 
-#ifdef USE_ESP32
+#ifdef OPENTHERM42_DATALINK_RMT
 
 #include <soc/soc_caps.h>
 #if SOC_RMT_SUPPORTED
@@ -16,10 +16,14 @@ ESPHOME_LOG_TAG(TAG, "opentherm42.datalink_rmt");
 // §3.3.2: 1ms nominal bit period, split into two 500µs Manchester half-bits. For TX, one
 // rmt_symbol_word_t (two levels + two durations) is emitted per OT bit -- a 34-bit frame (start + 32
 // data/parity + stop) is 34 symbols, comfortably inside a single RMT memory block (this component
-// requests 64), so the hardware clocks the whole frame with no per-symbol CPU/ISR involvement. RX is NOT
-// a fixed 34 symbols, though -- see decode_symbols_()'s comment for why.
+// requests 64), so the hardware clocks the whole frame with no per-symbol CPU/ISR involvement, unlike
+// the ISR backend's 200µs sampling loop. RX is NOT a fixed 34 symbols, though -- see decode_symbols_()'s
+// comment for why.
 static constexpr uint32_t HALF_BIT_US = 500;
-// §3.3.2's own two tolerance windows, taken directly from the spec diagram/text:
+// §3.3.2's own two tolerance windows, taken directly from the spec diagram/text rather than the ISR
+// backend's 200µs-tick-granularity approximation of them (its capture_ > 0xF/0xFF checks, equivalent to
+// 800/1600µs, were a sampling-resolution compromise the 1µs-resolution RMT backend doesn't need to
+// inherit):
 // - MID_BIT: the mandatory mid-bit transition, 500µs nominal, -100/+150µs per the diagram's acceptance
 //   window. Applies when a bit boundary's optional transition occurs, measured from that boundary.
 // - FULL_BIT: the bit period, 1ms nominal, -10%/+15% (text, §3.3.2). Applies when the boundary
@@ -39,10 +43,10 @@ static constexpr uint32_t RX_IDLE_TIMEOUT_NS = 2000000;  // 2ms
 OpenThermDataLink::OpenThermDataLink(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin)
     : in_pin_(in_pin), out_pin_(out_pin) {}
 
-// bit=1: first half LOW, second half HIGH (active-to-idle, §3.3.1). bit=0: the reverse. level0/level1
-// get XORed with out_pin_->is_inverted() below, the same way remote_transmitter_rmt.cpp handles pin
-// inversion for RMT (the hardware's own flags.invert_out is left at 0; RMT doesn't know about ESPHome's
-// pin-level inversion setting).
+// bit=1: first half LOW, second half HIGH (active-to-idle, §3.3.1). bit=0: the reverse. Matches the ISR
+// backend's write_bit_() polarity exactly -- level0/level1 get XORed with out_pin_->is_inverted() below,
+// the same way remote_transmitter_rmt.cpp handles pin inversion for RMT (the hardware's own
+// flags.invert_out is left at 0; RMT doesn't know about ESPHome's pin-level inversion setting).
 static rmt_symbol_word_t bit_symbol(bool bit_value, bool inverted) {
   rmt_symbol_word_t symbol{};
   bool const level0 = (bit_value ? 0 : 1) ^ inverted;
@@ -138,8 +142,9 @@ bool OpenThermDataLink::initialize() {
   // §4.3.1's 20-400ms "did the boiler ever start responding" window has no RMT-native equivalent: the
   // RMT receiver's own idle-timeout (signal_range_max_ns) only measures gaps *between* captured edges,
   // so it never fires if no edge arrives at all. This one-shot timer is armed once per listen() call and
-  // cancelled the instant rx_done_callback fires for any reason, so it only ever fires once per
-  // conversation (and only in the timeout case).
+  // cancelled the instant rx_done_callback fires for any reason -- unlike the ISR backend's 200µs
+  // recurring sample tick, it only ever needs to fire once per conversation (and only in the timeout
+  // case), so it carries essentially none of the interrupt-collision exposure the ISR backend has.
   esp_timer_create_args_t const timer_args = {
       .callback =
           [](void *arg) {
@@ -298,7 +303,7 @@ bool get_segment(const rmt_symbol_word_t *symbols, size_t word_count, size_t k, 
 // captured segments varies with the data pattern; it cannot be assumed to be a fixed 2*34.
 //
 // Each segment is classified against exactly one of the two §3.3.2 windows, chosen by what the *previous*
-// transition was (tracked by `clock`):
+// transition was (tracked by `clock`, matching the ISR backend's on_timer_tick_ semantics):
 // - clock==1 (the last transition was a boundary, or the start bit's own rising edge): the next
 //   transition MUST be the mandatory mid-bit edge, within MID_BIT_MIN..MID_BIT_MAX of it. Nothing else is
 //   valid here -- Manchester guarantees the mandatory edge, so an out-of-window gap is a frame error.
@@ -311,8 +316,9 @@ void OpenThermDataLink::decode_symbols_(const rmt_symbol_word_t *symbols, size_t
   uint32_t data = 0;
   uint8_t bit_pos = 0;
   // 1 = expecting the mandatory mid-bit edge next. The first captured segment is the gap from the start
-  // bit's rising edge (detected by arming listen()) to the next transition -- i.e. the start bit's own
-  // mandatory mid-bit edge -- so decoding starts "as if the start bit was already captured".
+  // bit's rising edge (detected by arming listen(), analogous to the ISR's LISTENING state) to the next
+  // transition -- i.e. the start bit's own mandatory mid-bit edge -- exactly mirroring the ISR's
+  // capture_=1/clock_=1 reset "as if the start bit was already captured".
   uint8_t clock = 1;
 
   for (size_t k = 0;; k++) {
@@ -350,11 +356,11 @@ void OpenThermDataLink::decode_symbols_(const rmt_symbol_word_t *symbols, size_t
     }
 
     // Valid sample point. `level` is the level held during the segment that just ended, taken directly
-    // as the bit value: no inversion beyond the pin-level one above (RX and TX use different
-    // raw-level<->bit-value conventions on this hardware bridge; see bit_symbol() above for the TX
-    // side's, which is NOT the same mapping).
+    // as the bit value -- matching the ISR backend's record_bit_(last): no inversion beyond the
+    // pin-level one above (RX and TX use different raw-level<->bit-value conventions on this hardware
+    // bridge; see write_bit_() in datalink.cpp for the TX side's, which is NOT the same mapping).
     if (bit_pos == 33) {
-      // 33 data+parity bits already captured: the very first of
+      // 33 data+parity bits already captured, the same as the ISR backend's bit_pos_: the very first of
       // those 33 samples is actually the start bit's own mandatory mid-bit edge (always '1'), not part of
       // the 32-bit payload -- it gets silently dropped by plain uint32_t overflow once 32 more bits have
       // been shifted in after it, leaving exactly the 32-bit frame behind. This transition is the stop
@@ -383,4 +389,4 @@ void OpenThermDataLink::decode_symbols_(const rmt_symbol_word_t *symbols, size_t
 }  // namespace esphome::opentherm42
 
 #endif  // SOC_RMT_SUPPORTED
-#endif  // USE_ESP32
+#endif  // OPENTHERM42_DATALINK_RMT
