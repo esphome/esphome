@@ -128,7 +128,7 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
     out_data |= data.channel;
   } else {
     out_data = data.address << (NBITS_DATA + NBITS_CHECKSUM);
-    out_data |= data.data << NBITS_CHECKSUM;
+    out_data |= (data.data & ((1u << NBITS_DATA) - 1)) << NBITS_CHECKSUM;  // a lambda may exceed 4 bits
     out_data |= calc_cs(out_data);
   }
   ESP_LOGD(TAG, "addr=%04x data=%x channel=%02x command=%02x", data.address, data.data, data.channel, data.command);
