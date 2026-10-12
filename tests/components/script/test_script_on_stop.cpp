@@ -21,46 +21,46 @@ class HoldAction : public Action<> {
 class QueueingScriptOnStopTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    this->script.set_max_runs(3);
-    this->automation.add_action(&this->hold);
-    this->script.add_on_stop_callback([this]() { this->on_stop_calls++; });
+    this->script_.set_max_runs(3);
+    this->automation_.add_action(&this->hold_);
+    this->script_.add_on_stop_callback([this]() { this->on_stop_calls_++; });
   }
 
-  QueueingScript<> script;
-  Automation<> automation{&this->script};
-  HoldAction hold;
-  int on_stop_calls{0};
+  QueueingScript<> script_;
+  Automation<> automation_{&this->script_};
+  HoldAction hold_;
+  int on_stop_calls_{0};
 };
 
 TEST_F(QueueingScriptOnStopTest, StopWhileRunningFiresOnStopOnceAndDropsQueuedRun) {
-  this->script.execute();
-  this->script.execute();
-  ASSERT_EQ(this->hold.plays, 1);
+  this->script_.execute();
+  this->script_.execute();
+  ASSERT_EQ(this->hold_.plays, 1);
 
-  this->script.stop();
-  EXPECT_EQ(this->on_stop_calls, 1);
+  this->script_.stop();
+  EXPECT_EQ(this->on_stop_calls_, 1);
 
-  this->script.loop();
-  EXPECT_EQ(this->hold.plays, 1);
+  this->script_.loop();
+  EXPECT_EQ(this->hold_.plays, 1);
 }
 
 // After one run ends, the next queued run only starts on the following loop() call
 TEST_F(QueueingScriptOnStopTest, StopBetweenQueuedRunsFiresOnStop) {
-  this->script.execute();
-  this->script.execute();
-  this->hold.release();
-  ASSERT_FALSE(this->script.is_running());
+  this->script_.execute();
+  this->script_.execute();
+  this->hold_.release();
+  ASSERT_FALSE(this->script_.is_running());
 
-  this->script.stop();
-  EXPECT_EQ(this->on_stop_calls, 1);
+  this->script_.stop();
+  EXPECT_EQ(this->on_stop_calls_, 1);
 
-  this->script.loop();
-  EXPECT_EQ(this->hold.plays, 1);
+  this->script_.loop();
+  EXPECT_EQ(this->hold_.plays, 1);
 }
 
 TEST_F(QueueingScriptOnStopTest, StopWhenIdleDoesNotFireOnStop) {
-  this->script.stop();
-  EXPECT_EQ(this->on_stop_calls, 0);
+  this->script_.stop();
+  EXPECT_EQ(this->on_stop_calls_, 0);
 }
 
 }  // namespace esphome::script::testing
