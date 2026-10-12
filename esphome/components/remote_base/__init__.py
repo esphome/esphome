@@ -1191,7 +1191,6 @@ register_protocol_action(
 
 
 # PioneerWyt
-PioneerWytData = ns.struct("PioneerWytData")
 PioneerWytAction = ns.class_("PioneerWytAction", RemoteTransmitterActionBase)
 
 

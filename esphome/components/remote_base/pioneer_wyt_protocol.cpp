@@ -2,6 +2,8 @@
 
 #include "esphome/core/log.h"
 
+#include <cmath>
+
 namespace esphome::remote_base {
 
 ESPHOME_LOG_TAG(TAG, "remote.pioneer_wyt");
@@ -15,9 +17,10 @@ static constexpr uint32_t BIT_MARK_US = 500;
 static constexpr uint32_t BIT_ONE_SPACE_US = 1100;
 static constexpr uint32_t BIT_ZERO_SPACE_US = 350;
 
-static constexpr unsigned int PIONEER_WYT_IR_PACKET_BIT_SIZE = 112;
+static constexpr unsigned int PIONEER_WYT_IR_PACKET_BIT_SIZE = WYT_REMOTE_COMMAND_SIZE * 8;
 
 static constexpr float TARGET_TEMPERATURE_MIN_C = 16.0f;
+static constexpr float TARGET_TEMPERATURE_DEFAULT_C = 24.0f;  // the schema default
 static constexpr float TARGET_TEMPERATURE_MAX_C = 31.0f;
 
 // Multi-bit fields reverse-engineered from factory remote captures, named by the packet type and
@@ -92,7 +95,10 @@ PioneerWytData PioneerWytData::make_general(bool power, uint8_t mode, float targ
     b6 |= (1 << 7);
   d[6] = b6;
 
-  // A lambda can bypass the schema range check, so clamp to keep the temperature byte in range
+  // A lambda can bypass the schema range check, so clamp to keep the temperature byte in range; a NaN
+  // (an unavailable sensor) falls back to the schema default
+  if (std::isnan(target_temperature))
+    target_temperature = TARGET_TEMPERATURE_DEFAULT_C;
   target_temperature = clamp(target_temperature, TARGET_TEMPERATURE_MIN_C, TARGET_TEMPERATURE_MAX_C);
   uint8_t temp_whole = static_cast<uint8_t>(target_temperature);
   d[7] = 31 - temp_whole;

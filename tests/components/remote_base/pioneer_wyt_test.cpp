@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+
+#include <cmath>
 #include <array>
 #include <vector>
 #include "esphome/components/remote_base/pioneer_wyt_protocol.h"
@@ -53,6 +55,7 @@ TEST(PioneerWytProtocolTest, TemperatureIsClamped) {
   EXPECT_EQ(general(31.5f)[12], 0x80);
   EXPECT_EQ(general(-5.0f)[7], 31 - 16);
   EXPECT_EQ(general(0.0f)[7], 31 - 16);
+  EXPECT_EQ(general(NAN)[7], 31 - 24);  // an unavailable sensor sends the default
 }
 
 TEST(PioneerWytProtocolTest, EncodesHeaderAndAllBits) {

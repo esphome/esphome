@@ -9,6 +9,7 @@
 namespace esphome::remote_base {
 
 static constexpr uint8_t WYT_REMOTE_COMMAND_SIZE = 14;
+static constexpr uint32_t PACKET_GAP_US = 70000;  // between the fan and general packets of a BOTH send
 
 enum PioneerWytMode : uint8_t {
   PIONEER_WYT_MODE_HEAT = 0x01,
@@ -100,34 +101,24 @@ template<typename... Ts> class PioneerWytAction : public RemoteTransmitterAction
       data.finalize();
       PioneerWytProtocol().encode(dst, data);
     } else {
-      auto type = this->type_.value(x...);
-      if (type == PIONEER_WYT_TYPE_GENERAL) {
+      // The type values are flags: BOTH sends the fan packet, a gap, then the general packet
+      const auto type = this->type_.value(x...);
+      if (type & PIONEER_WYT_TYPE_FAN) {
+        PioneerWytData data =
+            PioneerWytData::make_fan(static_cast<uint8_t>(this->fan_speed_.value(x...)), this->mute_.value(x...),
+                                     this->vertical_swing_.value(x...), this->horizontal_swing_.value(x...));
+        PioneerWytProtocol().encode(dst, data);
+      }
+      if (type == PIONEER_WYT_TYPE_BOTH) {
+        dst->space(PACKET_GAP_US);
+      }
+      if (type & PIONEER_WYT_TYPE_GENERAL) {
         PioneerWytData data = PioneerWytData::make_general(
             this->power_.value(x...), static_cast<uint8_t>(this->mode_.value(x...)),
             this->target_temperature_.value(x...), this->beeper_.value(x...), this->display_.value(x...),
             this->eco_.value(x...), this->turbo_.value(x...), this->sleep_.value(x...), this->follow_me_.value(x...),
             this->remote_temp_.value(x...), this->vertical_swing_.value(x...), this->horizontal_swing_.value(x...));
         PioneerWytProtocol().encode(dst, data);
-      } else if (type == PIONEER_WYT_TYPE_FAN) {
-        PioneerWytData data =
-            PioneerWytData::make_fan(static_cast<uint8_t>(this->fan_speed_.value(x...)), this->mute_.value(x...),
-                                     this->vertical_swing_.value(x...), this->horizontal_swing_.value(x...));
-        PioneerWytProtocol().encode(dst, data);
-      } else if (type == PIONEER_WYT_TYPE_BOTH) {
-        PioneerWytData fan_data =
-            PioneerWytData::make_fan(static_cast<uint8_t>(this->fan_speed_.value(x...)), this->mute_.value(x...),
-                                     this->vertical_swing_.value(x...), this->horizontal_swing_.value(x...));
-        PioneerWytProtocol().encode(dst, fan_data);
-
-        // ~70ms delay between fan and general packets
-        dst->space(70000);
-
-        PioneerWytData general_data = PioneerWytData::make_general(
-            this->power_.value(x...), static_cast<uint8_t>(this->mode_.value(x...)),
-            this->target_temperature_.value(x...), this->beeper_.value(x...), this->display_.value(x...),
-            this->eco_.value(x...), this->turbo_.value(x...), this->sleep_.value(x...), this->follow_me_.value(x...),
-            this->remote_temp_.value(x...), this->vertical_swing_.value(x...), this->horizontal_swing_.value(x...));
-        PioneerWytProtocol().encode(dst, general_data);
       }
     }
   }
