@@ -100,11 +100,16 @@ bool UDPComponent::join_multicast_() {
   listen_group(this->listen_address_.value(), &imreq.imr_multiaddr);
   if (this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) == 0) {
     ESP_LOGD(TAG, "Joined multicast group");
-    this->status_clear_warning();
+    // Only undo this path's own warning; setup() may have set one for a bad address
+    if (this->join_failed_) {
+      this->join_failed_ = false;
+      this->status_clear_warning();
+    }
     return true;
   }
   ESP_LOGW(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
   this->status_set_warning(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
+  this->join_failed_ = true;
   return false;
 }
 

@@ -39,6 +39,7 @@ class UDPComponent final : public Component {
   bool should_broadcast_{};
   bool should_listen_{};
   bool join_pending_{};
+  bool join_failed_{};
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
   std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
