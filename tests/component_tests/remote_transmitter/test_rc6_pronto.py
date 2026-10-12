@@ -4,8 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components.remote_base import _protocol_field
-import esphome.config_validation as cv
 from esphome.const import CONF_TEMPERATURE
 from tests.component_tests.remote_transmitter import protocol_call_bodies
 
@@ -33,5 +33,9 @@ def test_rc6_toggle_and_pronto(
 def test_apply_objects_pass_through() -> None:
     call = automation.ApplyCall("stop()")
     assert _protocol_field(call) is call
-    plain = _protocol_field((CONF_TEMPERATURE, "temperature", cv.float_))
+    field = automation.ApplyField(
+        CONF_TEMPERATURE, "data.set_temperature({})", cg.float_
+    )
+    assert _protocol_field(field) is field
+    plain = _protocol_field((CONF_TEMPERATURE, "temperature", cg.float_))
     assert plain.target == "data.temperature = {}"
