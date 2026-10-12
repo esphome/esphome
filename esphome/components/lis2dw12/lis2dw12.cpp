@@ -92,22 +92,19 @@ void LIS2DW12Component::setup() {
 
   // Soft reset
   if (!this->write_reg_(RegisterMap::CTRL2, 0x40)) {
-    ESP_LOGE(TAG, "Soft reset failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Soft reset failed"));
     return;
   }
   delay(1);  // NOLINT - wait for reset to complete
 
   uint8_t ctrl2{0};
   if (!this->read_byte(static_cast<uint8_t>(RegisterMap::CTRL2), &ctrl2) || (ctrl2 & 0x40)) {
-    ESP_LOGE(TAG, "Soft reset did not complete");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Soft reset did not complete"));
     return;
   }
 
   if (!this->configure_registers_()) {
-    ESP_LOGE(TAG, "Register configuration failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Register configuration failed"));
     return;
   }
 
@@ -215,19 +212,9 @@ bool LIS2DW12Component::read_acceleration_data_(float &x, float &y, float &z) {
   if (this->swap_xy_) {
     std::swap(raw_x, raw_y);
   }
-  if (this->mirror_x_) {
-    raw_x = -raw_x;
-  }
-  if (this->mirror_y_) {
-    raw_y = -raw_y;
-  }
-  if (this->mirror_z_) {
-    raw_z = -raw_z;
-  }
-
-  x = raw_x * this->scale_ + this->offset_x_;
-  y = raw_y * this->scale_ + this->offset_y_;
-  z = raw_z * this->scale_ + this->offset_z_;
+  x = (this->mirror_x_ ? -raw_x : raw_x) * this->scale_ + this->offset_x_;
+  y = (this->mirror_y_ ? -raw_y : raw_y) * this->scale_ + this->offset_y_;
+  z = (this->mirror_z_ ? -raw_z : raw_z) * this->scale_ + this->offset_z_;
   return true;
 }
 
