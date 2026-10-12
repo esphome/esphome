@@ -409,3 +409,40 @@ button:
     on_press:
       remote_transmitter.transmit_roomba:
         data: 0x88
+  - platform: template
+    name: Pronto
+    on_press:
+      remote_transmitter.transmit_pronto:
+        data: "0000 006D 0001 0000 0015 0016"
+  - platform: template
+    name: RC6
+    on_press:
+      remote_transmitter.transmit_rc6:
+        address: 0x00
+        command: !lambda return 0x0C;
+  - platform: template
+    name: Midea
+    on_press:
+      remote_transmitter.transmit_midea:
+        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+  - platform: template
+    name: Midea lambda
+    on_press:
+      remote_transmitter.transmit_midea:
+        code: !lambda return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};
+  - platform: template
+    name: Haier lambda
+    on_press:
+      remote_transmitter.transmit_haier:
+        code: !lambda return {0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05};
+  - platform: template
+    name: Mirage lambda
+    on_press:
+      remote_transmitter.transmit_mirage:
+        code: !lambda return {0x56, 0x77, 0x00, 0x00, 0x22, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  - platform: template
+    name: AEHA lambda
+    on_press:
+      remote_transmitter.transmit_aeha:
+        address: 0x8008
+        data: !lambda return {0x00, 0x02, 0xFD, 0xFF};
