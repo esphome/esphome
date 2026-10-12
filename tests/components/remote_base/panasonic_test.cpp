@@ -44,6 +44,9 @@ TEST(PanasonicProtocolTest, ForwardsTheConfiguredCarrier) {
 TEST(PanasonicProtocolTest, RoundTrips48BitFrame) {
   auto decoded = decode(encode(frame(48)));
   ASSERT_TRUE(decoded.has_value());
+  if (!decoded.has_value()) {
+    return;
+  }
   EXPECT_EQ(*decoded, frame(48));
   EXPECT_EQ(decoded->nbits, 48);
   EXPECT_EQ(decoded->address_2, 0);
@@ -54,6 +57,9 @@ TEST(PanasonicProtocolTest, RoundTrips56BitFrame) {
   EXPECT_EQ(timings.size(), 2u + 2u * 56u + 1u);
   auto decoded = decode(timings);
   ASSERT_TRUE(decoded.has_value());
+  if (!decoded.has_value()) {
+    return;
+  }
   EXPECT_EQ(*decoded, frame(56));
   EXPECT_EQ(decoded->nbits, 56);
   EXPECT_EQ(decoded->address_2, 0x12);
@@ -67,6 +73,9 @@ TEST(PanasonicProtocolTest, Decodes48BitFrameWithTrailingItems) {
   timings.insert(timings.end(), {-20000, 3502, -1750, 502, -400});
   auto decoded = decode(timings);
   ASSERT_TRUE(decoded.has_value());
+  if (!decoded.has_value()) {
+    return;
+  }
   EXPECT_EQ(*decoded, frame(48));
 }
 
