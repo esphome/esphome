@@ -112,6 +112,15 @@ button:
         address: 0x4004
         command: 0x1000BCD
   - platform: template
+    name: Panasonic 56 bit
+    on_press:
+      remote_transmitter.transmit_panasonic:
+        nbits: 56
+        address: 0x4004
+        address_2: 0x12
+        command: !lambda return 0x1000BCD;
+        carrier_frequency: 36kHz
+  - platform: template
     name: Pioneer
     on_press:
       - remote_transmitter.transmit_pioneer:
