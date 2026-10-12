@@ -103,65 +103,27 @@ verification are discarded.
 To maintain backward compatibility with the initial revision of this module the address
 is reported without taking the endianness of the address nibbles.
 
---------------------
-
-Initially I had used 'RFLink' software (RLink Firmware Version: 1.1 Revision: 48) to
-capture and retransmit the Digistat packets. RFLink splits each packet into an
-ID, SWITCH, and CMD field.
-
-0;17;Drayton;ID=c300;SWITCH=12;CMD=ON;
-20;18;Drayton;ID=c300;SWITCH=12;CMD=OFF;
-
-Spliting my received data into three parts of 16, 7 and 5 bits gives address,
-channel and Command values of:
-
-On  6180832  0110000110000000 1000001 10010
-address: '0x6180' channel: '0x12' command: '0x41'
-
-Off 6180052  0110000110000000 0000010 10010
-address: '0x6180' channel: '0x12' command: '0x02'
-
-These values are slightly different to those used by RFLink (the RFLink
-ID/Adress value is rotated/manipulated), and I didn't know who's interpretation
-is correct. A larger data sample would have helped (I only had five different
-packet captures online) or definitive information from Drayton.
-
-Splitting each packet in this way worked well for me with esphome. However, it is
-now clear that this interpretation of the packet is not correct (see above). To
-maintain compatability with the initial version of this module the address, channel
-and command are calculated in the same way, even though they are incorrect. They
-will be depreciated and removed at some point.
-
---------------------
-
-Any suggestions or corrections would be gratefully received.
-
-marshn
+The initial revision split the 28 bits into address (16), command (7) and channel (5),
+following RFLink. That split does not match the fields above but is kept for existing
+configs: when channel or command is set, the packet is built from them with no checksum.
+They will be deprecated.
 
 */
 
-uint8_t DraytonProtocol::calc_cs_(uint32_t out_data) const {
+static uint8_t calc_cs(uint32_t out_data) {
   uint16_t cs = 0;
   uint32_t rev = reverse_bits(out_data);
 
   for (uint8_t i = 4; i <= 20; i += 4) {
     cs <<= 1;
-    cs += ((rev >> i) & 0x0F);
+    cs += (rev >> i) & 0x0F;
   }
 
   if (cs > 0x7F) {
     cs += 1;
   }
-  cs <<= 1;
-  cs &= 0xFF;
-
-  /* To account for endianness
-   */
-  cs = reverse_bits((uint8_t) cs);
-
-  ESP_LOGVV(TAG, "cs=%04" PRIx16, cs);
-
-  return ((uint8_t) cs);
+  // Sent LSB first
+  return reverse_bits(uint8_t(cs << 1));
 }
 
 void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
@@ -188,29 +150,20 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
     }
   }
 
-  ESP_LOGD(TAG, "addr=%04" PRIx16 " data=%01" PRIx8, data.address, data.data);
-
-  out_data = (data.address << (NBITS_DATA + NBITS_CHECKSUM));
-  out_data |= (data.data << (NBITS_CHECKSUM));
-
-  out_data |= this->calc_cs_(out_data);
-
-  ESP_LOGV(TAG, "out_data %07" PRIx32, out_data);
-
-  /* At this point, if address and data are all 0 (default) the packet & crc will be all zeros
-     and the depreciated 'channel' and 'command' values can be or'd into the data
-  */
   if (data.channel || data.command) {
     ESP_LOGD(TAG, "addr=%04" PRIx16 " channel=%03" PRIx8 " cmd=%02" PRIx8, data.address, data.channel, data.command);
-
     out_data = data.address;
     out_data <<= NBITS_COMMAND;
     out_data |= data.command;
     out_data <<= NBITS_CHANNEL;
     out_data |= data.channel;
-
-    ESP_LOGV(TAG, "out_data %07" PRIx32, out_data);
+  } else {
+    ESP_LOGD(TAG, "addr=%04" PRIx16 " data=%01" PRIx8, data.address, data.data);
+    out_data = data.address << (NBITS_DATA + NBITS_CHECKSUM);
+    out_data |= data.data << NBITS_CHECKSUM;
+    out_data |= calc_cs(out_data);
   }
+  ESP_LOGV(TAG, "out_data %07" PRIx32, out_data);
 
   for (uint32_t mask = 1UL << (NBITS_PKT - 1); mask != 0; mask >>= 1) {
     if (out_data & mask) {
@@ -224,12 +177,7 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
 }
 
 optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
-  DraytonData out{
-      .address = 0,
-      .data = 0,
-      .channel = 0,
-      .command = 0,
-  };
+  DraytonData out{};
 
   while (src.size() - src.get_index() >= MIN_RX_SRC) {
     // If first preamble item is a space, skip it
@@ -301,20 +249,20 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
       continue;
     }
 
-    uint16_t cs = out_data & 0xFF;
-    uint8_t calc_cs = this->calc_cs_(out_data);
+    uint8_t cs = out_data & 0xFF;
+    uint8_t expected_cs = calc_cs(out_data);
 
-    if (cs != calc_cs) {
-      ESP_LOGV(TAG, "Fail4 CS fail %" PRIx16 " %" PRIx16, cs, calc_cs);
+    if (cs != expected_cs) {
+      ESP_LOGV(TAG, "Fail4 CS fail %" PRIx8 " %" PRIx8, cs, expected_cs);
       continue;
     }
 
     ESP_LOGV(TAG, "Data %07" PRIx32, out_data);
 
-    out.data = (uint8_t) ((out_data >> NBITS_CHECKSUM) & 0x0F);
-    out.address = (uint16_t) ((out_data >> (NBITS_CHECKSUM + NBITS_DATA)) & 0xFFFF);
-    out.channel = (uint8_t) (out_data & 0x1F);
-    out.command = (uint8_t) ((out_data >> NBITS_CHANNEL) & 0x7F);
+    out.data = (out_data >> NBITS_CHECKSUM) & 0x0F;
+    out.address = out_data >> (NBITS_CHECKSUM + NBITS_DATA);
+    out.channel = out_data & 0x1F;
+    out.command = (out_data >> NBITS_CHANNEL) & 0x7F;
 
     return out;
   }
@@ -322,7 +270,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
 }
 
 void DraytonProtocol::dump(const DraytonData &data) {
-  ESP_LOGI(TAG, "Received Drayton: address=0x%04X (0x%04x), data=0x%04x channel=0x%03x command=0x%03X", data.address,
+  ESP_LOGI(TAG, "Received Drayton: address=0x%04X (0x%04x), data=0x%X channel=0x%03x command=0x%03X", data.address,
            ((data.address << 1) & 0xffff), data.data, data.channel, data.command);
 }
 

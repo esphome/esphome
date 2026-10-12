@@ -1485,15 +1485,9 @@ async def raw_action(var, config, args):
 DRAYTON_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
-        cv.Optional(CONF_DATA, default=0x00): cv.All(
-            cv.hex_int, cv.Range(min=0, max=0xF)
-        ),
-        cv.Optional(CONF_CHANNEL, default=0x00): cv.All(
-            cv.hex_int, cv.Range(min=0, max=0x1F)
-        ),
-        cv.Optional(CONF_COMMAND, default=0x00): cv.All(
-            cv.hex_int, cv.Range(min=0, max=0xFF)
-        ),
+        cv.Optional(CONF_DATA, default=0): cv.hex_int_range(min=0, max=0xF),
+        cv.Optional(CONF_CHANNEL, default=0): cv.hex_int_range(min=0, max=0x1F),
+        cv.Optional(CONF_COMMAND, default=0): cv.hex_int_range(min=0, max=0xFF),
     }
 )
 
