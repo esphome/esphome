@@ -5,7 +5,7 @@
 
 namespace esphome::mcp3008 {
 
-static const char *const TAG = "mcp3008";
+ESPHOME_LOG_TAG(TAG, "mcp3008");
 
 float MCP3008::get_setup_priority() const { return setup_priority::HARDWARE; }
 

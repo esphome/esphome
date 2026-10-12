@@ -1,7 +1,6 @@
 #pragma once
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esp_ldo_regulator.h"
 
 namespace esphome::esp_ldo {
@@ -25,18 +24,6 @@ class EspLdo final : public Component {
   int voltage_mv_{2700};
   bool adjustable_{false};
   esp_ldo_channel_handle_t handle_{};
-};
-
-template<typename... Ts> class AdjustAction final : public Action<Ts...> {
- public:
-  explicit AdjustAction(EspLdo *ldo) : ldo_(ldo) {}
-
-  TEMPLATABLE_VALUE(float, voltage)
-
-  void play(const Ts &...x) override { this->ldo_->adjust_voltage(this->voltage_.value(x...)); }
-
- protected:
-  EspLdo *ldo_;
 };
 
 }  // namespace esphome::esp_ldo

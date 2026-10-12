@@ -33,7 +33,7 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
   // Pre-init buffer to typical TCP MSS size to avoid benchmarking
   // heap allocation — in real use the buffer is reused across writes.
   APIBuffer buffer;
-  buffer.reserve(1460);
+  (void) buffer.reserve(1460);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -44,7 +44,7 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
       msg.missing_state = false;
 
       uint32_t size = msg.calculate_size();
-      buffer.resize(padding + size);
+      (void) buffer.resize(padding + size);
       ProtoWriteBuffer writer(&buffer, padding);
       msg.encode(writer);
 
@@ -70,7 +70,7 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
   // Pre-init buffer to typical TCP MSS size to avoid benchmarking
   // heap allocation — in real use the buffer is reused across writes.
   APIBuffer buffer;
-  buffer.reserve(1460);
+  (void) buffer.reserve(1460);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -85,7 +85,7 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
         msg.missing_state = false;
 
         uint32_t size = msg.calculate_size();
-        buffer.resize(offset + padding + size + footer);
+        (void) buffer.resize(offset + padding + size + footer);
         ProtoWriteBuffer writer(&buffer, offset + padding);
         msg.encode(writer);
 
