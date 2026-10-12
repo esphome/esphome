@@ -724,7 +724,7 @@ async def condition_group_to_code(
     if len(conditions) == 1:
         return conditions[0]
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -840,11 +840,13 @@ async def if_action_to_code(
     condition = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, if_template_arg, condition)
     if CONF_THEN in config:
-        actions = await build_action_list(config[CONF_THEN], template_arg, args)
-        cg.add(var.add_then(actions))
+        for action in await build_action_list(config[CONF_THEN], template_arg, args):
+            cg.add(var.add_then_action(action))
+        cg.add(var.finish_then())
     if has_else:
-        actions = await build_action_list(config[CONF_ELSE], template_arg, args)
-        cg.add(var.add_else(actions))
+        for action in await build_action_list(config[CONF_ELSE], template_arg, args):
+            cg.add(var.add_else_action(action))
+        cg.add(var.finish_else())
     return var
 
 
@@ -867,8 +869,9 @@ async def while_action_to_code(
 ) -> MockObj:
     condition = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, condition)
-    actions = await build_action_list(config[CONF_THEN], template_arg, args)
-    cg.add(var.add_then(actions))
+    for action in await build_action_list(config[CONF_THEN], template_arg, args):
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -897,7 +900,9 @@ async def repeat_action_to_code(
         cg.TemplateArguments(cg.uint32, *template_arg.args),
         [(cg.uint32, "iteration"), *args],
     )
-    cg.add(var.add_then(actions))
+    for action in actions:
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -1033,19 +1038,77 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     Non-synchronous actions (delay, wait_until, script.wait, etc.) store
     trigger args for later execution, making non-owning types like StringRef
     unsafe.
+
+    Accepts an action list, a single action, or an automation. Only the keys of
+    action entries are looked up as action names; the options of an action are
+    only searched for nested action lists (``then:``, ``else:``, ...), so an
+    option that shares a name with an action, such as the ``delay:`` option of
+    ``speaker_source.set_playlist_delay``, is not mistaken for that action.
     """
     if isinstance(actions, list):
         return any(has_non_synchronous_actions(item) for item in actions)
     if isinstance(actions, dict):
-        for key in actions:
+        for key, options in actions.items():
             if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
                 return True
-        return any(
-            has_non_synchronous_actions(v)
-            for v in actions.values()
-            if isinstance(v, (list, dict))
-        )
+            if _options_have_non_synchronous_actions(options):
+                return True
     return False
+
+
+def _options_have_non_synchronous_actions(options: Any) -> bool:
+    """Search an action's options for nested action lists, without treating option keys as actions."""
+    if isinstance(options, list):
+        return has_non_synchronous_actions(options)
+    if isinstance(options, dict):
+        return any(_options_have_non_synchronous_actions(v) for v in options.values())
+    return False
+
+
+def validate_no_deferring_actions(
+    context: str, data: str = "the trigger data"
+) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator that rejects deferring actions in a validated automation.
+
+    Use it for triggers whose arguments only live while the callback runs (views into a reused
+    buffer, a JSON document freed on return, ...): deferring actions keep the arguments for later.
+
+    :param context: Where the automation is, for the error message, e.g. ``"on_json and on_data"``.
+    :param data: What is only valid while the automation runs, for the error message.
+    """
+
+    def validator(value: ConfigType) -> ConfigType:
+        if has_non_synchronous_actions(value):
+            raise cv.Invalid(
+                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in "
+                f"{context}: {data} is only valid while the automation runs. Copy what you need "
+                "into globals first, then defer in a separate script or automation."
+            )
+        return value
+
+    return validator
+
+
+def validate_synchronous_automation(
+    context: str,
+    data: str = "the trigger data",
+    extra_schema=None,
+    extra_validators=None,
+    single: bool = False,
+) -> cv.All:
+    """``validate_automation()`` that also rejects deferring actions.
+
+    See ``validate_no_deferring_actions()`` for ``context`` and ``data``; the other parameters are
+    passed to ``validate_automation()``.
+    """
+    return cv.All(
+        validate_automation(
+            extra_schema=extra_schema,
+            extra_validators=extra_validators,
+            single=single,
+        ),
+        validate_no_deferring_actions(context, data),
+    )
 
 
 async def _new_automation(
@@ -1055,7 +1118,8 @@ async def _new_automation(
     templ = cg.TemplateArguments(*(arg[0] for arg in args))
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     actions = await build_action_list(config[CONF_THEN], templ, args)
-    cg.add(obj.add_actions(actions))
+    for action in actions:
+        cg.add(obj.add_action(action))
     return obj
 
 
