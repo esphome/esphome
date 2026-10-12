@@ -182,6 +182,13 @@ button:
         code: !lambda |-
           return {(int32_t)id(remote_transmitter_test_number).state * 100, -1000};
   - platform: template
+    name: RC5X Marantz
+    on_press:
+      remote_transmitter.transmit_rc5x:
+        address: 0x10
+        command: 0x0
+        extension: 0x6
+  - platform: template
     name: AEHA
     id: eaha_hitachi_climate_power_on
     on_press:
@@ -431,3 +438,24 @@ button:
     on_press:
       remote_transmitter.transmit_roomba:
         data: 0x88
+  - platform: template
+    name: SomfyRTS
+    on_press:
+      - remote_transmitter.transmit_somfy_rts:
+          address: 0x630139
+          control: 0x08
+          key: 0xA0
+          rolling_code: 1234
+          control_in_key: false
+  - platform: template
+    name: SomfyRTS Control In Key
+    on_press:
+      - remote_transmitter.transmit_somfy_rts:
+          address: 0x630139
+          control: 0x02
+          key: 0xA0
+          rolling_code: !lambda return 1235;
+          control_in_key: true
+          repeat:
+            times: 3
+            wait_time: 30ms
