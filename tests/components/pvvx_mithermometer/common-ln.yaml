@@ -1,0 +1,8 @@
+# Sensor only: the pvvx display is a GATT client and stays ESP32-only.
+sensor:
+  - platform: pvvx_mithermometer
+    mac_address: A4:C1:38:4E:16:78
+    temperature:
+      name: PVVX Temperature
+    humidity:
+      name: PVVX Humidity

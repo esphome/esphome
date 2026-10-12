@@ -4,7 +4,7 @@
 
 namespace esphome::ade7953_spi {
 
-static const char *const TAG = "ade7953";
+ESPHOME_LOG_TAG(TAG, "ade7953");
 
 // Datasheet requires at least 1.2µs after clearing CONFIG LOCK_BIT before raising CS
 constexpr uint8_t CONFIG_LOCK_SETTLE_US = 2;

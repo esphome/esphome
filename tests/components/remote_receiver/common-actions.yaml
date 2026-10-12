@@ -71,8 +71,8 @@ on_jvc:
 on_keeloq:
   then:
     - logger.log:
-        format: "on_keeloq: %lu %lu %u"
-        args: ["long(x.encrypted)", "long(x.address)", "x.command"]
+        format: "on_keeloq: %lu %lu %u %u %u"
+        args: ["long(x.encrypted)", "long(x.address)", "x.command", "x.suffix", "x.suffix_bits"]
 on_haier:
   then:
     - logger.log:
@@ -108,6 +108,11 @@ on_nexus:
     - logger.log:
         format: "on_nexus: %u %u %.1f %u %d %d"
         args: ["x.channel", "x.address", "x.temperature", "x.humidity", "x.battery_level", "x.force_update"]
+on_onkyori:
+  then:
+    - logger.log:
+        format: "on_onkyori: 0x%03X"
+        args: ["x.data"]
 on_panasonic:
   then:
     - logger.log:
@@ -177,3 +182,8 @@ on_toto:
     - logger.log:
         format: "on_toto: %u %u %u"
         args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+on_hob2hood:
+  then:
+    - logger.log:
+        format: "on_hob2hood: %u"
+        args: ["x.command"]
