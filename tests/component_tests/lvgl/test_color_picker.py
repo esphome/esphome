@@ -159,7 +159,7 @@ class TestColorPickerSliderChoice:
 
 class TestColorPickerWheel:
     """Test the `wheel` option, which replaces the hue and saturation sliders, and the RGB
-    sliders and colour swatch besides, with a circular hue/saturation picker.
+    sliders besides, with a circular hue/saturation picker.
 
     The exclusion of these sliders happens in `ColorPickerType.validate()`, which runs
     before the schema itself (see `WIDGET_TYPES` validation in schemas.py), so these tests

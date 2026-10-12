@@ -61,8 +61,8 @@ SLIDER_GROUPS = {
     "rgb": ("red", "green", "blue"),
 }
 
-# The wheel draws hue and saturation itself, and the layout drops the RGB sliders and the
-# colour swatch to make room for it, leaving brightness as the only slider that still fits.
+# The wheel draws hue and saturation itself, and the layout drops the RGB sliders to make
+# room for it, leaving brightness as the only slider that still fits.
 WHEEL_EXCLUDED_SLIDERS = ("hue", "saturation", "red", "green", "blue")
 
 

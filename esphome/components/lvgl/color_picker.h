@@ -102,23 +102,18 @@ class LvColorPickerType : public LvCompound {
 
     // The channel bars keep a fixed width each, so dropping one widens the swatch.
     auto channels_width = CHANNEL_WIDTH_PCT * channels;
-    auto *indicator_container =
-        create_flex(inner, LV_FLEX_FLOW_COLUMN, this->use_wheel_ ? LV_FLEX_ALIGN_CENTER : LV_FLEX_ALIGN_START,
-                    LV_FLEX_ALIGN_CENTER);
+    auto *indicator_container = create_flex(inner, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_size(indicator_container, lv_pct(CONTENT_WIDTH_PCT - channels_width), lv_pct(100));
     lv_obj_set_style_pad_ver(indicator_container, KNOB_OVERHANG, LV_PART_MAIN);
     lv_obj_set_style_pad_row(indicator_container, KNOB_OVERHANG, LV_PART_MAIN);
 
-    // With a wheel, which already shows the colour, there is no swatch.
     this->color_text_ = lv_label_create(indicator_container);
-    if (!this->use_wheel_) {
-      this->color_indicator_ = lv_obj_create(indicator_container);
-      lv_obj_set_style_border_color(this->color_indicator_, lv_color_hex(0x808080), LV_PART_MAIN);
-      lv_obj_set_style_border_width(this->color_indicator_, 1, LV_PART_MAIN);
-      lv_obj_set_style_radius(this->color_indicator_, 0, LV_PART_MAIN);
-      lv_obj_set_width(this->color_indicator_, lv_pct(90));
-      lv_obj_set_flex_grow(this->color_indicator_, 1);
-    }
+    this->color_indicator_ = lv_obj_create(indicator_container);
+    lv_obj_set_style_border_color(this->color_indicator_, lv_color_hex(0x808080), LV_PART_MAIN);
+    lv_obj_set_style_border_width(this->color_indicator_, 1, LV_PART_MAIN);
+    lv_obj_set_style_radius(this->color_indicator_, 0, LV_PART_MAIN);
+    lv_obj_set_width(this->color_indicator_, lv_pct(90));
+    lv_obj_set_flex_grow(this->color_indicator_, 1);
 
     if (channels != 0) {
       auto *rgb_container = create_flex(inner, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_SPACE_BETWEEN);
@@ -502,8 +497,7 @@ class LvColorPickerType : public LvCompound {
   }
 
   void refresh_() {
-    if (this->color_indicator_ != nullptr)
-      lv_obj_set_style_bg_color(this->color_indicator_, this->state_, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(this->color_indicator_, this->state_, LV_PART_MAIN);
     auto full_hue = lv_color_hsv_to_rgb(this->hue_, 100, 100);
     this->update_hue_bar_(SLIDER_SATURATION, &this->saturation_bar_, full_hue);
     this->update_hue_bar_(SLIDER_BRIGHTNESS, &this->brightness_bar_, full_hue);

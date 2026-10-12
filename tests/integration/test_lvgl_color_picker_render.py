@@ -25,11 +25,11 @@ HEIGHT = 480
 
 # Every picker showing 0x3366CC.
 EXPECTED_INITIAL_SHA256 = (
-    "6c56768c7ef1467a4d8d6c25a606706611ca8365984f5e4994cb87424d76ed3c"
+    "5d93f4bd98fcbe418ef8d34572e3b0912e0421cfd87e61e8cc3c49778a0e0e47"
 )
 # The first two pickers showing 0xFF8800, after the update action.
 EXPECTED_UPDATED_SHA256 = (
-    "7c1ccbacbf3fec1ee020cb248eff75ea6625dd628dd40861ea0a5a7e53f71626"
+    "ad4bb1c27410debd96f1e2ecf380df2d1d70fbab0026e3117e0f7436bb5138b0"
 )
 # The LVGL version the hashes were generated against; a version change can move them.
 EXPECTED_LVGL_VERSION = "9.5.0"
