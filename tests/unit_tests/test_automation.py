@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome.automation import (
+    CONF_CHOICE_ID,
+    CONF_CHOOSE,
     ApplyAction,
     ApplyCall,
     ApplyCondition,
@@ -21,6 +23,7 @@ from esphome.automation import (
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
+    choose_action_to_code,
     has_non_synchronous_actions,
     literal_with_length,
     maybe_simple_id,
@@ -47,6 +50,7 @@ from esphome.const import (
     CONF_ANY,
     CONF_AUTOMATION_ID,
     CONF_CONDITION,
+    CONF_ELSE,
     CONF_ID,
     CONF_THEN,
 )
@@ -1586,3 +1590,109 @@ def test_if_rejects_ambiguous_bare_condition(
 ) -> None:
     with pytest.raises(cv.Invalid, match=match):
         validate_action({"if": value})
+
+
+def test_if_with_non_dict_value_is_invalid() -> None:
+    with pytest.raises(cv.Invalid, match="expected a dictionary"):
+        validate_action({"if": "not a dict"})
+
+
+CHOICE = {"if": {"and": []}, CONF_THEN: [{"delay": "1s"}]}
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        pytest.param([], "at least 1", id="empty"),
+        pytest.param([{CONF_THEN: [{"delay": "1s"}]}], "'if' is required", id="no_if"),
+        pytest.param([{"if": {"and": []}}], "'then' is required", id="no_then"),
+        pytest.param(
+            [{CONF_ELSE: [{"delay": "1s"}]}],
+            "At least one choice must have 'if' and 'then'",
+            id="only_else",
+        ),
+        pytest.param(
+            [{CONF_ELSE: [{"delay": "1s"}]}, CHOICE],
+            "Only the last choice may be 'else'",
+            id="else_not_last",
+        ),
+        pytest.param(
+            [CHOICE, {"if": {"and": []}, CONF_ELSE: []}],
+            "'if' cannot be used with 'else'",
+            id="else_with_if",
+        ),
+        pytest.param(
+            [CHOICE, {CONF_THEN: [], CONF_ELSE: []}],
+            "'then' cannot be used with 'else'",
+            id="else_with_then",
+        ),
+    ],
+)
+def test_choose_invalid(value: list[ConfigType], match: str) -> None:
+    with pytest.raises(cv.Invalid, match=match):
+        validate_action({CONF_CHOOSE: value})
+
+
+def test_choose_valid() -> None:
+    result = validate_action(
+        {
+            CONF_CHOOSE: [
+                CHOICE,
+                {"if": [{"or": []}, {"and": []}], CONF_THEN: [{"delay": "2s"}]},
+                {CONF_ELSE: [{"delay": "3s"}]},
+            ]
+        }
+    )
+
+    choices = result[CONF_CHOOSE]
+    assert len(choices) == 3
+    assert "and" in choices[1]["if"]
+    assert CONF_ELSE in choices[2]
+    assert all(CONF_CHOICE_ID in choice for choice in choices)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_else", [True, False])
+async def test_choose_builds_if_else_chain(has_else: bool) -> None:
+    """Each choice is an IfAction whose else branch holds the next choice, then the else actions."""
+    config: list[ConfigType] = [
+        {"if": "cond_a", CONF_THEN: "then_a", CONF_CHOICE_ID: ID("choice_a")},
+        {"if": "cond_b", CONF_THEN: "then_b", CONF_CHOICE_ID: ID("choice_b")},
+    ]
+    if has_else:
+        config.append({CONF_ELSE: "else_c", CONF_CHOICE_ID: ID("choice_c")})
+    action_id = ID("action")
+    with (
+        patch(
+            "esphome.automation.build_condition",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: f"built_{conf}",
+        ),
+        patch(
+            "esphome.automation.build_action_list",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: [MockObj(f"built_{conf}")],
+        ),
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch("esphome.codegen.add") as add,
+    ):
+        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        result = await choose_action_to_code(config, action_id, TEMPLATE_ARG, [])
+
+    # Built from the last choice back; the first choice takes the action's own id
+    created = [
+        (c.args[0].id, str(c.args[1]), c.args[2]) for c in new_pvariable.call_args_list
+    ]
+    assert created == [
+        ("choice_b", f"<{str(has_else).lower()}>", "built_cond_b"),
+        ("action", "<true>", "built_cond_a"),
+    ]
+    assert str(result) == "action"
+    statements = [str(c.args[0]) for c in add.call_args_list]
+    expected_b_else = ["choice_b->add_else({built_else_c})"] if has_else else []
+    assert statements == [
+        "choice_b->add_then({built_then_b})",
+        *expected_b_else,
+        "action->add_then({built_then_a})",
+        "action->add_else({choice_b})",
+    ]

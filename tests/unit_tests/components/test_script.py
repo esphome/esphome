@@ -1,13 +1,22 @@
 """Tests for the script component's config validation."""
 
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from esphome import automation
-from esphome.components.script import CONF_SCRIPT_STOP, default_script_stop_ids
+from esphome.components.const import CONF_ON_STOP
+from esphome.components.script import (
+    CONF_SCRIPT_STOP,
+    SingleScript,
+    default_script_stop_ids,
+    to_code,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_THEN
+from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
 
 
 def test_bare_script_stop_defaults_to_enclosing_script() -> None:
@@ -63,65 +72,53 @@ def test_script_stop_without_id_outside_script_is_invalid() -> None:
         automation.validate_action(CONF_SCRIPT_STOP)
 
 
+def test_script_stop_with_id_is_valid() -> None:
+    result = automation.validate_action({CONF_SCRIPT_STOP: "my_script"})
+
+    assert result[CONF_SCRIPT_STOP][CONF_ID].id == "my_script"
+
+
 @pytest.mark.parametrize(
     "value",
     [
-        pytest.param([], id="empty"),
-        pytest.param([{CONF_THEN: [{"delay": "1s"}]}], id="missing_if"),
-        pytest.param([{"if": {"and": []}}], id="missing_then"),
-        pytest.param([{"else": [{"delay": "1s"}]}], id="only_else"),
-        pytest.param(
-            [
-                {"else": [{"delay": "1s"}]},
-                {"if": {"and": []}, CONF_THEN: [{"delay": "2s"}]},
-            ],
-            id="else_not_last",
-        ),
-        pytest.param(
-            [
-                {"if": {"and": []}, CONF_THEN: [{"delay": "1s"}]},
-                {"if": {"and": []}, "else": [{"delay": "2s"}]},
-            ],
-            id="else_with_if",
-        ),
-        pytest.param(
-            [
-                {"if": {"and": []}, CONF_THEN: [{"delay": "1s"}]},
-                {CONF_THEN: [{"delay": "2s"}]},
-            ],
-            id="then_without_if",
-        ),
+        pytest.param({CONF_ID: "my_script"}, id="not_a_list"),
+        pytest.param(["my_script", {CONF_THEN: [CONF_SCRIPT_STOP]}], id="no_id"),
     ],
 )
-def test_choose_invalid(value: Any) -> None:
-    with pytest.raises(cv.Invalid):
-        automation.validate_action({"choose": value})
+def test_script_stop_ids_left_alone_without_script_id(value: Any) -> None:
+    assert default_script_stop_ids(value) == value
 
 
-def test_choose_valid() -> None:
-    result = automation.validate_action(
+@pytest.mark.asyncio
+async def test_on_stop_registers_callback_automations() -> None:
+    stop_confs = [{CONF_THEN: []}, {CONF_THEN: []}]
+    config = [
         {
-            "choose": [
-                {"if": {"or": []}, CONF_THEN: [{"delay": "1s"}]},
-                {"if": [{"or": []}, {"and": []}], CONF_THEN: [{"delay": "2s"}]},
-            ]
-        }
-    )
-
-    choices = result["choose"]
-    assert len(choices) == 2
-    assert "and" in choices[1]["if"]
-    assert all(automation.CONF_CHOICE_ID in choice for choice in choices)
-
-
-def test_choose_else() -> None:
-    result = automation.validate_action(
+            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_MODE: "single",
+            CONF_PARAMETERS: {},
+            CONF_THEN: [],
+            CONF_ON_STOP: stop_confs,
+        },
         {
-            "choose": [
-                {"if": {"or": []}, CONF_THEN: [{"delay": "1s"}]},
-                {"else": [{"delay": "2s"}]},
-            ]
-        }
-    )
+            CONF_ID: ID("other_script", is_declaration=True, type=SingleScript),
+            CONF_MODE: "single",
+            CONF_PARAMETERS: {},
+            CONF_THEN: [],
+        },
+    ]
+    with (
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch("esphome.codegen.add"),
+        patch("esphome.automation.build_automation", new_callable=AsyncMock),
+        patch(
+            "esphome.automation.build_callback_automation", new_callable=AsyncMock
+        ) as build_callback,
+    ):
+        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        await to_code(config)
 
-    assert "else" in result["choose"][1]
+    assert [(str(c.args[0]), *c.args[1:]) for c in build_callback.await_args_list] == [
+        ("my_script", "add_on_stop_callback", [], stop_confs[0]),
+        ("my_script", "add_on_stop_callback", [], stop_confs[1]),
+    ]
