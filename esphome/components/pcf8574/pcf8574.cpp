@@ -82,20 +82,12 @@ void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 bool PCF8574Component::read_gpio_() {
   if (this->is_failed())
     return false;
-  bool success;
-  uint8_t data[2];
-  if (this->pcf8575_) {
-    success = this->read_bytes_raw(data, 2);
-    this->input_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
-  } else {
-    success = this->read_bytes_raw(data, 1);
-    this->input_mask_ = data[0];
-  }
-
-  if (!success) {
+  uint8_t data[2]{};  // Keep the bytes zero for the PCF8574's one-byte read.
+  if (!this->read_bytes_raw(data, this->pcf8575_ ? 2 : 1)) {
     this->status_set_warning();
     return false;
   }
+  this->input_mask_ = (uint16_t(data[1]) << 8) | data[0];
   this->status_clear_warning();
   return true;
 }
