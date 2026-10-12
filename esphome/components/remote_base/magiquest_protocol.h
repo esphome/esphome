@@ -35,17 +35,4 @@ class MagiQuestProtocol : public RemoteProtocol<MagiQuestData> {
 
 DECLARE_REMOTE_PROTOCOL(MagiQuest)
 
-template<typename... Ts> class MagiQuestAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, magnitude)
-  TEMPLATABLE_VALUE(uint32_t, wand_id)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    MagiQuestData data{};
-    data.magnitude = this->magnitude_.value(x...);
-    data.wand_id = this->wand_id_.value(x...);
-    MagiQuestProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

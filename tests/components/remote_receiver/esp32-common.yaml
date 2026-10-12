@@ -26,3 +26,8 @@ binary_sensor:
   - platform: remote_receiver
     name: MagiQuest Any Wand
     magiquest: {}
+  - platform: remote_receiver
+    name: Nexus Sensor
+    nexus:
+      channel: 1
+      address: 0x42
