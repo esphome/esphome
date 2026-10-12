@@ -202,22 +202,19 @@ void CSE7766Component::parse_data_() {
       float pf = NAN;
       if (apparent_power > 0) {
         pf = power / apparent_power;
-        if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG,
-                   "Out-of-range power factor %.4f clamped to [0, 1] (measurement noise near chip resolution limit)",
-                   pf);
-          pf = pf < 0.0f ? 0.0f : 1.0f;
+        if (pf > 1) {
+          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
+          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {
         // No load, report ideal power factor
         pf = 1.0f;
       } else if (current == 0 && calculated_current <= 0.05f) {
-        // Datasheet: minimum measured current is 50mA; no current means no phase shift, unity PF by convention
-        ESP_LOGV(TAG, "Current below 50mA minimum for CSE7766, reporting unity power factor");
-        pf = 1.0f;
+        // Datasheet: minimum measured current is 50mA
+        ESP_LOGV(TAG, "Can't calculate power factor (current below minimum for CSE7766)");
       } else {
-        ESP_LOGW(TAG, "Can't calculate power factor from P = %.4f W, S = %.4f VA; reporting 0", power, apparent_power);
-        pf = 0.0f;
+        ESP_LOGW(TAG, "Can't calculate power factor from P = %.4f W, S = %.4f VA", power, apparent_power);
       }
       this->power_factor_sensor_->publish_state(pf);
     }
