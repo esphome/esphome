@@ -34,18 +34,6 @@ def test_code_checksum_matches_capture() -> None:
     assert sum(RAW_CODE) & 0xFF == RAW_CODE_CHECKSUM
 
 
-@pytest.mark.parametrize("field", [{"power": True}, {"type": "BOTH"}])
-def test_code_rejects_friendly_fields(schema: cv.Schema, field: dict) -> None:
-    assert schema({"code": RAW_CODE})["code"] == RAW_CODE
-    with pytest.raises(cv.Invalid, match="'code' cannot be combined with"):
-        schema({"code": RAW_CODE, **field})
-
-
-def test_code_rejects_friendly_lambda(schema: cv.Schema) -> None:
-    with pytest.raises(cv.Invalid, match="'code' cannot be combined with mode"):
-        schema({"code": RAW_CODE, "mode": Lambda("return PIONEER_WYT_MODE_COOL;")})
-
-
 def test_code_accepts_with_and_without_checksum_byte(schema: cv.Schema) -> None:
     with_checksum = [*RAW_CODE, RAW_CODE_CHECKSUM]
     assert schema({"code": RAW_CODE})["code"] == RAW_CODE
@@ -58,14 +46,11 @@ def test_code_rejects_other_lengths(schema: cv.Schema, code: list[int]) -> None:
         schema({"code": code})
 
 
-@pytest.mark.parametrize("value", [16.0, 22.5, 31.0])
-def test_target_temperature_accepts_half_degree_steps(
-    schema: cv.Schema, value: float
-) -> None:
-    assert schema({"target_temperature": value})["target_temperature"] == value
+def test_code_accepts_lambda(schema: cv.Schema) -> None:
+    code = Lambda("return {0x23, 0xCB};")
+    assert isinstance(schema({"code": code})["code"], Lambda)
 
 
-@pytest.mark.parametrize("value", [15.5, 22.3, 31.5])
-def test_target_temperature_rejects_bad_values(schema: cv.Schema, value: float) -> None:
+def test_code_is_required(schema: cv.Schema) -> None:
     with pytest.raises(cv.Invalid):
-        schema({"target_temperature": value})
+        schema({})

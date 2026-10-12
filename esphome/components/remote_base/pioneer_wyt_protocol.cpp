@@ -1,173 +1,30 @@
 #include "pioneer_wyt_protocol.h"
-
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#include <cmath>
 
 namespace esphome::remote_base {
 
 ESPHOME_LOG_TAG(TAG, "remote.pioneer_wyt");
 
-/* These timings are from the tcl112 component, but they're awfully close to what I measured.
- * The protocols are pretty similar as well, probably related. Similar protocol to Mitsubishi
- * also, though with different timing. */
+// The timings and frame header are shared with tcl112
 static constexpr uint32_t HEADER_MARK_US = 3100;
 static constexpr uint32_t HEADER_SPACE_US = 1650;
 static constexpr uint32_t BIT_MARK_US = 500;
 static constexpr uint32_t BIT_ONE_SPACE_US = 1100;
 static constexpr uint32_t BIT_ZERO_SPACE_US = 350;
 
-static constexpr unsigned int PIONEER_WYT_IR_PACKET_BIT_SIZE = WYT_REMOTE_COMMAND_SIZE * 8;
-
-static constexpr float TARGET_TEMPERATURE_MIN_C = 16.0f;
-static constexpr float TARGET_TEMPERATURE_DEFAULT_C = 24.0f;  // the schema default
-static constexpr float TARGET_TEMPERATURE_MAX_C = 31.0f;
-
-// Multi-bit fields reverse-engineered from factory remote captures, named by the packet type and
-// byte they live in. Both packet types carry a vertical swing flag, in different places. Each value
-// is the field contents the remote sends, not a bit index.
-static constexpr uint8_t GENERAL_BYTE8_PRESET_SLEEP = 1;         // preset field, bits 0-2
-static constexpr uint8_t GENERAL_BYTE8_PRESET_DRY = 2;           // preset field, bits 0-2
-static constexpr uint8_t GENERAL_BYTE8_PRESET_TURBO = 5;         // preset field, bits 0-2
-static constexpr uint8_t GENERAL_BYTE8_VERTICAL_SWING = 7 << 3;  // bits 3-5
-static constexpr uint8_t FAN_BYTE7_VERTICAL_SWING = 4 << 2;      // bits 2-4
-static constexpr uint8_t FAN_BYTE7_HORIZONTAL_SWING = 4 << 5;    // bits 5-7
-static constexpr uint8_t FAN_BYTE8_CONSTANT = 0xC0;              // same in every captured FAN message
-
-uint8_t PioneerWytData::calc_cs_(uint8_t checksum_offset) const {
-  for (uint8_t i = 0; i < WYT_REMOTE_COMMAND_SIZE - 1; i++) {
-    checksum_offset += this->data_[i];
-  }
-  return checksum_offset;
-}
-
 void PioneerWytProtocol::encode(RemoteTransmitData *dst, const PioneerWytData &data) {
+  char hex_buf[format_hex_pretty_size(PioneerWytData::SIZE)];
+  ESP_LOGD(TAG, "Transmit PioneerWyt: %s", format_hex_pretty_to(hex_buf, data.data(), data.size()));
   dst->set_carrier_frequency(38000);
-  // Header: mark+space + initial bit mark => 3 entries. Each bit adds space+mark => 2 entries.
-  dst->reserve(dst->get_data().size() + 3 + PIONEER_WYT_IR_PACKET_BIT_SIZE * 2u);
-  dst->mark(HEADER_MARK_US);
-  dst->space(HEADER_SPACE_US);
+  // header mark and space, a mark and space per bit, then the trailing mark
+  dst->reserve(dst->get_data().size() + 3 + PioneerWytData::SIZE * 8 * 2);
+  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
+  for (uint8_t i = 0; i < data.size(); i++) {
+    for (uint8_t b = 0; b < 8; b++)
+      dst->item(BIT_MARK_US, (data[i] & (1 << b)) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+  }
   dst->mark(BIT_MARK_US);
-  for (size_t i = 0; i < data.size(); i++) {
-    this->encode_byte_(dst, data[i]);
-  }
-  char hex_buf[format_hex_pretty_size(WYT_REMOTE_COMMAND_SIZE)];
-  format_hex_pretty_to(hex_buf, &data[0], data.size());
-  ESP_LOGD(TAG, "Transmit PioneerWyt: %s cs: %02X", hex_buf, data[data.size() - 1]);
-}
-
-void PioneerWytProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t item) {
-  for (uint8_t b = 0; b < 8; b++) {
-    if (item & (1UL << b)) {
-      dst->space(BIT_ONE_SPACE_US);
-    } else {
-      dst->space(BIT_ZERO_SPACE_US);
-    }
-    dst->mark(BIT_MARK_US);
-  }
-}
-
-PioneerWytData PioneerWytData::make_general(bool power, uint8_t mode, float target_temperature, bool beeper,
-                                            bool display, bool eco, bool turbo, bool sleep, bool follow_me,
-                                            uint8_t remote_temp, bool up_down_swing, bool left_right_swing) {
-  PioneerWytData d;
-  d[0] = 0x23;
-  d[1] = 0xCB;
-  d[2] = 0x26;
-  d[3] = PIONEER_WYT_TYPE_GENERAL;
-  d[4] = 0x00;
-
-  uint8_t b5 = 0;
-  if (power)
-    b5 |= (1 << 2);
-  if (beeper)
-    b5 |= (1 << 5);
-  if (!display)
-    b5 |= (1 << 6);
-  if (eco)
-    b5 |= (1 << 7);
-  d[5] = b5;
-
-  uint8_t b6 = mode & 0x0F;
-  if (turbo)
-    b6 |= (1 << 6);
-  if (follow_me)
-    b6 |= (1 << 7);
-  d[6] = b6;
-
-  // A lambda can bypass the schema range check, so clamp to keep the temperature byte in range; a NaN
-  // (an unavailable sensor) falls back to the schema default
-  if (std::isnan(target_temperature))
-    target_temperature = TARGET_TEMPERATURE_DEFAULT_C;
-  target_temperature = clamp(target_temperature, TARGET_TEMPERATURE_MIN_C, TARGET_TEMPERATURE_MAX_C);
-  uint8_t temp_whole = static_cast<uint8_t>(target_temperature);
-  d[7] = 31 - temp_whole;
-
-  uint8_t b8 = 0;
-  if (turbo) {
-    b8 |= GENERAL_BYTE8_PRESET_TURBO;
-  } else if (sleep) {
-    b8 |= GENERAL_BYTE8_PRESET_SLEEP;
-  } else if (mode == PIONEER_WYT_MODE_DRY) {
-    b8 |= GENERAL_BYTE8_PRESET_DRY;
-  }
-  if (up_down_swing) {
-    b8 |= GENERAL_BYTE8_VERTICAL_SWING;
-  }
-  d[8] = b8;
-  d[9] = 0x00;
-  d[10] = 0x00;
-  d[11] = remote_temp;
-
-  float temp_fraction = target_temperature - temp_whole;
-  bool half_digit = (temp_fraction >= 0.25f && temp_fraction <= 0.75f);
-  uint8_t b12 = 0;
-  if (half_digit)
-    b12 |= (1 << 2);
-  if (left_right_swing) {
-    b12 |= (1 << 7) | (1 << 3);
-  } else {
-    b12 |= (1 << 7);
-  }
-  d[12] = b12;
-
-  d.finalize();
-  return d;
-}
-
-PioneerWytData PioneerWytData::make_fan(uint8_t fan_speed, bool mute, bool vertical_swing, bool horizontal_swing) {
-  PioneerWytData d;
-  d[0] = 0x23;
-  d[1] = 0xCB;
-  d[2] = 0x26;
-  d[3] = PIONEER_WYT_TYPE_FAN;
-  d[4] = 0x00;
-
-  uint8_t b5 = (1 << 6);
-  if (mute)
-    b5 |= (1 << 5);
-  d[5] = b5;
-
-  uint8_t b6 = (fan_speed & 0x07) << 5;
-  d[6] = b6;
-
-  uint8_t b7 = 0;
-  if (vertical_swing) {
-    b7 |= FAN_BYTE7_VERTICAL_SWING;
-  }
-  if (horizontal_swing) {
-    b7 |= FAN_BYTE7_HORIZONTAL_SWING;
-  }
-  d[7] = b7;
-
-  d[8] = FAN_BYTE8_CONSTANT;
-  d[9] = 0x00;
-  d[10] = 0x00;
-  d[11] = 0x00;
-  d[12] = 0x00;
-
-  d.finalize();
-  return d;
 }
 
 }  // namespace esphome::remote_base
