@@ -1,10 +1,11 @@
 """Golden-image test for the LVGL colour picker, drawn on a display with no screen.
 
-Two pickers are drawn side by side, one built from sliders and one with a colour wheel, then
-both are given a new colour by `lvgl.color_picker.update` and drawn again. Each picture is
-compared against a hash, as in test_lvgl_headless_render.py. If a change alters the output,
-the test fails, keeps the image it saw and prints its hash; update the hash once the image has
-been looked at and found to be correct.
+Pickers are drawn with every slider, with a colour wheel, at the size taken from the font,
+and with only some of the sliders. The first two are then given a new colour by
+`lvgl.color_picker.update` and drawn again. Each picture is compared against a hash, as in
+test_lvgl_headless_render.py. If a change alters the output, the test fails, keeps the image it
+saw and prints its hash; update the hash once the image has been looked at and found to be
+correct.
 """
 
 from __future__ import annotations
@@ -19,16 +20,16 @@ from .artifact_utils import keep_artifact
 from .bmp_utils import Bmp, capture_when_drawn, wait_for_bmp
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-WIDTH = 400
-HEIGHT = 200
+WIDTH = 680
+HEIGHT = 480
 
-# Both pickers showing 0x3366CC.
+# Every picker showing 0x3366CC.
 EXPECTED_INITIAL_SHA256 = (
-    "02e1c9ba55f7dabc8f89337c235f614131d3789a4aa6ff2b0114c40b70014195"
+    "6c56768c7ef1467a4d8d6c25a606706611ca8365984f5e4994cb87424d76ed3c"
 )
-# Both pickers showing 0xFF8800, after the update action.
+# The first two pickers showing 0xFF8800, after the update action.
 EXPECTED_UPDATED_SHA256 = (
-    "794480638172b66f49dca24c04723ac5d7400fab79fa97f5ad75fc254b2d9ab8"
+    "7c1ccbacbf3fec1ee020cb248eff75ea6625dd628dd40861ea0a5a7e53f71626"
 )
 # The LVGL version the hashes were generated against; a version change can move them.
 EXPECTED_LVGL_VERSION = "9.5.0"

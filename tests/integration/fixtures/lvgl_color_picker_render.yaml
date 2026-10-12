@@ -30,8 +30,8 @@ display:
     id: picker_display
     auto_clear_enabled: false
     dimensions:
-      width: 400
-      height: 200
+      width: 680
+      height: 480
 
 lvgl:
   displays: picker_display
@@ -44,16 +44,35 @@ lvgl:
         bg_opa: cover
         border_width: 0
         radius: 0
-        pad_all: 0
+        pad_all: 4
+        layout:
+          type: flex
+          flex_flow: row_wrap
+          pad_row: 4
+          pad_column: 4
         widgets:
           - color_picker:
               id: picker_sliders
-              align: left_mid
               width: 196
               color: 0x3366CC
           - color_picker:
               id: picker_wheel
-              align: right_mid
               width: 196
               wheel: true
+              color: 0x3366CC
+          # Sized from the text font
+          - color_picker:
+              id: picker_content
+              color: 0x3366CC
+          # No red, green and blue bars beside the swatch
+          - color_picker:
+              id: picker_hsv
+              width: 196
+              sliders: hsv
+              color: 0x3366CC
+          # Only the hue bar
+          - color_picker:
+              id: picker_hue
+              width: 196
+              sliders: hue
               color: 0x3366CC

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <numbers>
 
 #ifdef USE_LVGL_COLOR_PICKER
@@ -254,7 +255,7 @@ class LvColorPickerType : public LvCompound {
   static constexpr int KNOB_TRIM = 4;
   static constexpr int KNOB_OVERHANG = 4;
 
-  // Layout proportions, as percentages. The totals fall short of 100 to leave gaps between rows.
+  // Layout proportions, as percentages.
   static constexpr int32_t HUE_WIDTH_PCT = 15;
   static constexpr int32_t CHANNEL_WIDTH_PCT = 19;
   static constexpr int32_t CONTENT_WIDTH_PCT = 99;
@@ -326,8 +327,8 @@ class LvColorPickerType : public LvCompound {
     auto *container = create_box(parent);
     this->wheel_ = create_disc(container, &wheel_hue_grad);
     // Not clickable, so touches fall through to the wheel underneath.
-    this->wheel_overlay_ = create_disc(this->wheel_, &wheel_white_grad);
-    lv_obj_remove_flag(this->wheel_overlay_, LV_OBJ_FLAG_CLICKABLE);
+    auto *overlay = create_disc(this->wheel_, &wheel_white_grad);
+    lv_obj_remove_flag(overlay, LV_OBJ_FLAG_CLICKABLE);
 
     this->wheel_handle_ = lv_obj_create(this->wheel_);
     lv_obj_set_size(this->wheel_handle_, WHEEL_HANDLE_SIZE, WHEEL_HANDLE_SIZE);
@@ -583,7 +584,6 @@ class LvColorPickerType : public LvCompound {
   bool tint_knobs_{true};
   // Null unless use_wheel_ is set.
   lv_obj_t *wheel_{};
-  lv_obj_t *wheel_overlay_{};
   lv_obj_t *wheel_handle_{};
 };
 

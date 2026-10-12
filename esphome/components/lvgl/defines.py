@@ -464,9 +464,7 @@ LV_ANIM = LvConstant(
     "OUT_BOTTOM",
 )
 
-LV_GRAD_DIR = LvConstant(
-    "LV_GRAD_DIR_", "NONE", "HOR", "VER", "LINEAR", "RADIAL", "CONICAL"
-)
+LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
 LV_GRAD_EXTEND = LvConstant("LV_GRAD_EXTEND_", "PAD", "REPEAT", "REFLECT")
 

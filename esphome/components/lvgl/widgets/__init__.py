@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import ExitStack
 import sys
 from typing import Any
@@ -574,7 +574,7 @@ def collect_states(config):
     return states
 
 
-def _misplaced_obj_properties(config):
+def _misplaced_obj_properties(config: dict) -> Iterator[tuple[str, str]]:
     """
     Find object properties set where LVGL has no way to apply them. They belong to a widget
     as a whole, taking neither a part nor a state, so anywhere else they are quietly dropped.
@@ -583,7 +583,7 @@ def _misplaced_obj_properties(config):
     """
     from ..schemas import OBJ_PROPERTIES
 
-    def scan(sub, where):
+    def scan(sub: Any, where: str) -> Iterator[tuple[str, str]]:
         if isinstance(sub, dict):
             for prop in sorted(OBJ_PROPERTIES.intersection(sub)):
                 yield where, prop

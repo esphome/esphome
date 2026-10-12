@@ -97,7 +97,7 @@ def _sliders(config: dict) -> list[str]:
 
 
 class ColorPickerType(WidgetType):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             CONF_COLOR_PICKER,
             lv_color_picker_t,
