@@ -8,6 +8,7 @@ class LD2460ReadlineTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->ld2460_.set_uart_parent(&this->mock_uart_);
+    EXPECT_CALL(this->mock_uart_, write_array(::testing::_, ::testing::_)).Times(::testing::AnyNumber());
     this->ld2460_.set_target_count_sensor(&this->count_);
     for (uint8_t i = 0; i < MAX_TARGETS; i++) {
       this->ld2460_.set_target_x_sensor(i, &this->x_[i]);
@@ -107,6 +108,32 @@ TEST_F(LD2460ReadlineTest, AckHandling) {
   this->ld2460_.feed(make_ack_frame(2));
   this->ld2460_.feed(make_periodic_frame());
   EXPECT_NEAR(this->angle_[0].state, 56.89f, 0.05f);
+}
+
+TEST_F(LD2460ReadlineTest, QueryResentOnceWhileNoAck) {
+  // No ACK arrived, so the first data frame resends the 12-byte query, and only that one
+  EXPECT_CALL(this->mock_uart_, write_array(::testing::_, 12)).Times(1);
+  this->ld2460_.feed(make_periodic_frame());
+  this->ld2460_.feed(make_periodic_frame({{20, 20}}));
+}
+
+TEST_F(LD2460ReadlineTest, NoQueryAfterAck) {
+  EXPECT_CALL(this->mock_uart_, write_array(::testing::_, ::testing::_)).Times(0);
+  this->ld2460_.feed(make_ack_frame(1));
+  this->ld2460_.feed(make_periodic_frame());
+  this->ld2460_.feed(make_periodic_frame({{20, 20}}));
+}
+
+TEST_F(LD2460ReadlineTest, DataCallbackOncePerValidFrame) {
+  int calls = 0;
+  this->ld2460_.add_on_data_callback([&calls]() { calls++; });
+  this->ld2460_.feed(make_periodic_frame());
+  this->ld2460_.feed(make_periodic_frame({{20, 20}}));
+  EXPECT_EQ(calls, 2);
+  // A frame with the data footer but a wrong header is rejected without a callback
+  this->ld2460_.feed({0x00, 0x00, 0x00, 0x00, 0x04, 0x0B, 0x00, 0xF8, 0xF7, 0xF6, 0xF5});
+  this->ld2460_.feed(make_ack_frame(2));
+  EXPECT_EQ(calls, 2);
 }
 
 }  // namespace esphome::ld2460::testing

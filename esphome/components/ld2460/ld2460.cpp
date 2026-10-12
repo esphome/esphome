@@ -1,5 +1,7 @@
 #include "ld2460.h"
 
+#include "esphome/core/hal.h"
+
 #include <cmath>
 #include <cstring>
 #include <numbers>
@@ -9,23 +11,34 @@ namespace esphome::ld2460 {
 ESPHOME_LOG_TAG(TAG, "ld2460");
 
 static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
-static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
-static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
+// PROGMEM keeps the patterns out of RAM on the ESP8266; they are copied out for each compare
+static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] PROGMEM = {0xFD, 0xFC, 0xFB, 0xFA};
+static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] PROGMEM = {0xF4, 0xF3, 0xF2, 0xF1};
+static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
 
 static constexpr uint8_t CMD_REPORT_DATA = 0x04;
 static constexpr uint8_t CMD_QUERY_INSTALLATION_MODE = 0x0A;
 static constexpr uint8_t ACK_FRAME_LENGTH = 12;
 // Header, command, length (12, little endian), payload 0x01, footer
-static constexpr uint8_t QUERY_INSTALLATION_MODE_FRAME[] = {
+static constexpr uint8_t QUERY_INSTALLATION_MODE_FRAME[] PROGMEM = {
     0xFD, 0xFC, 0xFB, 0xFA, CMD_QUERY_INSTALLATION_MODE, 0x0C, 0x00, 0x01, 0x04, 0x03, 0x02, 0x01,
 };
 
+static bool matches(const uint8_t *bytes, const uint8_t *pattern) {
+  uint8_t copy[HEADER_FOOTER_SIZE];
+  progmem_memcpy(copy, pattern, sizeof(copy));
+  return std::memcmp(bytes, copy, sizeof(copy)) == 0;
+}
+
 static constexpr float RADIANS_TO_DEGREES = 180.0f / std::numbers::pi_v<float>;
 
-void LD2460Component::setup() {
-  this->write_array(QUERY_INSTALLATION_MODE_FRAME, sizeof(QUERY_INSTALLATION_MODE_FRAME));
+void LD2460Component::setup() { this->send_query_(); }
+
+void LD2460Component::send_query_() {
+  uint8_t frame[sizeof(QUERY_INSTALLATION_MODE_FRAME)];
+  progmem_memcpy(frame, QUERY_INSTALLATION_MODE_FRAME, sizeof(frame));
+  this->write_array(frame, sizeof(frame));
 }
 
 void LD2460Component::dump_config() {
@@ -59,7 +72,7 @@ void LD2460Component::loop() {
 
 void LD2460Component::handle_periodic_data_() {
   const uint8_t *data = this->buffer_data_;
-  if (std::memcmp(data, DATA_FRAME_HEADER, HEADER_FOOTER_SIZE) != 0 || data[4] != CMD_REPORT_DATA) {
+  if (!matches(data, DATA_FRAME_HEADER) || data[4] != CMD_REPORT_DATA) {
     ESP_LOGW(TAG, "Invalid periodic data header");
     return;
   }
@@ -72,12 +85,11 @@ void LD2460Component::handle_periodic_data_() {
   if (this->query_pending_) {
     // The module may have booted after us and missed the query sent from setup()
     this->query_pending_ = false;
-    this->write_array(QUERY_INSTALLATION_MODE_FRAME, sizeof(QUERY_INSTALLATION_MODE_FRAME));
+    this->send_query_();
   }
 
-  uint8_t num_targets = std::min<uint8_t>((packet_len - 11) / 4, MAX_TARGETS);
-
 #ifdef USE_SENSOR
+  uint8_t num_targets = std::min<uint8_t>((packet_len - 11) / 4, MAX_TARGETS);
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     TargetSensors &t = this->target_sensors_[i];
     if (i >= num_targets) {
@@ -136,8 +148,8 @@ void LD2460Component::readline_(uint8_t readch) {
     return;
   }
   const uint8_t *tail = &this->buffer_data_[this->buffer_pos_ - HEADER_FOOTER_SIZE];
-  bool is_data = readch == DATA_FRAME_FOOTER[3] && std::memcmp(tail, DATA_FRAME_FOOTER, HEADER_FOOTER_SIZE) == 0;
-  if (!is_data && (readch != CMD_FRAME_FOOTER[3] || std::memcmp(tail, CMD_FRAME_FOOTER, HEADER_FOOTER_SIZE) != 0)) {
+  bool is_data = readch == progmem_read_byte(&DATA_FRAME_FOOTER[3]) && matches(tail, DATA_FRAME_FOOTER);
+  if (!is_data && (readch != progmem_read_byte(&CMD_FRAME_FOOTER[3]) || !matches(tail, CMD_FRAME_FOOTER))) {
     return;
   }
 
@@ -150,8 +162,7 @@ void LD2460Component::readline_(uint8_t readch) {
     this->handle_periodic_data_();
   } else if (this->buffer_pos_ == ACK_FRAME_LENGTH &&
              encode_uint16(this->buffer_data_[6], this->buffer_data_[5]) == ACK_FRAME_LENGTH &&
-             std::memcmp(this->buffer_data_, CMD_FRAME_HEADER, HEADER_FOOTER_SIZE) == 0 &&
-             this->buffer_data_[4] == CMD_QUERY_INSTALLATION_MODE) {
+             matches(this->buffer_data_, CMD_FRAME_HEADER) && this->buffer_data_[4] == CMD_QUERY_INSTALLATION_MODE) {
     this->installation_mode_ = static_cast<InstallationMode>(this->buffer_data_[7]);
     this->query_pending_ = false;
     ESP_LOGV(TAG, "Installation mode: %u", this->buffer_data_[7]);

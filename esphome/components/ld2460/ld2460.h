@@ -39,6 +39,7 @@ class LD2460Component : public Component, public uart::UARTDevice {
   template<typename F> void add_on_data_callback(F &&callback) { this->data_callback_.add(std::forward<F>(callback)); }
 
  protected:
+  void send_query_();
   void handle_periodic_data_();
   void readline_(uint8_t readch);
 

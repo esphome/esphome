@@ -12,7 +12,7 @@ namespace esphome::ld2460::testing {
 // Mock UART component to satisfy UARTDevice parent requirement.
 class MockUARTComponent : public uart::UARTComponent {
  public:
-  void write_array(const uint8_t *data, size_t len) override {}
+  MOCK_METHOD(void, write_array, (const uint8_t *data, size_t len), (override));
   MOCK_METHOD(bool, read_array, (uint8_t * data, size_t len), (override));
   MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
   MOCK_METHOD(size_t, available, (), (override));
