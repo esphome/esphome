@@ -146,9 +146,9 @@ bool UDPComponent::network_poll_() {
     if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_, if_index)) {
       ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
       this->poll_pending_ &= ~POLL_JOIN;
-      this->poll_failed_ = false;
+      this->poll_failed_ &= ~POLL_JOIN;
     } else {
-      this->set_poll_warning_(LOG_STR("Failed to join multicast group"));
+      this->set_poll_warning_(POLL_JOIN, LOG_STR("Failed to join multicast group"));
       ok = false;
     }
   }
@@ -161,9 +161,9 @@ bool UDPComponent::network_poll_() {
     reinterpret_cast<sockaddr_in6 *>(&server)->sin6_scope_id = this->mcast_ifindex_;
     if (this->listen_socket_->bind((struct sockaddr *) &server, server_len) == 0) {
       this->poll_pending_ &= ~POLL_BIND;
-      this->poll_failed_ = false;
+      this->poll_failed_ &= ~POLL_BIND;
     } else {
-      this->set_poll_warning_(LOG_STR("Unable to bind socket"));
+      this->set_poll_warning_(POLL_BIND, LOG_STR("Unable to bind socket"));
       ok = false;
     }
   }
@@ -175,9 +175,9 @@ bool UDPComponent::network_poll_() {
     // Index 0 picks the first eligible interface
     if (socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), this->mcast_ifindex_)) {
       this->poll_pending_ &= ~POLL_MCAST_IF;
-      this->poll_failed_ = false;
+      this->poll_failed_ &= ~POLL_MCAST_IF;
     } else {
-      this->set_poll_warning_(LOG_STR("Failed to set IPv6 multicast interface"));
+      this->set_poll_warning_(POLL_MCAST_IF, LOG_STR("Failed to set IPv6 multicast interface"));
       ok = false;
     }
   }
@@ -191,11 +191,11 @@ bool UDPComponent::network_poll_() {
   return true;
 }
 
-void UDPComponent::set_poll_warning_(const LogString *what) {
+void UDPComponent::set_poll_warning_(PollStep step, const LogString *what) {
   // Log the first failure of each step only; the poll keeps retrying every second
-  if (this->poll_failed_)
+  if (this->poll_failed_ & step)
     return;
-  this->poll_failed_ = true;
+  this->poll_failed_ |= step;
   ESP_LOGW(TAG, "%s. Error %d", LOG_STR_ARG(what), errno);
   // One warning bit: only a warning raised here is cleared on success, one from setup() stays
   if (!this->status_has_warning()) {
@@ -246,8 +246,10 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #ifdef USE_UDP_IPV6_SEND
     const bool v6 = entry.sa.sa_family == AF_INET6;
     // Until the egress interface is set, a multicast packet would leave on the wrong one
-    if (v6 && (this->poll_pending_ & POLL_MCAST_IF) && entry.in6.sin6_addr.s6_addr[0] == 0xff)
+    if (v6 && (this->poll_pending_ & POLL_MCAST_IF) && entry.in6.sin6_addr.s6_addr[0] == 0xff) {
+      ESP_LOGV(TAG, "Egress interface not set yet, multicast packet dropped");
       continue;
+    }
     socket::UDPSendSocket *sock = v6 ? this->send_socket_v6_.get() : this->broadcast_socket_.get();
     socklen_t addr_len = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
 #else

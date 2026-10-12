@@ -51,7 +51,7 @@ class UDPComponent final : public Component {
 
   /// One pass of the network poll; true once nothing is left to do.
   bool network_poll_();
-  void set_poll_warning_(const LogString *what);
+  void set_poll_warning_(PollStep step, const LogString *what);
 
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
   std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
@@ -70,7 +70,7 @@ class UDPComponent final : public Component {
   bool should_broadcast_{};
   bool should_listen_{};
   uint8_t poll_pending_{};  // PollStep bits
-  bool poll_failed_{};
+  uint8_t poll_failed_{};   // PollStep bits already logged
   bool poll_warning_{};
 #ifdef USE_UDP_IPV6_SEND
   bool ipv4_send_{true};
