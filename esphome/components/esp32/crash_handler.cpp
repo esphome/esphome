@@ -161,7 +161,7 @@ static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 namespace esphome::esp32 {
 
-static const char *const TAG = "esp32.crash";
+ESPHOME_LOG_TAG(TAG, "esp32.crash");
 
 // RAM copy of the build timestamp. The generated constant lives in flash,
 // which the panic handler must not read (cache may be disabled during
@@ -173,7 +173,10 @@ static const char *const TAG = "esp32.crash";
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME);
 
-void crash_handler_read_and_clear() {
+// Validate the NOINIT record. Runs on every has_data() call; re-running is
+// harmless and the magic is left alone so the record survives an OTA
+// rollback reboot, crash_handler_clear() drops it once an API client has it.
+static void read_crash_data() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
     // Clamp counts to prevent out-of-bounds reads from corrupt .noinit data
@@ -194,11 +197,12 @@ void crash_handler_read_and_clear() {
       s_raw_crash_data.other_reg_frame_count = s_raw_crash_data.other_backtrace_count;
 #endif
   }
-  // Don't clear magic here — crash data must survive OTA rollback reboots.
-  // Magic is cleared by crash_handler_clear() after an API client receives the data.
 }
 
-bool crash_handler_has_data() { return s_crash_data_valid; }
+bool crash_handler_has_data() {
+  read_crash_data();
+  return s_crash_data_valid;
+}
 
 void crash_handler_clear() {
   // Only clear the magic so data doesn't survive the next reboot.
@@ -426,7 +430,7 @@ static void log_foreign_addresses() {
 // crashes again during boot, and allowing the CLI's process_stacktrace to match
 // and decode each address individually.
 void crash_handler_log() {
-  if (!s_crash_data_valid)
+  if (!crash_handler_has_data())
     return;
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
@@ -527,6 +531,9 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Xtensa: walk the backtrace using the public API
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
+    // IDF leaves addr unset for SoC-level panics (cache error, interrupt WDT)
+    if (info->pseudo_excause)
+      s_raw_crash_data.pc = xt_frame->pc;
     if (!g_panic_abort) {
       // Abort-class frames carry no useful cause/vaddr: TWDT task snapshots
       // never wrote them and abort() traps describe only the synthetic trap.

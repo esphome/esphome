@@ -9,7 +9,7 @@ using namespace esphome::uart;
 
 namespace esphome::haier {
 
-static const char *const TAG = "haier.climate";
+ESPHOME_LOG_TAG(TAG, "haier.climate");
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
 constexpr uint8_t CONTROL_MESSAGE_RETRIES = 5;
 constexpr std::chrono::milliseconds CONTROL_MESSAGE_RETRIES_INTERVAL = std::chrono::milliseconds(500);

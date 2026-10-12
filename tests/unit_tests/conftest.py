@@ -18,12 +18,28 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome.core import CORE
+from esphome.espidf import toolchain
 
 here = Path(__file__).parent
 
 # Configure location of package root
 package_root = here.parent.parent
 sys.path.insert(0, package_root.as_posix())
+
+
+@pytest.fixture(autouse=True)
+def _no_idf_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any test that would install ESP-IDF for real.
+
+    An unmocked ``_get_idf_env`` reaches ``check_esp_idf_install``, which
+    downloads the framework on a bare CI runner (minutes on Windows). The
+    install path's own tests call it through ``esphome.espidf.framework``.
+    """
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("test would install ESP-IDF; mock _get_idf_env")
+
+    monkeypatch.setattr(toolchain, "check_esp_idf_install", refuse)
 
 
 @pytest.fixture(autouse=True)
@@ -174,3 +190,19 @@ def held_lock() -> Callable[..., Callable[..., None]]:
         return acquire
 
     return make
+
+
+@pytest.fixture(autouse=True)
+def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The knob changes what the generators emit: no ambient value, and on,
+    so the Windows runner asks no compiler."""
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+
+
+@pytest.fixture
+def windows_gcc_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows host, knob unset: the compiler version decides."""
+    from esphome.build_helpers import pch
+
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    monkeypatch.setattr(pch.sys, "platform", "win32")

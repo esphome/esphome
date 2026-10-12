@@ -11,29 +11,34 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-#include <algorithm>
-#include <initializer_list>
-
 namespace esphome::ble_device_base {
+
+/// True if `address` is in `table`, a list of MACs ended by 0.
+inline bool mac_in_table(const uint64_t *table, uint64_t address) {
+  for (; *table != 0; table++) {
+    if (*table == address)
+      return true;
+  }
+  return false;
+}
 
 // on_ble_advertise: fires on every BLE advertisement, optionally filtered to one or more MACs.
 class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public ESPBTDeviceListener {
  public:
   template<typename Hub> explicit ESPBTAdvertiseTrigger(Hub *parent) { parent->register_listener(this); }
 
-  void set_addresses(std::initializer_list<uint64_t> addresses) { this->addresses_ = addresses; }
+  /// Table of MACs ended by 0; must outlive the trigger.
+  void set_addresses(const uint64_t *addresses) { this->addresses_ = addresses; }
 
   bool parse_device(const ESPBTDevice &device) override {
-    if (!this->addresses_.empty() && std::find(this->addresses_.begin(), this->addresses_.end(),
-                                               device.address_uint64()) == this->addresses_.end()) {
+    if (this->addresses_ != nullptr && !mac_in_table(this->addresses_, device.address_uint64()))
       return false;
-    }
     this->trigger(device);
     return true;
   }
 
  protected:
-  FixedVector<uint64_t> addresses_;
+  const uint64_t *addresses_{nullptr};
 };
 
 // on_ble_service_data_advertise: fires when an advertisement contains service

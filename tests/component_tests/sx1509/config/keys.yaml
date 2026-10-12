@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+i2c:
+  sda: 4
+  scl: 5
+
+sx1509:
+  - id: sx_a
+    address: 0x3E
+    keypad:
+      key_rows: 2
+      key_columns: 2
+      keys: "abcd"
+  - id: sx_b
+    address: 0x3F
+    keypad:
+      key_rows: 2
+      key_columns: 2
+      keys: "abcd"

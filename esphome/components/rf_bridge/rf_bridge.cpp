@@ -7,7 +7,7 @@
 
 namespace esphome::rf_bridge {
 
-static const char *const TAG = "rf_bridge";
+ESPHOME_LOG_TAG(TAG, "rf_bridge");
 
 void RFBridgeComponent::ack_() {
   ESP_LOGV(TAG, "Sending ACK");

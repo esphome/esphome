@@ -4,7 +4,7 @@
 
 namespace esphome::airthings_wave_mini {
 
-static const char *const TAG = "airthings_wave_mini";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_mini");
 
 void AirthingsWaveMini::read_sensors(uint8_t *raw_value, uint16_t value_len) {
   auto *value = (WaveMiniReadings *) raw_value;
