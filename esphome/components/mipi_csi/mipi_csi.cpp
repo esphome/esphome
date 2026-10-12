@@ -23,7 +23,7 @@
 
 namespace esphome::mipi_csi {
 
-static const char *const TAG = "mipi_csi";
+ESPHOME_LOG_TAG(TAG, "mipi_csi");
 
 static constexpr uint32_t CAPTURE_TASK_STACK_SIZE = 4096;
 static constexpr UBaseType_t CAPTURE_TASK_PRIORITY = 1;

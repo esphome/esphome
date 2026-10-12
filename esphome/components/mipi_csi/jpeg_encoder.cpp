@@ -7,7 +7,7 @@
 
 namespace esphome::mipi_csi {
 
-static const char *const TAG = "mipi_csi.jpeg";
+ESPHOME_LOG_TAG(TAG, "mipi_csi.jpeg");
 
 /// Encoder engines need a per-frame timeout. 5 s is far longer than any supported frame takes.
 static constexpr int ENCODE_TIMEOUT_MS = 5000;
