@@ -237,10 +237,8 @@ void APIServer::refill_spare_ephemeral_() {
       return;
     }
   }
-#ifdef USE_BK72XX
   // Generating the key pair cannot be split across loop passes
   UnavoidableBlockingScope scope;
-#endif
   noise::prepare_spare_ephemeral();
 }
 #endif
