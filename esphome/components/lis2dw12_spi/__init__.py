@@ -6,6 +6,7 @@ from esphome.components.lis2dw12_base import (
     to_code_base,
 )
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 AUTO_LOAD = ["lis2dw12_base"]
@@ -27,6 +28,6 @@ CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
 ).extend(spi.spi_device_schema(cs_pin_required=True))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await to_code_base(config)
     await spi.register_spi_device(var, config)

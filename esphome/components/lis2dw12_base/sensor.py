@@ -10,6 +10,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND_SQUARED,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LIS2DW12_ID, LIS2DW12_SENSOR_SCHEMA
 
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = LIS2DW12_SENSOR_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LIS2DW12_ID])
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_ACCELERATION_X, hub.set_acceleration_x_sensor)

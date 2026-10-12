@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_NAME, DEVICE_CLASS_VIBRATION, ICON_VIBRATE
+from esphome.types import ConfigType
 
 from . import CONF_LIS2DW12_ID, LIS2DW12_SENSOR_SCHEMA
 
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = LIS2DW12_SENSOR_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LIS2DW12_ID])
     sensors = binary_sensor.sub_binary_sensors(config)
     await sensors(CONF_TAP, hub.set_tap_binary_sensor)
