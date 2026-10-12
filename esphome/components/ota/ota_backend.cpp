@@ -35,8 +35,8 @@ bool version_is_older(const char *candidate, const char *reference) {
 static bool update_locked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename F> static bool with_update_lock_mutex(F &&f) {
-#if defined(USE_ESP8266) || defined(USE_RP2)
-  // Single-threaded: nothing can run between the check and the set.
+#ifdef ESPHOME_THREAD_SINGLE
+  // One thread, and no update starts from an interrupt: nothing can run between the check and the set.
   return f();
 #else
   static Mutex mutex;
@@ -65,6 +65,13 @@ void UpdateLock::release() {
     return true;
   });
   this->held_ = false;
+}
+
+void UpdateLock::force_release_() {
+  with_update_lock_mutex([]() {
+    update_locked = false;
+    return true;
+  });
 }
 
 #ifdef USE_OTA_STATE_LISTENER

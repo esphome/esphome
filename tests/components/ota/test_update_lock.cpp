@@ -49,6 +49,24 @@ TEST(UpdateLock, IsHeldTracksOwnership) {
   EXPECT_FALSE(other.is_held());
 }
 
+class TestUpdateLock : public UpdateLock {
+ public:
+  using UpdateLock::force_release_;
+};
+
+TEST(UpdateLock, HoldUntilRebootOutlivesHolder) {
+  {
+    UpdateLock committed;
+    EXPECT_TRUE(committed.try_acquire());
+    committed.hold_until_reboot();
+    EXPECT_FALSE(committed.is_held());
+  }
+  UpdateLock next;
+  EXPECT_FALSE(next.try_acquire());
+  TestUpdateLock::force_release_();
+  EXPECT_TRUE(next.try_acquire());
+}
+
 TEST(UpdateLock, SecondBackendBeginIsBusy) {
   auto first = make_ota_backend();
   auto second = make_ota_backend();

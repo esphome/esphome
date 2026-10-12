@@ -58,6 +58,8 @@ class OTARequestHandler : public AsyncWebHandler {
   void report_ota_progress_(AsyncWebServerRequest *request);
   void schedule_ota_reboot_();
   void ota_init_(const char *filename);
+  /// Abort and drop the open backend, which releases its update lock.
+  void abort_session_();
 
   uint32_t last_ota_progress_{0};
   uint32_t ota_read_length_{0};
@@ -66,6 +68,8 @@ class OTARequestHandler : public AsyncWebHandler {
 
  private:
   ota::OTABackendPtr ota_backend_{nullptr};
+  /// Request that owns ota_backend_, so a late disconnect of an older request can't abort a newer upload.
+  const AsyncWebServerRequest *ota_request_{nullptr};
 };
 
 void OTARequestHandler::report_ota_progress_(AsyncWebServerRequest *request) {
@@ -119,12 +123,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     // the device once it reboots).
     if (this->ota_backend_) {
       ESP_LOGW(TAG, "New OTA upload received while previous session was still open; aborting previous session");
-      this->ota_backend_->abort();
-#ifdef USE_OTA_STATE_LISTENER
-      // Notify listeners that the previous session was aborted before the new one starts.
-      this->parent_->notify_state_deferred_(ota::OTA_ABORT, 0.0f, 0);
-#endif
-      this->ota_backend_.reset();
+      this->abort_session_();
     }
 
     // Initialize OTA on first call
@@ -157,6 +156,16 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 #endif
       return;
     }
+
+    // A cut-off upload never gets its final chunk, so drop the backend (and its update lock) when the
+    // connection closes. Runs in the same task as handleUpload(); a no-op once the upload has ended.
+    this->ota_request_ = request;
+    request->onDisconnect([this, request]() {
+      if (this->ota_request_ == request && this->ota_backend_) {
+        ESP_LOGW(TAG, "OTA upload interrupted; aborting");
+        this->abort_session_();
+      }
+    });
   }
 
   if (!this->ota_backend_) {
@@ -202,7 +211,17 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 #endif
     }
     this->ota_backend_.reset();
+    this->ota_request_ = nullptr;
   }
+}
+
+void OTARequestHandler::abort_session_() {
+  this->ota_backend_->abort();
+#ifdef USE_OTA_STATE_LISTENER
+  this->parent_->notify_state_deferred_(ota::OTA_ABORT, 0.0f, 0);
+#endif
+  this->ota_backend_.reset();
+  this->ota_request_ = nullptr;
 }
 
 void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {

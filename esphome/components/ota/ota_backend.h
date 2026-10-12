@@ -98,10 +98,13 @@ enum OTAType : uint8_t {
 
 /** Lock that keeps flash updates from running at the same time.
  *
- * Every OTA backend takes it in begin() and holds it until the backend is destroyed.
- * A component that writes to the update partition outside of OTA (for example to stage
- * firmware for another chip) holds it for the duration of that work, so the two refuse
- * each other instead of overwriting each other's data.
+ * Every OTA backend takes it in begin(). It is released when the backend is destroyed, except after a
+ * successful end(): then the backend calls hold_until_reboot() and the lock stays set until the restart.
+ * A component that writes to the update partition outside of OTA (for example to stage firmware for
+ * another chip) holds it for the duration of that work, so the two refuse each other instead of
+ * overwriting each other's data.
+ *
+ * is_held() tells whether this instance owns the lock; it is false after hold_until_reboot().
  */
 class UpdateLock {
  public:
@@ -118,6 +121,9 @@ class UpdateLock {
   void hold_until_reboot() { this->held_ = false; }
 
  protected:
+  /// Clears the lock whoever holds it. For tests only, to undo hold_until_reboot().
+  static void force_release_();
+
   bool held_{false};
 };
 

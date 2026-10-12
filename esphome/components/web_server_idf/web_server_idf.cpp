@@ -311,6 +311,10 @@ esp_err_t AsyncWebServer::handle_raw_body_(httpd_req_t *r, const char *content_t
 }
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
+#ifdef USE_WEBSERVER_OTA
+  if (this->on_disconnect_)
+    this->on_disconnect_();
+#endif
   delete this->rsp_;
   for (auto *param : this->params_) {
     delete param;  // NOLINT(cppcoreguidelines-owning-memory)
