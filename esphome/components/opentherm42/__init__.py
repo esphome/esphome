@@ -1,12 +1,13 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import esp32, esp32_rmt
+from esphome.components import esp32, esp32_rmt, time as time_
 from esphome.components.const import CONF_OUT_PIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_NUMBER,
     CONF_PLATFORM,
+    CONF_TIME_ID,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
@@ -32,6 +33,7 @@ AUTO_LOAD = [
     "sensor",
     "switch",
     "text_sensor",
+    "time",
 ]
 
 CONF_IN_PIN = "in_pin"
@@ -163,6 +165,27 @@ opentherm42_ns = cg.esphome_ns.namespace("opentherm42")
 OpenTherm42Hub = opentherm42_ns.class_("OpenTherm42Hub", cg.Component)
 
 
+def validate_requires_time_id(marker: str):
+    """FINAL_VALIDATE_SCHEMA factory for a platform entity that only makes sense when the opentherm42
+    hub it references has time_id set (e.g. the time-sync status binary_sensor and button): fails
+    config validation, rather than silently doing nothing at runtime, if marker is configured but the
+    hub's time_id is not.
+    """
+
+    def _validate(config: ConfigType) -> ConfigType:
+        if marker not in config:
+            return config
+        hub_config = fv.get_declaring_config(config[CONF_OPENTHERM42_ID])
+        if CONF_TIME_ID not in hub_config:
+            raise cv.Invalid(
+                f"'{marker}' requires the opentherm42 hub to have 'time_id' set",
+                path=[marker],
+            )
+        return config
+
+    return _validate
+
+
 def _esp32_rmt_available() -> bool:
     return CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT
 
@@ -246,6 +269,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CONTROLLER_PRODUCT_VERSION, default=0): cv.int_range(
                 min=0, max=255
             ),
+            # §5.3.4 Class 4, IDs 20/21/22: if set, this master keeps the boiler's Day-of-week/Time,
+            # Date and Year synced to this clock. Left unset, those three ids are never sent.
+            cv.Optional(CONF_TIME_ID): cv.use_id(time_.RealTimeClock),
             # §4.4.1: DATA_INVALID ("the data ID is recognised... but the data requested is not
             # available or invalid") has been observed on real hardware as a transient condition for
             # some ids, self-correcting within a few attempts with no apparent cause. Default 0
@@ -283,6 +309,10 @@ async def to_code(config: dict) -> None:
     cg.add(var.set_controller_member_id_code(config[CONF_CONTROLLER_MEMBER_ID_CODE]))
     cg.add(var.set_controller_product_type(config[CONF_CONTROLLER_PRODUCT_TYPE]))
     cg.add(var.set_controller_product_version(config[CONF_CONTROLLER_PRODUCT_VERSION]))
+
+    if (time_id := config.get(CONF_TIME_ID)) is not None:
+        time_var = await cg.get_variable(time_id)
+        cg.add(var.set_time_id(time_var))
 
     cg.add(var.set_max_data_invalid(config[CONF_MAX_DATA_INVALID]))
 
