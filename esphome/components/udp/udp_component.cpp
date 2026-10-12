@@ -8,13 +8,8 @@
 namespace esphome::udp {
 
 ESPHOME_LOG_TAG(TAG, "udp");
-static constexpr uint32_t JOIN_RETRY_INTERVAL_MS = 5000;
-
-static void listen_group(const network::IPAddress &address, struct in_addr *group) {
-  char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
-  address.str_to(addr_buf);
-  inet_aton(addr_buf, group);
-}
+static constexpr uint32_t JOIN_POLL_ID = 0;
+static constexpr uint32_t JOIN_POLL_INTERVAL_MS = 1000;
 
 void UDPComponent::setup() {
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
@@ -75,11 +70,13 @@ void UDPComponent::setup() {
     server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
     server.sin_port = htons(this->listen_port_);
 
-    if (this->listen_address_.has_value()) {
-      listen_group(this->listen_address_.value(), &server.sin_addr);
-      // Joined from loop() once the network is up; RP2040 has no interface to join before then
-      this->join_pending_ = true;
-      this->join_attempt_at_ = millis() - JOIN_RETRY_INTERVAL_MS;
+    if (this->listen_address_ != nullptr) {
+      inet_aton(this->listen_address_, &server.sin_addr);
+      // Joined once the network is up; RP2040 has no interface to join before then
+      this->set_interval(JOIN_POLL_ID, JOIN_POLL_INTERVAL_MS, [this]() {
+        if (network::is_connected() && this->join_multicast_())
+          this->cancel_interval(JOIN_POLL_ID);
+      });
     }
 
     err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
@@ -93,13 +90,11 @@ void UDPComponent::setup() {
 }
 
 bool UDPComponent::join_multicast_() {
-  if (!this->listen_address_.has_value())
-    return true;
   struct ip_mreq imreq = {};
   imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
-  listen_group(this->listen_address_.value(), &imreq.imr_multiaddr);
+  inet_aton(this->listen_address_, &imreq.imr_multiaddr);
   if (this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) == 0) {
-    ESP_LOGD(TAG, "Joined multicast group");
+    ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
     // Only undo this path's own warning; setup() may have set one for a bad address
     if (this->join_failed_) {
       this->join_failed_ = false;
@@ -107,20 +102,16 @@ bool UDPComponent::join_multicast_() {
     }
     return true;
   }
-  ESP_LOGW(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
-  this->status_set_warning(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
-  this->join_failed_ = true;
+  // Log the first failure only; the poll keeps retrying every second
+  if (!this->join_failed_) {
+    ESP_LOGW(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
+    this->status_set_warning(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
+    this->join_failed_ = true;
+  }
   return false;
 }
 
 void UDPComponent::loop() {
-  if (this->join_pending_ && network::is_connected()) {
-    const uint32_t now = App.get_loop_component_start_time();
-    if (now - this->join_attempt_at_ >= JOIN_RETRY_INTERVAL_MS) {
-      this->join_attempt_at_ = now;
-      this->join_pending_ = !this->join_multicast_();
-    }
-  }
   if (this->should_listen_) {
     std::array<uint8_t, MAX_PACKET_SIZE> buf;
     for (;;) {
@@ -144,9 +135,8 @@ void UDPComponent::dump_config() {
     const char *address = *it;
     ESP_LOGCONFIG(TAG, "  Address: %s", address);
   }
-  if (this->listen_address_.has_value()) {
-    char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
+  if (this->listen_address_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_);
   }
   ESP_LOGCONFIG(TAG,
                 "  Broadcasting: %s\n"

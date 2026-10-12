@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
 #include "esphome/components/socket/socket.h"
 #include <array>
 #include <initializer_list>
@@ -17,7 +16,8 @@ class UDPComponent final : public Component {
  public:
   /// nullptr-terminated table of addresses; must outlive the component.
   void set_addresses(const char *const *addresses) { this->addresses_ = addresses; }
-  void set_listen_address(const char *listen_addr) { this->listen_address_ = network::IPAddress(listen_addr); }
+  /// Multicast group literal; must outlive the component.
+  void set_listen_address(const char *listen_addr) { this->listen_address_ = listen_addr; }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast() { this->should_broadcast_ = true; }
@@ -33,12 +33,10 @@ class UDPComponent final : public Component {
  protected:
   bool join_multicast_();
 
-  uint32_t join_attempt_at_{};
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
-  bool join_pending_{};
   bool join_failed_{};
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
@@ -47,7 +45,7 @@ class UDPComponent final : public Component {
   std::vector<struct sockaddr> sockaddrs_{};
   const char *const *addresses_{nullptr};
 
-  optional<network::IPAddress> listen_address_{};
+  const char *listen_address_{nullptr};
 };
 
 }  // namespace esphome::udp
