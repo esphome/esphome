@@ -136,46 +136,54 @@ void UDPComponent::setup() {
 }
 
 bool UDPComponent::network_poll_() {
+  bool ok = true;
   if (this->poll_pending_ & POLL_JOIN) {
 #ifdef USE_SOCKET_IPV6
     uint32_t *if_index = &this->mcast_ifindex_;
 #else
     uint32_t *if_index = nullptr;
 #endif
-    if (!socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_, if_index)) {
+    if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_, if_index)) {
+      ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
+      this->poll_pending_ &= ~POLL_JOIN;
+      this->poll_failed_ = false;
+    } else {
       this->set_poll_warning_(LOG_STR("Failed to join multicast group"));
-      return false;
+      ok = false;
     }
-    ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
-    this->poll_pending_ &= ~POLL_JOIN;
-    this->poll_failed_ = false;
   }
 #ifdef USE_SOCKET_IPV6
-  if (this->poll_pending_ & POLL_BIND) {
+  if (ok && (this->poll_pending_ & POLL_BIND)) {
     struct sockaddr_storage server {};
     socklen_t server_len =
         socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), this->listen_address_, this->listen_port_);
     // POSIX bind() on a link-local group needs it; lwIP ignores it
     reinterpret_cast<sockaddr_in6 *>(&server)->sin6_scope_id = this->mcast_ifindex_;
-    if (this->listen_socket_->bind((struct sockaddr *) &server, server_len) != 0) {
+    if (this->listen_socket_->bind((struct sockaddr *) &server, server_len) == 0) {
+      this->poll_pending_ &= ~POLL_BIND;
+      this->poll_failed_ = false;
+    } else {
       this->set_poll_warning_(LOG_STR("Unable to bind socket"));
-      return false;
+      ok = false;
     }
-    this->poll_pending_ &= ~POLL_BIND;
-    this->poll_failed_ = false;
   }
 #endif
 #ifdef USE_UDP_IPV6_SEND
-  if (this->poll_pending_ & POLL_MCAST_IF) {
+  // Only an IPv6 group's join supplies the index, so a failing IPv4 join must not hold back sends
+  const bool index_pending = (this->poll_pending_ & (POLL_JOIN | POLL_BIND)) == (POLL_JOIN | POLL_BIND);
+  if ((this->poll_pending_ & POLL_MCAST_IF) && !index_pending) {
     // Index 0 picks the first eligible interface
-    if (!socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), this->mcast_ifindex_)) {
+    if (socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), this->mcast_ifindex_)) {
+      this->poll_pending_ &= ~POLL_MCAST_IF;
+      this->poll_failed_ = false;
+    } else {
       this->set_poll_warning_(LOG_STR("Failed to set IPv6 multicast interface"));
-      return false;
+      ok = false;
     }
-    this->poll_pending_ &= ~POLL_MCAST_IF;
-    this->poll_failed_ = false;
   }
 #endif
+  if (!ok)
+    return false;
   if (this->poll_warning_) {
     this->poll_warning_ = false;
     this->status_clear_warning();

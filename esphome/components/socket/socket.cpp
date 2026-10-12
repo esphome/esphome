@@ -334,6 +334,7 @@ bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
       return true;
     });
     if (ifindex == 0) {
+      errno = EADDRNOTAVAIL;
       return false;
     }
   }
