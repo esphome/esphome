@@ -61,6 +61,7 @@ In `emontx` platform:
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation or multiple hubs.
 - **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [UART Component](/components/uart) if you want to use multiple UART buses.
+- **lock_on_reboot** (*Optional*, boolean): The ESPHome device sends `emonlock` to the EmonTx right before it reboots (OTA update, restart, safe mode, ...), and `emonunlock` once it has booted. While locked, the EmonTx ignores configuration commands, so serial noise during the reboot cannot change its settings. A crash, watchdog reset or power loss skips the lock. Requires EmonTx firmware v1.2.0 or later: older firmware reads these commands as a request to enter the bootloader. When `false`, nothing is sent. Defaults to `false`.
 - **on_json** (*Optional*): An automation that will be triggered whenever new JSON data is received from the EmonTx. Within this trigger, the `raw_json` variable (`StringRef`) contains the received JSON data as a string. A parsed JSON object is also available as the `json` variable (`JsonObject`), which can be used to access and manipulate specific fields in the JSON data.
 - **on_data** (*Optional*): An automation that will be triggered for every serial line received from the EmonTx (both plain text and JSON). Within this trigger, the `data` variable (`StringRef`) contains the received line. This is useful for debugging, logging all serial output, or handling configuration responses from the EmonTx.
 
