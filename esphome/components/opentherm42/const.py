@@ -261,6 +261,31 @@ CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE = "remote_request_last_response_code"
 # rather than the raw code.
 CONF_REMOTE_REQUEST_LAST_RESPONSE = "remote_request_last_response"
 
+# §5.3.4 Class 4: write-only numbers this master provides to the boiler.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT = (
+    "sensor_and_informational_data_room_setpoint"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT_CH2 = (
+    "sensor_and_informational_data_room_setpoint_ch2"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE = (
+    "sensor_and_informational_data_room_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2 = "sensor_and_informational_data_trch2"
+
+# §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single number entity serves both directions, see
+# hub.h's RequestKind comment.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE = (
+    "sensor_and_informational_data_outside_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY = (
+    "sensor_and_informational_data_relative_humidity"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR = (
+    "sensor_and_informational_data_relative_humidity_exhaust_air"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL = "sensor_and_informational_data_co2_level"
+
 # §5.3.4 Class 4: read-only sensors.
 CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL = (
     "sensor_and_informational_data_relative_modulation_level"
@@ -376,6 +401,21 @@ CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS = (
 CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS = (
     "sensor_and_informational_data_dhw_burner_operation_hours"
 )
+
+# §5.3.4 Class 4, IDs 20/21/22: synthetic diagnostic entities -- not defined by the spec itself -- for
+# the Day-of-week/Time, Date and Year writes described by opentherm42/__init__.py's time_id option:
+# whether the boiler is currently accepting them, and a button to force an immediate resync attempt.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED = (
+    "sensor_and_informational_data_time_synchronized"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SYNC_TIME = "sensor_and_informational_data_sync_time"
+
+# §5.3.4 Class 4, IDs 20/21/22 (read side): a synthetic entity too -- unlike ids 27/38/78/79 below,
+# which each get a real 1:1 "_set" number / plain sensor pair, ids 20/21/22's write side has no
+# config marker of its own (see hub.h's RequestKind::DAY_TIME_READ comment), so there's no "_set"
+# marker to pair this against. Independent of time_id: reading the boiler's own clock is useful
+# diagnostic information even for a setup that never writes to it.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME = "sensor_and_informational_data_date_time"
 
 # Synthetic diagnostic entity, not tied to any OpenTherm data-id -- deliberately NOT given the
 # sensor_and_informational_data_* prefix used throughout this file, since that prefix names a real
