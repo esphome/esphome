@@ -49,6 +49,7 @@ class E131Component final : public esphome::Component {
   void leave_(int universe);
 
   E131ListenMethod listen_method_{E131_MULTICAST};
+  bool igmp_join_pending_{false};
   std::unique_ptr<socket::UDPSocket> socket_;
   std::vector<E131AddressableLightEffect *> light_effects_;
   std::vector<UniverseConsumer> universe_consumers_;

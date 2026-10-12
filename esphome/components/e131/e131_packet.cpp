@@ -3,6 +3,7 @@
 #include "e131.h"
 #ifdef USE_NETWORK
 #include "esphome/components/network/ip_address.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/helpers.h"
@@ -62,6 +63,12 @@ const size_t E131_MIN_PACKET_SIZE = offsetof(E131RawPacket, property_values) + s
 bool E131Component::join_igmp_groups_() {
   if (this->listen_method_ != E131_MULTICAST || this->socket_ == nullptr)
     return false;
+  // Joined from loop() once the network is up; RP2040 has no interface to join before then
+  if (!network::is_connected()) {
+    this->igmp_join_pending_ = true;
+    return true;
+  }
+  this->igmp_join_pending_ = false;
 
   for (auto &entry : this->universe_consumers_) {
     if (!entry.consumers)
