@@ -64,11 +64,9 @@ Bits Description
 4    This field is normally set to 0000. The first packets transmitted by thermostat
      after its batteries are inserted has this field set to 0001. This allows a
      Digistat receiver in 'learn' mode to synchronise to the ID of the thermostat.
-     The 'learn' parameter allows this bit to be set so that a Drayton reciever can
-     learn the ID of an esphome transmitter.
-1    Thermostat on (1) or off (0). Can be set with the switch parameter.
+1    Thermostat on (1) or off (0).
 1    Always 0.
-1    Low battery (1) or battery OK (0). Can be set with the loBatt parameter.
+1    Low battery (1) or battery OK (0).
 1    Always 0.
 8    Checksum
 
@@ -106,7 +104,6 @@ is reported without taking the endianness of the address nibbles.
 The initial revision split the 28 bits into address (16), command (7) and channel (5),
 following RFLink. That split does not match the fields above but is kept for existing
 configs: when channel or command is set, the packet is built from them with no checksum.
-They will be deprecated.
 
 */
 
