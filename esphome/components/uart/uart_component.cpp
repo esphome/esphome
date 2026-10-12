@@ -3,8 +3,6 @@
 
 #include <algorithm>
 
-#include <algorithm>
-
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
