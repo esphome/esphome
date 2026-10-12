@@ -10,8 +10,10 @@
 namespace esphome::haier_tundra {
 
 // Byte 0 - Header value (Unit ID)
-static constexpr uint8_t HAIER_HEADER_UNIT_B = 0x59;
-static constexpr uint8_t HAIER_HEADER_UNIT_A = 0xA6;
+enum Unit : uint8_t {
+  HAIER_HEADER_UNIT_B = 0x59,
+  HAIER_HEADER_UNIT_A = 0xA6,
+};
 
 // Byte 1[7:4] - Temperature (˚C) 0x0..0xE
 static constexpr uint8_t HAIER_TEMP_MIN = 16;
@@ -99,6 +101,7 @@ class HaierTundra final : public climate_ir::ClimateIR {
   void set_health_mode(bool health, bool transmit = true);
   void set_quiet_mode(bool quiet, bool transmit = true);
   void set_turbo_mode(bool turbo, bool transmit = true);
+  void set_unit(Unit unit);
 
   void toggle_light();
   void start_self_clean();
@@ -127,6 +130,7 @@ class HaierTundra final : public climate_ir::ClimateIR {
   climate::ClimateMode get_operation_mode_(uint8_t power, uint8_t mode);
   climate::ClimateFanMode get_fan_speed_(uint8_t fan);
 
+  Unit unit_{};
   bool health_mode_{false};
   bool quiet_mode_{false};
   bool turbo_mode_{false};

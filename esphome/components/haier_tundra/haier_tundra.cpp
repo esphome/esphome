@@ -29,7 +29,7 @@ void HaierTundra::transmit_(uint8_t button) {
   }
 
   remote_base::HaierData remote_state{{
-      HAIER_HEADER_UNIT_A,
+      this->unit_,
       static_cast<uint8_t>(this->temperature_() << 4 | this->vertical_swing_()),
       static_cast<uint8_t>(this->horizontal_swing_() << 5),
       static_cast<uint8_t>(this->health_() << 1),
@@ -126,8 +126,8 @@ bool HaierTundra::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 bool HaierTundra::on_haier_(const remote_base::HaierData &haier) {
-  // Verify frame length and header - only unit A supported currently
-  if (haier.data.size() != HAIER_TUNDRA_FRAME_SIZE || haier.data[0] != HAIER_HEADER_UNIT_A) {
+  // Verify frame length and header
+  if (haier.data.size() != HAIER_TUNDRA_FRAME_SIZE || haier.data[0] != this->unit_) {
     return false;
   }
 
@@ -205,6 +205,8 @@ climate::ClimateFanMode HaierTundra::get_fan_speed_(uint8_t fan) {
       return climate::CLIMATE_FAN_AUTO;
   }
 }
+
+void HaierTundra::set_unit(Unit unit) { this->unit_ = unit; }
 
 void HaierTundra::set_health_mode(bool health, bool transmit) {
   this->health_mode_ = health;
