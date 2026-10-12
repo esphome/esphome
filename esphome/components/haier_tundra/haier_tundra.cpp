@@ -206,15 +206,15 @@ climate::ClimateFanMode HaierTundra::get_fan_speed_(uint8_t fan) {
   }
 }
 
-void HaierTundra::set_health_mode(bool health) {
+void HaierTundra::set_health_mode(bool health, bool transmit) {
   this->health_mode_ = health;
 
-  if (this->mode != climate::CLIMATE_MODE_OFF) {
+  if (transmit && this->mode != climate::CLIMATE_MODE_OFF) {
     this->transmit_(HAIER_BUTTON_HEALTH);
   }
 }
 
-void HaierTundra::set_quiet_mode(bool quiet) {
+void HaierTundra::set_quiet_mode(bool quiet, bool transmit) {
   // Quiet & Turbo cannot be enabled at the same time
   if (quiet) {
 #ifdef USE_SWITCH
@@ -226,10 +226,10 @@ void HaierTundra::set_quiet_mode(bool quiet) {
   }
 
   this->quiet_mode_ = quiet;
-  this->transmit_(HAIER_BUTTON_TURBO_QUIET);
+  if (transmit) this->transmit_(HAIER_BUTTON_TURBO_QUIET);
 }
 
-void HaierTundra::set_turbo_mode(bool turbo) {
+void HaierTundra::set_turbo_mode(bool turbo, bool transmit) {
   // Quiet & Turbo cannot be enabled at the same time
   if (turbo) {
 #ifdef USE_SWITCH
@@ -241,7 +241,7 @@ void HaierTundra::set_turbo_mode(bool turbo) {
   }
 
   this->turbo_mode_ = turbo;
-  this->transmit_(HAIER_BUTTON_TURBO_QUIET);
+  if (transmit) this->transmit_(HAIER_BUTTON_TURBO_QUIET);
 }
 
 void HaierTundra::toggle_light() {

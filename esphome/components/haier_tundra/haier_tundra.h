@@ -96,9 +96,9 @@ class HaierTundra final : public climate_ir::ClimateIR {
   SUB_SWITCH(turbo);
 #endif
 
-  void set_health_mode(bool health);
-  void set_quiet_mode(bool quiet);
-  void set_turbo_mode(bool turbo);
+  void set_health_mode(bool health, bool transmit = true);
+  void set_quiet_mode(bool quiet, bool transmit = true);
+  void set_turbo_mode(bool turbo, bool transmit = true);
 
   void toggle_light();
   void start_self_clean();

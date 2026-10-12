@@ -8,7 +8,8 @@ ESPHOME_LOG_TAG(TAG, "haier_tundra.switch.quiet");
 void QuietSwitch::setup() {
   auto initial = this->get_initial_state_with_restore_mode();
   if (initial.has_value()) {
-    this->write_state(*initial);
+    this->parent_->set_quiet_mode(*initial, false);
+    this->publish_state(*initial);
   }
 }
 
