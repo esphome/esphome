@@ -33,6 +33,14 @@ TEST(PanasonicProtocolTest, DefaultsSendA48BitFrameAt35kHz) {
   EXPECT_EQ(tx.get_carrier_frequency(), 35000u);
 }
 
+TEST(PanasonicProtocolTest, ForwardsTheConfiguredCarrier) {
+  PanasonicData data = frame(56);
+  data.carrier_frequency = 36000;
+  RemoteTransmitData tx;
+  PanasonicProtocol().encode(&tx, data);
+  EXPECT_EQ(tx.get_carrier_frequency(), 36000u);
+}
+
 TEST(PanasonicProtocolTest, RoundTrips48BitFrame) {
   auto decoded = decode(encode(frame(48)));
   ASSERT_TRUE(decoded.has_value());

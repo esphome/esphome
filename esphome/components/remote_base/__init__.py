@@ -2079,6 +2079,18 @@ PANASONIC_SCHEMA = cv.Schema(
         cv.Required(CONF_COMMAND): cv.hex_uint32_t,
     }
 )
+
+
+def _panasonic_address_2_needs_56_bits(config: ConfigType) -> ConfigType:
+    # A 48-bit code has no second address byte; a lambda is only known on the device
+    address_2 = config.get(CONF_ADDRESS_2, 0)
+    if config.get(CONF_NBITS) == 48 and isinstance(address_2, int) and address_2 != 0:
+        raise cv.Invalid(
+            f"{CONF_ADDRESS_2} is only sent with {CONF_NBITS}: 56", [CONF_ADDRESS_2]
+        )
+    return config
+
+
 # A receiver cannot measure the carrier, so only the transmit action takes it.
 PANASONIC_ACTION_SCHEMA = PANASONIC_SCHEMA.extend(
     {
@@ -2089,7 +2101,11 @@ PANASONIC_ACTION_SCHEMA = PANASONIC_SCHEMA.extend(
 )
 
 
-@register_binary_sensor("panasonic", PanasonicBinarySensor, PANASONIC_SCHEMA)
+@register_binary_sensor(
+    "panasonic",
+    PanasonicBinarySensor,
+    cv.All(PANASONIC_SCHEMA, _panasonic_address_2_needs_56_bits),
+)
 def panasonic_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -2123,6 +2139,7 @@ register_protocol_action(
     (CONF_ADDRESS_2, "address_2", cg.uint8),
     (CONF_COMMAND, "command", cg.uint32),
     (CONF_CARRIER_FREQUENCY, "carrier_frequency", cg.uint32),
+    validate=_panasonic_address_2_needs_56_bits,
 )
 
 
