@@ -257,14 +257,23 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 ).extend(REMOTE_TRANSMITTABLE_SCHEMA)
 
 
+def _transmit_action(
+    name: str,
+    schema: cv.Schema,
+    validate: Callable[[ConfigType], ConfigType] | None,
+) -> tuple[str, cv.Schema, Any]:
+    """The action name, its schema and the schema with ``validate`` applied."""
+    schema = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
+    validator = schema if validate is None else cv.All(schema, validate)
+    return f"remote_transmitter.transmit_{name}", schema, validator
+
+
 def register_action(
     name, type_, schema, *, validate: Callable[[ConfigType], ConfigType] | None = None
 ):
-    validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
-    if validate is not None:
-        validator = cv.All(validator, validate)
+    action, _, validator = _transmit_action(name, schema, validate)
     registerer = automation.register_action(
-        f"remote_transmitter.transmit_{name}",
+        action,
         type_,
         validator,
         synchronous=True,
@@ -295,16 +304,13 @@ def register_protocol_action(
     schema: cv.Schema,
     *fields: tuple[str, str, SafeExpType],
     validate: Callable[[ConfigType], ConfigType] | None = None,
-    default_repeat: tuple[int, int] | None = None,
 ) -> None:
     """Register ``transmit_<name>`` with no C++ action class.
 
     One generated function fills ``<protocol>Data`` from ``(conf_key, member, type_)`` fields
-    and sends it; the action is a core ``ApplyAction``. ``default_repeat`` is
-    ``(times, wait_time_us)`` for a config without ``repeat``.
+    and sends it; the action is a core ``ApplyAction``.
     """
-    action = f"remote_transmitter.transmit_{name}"
-    schema = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
+    action, schema, validator = _transmit_action(name, schema, validate)
     builder = automation.apply_action_builder(
         action,
         schema,
@@ -327,19 +333,10 @@ def register_protocol_action(
         args: TemplateArgsType,
     ) -> MockObj:
         _request_protocol_if_in_tree(name)
-        if default_repeat is not None and CONF_REPEAT not in config:
-            times, wait_time = default_repeat
-            config = {
-                **config,
-                CONF_REPEAT: {CONF_TIMES: times, CONF_WAIT_TIME: wait_time},
-            }
         return await builder(config, action_id, template_arg, args)
 
     automation.register_action(
-        action,
-        automation.ApplyAction,
-        schema if validate is None else cv.All(schema, validate),
-        synchronous=True,
+        action, automation.ApplyAction, validator, synchronous=True
     )(protocol_builder)
 
 
@@ -2541,6 +2538,13 @@ def toto_dumper(var, config):
     pass
 
 
+def _toto_default_repeat(config: ConfigType) -> ConfigType:
+    # Toto remotes send each frame 3 times, 36 ms apart
+    if CONF_REPEAT in config:
+        return config
+    return {**config, CONF_REPEAT: {CONF_TIMES: 3, CONF_WAIT_TIME: 36000}}
+
+
 register_protocol_action(
     "toto",
     "Toto",
@@ -2548,5 +2552,5 @@ register_protocol_action(
     (CONF_RC_CODE_1, "rc_code_1", cg.uint8),
     (CONF_RC_CODE_2, "rc_code_2", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
-    default_repeat=(3, 36000),
+    validate=_toto_default_repeat,
 )

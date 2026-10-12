@@ -2,7 +2,8 @@
 
 from collections.abc import Callable
 from pathlib import Path
-import re
+
+from tests.component_tests.remote_transmitter import protocol_call_bodies
 
 
 def test_keeloq_suffix_is_set_only_when_configured(
@@ -10,11 +11,7 @@ def test_keeloq_suffix_is_set_only_when_configured(
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("keeloq_suffix.yaml"))
-    bodies = re.findall(
-        r"auto apply_call = \S+->protocol_call<remote_base::KeeloqProtocol>\(\);\n(.*?)apply_call\.perform\(\);",
-        main_cpp,
-        re.DOTALL,
-    )
+    bodies = protocol_call_bodies(main_cpp)
     assert len(bodies) == 3
     plain, constant, lambda_ = bodies
     # The plain word fills only the HCS301 fields.

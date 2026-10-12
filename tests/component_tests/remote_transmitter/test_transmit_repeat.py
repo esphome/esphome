@@ -2,7 +2,8 @@
 
 from collections.abc import Callable
 from pathlib import Path
-import re
+
+from tests.component_tests.remote_transmitter import protocol_call_bodies
 
 
 def test_transmit_repeat(
@@ -10,11 +11,7 @@ def test_transmit_repeat(
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("transmit_repeat.yaml"))
-    bodies = re.findall(
-        r"auto apply_call = \S+->protocol_call<remote_base::\w+>\(\);\n(.*?)apply_call\.perform\(\);",
-        main_cpp,
-        re.DOTALL,
-    )
+    bodies = protocol_call_bodies(main_cpp)
     assert len(bodies) == 4
     toto_default, toto_explicit, nec_repeat, nec_once = bodies
     # toto sends 3 times 36 ms apart unless the config says otherwise.
