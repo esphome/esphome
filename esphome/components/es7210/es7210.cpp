@@ -97,9 +97,14 @@ bool ES7210::set_mic_gain(float mic_gain) {
   return true;
 }
 
-void ES7210::set_channel_gain(uint8_t channel, float gain) {
-  if (channel < this->channel_gains_.size())
-    this->channel_gains_[channel] = clamp<float>(gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX);
+bool ES7210::set_channel_gain(uint8_t channel, float gain) {
+  if (channel >= this->channel_gains_.size())
+    return false;
+  this->channel_gains_[channel] = clamp<float>(gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX);
+  if (this->setup_complete_) {
+    return this->configure_mic_gain_();
+  }
+  return true;
 }
 
 bool ES7210::configure_sample_rate_() {

@@ -24,6 +24,7 @@ ES7210_BITS_PER_SAMPLE_ENUM = {
 
 
 ES7210_MIC_GAINS = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 34.5, 36, 37.5]
+ES7210_MIC_GAIN_DEFAULT = 24
 
 _validate_bits = cv.float_with_unit("bits", "bit")
 
@@ -61,6 +62,6 @@ async def to_code(config: ConfigType) -> None:
         for channel, gain in enumerate(channel_gains):
             cg.add(var.set_channel_gain(channel, gain))
     else:
-        cg.add(var.set_mic_gain(config.get(CONF_MIC_GAIN, 24)))
+        cg.add(var.set_mic_gain(config.get(CONF_MIC_GAIN, ES7210_MIC_GAIN_DEFAULT)))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_tdm(config[CONF_TDM]))

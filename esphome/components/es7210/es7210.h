@@ -29,11 +29,14 @@ class ES7210 final : public audio_adc::AudioAdc, public Component, public i2c::I
   void dump_config() override;
 
   void set_bits_per_sample(ES7210BitsPerSample bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
+  /// Sets all four channel gains, replacing any configured per-channel gains.
   bool set_mic_gain(float mic_gain) override;
-  void set_channel_gain(uint8_t channel, float gain);
+  /// Sets a zero-based channel gain; returns false for an invalid channel or an I2C failure.
+  bool set_channel_gain(uint8_t channel, float gain);
   void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
   void set_tdm(bool enable_tdm) { this->enable_tdm_ = enable_tdm; }
 
+  /// Returns the MIC1 gain; other channels may have different gains.
   float mic_gain() override { return this->channel_gains_[0]; };
 
  protected:
