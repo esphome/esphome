@@ -57,11 +57,11 @@ button:
     on_press:
       remote_transmitter.transmit_nexus:
         channel: 1
-        address: 42
-        temperature: 42.0
+        address: 0x42
+        temperature: -12.3
         humidity: 69
         battery_level: false
-        force_update: false
+        force_update: true
   - platform: template
     name: LG
     on_press:

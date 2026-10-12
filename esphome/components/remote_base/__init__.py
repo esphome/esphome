@@ -2166,22 +2166,19 @@ register_protocol_action(
 
 
 # Nexus
-(
-    NexusData,
-    NexusBinarySensor,
-    NexusTrigger,
-    _,
-    NexusDumper,
-) = declare_protocol("Nexus")
-
+NexusData, NexusBinarySensor, NexusTrigger, _, NexusDumper = declare_protocol("Nexus")
 NEXUS_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=4),
-        cv.Required(CONF_ADDRESS): cv.uint8_t,
-        cv.Optional(CONF_TEMPERATURE, default=25.5): cv.All(
+        cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
+    }
+)
+NEXUS_ACTION_SCHEMA = NEXUS_SCHEMA.extend(
+    {
+        cv.Required(CONF_TEMPERATURE): cv.All(
             cv.float_, cv.Range(min=-204.8, max=204.7)
         ),
-        cv.Optional(CONF_HUMIDITY, default=42): cv.uint8_t,
+        cv.Required(CONF_HUMIDITY): cv.uint8_t,
         cv.Optional(CONF_BATTERY_LEVEL, default=True): cv.boolean,
         cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
     }
@@ -2194,8 +2191,8 @@ def nexus_binary_sensor(var, config):
         var.set_data(
             cg.StructInitializer(
                 NexusData,
-                ("channel", config[CONF_CHANNEL]),
                 ("address", config[CONF_ADDRESS]),
+                ("channel", config[CONF_CHANNEL]),
             )
         )
     )
@@ -2214,7 +2211,7 @@ def nexus_dumper(var, config):
 register_protocol_action(
     "nexus",
     "Nexus",
-    NEXUS_SCHEMA,
+    NEXUS_ACTION_SCHEMA,
     (CONF_CHANNEL, "channel", cg.uint8),
     (CONF_ADDRESS, "address", cg.uint8),
     (CONF_TEMPERATURE, "temperature", cg.float_),

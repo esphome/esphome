@@ -2,21 +2,19 @@
 
 #include "remote_base.h"
 
-#include <cinttypes>
-
 namespace esphome::remote_base {
 
 struct NexusData {
-  uint8_t channel;
+  float temperature;  // °C, sent as 12 bit signed tenths
   uint8_t address;
-  float temperature;
-  uint8_t humidity;
   bool battery_level;
   bool force_update;
+  uint8_t channel;  // sent 0-based, shown 1-based
+  uint8_t humidity;
 
   bool operator==(const NexusData &rhs) const {
-    return channel == rhs.channel && address == rhs.address && temperature == rhs.temperature &&
-           humidity == rhs.humidity && battery_level == rhs.battery_level && force_update == rhs.force_update;
+    // The binary sensor matches the transmitter, not the reading.
+    return channel == rhs.channel && address == rhs.address;
   }
 };
 
