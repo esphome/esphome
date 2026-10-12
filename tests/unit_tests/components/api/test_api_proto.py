@@ -40,6 +40,7 @@ API_DIR = Path(esphome.__file__).parent / "components" / "api"
 PROTO_TEXT = (API_DIR / "api.proto").read_text(encoding="utf-8")
 HEADER_TEXT = (API_DIR / "api_pb2.h").read_text(encoding="utf-8")
 CPP_TEXT = (API_DIR / "api_pb2.cpp").read_text(encoding="utf-8")
+SERVICE_TEXT = (API_DIR / "api_pb2_service.cpp").read_text(encoding="utf-8")
 API_CONNECTION_TEXT = (API_DIR / "api_connection.cpp").read_text(encoding="utf-8")
 
 # Fields on DeviceInfoResponse that were superseded by DeviceCapabilitiesResponse
@@ -66,7 +67,11 @@ NEW_CAPABILITY_FIELDS: dict[str, dict[str, int]] = {
         "voice_assistant": 2,
         "zwave_proxy": 3,
         "serial_proxies": 4,
+        "wizard": 5,
+        "sendspin": 6,
     },
+    "WizardCapabilities": {"configured": 1},
+    "SendspinCapabilities": {"feature_flags": 1},
     "BluetoothProxyCapabilities": {
         "feature_flags": 1,
         "mac_address": 2,
@@ -194,17 +199,17 @@ def test_superseded_device_info_fields_still_declared_in_header() -> None:
 
 def test_superseded_device_info_fields_still_encoded_and_sized() -> None:
     """Each superseded field must still be touched by DeviceInfoResponse's
-    generated encode() and calculate_size(), i.e. it is still put on the wire.
+    generated encode_msg() and calc_size_msg(), i.e. it is still put on the wire.
     """
-    encode_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::encode")
-    size_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::calculate_size")
+    encode_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::encode_msg")
+    size_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::calc_size_msg")
     for field_name in SUPERSEDED_FIELDS:
-        assert f"this->{field_name}" in encode_body, (
-            f"DeviceInfoResponse::encode() no longer references {field_name}. "
+        assert f"msg.{field_name}" in encode_body, (
+            f"DeviceInfoResponse::encode_msg() no longer references {field_name}. "
             f"{DEPRECATED_FIELD_TRAP}"
         )
-        assert f"this->{field_name}" in size_body, (
-            f"DeviceInfoResponse::calculate_size() no longer references "
+        assert f"msg.{field_name}" in size_body, (
+            f"DeviceInfoResponse::calc_size_msg() no longer references "
             f"{field_name}. {DEPRECATED_FIELD_TRAP}"
         )
 
@@ -359,6 +364,123 @@ def test_device_capabilities_rpc_requires_authentication() -> None:
     )
 
 
+def test_device_wizard_messages_keep_their_wire_ids() -> None:
+    """Message ids are part of the wire protocol and must not change."""
+    for message, expected in (
+        ("DeviceWizardRequest", 156),
+        ("DeviceWizardResponse", 157),
+        ("WizardInputSetRequest", 158),
+    ):
+        body = _extract_proto_message(PROTO_TEXT, message)
+        match = re.search(r"option \(id\) = (\d+);", body)
+        assert match is not None, f"{message} is missing `option (id)`"
+        assert int(match.group(1)) == expected, (
+            f"{message} has id {match.group(1)}, expected {expected}"
+        )
+
+
+def test_device_wizard_message_fields_keep_their_wire_numbers() -> None:
+    """Clients decode the wizard purely by field number."""
+    fields: dict[str, dict[str, int]] = {
+        "WizardInputSetRequest": {"key": 1, "entity_id": 2},
+        "DeviceWizardResponse": {"data": 1},
+    }
+    for message, message_fields in fields.items():
+        body = _extract_proto_message(PROTO_TEXT, message)
+        for field_name, number in message_fields.items():
+            line = _field_declaration_line(body, field_name)
+            assert re.search(rf"\b{field_name}\s*=\s*{number}\b", line), (
+                f"{field_name} in {message} is no longer field number {number}"
+            )
+
+
+def _enclosing_ifdefs(text: str, anchor: str) -> list[str]:
+    """The conditions of the #if blocks that enclose the first line starting with anchor."""
+    stack: list[str] = []
+    for line in text.splitlines():
+        if line.startswith(anchor):
+            return stack
+        if line.startswith("#if"):
+            stack.append(line)
+        elif line.startswith("#endif"):
+            stack.pop()
+    raise AssertionError(f"{anchor} not found")
+
+
+# The define that compiles each wizard message in, so a device only pays for what its wizard uses
+WIZARD_MESSAGE_DEFINES: dict[str, str] = {
+    "DeviceWizardRequest": "USE_API_WIZARD",
+    "DeviceWizardResponse": "USE_API_WIZARD",
+    "WizardInputSetRequest": "USE_API_WIZARD_INPUTS",
+}
+# Not marked in api.proto: the generator gives it the guard of the field that uses it
+NESTED_WIZARD_MESSAGE_DEFINES: dict[str, str] = {"WizardCapabilities": "USE_API_WIZARD"}
+
+
+def test_wizard_messages_are_compiled_out_without_a_wizard() -> None:
+    """A device must pay nothing for wizard parts it does not use: every wizard
+    message carries its define in api.proto, and the generated code guards the
+    nested message with the define of the field that holds it.
+    """
+    for message, define in WIZARD_MESSAGE_DEFINES.items():
+        body = _extract_proto_message(PROTO_TEXT, message)
+        assert f'option (ifdef) = "{define}";' in body, message
+    # The request is empty, so it has no class, only its dispatch case
+    assert "#ifdef USE_API_WIZARD\n    case 156 /* DeviceWizardRequest" in SERVICE_TEXT
+    classes = {**WIZARD_MESSAGE_DEFINES, **NESTED_WIZARD_MESSAGE_DEFINES}
+    for message, define in classes.items():
+        if message == "DeviceWizardRequest":
+            continue
+        assert any(
+            define in cond
+            for cond in _enclosing_ifdefs(HEADER_TEXT, f"class {message} final")
+        ), f"{message} is not guarded by {define} in api_pb2.h"
+    assert "#ifdef USE_API_WIZARD\n  resp.wizard.configured = true;" in (
+        API_CONNECTION_TEXT
+    )
+
+
+def test_device_wizard_rpc_requires_authentication() -> None:
+    """The wizard is only served on an authenticated connection, so the rpc
+    must not set `needs_authentication` and inherits the default of true.
+    """
+    body = _extract_rpc_body(PROTO_TEXT, "device_wizard")
+    assert "needs_authentication" not in body
+
+
+def test_sendspin_pairing_token_messages_keep_their_wire_ids() -> None:
+    """Message ids are part of the wire protocol and must not change."""
+    for message, expected in (
+        ("SendspinPairingTokenRequest", 159),
+        ("SendspinPairingTokenResponse", 160),
+    ):
+        body = _extract_proto_message(PROTO_TEXT, message)
+        match = re.search(r"option \(id\) = (\d+);", body)
+        assert match is not None, f"{message} is missing `option (id)`"
+        assert int(match.group(1)) == expected, (
+            f"{message} has id {match.group(1)}, expected {expected}"
+        )
+
+
+def test_sendspin_pairing_token_response_fields_keep_their_wire_numbers() -> None:
+    """Clients decode the response purely by field number."""
+    body = _extract_proto_message(PROTO_TEXT, "SendspinPairingTokenResponse")
+    for field_name, number in (("status", 1), ("token", 2)):
+        line = _field_declaration_line(body, field_name)
+        assert re.search(rf"\b{field_name}\s*=\s*{number}\b", line), (
+            f"{field_name} in SendspinPairingTokenResponse is no longer field "
+            f"number {number}"
+        )
+
+
+def test_sendspin_pairing_token_rpc_requires_authentication() -> None:
+    """The pairing token is a long-lived secret, so the rpc must not set
+    `needs_authentication` and inherits the default of true.
+    """
+    body = _extract_rpc_body(PROTO_TEXT, "sendspin_pairing_token")
+    assert "needs_authentication" not in body
+
+
 # ==================== Group C: advertised API version ====================
 
 
@@ -380,3 +502,13 @@ def test_api_version_minor_is_at_least_15() -> None:
         "clients to see api_version >= 1.15 in HelloResponse before they will "
         "ever request it."
     )
+
+
+def test_generated_encode_calls_keep_the_cursor() -> None:
+    """No generated ProtoEncode call may drop the returned cursor."""
+    dropped = [
+        line
+        for line in CPP_TEXT.splitlines()
+        if "ProtoEncode::" in line and "pos = ProtoEncode::" not in line
+    ]
+    assert not dropped, dropped[:5]

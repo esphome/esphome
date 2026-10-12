@@ -4,7 +4,7 @@
 
 namespace esphome::mcp23016 {
 
-static const char *const TAG = "mcp23016";
+ESPHOME_LOG_TAG(TAG, "mcp23016");
 
 void MCP23016::setup() {
   uint16_t iocon;

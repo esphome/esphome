@@ -22,6 +22,12 @@ struct Header {
   std::string value;
 };
 
+/// One request header of an action; codegen puts these in a shared flash table.
+template<typename... Ts> struct RequestHeader {
+  const char *name;
+  const char *(*value)(Ts...);
+};
+
 // Some common HTTP status codes
 enum HttpStatus {
   HTTP_STATUS_OK = 200,
@@ -268,6 +274,11 @@ class HttpContainer : public Parented<HttpRequestComponent> {
     return !this->is_chunked_ && this->bytes_read_ >= this->content_length;
   }
 
+  /**
+   * @brief Get the value of a response header by name.
+   * @param header_name The name of the header to retrieve.
+   * @return The value of the header if found, otherwise an empty string.
+   */
   std::string get_response_header(const std::string &header_name);
 
  protected:
@@ -487,9 +498,12 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
   TEMPLATABLE_VALUE(bool, capture_response)
 #endif
 
-  void init_request_headers(size_t count) { this->request_headers_.init(count); }
-  void add_request_header(const char *key, TemplatableFn<const char *, Ts...> value) {
-    this->request_headers_.push_back({key, value});
+  static_assert(std::is_trivially_copyable_v<RequestHeader<Ts...>> &&
+                    sizeof(RequestHeader<Ts...>) % sizeof(uint32_t) == 0,
+                "ESP8266 reads request headers from flash in whole words");
+  /// Codegen only: the table must outlive the action.
+  void set_request_headers(const RequestHeader<Ts...> *headers, size_t count) {
+    this->request_headers_ = ConstVector<RequestHeader<Ts...>>(headers, count);
   }
 
   void add_collect_header(const char *value) { this->lower_case_collect_headers_.emplace_back(value); }
@@ -525,8 +539,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     }
     std::vector<Header> request_headers;
     request_headers.reserve(this->request_headers_.size());
-    for (const auto &[key, val] : this->request_headers_) {
-      request_headers.push_back({key, val.value(x...)});
+    for (const auto &header : this->request_headers_) {
+      request_headers.push_back({header.name, header.value(x...)});
     }
 
     auto container = this->parent_->start(this->url_.value(x...).c_str(), this->method_.value(x...), body,
@@ -591,7 +605,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     }
   }
   HttpRequestComponent *parent_;
-  FixedVector<std::pair<const char *, TemplatableFn<const char *, Ts...>>> request_headers_{};
+  ConstVector<RequestHeader<Ts...>> request_headers_{};
   std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};
   FixedVector<std::pair<const char *, TemplatableValue<std::string, Ts...>>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};

@@ -3,7 +3,7 @@
 
 namespace esphome::cst328 {
 
-static const char *const TAG = "cst328.touchscreen";
+ESPHOME_LOG_TAG(TAG, "cst328.touchscreen");
 
 static const uint32_t CST328_BEFORE_RESET_TIMEOUT = 50;  // 50 ms from datasheet
 static const uint32_t CST328_TRANSITION_TIMEOUT = 300;   // 200 ms from datasheet, but typically much less

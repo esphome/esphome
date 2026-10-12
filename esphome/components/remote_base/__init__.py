@@ -44,18 +44,21 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import ID, coroutine
+from esphome.core import coroutine
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "remote_base"
 
 
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
+CONF_SUFFIX = "suffix"
+CONF_SUFFIX_BITS = "suffix_bits"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -136,8 +139,8 @@ async def attach_receiver(
     add_listener(receiver, var)
 
 
-async def register_transmittable(var, config):
-    transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
+async def register_transmittable(var, config, key: str = CONF_TRANSMITTER_ID):
+    transmitter_ = await cg.get_variable(config[key])
     cg.add(var.set_transmitter(transmitter_))
 
 
@@ -254,8 +257,12 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 ).extend(REMOTE_TRANSMITTABLE_SCHEMA)
 
 
-def register_action(name, type_, schema):
+def register_action(
+    name, type_, schema, *, validate: Callable[[ConfigType], ConfigType] | None = None
+):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
+    if validate is not None:
+        validator = cv.All(validator, validate)
     registerer = automation.register_action(
         f"remote_transmitter.transmit_{name}",
         type_,
@@ -938,6 +945,27 @@ KEELOQ_SCHEMA = cv.Schema(
 )
 
 
+def _keeloq_suffix_fits(config: ConfigType) -> ConfigType:
+    # A lambda is only known on the device. A plain value has to fit the width.
+    suffix = config[CONF_SUFFIX]
+    bits = config[CONF_SUFFIX_BITS]
+    if isinstance(suffix, int) and isinstance(bits, int) and suffix >> bits:
+        raise cv.Invalid(
+            f"suffix 0x{suffix:X} does not fit in {bits} suffix_bits", [CONF_SUFFIX]
+        )
+    return config
+
+
+KEELOQ_ACTION_SCHEMA = KEELOQ_SCHEMA.extend(
+    {
+        cv.Optional(CONF_SUFFIX, default=0): cv.All(
+            cv.hex_int, cv.Range(min=0, max=0xFFFF)
+        ),
+        cv.Optional(CONF_SUFFIX_BITS, default=0): cv.int_range(min=0, max=16),
+    }
+)
+
+
 @register_binary_sensor("keeloq", KeeloqBinarySensor, KEELOQ_SCHEMA)
 def Keeloq_binary_sensor(var, config):
     cg.add(
@@ -961,7 +989,9 @@ def keeloq_dumper(var, config):
     pass
 
 
-@register_action("keeloq", KeeloqAction, KEELOQ_SCHEMA)
+@register_action(
+    "keeloq", KeeloqAction, KEELOQ_ACTION_SCHEMA, validate=_keeloq_suffix_fits
+)
 async def keeloq_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
     cg.add(var.set_address(template_))
@@ -971,6 +1001,12 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
     cg.add(var.set_vlow(template_))
+    # Without suffix bits nothing of the suffix is sent, so both stay at their C++ default.
+    if (suffix_bits := config[CONF_SUFFIX_BITS]) != 0:
+        template_ = await cg.templatable(config[CONF_SUFFIX], args, cg.uint16)
+        cg.add(var.set_suffix(template_))
+        template_ = await cg.templatable(suffix_bits, args, cg.uint8)
+        cg.add(var.set_suffix_bits(template_))
 
 
 # NEC
@@ -1016,6 +1052,43 @@ async def nec_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint16)
     cg.add(var.set_command_repeats(template_))
+
+
+# Onkyo RI
+OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, OnkyoRIAction, OnkyoRIDumper = (
+    declare_protocol("OnkyoRI")
+)
+ONKYORI_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_int_range(0, 0xFFF)})
+
+
+@register_binary_sensor("onkyori", OnkyoRIBinarySensor, ONKYORI_SCHEMA)
+def onkyori_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                OnkyoRIData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("onkyori", OnkyoRITrigger, OnkyoRIData)
+def onkyori_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("onkyori", OnkyoRIDumper)
+def onkyori_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+@register_action("onkyori", OnkyoRIAction, ONKYORI_SCHEMA)
+async def onkyori_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
+    cg.add(var.set_data(template_))
 
 
 # Pioneer
@@ -1149,7 +1222,7 @@ def gobox_dumper(var, config):
 
 @register_action("gobox", GoboxAction, GOBOX_SCHEMA)
 async def gobox_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_CODE], args, cg.int_)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint64)
     cg.add(var.set_code(template_))
 
 
@@ -1538,9 +1611,7 @@ def validate_rc_switch_raw_code(value):
     return value
 
 
-def build_rc_switch_protocol(config):
-    if isinstance(config, int):
-        return rc_switch_protocol(config)
+def build_custom_rc_switch_protocol(config: ConfigType) -> MockObj:
     pl = config[CONF_PULSE_LENGTH]
     return RCSwitchBase(
         config[CONF_SYNC][0] * pl,
@@ -1551,6 +1622,24 @@ def build_rc_switch_protocol(config):
         config[CONF_ONE][1] * pl,
         config[CONF_INVERTED],
     )
+
+
+def rc_switch_protocol_in_flash(config: int | ConfigType) -> MockObj:
+    """Pointer to the protocol in flash: a built-in table entry or a shared custom table."""
+    if isinstance(config, int):
+        return cg.RawExpression(f"&{RC_SWITCH_PROTOCOLS}[{config}]")
+    return cg.shared_progmem_array(
+        "rc_switch_custom_protocol",
+        RCSwitchBase,
+        [build_custom_rc_switch_protocol(config)],
+    )
+
+
+def rc_switch_protocol_value(config: int | ConfigType) -> MockObj:
+    """RAM copy of a constant protocol for the transmit actions, read from its flash table."""
+    if isinstance(config, int):
+        return rc_switch_protocol(config)
+    return rc_switch_protocol_copy(rc_switch_protocol_in_flash(config))
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema(
@@ -1628,6 +1717,8 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
 )
 
 rc_switch_protocol = ns.rc_switch_protocol
+rc_switch_protocol_copy = ns.rc_switch_protocol_copy
+RC_SWITCH_PROTOCOLS = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
@@ -1642,7 +1733,7 @@ RCSwitchRawReceiver = ns.class_("RCSwitchRawReceiver", RemoteReceiverBinarySenso
 
 @register_binary_sensor("rc_switch_raw", RCSwitchRawReceiver, RC_SWITCH_RAW_SCHEMA)
 def rc_switch_raw_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_code(config[CONF_CODE]))
 
 
@@ -1653,7 +1744,7 @@ def rc_switch_raw_binary_sensor(var, config):
 )
 async def rc_switch_raw_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
@@ -1663,7 +1754,7 @@ async def rc_switch_raw_action(var, config, args):
     "rc_switch_type_a", RCSwitchRawReceiver, RC_SWITCH_TYPE_A_SCHEMA
 )
 def rc_switch_type_a_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_type_a(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
@@ -1674,7 +1765,7 @@ def rc_switch_type_a_binary_sensor(var, config):
 )
 async def rc_switch_type_a_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
@@ -1688,7 +1779,7 @@ async def rc_switch_type_a_action(var, config, args):
     "rc_switch_type_b", RCSwitchRawReceiver, RC_SWITCH_TYPE_B_SCHEMA
 )
 def rc_switch_type_b_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(
         var.set_type_b(config[CONF_ADDRESS], config[CONF_CHANNEL], config[CONF_STATE])
     )
@@ -1701,7 +1792,7 @@ def rc_switch_type_b_binary_sensor(var, config):
 )
 async def rc_switch_type_b_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
@@ -1713,7 +1804,7 @@ async def rc_switch_type_b_action(var, config, args):
     "rc_switch_type_c", RCSwitchRawReceiver, RC_SWITCH_TYPE_C_SCHEMA
 )
 def rc_switch_type_c_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(
         var.set_type_c(
             config[CONF_FAMILY],
@@ -1731,7 +1822,7 @@ def rc_switch_type_c_binary_sensor(var, config):
 )
 async def rc_switch_type_c_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(
@@ -1748,7 +1839,7 @@ async def rc_switch_type_c_action(var, config, args):
     RC_SWITCH_TYPE_D_SCHEMA.extend(RC_SWITCH_TRANSMITTER),
 )
 def rc_switch_type_d_binary_sensor(var, config):
-    cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
+    cg.add(var.set_protocol(rc_switch_protocol_in_flash(config[CONF_PROTOCOL])))
     cg.add(var.set_type_d(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
@@ -1759,7 +1850,7 @@ def rc_switch_type_d_binary_sensor(var, config):
 )
 async def rc_switch_type_d_action(var, config, args):
     proto = await cg.templatable(
-        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
+        config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=rc_switch_protocol_value
     )
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
@@ -2042,11 +2133,20 @@ def midea_dumper(var, config):
     pass
 
 
+async def _code_bytes(
+    value: Any, args: TemplateArgsType, set_template: MockObj, set_static: MockObj
+) -> None:
+    """Constant codes share one PROGMEM table pool across the remote protocols."""
+    await automation.templatable_bytes(
+        value, args, set_template, set_static, "remote_base_code"
+    )
+
+
 @register_action("midea", MideaAction, MIDEA_SCHEMA)
 async def midea_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # AEHA
@@ -2098,12 +2198,66 @@ def aeha_dumper(var, config):
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    template_ = await cg.templatable(
-        config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
+    await _code_bytes(
+        config[CONF_DATA], args, var.set_data_template, var.set_data_static
     )
-    cg.add(var.set_data(template_))
     templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
     cg.add(var.set_carrier_frequency(templ))
+
+
+# Hob2Hood
+(
+    Hob2HoodData,
+    Hob2HoodBinarySensor,
+    Hob2HoodTrigger,
+    Hob2HoodAction,
+    Hob2HoodDumper,
+) = declare_protocol("Hob2Hood")
+
+Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
+HOB2HOOD_COMMAND_OPTIONS = {
+    "light_off": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_OFF,
+    "light_on": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_ON,
+    "fan_off": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_OFF,
+    "fan_low": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_LOW,
+    "fan_medium": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MEDIUM,
+    "fan_high": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_HIGH,
+    "fan_max": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MAX,
+}
+
+HOB2HOOD_SCHEMA = cv.Schema(
+    {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS, lower=True)}
+)
+
+
+@register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
+def hob2hood_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                Hob2HoodData,
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
+def hob2hood_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("hob2hood", Hob2HoodDumper)
+def hob2hood_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+@register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
+async def hob2hood_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
+    template_ = await cg.templatable(config[CONF_COMMAND], args, Hob2HoodCommand)
+    cg.add(var.set_command(template_))
 
 
 # Haier
@@ -2142,9 +2296,9 @@ def haier_dumper(var, config):
 
 @register_action("haier", HaierAction, HAIER_SCHEMA)
 async def haier_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # ABBWelcome
@@ -2239,17 +2393,14 @@ async def abbwelcome_action(var, config, args):
                 await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)
             )
         )
-    if CONF_DATA in config:
-        data_ = config[CONF_DATA]
-        if cg.is_template(data_):
-            template_ = await cg.templatable(
-                data_, args, cg.std_vector.template(cg.uint8)
-            )
-            cg.add(var.set_data_template(template_))
-        else:
-            arr_id = ID(f"{var.base}_data", is_declaration=True, type=cg.uint8)
-            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data_))
-            cg.add(var.set_data_static(arr, len(data_)))
+    # TemplatableBytes starts in lambda mode with no function, so a transmit without data sets an empty payload
+    await automation.templatable_bytes(
+        config.get(CONF_DATA, []),
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "abbwelcome_data",
+    )
 
 
 # Mirage
@@ -2285,9 +2436,9 @@ def mirage_dumper(var, config):
 
 @register_action("mirage", MirageAction, MIRAGE_SCHEMA)
 async def mirage_action(var, config, args):
-    vec_ = cg.std_vector.template(cg.uint8)
-    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
-    cg.add(var.set_code(template_))
+    await _code_bytes(
+        config[CONF_CODE], args, var.set_code_template, var.set_code_static
+    )
 
 
 # Toto
