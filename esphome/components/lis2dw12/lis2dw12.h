@@ -161,27 +161,6 @@ class LIS2DW12Component : public PollingComponent {
   }
 
  protected:
-  PowerMode power_mode_{PowerMode::HIGH_PERF};
-  bool low_noise_{false};
-  DataRate data_rate_{DataRate::RATE_100HZ};
-  Range range_{Range::RANGE_2G};
-  FilterBandwidth filter_bandwidth_{FilterBandwidth::BW_ODR_DIV_2};
-  float offset_x_{0}, offset_y_{0}, offset_z_{0};
-  bool mirror_x_{false}, mirror_y_{false}, mirror_z_{false}, swap_xy_{false};
-
-  float scale_{0};    // m/s² per LSB after shift_
-  uint8_t shift_{2};  // data is left-justified: 14-bit >> 2, 12-bit (LP1) >> 4
-
-  uint8_t events_on_{0};  // bit per Event: binary sensor currently published on
-  uint32_t last_event_ms_[EVENT_COUNT]{};
-  uint32_t last_poll_ms_{0};
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *event_binary_sensors_[EVENT_COUNT]{};
-#endif
-#ifdef USE_TEXT_SENSOR
-  uint8_t sixd_last_{0xFF};  // position bits only; 0xFF cannot occur, so the first read publishes
-#endif
-
   bool write_reg_(RegisterMap reg, uint8_t value) { return this->write_byte(static_cast<uint8_t>(reg), value); }
   bool configure_registers_();
   bool read_acceleration_data_(float &x, float &y, float &z);
@@ -190,11 +169,31 @@ class LIS2DW12Component : public PollingComponent {
   void publish_orientation_(RegSixdSrc sixd);
 #endif
 
+  // Word-sized members first, then the byte-sized ones, so nothing is padded
+  float offset_x_{0}, offset_y_{0}, offset_z_{0};
+  float scale_{0};  // m/s² per LSB after shift_
+  uint32_t last_event_ms_[EVENT_COUNT]{};
+  uint32_t last_poll_ms_{0};
+#ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *event_binary_sensors_[EVENT_COUNT]{};
+#endif
   LazyCallbackManager<void()> tap_callback_;
   LazyCallbackManager<void()> double_tap_callback_;
   LazyCallbackManager<void()> freefall_callback_;
   LazyCallbackManager<void()> active_callback_;
   LazyCallbackManager<void()> orientation_callback_;
+
+  PowerMode power_mode_{PowerMode::HIGH_PERF};
+  DataRate data_rate_{DataRate::RATE_100HZ};
+  Range range_{Range::RANGE_2G};
+  FilterBandwidth filter_bandwidth_{FilterBandwidth::BW_ODR_DIV_2};
+  bool low_noise_{false};
+  bool mirror_x_{false}, mirror_y_{false}, mirror_z_{false}, swap_xy_{false};
+  uint8_t shift_{2};      // data is left-justified: 14-bit >> 2, 12-bit (LP1) >> 4
+  uint8_t events_on_{0};  // bit per Event: binary sensor currently published on
+#ifdef USE_TEXT_SENSOR
+  uint8_t sixd_last_{0xFF};  // position bits only; 0xFF cannot occur, so the first read publishes
+#endif
 };
 
 }  // namespace esphome::lis2dw12
