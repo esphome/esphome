@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import socket
 from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 import esphome.config_validation as cv
@@ -9,6 +10,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
+DOMAIN = "e131"
 
 e131_ns = cg.esphome_ns.namespace("e131")
 E131AddressableLightEffect = e131_ns.class_(
@@ -27,12 +29,17 @@ CHANNELS = {
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(E131Component),
-        cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(E131Component),
+            cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(
+                *METHODS, upper=True
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    socket.consume_sockets(1, "e131", socket.SocketType.UDP),
+)
 
 
 async def to_code(config: ConfigType) -> None:

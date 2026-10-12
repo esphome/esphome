@@ -139,10 +139,17 @@ def test_find_used_secret_keys_no_secrets(tmp_path: Path) -> None:
     assert keys == set()
 
 
-def test_find_used_secret_keys_missing_file(tmp_path: Path) -> None:
+def test_find_used_secret_keys_missing_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     missing = tmp_path / "does_not_exist.yaml"
-    keys = _find_used_secret_keys([missing])
+    with caplog.at_level("WARNING", logger="esphome.bundle"):
+        keys = _find_used_secret_keys([missing])
     assert keys == set()
+    assert any(
+        "Could not scan" in r.message and "does_not_exist.yaml" in r.message
+        for r in caplog.records
+    )
 
 
 def test_find_used_secret_keys_deduplicates(tmp_path: Path) -> None:
@@ -1384,7 +1391,7 @@ def test_force_load_skips_duplicate_include_file() -> None:
             self.parent_file = Path("root.yaml")
             self.load_calls = 0
 
-        def has_unresolved_expressions(self) -> bool:
+        def has_unresolved_file(self) -> bool:
             return False
 
         def load(self) -> dict[str, Any]:

@@ -4,7 +4,7 @@
 
 namespace esphome::duty_cycle {
 
-static const char *const TAG = "duty_cycle";
+ESPHOME_LOG_TAG(TAG, "duty_cycle");
 
 void DutyCycleSensor::setup() {
   this->pin_->setup();

@@ -1,3 +1,10 @@
+esphome:
+  on_boot:
+    then:
+      - display.page.show_next: page_display
+      - display.page.show_previous:
+          id: page_display
+
 display:
   - platform: mipi_spi
     spi_16: true
@@ -32,7 +39,11 @@ display:
     bus_mode: single
 
   - platform: mipi_spi
+    id: page_display
     model: WAVESHARE-1.83-V2
+    pages:
+      - lambda: it.rectangle(0, 0, 10, 10);
+      - lambda: it.rectangle(10, 10, 10, 10);
     dc_pin:
       allow_other_uses: true
       number: ${dc_pin}
@@ -42,3 +53,48 @@ display:
     reset_pin:
       allow_other_uses: true
       number: ${reset_pin}
+
+  - platform: mipi_spi
+    id: amoled_display
+    model: RM690B0
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+
+  - platform: mipi_spi
+    id: custom_display
+    model: custom
+    brightness: 0x80
+    dimensions:
+      width: 240
+      height: 240
+    init_sequence:
+      - [0xd0, 1]
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+
+light:
+  - platform: mipi_spi
+    id: display_brightness
+    name: Display Brightness
+    display_id: amoled_display
+
+  - platform: mipi_spi
+    id: custom_display_brightness
+    name: Custom Display Brightness
+    display_id: custom_display
+    min_brightness: 16
+    max_brightness: 200

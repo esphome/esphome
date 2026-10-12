@@ -1,0 +1,14 @@
+button:
+  - platform: template
+    name: Voice assistant state
+    on_press:
+      - if:
+          condition:
+            voice_assistant.is_running:
+          then:
+            - logger.log: Running
+      - if:
+          condition:
+            voice_assistant.connected:
+          then:
+            - logger.log: Connected

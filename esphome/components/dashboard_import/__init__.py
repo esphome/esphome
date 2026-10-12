@@ -22,6 +22,7 @@ dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
 # is enabled
 DEPENDENCIES = ["api"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "dashboard_import"
 
 
 def validate_import_url(value: Any) -> str:

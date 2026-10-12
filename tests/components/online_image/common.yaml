@@ -84,3 +84,14 @@ esphome:
           id: online_rgba_image
           url: !lambda |-
             return str_sprintf("http://homeassistant.local:8123");
+      - online_image.set_url:
+          id: online_rgba_image
+          url: http://www.example.org/example.png
+          update: false
+      - online_image.set_url:
+          id: online_rgba_image
+          url: http://www.example.org/example.png
+          update: !lambda return id(online_rgba_image).get_width() > 0;
+      - online_image.release: online_rgba_image
+      - online_image.release:
+          id: online_rgb24_image

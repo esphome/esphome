@@ -148,6 +148,13 @@ class AddressCache:
                 continue
             hostname, ips = arg.split("=", 1)
             # Normalize hostname for consistent lookups
-            normalized = normalize_hostname(hostname)
-            cache[normalized] = [ip.strip() for ip in ips.split(",")]
+            normalized = normalize_hostname(hostname.strip())
+            addresses = [ip for value in ips.split(",") if (ip := value.strip())]
+            if not normalized or not addresses:
+                _LOGGER.warning(
+                    "Invalid cache entry: %s (hostname and at least one address are required)",
+                    arg,
+                )
+                continue
+            cache[normalized] = addresses
         return cache
