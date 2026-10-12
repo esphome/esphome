@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ssid: test
+  password: testtest
+
+http_request:
+  timeout: 10s
+  watchdog_timeout: 20s

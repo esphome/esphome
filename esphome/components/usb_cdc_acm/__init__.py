@@ -15,6 +15,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["uart"]
 DEPENDENCIES = ["tinyusb"]
+DOMAIN = "usb_cdc_acm"
 
 CONF_INTERFACES = "interfaces"
 
@@ -28,7 +29,7 @@ USBCDCACMInstance = usb_cdc_acm_ns.class_(
 # Schema for individual CDC ACM interface instances
 INTERFACE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(USBCDCACMInstance),
+        cv.GenerateID(): cv.All(cv.declare_id(USBCDCACMInstance), uart.mark_unclocked),
     }
 )
 

@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_INTERLOCK, CONF_PIN
+from esphome.types import ConfigType
 
 from .. import gpio_ns
 
@@ -14,9 +15,13 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
             cv.Optional(
-                CONF_INTERLOCK_WAIT_TIME, default="0ms"
+                CONF_INTERLOCK, visibility=cv.Visibility.ADVANCED
+            ): cv.ensure_list(cv.use_id(switch.Switch)),
+            cv.Optional(
+                CONF_INTERLOCK_WAIT_TIME,
+                default="0ms",
+                visibility=cv.Visibility.ADVANCED,
             ): cv.positive_time_period_milliseconds,
         }
     )
@@ -24,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
 

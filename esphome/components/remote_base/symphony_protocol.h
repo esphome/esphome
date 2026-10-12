@@ -17,26 +17,11 @@ struct SymphonyData {
 
 class SymphonyProtocol : public RemoteProtocol<SymphonyData> {
  public:
-  void encode(RemoteTransmitData *dst, const SymphonyData &data) override;
-  optional<SymphonyData> decode(RemoteReceiveData src) override;
-  void dump(const SymphonyData &data) override;
+  void encode(RemoteTransmitData *dst, const SymphonyData &data);
+  optional<SymphonyData> decode(RemoteReceiveData src);
+  void dump(const SymphonyData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Symphony)
-
-template<typename... Ts> class SymphonyAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, data)
-  TEMPLATABLE_VALUE(uint8_t, nbits)
-  TEMPLATABLE_VALUE(uint8_t, repeats)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    SymphonyData data{};
-    data.data = this->data_.value(x...);
-    data.nbits = this->nbits_.value(x...);
-    data.repeats = this->repeats_.value(x...);
-    SymphonyProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

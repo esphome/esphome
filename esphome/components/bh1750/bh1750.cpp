@@ -4,7 +4,7 @@
 
 namespace esphome::bh1750 {
 
-static const char *const TAG = "bh1750.sensor";
+ESPHOME_LOG_TAG(TAG, "bh1750.sensor");
 
 static const uint8_t BH1750_COMMAND_POWER_ON = 0b00000001;
 static const uint8_t BH1750_COMMAND_MT_REG_HI = 0b01000000;  // last 3 bits
