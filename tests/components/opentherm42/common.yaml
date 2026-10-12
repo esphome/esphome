@@ -25,3 +25,25 @@ number:
       name: "Control and Status Information: Control Setpoint"
       initial_value: 40.0
       update_every: 1
+
+binary_sensor:
+  - platform: opentherm42
+    # Turns on if any reading failed or was rejected during the most recent full round of polling the
+    # boiler. Not a real OpenTherm reading -- a convenience flag for noticing communication problems at a
+    # glance. Always active, so there's no update_every option for it.
+    sweep_had_errors:
+      name: "Sweep had errors"
+
+sensor:
+  - platform: opentherm42
+    # How long it took to refresh every configured reading at least once (one full round of polling).
+    # Not a real OpenTherm reading -- useful for noticing if your boiler is responding slowly, or if
+    # you've configured enough readings that a full round is taking a long time. Always active, so there's
+    # no update_every option for it.
+    sweep_duration:
+      name: "Sweep duration"
+    # How long the most recent single poll took. This device polls one reading at a time rather than all
+    # at once, so this will normally be much shorter than Sweep duration above -- it's mainly useful for
+    # spotting a single slow or stuck exchange with the boiler.
+    pass_duration:
+      name: "Pass duration"
