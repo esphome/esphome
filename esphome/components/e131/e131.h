@@ -43,7 +43,8 @@ class E131Component final : public esphome::Component {
  protected:
   bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);
   bool process_(int universe, const E131Packet &packet);
-  bool join_igmp_groups_();
+  void join_igmp_groups_();
+  void join_universe_(uint16_t universe);
   UniverseConsumer *find_universe_(int universe);
   void join_(int universe);
   void leave_(int universe);

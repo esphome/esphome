@@ -60,35 +60,35 @@ union E131RawPacket {
 // Get the offset of `property_values[1]`
 const size_t E131_MIN_PACKET_SIZE = offsetof(E131RawPacket, property_values) + sizeof(uint8_t);
 
-bool E131Component::join_igmp_groups_() {
+void E131Component::join_igmp_groups_() {
   if (this->listen_method_ != E131_MULTICAST || this->socket_ == nullptr)
-    return false;
+    return;
   // Joined from loop() once the network is up; RP2040 has no interface to join before then
   if (!network::is_connected()) {
     this->igmp_join_pending_ = true;
-    return true;
+    return;
   }
   this->igmp_join_pending_ = false;
-
   for (auto &entry : this->universe_consumers_) {
-    if (!entry.consumers)
-      continue;
+    if (entry.consumers)
+      this->join_universe_(entry.universe);
+  }
+}
 
-    ip4_addr_t multicast_addr =
-        network::IPAddress(239, 255, ((entry.universe >> 8) & 0xff), ((entry.universe >> 0) & 0xff));
+void E131Component::join_universe_(uint16_t universe) {
+  ip4_addr_t multicast_addr = network::IPAddress(239, 255, ((universe >> 8) & 0xff), ((universe >> 0) & 0xff));
 
-    err_t err;
-    {
-      LwIPLock lock;
-      err = igmp_joingroup(IP4_ADDR_ANY4, &multicast_addr);
-    }
-
-    if (err) {
-      ESP_LOGW(TAG, "IGMP join for %d universe of E1.31 failed. Multicast might not work.", entry.universe);
-    }
+  err_t err;
+  {
+    LwIPLock lock;
+    err = igmp_joingroup(IP4_ADDR_ANY4, &multicast_addr);
   }
 
-  return true;
+  if (err) {
+    ESP_LOGW(TAG, "IGMP join for %d universe of E1.31 failed. Multicast might not work.", universe);
+  } else {
+    ESP_LOGD(TAG, "Joined %d universe for E1.31.", universe);
+  }
 }
 
 UniverseConsumer *E131Component::find_universe_(int universe) {
@@ -110,9 +110,15 @@ void E131Component::join_(int universe) {
     this->universe_consumers_.push_back({static_cast<uint16_t>(universe), 1});
   }
 
-  if (this->join_igmp_groups_()) {
-    ESP_LOGD(TAG, "Joined %d universe for E1.31.", universe);
+  if (this->listen_method_ != E131_MULTICAST || this->socket_ == nullptr)
+    return;
+  if (!network::is_connected()) {
+    ESP_LOGD(TAG, "IGMP join for %d universe of E1.31 deferred until the network is up.", universe);
+    this->igmp_join_pending_ = true;
+    return;
   }
+  // Only this universe; a second join would raise the lwIP use count and break leave_()
+  this->join_universe_(universe);
 }
 
 void E131Component::leave_(int universe) {
