@@ -1,5 +1,5 @@
 #include "dns_server_esp32_idf.h"
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE))
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -7,9 +7,9 @@
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
 
-namespace esphome::captive_portal {
+namespace esphome::web_server_base {
 
-ESPHOME_LOG_TAG(TAG, "captive_portal.dns");
+ESPHOME_LOG_TAG(TAG, "web_server_base.dns");
 
 // DNS constants
 static constexpr uint16_t DNS_PORT = 53;
@@ -46,7 +46,7 @@ struct DNSAnswer {
   uint32_t ip_addr;
 } __attribute__((packed));
 
-void DNSServer::start(const network::IPAddress &ip) {
+bool DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
@@ -57,7 +57,7 @@ void DNSServer::start(const network::IPAddress &ip) {
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP).release();
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Socket create failed");
-    return;
+    return false;
   }
 
   // Set socket options
@@ -72,9 +72,10 @@ void DNSServer::start(const network::IPAddress &ip) {
   if (err != 0) {
     ESP_LOGE(TAG, "Bind failed: %d", errno);
     this->destroy_socket_();
-    return;
+    return false;
   }
   ESP_LOGV(TAG, "Bound to port %d", DNS_PORT);
+  return true;
 }
 
 void DNSServer::stop() {
@@ -202,6 +203,6 @@ void DNSServer::process_next_request() {
   }
 }
 
-}  // namespace esphome::captive_portal
+}  // namespace esphome::web_server_base
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && (USE_CAPTIVE_PORTAL || USE_WEBSERVER_CAPTIVE)
