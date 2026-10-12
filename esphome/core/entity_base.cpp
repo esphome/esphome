@@ -5,6 +5,8 @@
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
+#include <new>
+
 namespace esphome {
 
 ESPHOME_LOG_TAG(TAG, "entity_base");
@@ -28,16 +30,13 @@ const StringRef &EntityBase::get_name() const {
       return copy->ref;
   }
   size_t len = this->name_.size();
-  auto *copy = static_cast<NameCopy *>(malloc(sizeof(NameCopy) + len + 1));  // NOLINT(cppcoreguidelines-no-malloc)
-  if (copy == nullptr)
+  void *mem = malloc(sizeof(NameCopy) + len + 1);  // NOLINT(cppcoreguidelines-no-malloc)
+  if (mem == nullptr)
     return EMPTY_NAME;
-  char *buf = reinterpret_cast<char *>(copy + 1);
+  char *buf = static_cast<char *>(mem) + sizeof(NameCopy);
   this->name_.write_to(buf, len + 1);
-  copy->next = name_copies;
-  copy->key = key;
-  copy->ref = StringRef(buf, len);
-  name_copies = copy;
-  return copy->ref;
+  name_copies = new (mem) NameCopy{name_copies, key, StringRef(buf, len)};
+  return name_copies->ref;
 }
 #endif
 
