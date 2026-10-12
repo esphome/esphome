@@ -56,6 +56,9 @@ switch:
   Defaults to `0x21`.
 
 - **pcf8575** (*Optional*, boolean): Whether this is a 16-pin PCF8575. Defaults to `false`.
+- **reset** (*Optional*, boolean): Reset the port to HIGH (released) during startup. Defaults to `true`.
+  Set to `false` to preserve the powered expander's output states across MCU reboots, subject to the
+  [limitations below](#preserving-outputs-across-mcu-reboots).
 - **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin connected to the
   INT output of the PCF8574/PCF8575. When configured, the component becomes interrupt-driven instead of
   polling — it only reads the chip when a pin actually changes state, significantly reducing I²C bus traffic
@@ -75,6 +78,22 @@ switch:
   should be treated as inverted. Defaults to `false`.
 
 - **mode** (*Optional*, string): A pin mode to set for the pin at. One of `INPUT` or `OUTPUT`.
+
+## Preserving Outputs Across MCU Reboots
+
+With `reset: false`, both PCF8574 and PCF8575 read the existing pin levels during setup without writing to the port.
+Later output changes preserve the other outputs, including unconfigured pins.
+
+- Keep the expander powered while the MCU reboots. If the expander also loses power, its pins start HIGH when power
+  returns; their previous states are lost.
+- You can use outputs alone or a mixture of inputs and outputs. Declare all connected input pins with `mode: INPUT`.
+  Undeclared pins are treated as outputs. Keep the same input/output assignments across reboots.
+- Output states can only be preserved if connected circuits do not override them. For example, an output set HIGH
+  but pulled LOW by another circuit during startup will be remembered as LOW.
+
+> [!NOTE]
+> Components using these pins, such as GPIO switches and outputs, may overwrite preserved states during their own
+> initialization. Their initialization and restore settings still apply.
 
 ## See Also
 
