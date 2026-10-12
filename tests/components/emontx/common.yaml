@@ -8,6 +8,7 @@ button:
 
 emontx:
   id: test_emontx
+  unlock_delay: 2s
   on_json:
     - then:
         - logger.log: "Got JSON"

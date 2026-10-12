@@ -33,6 +33,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void loop() override;
   void setup() override;
   void dump_config() override;
+  void on_shutdown() override;
 
   template<typename F> void add_on_json_callback(F &&callback) { this->json_callbacks_.add(std::forward<F>(callback)); }
 
@@ -48,6 +49,10 @@ class EmonTx final : public Component, public uart::UARTDevice {
 
   bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
 
+  /// Lock the emonTx ('emonlock') before a reboot and unlock it this long after boot, so serial
+  /// garbage during the reboot is not taken as a command. 0 disables it.
+  void set_unlock_delay(uint32_t unlock_delay) { this->unlock_delay_ = unlock_delay; }
+
 #ifdef USE_SENSOR
   void init_sensors(size_t count) { this->sensors_.init(count); }
   void register_sensor(const char *tag_name, sensor::Sensor *sensor);
@@ -61,6 +66,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
 #endif
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
+  uint32_t unlock_delay_{0};
   uint16_t buffer_pos_{0};
   std::atomic<bool> paused_{false};
   bool was_paused_{false};
