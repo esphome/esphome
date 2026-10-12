@@ -1484,12 +1484,14 @@ async def raw_action(var, config, args):
 ) = declare_protocol("Drayton")
 DRAYTON_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Optional(CONF_DATA): cv.hex_int_range(min=0, max=0xF),
         cv.Optional(CONF_CHANNEL): cv.hex_int_range(min=0, max=0x1F),
         cv.Optional(CONF_COMMAND): cv.hex_int_range(min=0, max=0x7F),
     }
 )
+# The legacy command is the 4 data bits followed by this many checksum bits
+DRAYTON_NBITS_CHECKSUM_IN_COMMAND = 3
 # Either `data`, or the legacy `channel` + `command` pair (raw packet bits)
 _validate_drayton_form = cv.All(
     cv.has_none_or_all_keys(CONF_CHANNEL, CONF_COMMAND),
@@ -1501,10 +1503,9 @@ _validate_drayton_form = cv.All(
     "drayton", DraytonBinarySensor, cv.All(DRAYTON_SCHEMA, _validate_drayton_form)
 )
 def drayton_binary_sensor(var, config):
-    # Matching compares address and data only; the legacy command holds the 4 data bits
-    # followed by 3 checksum bits
+    # Matching compares address and data only
     if (command := config.get(CONF_COMMAND)) is not None:
-        data = command >> 3
+        data = command >> DRAYTON_NBITS_CHECKSUM_IN_COMMAND
     else:
         data = config[CONF_DATA]
     cg.add(

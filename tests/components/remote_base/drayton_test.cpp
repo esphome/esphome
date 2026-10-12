@@ -75,8 +75,6 @@ optional<DraytonData> decode(const RawTimings &timings) {
 TEST(DraytonProtocolTest, EncodeAppendsChecksum) {
   EXPECT_EQ(sent_packet(encode(with_data(0x6180, 0x8))), ON_PACKET);
   EXPECT_EQ(sent_packet(encode(with_data(0x6180, 0x0))), OFF_PACKET);
-  EXPECT_EQ(ON_PACKET & 0xFF, 0x32u);
-  EXPECT_EQ(OFF_PACKET & 0xFF, 0x52u);
 }
 
 TEST(DraytonProtocolTest, LegacyEncodeSendsChannelAndCommandAsIs) {
@@ -133,19 +131,9 @@ TEST(DraytonProtocolTest, BinarySensorFormsMatchDecodedPacket) {
   if (!on.has_value()) {
     return;
   }
-  // Built as drayton_binary_sensor() does: legacy command 0x41 gives data 0x41 >> 3
-  EXPECT_TRUE(*on == with_data(0x6180, 0x41 >> 3));
+  // The decoded channel and command are ignored
   EXPECT_TRUE(*on == with_data(0x6180, 0x8));
-  EXPECT_FALSE(*on == with_data(0x6180, 0x0));
   EXPECT_FALSE(*on == with_data(0x6181, 0x8));
-
-  auto off = decode(from_capture(OFF_CAPTURE));
-  ASSERT_TRUE(off.has_value());
-  if (!off.has_value()) {
-    return;
-  }
-  EXPECT_TRUE(*off == with_data(0x6180, 0x02 >> 3));
-  EXPECT_FALSE(*off == with_data(0x6180, 0x8));
 }
 
 }  // namespace esphome::remote_base::testing

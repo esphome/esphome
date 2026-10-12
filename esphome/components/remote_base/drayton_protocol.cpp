@@ -49,7 +49,7 @@ Sample Boiler Off Command as received:
 101010101010110001101001010101101001010101010101010101010110011001011001
 ppppppppppppSSSS-0-1-1-0-0-0-0-1-1-0-0-0-0-0-0-0-0-0-0-0-0-1-0-1-0-0-1-0
 
-28 bits of data received 0110000110000000000001010010 (bin) or 6180052 (hex)
+28 bits received 0110000110000000000001010010 (bin) or 6180052 (hex)
 
 --------------------
 
@@ -72,26 +72,11 @@ The YAML/lambda 'address' is the first 16 bits as sent (the 12 bit ID followed b
 pairing field, so the pairing flag is the address LSB), and 'data' is the next 4 bits
 (0x8 = on, 0x2 = low battery).
 
-The checksum, as implemented by calc_cs():
-- Split the 20 payload bits into five 4 bit groups in order of transmission, and read
-  each group with its first transmitted bit as the least significant bit.
-- sum = g1 * 16 + g2 * 8 + g3 * 4 + g4 * 2 + g5 (at most 465).
-- If sum is above 0x7F, add 1 (a single 1, whatever the size of the overflow; this is
-  the rule observed on the captured packets).
-- The checksum byte is (sum << 1) truncated to 8 bits, sent least significant bit first,
-  so the first checksum bit sent is always 0.
+Checksum: see calc_cs(); the +1 when the sum is above 0x7F is empirical. The captured
+packets above give 0x32 (On) and 0x52 (Off). Packets that fail it are logged at verbose level.
 
-The captured packets above give 0x32 (On) and 0x52 (Off).
-
-The checksum is calculated and appended when a packet is built from 'data'. When a
-packet is received the checksum is verified, and packets which fail are discarded
-(logged at debug level with the received and expected checksum).
-
-The initial revision split the 28 bits into address (16), command (7) and channel (5),
-following RFLink, so command is the 4 data bits followed by the top 3 checksum bits and
-channel is the low 5 checksum bits. That split is kept for existing configs: when
-channel and command are set, the packet is sent from them as is, with no checksum
-calculated. Decoded packets fill channel and command as well as data.
+Legacy split (from RFLink): address (16), command (7: data + top 3 checksum bits), channel (5: low checksum bits).
+When channel and command are set they are sent as is, with no checksum calculated.
 
 */
 
@@ -136,18 +121,17 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
   }
 
   if (data.channel || data.command) {
-    ESP_LOGD(TAG, "addr=%04" PRIx16 " channel=%03" PRIx8 " cmd=%02" PRIx8, data.address, data.channel, data.command);
     out_data = data.address;
     out_data <<= NBITS_COMMAND;
     out_data |= data.command;
     out_data <<= NBITS_CHANNEL;
     out_data |= data.channel;
   } else {
-    ESP_LOGD(TAG, "addr=%04" PRIx16 " data=%01" PRIx8, data.address, data.data);
     out_data = data.address << (NBITS_DATA + NBITS_CHECKSUM);
     out_data |= data.data << NBITS_CHECKSUM;
     out_data |= calc_cs(out_data);
   }
+  ESP_LOGD(TAG, "addr=%04x data=%x channel=%02x command=%02x", data.address, data.data, data.channel, data.command);
   ESP_LOGV(TAG, "out_data %07" PRIx32, out_data);
 
   for (uint32_t mask = 1UL << (NBITS_PKT - 1); mask != 0; mask >>= 1) {
@@ -238,16 +222,16 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     uint8_t expected_cs = calc_cs(out_data);
 
     if (cs != expected_cs) {
-      ESP_LOGD(TAG, "Dropped %07" PRIx32 ": checksum 0x%02" PRIX8 ", expected 0x%02" PRIX8, out_data, cs, expected_cs);
+      ESP_LOGV(TAG, "Dropped %07" PRIx32 ": checksum 0x%02x, expected 0x%02x", out_data, cs, expected_cs);
       continue;
     }
 
     ESP_LOGV(TAG, "Data %07" PRIx32, out_data);
 
-    out.data = (out_data >> NBITS_CHECKSUM) & 0x0F;
+    out.data = (out_data >> NBITS_CHECKSUM) & ((1u << NBITS_DATA) - 1);
     out.address = out_data >> (NBITS_CHECKSUM + NBITS_DATA);
-    out.channel = out_data & 0x1F;
-    out.command = (out_data >> NBITS_CHANNEL) & 0x7F;
+    out.channel = out_data & ((1u << NBITS_CHANNEL) - 1);
+    out.command = (out_data >> NBITS_CHANNEL) & ((1u << NBITS_COMMAND) - 1);
 
     return out;
   }
@@ -255,8 +239,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
 }
 
 void DraytonProtocol::dump(const DraytonData &data) {
-  ESP_LOGI(TAG, "Received Drayton: address=0x%04X (0x%04x), data=0x%X channel=0x%03x command=0x%03X", data.address,
-           ((data.address << 1) & 0xffff), data.data, data.channel, data.command);
+  ESP_LOGI(TAG, "Received Drayton: address=0x%04X, data=0x%X", data.address, data.data);
 }
 
 }  // namespace esphome::remote_base

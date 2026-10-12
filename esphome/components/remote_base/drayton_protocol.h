@@ -13,8 +13,7 @@ struct DraytonData {
   uint8_t channel;
   uint8_t command;
 
-  // channel and command are the legacy split of the same packet bits as data plus the checksum,
-  // so only address and data are compared; received packets have a verified checksum.
+  // channel/command: legacy split of the same bits, filled on decode, ignored by operator==
   bool operator==(const DraytonData &rhs) const { return address == rhs.address && data == rhs.data; }
 };
 
