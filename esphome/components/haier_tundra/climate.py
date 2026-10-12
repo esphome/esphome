@@ -32,13 +32,14 @@ def _final_validate_unit(config: ConfigType) -> None:
 
         for climate in full_config["climate"]:
             if CONF_PLATFORM in climate and climate[CONF_PLATFORM] == "haier_tundra":
-                if has_unit_a and climate[CONF_UNIT] == "a":
-                    raise cv.Invalid("Only one unit A is allowed")
-                has_unit_a = True
-
-                if has_unit_b and climate[CONF_UNIT] == "b":
-                    raise cv.Invalid("Only one unit B is allowed")
-                has_unit_b = True
+                if climate[CONF_UNIT] == "a":
+                    if has_unit_a:
+                        raise cv.Invalid("Only one unit A is allowed")
+                    has_unit_a = True
+                elif climate[CONF_UNIT] == "b":
+                    if has_unit_b:
+                        raise cv.Invalid("Only one unit B is allowed")
+                    has_unit_b = True
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate_unit
