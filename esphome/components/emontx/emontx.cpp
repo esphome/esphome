@@ -6,7 +6,27 @@ namespace esphome::emontx {
 
 ESPHOME_LOG_TAG(TAG, "emontx");
 
-void EmonTx::setup() { this->buffer_pos_ = 0; }
+void EmonTx::setup() {
+  this->buffer_pos_ = 0;
+  if (!this->lock_on_reboot_)
+    return;
+  // The line feed ends any boot noise first
+  ESP_LOGI(TAG, "Unlocking emonTx after boot");
+  this->write_byte('\n');
+  this->send_command("emonunlock");
+}
+
+void EmonTx::on_shutdown() {
+  if (!this->lock_on_reboot_)
+    return;
+  if (this->is_paused()) {
+    ESP_LOGW(TAG, "Not locking emonTx before shutdown, UART is paused");
+    return;
+  }
+  ESP_LOGI(TAG, "Locking emonTx before shutdown");
+  this->send_command("emonlock");
+  this->flush();
+}
 
 /**
  * @brief Implements the main loop for parsing data from the serial port.
@@ -97,6 +117,7 @@ void EmonTx::parse_json_(const char *data, size_t len) {
  */
 void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "EmonTx:");
+  ESP_LOGCONFIG(TAG, "  Lock on reboot: %s", YESNO(this->lock_on_reboot_));
 
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
