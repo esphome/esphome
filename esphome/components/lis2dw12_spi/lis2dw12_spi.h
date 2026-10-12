@@ -11,7 +11,6 @@ class LIS2DW12SPIComponent : public lis2dw12_base::LIS2DW12Component,
  public:
   void setup() override;
   void dump_config() override;
-  bool read_byte(uint8_t a_register, uint8_t *data) override;
   bool write_byte(uint8_t a_register, uint8_t data) override;
   bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
 };

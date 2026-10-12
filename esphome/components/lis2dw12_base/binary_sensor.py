@@ -8,13 +8,13 @@ from . import CONF_LIS2DW12_ID, LIS2DW12_SENSOR_SCHEMA
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["lis2dw12_base"]
 
-CONF_TAP = "tap"
 CONF_DOUBLE_TAP = "double_tap"
 CONF_FREEFALL = "freefall"
+CONF_TAP = "tap"
 
-ICON_TAP = "mdi:gesture-tap"
 ICON_DOUBLE_TAP = "mdi:gesture-double-tap"
 ICON_FREEFALL = "mdi:parachute"
+ICON_TAP = "mdi:gesture-tap"
 
 EVENT_SENSORS = (CONF_TAP, CONF_DOUBLE_TAP, CONF_FREEFALL, CONF_ACTIVE)
 ICONS = (ICON_TAP, ICON_DOUBLE_TAP, ICON_FREEFALL, ICON_VIBRATE)
@@ -28,15 +28,15 @@ CONFIG_SCHEMA = LIS2DW12_SENSOR_SCHEMA.extend(
             ),
             key=CONF_NAME,
         )
-        for event, icon in zip(EVENT_SENSORS, ICONS)
+        for event, icon in zip(EVENT_SENSORS, ICONS, strict=True)
     }
 )
 
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_LIS2DW12_ID])
-
-    for sensor_key in EVENT_SENSORS:
-        if sensor_key in config:
-            sens = await binary_sensor.new_binary_sensor(config[sensor_key])
-            cg.add(getattr(hub, f"set_{sensor_key}_binary_sensor")(sens))
+    sensors = binary_sensor.sub_binary_sensors(config)
+    await sensors(CONF_TAP, hub.set_tap_binary_sensor)
+    await sensors(CONF_DOUBLE_TAP, hub.set_double_tap_binary_sensor)
+    await sensors(CONF_FREEFALL, hub.set_freefall_binary_sensor)
+    await sensors(CONF_ACTIVE, hub.set_active_binary_sensor)

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -17,25 +17,13 @@ namespace esphome::lis2dw12_base {
 
 // LIS2DW12 Register Map
 enum class RegisterMap : uint8_t {
-  OUT_T_L = 0x0D,
-  OUT_T_H = 0x0E,
   WHO_AM_I = 0x0F,
   CTRL1 = 0x20,
   CTRL2 = 0x21,
   CTRL3 = 0x22,
   CTRL4_INT1 = 0x23,
-  CTRL5_INT2 = 0x24,
   CTRL6 = 0x25,
-  OUT_T = 0x26,
-  STATUS = 0x27,
   OUT_X_L = 0x28,
-  OUT_X_H = 0x29,
-  OUT_Y_L = 0x2A,
-  OUT_Y_H = 0x2B,
-  OUT_Z_L = 0x2C,
-  OUT_Z_H = 0x2D,
-  FIFO_CTRL = 0x2E,
-  FIFO_SAMPLES = 0x2F,
   TAP_THS_X = 0x30,
   TAP_THS_Y = 0x31,
   TAP_THS_Z = 0x32,
@@ -43,14 +31,8 @@ enum class RegisterMap : uint8_t {
   WAKE_UP_THS = 0x34,
   WAKE_UP_DUR = 0x35,
   FREE_FALL = 0x36,
-  STATUS_DUP = 0x37,
-  WAKE_UP_SRC = 0x38,
-  TAP_SRC = 0x39,
   SIXD_SRC = 0x3A,
   ALL_INT_SRC = 0x3B,
-  X_OFS_USR = 0x3C,
-  Y_OFS_USR = 0x3D,
-  Z_OFS_USR = 0x3E,
   CTRL7 = 0x3F,
 };
 
@@ -70,7 +52,6 @@ enum class PowerMode : uint8_t {
 };
 
 enum class DataRate : uint8_t {
-  RATE_POWER_DOWN = 0b0000,
   RATE_1_6HZ = 0b0001,
   RATE_12_5HZ = 0b0010,
   RATE_25HZ = 0b0011,
@@ -103,35 +84,6 @@ union RegAllIntSrc {
   uint8_t raw{0};
 };
 
-// WAKE_UP_SRC register (0x38)
-union RegWakeUpSrc {
-  struct {
-    bool z_wu : 1;
-    bool y_wu : 1;
-    bool x_wu : 1;
-    bool wu_ia : 1;
-    bool sleep_state_ia : 1;
-    bool ff_ia : 1;
-    uint8_t reserved : 2;
-  } __attribute__((packed));
-  uint8_t raw{0};
-};
-
-// TAP_SRC register (0x39)
-union RegTapSrc {
-  struct {
-    bool z_tap : 1;
-    bool y_tap : 1;
-    bool x_tap : 1;
-    bool tap_sign : 1;
-    bool double_tap : 1;
-    bool single_tap : 1;
-    bool tap_ia : 1;
-    uint8_t reserved : 1;
-  } __attribute__((packed));
-  uint8_t raw{0};
-};
-
 // SIXD_SRC register (0x3A)
 union RegSixdSrc {
   struct {
@@ -147,13 +99,21 @@ union RegSixdSrc {
   uint8_t raw{0};
 };
 
+// Debounced events, also the bit index into events_on_
+enum Event : uint8_t {
+  EVENT_TAP = 0,
+  EVENT_DOUBLE_TAP,
+  EVENT_FREEFALL,
+  EVENT_ACTIVE,
+  EVENT_COUNT,
+};
+
 class LIS2DW12Component : public PollingComponent {
  public:
   void setup() override;
   void dump_config() override;
   void loop() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_power_mode(PowerMode mode) { this->power_mode_ = mode; }
   void set_low_noise(bool low_noise) { this->low_noise_ = low_noise; }
@@ -163,15 +123,17 @@ class LIS2DW12Component : public PollingComponent {
   void set_offset(float offset_x, float offset_y, float offset_z);
   void set_transform(bool mirror_x, bool mirror_y, bool mirror_z, bool swap_xy);
 
-  virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
+  bool read_byte(uint8_t a_register, uint8_t *data) { return this->read_bytes(a_register, data, 1); }
   virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
   virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
 
 #ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(tap)
-  SUB_BINARY_SENSOR(double_tap)
-  SUB_BINARY_SENSOR(freefall)
-  SUB_BINARY_SENSOR(active)
+  void set_tap_binary_sensor(binary_sensor::BinarySensor *s) { this->event_binary_sensors_[EVENT_TAP] = s; }
+  void set_double_tap_binary_sensor(binary_sensor::BinarySensor *s) {
+    this->event_binary_sensors_[EVENT_DOUBLE_TAP] = s;
+  }
+  void set_freefall_binary_sensor(binary_sensor::BinarySensor *s) { this->event_binary_sensors_[EVENT_FREEFALL] = s; }
+  void set_active_binary_sensor(binary_sensor::BinarySensor *s) { this->event_binary_sensors_[EVENT_ACTIVE] = s; }
 #endif
 
 #ifdef USE_SENSOR
@@ -184,11 +146,19 @@ class LIS2DW12Component : public PollingComponent {
   SUB_TEXT_SENSOR(orientation)
 #endif
 
-  Trigger<> *get_tap_trigger() { return &this->tap_trigger_; }
-  Trigger<> *get_double_tap_trigger() { return &this->double_tap_trigger_; }
-  Trigger<> *get_freefall_trigger() { return &this->freefall_trigger_; }
-  Trigger<> *get_active_trigger() { return &this->active_trigger_; }
-  Trigger<> *get_orientation_trigger() { return &this->orientation_trigger_; }
+  template<typename F> void add_on_tap_callback(F &&callback) { this->tap_callback_.add(std::forward<F>(callback)); }
+  template<typename F> void add_on_double_tap_callback(F &&callback) {
+    this->double_tap_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_freefall_callback(F &&callback) {
+    this->freefall_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_active_callback(F &&callback) {
+    this->active_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_orientation_callback(F &&callback) {
+    this->orientation_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   PowerMode power_mode_{PowerMode::HIGH_PERF};
@@ -199,36 +169,31 @@ class LIS2DW12Component : public PollingComponent {
   float offset_x_{0}, offset_y_{0}, offset_z_{0};
   bool mirror_x_{false}, mirror_y_{false}, mirror_z_{false}, swap_xy_{false};
 
-  float sensitivity_{0.244f};  // mg per LSB (14-bit, 2G default)
+  float scale_{0};    // m/s² per LSB after shift_
+  uint8_t shift_{2};  // data is left-justified: 14-bit >> 2, 12-bit (LP1) >> 4
 
-  struct {
-    float x, y, z;
-  } data_{};
+  uint8_t events_on_{0};  // bit per Event: binary sensor currently published on
+  uint32_t last_event_ms_[EVENT_COUNT]{};
+#ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *event_binary_sensors_[EVENT_COUNT]{};
+#endif
+#ifdef USE_TEXT_SENSOR
+  uint8_t sixd_last_{0xFF};  // SIXD_SRC bit 7 always reads 0, so the first read publishes
+#endif
 
-  struct {
-    RegAllIntSrc all_int;
-    RegSixdSrc sixd;
-    RegSixdSrc sixd_old;
-
-    uint32_t last_tap_ms{0};
-    uint32_t last_double_tap_ms{0};
-    uint32_t last_freefall_ms{0};
-    uint32_t last_active_ms{0};
-
-    bool never_published{true};
-  } status_{};
-
+  bool write_reg_(RegisterMap reg, uint8_t value) { return this->write_byte(static_cast<uint8_t>(reg), value); }
   bool configure_registers_();
-  bool read_acceleration_data_();
-  bool read_interrupt_status_();
-  void process_events_();
-  const char *get_orientation_string_();
+  bool read_acceleration_data_(float &x, float &y, float &z);
+  void handle_event_(Event event, bool active, uint32_t now, LazyCallbackManager<void()> &callback);
+#ifdef USE_TEXT_SENSOR
+  void update_orientation_();
+#endif
 
-  Trigger<> tap_trigger_;
-  Trigger<> double_tap_trigger_;
-  Trigger<> freefall_trigger_;
-  Trigger<> active_trigger_;
-  Trigger<> orientation_trigger_;
+  LazyCallbackManager<void()> tap_callback_;
+  LazyCallbackManager<void()> double_tap_callback_;
+  LazyCallbackManager<void()> freefall_callback_;
+  LazyCallbackManager<void()> active_callback_;
+  LazyCallbackManager<void()> orientation_callback_;
 };
 
 }  // namespace esphome::lis2dw12_base

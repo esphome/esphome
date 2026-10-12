@@ -10,6 +10,7 @@ import esphome.config_validation as cv
 CODEOWNERS = ["@latonita"]
 AUTO_LOAD = ["lis2dw12_base"]
 DEPENDENCIES = ["spi"]
+DOMAIN = "lis2dw12_spi"
 MULTI_CONF = True
 
 lis2dw12_spi_ns = cg.esphome_ns.namespace("lis2dw12_spi")

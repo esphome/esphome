@@ -6,7 +6,7 @@ from esphome.const import (
     CONF_ACCELERATION_Y,
     CONF_ACCELERATION_Z,
     CONF_NAME,
-    ICON_BRIEFCASE_DOWNLOAD,
+    ICON_ACCELERATION,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND_SQUARED,
 )
@@ -21,7 +21,7 @@ ACCELERATION_SENSORS = (CONF_ACCELERATION_X, CONF_ACCELERATION_Y, CONF_ACCELERAT
 accel_schema = cv.maybe_simple_value(
     sensor.sensor_schema(
         unit_of_measurement=UNIT_METER_PER_SECOND_SQUARED,
-        icon=ICON_BRIEFCASE_DOWNLOAD,
+        icon=ICON_ACCELERATION,
         accuracy_decimals=2,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
@@ -30,13 +30,13 @@ accel_schema = cv.maybe_simple_value(
 
 
 CONFIG_SCHEMA = LIS2DW12_SENSOR_SCHEMA.extend(
-    {cv.Optional(sensor): accel_schema for sensor in ACCELERATION_SENSORS}
+    {cv.Optional(key): accel_schema for key in ACCELERATION_SENSORS}
 )
 
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_LIS2DW12_ID])
-    for accel_key in ACCELERATION_SENSORS:
-        if accel_key in config:
-            sens = await sensor.new_sensor(config[accel_key])
-            cg.add(getattr(hub, f"set_{accel_key}_sensor")(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ACCELERATION_X, hub.set_acceleration_x_sensor)
+    await sensors(CONF_ACCELERATION_Y, hub.set_acceleration_y_sensor)
+    await sensors(CONF_ACCELERATION_Z, hub.set_acceleration_z_sensor)

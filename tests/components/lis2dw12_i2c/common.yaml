@@ -19,6 +19,8 @@ lis2dw12_i2c:
   on_tap:
     - then:
         - logger.log: "Tapped"
+    - then:
+        - logger.log: "Tapped again"
   on_double_tap:
     - then:
         - logger.log: "Double tapped"

@@ -16,18 +16,20 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@latonita"]
+DOMAIN = "lis2dw12_base"
 
 CONF_LIS2DW12_ID = "lis2dw12_id"
 
 CONF_MIRROR_Z = "mirror_z"
-CONF_LOW_NOISE = "low_noise"
-CONF_FILTER_BANDWIDTH = "filter_bandwidth"
-CONF_OUTPUT_DATA_RATE = "output_data_rate"
 CONF_ON_ACTIVE = "on_active"
 CONF_ON_DOUBLE_TAP = "on_double_tap"
 CONF_ON_FREEFALL = "on_freefall"
 CONF_ON_ORIENTATION = "on_orientation"
 CONF_ON_TAP = "on_tap"
+
+CONF_LOW_NOISE = "low_noise"
+CONF_FILTER_BANDWIDTH = "filter_bandwidth"
+CONF_OUTPUT_DATA_RATE = "output_data_rate"
 
 lis2dw12_base_ns = cg.esphome_ns.namespace("lis2dw12_base")
 LIS2DW12Component = lis2dw12_base_ns.class_("LIS2DW12Component", cg.PollingComponent)
@@ -70,6 +72,16 @@ FILTER_BANDWIDTHS = {
     "odr_div_20": LIS2DW12FilterBandwidth.BW_ODR_DIV_20,
 }
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_TAP, "add_on_tap_callback"),
+    automation.CallbackAutomation(CONF_ON_DOUBLE_TAP, "add_on_double_tap_callback"),
+    automation.CallbackAutomation(CONF_ON_FREEFALL, "add_on_freefall_callback"),
+    automation.CallbackAutomation(CONF_ON_ACTIVE, "add_on_active_callback"),
+    automation.CallbackAutomation(CONF_ON_ORIENTATION, "add_on_orientation_callback"),
+)
+
+_OFFSET = cv.float_range(min=-4.5, max=4.5)
+
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LIS2DW12Component),
@@ -84,15 +96,9 @@ CONFIG_SCHEMA_BASE = cv.Schema(
         cv.Optional(CONF_LOW_NOISE, default=False): cv.boolean,
         cv.Optional(CONF_CALIBRATION): cv.Schema(
             {
-                cv.Optional(CONF_OFFSET_X, default=0): cv.float_range(
-                    min=-4.5, max=4.5
-                ),
-                cv.Optional(CONF_OFFSET_Y, default=0): cv.float_range(
-                    min=-4.5, max=4.5
-                ),
-                cv.Optional(CONF_OFFSET_Z, default=0): cv.float_range(
-                    min=-4.5, max=4.5
-                ),
+                cv.Optional(CONF_OFFSET_X, default=0): _OFFSET,
+                cv.Optional(CONF_OFFSET_Y, default=0): _OFFSET,
+                cv.Optional(CONF_OFFSET_Z, default=0): _OFFSET,
             }
         ),
         cv.Optional(CONF_TRANSFORM): cv.Schema(
@@ -103,11 +109,11 @@ CONFIG_SCHEMA_BASE = cv.Schema(
                 cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
             }
         ),
-        cv.Optional(CONF_ON_ACTIVE): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_TAP): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_DOUBLE_TAP): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_FREEFALL): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_ORIENTATION): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_TAP): automation.validate_automation({}),
+        cv.Optional(CONF_ON_DOUBLE_TAP): automation.validate_automation({}),
+        cv.Optional(CONF_ON_FREEFALL): automation.validate_automation({}),
+        cv.Optional(CONF_ON_ACTIVE): automation.validate_automation({}),
+        cv.Optional(CONF_ON_ORIENTATION): automation.validate_automation({}),
     }
 ).extend(cv.polling_component_schema("10s"))
 
@@ -122,10 +128,10 @@ async def to_code_base(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    cg.add(var.set_range(RANGES[config[CONF_RANGE]]))
-    cg.add(var.set_power_mode(POWER_MODES[config[CONF_POWER_MODE]]))
-    cg.add(var.set_output_data_rate(DATA_RATES[config[CONF_OUTPUT_DATA_RATE]]))
-    cg.add(var.set_filter_bandwidth(FILTER_BANDWIDTHS[config[CONF_FILTER_BANDWIDTH]]))
+    cg.add(var.set_range(config[CONF_RANGE]))
+    cg.add(var.set_power_mode(config[CONF_POWER_MODE]))
+    cg.add(var.set_output_data_rate(config[CONF_OUTPUT_DATA_RATE]))
+    cg.add(var.set_filter_bandwidth(config[CONF_FILTER_BANDWIDTH]))
     cg.add(var.set_low_noise(config[CONF_LOW_NOISE]))
 
     if transform := config.get(CONF_TRANSFORM):
@@ -147,18 +153,6 @@ async def to_code_base(config):
             )
         )
 
-    for conf_key, trigger_getter in [
-        (CONF_ON_TAP, "get_tap_trigger"),
-        (CONF_ON_DOUBLE_TAP, "get_double_tap_trigger"),
-        (CONF_ON_FREEFALL, "get_freefall_trigger"),
-        (CONF_ON_ACTIVE, "get_active_trigger"),
-        (CONF_ON_ORIENTATION, "get_orientation_trigger"),
-    ]:
-        if conf_key in config:
-            await automation.build_automation(
-                getattr(var, trigger_getter)(),
-                [],
-                config[conf_key],
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     return var

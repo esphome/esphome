@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_NAME
+from esphome.const import CONF_NAME, ICON_SCREEN_ROTATION
 
 from . import CONF_LIS2DW12_ID, LIS2DW12_SENSOR_SCHEMA
 
@@ -9,7 +9,6 @@ CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["lis2dw12_base"]
 
 CONF_ORIENTATION = "orientation"
-ICON_SCREEN_ROTATION = "mdi:screen-rotation"
 
 CONFIG_SCHEMA = LIS2DW12_SENSOR_SCHEMA.extend(
     {
@@ -23,7 +22,5 @@ CONFIG_SCHEMA = LIS2DW12_SENSOR_SCHEMA.extend(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_LIS2DW12_ID])
-
-    if sensor_config := config.get(CONF_ORIENTATION):
-        var = await text_sensor.new_text_sensor(sensor_config)
-        cg.add(hub.set_orientation_text_sensor(var))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_ORIENTATION, hub.set_orientation_text_sensor)

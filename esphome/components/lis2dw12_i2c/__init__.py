@@ -10,6 +10,7 @@ import esphome.config_validation as cv
 CODEOWNERS = ["@latonita"]
 AUTO_LOAD = ["lis2dw12_base"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "lis2dw12_i2c"
 MULTI_CONF = True
 
 lis2dw12_i2c_ns = cg.esphome_ns.namespace("lis2dw12_i2c")
