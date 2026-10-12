@@ -1,4 +1,4 @@
-"""Integration test for TemplatableStringValue with string lambdas."""
+"""Integration test for Home Assistant action lambdas returning strings and numbers."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ async def test_api_string_lambda(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test TemplatableStringValue works with lambdas that return different types."""
+    """Test Home Assistant action lambdas that return different types are sent as strings."""
     loop = asyncio.get_running_loop()
 
     # Track log messages for all four service calls

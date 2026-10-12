@@ -81,7 +81,13 @@ def _raise_invalid(message: str) -> None:
     raise Invalid(message)
 
 
-class SensitiveStr(str):
+class Sensitive:
+    """Marker base for validated values masked in user-visible YAML output."""
+
+    __slots__ = ()
+
+
+class SensitiveStr(Sensitive, str):
     """Marker subclass for validated strings that should be masked in
     user-visible YAML output. ``cv.sensitive`` wraps validated values in this
     type so ``dump()`` can render them with ANSI conceal codes without
@@ -89,6 +95,16 @@ class SensitiveStr(str):
     """
 
     __slots__ = ()
+
+
+class SensitiveInt(Sensitive, int):
+    """Marker subclass for integer credentials masked in user-visible YAML."""
+
+    __slots__ = ()
+
+
+class SensitiveHexInt(core.HexInt, SensitiveInt):
+    """Keep hexadecimal formatting and code generation for sensitive integers."""
 
 
 @contextmanager
@@ -1361,11 +1377,11 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_stringify(path.as_posix())
         return self.represent_stringify(value)
 
-    def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
+    def represent_sensitive(self, value: Sensitive) -> yaml.ScalarNode:
         # Only the redact-and-not-a-secret branch is unique to sensitive
-        # values; otherwise let ``represent_stringify`` handle ``!secret``
-        # precedence and the plain-str fallthrough. Conceal sequence is
-        # emitted as literal ``\033`` text (not actual ESC bytes) so the
+        # values; otherwise use the plain string/integer representer to
+        # preserve ``!secret`` references and scalar types. Conceal sequence
+        # is emitted as literal ``\033`` text (not actual ESC bytes) so the
         # output matches the prior regex format and device-builder's
         # ``\033[8m...\033[28m`` parser keeps working.
         if self._redact_sensitive and not is_secret(value):
@@ -1373,6 +1389,10 @@ class ESPHomeDumper(yaml.SafeDumper):
                 tag="tag:yaml.org,2002:str",
                 value=f"\\033[8m{value}\\033[28m",
             )
+        # MRO dispatch picks this representer over represent_int, so
+        # integers have to be forwarded explicitly.
+        if isinstance(value, int):
+            return self.represent_int(value)
         return self.represent_stringify(value)
 
     # pylint: disable=arguments-renamed
@@ -1452,8 +1472,8 @@ ESPHomeDumper.add_multi_representer(
 )
 ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
-# MRO-walked dispatch; SensitiveStr's own entry wins over the str one.
-ESPHomeDumper.add_multi_representer(SensitiveStr, ESPHomeDumper.represent_sensitive)
+# MRO-walked dispatch; Sensitive precedes str and int in every marker's MRO.
+ESPHomeDumper.add_multi_representer(Sensitive, ESPHomeDumper.represent_sensitive)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)

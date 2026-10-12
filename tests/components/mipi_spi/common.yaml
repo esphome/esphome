@@ -53,3 +53,48 @@ display:
     reset_pin:
       allow_other_uses: true
       number: ${reset_pin}
+
+  - platform: mipi_spi
+    id: amoled_display
+    model: RM690B0
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+
+  - platform: mipi_spi
+    id: custom_display
+    model: custom
+    brightness: 0x80
+    dimensions:
+      width: 240
+      height: 240
+    init_sequence:
+      - [0xd0, 1]
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+
+light:
+  - platform: mipi_spi
+    id: display_brightness
+    name: Display Brightness
+    display_id: amoled_display
+
+  - platform: mipi_spi
+    id: custom_display_brightness
+    name: Custom Display Brightness
+    display_id: custom_display
+    min_brightness: 16
+    max_brightness: 200

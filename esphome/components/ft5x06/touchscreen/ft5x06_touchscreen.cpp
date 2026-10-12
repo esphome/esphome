@@ -5,7 +5,7 @@
 
 namespace esphome::ft5x06 {
 
-static const char *const TAG = "ft5x06.touchscreen";
+ESPHOME_LOG_TAG(TAG, "ft5x06.touchscreen");
 
 void FT5x06Touchscreen::setup() {
   if (this->interrupt_pin_ != nullptr) {
