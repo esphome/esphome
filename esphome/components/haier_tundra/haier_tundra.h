@@ -91,9 +91,9 @@ class HaierTundra final : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
 #ifdef USE_SWITCH
-  SUB_SWITCH(health);
-  SUB_SWITCH(quiet);
-  SUB_SWITCH(turbo);
+  SUB_SWITCH(health_mode);
+  SUB_SWITCH(quiet_mode);
+  SUB_SWITCH(turbo_mode);
 #endif
 
   void set_health_mode(bool health, bool transmit = true);

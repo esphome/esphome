@@ -16,11 +16,11 @@ void HaierTundra::transmit_(uint8_t button) {
   // Force Quiet and Turbo off if we're not in Cool or Heat mode
   if (this->mode != climate::CLIMATE_MODE_COOL && this->mode != climate::CLIMATE_MODE_HEAT) {
 #ifdef USE_SWITCH
-    if (this->quiet_switch_ != nullptr) {
-      this->quiet_switch_->publish_state(false);
+    if (this->quiet_mode_switch_ != nullptr) {
+      this->quiet_mode_switch_->publish_state(false);
     }
-    if (this->turbo_switch_ != nullptr) {
-      this->turbo_switch_->publish_state(false);
+    if (this->turbo_mode_switch_ != nullptr) {
+      this->turbo_mode_switch_->publish_state(false);
     }
 #endif
 
@@ -140,14 +140,14 @@ bool HaierTundra::on_haier_(const remote_base::HaierData &haier) {
   this->turbo_mode_ = haier.data[6] & 0x40;
 
 #ifdef USE_SWITCH
-  if (this->health_switch_ != nullptr) {
-    this->health_switch_->publish_state(this->health_mode_);
+  if (this->health_mode_switch_ != nullptr) {
+    this->health_mode_switch_->publish_state(this->health_mode_);
   }
-  if (this->quiet_switch_ != nullptr) {
-    this->quiet_switch_->publish_state(this->quiet_mode_);
+  if (this->quiet_mode_switch_ != nullptr) {
+    this->quiet_mode_switch_->publish_state(this->quiet_mode_);
   }
-  if (this->turbo_switch_ != nullptr) {
-    this->turbo_switch_->publish_state(this->turbo_mode_);
+  if (this->turbo_mode_switch_ != nullptr) {
+    this->turbo_mode_switch_->publish_state(this->turbo_mode_);
   }
 #endif
 
@@ -218,8 +218,8 @@ void HaierTundra::set_quiet_mode(bool quiet, bool transmit) {
   // Quiet & Turbo cannot be enabled at the same time
   if (quiet) {
 #ifdef USE_SWITCH
-    if (this->turbo_switch_ != nullptr) {
-      this->turbo_switch_->publish_state(false);
+    if (this->turbo_mode_switch_ != nullptr) {
+      this->turbo_mode_switch_->publish_state(false);
     }
 #endif
     this->turbo_mode_ = false;
@@ -234,8 +234,8 @@ void HaierTundra::set_turbo_mode(bool turbo, bool transmit) {
   // Quiet & Turbo cannot be enabled at the same time
   if (turbo) {
 #ifdef USE_SWITCH
-    if (this->quiet_switch_ != nullptr) {
-      this->quiet_switch_->publish_state(false);
+    if (this->quiet_mode_switch_ != nullptr) {
+      this->quiet_mode_switch_->publish_state(false);
     }
 #endif
     this->quiet_mode_ = false;

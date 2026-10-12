@@ -52,20 +52,9 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_HAIER_TUNDRA_ID])
 
-    if switch_conf := config.get(CONF_HEALTH_MODE):
-        var = cg.new_Pvariable(switch_conf[cv.CONF_ID])
-        await switch.register_switch(var, switch_conf)
-        await cg.register_component(var, switch_conf)
-        await cg.register_parented(var, parent)
-
-    if switch_conf := config.get(CONF_QUIET_MODE):
-        var = cg.new_Pvariable(switch_conf[cv.CONF_ID])
-        await switch.register_switch(var, switch_conf)
-        await cg.register_component(var, switch_conf)
-        await cg.register_parented(var, parent)
-
-    if switch_conf := config.get(CONF_TURBO_MODE):
-        var = cg.new_Pvariable(switch_conf[cv.CONF_ID])
-        await switch.register_switch(var, switch_conf)
-        await cg.register_component(var, switch_conf)
-        await cg.register_parented(var, parent)
+    for switch_type in [CONF_HEALTH_MODE, CONF_QUIET_MODE, CONF_TURBO_MODE]:
+        if conf := config.get(switch_type):
+            sw = await switch.new_switch(conf)
+            await cg.register_component(sw, conf)
+            await cg.register_parented(sw, parent)
+            cg.add(getattr(parent, f"set_{switch_type}_switch")(sw))
