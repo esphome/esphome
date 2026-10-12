@@ -75,6 +75,8 @@ optional<DraytonData> decode(const RawTimings &timings) {
 TEST(DraytonProtocolTest, EncodeAppendsChecksum) {
   EXPECT_EQ(sent_packet(encode(with_data(0x6180, 0x8))), ON_PACKET);
   EXPECT_EQ(sent_packet(encode(with_data(0x6180, 0x0))), OFF_PACKET);
+  // A lambda value above 4 bits is masked instead of spilling into the address
+  EXPECT_EQ(sent_packet(encode(with_data(0x6180, 0x18))), ON_PACKET);
 }
 
 TEST(DraytonProtocolTest, LegacyEncodeSendsChannelAndCommandAsIs) {
