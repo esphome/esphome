@@ -68,8 +68,9 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
-  /// Store a parameter in the module's units and write all of them to the module
-  void set_parameter(Parameter parameter, uint32_t value);
+  /// Store a parameter in the module's units and write all of them to the module.
+  /// Returns false, and changes nothing, until the module's own values have been read.
+  bool set_parameter(Parameter parameter, uint32_t value);
 
  protected:
   enum class FrameType : uint8_t { NONE, SHORT_DATA, STD_DATA, COMMAND };
@@ -114,6 +115,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   bool awaiting_ack_{false};
   bool rescanning_{false};
   bool init_done_{false};
+  bool parameters_known_{false};  // the module answered the parameter read at least once
   bool parameters_dirty_{false};
 };
 

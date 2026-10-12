@@ -29,8 +29,8 @@ class LD2410SNumber final : public number::Number, public Parented<LD2410SCompon
         raw = lroundf(value);
         break;
     }
-    this->parent_->set_parameter(this->parameter_, raw);
-    this->publish_state(value);
+    if (this->parent_->set_parameter(this->parameter_, raw))
+      this->publish_state(value);
   }
 
   const Parameter parameter_;

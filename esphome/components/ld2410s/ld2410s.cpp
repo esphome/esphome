@@ -39,7 +39,7 @@ static constexpr uint8_t CMD_FRAME_MAX_SIZE = LONG_PAYLOAD_POS + 2 + PARAMETERS_
 // Keys of the parameters, in Parameter order
 static constexpr uint16_t PARAMETER_KEYS[] PROGMEM = {0x0005, 0x000A, 0x0006, 0x0002, 0x000C, 0x000B};
 static_assert(sizeof(PARAMETER_KEYS) / sizeof(PARAMETER_KEYS[0]) == PARAMETER_COUNT, "one key per parameter");
-// The version answer: 2 bytes device type, then major, minor and patch as 16-bit words
+// The version answer: 4 bytes device type, then major, minor and patch as 16-bit words
 static constexpr uint8_t VERSION_TYPE_SIZE = 4;
 static constexpr uint8_t VERSION_SIZE = VERSION_TYPE_SIZE + 3 * 2;
 
@@ -112,13 +112,19 @@ void LD2410SComponent::loop() {
   }
 }
 
-void LD2410SComponent::set_parameter(Parameter parameter, uint32_t value) {
+bool LD2410SComponent::set_parameter(Parameter parameter, uint32_t value) {
+  // All six are written together, so the other five must be the module's own values
+  if (!this->init_done_ || !this->parameters_known_) {
+    ESP_LOGW(TAG, "Parameters not read yet, change ignored");
+    return false;
+  }
   this->parameters_[static_cast<uint8_t>(parameter)] = value;
-  // All six are written together once the module is free
-  this->parameters_dirty_ = true;
-  if (this->sequence_ == nullptr && this->init_done_) {
+  if (this->sequence_ != nullptr) {
+    this->parameters_dirty_ = true;  // written once the running sequence ends
+  } else {
     this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, App.get_loop_component_start_time());
   }
+  return true;
 }
 
 void LD2410SComponent::start_sequence_(const uint16_t *sequence, uint8_t length, uint32_t now) {
@@ -128,9 +134,6 @@ void LD2410SComponent::start_sequence_(const uint16_t *sequence, uint8_t length,
   this->step_timeouts_ = 0;
   this->awaiting_ack_ = false;
   this->next_send_at_ = now;
-  if (sequence == WRITE_SEQUENCE) {
-    this->parameters_dirty_ = false;
-  }
 }
 
 uint16_t LD2410SComponent::current_command_() const { return progmem_read_uint16(&this->sequence_[this->step_]); }
@@ -385,6 +388,7 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
   }
   // A parameter changed while a sequence was running
   if (this->parameters_dirty_) {
+    this->parameters_dirty_ = false;
     this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, now + COMMAND_GAP_MS);
   }
 }
@@ -400,6 +404,7 @@ void LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
     this->parameters_[i] = encode_uint32(v[3], v[2], v[1], v[0]);
     this->publish_parameter_(static_cast<Parameter>(i));
   }
+  this->parameters_known_ = true;
   ESP_LOGD(TAG,
            "Parameters: gates %" PRIu32 " to %" PRIu32 ", no delay %" PRIu32 " s, frequencies %" PRIu32 "/%" PRIu32
            " dHz, response speed %" PRIu32,
