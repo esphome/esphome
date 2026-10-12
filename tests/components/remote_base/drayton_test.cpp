@@ -87,6 +87,9 @@ TEST(DraytonProtocolTest, LegacyEncodeSendsChannelAndCommandAsIs) {
 TEST(DraytonProtocolTest, DecodesCapturedPackets) {
   auto on = decode(from_capture(ON_CAPTURE));
   ASSERT_TRUE(on.has_value());
+  if (!on.has_value()) {
+    return;
+  }
   EXPECT_EQ(on->address, 0x6180);
   EXPECT_EQ(on->data, 0x8);
   EXPECT_EQ(on->channel, 0x12);
@@ -94,6 +97,9 @@ TEST(DraytonProtocolTest, DecodesCapturedPackets) {
 
   auto off = decode(from_capture(OFF_CAPTURE));
   ASSERT_TRUE(off.has_value());
+  if (!off.has_value()) {
+    return;
+  }
   EXPECT_EQ(off->address, 0x6180);
   EXPECT_EQ(off->data, 0x0);
   EXPECT_EQ(off->channel, 0x12);
@@ -105,6 +111,9 @@ TEST(DraytonProtocolTest, RoundTrips) {
     for (uint8_t data : {0x0, 0x2, 0x8, 0xA, 0xF}) {
       auto decoded = decode(as_received(encode(with_data(address, data))));
       ASSERT_TRUE(decoded.has_value()) << std::hex << address << " " << int(data);
+      if (!decoded.has_value()) {
+        return;
+      }
       EXPECT_EQ(decoded->address, address);
       EXPECT_EQ(decoded->data, data);
     }
@@ -121,6 +130,9 @@ TEST(DraytonProtocolTest, RejectsBadChecksum) {
 TEST(DraytonProtocolTest, BinarySensorFormsMatchDecodedPacket) {
   auto on = decode(from_capture(ON_CAPTURE));
   ASSERT_TRUE(on.has_value());
+  if (!on.has_value()) {
+    return;
+  }
   // Built as drayton_binary_sensor() does: legacy command 0x41 gives data 0x41 >> 3
   EXPECT_TRUE(*on == with_data(0x6180, 0x41 >> 3));
   EXPECT_TRUE(*on == with_data(0x6180, 0x8));
@@ -129,6 +141,9 @@ TEST(DraytonProtocolTest, BinarySensorFormsMatchDecodedPacket) {
 
   auto off = decode(from_capture(OFF_CAPTURE));
   ASSERT_TRUE(off.has_value());
+  if (!off.has_value()) {
+    return;
+  }
   EXPECT_TRUE(*off == with_data(0x6180, 0x02 >> 3));
   EXPECT_FALSE(*off == with_data(0x6180, 0x8));
 }
