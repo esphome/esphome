@@ -211,7 +211,8 @@ To enable signal demodulation, configure the signal carrier frequency and duty c
 
 - **on_drayton** (*Optional*, [Automation](/automations)): An automation to perform when a
   Drayton Digistat RF code has been decoded. A variable `x` of type <APIStruct text="remote_base::DraytonData" path="remote_base::DraytonData" />
-  is passed to the automation for use in lambdas.
+  is passed to the automation for use in lambdas. It has the fields `address`, `data`, and the legacy `channel` and
+  `command`. Packets that fail the checksum are dropped and do not trigger the automation.
 
 - **on_dyson** (*Optional*, [Automation](/automations)): An automation to perform when a
   Dyson cool AM07 code has been decoded. A variable `x` of type <APIStruct text="remote_base::DysonData" path="remote_base::DysonData" />
@@ -473,11 +474,21 @@ Remote code selection (exactly one of these has to be included):
   - **button** (**Required**, int): The 4-bit button to listen for.
   - **check** (**Required**, int): The 4-bit check to listen for. Includes an indication that a button is being held down.
 
-- **drayton**: Trigger on a decoded Drayton Digistat RF remote code with the given data.
+- **drayton**: Trigger on a decoded Drayton Digistat RF remote code with the given data. Set `address` and either
+  `data` or both `channel` and `command`. Packets that fail the checksum are dropped and never trigger.
 
-  - **address** (**Required**, int): The 16-bit ID code to trigger on, see dumper output for more info.
-  - **channel** (**Required**, int): The 7-bit switch/channel to listen for.
-  - **command** (**Required**, int): The 5-bit command to listen for.
+  - **address** (**Required**, int): The 16-bit address to trigger on, see dumper output for more info. It is the
+    12-bit thermostat ID followed by a 4-bit pairing field. The pairing field is normally 0; a thermostat sets bit 0
+    in the first packets after its batteries are inserted, so a receiver in pairing mode can learn its ID.
+  - **data** (*Optional*, int): The 4-bit data value to trigger on. Range is `0` to `0xF`. Bit `0x8` means the
+    thermostat calls for heat and bit `0x2` means low battery, so `0x8` is On with the battery OK and `0x0` is Off.
+    The other two bits have not been seen set. Cannot be used with `channel` and `command`.
+  - **channel** (*Optional*, int): The legacy 5-bit channel, the low 5 checksum bits. Range is `0` to `0x1F`. Must
+    be used together with `command`; kept for configurations written for the first Drayton release. It is not
+    compared when matching, since the checksum is verified before a packet gets this far.
+  - **command** (*Optional*, int): The legacy 7-bit command, the 4 data bits followed by the top 3 checksum bits.
+    Range is `0` to `0x7F`. Must be used together with `channel`. Only its 4 data bits are compared with the received
+    packet.
 
 - **dyson**: Trigger on a decoded dyson cool AM07 infrared remote code with the given data.
 

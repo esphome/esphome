@@ -388,21 +388,32 @@ on_...:
 
 ### `remote_transmitter.transmit_drayton` Action
 
-This [action](/automations/actions#all-actions) sends a Draton Digistat RF remote code to a remote transmitter.
+This [action](/automations/actions#all-actions) sends a Drayton Digistat RF remote code to a remote transmitter.
 
 ```yaml
 on_...:
   - remote_transmitter.transmit_drayton:
       address: '0x6180'
-      channel: '0x12'
-      command: '0x02'
+      data: '0x8'
 ```
 
 #### Configuration variables
 
-- **address** (**Required**, int, [templatable](/automations/templates)): The 16-bit ID to send, see dumper output for more info.
-- **channel** (**Required**, int, [templatable](/automations/templates)): The switch/channel to send, between 0 and 127 inclusive.
-- **command** (**Required**, int, [templatable](/automations/templates)): The command to send, between 0 and 63 inclusive.
+Set `address` and either `data` or both `channel` and `command`.
+
+- **address** (**Required**, int, [templatable](/automations/templates)): The 16-bit address to send, see dumper
+  output for more info. It is the 12-bit thermostat ID followed by a 4-bit pairing field. The pairing field is
+  normally 0; setting bit 0 lets a receiver in pairing mode learn the ID.
+- **data** (*Optional*, int, [templatable](/automations/templates/)): The 4-bit data value to send. Range is `0` to
+  `0xF`. Bit `0x8` means the thermostat calls for heat and bit `0x2` means low battery, so `0x8` is On with the
+  battery OK and `0x0` is Off. The other two bits have not been seen set. The checksum is calculated and added for
+  you. Cannot be used with `channel` and `command`.
+- **channel** (*Optional*, int, [templatable](/automations/templates/)): The legacy 5-bit channel, the low 5 checksum
+  bits. Range is `0` to `0x1F`. Must be used together with `command`; kept for configurations written for the first
+  Drayton release.
+- **command** (*Optional*, int, [templatable](/automations/templates/)): The legacy 7-bit command, the 4 data bits
+  followed by the top 3 checksum bits. Range is `0` to `0x7F`. Must be used together with `channel`. The packet is
+  sent from `channel` and `command` as they are, with no checksum calculated.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
 <span id="remote_transmitter-transmit_dyson"></span>
