@@ -872,15 +872,29 @@ async def if_action_to_code(
     cond_conf = next(el for el in config if el in (CONF_ANY, CONF_ALL, CONF_CONDITION))
     condition = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, if_template_arg, condition)
+    then_actions = else_actions = None
     if CONF_THEN in config:
-        for action in await build_action_list(config[CONF_THEN], template_arg, args):
+        then_actions = await build_action_list(config[CONF_THEN], template_arg, args)
+    if has_else:
+        else_actions = await build_action_list(config[CONF_ELSE], template_arg, args)
+    _add_if_branches(var, then_actions, else_actions)
+    return var
+
+
+def _add_if_branches(
+    var: MockObj,
+    then_actions: list[MockObj] | None,
+    else_actions: list[MockObj] | None,
+) -> None:
+    """Add the branches of an IfAction one action at a time; None leaves a branch out."""
+    if then_actions is not None:
+        for action in then_actions:
             cg.add(var.add_then_action(action))
         cg.add(var.finish_then())
-    if has_else:
-        for action in await build_action_list(config[CONF_ELSE], template_arg, args):
+    if else_actions is not None:
+        for action in else_actions:
             cg.add(var.add_else_action(action))
         cg.add(var.finish_else())
-    return var
 
 
 def _validate_choice(choice: ConfigType) -> ConfigType:
@@ -940,7 +954,7 @@ async def choose_action_to_code(
 ) -> MockObj:
     # Built as a chain of if/else actions: each choice's else branch holds the next choice,
     # and the last choice's else branch holds the `else` actions, if any.
-    else_actions: list[MockObj] = []
+    else_actions: list[MockObj] | None = None
     if CONF_ELSE in config[-1]:
         else_actions = await build_action_list(
             config[-1][CONF_ELSE], template_arg, args
@@ -949,15 +963,12 @@ async def choose_action_to_code(
     var: MockObj | None = None
     for index in reversed(range(len(config))):
         choice = config[index]
-        has_else = bool(else_actions)
-        if_template_arg = cg.TemplateArguments(has_else, *template_arg)
+        if_template_arg = cg.TemplateArguments(else_actions is not None, *template_arg)
         condition = await build_condition(choice[CONF_IF], template_arg, args)
         choice_id = action_id if index == 0 else choice[CONF_CHOICE_ID]
         var = cg.new_Pvariable(choice_id, if_template_arg, condition)
-        actions = await build_action_list(choice[CONF_THEN], template_arg, args)
-        cg.add(var.add_then(actions))
-        if has_else:
-            cg.add(var.add_else(else_actions))
+        then_actions = await build_action_list(choice[CONF_THEN], template_arg, args)
+        _add_if_branches(var, then_actions, else_actions)
         else_actions = [var]
     return var
 

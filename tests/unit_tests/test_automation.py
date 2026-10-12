@@ -25,6 +25,7 @@ from esphome.automation import (
     build_trigger_callback,
     choose_action_to_code,
     has_non_synchronous_actions,
+    if_action_to_code,
     literal_with_length,
     maybe_simple_id,
     parent_ref,
@@ -1689,10 +1690,72 @@ async def test_choose_builds_if_else_chain(has_else: bool) -> None:
     ]
     assert str(result) == "action"
     statements = [str(c.args[0]) for c in add.call_args_list]
-    expected_b_else = ["choice_b->add_else({built_else_c})"] if has_else else []
+    expected_b_else = (
+        ["choice_b->add_else_action(built_else_c)", "choice_b->finish_else()"]
+        if has_else
+        else []
+    )
     assert statements == [
-        "choice_b->add_then({built_then_b})",
+        "choice_b->add_then_action(built_then_b)",
+        "choice_b->finish_then()",
         *expected_b_else,
-        "action->add_then({built_then_a})",
-        "action->add_else({choice_b})",
+        "action->add_then_action(built_then_a)",
+        "action->finish_then()",
+        "action->add_else_action(choice_b)",
+        "action->finish_else()",
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("config", "template_arg", "expected"),
+    [
+        pytest.param(
+            {CONF_CONDITION: "cond", CONF_THEN: "then", CONF_ELSE: "else"},
+            "<true>",
+            [
+                "action->add_then_action(built_then)",
+                "action->finish_then()",
+                "action->add_else_action(built_else)",
+                "action->finish_else()",
+            ],
+            id="then_and_else",
+        ),
+        pytest.param(
+            {CONF_ANY: "cond", CONF_ELSE: "else"},
+            "<true>",
+            ["action->add_else_action(built_else)", "action->finish_else()"],
+            id="only_else",
+        ),
+        pytest.param(
+            {CONF_ALL: "cond", CONF_THEN: "then"},
+            "<false>",
+            ["action->add_then_action(built_then)", "action->finish_then()"],
+            id="only_then",
+        ),
+    ],
+)
+async def test_if_adds_branches_one_action_at_a_time(
+    config: ConfigType, template_arg: str, expected: list[str]
+) -> None:
+    with (
+        patch(
+            "esphome.automation.build_condition",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: f"built_{conf}",
+        ),
+        patch(
+            "esphome.automation.build_action_list",
+            new_callable=AsyncMock,
+            side_effect=lambda conf, *_: [MockObj(f"built_{conf}")],
+        ),
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch("esphome.codegen.add") as add,
+    ):
+        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        await if_action_to_code(config, ID("action"), TEMPLATE_ARG, [])
+
+    new_pvariable.assert_called_once()
+    assert str(new_pvariable.call_args.args[1]) == template_arg
+    assert new_pvariable.call_args.args[2] == "built_cond"
+    assert [str(c.args[0]) for c in add.call_args_list] == expected

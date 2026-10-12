@@ -171,12 +171,21 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   void stop() override {
+#ifdef USE_SCRIPT_ON_STOP
+    // Queued runs are unfinished work too, even between two runs when nothing is running
+    const bool stopping = this->is_action_running() || this->num_queued_ != 0;
+#endif
     // Clear all queued items to free memory immediately
     // Resetting the array automatically destroys all unique_ptrs and their contents
     this->var_queue_.reset();
     this->num_queued_ = 0;
     this->queue_front_ = 0;
+#ifdef USE_SCRIPT_ON_STOP
+    if (stopping)
+      this->stop_running_();
+#else
     Script<Ts...>::stop();
+#endif
   }
 
   void loop() override {
