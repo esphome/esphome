@@ -84,6 +84,29 @@ _CALLBACK_AUTOMATIONS = (
 
 _OFFSET = cv.float_range(min=-4.5, max=4.5)
 
+# The ODR code means different rates per power mode: 0001 is 1.6 Hz only in low-power modes
+# (12.5 Hz in high performance) and every code above 200 Hz runs at 200 Hz in low-power modes
+_LOW_POWER_ONLY_RATES = ("1.6Hz",)
+_HIGH_PERF_ONLY_RATES = ("400Hz", "800Hz", "1600Hz")
+
+
+def validate_data_rate(config: ConfigType) -> ConfigType:
+    """Reject rates the chip cannot run in the chosen power mode; apply after extending the base schema."""
+    rate = str(config[CONF_OUTPUT_DATA_RATE])
+    high_perf = str(config[CONF_POWER_MODE]) == "high_performance"
+    if high_perf and rate in _LOW_POWER_ONLY_RATES:
+        raise cv.Invalid(
+            f"{CONF_OUTPUT_DATA_RATE} {rate} needs a low_power {CONF_POWER_MODE}",
+            [CONF_OUTPUT_DATA_RATE],
+        )
+    if not high_perf and rate in _HIGH_PERF_ONLY_RATES:
+        raise cv.Invalid(
+            f"{CONF_OUTPUT_DATA_RATE} {rate} needs {CONF_POWER_MODE}: high_performance",
+            [CONF_OUTPUT_DATA_RATE],
+        )
+    return config
+
+
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LIS2DW12Component),

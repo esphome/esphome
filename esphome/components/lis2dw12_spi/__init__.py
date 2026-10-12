@@ -4,6 +4,7 @@ from esphome.components.lis2dw12_base import (
     CONFIG_SCHEMA_BASE,
     LIS2DW12Component,
     to_code_base,
+    validate_data_rate,
 )
 import esphome.config_validation as cv
 from esphome.types import ConfigType
@@ -21,11 +22,14 @@ LIS2DW12SPIComponent = lis2dw12_spi_ns.class_(
     spi.SPIDevice,
 )
 
-CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
-    {
-        cv.GenerateID(): cv.declare_id(LIS2DW12SPIComponent),
-    }
-).extend(spi.spi_device_schema(cs_pin_required=True))
+CONFIG_SCHEMA = cv.All(
+    CONFIG_SCHEMA_BASE.extend(
+        {
+            cv.GenerateID(): cv.declare_id(LIS2DW12SPIComponent),
+        }
+    ).extend(spi.spi_device_schema(cs_pin_required=True)),
+    validate_data_rate,
+)
 
 
 async def to_code(config: ConfigType) -> None:

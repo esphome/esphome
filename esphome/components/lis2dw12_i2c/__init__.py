@@ -4,6 +4,7 @@ from esphome.components.lis2dw12_base import (
     CONFIG_SCHEMA_BASE,
     LIS2DW12Component,
     to_code_base,
+    validate_data_rate,
 )
 import esphome.config_validation as cv
 from esphome.types import ConfigType
@@ -19,11 +20,14 @@ LIS2DW12I2CComponent = lis2dw12_i2c_ns.class_(
     "LIS2DW12I2CComponent", LIS2DW12Component, i2c.I2CDevice
 )
 
-CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
-    {
-        cv.GenerateID(): cv.declare_id(LIS2DW12I2CComponent),
-    }
-).extend(i2c.i2c_device_schema(0x19))
+CONFIG_SCHEMA = cv.All(
+    CONFIG_SCHEMA_BASE.extend(
+        {
+            cv.GenerateID(): cv.declare_id(LIS2DW12I2CComponent),
+        }
+    ).extend(i2c.i2c_device_schema(0x19)),
+    validate_data_rate,
+)
 
 
 async def to_code(config: ConfigType) -> None:

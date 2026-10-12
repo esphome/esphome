@@ -116,7 +116,10 @@ void LIS2DW12Component::setup() {
   this->shift_ = lp1 ? 4 : 2;
 
 #ifdef USE_TEXT_SENSOR
-  this->update_orientation_();
+  RegSixdSrc sixd;
+  if (this->read_byte(static_cast<uint8_t>(RegisterMap::SIXD_SRC), &sixd.raw)) {
+    this->publish_orientation_(sixd);
+  }
 #endif
 }
 
@@ -139,7 +142,7 @@ bool LIS2DW12Component::configure_registers_() {
   return this->write_reg_(RegisterMap::CTRL2, 0x0C) &&        // BDU, IF_ADD_INC
          this->write_reg_(RegisterMap::CTRL1, ctrl1) &&       // ODR and power mode
          this->write_reg_(RegisterMap::CTRL6, ctrl6) &&       // bandwidth, range, low noise
-         this->write_reg_(RegisterMap::TAP_THS_X, 0x29) &&    // 6D_THS=60 degrees, TAP_THSX=9
+         this->write_reg_(RegisterMap::TAP_THS_X, 0x29) &&    // 6D_THS=70 degrees, TAP_THSX=9
          this->write_reg_(RegisterMap::TAP_THS_Y, 0x09) &&    // TAP_THSY=9
          this->write_reg_(RegisterMap::TAP_THS_Z, 0xE9) &&    // TAP_THSZ=9, tap on X/Y/Z
          this->write_reg_(RegisterMap::INT_DUR, 0x76) &&      // LATENCY=7, QUIET=1, SHOCK=2
@@ -235,16 +238,8 @@ static const char *orientation_to_string(RegSixdSrc sixd) {
   return "Unknown";
 }
 
-void LIS2DW12Component::update_orientation_() {
-  if (this->orientation_text_sensor_ == nullptr) {
-    return;
-  }
-  RegSixdSrc sixd;
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::SIXD_SRC), &sixd.raw)) {
-    this->status_set_warning();
-    return;
-  }
-  if (sixd.raw == this->sixd_last_) {
+void LIS2DW12Component::publish_orientation_(RegSixdSrc sixd) {
+  if (this->orientation_text_sensor_ == nullptr || sixd.raw == this->sixd_last_) {
     return;
   }
   this->sixd_last_ = sixd.raw;
@@ -281,11 +276,14 @@ void LIS2DW12Component::handle_event_(Event event, bool active, uint32_t now, La
 }
 
 void LIS2DW12Component::loop() {
-  RegAllIntSrc src;
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::ALL_INT_SRC), &src.raw)) {
+  // SIXD_SRC and ALL_INT_SRC are adjacent; one read captures the orientation before the latch clears
+  uint8_t regs[2];
+  if (!this->read_bytes(static_cast<uint8_t>(RegisterMap::SIXD_SRC), regs, sizeof(regs))) {
     this->status_set_warning();
     return;
   }
+  RegAllIntSrc src;
+  src.raw = regs[1];
 
   const uint32_t now = App.get_loop_component_start_time();
   this->handle_event_(EVENT_TAP, src.single_tap, now, this->tap_callback_);
@@ -296,7 +294,9 @@ void LIS2DW12Component::loop() {
   if (src.d6d_ia) {
     this->orientation_callback_.call();
 #ifdef USE_TEXT_SENSOR
-    this->update_orientation_();
+    RegSixdSrc sixd;
+    sixd.raw = regs[0];
+    this->publish_orientation_(sixd);
 #endif
   }
 }

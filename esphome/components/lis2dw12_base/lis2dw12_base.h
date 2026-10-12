@@ -186,7 +186,7 @@ class LIS2DW12Component : public PollingComponent {
   bool read_acceleration_data_(float &x, float &y, float &z);
   void handle_event_(Event event, bool active, uint32_t now, LazyCallbackManager<void()> &callback);
 #ifdef USE_TEXT_SENSOR
-  void update_orientation_();
+  void publish_orientation_(RegSixdSrc sixd);
 #endif
 
   LazyCallbackManager<void()> tap_callback_;

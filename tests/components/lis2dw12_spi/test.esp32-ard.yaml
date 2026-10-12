@@ -1,3 +1,0 @@
-packages:
-  spi: !include ../../test_build_components/common/spi/esp32-ard.yaml
-  lis2dw12_spi: !include common.yaml
