@@ -385,11 +385,13 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
     this->dtr_state_ = dtr;
     this->dtr_pin_->digital_write(dtr);
   }
-  this->with_modem_uart_([this, dtr, rts](auto *uart) {
-    // A line with a GPIO pin keeps the UART's current state
-    uart->set_modem_control(this->dtr_pin_ != nullptr ? uart->get_dtr() : dtr,
-                            this->rts_pin_ != nullptr ? uart->get_rts() : rts);
-  });
+  // A line with a GPIO pin keeps the UART's current state; with both on GPIO there is nothing to send
+  if (this->rts_pin_ == nullptr || this->dtr_pin_ == nullptr) {
+    this->with_modem_uart_([this, dtr, rts](auto *uart) {
+      uart->set_modem_control(this->dtr_pin_ != nullptr ? uart->get_dtr() : dtr,
+                              this->rts_pin_ != nullptr ? uart->get_rts() : rts);
+    });
+  }
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
