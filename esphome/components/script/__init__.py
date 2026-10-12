@@ -146,16 +146,18 @@ def _fill_script_stop_ids(value: Any, script_id: str) -> Any:
     return result
 
 
+def _fill_script_stop_ids_in_script(item: Any) -> Any:
+    if isinstance(item, dict) and isinstance(script_id := item.get(CONF_ID), str):
+        return _fill_script_stop_ids(item, script_id)
+    return item
+
+
 def default_script_stop_ids(value: Any) -> Any:
     """Make `script.stop` with no id, used inside a script, stop that script."""
-    if not isinstance(value, list):
-        return value
-    result = []
-    for item in value:
-        if isinstance(item, dict) and isinstance(script_id := item.get(CONF_ID), str):
-            item = _fill_script_stop_ids(item, script_id)
-        result.append(item)
-    return result
+    if isinstance(value, list):
+        return [_fill_script_stop_ids_in_script(item) for item in value]
+    # A single script may be given as a mapping instead of a list
+    return _fill_script_stop_ids_in_script(value)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -198,6 +200,8 @@ async def to_code(config):
 
         triggers.append((trigger, func_args, conf))
 
+    if any(CONF_ON_STOP in conf for conf in config):
+        cg.add_define("USE_SCRIPT_ON_STOP")
     for trigger, func_args, conf in triggers:
         await automation.build_automation(trigger, func_args, conf)
         for stop_conf in conf.get(CONF_ON_STOP, []):

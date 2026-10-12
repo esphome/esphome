@@ -33,13 +33,18 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   virtual void execute(Ts...) = 0;
   /// Check if any instance of this script is currently running.
   virtual bool is_running() { return this->is_action_running(); }
-  /// Stop all instances of this script. Fires the on_stop callbacks if the script was running.
+#ifdef USE_SCRIPT_ON_STOP
+  /// Stop all instances of this script. Fires the on_stop callbacks once if any instance was running.
   virtual void stop() {
     if (this->is_action_running())
       this->stop_running_();
   }
 
   template<typename F> void add_on_stop_callback(F &&callback) { this->stop_callback_.add(std::forward<F>(callback)); }
+#else
+  /// Stop all instances of this script.
+  virtual void stop() { this->stop_action(); }
+#endif
 
   // execute this script using a tuple that contains the arguments
   void execute_tuple(const std::tuple<Ts...> &tuple) {
@@ -65,11 +70,15 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   // Stop the running actions early and notify the on_stop callbacks.
   void stop_running_() {
     this->stop_action();
+#ifdef USE_SCRIPT_ON_STOP
     this->stop_callback_.call();
+#endif
   }
 
   const LogString *name_{nullptr};
+#ifdef USE_SCRIPT_ON_STOP
   LazyCallbackManager<void()> stop_callback_;
+#endif
 };
 
 /** A script type for which only a single instance at a time is allowed.
@@ -101,6 +110,11 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
     if (this->is_action_running()) {
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), LOG_STR_ARG(this->name_));
       this->stop_running_();
+#ifdef USE_SCRIPT_ON_STOP
+      // on_stop may have executed this script again; only the newest run may continue
+      if (this->is_action_running())
+        this->stop_action();
+#endif
     }
 
     this->run_actions_(x...);

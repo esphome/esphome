@@ -56,6 +56,26 @@ api:
     - action: run_normal
       then:
         - script.execute: normal_script
+    - action: run_reenter
+      then:
+        - script.execute: reenter_script
+        - delay: 20ms
+        - script.execute: reenter_script
+    - action: run_parallel_stop
+      then:
+        - script.execute: parallel_script
+        - script.execute: parallel_script
+        - delay: 20ms
+        - script.stop: parallel_script
+        - logger.log: "PARALLEL stop done"
+    - action: run_queued_stop
+      then:
+        - script.execute: queued_script
+        - script.execute: queued_script
+        - delay: 20ms
+        - script.stop: queued_script
+        - delay: 300ms
+        - logger.log: "QUEUED stop done"
 
 logger:
   level: DEBUG
@@ -95,3 +115,31 @@ script:
       - logger.log: "NORMAL on_stop"
     then:
       - logger.log: "NORMAL finished"
+
+  # on_stop executes the same restart script again; only one run may continue
+  - id: reenter_script
+    mode: restart
+    on_stop:
+      - logger.log: "REENTER on_stop"
+      - script.execute: reenter_script
+    then:
+      - logger.log: "REENTER start"
+      - delay: 100ms
+      - logger.log: "REENTER finished"
+
+  - id: parallel_script
+    mode: parallel
+    on_stop:
+      - logger.log: "PARALLEL on_stop"
+    then:
+      - delay: 10s
+      - logger.log: "PARALLEL finished"
+
+  - id: queued_script
+    mode: queued
+    on_stop:
+      - logger.log: "QUEUED on_stop"
+    then:
+      - logger.log: "QUEUED start"
+      - delay: 100ms
+      - logger.log: "QUEUED finished"

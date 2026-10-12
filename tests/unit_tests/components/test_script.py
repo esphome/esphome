@@ -81,12 +81,21 @@ def test_script_stop_with_id_is_valid() -> None:
 @pytest.mark.parametrize(
     "value",
     [
-        pytest.param({CONF_ID: "my_script"}, id="not_a_list"),
+        pytest.param("my_script", id="not_a_list_or_mapping"),
+        pytest.param({CONF_THEN: [CONF_SCRIPT_STOP]}, id="mapping_without_id"),
         pytest.param(["my_script", {CONF_THEN: [CONF_SCRIPT_STOP]}], id="no_id"),
     ],
 )
 def test_script_stop_ids_left_alone_without_script_id(value: Any) -> None:
     assert default_script_stop_ids(value) == value
+
+
+def test_bare_script_stop_in_single_script_mapping() -> None:
+    config = {CONF_ID: "my_script", CONF_THEN: [CONF_SCRIPT_STOP]}
+
+    result = default_script_stop_ids(config)
+
+    assert result[CONF_THEN] == [{CONF_SCRIPT_STOP: {CONF_ID: "my_script"}}]
 
 
 @pytest.mark.asyncio
@@ -110,6 +119,7 @@ async def test_on_stop_registers_callback_automations() -> None:
     with (
         patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
+        patch("esphome.codegen.add_define") as add_define,
         patch("esphome.automation.build_automation", new_callable=AsyncMock),
         patch(
             "esphome.automation.build_callback_automation", new_callable=AsyncMock
@@ -118,7 +128,31 @@ async def test_on_stop_registers_callback_automations() -> None:
         new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
         await to_code(config)
 
+    add_define.assert_called_once_with("USE_SCRIPT_ON_STOP")
+
     assert [(str(c.args[0]), *c.args[1:]) for c in build_callback.await_args_list] == [
         ("my_script", "add_on_stop_callback", [], stop_confs[0]),
         ("my_script", "add_on_stop_callback", [], stop_confs[1]),
     ]
+
+
+@pytest.mark.asyncio
+async def test_no_on_stop_define_without_on_stop() -> None:
+    config = [
+        {
+            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_MODE: "single",
+            CONF_PARAMETERS: {},
+            CONF_THEN: [],
+        }
+    ]
+    with (
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch("esphome.codegen.add"),
+        patch("esphome.codegen.add_define") as add_define,
+        patch("esphome.automation.build_automation", new_callable=AsyncMock),
+    ):
+        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        await to_code(config)
+
+    add_define.assert_not_called()

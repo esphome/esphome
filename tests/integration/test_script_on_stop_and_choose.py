@@ -82,7 +82,22 @@ async def test_script_on_stop_and_choose(
         finished = expect("NORMAL finished")
         await client.execute_service(service["run_normal"], {})
         await asyncio.wait_for(finished, timeout=5.0)
-        await asyncio.sleep(0.1)
+
+        # A restart script whose on_stop executes it again ends up with one run
+        finished = expect("REENTER finished")
+        await client.execute_service(service["run_reenter"], {})
+        await asyncio.wait_for(finished, timeout=5.0)
+
+        # Stopping several parallel runs fires on_stop once
+        done = expect("PARALLEL stop done")
+        await client.execute_service(service["run_parallel_stop"], {})
+        await asyncio.wait_for(done, timeout=5.0)
+
+        # Stopping a queued script fires on_stop once and drops the queued run
+        done = expect("QUEUED stop done")
+        await client.execute_service(service["run_queued_stop"], {})
+        await asyncio.wait_for(done, timeout=5.0)
+        await asyncio.sleep(0.2)
 
         assert count("SELF not reached") == 0
         assert count("SELF on_stop") == 1
@@ -92,3 +107,11 @@ async def test_script_on_stop_and_choose(
         assert count("RESTART on_stop") == 1
         assert count("RESTART finished") == 1
         assert count("NORMAL on_stop") == 0
+        assert count("REENTER on_stop") == 1
+        assert count("REENTER start") == 3
+        assert count("REENTER finished") == 1
+        assert count("PARALLEL on_stop") == 1
+        assert count("PARALLEL finished") == 0
+        assert count("QUEUED on_stop") == 1
+        assert count("QUEUED start") == 1
+        assert count("QUEUED finished") == 0
