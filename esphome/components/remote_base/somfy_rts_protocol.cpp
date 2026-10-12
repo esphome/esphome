@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.somfy_rts";
+ESPHOME_LOG_TAG(TAG, "remote.somfy_rts");
 
 static constexpr uint8_t FRAME_SIZE_IN_BYTES = 7;
 static constexpr uint16_t BIT_LENGTH_US_HIGH = 600;

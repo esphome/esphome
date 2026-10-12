@@ -2117,7 +2117,7 @@ register_protocol_action(
 
 
 # SomfyRts
-SomfyRtsData, SomfyRtsBinarySensor, SomfyRtsTrigger, SomfyRtsAction, SomfyRtsDumper = (
+SomfyRtsData, SomfyRtsBinarySensor, SomfyRtsTrigger, _, SomfyRtsDumper = (
     declare_protocol("SomfyRts")
 )
 
@@ -2158,22 +2158,16 @@ def somfy_rts_dumper(var, config):
     pass
 
 
-@register_action("somfy_rts", SomfyRtsAction, SOMFY_RTS_SCHEMA)
-async def somfy_rts_action(var, config, args):
-    cg.add(var.set_key(await cg.templatable(config[CONF_KEY], args, cg.uint8)))
-    cg.add(var.set_control(await cg.templatable(config[CONF_CONTROL], args, cg.uint8)))
-    cg.add(
-        var.set_rolling_code(
-            await cg.templatable(config[CONF_ROLLING_CODE], args, cg.uint16)
-        )
-    )
-    cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)))
-    cg.add(
-        var.set_control_in_key(
-            await cg.templatable(config[CONF_CONTROL_IN_KEY], args, cg.bool_)
-        )
-    )
-
+register_protocol_action(
+    "somfy_rts",
+    "SomfyRts",
+    SOMFY_RTS_SCHEMA,
+    (CONF_KEY, "key", cg.uint8),
+    (CONF_CONTROL, "control", cg.uint8),
+    (CONF_ROLLING_CODE, "rolling_code", cg.uint16),
+    (CONF_ADDRESS, "address", cg.uint32),
+    (CONF_CONTROL_IN_KEY, "control_in_key", cg.bool_),
+)
 
 # Nexa
 NexaData, NexaBinarySensor, NexaTrigger, _, NexaDumper = declare_protocol("Nexa")

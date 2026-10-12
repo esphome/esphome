@@ -31,29 +31,11 @@ class SomfyRtsProtocol : public RemoteProtocol<SomfyRtsData> {
   inline void one_(RemoteTransmitData *dst) const;
 
  public:
-  void encode(RemoteTransmitData *dst, const SomfyRtsData &data) override;
-  optional<SomfyRtsData> decode(RemoteReceiveData src) override;
-  void dump(const SomfyRtsData &data) override;
+  void encode(RemoteTransmitData *dst, const SomfyRtsData &data);
+  optional<SomfyRtsData> decode(RemoteReceiveData src);
+  void dump(const SomfyRtsData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(SomfyRts)
-
-template<typename... Ts> class SomfyRtsAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, key);
-  TEMPLATABLE_VALUE(uint16_t, rolling_code);
-  TEMPLATABLE_VALUE(uint32_t, address);
-  TEMPLATABLE_VALUE(uint8_t, control);
-  TEMPLATABLE_VALUE(bool, control_in_key);
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    SomfyRtsData data{};
-    data.key = this->key_.value(x...);
-    data.control = this->control_.value(x...);
-    data.rolling_code = this->rolling_code_.value(x...);
-    data.address = this->address_.value(x...);
-    data.control_in_key = this->control_in_key_.value(x...);
-    SomfyRtsProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base
