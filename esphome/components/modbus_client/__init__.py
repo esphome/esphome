@@ -69,8 +69,8 @@ PackedBits = modbus.modbus_ns.class_("PackedBits")
 # The exception code passed to on_error handlers.
 ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 
-# Lambda arguments: the shared handlers and send's on_response get the address of their own request first,
-# then the request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
+# Lambda arguments: the handlers of modbus_client.send get the address of their own request first, then the
+# request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
 _ADDRESS_ARG = (cg.uint8, "address")
 _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
@@ -136,13 +136,14 @@ _ACTION_BASE_SCHEMA = cv.Schema(
         cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.ModbusClient),
         cv.Required(CONF_ADDRESS): cv.templatable(cv.hex_uint8_t),
         # Optional handlers. on_sent fires when the frame reaches the wire; the reply handlers arrive
-        # later (fire-and-continue), so all run with the address and request/reply available - not the
-        # outer automation's variables.
+        # later (fire-and-continue), so all run with the request/reply available (send's also with the
+        # address) - not the outer automation's variables.
         cv.Optional(CONF_ON_SENT): _handler_schema(),
         cv.Optional(CONF_ON_ERROR): _handler_schema(),
-        # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `address`/`request`,
-        # returns true to have the hub retry the frame) OR a `then:` automation of actions; the automation
-        # form may also carry an optional `retry:` returning lambda to run actions AND decide the retry.
+        # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `request`, on send
+        # also `address`, returns true to have the hub retry the frame) OR a `then:` automation of actions;
+        # the automation form may also carry an optional `retry:` returning lambda to run actions AND decide
+        # the retry.
         cv.Optional(CONF_ON_NO_RESPONSE): cv.All(
             cv.Any(
                 cv.returning_lambda,
@@ -182,11 +183,14 @@ async def register_client_action(
     args: TemplateArgsType,
     response_args: TemplateArgsType,
     command_direction: str = "read",
+    with_address: bool = False,
 ) -> cg.MockObj:
     """Wire the shared action plumbing: hub parent, templated device address, outcome triggers.
 
-    response_args are the on_response handler's arguments, which differ per action.
+    response_args are the on_response handler's arguments, which differ per action. With with_address
+    (modbus_client.send) the shared handlers get `address` first.
     """
+    head = [_ADDRESS_ARG] if with_address else []
     parent = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(
@@ -201,7 +205,7 @@ async def register_client_action(
         )
     if sent_conf := config.get(CONF_ON_SENT):
         await automation.build_automation(
-            var.get_sent_trigger(), [_ADDRESS_ARG, (_PDU_SPAN, "request")], sent_conf
+            var.get_sent_trigger(), [*head, (_PDU_SPAN, "request")], sent_conf
         )
     if response_conf := config.get(CONF_ON_RESPONSE):
         await automation.build_automation(
@@ -219,7 +223,7 @@ async def register_client_action(
     if error_conf := config.get(CONF_ON_ERROR):
         await automation.build_automation(
             var.get_error_trigger(),
-            [_ADDRESS_ARG, (_PDU_SPAN, "request"), (ExceptionCode, "exception_code")],
+            [*head, (_PDU_SPAN, "request"), (ExceptionCode, "exception_code")],
             error_conf,
         )
     if (no_response_conf := config.get(CONF_ON_NO_RESPONSE)) is not None:
@@ -230,20 +234,18 @@ async def register_client_action(
         else:
             await automation.build_automation(
                 var.get_no_response_trigger(),
-                [_ADDRESS_ARG, (_PDU_SPAN, "request")],
+                [*head, (_PDU_SPAN, "request")],
                 no_response_conf,
             )
             retry_conf = no_response_conf.get(CONF_RETRY)
         if retry_conf is not None:
             retry_lambda = await cg.process_lambda(
-                retry_conf, [_ADDRESS_ARG, (_PDU_SPAN, "request")], return_type=cg.bool_
+                retry_conf, [*head, (_PDU_SPAN, "request")], return_type=cg.bool_
             )
             cg.add(var.set_retry(retry_lambda))
     if not_sent_conf := config.get(CONF_ON_NOT_SENT):
         await automation.build_automation(
-            var.get_not_sent_trigger(),
-            [_ADDRESS_ARG, (_PDU_SPAN, "request")],
-            not_sent_conf,
+            var.get_not_sent_trigger(), [*head, (_PDU_SPAN, "request")], not_sent_conf
         )
     # Wire any command options the action's schema opted into (e.g. continuous on reads). Pass the
     # matching direction so a write action never generates a read option's setter.
@@ -270,6 +272,7 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
         config,
         args,
         [_ADDRESS_ARG, (_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
+        with_address=True,
     )
 
 
