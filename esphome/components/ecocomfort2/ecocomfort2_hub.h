@@ -89,17 +89,14 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
  protected:
   static constexpr uint32_t AUTH_TIMEOUT_ID = 0;
   static constexpr uint32_t READBACK_TIMEOUT_ID = 1;
-  static constexpr uint32_t CLOCK_SYNC_ID = 2;
   static constexpr uint32_t AUTH_TIMEOUT_MS = 10000;
   static constexpr uint32_t READBACK_DELAY_MS = 300;
-  // The clock is checked every minute so a time source that is not valid yet is retried, and written hourly
-  static constexpr uint32_t CLOCK_CHECK_INTERVAL_MS = 60000;
-  static constexpr uint32_t CLOCK_SYNC_INTERVAL_MS = 3600000;
 
   void on_paired_();
   void set_connected_(bool connected);
   void publish_unknown_();
   void read_char_(uint16_t handle);
+  bool read_ok_(const esp_ble_gattc_cb_param_t *param);
   void on_oper_(const uint8_t *data, uint16_t len);
   void on_state_(const uint8_t *data, uint16_t len);
   void on_info_(const uint8_t *data, uint16_t len);
@@ -125,7 +122,6 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 #endif
 #ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};
-  uint32_t last_clock_sync_{0};
 #endif
   uint16_t char_handle_oper_{0};
   uint16_t char_handle_state_{0};
@@ -133,7 +129,6 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   uint16_t char_handle_clock_{0};
   uint8_t mode_{OPER_OFF};
   uint8_t speed_{SPEED_OFF};
-  bool firmware_read_{false};
 };
 
 }  // namespace esphome::ecocomfort2

@@ -9,16 +9,15 @@ namespace esphome::ecocomfort2 {
 
 ESPHOME_LOG_TAG(TAG, "ecocomfort2");
 
-static const espbt::ESPBTUUID SERVICE_UUID = espbt::ESPBTUUID::from_raw("f4b827c3-e660-4bc8-bdf6-3c8e9b845e0d");
-static const espbt::ESPBTUUID C_INFO_UUID = espbt::ESPBTUUID::from_raw("f5f56229-dd4f-480f-a829-9189269d8b37");
-static const espbt::ESPBTUUID C_STATE_UUID = espbt::ESPBTUUID::from_raw("438d3433-7e5a-459a-a8e4-66343fad2bb0");
-static const espbt::ESPBTUUID C_OPER_UUID = espbt::ESPBTUUID::from_raw("b9d6f678-bc0d-4a73-90c8-60b0f07301f1");
-static const espbt::ESPBTUUID C_CLOCK_UUID = espbt::ESPBTUUID::from_raw("82788997-49e4-4533-b949-7ed433678044");
-
 void Ecocomfort2Hub::setup() {
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr)
     this->connected_binary_sensor_->publish_initial_state(false);
+#endif
+#ifdef USE_TIME
+  // The clock is written after each time-source sync
+  if (this->time_ != nullptr)
+    this->time_->add_on_time_sync_callback([this]() { this->sync_clock_(); });
 #endif
 }
 
@@ -30,8 +29,6 @@ void Ecocomfort2Hub::update() {
   // The GATT client runs the requests one after the other
   this->read_char_(this->char_handle_state_);
   this->read_char_(this->char_handle_oper_);
-  if (!this->firmware_read_ && this->char_handle_info_ != 0)
-    this->read_char_(this->char_handle_info_);
 }
 
 void Ecocomfort2Hub::read_char_(uint16_t handle) {
@@ -73,21 +70,24 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       ESP_LOGD(TAG, "[%s] Disconnected: reason=%d", this->parent_->address_str(), param->disconnect.reason);
       this->cancel_timeout(AUTH_TIMEOUT_ID);
       this->cancel_timeout(READBACK_TIMEOUT_ID);
-      this->cancel_interval(CLOCK_SYNC_ID);
       this->status_set_warning();
       this->char_handle_oper_ = 0;
       this->char_handle_state_ = 0;
       this->char_handle_info_ = 0;
       this->char_handle_clock_ = 0;
-      this->firmware_read_ = false;
       this->set_connected_(false);
       this->publish_unknown_();
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
+      const auto service_uuid = espbt::ESPBTUUID::from_raw("f4b827c3-e660-4bc8-bdf6-3c8e9b845e0d");
+      const auto oper_uuid = espbt::ESPBTUUID::from_raw("b9d6f678-bc0d-4a73-90c8-60b0f07301f1");
+      const auto state_uuid = espbt::ESPBTUUID::from_raw("438d3433-7e5a-459a-a8e4-66343fad2bb0");
+      const auto info_uuid = espbt::ESPBTUUID::from_raw("f5f56229-dd4f-480f-a829-9189269d8b37");
+      const auto clock_uuid = espbt::ESPBTUUID::from_raw("82788997-49e4-4533-b949-7ed433678044");
       // Keep the handles, not the characteristics: ble_client frees its services once all nodes are established.
-      auto *oper = this->parent_->get_characteristic(SERVICE_UUID, C_OPER_UUID);
-      auto *state = this->parent_->get_characteristic(SERVICE_UUID, C_STATE_UUID);
+      auto *oper = this->parent_->get_characteristic(service_uuid, oper_uuid);
+      auto *state = this->parent_->get_characteristic(service_uuid, state_uuid);
       if (oper == nullptr || state == nullptr) {
         ESP_LOGW(TAG, "[%s] C_OPER or C_STATE characteristic not found, disconnecting", this->parent_->address_str());
         this->parent_->disconnect();
@@ -96,11 +96,10 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       this->char_handle_oper_ = oper->handle;
       this->char_handle_state_ = state->handle;
       // The version and clock characteristics only feed optional features, so a unit without them still works
-      this->char_handle_info_ = this->char_handle_clock_ = 0;
-      if (auto *info = this->parent_->get_characteristic(SERVICE_UUID, C_INFO_UUID); info != nullptr)
-        this->char_handle_info_ = info->handle;
-      if (auto *clock = this->parent_->get_characteristic(SERVICE_UUID, C_CLOCK_UUID); clock != nullptr)
-        this->char_handle_clock_ = clock->handle;
+      auto *info = this->parent_->get_characteristic(service_uuid, info_uuid);
+      this->char_handle_info_ = info != nullptr ? info->handle : 0;
+      auto *clock = this->parent_->get_characteristic(service_uuid, clock_uuid);
+      this->char_handle_clock_ = clock != nullptr ? clock->handle : 0;
       this->node_state = espbt::ClientState::ESTABLISHED;
       this->status_set_warning();
 
@@ -126,33 +125,38 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
         break;
       }
       const uint16_t handle = param->read.handle;
-      if (handle != this->char_handle_oper_ && handle != this->char_handle_state_ &&
-          handle != this->char_handle_info_) {
-        break;
-      }
-      if (param->read.status == ESP_GATT_INSUF_ENCRYPTION || param->read.status == ESP_GATT_INSUF_AUTHENTICATION) {
-        // ble_client reconnects and pairs again
-        ESP_LOGW(TAG, "[%s] Encryption lost, disconnecting", this->parent_->address_str());
-        this->parent_->disconnect();
-        break;
-      }
-      if (param->read.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "[%s] Read of handle 0x%x failed, status=%d", this->parent_->address_str(), handle,
-                 param->read.status);
-        break;
-      }
       if (handle == this->char_handle_oper_) {
-        this->on_oper_(param->read.value, param->read.value_len);
+        if (this->read_ok_(param))
+          this->on_oper_(param->read.value, param->read.value_len);
       } else if (handle == this->char_handle_state_) {
-        this->on_state_(param->read.value, param->read.value_len);
+        if (this->read_ok_(param))
+          this->on_state_(param->read.value, param->read.value_len);
+      } else if (handle == this->char_handle_info_) {
+        if (this->read_ok_(param))
+          this->on_info_(param->read.value, param->read.value_len);
       } else {
-        this->on_info_(param->read.value, param->read.value_len);
+        break;
       }
       break;
     }
     default:
       break;
   }
+}
+
+bool Ecocomfort2Hub::read_ok_(const esp_ble_gattc_cb_param_t *param) {
+  if (param->read.status == ESP_GATT_INSUF_ENCRYPTION || param->read.status == ESP_GATT_INSUF_AUTHENTICATION) {
+    // ble_client reconnects and pairs again
+    ESP_LOGW(TAG, "[%s] Encryption lost, disconnecting", this->parent_->address_str());
+    this->parent_->disconnect();
+    return false;
+  }
+  if (param->read.status != ESP_GATT_OK) {
+    ESP_LOGW(TAG, "[%s] Read of handle 0x%x failed, status=%d", this->parent_->address_str(), param->read.handle,
+             param->read.status);
+    return false;
+  }
+  return true;
 }
 
 void Ecocomfort2Hub::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -176,11 +180,12 @@ void Ecocomfort2Hub::on_paired_() {
   ESP_LOGI(TAG, "[%s] Encryption confirmed, device ready", this->parent_->address_str());
   this->set_connected_(true);
 #ifdef USE_TIME
-  if (this->time_ != nullptr && this->char_handle_clock_ != 0) {
-    this->last_clock_sync_ = 0;
+  if (this->time_ != nullptr)
     this->sync_clock_();
-    this->set_interval(CLOCK_SYNC_ID, CLOCK_CHECK_INTERVAL_MS, [this]() { this->sync_clock_(); });
-  }
+#endif
+#ifdef USE_TEXT_SENSOR
+  if (this->firmware_text_sensor_ != nullptr && this->char_handle_info_ != 0)
+    this->read_char_(this->char_handle_info_);
 #endif
   this->update();
 }
@@ -228,9 +233,9 @@ void Ecocomfort2Hub::on_state_(const uint8_t *data, uint16_t len) {
     ESP_LOGW(TAG, "[%s] C_STATE too short: %u bytes", this->parent_->address_str(), len);
     return;
   }
-  const float temperature = static_cast<int16_t>((data[3] << 8) | data[4]) / 100.0f;
-  const float humidity = ((data[5] << 8) | data[6]) / 100.0f;
-  const uint16_t voc = (data[7] << 8) | data[8];
+  const float temperature = static_cast<int16_t>(encode_uint16(data[3], data[4])) / 100.0f;
+  const float humidity = encode_uint16(data[5], data[6]) / 100.0f;
+  const uint16_t voc = encode_uint16(data[7], data[8]);
   ESP_LOGD(TAG, "[%s] C_STATE: %.2f °C, %.2f %%, %u ppb, direction=%u", this->parent_->address_str(), temperature,
            humidity, voc, data[2]);
 #ifdef USE_SENSOR
@@ -251,11 +256,10 @@ void Ecocomfort2Hub::on_info_(const uint8_t *data, uint16_t len) {
     ESP_LOGW(TAG, "[%s] C_INFO too short: %u bytes", this->parent_->address_str(), len);
     return;
   }
-  this->firmware_read_ = true;
-  const uint16_t field = ((data[0] & 0x0F) << 8) | data[1];
+  const uint16_t field = encode_uint16(data[0] & 0x0F, data[1]);
   char version[12];
   snprintf(version, sizeof(version), "%u.%u.%u", data[0] >> 4, field >> 6, field & 0x3F);
-  ESP_LOGI(TAG, "[%s] Firmware %s", this->parent_->address_str(), version);
+  ESP_LOGD(TAG, "[%s] Firmware %s", this->parent_->address_str(), version);
 #ifdef USE_TEXT_SENSOR
   if (this->firmware_text_sensor_ != nullptr)
     this->firmware_text_sensor_->publish_state(version);
@@ -265,17 +269,13 @@ void Ecocomfort2Hub::on_info_(const uint8_t *data, uint16_t len) {
 #ifdef USE_TIME
 // C_CLOCK: hour, minute, second, weekday with Monday as 0, day, month, year as two bytes
 void Ecocomfort2Hub::sync_clock_() {
-  const uint32_t now_ms = millis();
-  if (this->last_clock_sync_ != 0 && now_ms - this->last_clock_sync_ < CLOCK_SYNC_INTERVAL_MS)
-    return;
-  if (!this->is_ready())
+  if (!this->is_ready() || this->char_handle_clock_ == 0)
     return;
   const ESPTime now = this->time_->now();
-  if (!now.is_valid()) {
-    ESP_LOGD(TAG, "[%s] Time not valid yet, clock sync postponed", this->parent_->address_str());
+  if (!now.is_valid())
     return;
-  }
-  const uint8_t weekday = now.day_of_week == 1 ? 6 : now.day_of_week - 2;
+  // ESPTime counts Sunday=1 .. Saturday=7, the unit Monday=0 .. Sunday=6
+  const uint8_t weekday = (now.day_of_week + 5) % 7;
   uint8_t data[8]{now.hour,
                   now.minute,
                   now.second,
@@ -290,9 +290,7 @@ void Ecocomfort2Hub::sync_clock_() {
                                sizeof(data), data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status != ESP_GATT_OK) {
     ESP_LOGW(TAG, "[%s] C_CLOCK write failed, status=%d", this->parent_->address_str(), status);
-    return;
   }
-  this->last_clock_sync_ = now_ms;
 }
 #endif
 
