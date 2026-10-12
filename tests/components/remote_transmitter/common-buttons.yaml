@@ -76,6 +76,14 @@ button:
           rc_code_1: 0xB24DBF4050AF
           rc_code_2: 0xD5660001003C
   - platform: template
+    name: IRA211
+    on_press:
+      - remote_transmitter.transmit_ira211:
+          command: sync
+          temperature: 22.5
+          mode: timer
+          fan_mode: high
+  - platform: template
     name: Sony
     on_press:
       remote_transmitter.transmit_sony:
