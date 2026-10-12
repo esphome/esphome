@@ -14,16 +14,19 @@ static constexpr uint8_t RC5_COMMAND_BITS = 6;
 static constexpr uint8_t RC5_EXT_BITS = 6;
 static constexpr uint8_t NBITS = 20;
 static constexpr uint8_t PAUSE_BITS = 4;
+// Half-bits in a frame, counting the pause; the pause starts after the first part's half-bits
+static constexpr uint8_t NFRAMEHALFBITS = NBITS * 2 + PAUSE_BITS;
+static constexpr uint8_t PAUSE_START = FIRST_PART_NBITS * 2;
 
 void RC5XProtocol::encode(RemoteTransmitData *dst, const RC5XData &data) {
   static bool toggle = false;
   dst->set_carrier_frequency(36000);
-  dst->reserve(NBITS * 2 + PAUSE_BITS);
+  dst->reserve(NFRAMEHALFBITS);
   // Start bit, then the field bit, which is clear for commands 64 to 127
   const uint32_t start_field = data.command >= 64 ? 0b10 : 0b11;
   const uint32_t out_data = start_field << (RC5_TOGGLE_BIT + RC5_ADDRESS_BITS + RC5_COMMAND_BITS + RC5_EXT_BITS) |
                             uint32_t(toggle) << (RC5_ADDRESS_BITS + RC5_COMMAND_BITS + RC5_EXT_BITS) |
-                            uint32_t(data.address) << (RC5_COMMAND_BITS + RC5_EXT_BITS) |
+                            uint32_t(data.address & 0x1F) << (RC5_COMMAND_BITS + RC5_EXT_BITS) |
                             uint32_t(data.command & 0x3F) << RC5_EXT_BITS | (data.extension & 0x3F);
 
   for (uint8_t bit = NBITS; bit-- > 0;) {
@@ -43,86 +46,73 @@ void RC5XProtocol::encode(RemoteTransmitData *dst, const RC5XData &data) {
 }
 
 optional<RC5XData> RC5XProtocol::decode(RemoteReceiveData src) {
-  uint8_t field_bit;
-  if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
-    field_bit = 1;
-  } else if (src.expect_space(2 * BIT_TIME_US)) {
-    field_bit = 0;
-  } else {
-    ESP_LOGVV(TAG, "Field bit read failed");
-    return {};
+  // Expand the runs into half-bit levels (true = mark), as the RC5 decoder does. Each run is one
+  // half-bit (BIT_TIME_US) or two, except the pause, which is PAUSE_BITS half-bits at the idle
+  // level plus up to one merged half on each side (the end of bit 12 and the start of bit 11).
+  //
+  // halfbits[0] is reserved for the leading half-bit, which is always dropped: S1 is 1, so its
+  // first half sits at the idle level and merges into the pre-frame idle.
+  bool halfbits[NFRAMEHALFBITS + 2];
+  uint8_t n = 1;
+  bool pause_seen = false;
+  for (uint32_t i = 0; n <= NFRAMEHALFBITS && src.is_valid(i); i++) {
+    if (src.peek_mark(BIT_TIME_US, i)) {
+      halfbits[n++] = true;
+    } else if (src.peek_space(BIT_TIME_US, i)) {
+      halfbits[n++] = false;
+    } else if (src.peek_mark(2 * BIT_TIME_US, i)) {
+      halfbits[n++] = true;
+      halfbits[n++] = true;
+    } else if (src.peek_space(2 * BIT_TIME_US, i)) {
+      halfbits[n++] = false;
+      halfbits[n++] = false;
+    } else {
+      // The pause must start right after bit 12, or one half earlier when bit 12 ends idle
+      if (pause_seen || (n != PAUSE_START && n != PAUSE_START - 1))
+        break;
+      const int32_t value = src.peek(i);
+      const bool level = value > 0;
+      const uint32_t halves = (static_cast<uint32_t>(value > 0 ? value : -value) + BIT_TIME_US / 2) / BIT_TIME_US;
+      if (level == halfbits[1] || halves < PAUSE_BITS || halves > PAUSE_BITS + 2)
+        break;
+      for (uint32_t h = 0; h < halves; h++)
+        halfbits[n++] = level;
+      // It may also run one half into bit 11, but must cover the whole pause
+      if (n != PAUSE_START + PAUSE_BITS && n != PAUSE_START + PAUSE_BITS + 1)
+        return {};
+      pause_seen = true;
+    }
   }
 
-  // Toggle bit, either level
-  if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)) ||
-         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) &&
-        (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-          (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) ||
-         ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-          (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))))) {
-    ESP_LOGVV(TAG, "Toggle bit read failed");
+  // A full frame, or one half short when the last bit ends idle and its trailing half is dropped.
+  // A dropped edge half is the inverse of its partner, since a Manchester bit always changes mid-bit.
+  if (!pause_seen || (n != NFRAMEHALFBITS && n != NFRAMEHALFBITS - 1)) {
     return {};
   }
+  halfbits[0] = !halfbits[1];
+  if (n == NFRAMEHALFBITS - 1) {
+    halfbits[n] = !halfbits[n - 1];
+  }
 
-  // One Manchester bit: 0, 1, or -1 when neither pattern matches
-  auto read_bit = [&src]() -> int {
-    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-        (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))
-      return 0;
-    if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-        (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)))
-      return 1;
-    return -1;
+  const bool carrier = halfbits[1];
+  uint32_t bits = 0;
+  for (uint8_t i = 0; i < NBITS; i++) {
+    const uint8_t h = 2 * i + (i < FIRST_PART_NBITS ? 0 : PAUSE_BITS);
+    const bool first = halfbits[h];
+    const bool second = halfbits[h + 1];
+    if (first == second) {
+      return {};  // no midpoint transition -> not a valid Manchester bit
+    }
+    bits = (bits << 1) | (second == carrier ? 1 : 0);
+  }
+
+  // [18 field] [17 toggle] [16-12 address] [11-6 command] [5-0 extension]
+  const bool field_bit = bits & (1UL << (NBITS - 2));  // S2: the inverted 7th command bit
+  return RC5XData{
+      .address = static_cast<uint8_t>((bits >> (RC5_COMMAND_BITS + RC5_EXT_BITS)) & 0x1F),
+      .command = static_cast<uint8_t>(((bits >> RC5_EXT_BITS) & 0x3F) | (field_bit ? 0 : 0x40)),
+      .extension = static_cast<uint8_t>(bits & 0x3F),
   };
-
-  uint32_t out_data = 0;
-  for (int bit = NBITS - 4; bit >= 13; bit--) {
-    const int value = read_bit();
-    if (value < 0) {
-      ESP_LOGVV(TAG, "Bit %d read failed", bit);
-      return {};
-    }
-    out_data |= uint32_t(value) << bit;
-  }
-
-  // Bit 12, the last address bit, runs into the pause, so its mark lasts about 5 bit times
-  if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-      (src.expect_mark(4 * BIT_TIME_US) || src.expect_mark(5 * BIT_TIME_US) || src.expect_mark(6 * BIT_TIME_US))) {
-    // 0
-  } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-             (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-             (src.expect_mark(4 * BIT_TIME_US) || src.expect_mark(5 * BIT_TIME_US))) {
-    out_data |= 1 << 12;
-  } else {
-    ESP_LOGVV(TAG, "Bit 12 read failed");
-    return {};
-  }
-
-  for (int bit = 11; bit >= 1; bit--) {
-    const int value = read_bit();
-    if (value < 0) {
-      ESP_LOGVV(TAG, "Bit %d read failed", bit);
-      return {};
-    }
-    out_data |= uint32_t(value) << bit;
-  }
-
-  // The last bit's second half merges into the trailing gap, like RC5
-  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
-    // 0
-  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
-    out_data |= 1;
-  } else {
-    ESP_LOGVV(TAG, "Bit 0 read failed");
-    return {};
-  }
-
-  // [16-12 address] [11-6 command] [5-0 extension]
-  RC5XData out{};
-  out.address = (out_data >> 12) & 0x1F;
-  out.command = ((out_data >> 6) & 0x3F) + (field_bit ? 0 : 64);
-  out.extension = out_data & 0x3F;
-  return out;
 }
 
 void RC5XProtocol::dump(const RC5XData &data) {
