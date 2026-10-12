@@ -78,17 +78,12 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_counts_sensor(sensor::Sensor *sensor, uint8_t band) { this->sensors_[band] = sensor; }
 
  protected:
-  template<typename T> static T pgm_(const T &field) {
-    T value;
-    progmem_memcpy(&value, &field, sizeof(T));
-    return value;
-  }
   bool start_step_();
   void read_step_();
   void abort_measurement_(const LogString *reason);
 
   std::array<sensor::Sensor *, NUM_BANDS> sensors_{};
-  const ChipInfo *chip_;  // in flash, read through pgm_()
+  const ChipInfo *chip_;  // in flash, read field by field with progmem_memcpy
   uint32_t start_ms_{0};
   uint32_t integration_ms_{0};
   uint32_t timeout_ms_{0};
