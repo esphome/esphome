@@ -4,6 +4,12 @@
 #ifdef USE_NETWORK
 #include "esphome/core/helpers.h"
 #include "esphome/components/socket/socket.h"
+
+// The raw lwIP implementation (ESP8266, RP2040) has no IPv6 membership support. Its IPv6
+// unicast should work but is untested, so it stays off until someone can test it there.
+#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
+#define USE_UDP_IPV6
+#endif
 #include <array>
 #include <initializer_list>
 #include <span>
@@ -31,22 +37,46 @@ class UDPComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
-  bool join_multicast_();
+  struct SockaddrEntry {
+    union {
+      sockaddr sa;
+      sockaddr_in in4;
+#ifdef USE_UDP_IPV6
+      sockaddr_in6 in6;
+#endif
+    } addr{};
+    socklen_t len{0};
+  };
 
+  /// One pass of the network poll; true once nothing is left to do.
+  bool network_poll_();
+  /// Joins the listen group and, for IPv6, binds after the join; true once both are done.
+  bool join_multicast_();
+  void set_poll_warning_(const LogString *what);
+
+  CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
+  std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
+  std::unique_ptr<socket::UDPSocket> listen_socket_ = nullptr;
+#ifdef USE_UDP_IPV6
+  std::unique_ptr<socket::UDPSendSocket> send_socket_v6_ = nullptr;
+#endif
+  FixedVector<SockaddrEntry> sockaddrs_{};
+  const char *const *addresses_{nullptr};
+  const char *listen_address_{nullptr};
+#ifdef USE_UDP_IPV6
+  uint32_t mcast_ifindex_{0};
+#endif
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
-  bool join_failed_{};
-  bool join_warning_{};
-  CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
-
-  std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
-  std::unique_ptr<socket::UDPSocket> listen_socket_ = nullptr;
-  std::vector<struct sockaddr> sockaddrs_{};
-  const char *const *addresses_{nullptr};
-
-  const char *listen_address_{nullptr};
+  bool joined_{};
+  bool poll_failed_{};
+  bool poll_warning_{};
+#ifdef USE_UDP_IPV6
+  bool v6_bind_pending_{};
+  bool needs_v6_multicast_if_{};
+#endif
 };
 
 }  // namespace esphome::udp
