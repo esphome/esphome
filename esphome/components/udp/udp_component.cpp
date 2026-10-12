@@ -92,18 +92,21 @@ void UDPComponent::setup() {
 bool UDPComponent::join_multicast_() {
   if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_)) {
     ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
-    // One warning bit: a join that simply succeeds must not erase setup()'s bad address warning
-    if (this->join_failed_) {
-      this->join_failed_ = false;
+    if (this->join_warning_) {
+      this->join_warning_ = false;
       this->status_clear_warning();
     }
     return true;
   }
   // Log the first failure only; the poll keeps retrying every second
   if (!this->join_failed_) {
-    ESP_LOGW(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
-    this->status_set_warning(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
     this->join_failed_ = true;
+    ESP_LOGW(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
+    // One warning bit: only a warning raised here is cleared on success, one from setup() stays
+    if (!this->status_has_warning()) {
+      this->status_set_warning(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
+      this->join_warning_ = true;
+    }
   }
   return false;
 }
