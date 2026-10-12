@@ -58,9 +58,9 @@ class OTARequestHandler : public AsyncWebHandler {
   void report_ota_progress_(AsyncWebServerRequest *request);
   void schedule_ota_reboot_();
   void ota_init_(const char *filename);
-  /// Abort and drop the open backend, which releases its update lock.
+  /// Abort and drop the backend, releasing the lock.
   void abort_session_();
-  /// Answer this request "another update is in progress" without touching the running upload.
+  /// Reply "busy" without touching the running upload.
   void refuse_(AsyncWebServerRequest *request);
 
   uint32_t last_ota_progress_{0};
@@ -70,7 +70,7 @@ class OTARequestHandler : public AsyncWebHandler {
 
  private:
   ota::OTABackendPtr ota_backend_{nullptr};
-  /// Request that owns ota_backend_, so a late disconnect of an older request can't abort a newer upload.
+  /// Request that owns ota_backend_.
   const AsyncWebServerRequest *ota_request_{nullptr};
   const AsyncWebServerRequest *refused_request_{nullptr};
 };
@@ -119,8 +119,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
   // fires a separate start-marker call with data==nullptr/len==0 before the
   // first real chunk; gate on len>0 so we only trigger once per upload.)
   if (index == 0 && len > 0) {
-    // Refuse a second upload instead of aborting the running one. An interrupted upload can't block
-    // this for long: a stalled body hits the receive timeout and onDisconnect() drops its backend.
+    // A stalled upload times out and onDisconnect() frees it, so refusing can't block for long.
     if (this->ota_backend_) {
       ESP_LOGW(TAG, "OTA upload refused: another upload is in progress");
       this->refuse_(request);
@@ -160,8 +159,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       return;
     }
 
-    // A cut-off upload never gets its final chunk, so drop the backend (and its update lock) when the
-    // connection closes. Runs in the same task as handleUpload(); a no-op once the upload has ended.
+    // An interrupted upload gets no final chunk.
     this->ota_request_ = request;
     request->onDisconnect([this, request]() {
       if (this->ota_request_ == request && this->ota_backend_) {
@@ -210,7 +208,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       this->schedule_ota_reboot_();
     } else {
       ESP_LOGE(TAG, "OTA end failed: %d", error_code);
-      // Reset the platform updater too before the lock is released with the backend.
+      // Reset the platform updater before the lock is released.
       this->ota_backend_->abort();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));

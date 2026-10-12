@@ -310,7 +310,7 @@ OTAResponseTypes ESP8266OTABackend::end() {
 }
 
 void ESP8266OTABackend::abort() {
-  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+  if (!this->lock_.is_held())  // refused in begin()
     return;
   this->buffer_.reset();
   this->buffer_len_ = 0;

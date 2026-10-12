@@ -70,7 +70,7 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
 }
 
 void ArduinoLibreTinyOTABackend::abort() {
-  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+  if (!this->lock_.is_held())  // refused in begin()
     return;
   Update.abort();
 }

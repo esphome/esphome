@@ -325,7 +325,7 @@ OTAResponseTypes HostOTABackend::end() {
 }
 
 void HostOTABackend::abort() {
-  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+  if (!this->lock_.is_held())  // refused in begin()
     return;
   if (this->fd_ >= 0) {
     ::close(this->fd_);

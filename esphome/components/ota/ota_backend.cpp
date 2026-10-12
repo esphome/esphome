@@ -34,10 +34,9 @@ bool version_is_older(const char *candidate, const char *reference) {
   }
 }
 
-// The flag is set and cleared without blocking; a refused update fails at once. The lock may be released
-// from another task than the one that took it, so it can't simply be a FreeRTOS mutex held for the update.
+// Non-blocking; may be released by another task than the one that took it.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-// uint32_t: a narrower atomic exchange becomes a masked compare-and-swap on the whole word.
+// uint32_t: narrower atomics compile to a masked CAS on Xtensa.
 static std::atomic<uint32_t> update_locked{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static bool update_lock_test_and_set() { return update_locked.exchange(1) == 0; }
@@ -46,7 +45,7 @@ static void update_lock_clear() { update_locked.store(0); }
 static bool update_locked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
-// No atomic exchange on these cores (BK72xx): guard only the check-and-set.
+// BK72xx has no atomic exchange.
 static Mutex &update_lock_mutex() {
   static Mutex mutex;
   return mutex;
@@ -57,7 +56,7 @@ static bool update_lock_test_and_set() {
 #ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
   LockGuard guard(update_lock_mutex());
 #else
-  // ESPHOME_THREAD_SINGLE: network callbacks may run from an interrupt (lwIP on RP2040).
+  // lwIP callbacks may run from an interrupt (RP2040).
   InterruptLock guard;
 #endif
   if (update_locked)

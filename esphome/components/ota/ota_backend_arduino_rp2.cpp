@@ -76,7 +76,7 @@ OTAResponseTypes ArduinoRP2OTABackend::end() {
 }
 
 void ArduinoRP2OTABackend::abort() {
-  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+  if (!this->lock_.is_held())  // refused in begin()
     return;
   Update.end();
   rp2::preferences_prevent_write(false);

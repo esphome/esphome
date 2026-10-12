@@ -183,7 +183,7 @@ class AsyncWebServerRequest {
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
 #ifdef USE_WEBSERVER_OTA
-  /// Called when the request ends, including the early returns of an interrupted upload.
+  /// Called when the request ends, including early returns.
   // NOLINTNEXTLINE(readability-identifier-naming)
   void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
 #endif

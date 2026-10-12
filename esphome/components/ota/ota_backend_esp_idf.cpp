@@ -262,7 +262,7 @@ OTAResponseTypes IDFOTABackend::end() {
 }
 
 void IDFOTABackend::abort() {
-  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+  if (!this->lock_.is_held())  // refused in begin()
     return;
 #ifdef USE_OTA_PARTITIONS
   if (this->partition_table_part_ != nullptr) {

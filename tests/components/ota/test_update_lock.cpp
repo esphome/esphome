@@ -72,7 +72,7 @@ TEST(UpdateLock, SecondBackendBeginIsBusy) {
   auto second = make_ota_backend();
   ASSERT_EQ(first->begin(1024), OTA_RESPONSE_OK);
   EXPECT_EQ(second->begin(1024), OTA_RESPONSE_ERROR_UPDATE_BUSY);
-  // The native OTA calls abort() after a refused begin(); it must not disturb the running update.
+  // Native OTA calls abort() after a refused begin().
   second->abort();
   uint8_t data[16] = {};
   EXPECT_EQ(first->write(data, sizeof(data)), OTA_RESPONSE_OK);

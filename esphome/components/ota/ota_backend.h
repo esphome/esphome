@@ -96,16 +96,8 @@ enum OTAType : uint8_t {
   OTA_TYPE_UPDATE_BOOTLOADER = 0x02,
 };
 
-/** Lock that keeps flash updates from running at the same time.
- *
- * Every OTA backend takes it in begin(). It is released when the backend is destroyed, except after a
- * successful end(): then the backend calls hold_until_reboot() and the lock stays set until the restart.
- * A component that writes to the update partition outside of OTA (for example to stage firmware for
- * another chip) holds it for the duration of that work, so the two refuse each other instead of
- * overwriting each other's data.
- *
- * is_held() tells whether this instance owns the lock; it is false after hold_until_reboot().
- */
+/// Serializes flash updates. Taken in begin(), released when the backend is destroyed, or kept until
+/// reboot after a successful end(). Also for components writing the update partition outside OTA.
 class UpdateLock {
  public:
   UpdateLock() = default;
@@ -113,15 +105,15 @@ class UpdateLock {
   UpdateLock(const UpdateLock &) = delete;
   UpdateLock &operator=(const UpdateLock &) = delete;
 
-  /// Returns false if another holder has the lock. Safe from any task.
+  /// Returns false if held elsewhere.
   bool try_acquire();
   void release();
   bool is_held() const { return this->held_; }
-  /// After a committed update: keep the lock set until the reboot, so nothing can overwrite the image.
+  /// Keep the lock set until reboot; is_held() becomes false.
   void hold_until_reboot() { this->held_ = false; }
 
  protected:
-  /// Clears the lock whoever holds it. For tests only, to undo hold_until_reboot().
+  /// Tests only.
   static void force_release();
 
   bool held_{false};
