@@ -40,7 +40,8 @@ class MiCS5524GasSensor : public sensor::Sensor {
 /// The clean-air reference holds `x_air` in volts, the value the analog output reads
 /// in clean air.  It comes from `air_reference:` in the configuration or from a
 /// clean-air calibration at boot, so the board's load resistor and its divider ratio
-/// do not matter.
+/// do not matter.  The calibration only accepts the average of samples that agree
+/// (see `calibration_is_stable()`), so the sensor has to sit in clean, still air.
 class MiCS5524Component : public PollingComponent {
  public:
   /// `source` is the voltage sampler the analog output is read from.  It must outlive
@@ -67,11 +68,6 @@ class MiCS5524Component : public PollingComponent {
   void set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval);
   void set_air_reference(float air_reference) { this->reference_ = air_reference; }
 
-  // ----------------------------------------------------------------- runtime
-  /// (Re)start the clean-air calibration (deferred until `warmup_time` ended).
-  void request_calibration();
-  bool is_calibrating() const { return this->calibrating_; }
-
  protected:
   /// Averaged, scaled output voltage of the sensor (V); the `samples_` conversions run
   /// back to back, so the call returns without waiting.
@@ -82,6 +78,8 @@ class MiCS5524Component : public PollingComponent {
   void begin_calibration_();
   void process_calibration_();
   void finish_calibration_();
+  /// Raise the status warning and schedule the next calibration attempt.
+  void schedule_calibration_retry_();
   /// A clean-air reference (`x_air`) is available.
   bool has_reference_() const { return this->reference_ > 0.0f; }
 
@@ -106,8 +104,8 @@ class MiCS5524Component : public PollingComponent {
   uint32_t sample_interval_{20};
 
   // ------------------------------------------------------------------ runtime
-  /// Scheduler id of the deferred calibration start, re-armed and cancelled by
-  /// `request_calibration()`.
+  /// Scheduler id of the deferred calibration start: it waits for the warm-up window to
+  /// end and is re-armed for another attempt when a calibration fails.
   static constexpr uint32_t CALIBRATION_START_ID = 0;
 
   bool calibrating_{false};
@@ -117,6 +115,10 @@ class MiCS5524Component : public PollingComponent {
   uint32_t calibration_count_{0};
   uint32_t calibration_attempts_{0};
   float calibration_sum_{0.0f};
+  /// Smallest and largest clean-air sample of the run; a wide spread means the sensor
+  /// was not settled, see `calibration_is_stable()`.
+  float calibration_min_{0.0f};
+  float calibration_max_{0.0f};
   /// Loop time the warm-up window started at, 0 without a `warmup_time:`.
   uint32_t warmup_start_{0};
   bool warmup_notified_{false};

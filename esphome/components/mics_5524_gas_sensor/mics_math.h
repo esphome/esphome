@@ -20,14 +20,35 @@ struct VendorCurve {
   float max_ppm;    ///< upper end of the measuring range
 };
 
-/// Vendor model input `x = VCC - V_ao` (0 at or above VCC, NaN for unusable input).
+/// Vendor model input `x = VCC - V_ao` (NaN for unusable input).
+///
+/// Exactly 0 is V_AO at VCC, the saturated end of the vendor range, and stays 0 so that
+/// a saturated sensor is not read as clean air.  A voltage *above* VCC cannot come from
+/// the sensor, so it reports NaN instead of being folded into the saturated case: only
+/// a wrong `vcc:` / `voltage_multiplier:` produces it.
 inline float air_value_from_voltage(float voltage, float vcc) {
   if (!std::isfinite(voltage) || !std::isfinite(vcc))
     return NAN;
   const double x = static_cast<double>(vcc) - static_cast<double>(voltage);
-  if (!std::isfinite(x) || x <= 0.0)
-    return 0.0f;
+  if (!std::isfinite(x) || x < 0.0)
+    return NAN;
   return static_cast<float>(x);
+}
+
+/// Largest relative spread `(max - min) / mean` a clean-air calibration accepts.
+inline constexpr float MAX_CALIBRATION_SPREAD = 0.25f;
+
+/// True when the clean-air samples describe a settled input.
+///
+/// A calibration turns the mean of the samples into the reference every later reading is
+/// divided by, so samples that disagree by more than `MAX_CALIBRATION_SPREAD` of their
+/// mean show that the sensor was not in clean, still air: the average is worthless and
+/// must not become the reference.  Unusable values are never a settled reference.
+inline bool calibration_is_stable(float min_value, float max_value, float mean) {
+  if (!std::isfinite(min_value) || !std::isfinite(max_value) || !std::isfinite(mean) || mean <= 0.0f)
+    return false;
+  const double spread = static_cast<double>(max_value) - static_cast<double>(min_value);
+  return spread <= static_cast<double>(MAX_CALIBRATION_SPREAD) * static_cast<double>(mean);
 }
 
 /// ratio = x / x_air (NaN when either value is unusable).

@@ -99,8 +99,18 @@ CALIBRATION_SCHEMA = cv.Schema(
 
 
 def _validate_config(config: ConfigType) -> ConfigType:
-    """Warn about a sensor that cannot report anything before a calibration."""
-    if CONF_AIR_REFERENCE not in config and CONF_CALIBRATION not in config:
+    """Reject an unusable air reference, and warn about a sensor that has none."""
+    if (air_reference := config.get(CONF_AIR_REFERENCE)) is not None:
+        # The reference is `x_air = vcc - V_AO` as read in clean air, so it is always
+        # below the supply: a larger one would report every gas as 0 ppm forever.
+        if air_reference >= config[CONF_VCC]:
+            raise cv.Invalid(
+                f"air_reference ({air_reference:g} V) must be below vcc "
+                f"({config[CONF_VCC]:g} V): the reference is how far the analog "
+                "output sits below the supply in clean air, so a larger value cannot "
+                "come from a reading"
+            )
+    elif CONF_CALIBRATION not in config:
         _LOGGER.warning(
             "no air reference configured - set 'air_reference:' or 'calibration:', "
             "or every PPM value stays unknown until the sensor has been calibrated "

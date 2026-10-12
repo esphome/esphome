@@ -83,6 +83,35 @@ def test_air_reference_and_calibration_exclude_each_other() -> None:
         )
 
 
+@pytest.mark.parametrize("air_reference", [5.0, 6.0])
+def test_air_reference_at_or_above_vcc_is_rejected(air_reference: float) -> None:
+    """A reference at or above the supply would report every gas as 0 ppm forever."""
+    with pytest.raises(cv.Invalid, match="must be below vcc"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mics_5524",
+                "voltage": "mics_5524_adc",
+                "vcc": 5.0,
+                "hydrogen": {"name": "MiCS-5524 H2 (reference above vcc)"},
+                "air_reference": air_reference,
+            }
+        )
+
+
+def test_air_reference_below_vcc_is_accepted() -> None:
+    config = CONFIG_SCHEMA(
+        {
+            "id": "mics_5524",
+            "voltage": "mics_5524_adc",
+            "vcc": 5.0,
+            "hydrogen": {"name": "MiCS-5524 H2 (reference)"},
+            "air_reference": 3.6,
+        }
+    )
+
+    assert config["air_reference"] == 3.6
+
+
 def test_at_least_one_gas_is_required() -> None:
     """A sensor without a gas has nothing to publish."""
     with pytest.raises(cv.Invalid, match="Must contain at least one of"):

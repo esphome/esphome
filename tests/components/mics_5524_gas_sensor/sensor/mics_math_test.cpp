@@ -43,12 +43,30 @@ TEST(MicsMath, UnusableInputReadsUnknown) {
 
 TEST(MicsMath, AirValueIsTheVoltageBelowVcc) {
   EXPECT_FLOAT_EQ(1.0f, air_value_from_voltage(4.0f, 5.0f));
-  // At or above VCC the vendor value is 0 ...
+  // At VCC the vendor value is 0, the saturated end of the range ...
   EXPECT_FLOAT_EQ(0.0f, air_value_from_voltage(5.0f, 5.0f));
-  EXPECT_FLOAT_EQ(0.0f, air_value_from_voltage(5.2f, 5.0f));
-  // ... which is the saturated end of the range, not "unknown".
+  // ... but a voltage above VCC cannot come from the sensor, so it is unusable rather
+  // than saturated: a wrong `vcc:` is not reported as a real reading.
+  EXPECT_TRUE(std::isnan(air_value_from_voltage(5.2f, 5.0f)));
+  // The two ends of the vendor range, and the unusable case, one by one.
   EXPECT_FLOAT_EQ(1.0f, ratio_from_air_value(air_value_from_voltage(4.0f, 5.0f), 1.0f));
   EXPECT_FLOAT_EQ(0.0f, ratio_from_air_value(air_value_from_voltage(5.0f, 5.0f), 1.0f));
+  EXPECT_TRUE(std::isnan(ratio_from_air_value(air_value_from_voltage(6.0f, 5.0f), 1.0f)));
+}
+
+TEST(MicsMath, CalibrationSamplesMustAgree) {
+  // Clean air at 3.6 V with a few millivolts of ADC noise: a settled reference.
+  EXPECT_TRUE(calibration_is_stable(3.555f, 3.645f, 3.6f));
+  // A sensor that is still settling or not in clean air: (4.9 - 0.1) / 2.5 = 1.92.
+  EXPECT_FALSE(calibration_is_stable(0.1f, 4.9f, 2.5f));
+  // The limit is inclusive: 0.25 of the mean passes, a little more does not.
+  EXPECT_TRUE(calibration_is_stable(3.0f, 4.0f, 4.0f));
+  EXPECT_FALSE(calibration_is_stable(2.9f, 4.0f, 4.0f));
+  // Unusable values are never a settled reference.
+  EXPECT_FALSE(calibration_is_stable(NAN, 3.6f, 3.6f));
+  EXPECT_FALSE(calibration_is_stable(3.6f, NAN, 3.6f));
+  EXPECT_FALSE(calibration_is_stable(3.6f, 3.6f, NAN));
+  EXPECT_FALSE(calibration_is_stable(3.6f, 3.6f, 0.0f));
 }
 
 TEST(MicsMath, ConfiguredCeilingCapsTheReading) {

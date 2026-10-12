@@ -9,6 +9,7 @@
 namespace esphome::mics_5524_gas_sensor::testing {
 
 using micsmath::air_value_from_voltage;
+using micsmath::calibration_is_stable;
 using micsmath::ppm_from_vendor_curve;
 using micsmath::ratio_from_air_value;
 
