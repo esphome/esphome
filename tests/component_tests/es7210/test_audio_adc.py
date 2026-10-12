@@ -15,15 +15,8 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
 )
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_MIC_GAIN,
-    KEY_CORE,
-    KEY_ESP32,
-    KEY_TARGET_PLATFORM,
-    KEY_VARIANT,
-    Platform,
-)
-from esphome.core import CORE
+from esphome.const import CONF_MIC_GAIN, KEY_VARIANT, PlatformFramework
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 def test_channel_gains_valid_config() -> None:
@@ -43,10 +36,11 @@ def test_omitted_gains_remain_absent() -> None:
 
 
 @pytest.mark.parametrize("variant", [VARIANT_ESP32, VARIANT_ESP32S2])
-def test_tdm_rejected_on_unsupported_variants(variant: str) -> None:
+def test_tdm_rejected_on_unsupported_variants(
+    variant: str, set_core_config: SetCoreConfigCallable
+) -> None:
     """ESP32 and ESP32-S2 cannot receive TDM audio."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: str(Platform.ESP32)}
-    CORE.data[KEY_ESP32] = {KEY_VARIANT: variant}
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
 
     with pytest.raises(cv.Invalid, match="ES7210 TDM mode is not available") as exc:
         CONFIG_SCHEMA({CONF_TDM: True})
@@ -57,20 +51,22 @@ def test_tdm_rejected_on_unsupported_variants(variant: str) -> None:
 @pytest.mark.parametrize("variant", [VARIANT_ESP32, VARIANT_ESP32S2])
 @pytest.mark.parametrize("tdm_config", [{}, {CONF_TDM: False}])
 def test_tdm_disabled_on_unsupported_variants(
-    variant: str, tdm_config: dict[str, bool]
+    variant: str,
+    tdm_config: dict[str, bool],
+    set_core_config: SetCoreConfigCallable,
 ) -> None:
     """Unsupported variants still accept standard I2S mode."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: str(Platform.ESP32)}
-    CORE.data[KEY_ESP32] = {KEY_VARIANT: variant}
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
 
     assert CONFIG_SCHEMA(tdm_config)[CONF_TDM] is False
 
 
 @pytest.mark.parametrize("variant", [VARIANT_ESP32S3, VARIANT_ESP32C3, VARIANT_ESP32P4])
-def test_tdm_accepted_on_supported_variants(variant: str) -> None:
+def test_tdm_accepted_on_supported_variants(
+    variant: str, set_core_config: SetCoreConfigCallable
+) -> None:
     """Variants with TDM hardware accept TDM mode."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: str(Platform.ESP32)}
-    CORE.data[KEY_ESP32] = {KEY_VARIANT: variant}
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: variant})
 
     assert CONFIG_SCHEMA({CONF_TDM: True})[CONF_TDM] is True
 
