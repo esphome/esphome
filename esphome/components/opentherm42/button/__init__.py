@@ -19,10 +19,28 @@ from ..const import (
     CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER,
     CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST,
     CONF_REMOTE_REQUEST_SERVICE_TEST_1,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS_RESET,
 )
 
 OpenTherm42RemoteRequestButton = opentherm42_ns.class_(
     "OpenTherm42RemoteRequestButton", button.Button, cg.Component
+)
+OpenTherm42ResetCounterButton = opentherm42_ns.class_(
+    "OpenTherm42ResetCounterButton", button.Button, cg.Component
 )
 
 # §5.3.3 Class 3, ID 4 HB: Request-Code. Pressing a button sends WRITE-DATA(id=4, code, 00); the
@@ -66,6 +84,28 @@ CODES: dict[str, tuple[int, str]] = {
     CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE: (12, ENTITY_CATEGORY_CONFIG),
 }
 
+# §5.3.4 Class 4: these 15 counter/hour ids are all "R W" with reset-by-writing-zero optional for the
+# boiler; pressing a button sends WRITE-DATA(id, 0x0000, 0x0000). ID 111 (Electricity production) is
+# read-only and has no reset button. Clearing a stored statistic is a maintenance action, not
+# something read day-to-day -- CONFIG (matching e.g. the core `factory_reset` button).
+RESETTABLE_COUNTERS: dict[str, int] = {
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS_RESET: 96,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES_RESET: 97,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS_RESET: 109,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS_RESET: 110,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION_RESET: 112,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS_RESET: 113,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW_RESET: 114,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS_RESET: 116,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS_RESET: 117,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS_RESET: 118,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS_RESET: 119,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS_RESET: 120,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS_RESET: 121,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS_RESET: 122,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS_RESET: 123,
+}
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
@@ -74,6 +114,12 @@ CONFIG_SCHEMA = cv.Schema(
                 OpenTherm42RemoteRequestButton, entity_category=entity_category
             ).extend(cv.COMPONENT_SCHEMA)
             for marker, (_code, entity_category) in CODES.items()
+        },
+        **{
+            cv.Optional(marker): button.button_schema(
+                OpenTherm42ResetCounterButton, entity_category=ENTITY_CATEGORY_CONFIG
+            ).extend(cv.COMPONENT_SCHEMA)
+            for marker in RESETTABLE_COUNTERS
         },
     }
 )
@@ -84,4 +130,9 @@ async def to_code(config: dict) -> None:
     for marker, (code, _entity_category) in CODES.items():
         if (marker_config := config.get(marker)) is not None:
             var = await button.new_button(marker_config, hub, code)
+            await cg.register_component(var, marker_config)
+
+    for marker, data_id in RESETTABLE_COUNTERS.items():
+        if (marker_config := config.get(marker)) is not None:
+            var = await button.new_button(marker_config, hub, data_id)
             await cg.register_component(var, marker_config)
