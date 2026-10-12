@@ -1571,7 +1571,7 @@ register_protocol_action(
 # RC5X (aka RC5 Marantz)
 RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = declare_protocol("RC5X")
 RC5X_SCHEMA = RC5_SCHEMA.extend(
-    {cv.Required(CONF_EXTENSION): cv.All(cv.hex_int, cv.Range(min=0, max=0x3F))}
+    {cv.Required(CONF_EXTENSION): cv.hex_int_range(min=0, max=0x3F)}
 )
 
 
