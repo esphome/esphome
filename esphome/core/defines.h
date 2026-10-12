@@ -559,6 +559,7 @@
 #define USE_MDNS_SUPPORTS_ENABLE_DISABLE
 #endif
 #endif
+#endif
 
 #if defined(USE_ESP32_VARIANT_ESP32S2)
 #define USE_LOGGER_USB_CDC
