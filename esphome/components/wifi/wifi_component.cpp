@@ -709,7 +709,6 @@ void WiFiComponent::start() {
 #endif
   this->lease_cache_pref_ =
       global_preferences->make_preference<wifi::SavedWifiLeaseSettings>(hash + 2, lease_cache_in_flash);
-  this->load_lease_settings_();
 #endif
 
   SavedWifiSettings save{};
@@ -721,6 +720,10 @@ void WiFiComponent::start() {
     sta.set_password(save.password);
     this->set_sta(sta);
   }
+#ifdef USE_WIFI_LEASE_CACHE
+  // After the saved credentials: set_sta() clears the cache, and the lease belongs to that same network
+  this->load_lease_settings_();
+#endif
 
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
