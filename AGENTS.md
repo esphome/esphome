@@ -202,6 +202,23 @@ file does, and it is the authority when they disagree. The most useful starting 
         `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
         `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
         a `TEMPLATABLE_BYTES` field so a static code stays in flash.
+    *   **Fixed sets of names** (status words, model names): a `PROGMEM_STRING_TABLE` (`esphome/core/progmem.h`),
+        logged with `get_log_str` and `LOG_STR_ARG`, copied out with `ESPHOME_strncpy_P` before `publish_state`.
+        A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
+    *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `reverse_bits`, `encode_uint16`);
+        a protocol that feeds bits LSB first uses `crc8` on `reverse_bits` of each byte, not its own loop.
+    *   **An unset float is `NAN`**, not `optional<float>`; the optional costs 4 to 8 bytes of padding per member.
+    *   **`PollingComponent` first runs `update()`** after a random share of the interval; call `this->update()` at the
+        end of `setup()` when the entities need a state at boot.
+    *   **A multi-step command sequence** leaves the step pending when the answer is malformed, so the existing
+        resend and give-up logic handles it; never advance on an answer that was only logged.
+    *   **A chip watchdog that only polling feeds:** validate `update_interval` against the period in the one
+        function that both the component schema and any apply action run.
+    *   **Entities that each watch a register field:** one class taking register, shift, mask and match from a Python
+        tuple table, in typed `StaticVector`s sized by `cg.slot_counter`; not a template per bit, not a virtual
+        listener base (a second vptr per entity).
+    *   **A global feature define** says the code is compiled in, not that this instance uses it: keep the
+        per-instance check (`if (this->aux_device_ == ...)`) inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
         sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
     *   **Fixed platform facts compile to nothing:** gate on `#ifdef USE_ESP8266` and friends, not on a
@@ -589,7 +606,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         `script/cpp_unit_test.py <component>`; see `tests/components/README.md`. Set the loop clock in a test
         with `LoopBlockingGuard{nullptr, nullptr, now_ms}`; the runner resets it before every test.
     *   **Integration tests:** `tests/integration/` runs real firmware on the host. Serial components prove
-        timeouts and recovery with the `uart_mock` fixture (`tests/integration/test_uart_mock_*.py`).
+        timeouts and recovery with the `uart_mock` fixture (`tests/integration/test_uart_mock_*.py`). Its
+        `responses` match on content every time they see it; to answer a repeated request differently, use an
+        `on_tx` lambda with a static counter and `inject_to_rx_buffer` (see `uart_mock_ld2410s.yaml`).
     *   **Keep build-test variants few:** one `test.<platform>.yaml` per platform the code actually differs
         on. A variant per board for platform-identical code only adds CI time.
     *   **Component Tests:** YAML-based compilation tests are located in `tests/`. The structure is as follows:
