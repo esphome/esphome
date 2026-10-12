@@ -126,14 +126,6 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       return;
     }
 
-    // Initialize OTA on first call
-    this->ota_init_(filename.c_str());
-
-#ifdef USE_OTA_STATE_LISTENER
-    // Notify OTA started - use notify_state_deferred_ since we're in web server task
-    this->parent_->notify_state_deferred_(ota::OTA_STARTED, 0.0f, 0);
-#endif
-
     this->ota_backend_ = ota::make_ota_backend();
     if (!this->ota_backend_) {
       ESP_LOGE(TAG, "Failed to create OTA backend");
@@ -148,11 +140,25 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     // is unknown (contentLength includes multipart overhead)
     // Pass 0 to indicate unknown size
     error_code = this->ota_backend_->begin(0);
+    if (error_code == ota::OTA_RESPONSE_ERROR_UPDATE_BUSY) {
+      // Nothing started: no state notifications.
+      ESP_LOGW(TAG, "OTA upload refused: another update is in progress");
+      this->ota_backend_.reset();
+      this->refuse_(request);
+      return;
+    }
+
+    // Initialize OTA on first call
+    this->ota_init_(filename.c_str());
+
+#ifdef USE_OTA_STATE_LISTENER
+    // Notify OTA started - use notify_state_deferred_ since we're in web server task
+    this->parent_->notify_state_deferred_(ota::OTA_STARTED, 0.0f, 0);
+#endif
+
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA begin failed: %d", error_code);
       this->ota_backend_.reset();
-      if (error_code == ota::OTA_RESPONSE_ERROR_UPDATE_BUSY)
-        this->refuse_(request);
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
