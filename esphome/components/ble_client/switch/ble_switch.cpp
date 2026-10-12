@@ -6,7 +6,7 @@
 
 namespace esphome::ble_client {
 
-static const char *const TAG = "ble_switch";
+ESPHOME_LOG_TAG(TAG, "ble_switch");
 
 void BLEClientSwitch::write_state(bool state) {
   this->parent_->set_enabled(state);

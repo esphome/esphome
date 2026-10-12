@@ -5,7 +5,7 @@
 #ifdef USE_ESP32
 namespace esphome::ble_client {
 
-static const char *const TAG = "ble_binary_output";
+ESPHOME_LOG_TAG(TAG, "ble_binary_output");
 
 void BLEBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Binary Output:");
@@ -80,8 +80,9 @@ void BLEBinaryOutput::write_state(bool state) {
   esp_err_t err =
       esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_,
                                sizeof(state_as_uint), &state_as_uint, this->write_type_, ESP_GATT_AUTH_REQ_NONE);
-  if (err != ESP_GATT_OK)
+  if (err != ESP_GATT_OK) {
     ESP_LOGW(TAG, "[%s] Write error, err=%d", this->char_uuid_.to_str(char_buf), err);
+  }
 }
 
 }  // namespace esphome::ble_client

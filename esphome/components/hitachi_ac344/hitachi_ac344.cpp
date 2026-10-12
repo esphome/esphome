@@ -2,7 +2,7 @@
 
 namespace esphome::hitachi_ac344 {
 
-static const char *const TAG = "climate.hitachi_ac344";
+ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac344");
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)

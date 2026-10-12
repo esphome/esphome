@@ -3,6 +3,7 @@ from esphome.components import mcp23xxx_base
 
 AUTO_LOAD = ["mcp23xxx_base"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "mcp23x08_base"
 
 NUM_PINS = 8
 

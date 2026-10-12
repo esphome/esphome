@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_PIN,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from .. import gpio_ns
 
@@ -68,7 +69,7 @@ def _pin_shared_only_with_deep_sleep(pin_num: int) -> bool:
     return any(path and path[0] == "deep_sleep" for path, _, _ in pin_users)
 
 
-def _final_validate(config) -> None:
+def _final_validate(config: ConfigType) -> None:
     use_interrupt = config[CONF_USE_INTERRUPT]
     if not use_interrupt:
         return
@@ -124,7 +125,7 @@ def _final_validate(config) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
@@ -132,6 +133,7 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
 
     if config[CONF_USE_INTERRUPT]:
+        cg.add_define("USE_GPIO_BINARY_SENSOR_INTERRUPT")
         cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
     else:
         cg.add(var.set_use_interrupt(False))

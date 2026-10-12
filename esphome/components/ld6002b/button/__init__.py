@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import button
+from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA_ID,
@@ -91,7 +92,7 @@ def final_validate(config: ConfigType) -> None:
     if config.get(CONF_APPLY_AREA):
         has_area_id_select = any(
             entry.get(CONF_LD6002B_ID) == hub_id and entry.get(CONF_AREA_ID) is not None
-            for entry in full_config.get("select", [])
+            for entry in full_config.get(SELECT_DOMAIN, [])
         )
         if not has_area_id_select:
             raise cv.Invalid(
@@ -129,7 +130,7 @@ BUTTON_MAP = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for key, button_type in BUTTON_MAP.items():
         if button_config := config.get(key):
             b = cg.new_Pvariable(button_config[CONF_ID], button_type)
