@@ -102,14 +102,7 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void setup() override;
-  void set_protocol(Protocol protocol) {
-    this->protocol_ = protocol;
-    if (protocol == PROTOCOL_MITSUBISHI_HEAVY_ZMP) {
-      this->presets_.insert(climate::CLIMATE_PRESET_NONE);
-      this->presets_.insert(climate::CLIMATE_PRESET_ECO);
-      this->presets_.insert(climate::CLIMATE_PRESET_BOOST);
-    }
-  }
+  void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
   }
@@ -122,12 +115,12 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
 
  protected:
   HeatpumpIR *heatpump_ir_;
-  /// Transmit via IR the state of this climate controller.
   void control(const climate::ClimateCall &call) override;
+  /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   bool is_mitsubishi_heavy_() const;
+  /// Fan speed byte for ZJ and ZMP, where the ECO and BOOST presets take the FAN_5 and FAN_4 codes.
   uint8_t mitsubishi_heavy_fan_speed_(uint8_t fan_speed_cmd) const;
-  uint8_t mitsubishi_heavy_shift_fan_speed_(uint8_t fan_speed_cmd) const;
   /// Handle received IR data from the remote control.
   bool on_receive(remote_base::RemoteReceiveData data) override;
   Protocol protocol_;
