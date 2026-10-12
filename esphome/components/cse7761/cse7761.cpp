@@ -18,6 +18,14 @@ static constexpr int CSE7761_UREF = 42563;  // RmsUc
 static constexpr int CSE7761_IREF = 52241;  // RmsIAC
 static constexpr int CSE7761_PREF = 44513;  // PowerPAC
 
+// Empirical Sonoff POW CT factor taken from Tasmota
+static constexpr uint32_t CURRENT_TRANSFORMER_COEFFICIENT_SCALE = 5;
+
+// PGA 16x on both current channels
+static constexpr uint16_t SYSCON_SHUNT = 0xFF04;
+// All PGAs 1x, ADC2ON
+static constexpr uint16_t SYSCON_CURRENT_TRANSFORMER = 0xFE00;
+
 // System clock (3.579545MHz) / 8, divided by Ufreq gives the line frequency in Hz
 static constexpr float CSE7761_UFREQ_CLOCK = 3579545.0f / 8.0f;
 
@@ -68,6 +76,8 @@ void CSE7761Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
+  ESP_LOGCONFIG(TAG, "  Current input: %s",
+                LOG_STR_ARG(this->is_current_transformer_() ? LOG_STR("current transformer") : LOG_STR("shunt")));
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current 1", this->current_sensor_1_);
@@ -93,7 +103,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
   buffer[1] = reg;
   uint32_t len = 2;
   if (data) {
-    if (data < 0xFF) {
+    if (data <= 0xFF) {
       buffer[2] = data & 0xFF;
       len = 3;
     } else {
@@ -158,16 +168,17 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
 }
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
+  const uint32_t scale = this->is_current_transformer_() ? CURRENT_TRANSFORMER_COEFFICIENT_SCALE : 1;
   uint32_t coeff = 0;
   switch (unit) {
     case RMS_UC:
       coeff = this->data_.coefficient[RMS_UC];
       return coeff ? 0x400000 * 100 / coeff : 0;
     case RMS_IAC:
-      coeff = this->data_.coefficient[RMS_IAC];
+      coeff = this->data_.coefficient[RMS_IAC] * scale;
       return coeff ? (0x800000 * 100 / coeff) * 10 : 0;  // Stay within 32 bits
     case POWER_PAC:
-      coeff = this->data_.coefficient[POWER_PAC];
+      coeff = this->data_.coefficient[POWER_PAC] * scale;
       return coeff ? 0x80000000 / coeff : 0;
   }
   return 0;
@@ -205,7 +216,8 @@ bool CSE7761Component::chip_init_() {
 
   uint8_t sys_status = this->read_(CSE7761_REG_SYSSTATUS, 1);
   if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
-    this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
+    this->write_(CSE7761_REG_SYSCON | 0x80,
+                 this->is_current_transformer_() ? SYSCON_CURRENT_TRANSFORMER : SYSCON_SHUNT);
     this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
     // WaveEN|ZxEN, needed for Ufreq
     this->write_(CSE7761_REG_EMUCON2 | 0x80, this->frequency_sensor_ != nullptr ? 0x0FE5 : 0x0FC1);
