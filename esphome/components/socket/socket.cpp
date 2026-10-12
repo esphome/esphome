@@ -263,8 +263,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
     }
     return true;
   }
-  // The raw lwIP implementation has no IPv6 membership support
-#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
+#ifdef USE_SOCKET_IPV6
   struct ipv6_mreq imreq6 {};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #ifdef USE_ZEPHYR
@@ -315,7 +314,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #else
   errno = EINVAL;
   return false;
-#endif  // USE_NETWORK_IPV6 && fd based sockets
+#endif  // USE_SOCKET_IPV6
 }
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)

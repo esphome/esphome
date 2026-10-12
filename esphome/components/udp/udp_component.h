@@ -4,12 +4,6 @@
 #ifdef USE_NETWORK
 #include "esphome/core/helpers.h"
 #include "esphome/components/socket/socket.h"
-
-// The raw lwIP implementation (ESP8266, RP2040) has no IPv6 membership support. Its IPv6
-// unicast should work but is untested, so it stays off until someone can test it there.
-#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
-#define USE_UDP_IPV6
-#endif
 #include <array>
 #include <initializer_list>
 #include <span>
@@ -28,6 +22,13 @@ class UDPComponent final : public Component {
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast() { this->should_broadcast_ = true; }
   void set_should_listen() { this->should_listen_ = true; }
+#ifdef USE_UDP_IPV6_SEND
+  /// This instance has IPv6 destinations; multicast ones also need an egress interface.
+  void set_ipv6_send(bool multicast) {
+    this->ipv6_send_ = true;
+    this->ipv6_multicast_ = multicast;
+  }
+#endif
   template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
   void loop() override;
@@ -37,45 +38,41 @@ class UDPComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
-  struct SockaddrEntry {
-    union {
-      sockaddr sa;
-      sockaddr_in in4;
-#ifdef USE_UDP_IPV6
-      sockaddr_in6 in6;
+  enum PollStep : uint8_t { POLL_JOIN = 1, POLL_BIND = 2, POLL_MCAST_IF = 4 };
+
+  union SockaddrEntry {
+    sockaddr sa;
+#ifdef USE_UDP_IPV6_SEND
+    sockaddr_in6 in6;  // sizes the storage for IPv6 destinations
 #endif
-    } addr{};
-    socklen_t len{0};
   };
 
   /// One pass of the network poll; true once nothing is left to do.
   bool network_poll_();
-  /// Joins the listen group and, for IPv6, binds after the join; true once both are done.
-  bool join_multicast_();
   void set_poll_warning_(const LogString *what);
 
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
   std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::UDPSocket> listen_socket_ = nullptr;
-#ifdef USE_UDP_IPV6
+#ifdef USE_UDP_IPV6_SEND
   std::unique_ptr<socket::UDPSendSocket> send_socket_v6_ = nullptr;
 #endif
   FixedVector<SockaddrEntry> sockaddrs_{};
   const char *const *addresses_{nullptr};
   const char *listen_address_{nullptr};
-#ifdef USE_UDP_IPV6
+#ifdef USE_SOCKET_IPV6
   uint32_t mcast_ifindex_{0};
 #endif
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
-  bool joined_{};
+  uint8_t poll_pending_{};  // PollStep bits
   bool poll_failed_{};
   bool poll_warning_{};
-#ifdef USE_UDP_IPV6
-  bool v6_bind_pending_{};
-  bool needs_v6_multicast_if_{};
+#ifdef USE_UDP_IPV6_SEND
+  bool ipv6_send_{};
+  bool ipv6_multicast_{};
 #endif
 };
 

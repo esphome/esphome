@@ -56,6 +56,11 @@ inline constexpr int IP_DOMAIN = AF_INET6;
 inline constexpr int IP_DOMAIN = AF_INET;
 #endif
 
+// IPv6 sockets with multicast membership; the raw lwIP implementation has no IPv6 membership support.
+#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
+#define USE_SOCKET_IPV6
+#endif
+
 #ifdef USE_LWIP_FAST_SELECT
 /// Shared ready() helper using cached lwip_sock pointer for direct rcvevent read.
 /// cached_sock == nullptr means the socket is not monitored (monitor_loop was false, fd

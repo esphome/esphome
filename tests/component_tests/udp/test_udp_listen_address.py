@@ -34,38 +34,67 @@ def test_listen_address_reports_matching_family_error(value: str, message: str) 
         _listen_address(value)
 
 
+_RAW_LWIP_IPV6 = {
+    "network": {CONF_ENABLE_IPV6: True},
+    "socket": {"implementation": "lwip_tcp"},
+}
+_NO_IPV6 = "requires 'enable_ipv6: true'"
+_RAW_LWIP = "not supported on this platform"
+
+
 @pytest.mark.parametrize(
-    ("config", "full_config", "message"),
+    ("addresses", "listen_address", "platform", "full_config", "message"),
     [
         pytest.param(
-            {
-                CONF_ADDRESSES: [ip_address("ff12::cafe")],
-                CONF_LISTEN_ADDRESS: ip_address("255.255.255.255"),
-            },
+            ["ff12::cafe"],
+            "255.255.255.255",
+            PlatformFramework.ESP32_IDF,
             {},
-            "requires 'enable_ipv6: true'",
+            _NO_IPV6,
             id="ipv6_destination_without_ipv6",
         ),
         pytest.param(
-            {
-                CONF_ADDRESSES: [ip_address("255.255.255.255")],
-                CONF_LISTEN_ADDRESS: ip_address("ff12::cafe"),
-            },
+            ["255.255.255.255"],
+            "ff12::cafe",
+            PlatformFramework.ESP32_IDF,
             {},
-            "requires 'enable_ipv6: true'",
+            _NO_IPV6,
             id="ipv6_listen_without_ipv6",
+        ),
+        pytest.param(
+            ["ff12::cafe"],
+            "255.255.255.255",
+            PlatformFramework.ESP8266_ARDUINO,
+            _RAW_LWIP_IPV6,
+            _RAW_LWIP,
+            id="ipv6_destination_on_raw_lwip",
+        ),
+        pytest.param(
+            ["255.255.255.255"],
+            "ff12::cafe",
+            PlatformFramework.ESP8266_ARDUINO,
+            _RAW_LWIP_IPV6,
+            _RAW_LWIP,
+            id="ipv6_listen_on_raw_lwip",
         ),
     ],
 )
-def test_final_validate_rejects_ipv6_without_network_support(
+def test_final_validate_rejects_unsupported_ipv6(
     set_core_config: SetCoreConfigCallable,
-    config: dict,
+    addresses: list[str],
+    listen_address: str,
+    platform: PlatformFramework,
     full_config: dict,
     message: str,
 ) -> None:
-    set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
+    set_core_config(platform, full_config=full_config)
     with pytest.raises(cv.Invalid, match=message):
-        _final_validate(config)
+        _final_validate(
+            {
+                CONF_ADDRESSES: [ip_address(a) for a in addresses],
+                CONF_LISTEN_ADDRESS: ip_address(listen_address),
+            }
+        )
 
 
 def test_final_validate_accepts_ipv6_when_enabled(
@@ -81,31 +110,3 @@ def test_final_validate_accepts_ipv6_when_enabled(
             CONF_LISTEN_ADDRESS: ip_address("ff12::cafe"),
         }
     )
-
-
-@pytest.mark.parametrize(
-    ("addresses", "listen_address"),
-    [
-        pytest.param(["255.255.255.255"], "ff12::cafe", id="listen"),
-        pytest.param(["ff12::cafe"], "255.255.255.255", id="destination"),
-    ],
-)
-def test_final_validate_rejects_ipv6_on_raw_lwip(
-    set_core_config: SetCoreConfigCallable,
-    addresses: list[str],
-    listen_address: str,
-) -> None:
-    set_core_config(
-        PlatformFramework.ESP8266_ARDUINO,
-        full_config={
-            "network": {CONF_ENABLE_IPV6: True},
-            "socket": {"implementation": "lwip_tcp"},
-        },
-    )
-    with pytest.raises(cv.Invalid, match="not supported on this platform"):
-        _final_validate(
-            {
-                CONF_ADDRESSES: [ip_address(a) for a in addresses],
-                CONF_LISTEN_ADDRESS: ip_address(listen_address),
-            }
-        )

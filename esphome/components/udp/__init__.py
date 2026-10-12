@@ -72,18 +72,14 @@ RELOCATED = {
 }
 
 
-def _ipv6_multicast_address(value: Any) -> IPv6Address:
+def _listen_address(value: Any) -> IPv4Address | IPv6Address:
+    """Accept an IPv4 multicast/broadcast or an IPv6 multicast address, with a family-specific error."""
+    if ":" not in str(value):
+        return cv.ipv4address_multi_broadcast(value)
     addr = cv.ipv6address(value)
     if not addr.is_multicast:
         raise cv.Invalid(f"{value} is not an IPv6 multicast address")
     return addr
-
-
-def _listen_address(value: Any) -> IPv4Address | IPv6Address:
-    """Accept an IPv4 multicast/broadcast or an IPv6 multicast address, with a family-specific error."""
-    if ":" in str(value):
-        return _ipv6_multicast_address(value)
-    return cv.ipv4address_multi_broadcast(value)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -116,11 +112,15 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _ipv6_addresses(config: ConfigType) -> list[IPv6Address]:
+    return [addr for addr in config[CONF_ADDRESSES] if addr.version == 6]
+
+
 def _consume_udp_sockets(config: ConfigType) -> ConfigType:
     """Reserve the listen and IPv4 send sockets, plus an IPv6 send socket when a destination needs it."""
     from esphome.components import socket
 
-    count = 2 + any(addr.version == 6 for addr in config[CONF_ADDRESSES])
+    count = 2 + bool(_ipv6_addresses(config))
     socket.consume_sockets(count, "udp", socket.SocketType.UDP)(config)
     return config
 
@@ -177,6 +177,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_broadcast_port(conf_port[CONF_BROADCAST_PORT]))
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
+    if ipv6_addresses := _ipv6_addresses(config):
+        cg.add_define("USE_UDP_IPV6_SEND")
+        cg.add(var.set_ipv6_send(any(addr.is_multicast for addr in ipv6_addresses)))
     # Shared flash table ended by nullptr, so the component stores only a pointer.
     if addresses := [str(addr) for addr in config[CONF_ADDRESSES]]:
         cg.add(
