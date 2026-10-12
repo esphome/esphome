@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_FONT,
     CONF_FOREGROUND_COLOR,
     CONF_ID,
-    CONF_TRIGGER_ID,
 )
 from esphome.types import ConfigType
 
@@ -28,9 +27,6 @@ GraphicalDisplayMenuConstPtr = GraphicalDisplayMenu.operator("ptr").operator("co
 MenuItemValueArguments = graphical_display_menu_ns.struct("MenuItemValueArguments")
 MenuItemValueArgumentsConstPtr = MenuItemValueArguments.operator("ptr").operator(
     "const"
-)
-GraphicalDisplayMenuOnRedrawTrigger = graphical_display_menu_ns.class_(
-    "GraphicalDisplayMenuOnRedrawTrigger", automation.Trigger
 )
 
 CODEOWNERS = ["@MrMDavidson"]
@@ -49,13 +45,7 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
             cv.Optional(CONF_MENU_ITEM_VALUE): cv.templatable(cv.string),
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),
-            cv.Optional(CONF_ON_REDRAW): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        GraphicalDisplayMenuOnRedrawTrigger
-                    )
-                }
-            ),
+            cv.Optional(CONF_ON_REDRAW): automation.validate_automation({}),
         }
     )
 )
@@ -92,9 +82,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_background_color(background_color))
 
     for conf in config.get(CONF_ON_REDRAW, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(GraphicalDisplayMenuConstPtr, "it")], conf
+        await automation.build_callback_automation(
+            var, "add_on_redraw_callback", [(GraphicalDisplayMenuConstPtr, "it")], conf
         )
 
     await display_menu_to_code(var, config)

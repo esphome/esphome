@@ -262,8 +262,9 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     """Spread items over enough runners to stay near target_seconds each.
 
     The runner count comes from the total estimate with every grouped build
-    counted once. Heaviest items go first, each to the runner that ends up
-    lightest, so grouped components follow the builds they can join.
+    counted once. Heaviest items go first, each to the runner it adds the
+    fewest seconds to among those ending near the lightest, so grouped
+    components follow the builds they can join.
     """
     if not items:
         return []
@@ -274,10 +275,23 @@ def balance_batches(items: list[_BatchItem], target_seconds: int) -> list[list[s
     total = whole.seconds
     count = min(len(items), max(1, math.ceil(total / target_seconds)))
     batches = [_Batch() for _ in range(count)]
+    # Among the runners ending within slack of the lightest, the one the item
+    # adds the fewest seconds to wins, so a component lands with the bus
+    # group partners it shares builds with; placed away from them it builds
+    # alone on every platform they only share there.
+    slack = target_seconds // 4
     for item in sorted(items, key=lambda i: (-i.standalone_seconds(), i.component)):
-        min(batches, key=lambda b: (b.seconds + b.added_seconds(item), b.seconds)).add(
-            item
+        costs = [(batch, batch.added_seconds(item)) for batch in batches]
+        ceiling = min(batch.seconds + added for batch, added in costs) + slack
+        batch, _ = min(
+            (
+                (batch, added)
+                for batch, added in costs
+                if batch.seconds + added <= ceiling
+            ),
+            key=lambda cost: (cost[1], cost[0].seconds + cost[1]),
         )
+        batch.add(item)
     return [batch.components for batch in batches if batch.components]
 
 

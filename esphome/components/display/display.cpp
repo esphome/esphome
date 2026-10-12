@@ -678,12 +678,14 @@ void Display::set_pages(std::vector<DisplayPage *> pages) {
 }
 
 void Display::show_page(DisplayPage *page) {
-  this->previous_page_ = this->page_;
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  DisplayPage *previous = this->page_;
   this->page_ = page;
-  if (this->previous_page_ != this->page_) {
-    for (auto *t : on_page_change_triggers_)
-      t->process(this->previous_page_, this->page_);
-  }
+  if (previous != page)
+    this->page_change_callback_.call(previous, page);
+#else
+  this->page_ = page;
+#endif
 }
 
 void Display::do_update_() {
@@ -698,11 +700,6 @@ void Display::do_update_() {
     (*this->writer_)(*this);
   }
   this->clear_clipping_();
-}
-
-void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
-  if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
-    this->trigger(from, to);
 }
 
 void Display::strftime(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,

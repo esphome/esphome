@@ -4,7 +4,13 @@ import math
 import pytest
 
 from esphome import cpp_generator as cg, cpp_types as ct
-from esphome.core import CORE, ID
+from esphome.const import (
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+)
+from esphome.core import CORE, ID, EsphomeError
 
 
 class TestExpressions:
@@ -829,6 +835,46 @@ class TestSharedProgmemArray:
         assert str(a) != str(b)
         assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
 
+    def test_is_static_pointer_only_for_placement_new(self) -> None:
+        CORE.config = {}
+        static = cg.new_Pvariable(ID("static_obj", is_declaration=True, type=ct.uint8))
+        dynamic = cg.Pvariable(
+            ID("dynamic_obj", is_declaration=True, type=ct.uint8),
+            cg.RawExpression("nullptr"),
+        )
+        assert cg.is_static_pointer(static)
+        assert not cg.is_static_pointer(dynamic)
+
+    def test_constexpr_and_const_arrays_are_not_shared(self) -> None:
+        CORE.config = {}
+        a = cg.shared_progmem_array("table", ct.uint8, [1], constexpr=False)
+        b = cg.shared_progmem_array("table", ct.uint8, [1])
+        assert str(a) != str(b)
+
+    def test_constexpr_false_rejects_dynamic_pointers(self) -> None:
+        CORE.config = {}
+        dynamic = cg.Pvariable(
+            ID("dynamic_obj", is_declaration=True, type=ct.uint8),
+            cg.RawExpression("nullptr"),
+        )
+        with pytest.raises(EsphomeError, match="dynamic_obj"):
+            cg.shared_progmem_array(
+                "table",
+                ct.uint8.operator("ptr"),
+                cg.ArrayInitializer(dynamic),
+                constexpr=False,
+            )
+
+    def test_constexpr_false_emits_a_const_array(self) -> None:
+        CORE.config = {}
+        cg.shared_progmem_array("table", ct.uint8, [1], constexpr=False)
+        (statement,) = (
+            str(st) for st in CORE.global_statements if "PROGMEM" in str(st)
+        )
+        assert statement.startswith(
+            "ESPHOME_FLASH_CONSTINIT static uint8_t const table[] PROGMEM = {1}"
+        )
+
     def test_same_contents_different_type_are_separate(self) -> None:
         CORE.config = {}
         a = cg.shared_progmem_array("table", ct.uint8, [1])
@@ -845,6 +891,31 @@ class TestSharedProgmemArray:
         CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
+
+
+class TestProgmemString:
+    @staticmethod
+    def _set_platform(platform: str) -> None:
+        CORE.config = {}
+        CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+
+    def test_esp8266_shares_one_array_per_text(self) -> None:
+        self._set_platform(PLATFORM_ESP8266)
+        a = cg.shared_progmem_string("level")
+        b = cg.shared_progmem_string("level")
+        c = cg.shared_progmem_string('say "hi"')
+        assert a is b
+        assert str(a) == "progmem_str"
+        assert str(c) == "progmem_str_2"
+        assert [str(st) for st in CORE.global_statements] == [
+            'static constexpr char progmem_str[] PROGMEM = "level";',
+            'static constexpr char progmem_str_2[] PROGMEM = "say \\042hi\\042";',
+        ]
+
+    def test_other_platforms_return_the_literal(self) -> None:
+        self._set_platform(PLATFORM_ESP32)
+        assert str(cg.shared_progmem_string('say "hi"')) == '"say \\042hi\\042"'
+        assert not CORE.global_statements
 
 
 def test_extern_progmem_array_is_an_externally_linked_global() -> None:
