@@ -28,6 +28,7 @@ class EPaperUC8279 : public EPaperBase {
   }
 
   void loop() override;
+  void on_safe_shutdown() override;
 
  protected:
   bool reset() override;
@@ -47,8 +48,6 @@ class EPaperUC8279 : public EPaperBase {
   uint16_t gate_offset_;
   size_t previous_image_gate_{};
   bool partial_{};                 // the update in progress is a partial one
-  bool initialised_{};             // the controller holds its configuration since the last reset
-  bool previous_image_valid_{};    // DTM1 holds the image on the panel
   bool writing_previous_image_{};  // DTM1 is being rewritten after a refresh
 };
 

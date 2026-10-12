@@ -29,6 +29,7 @@ class UC8279(EpaperModel):
         defaults.setdefault(CONF_DATA_RATE, data_rate)
         defaults.setdefault("partial_update", True)
         defaults.setdefault(GATE_OFFSET, 0)
+        defaults.setdefault("width_multiple", 8)
         super().__init__(name, class_name=class_name, **defaults)
 
     def get_constructor_args(self, config) -> tuple:

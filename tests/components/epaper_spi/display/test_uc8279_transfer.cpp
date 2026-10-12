@@ -9,6 +9,17 @@
 
 namespace esphome::epaper_spi::testing {
 
+/// A reset pin that counts how often it is driven low.
+class CountingPin : public RecordingPin {
+ public:
+  void digital_write(bool value) override {
+    if (!value)
+      this->pulses++;
+    RecordingPin::digital_write(value);
+  }
+  int pulses{0};
+};
+
 /// A 16x2 panel bonded to gates 1 and 2 of three, so gate 0 is outside the panel.
 class TestableUC8279 : public EPaperUC8279 {
  public:
@@ -43,8 +54,10 @@ class TestableUC8279 : public EPaperUC8279 {
     }
   }
 
+  using EPaperUC8279::on_safe_shutdown;
+
   RecordingPin dc;
-  RecordingPin reset_pin;
+  CountingPin reset_pin;
 };
 
 using Bytes = std::vector<uint8_t>;
@@ -97,12 +110,12 @@ TEST(EPaperUC8279, PartialRefreshWritesOnlyTheNewImage) {
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   display.run_update();
   bus.clear();
-  display.reset_pin.level = true;
+  const int pulses = display.reset_pin.pulses;
 
   display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
   display.run_update();
 
-  EXPECT_TRUE(display.reset_pin.level) << "the partial refresh reset the panel";
+  EXPECT_EQ(display.reset_pin.pulses, pulses) << "the partial refresh reset the panel";
   EXPECT_EQ(bus.data[0x13], (Bytes{0xFF, 0xFF, 0x0F, 0xF0, 0x3C, 0x00}));
   EXPECT_EQ(Bytes(bus.data[0x10].begin(), bus.data[0x10].end()), (Bytes{0xFF, 0xFF, 0x0F, 0xF0, 0x3C, 0x00}))
       << "DTM1 was written before the refresh, or not rewritten after it";
@@ -145,6 +158,62 @@ TEST(EPaperUC8279, PreviousImageRewriteIsTimeSliced) {
 
   EXPECT_EQ(Bytes(bus.data[0x10].begin() + 6, bus.data[0x10].end()), (Bytes{0xFF, 0xFF, 0x0F, 0xF0, 0x3C, 0xC3}));
   EXPECT_EQ(bus.commands.back(), 0x02);
+}
+
+/// The full refresh that comes round after partial ones resets the controller, configures it again and writes a white
+/// DTM1 over the image it held, as the first full refresh does.
+TEST(EPaperUC8279, FullRefreshAfterPartialOnesStartsAfresh) {
+  TestableUC8279 display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 2);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.run_update();
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.run_update();
+  bus.clear();
+  const int pulses = display.reset_pin.pulses;
+
+  display.set_frame({0x0F, 0xF0, 0x00, 0x00});
+  display.run_update();
+  EXPECT_EQ(display.reset_pin.pulses, pulses + 1) << "the full refresh did not reset the controller";
+  EXPECT_EQ(count(bus.commands, 0x91), 0u) << "the full refresh entered partial mode";
+  ASSERT_EQ(bus.data[0x10].size(), 12u);
+  EXPECT_EQ(Bytes(bus.data[0x10].begin(), bus.data[0x10].begin() + 6), (Bytes(6, 0xFF)));
+  EXPECT_EQ(Bytes(bus.data[0x10].begin() + 6, bus.data[0x10].end()), (Bytes{0xFF, 0xFF, 0x0F, 0xF0, 0x00, 0x00}));
+}
+
+/// A requested full update, between partial ones, is a full refresh from scratch too.
+TEST(EPaperUC8279, RequestedFullUpdateStartsAfresh) {
+  TestableUC8279 display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.run_update();
+  bus.clear();
+  const int pulses = display.reset_pin.pulses;
+
+  display.request_full_update();
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.run_update();
+  EXPECT_EQ(display.reset_pin.pulses, pulses + 1);
+  EXPECT_EQ(count(bus.commands, 0x91), 0u);
+  EXPECT_EQ(Bytes(bus.data[0x10].begin(), bus.data[0x10].begin() + 6), (Bytes(6, 0xFF)));
+}
+
+/// Before a restart or the controller's deep sleep the panel goes into its own deep sleep, even while partial updates
+/// would otherwise leave it in standby.
+TEST(EPaperUC8279, ShutdownPutsThePanelToSleep) {
+  TestableUC8279 display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.run_update();
+  bus.clear();
+  display.on_safe_shutdown();
+  EXPECT_EQ(bus.data[0x07], (Bytes{0xA5}));
 }
 
 }  // namespace esphome::epaper_spi::testing

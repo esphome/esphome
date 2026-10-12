@@ -49,7 +49,6 @@ void EPaperUC8279::loop() {
     if (!this->write_previous_image_())
       return;
     this->writing_previous_image_ = false;
-    this->previous_image_valid_ = true;
     this->command(CMD_POWER_OFF);
     this->set_state_(EPaperState::DEEP_SLEEP, BUSY_ASSERT_MS);
     return;
@@ -58,9 +57,9 @@ void EPaperUC8279::loop() {
 }
 
 bool EPaperUC8279::reset() {
-  this->partial_ = this->update_count_ != 0 && this->previous_image_valid_;
-  // A partial update follows a full one on a controller that is still configured and in standby
-  if (this->partial_ && this->initialised_)
+  // A partial update follows one that left the controller configured, in standby, with DTM1 holding the image
+  this->partial_ = this->update_count_ != 0;
+  if (this->partial_)
     return true;
   if (!EPaperBase::reset())
     return false;
@@ -69,9 +68,8 @@ bool EPaperUC8279::reset() {
 }
 
 bool EPaperUC8279::initialise(bool partial) {
-  if (this->partial_ && this->initialised_)
+  if (this->partial_)
     return true;
-  this->initialised_ = true;
   return EPaperBase::initialise(partial);
 }
 
@@ -183,7 +181,10 @@ void EPaperUC8279::deep_sleep() {
     return;
   ESP_LOGV(TAG, "Deep sleep");
   this->cmd_data(CMD_DEEP_SLEEP, {DEEP_SLEEP_CHECK});
-  this->initialised_ = false;
 }
+
+// Nothing carries the image across a restart or the controller's deep sleep, so the panel sleeps rather than waiting
+// in standby
+void EPaperUC8279::on_safe_shutdown() { this->cmd_data(CMD_DEEP_SLEEP, {DEEP_SLEEP_CHECK}); }
 
 }  // namespace esphome::epaper_spi

@@ -516,6 +516,29 @@ def test_uc8179_e1001_code_generation(
     assert "97, 4, 3, 32, 1, 224" in main_cpp
 
 
+def test_uc8279_width_must_be_a_multiple_of_8(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The UC8279 takes whole bytes of sources, so the width is a multiple of 8."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="multiple of 8"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "uc8279",
+                "dc_pin": 21,
+                "dimensions": {"width": 804, "height": 480},
+            }
+        )
+
+
 def test_uc8279_x4pro_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
