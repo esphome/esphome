@@ -448,11 +448,11 @@ class WiFiPowerSaveListener {
   virtual void on_wifi_power_save(WiFiPowerSaveMode mode) = 0;
 };
 
-/// This component is responsible for managing the ESP WiFi interface.
 // Scheduler ids
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
 
+/// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
