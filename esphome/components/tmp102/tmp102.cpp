@@ -51,9 +51,9 @@ void TMP102Component::setup() {
     return;
   bool saved = true;
   if (this->high_limit_control_ != nullptr)
-    saved &= this->high_limit_control_->save_value(this->get_limit_temperature_(TMP102_LIMIT_HIGH));
+    saved &= this->high_limit_control_->save_value_(this->get_limit_temperature_(TMP102_LIMIT_HIGH));
   if (this->low_limit_control_ != nullptr)
-    saved &= this->low_limit_control_->save_value(this->get_limit_temperature_(TMP102_LIMIT_LOW));
+    saved &= this->low_limit_control_->save_value_(this->get_limit_temperature_(TMP102_LIMIT_LOW));
   if (!saved) {
     ESP_LOGW(TAG, "Failed to save threshold preferences");
   }
@@ -230,9 +230,9 @@ void TMP102Component::prepare_number_limits_() {
   float high = decode_temperature(initial_high, extended);
   float low = decode_temperature(initial_low, extended);
   if (this->high_limit_control_ != nullptr)
-    high = this->high_limit_control_->restore_value();
+    high = this->high_limit_control_->load_value_();
   if (this->low_limit_control_ != nullptr)
-    low = this->low_limit_control_->restore_value();
+    low = this->low_limit_control_->load_value_();
 
   uint16_t high_raw = encode_temperature(high, extended);
   uint16_t low_raw = encode_temperature(low, extended);
@@ -321,7 +321,7 @@ bool TMP102Component::read_alert_state_() {
 #endif
 
 #ifdef USE_TMP102_NUMBER
-float TMP102LimitNumber::restore_value() {
+float TMP102LimitNumber::load_value_() {
   float value = this->initial_value_;
   if (this->restore_value_) {
     this->pref_ = this->make_entity_preference<float>();
@@ -335,7 +335,7 @@ float TMP102LimitNumber::restore_value() {
   return value;
 }
 
-bool TMP102LimitNumber::save_value(float value) { return !this->restore_value_ || this->pref_.save(&value); }
+bool TMP102LimitNumber::save_value_(float value) { return !this->restore_value_ || this->pref_.save(&value); }
 
 void TMP102LimitNumber::setup() {
   if (this->parent_->is_failed()) {
@@ -351,7 +351,7 @@ void TMP102LimitNumber::control(float value) {
   if (this->parent_->set_limit_temperature_(this->limit_type_, value)) {
     value = this->parent_->get_limit_temperature_(this->limit_type_);
     this->publish_state(value);
-    if (!this->save_value(value)) {
+    if (!this->save_value_(value)) {
       ESP_LOGW(TAG, "Failed to save threshold preference");
     }
     return;

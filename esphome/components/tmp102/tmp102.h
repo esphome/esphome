@@ -96,8 +96,8 @@ class TMP102LimitNumber final : public number::Number, public Component {
 
  protected:
   friend class TMP102Component;
-  float restore_value();
-  bool save_value(float value);
+  float load_value_();
+  bool save_value_(float value);
   void control(float value) override;
 
   TMP102Component *parent_;
