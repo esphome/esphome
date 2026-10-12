@@ -2,7 +2,7 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc.ndef_record_uri";
+ESPHOME_LOG_TAG(TAG, "nfc.ndef_record_uri");
 
 NdefRecordUri::NdefRecordUri(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {

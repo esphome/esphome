@@ -14,7 +14,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.spdif";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.spdif");
 
 // SPDIF mode adds overhead as each sample is encapsulated in a subframe;
 // each DMA buffer can hold only 192 samples (~4ms each vs. ~15ms for standard I2S).

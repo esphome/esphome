@@ -4,50 +4,50 @@
 
 namespace esphome::cse7761 {
 
-static const char *const TAG = "cse7761";
+ESPHOME_LOG_TAG(TAG, "cse7761");
 
 /*********************************************************************************************\
  * CSE7761 - Energy  (Sonoff Dual R3 Pow v1.x)
  *
  * Based on Tasmota source code
  * See https://github.com/arendst/Tasmota/discussions/10793
- * https://github.com/arendst/Tasmota/blob/development/tasmota/tasmota_xnrg_energy/xnrg_19_cse7761.ino
+ * https://github.com/arendst/Tasmota/blob/development/tasmota/xnrg_19_cse7761.ino
 \*********************************************************************************************/
 
-static constexpr int CSE7761_UREF = 42563;    // RmsUc
-static constexpr int CSE7761_IREF = 52241;    // RmsIAC
-static constexpr int CSE7761_PREF = 44513;    // PowerPAC
-static constexpr int CSE7761_FREF = 3579545;  // System clock (3.579545MHz) as used in frequency calculation
+static constexpr int CSE7761_UREF = 42563;  // RmsUc
+static constexpr int CSE7761_IREF = 52241;  // RmsIAC
+static constexpr int CSE7761_PREF = 44513;  // PowerPAC
+
+// System clock (3.579545MHz) / 8, divided by Ufreq gives the line frequency in Hz
+static constexpr float CSE7761_UFREQ_CLOCK = 3579545.0f / 8.0f;
 
 static constexpr uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
 static constexpr uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
+static constexpr uint8_t CSE7761_REG_HFCONST = 0x02;    // (2) Pulse frequency register (0x1000)
 static constexpr uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
 static constexpr uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
 
-static constexpr uint8_t CSE7761_REG_UFREQ = 0x23;      // (2) Voltage Frequency (0x0000)
-static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;      // (3) The effective value of channel A current (0x000000)
-static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;      // (3) The effective value of channel B current (0x000000)
-static constexpr uint8_t CSE7761_REG_RMSU = 0x26;       // (3) Voltage RMS (0x000000)
-static constexpr uint8_t CSE7761_REG_POWERPA = 0x2C;    // (4) Channel A active power, update rate 27.2Hz (0x00000000)
-static constexpr uint8_t CSE7761_REG_POWERPB = 0x2D;    // (4) Channel B active power, update rate 27.2Hz (0x00000000)
-static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status register
+static constexpr uint8_t CSE7761_REG_UFREQ = 0x23;        // (2) Voltage frequency (0x0000)
+static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;        // (3) The effective value of channel A current (0x000000)
+static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;        // (3) The effective value of channel B current (0x000000)
+static constexpr uint8_t CSE7761_REG_RMSU = 0x26;         // (3) Voltage RMS (0x000000)
+static constexpr uint8_t CSE7761_REG_POWERFACTOR = 0x27;  // (3) Power factor of the selected channel (0x7FFFFF)
+static constexpr uint8_t CSE7761_REG_ENERGY_PA = 0x28;    // (3) Channel A active energy pulse count (0x000000)
+static constexpr uint8_t CSE7761_REG_ENERGY_PB = 0x29;    // (3) Channel B active energy pulse count (0x000000)
+static constexpr uint8_t CSE7761_REG_POWERPA = 0x2C;      // (4) Channel A active power, update rate 27.2Hz (0x00000000)
+static constexpr uint8_t CSE7761_REG_POWERPB = 0x2D;      // (4) Channel B active power, update rate 27.2Hz (0x00000000)
+static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;    // (1) System status register
 
 static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
 static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
-static constexpr uint8_t CSE7761_REG_RMSIBC = 0x71;       // (2) Channel B effective current conversion coefficient
-static constexpr uint8_t CSE7761_REG_RMSUC = 0x72;        // (2) Effective voltage conversion coefficient
-static constexpr uint8_t CSE7761_REG_POWERPAC = 0x73;     // (2) Channel A active power conversion coefficient
-static constexpr uint8_t CSE7761_REG_POWERPBC = 0x74;     // (2) Channel B active power conversion coefficient
-static constexpr uint8_t CSE7761_REG_POWERSC = 0x75;      // (2) Apparent power conversion coefficient
-static constexpr uint8_t CSE7761_REG_ENERGYAC = 0x76;     // (2) Channel A energy conversion coefficient
-static constexpr uint8_t CSE7761_REG_ENERGYBC = 0x77;     // (2) Channel B energy conversion coefficient
+
+// Datasheet: Wh = pulses * EnergyXC * HFConst * 1000 / 2^41 with K1 = K2 = 1
+static constexpr float CSE7761_ENERGY_WH_SCALE = 1000.0f / 2199023255552.0f;
 
 static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
 static constexpr uint8_t CSE7761_CMD_RESET = 0x96;        // Reset command, after receiving the command, the chip resets
-static constexpr uint8_t CSE7761_CMD_CHAN_A_SELECT = 0x5A;  // Current channel A setting command
-static constexpr uint8_t CSE7761_CMD_CHAN_B_SELECT = 0xA5;  // Current channel B setting command
-static constexpr uint8_t CSE7761_CMD_CLOSE_WRITE = 0xDC;    // Close write operation
-static constexpr uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;   // Enable write operation
+static constexpr uint8_t CSE7761_CMD_CLOSE_WRITE = 0xDC;  // Close write operation
+static constexpr uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;  // Enable write operation
 
 enum CSE7761 { RMS_IAC, RMS_IBC, RMS_UC, POWER_PAC, POWER_PBC, POWER_SC, ENERGY_AC, ENERGY_BC };
 
@@ -69,9 +69,16 @@ void CSE7761Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Current 1", this->current_sensor_1_);
+  LOG_SENSOR("  ", "Current 2", this->current_sensor_2_);
+  LOG_SENSOR("  ", "Power 1", this->power_sensor_1_);
+  LOG_SENSOR("  ", "Power 2", this->power_sensor_2_);
+  LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
+  LOG_SENSOR("  ", "Power Factor 1", this->power_factor_sensor_1_);
+  LOG_SENSOR("  ", "Energy 1", this->energy_sensors_[0]);
+  LOG_SENSOR("  ", "Energy 2", this->energy_sensors_[1]);
 }
-
-float CSE7761Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void CSE7761Component::update() {
   if (this->data_.ready) {
@@ -86,7 +93,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
   buffer[1] = reg;
   uint32_t len = 2;
   if (data) {
-    if (data <= 0xFF) {
+    if (data < 0xFF) {
       buffer[2] = data & 0xFF;
       len = 3;
     } else {
@@ -94,11 +101,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
       buffer[3] = data & 0xFF;
       len = 4;
     }
-    uint8_t crc = 0;
-    for (uint32_t i = 0; i < len; i++) {
-      crc += buffer[i];
-    }
-    buffer[len] = ~crc;
+    buffer[len] = ~sum_bytes(buffer, len);
     len++;
   }
 
@@ -116,9 +119,9 @@ bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
   uint32_t rcvd = 0;
 
   for (uint32_t i = 0; i <= size; i++) {
-    int byte = this->read();
-    if (byte > -1 && rcvd < sizeof(buffer) - 1) {
-      buffer[rcvd++] = byte;
+    int value = this->read();
+    if (value > -1 && rcvd < sizeof(buffer) - 1) {
+      buffer[rcvd++] = value;
     }
   }
 
@@ -128,47 +131,44 @@ bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
   }
 
   rcvd--;
+  if (static_cast<uint8_t>(~sum_bytes(buffer, rcvd, 0xA5 + reg)) != buffer[rcvd]) {
+    return false;
+  }
   uint32_t result = 0;
-  // CRC check
-  uint8_t crc = 0xA5 + reg;
   for (uint32_t i = 0; i < rcvd; i++) {
     result = (result << 8) | buffer[i];
-    crc += buffer[i];
-  }
-  crc = ~crc;
-  if (crc != buffer[rcvd]) {
-    return false;
   }
 
   *value = result;
   return true;
 }
 
-uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
-  bool result = false;  // Start loop
-  uint8_t retry = 3;    // Retry up to three times
-  uint32_t value = 0;   // Default no value
-  while (!result && retry > 0) {
-    retry--;
-    if (this->read_once_(reg, size, &value))
-      return value;
+bool CSE7761Component::read_(uint8_t reg, uint8_t size, uint32_t *value) {
+  for (uint8_t retry = 0; retry < 3; retry++) {
+    if (this->read_once_(reg, size, value))
+      return true;
   }
   ESP_LOGE(TAG, "Reading register %hhu failed!", reg);
-  return value;
+  return false;
+}
+
+uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
+  uint32_t value = 0;
+  return this->read_(reg, size, &value) ? value : 0;
 }
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
-  uint32_t coeff = 1;
-  if (this->data_.model == CSE7761_MODEL_SONOFF_POWCT) {
-    coeff = 5;
-  }
+  uint32_t coeff = 0;
   switch (unit) {
     case RMS_UC:
-      return 0x400000 * 100 / this->data_.coefficient[RMS_UC];
+      coeff = this->data_.coefficient[RMS_UC];
+      return coeff ? 0x400000 * 100 / coeff : 0;
     case RMS_IAC:
-      return (0x800000 * 100 / (this->data_.coefficient[RMS_IAC] * coeff)) * 10;  // Stay within 32 bits
+      coeff = this->data_.coefficient[RMS_IAC];
+      return coeff ? (0x800000 * 100 / coeff) * 10 : 0;  // Stay within 32 bits
     case POWER_PAC:
-      return 0x80000000 / (this->data_.coefficient[POWER_PAC] * coeff);
+      coeff = this->data_.coefficient[POWER_PAC];
+      return coeff ? 0x80000000 / coeff : 0;
   }
   return 0;
 }
@@ -180,42 +180,36 @@ bool CSE7761Component::chip_init_() {
     calc_chksum += this->data_.coefficient[i];
   }
   calc_chksum = ~calc_chksum;
+  const bool energy_configured = this->energy_sensors_[0] != nullptr || this->energy_sensors_[1] != nullptr;
   uint16_t coeff_chksum = this->read_(CSE7761_REG_COEFFCHKSUM, 2);
   if ((calc_chksum != coeff_chksum) || (!calc_chksum)) {
     ESP_LOGD(TAG, "Default calibration");
     this->data_.coefficient[RMS_IAC] = CSE7761_IREF;
     this->data_.coefficient[RMS_UC] = CSE7761_UREF;
     this->data_.coefficient[POWER_PAC] = CSE7761_PREF;
+    if (energy_configured) {
+      ESP_LOGW(TAG, "No energy calibration, energy unavailable");
+    }
+  } else if (energy_configured) {
+    uint32_t hf_const = 0;
+    if (!this->read_(CSE7761_REG_HFCONST, 2, &hf_const)) {
+      ESP_LOGW(TAG, "HFConst read failed, energy unavailable");
+    }
+    for (uint8_t channel = 0; channel < 2; channel++) {
+      uint32_t scale = this->data_.coefficient[ENERGY_AC + channel] * hf_const;
+      this->energy_[channel].wh_per_pulse = static_cast<float>(scale) * CSE7761_ENERGY_WH_SCALE;
+    }
   }
 
   this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_ENABLE_WRITE);
 
   uint8_t sys_status = this->read_(CSE7761_REG_SYSSTATUS, 1);
   if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
-
-    // SYSCON (0x00): See cse7761_registers.md for full bit-field reference.
-    // Dual R3:  0xFF04 -- ADC2ON=1, PGAIB=16x, PGAU=1x, PGAIA=16x (shunt resistor, needs amplification)
-    // POW CT:   0xFE00 -- ADC2ON=1, PGAIB=1x,  PGAU=1x, PGAIA=1x  (current transformer, no amplification)
-    if (this->data_.model == CSE7761_MODEL_SONOFF_POWCT) {
-      this->write_(CSE7761_REG_SYSCON | 0x80, 0xFE00);
-    } else {
-      this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
-    }
-
-    // EMUCON (0x01): See cse7761_registers.md for full bit-field reference.
-    // 0x1183 -- Tsensor off, comparator off, Pmode=00 (algebraic sum), ZXD1=1 (both zero crossings),
-    //           ZXD0=0 (positive), HPF enabled for all channels, PBRUN=1, PARUN=1
+    this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
     this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
-
-    // EMUCON2 (0x13): See cse7761_registers.md for full bit-field reference.
-    // 0x0FE5 -- Energy not cleared after read (UART mode), DUPSEL=27.3Hz, CHS_IB=current,
-    //           PfactorEN=1, WaveEN=1, ZxEN=1 (required for frequency measurement)
-    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FE5);
-
-    // PULSE1SEL (0x1D): Left at default 0x3210. Not written.
-    // Uncomment below to output voltage zero-crossing signal on Pulse2 pin (P2Sel=0x9):
-    // this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
-
+    // WaveEN|ZxEN, needed for Ufreq
+    this->write_(CSE7761_REG_EMUCON2 | 0x80, this->frequency_sensor_ != nullptr ? 0x0FE5 : 0x0FC1);
+    this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
   } else {
     ESP_LOGD(TAG, "Write failed at chip_init");
     return false;
@@ -227,13 +221,10 @@ void CSE7761Component::get_data_() {
   // The effective value of current and voltage Rms is a 24-bit signed number,
   // the highest bit is 0 for valid data,
   //   and when the highest bit is 1, the reading will be processed as zero
-  // The active power parameter PowerA/B is in two's complement format, 32-bit
+  // The active power parameter PowerA/B is in two’s complement format, 32-bit
   // data, the highest bit is Sign bit.
   uint32_t value = this->read_(CSE7761_REG_RMSU, 3);
   this->data_.voltage_rms = (value >= 0x800000) ? 0 : value;
-
-  value = this->read_(CSE7761_REG_UFREQ, 2);
-  this->data_.frequency = (value >= 0x8000) ? 0 : value;
 
   value = this->read_(CSE7761_REG_RMSIA, 3);
   this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
@@ -254,9 +245,17 @@ void CSE7761Component::get_data_() {
     this->voltage_sensor_->publish_state(voltage);
   }
 
-  if (this->frequency_sensor_ != nullptr) {
-    float freq = (this->data_.frequency) ? ((float) CSE7761_FREF / 8 / this->data_.frequency) : 0;  // Hz
-    this->frequency_sensor_->publish_state(freq);
+  uint32_t raw_reg = 0;
+  if (this->frequency_sensor_ != nullptr && this->read_(CSE7761_REG_UFREQ, 2, &raw_reg)) {
+    // Ufreq highest bit set means no signal
+    float frequency = (raw_reg == 0 || raw_reg >= 0x8000) ? 0.0f : CSE7761_UFREQ_CLOCK / raw_reg;
+    this->frequency_sensor_->publish_state(frequency);
+  }
+
+  if (this->power_factor_sensor_1_ != nullptr && this->read_(CSE7761_REG_POWERFACTOR, 3, &raw_reg)) {
+    // ADC2ON makes the chip report channel A
+    int24_t pf{static_cast<int32_t>(raw_reg)};
+    this->power_factor_sensor_1_->publish_state(static_cast<float>(static_cast<int32_t>(pf)) / 0x800000);
   }
 
   for (uint8_t channel = 0; channel < 2; channel++) {
@@ -265,6 +264,16 @@ void CSE7761Component::get_data_() {
         static_cast<float>(this->data_.active_power[channel]) / this->coefficient_by_unit_(POWER_PAC);        // W
     float amps = static_cast<float>(this->data_.current_rms[channel]) / this->coefficient_by_unit_(RMS_IAC);  // A
     ESP_LOGD(TAG, "Channel %d power %f W, current %f A", channel + 1, active_power, amps);
+    sensor::Sensor *energy_sensor = this->energy_sensors_[channel];
+    CSE7761EnergyChannel &energy = this->energy_[channel];
+    uint8_t energy_reg = (channel == 0) ? CSE7761_REG_ENERGY_PA : CSE7761_REG_ENERGY_PB;
+    uint32_t raw = 0;
+    if (energy_sensor != nullptr && energy.wh_per_pulse > 0.0f && this->read_(energy_reg, 3, &raw)) {
+      // 24-bit counter, not cleared on read
+      energy.pulses += (raw - energy.last_pulses) & 0xFFFFFF;
+      energy.last_pulses = raw;
+      energy_sensor->publish_state(energy.pulses * energy.wh_per_pulse);
+    }
     if (channel == 0) {
       if (this->power_sensor_1_ != nullptr) {
         this->power_sensor_1_->publish_state(active_power);

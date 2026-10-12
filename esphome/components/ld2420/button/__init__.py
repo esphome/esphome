@@ -52,20 +52,9 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2420_component = await cg.get_variable(config[CONF_LD2420_ID])
-    if apply_config := config.get(CONF_APPLY_CONFIG):
-        b = await button.new_button(apply_config)
-        await cg.register_parented(b, config[CONF_LD2420_ID])
-        cg.add(ld2420_component.set_apply_config_button(b))
-    if revert_config := config.get(CONF_REVERT_CONFIG):
-        b = await button.new_button(revert_config)
-        await cg.register_parented(b, config[CONF_LD2420_ID])
-        cg.add(ld2420_component.set_revert_config_button(b))
-    if restart_config := config.get(CONF_RESTART_MODULE):
-        b = await button.new_button(restart_config)
-        await cg.register_parented(b, config[CONF_LD2420_ID])
-        cg.add(ld2420_component.set_restart_module_button(b))
-    if factory_reset := config.get(CONF_FACTORY_RESET):
-        b = await button.new_button(factory_reset)
-        await cg.register_parented(b, config[CONF_LD2420_ID])
-        cg.add(ld2420_component.set_factory_reset_button(b))
+    hub = await cg.get_variable(config[CONF_LD2420_ID])
+    buttons = button.sub_buttons(config, parent=hub)
+    await buttons(CONF_APPLY_CONFIG, hub.set_apply_config_button)
+    await buttons(CONF_REVERT_CONFIG, hub.set_revert_config_button)
+    await buttons(CONF_RESTART_MODULE, hub.set_restart_module_button)
+    await buttons(CONF_FACTORY_RESET, hub.set_factory_reset_button)

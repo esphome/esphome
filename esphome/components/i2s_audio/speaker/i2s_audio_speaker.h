@@ -129,6 +129,9 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @brief Stops the I2S driver and unlocks the I2S port
   void stop_i2s_driver_();
 
+  /// @brief Detaches dout from the I2S signal and drives it low
+  void park_dout_pin_();
+
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
 

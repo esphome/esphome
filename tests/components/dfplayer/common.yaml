@@ -1,20 +1,32 @@
 esphome:
   on_boot:
     then:
+      - dfplayer.play_mp3: 3
+      - dfplayer.play_mp3: !lambda "return id(dfplayer_test).is_playing() ? 2 : 1;"
       - dfplayer.play: 5
       - dfplayer.play:
           file: 4
           loop: true
+      - dfplayer.play:
+          file: !lambda "return id(dfplayer_test).is_playing() ? 2 : 1;"
+          loop: !lambda return !id(dfplayer_test).is_playing();
       - dfplayer.play_folder:
           folder: 1
           file: 3
       - dfplayer.play_folder:
           folder: 1
           loop: true
+      - dfplayer.play_folder:
+          folder: !lambda "return id(dfplayer_test).is_playing() ? 2 : 1;"
+          file: !lambda "return id(dfplayer_test).is_playing() ? 4 : 3;"
+          loop: !lambda return !id(dfplayer_test).is_playing();
       - dfplayer.set_device:
           device: TF_CARD
+      - dfplayer.set_device: USB
       - dfplayer.set_volume: 5
+      - dfplayer.set_volume: !lambda "return id(dfplayer_test).is_playing() ? 10 : 5;"
       - dfplayer.set_eq: ROCK
+      - dfplayer.set_eq: !lambda "return id(dfplayer_test).is_playing() ? dfplayer::JAZZ : dfplayer::BASS;"
       - dfplayer.play_next
       - dfplayer.play_previous
       - dfplayer.reset

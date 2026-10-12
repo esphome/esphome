@@ -117,23 +117,6 @@ template<bool Forward, typename... Ts> class LightEffectCycleAction final : publ
   bool include_none_{false};
 };
 
-template<typename... Ts> class LightIsOnCondition final : public Condition<Ts...> {
- public:
-  explicit LightIsOnCondition(LightState *state) : state_(state) {}
-  bool check(const Ts &...x) override { return this->state_->current_values.is_on(); }
-
- protected:
-  LightState *state_;
-};
-template<typename... Ts> class LightIsOffCondition final : public Condition<Ts...> {
- public:
-  explicit LightIsOffCondition(LightState *state) : state_(state) {}
-  bool check(const Ts &...x) override { return !this->state_->current_values.is_on(); }
-
- protected:
-  LightState *state_;
-};
-
 class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListener {
  public:
   explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {

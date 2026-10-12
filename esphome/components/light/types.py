@@ -4,6 +4,7 @@ import esphome.codegen as cg
 # Base
 light_ns = cg.esphome_ns.namespace("light")
 LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
+GammaTable = light_ns.struct("GammaTable")
 LightStateRef = LightState.operator("ref")
 AddressableLightState = light_ns.class_("AddressableLightState", LightState)
 LightOutput = light_ns.class_("LightOutput")
@@ -44,8 +45,6 @@ ToggleAction = light_ns.class_("ToggleAction", automation.Action)
 LightEffectCycleAction = light_ns.class_("LightEffectCycleAction", automation.Action)
 DimRelativeAction = light_ns.class_("DimRelativeAction", automation.Action)
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)
-LightIsOnCondition = light_ns.class_("LightIsOnCondition", automation.Condition)
-LightIsOffCondition = light_ns.class_("LightIsOffCondition", automation.Condition)
 
 # Triggers
 LightTurnOnTrigger = light_ns.class_(

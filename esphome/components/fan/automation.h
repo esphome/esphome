@@ -6,24 +6,6 @@
 
 namespace esphome::fan {
 
-template<typename... Ts> class TurnOffAction final : public Action<Ts...> {
- public:
-  explicit TurnOffAction(Fan *state) : state_(state) {}
-
-  void play(const Ts &...x) override { this->state_->turn_off().perform(); }
-
-  Fan *state_;
-};
-
-template<typename... Ts> class ToggleAction final : public Action<Ts...> {
- public:
-  explicit ToggleAction(Fan *state) : state_(state) {}
-
-  void play(const Ts &...x) override { this->state_->toggle().perform(); }
-
-  Fan *state_;
-};
-
 template<typename... Ts> class CycleSpeedAction final : public Action<Ts...> {
  public:
   explicit CycleSpeedAction(Fan *state) : state_(state) {}
@@ -65,23 +47,6 @@ template<typename... Ts> class CycleSpeedAction final : public Action<Ts...> {
     }
   }
 
-  Fan *state_;
-};
-
-template<typename... Ts> class FanIsOnCondition final : public Condition<Ts...> {
- public:
-  explicit FanIsOnCondition(Fan *state) : state_(state) {}
-  bool check(const Ts &...x) override { return this->state_->state; }
-
- protected:
-  Fan *state_;
-};
-template<typename... Ts> class FanIsOffCondition final : public Condition<Ts...> {
- public:
-  explicit FanIsOffCondition(Fan *state) : state_(state) {}
-  bool check(const Ts &...x) override { return !this->state_->state; }
-
- protected:
   Fan *state_;
 };
 

@@ -27,6 +27,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nohat"]
+DOMAIN = "event"
 IS_PLATFORM_COMPONENT = True
 
 DEVICE_CLASSES = [
@@ -97,7 +98,9 @@ async def setup_event_core_(
 ) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    cg.add(var.set_event_types(event_types))
+    if event_types:
+        table = cg.shared_progmem_array("event_types", cg.const_char_ptr, event_types)
+        cg.add(var.set_event_types_static(table, len(event_types)))
 
     setup_device_class(config)
 
@@ -133,10 +136,17 @@ TRIGGER_EVENT_SCHEMA = cv.Schema(
 )
 
 
+def _event_type_literal(config: ConfigType, value: str) -> str:
+    """A constant event type is a plain literal; trigger() only compares it, so no copy is needed."""
+    return str(cg.safe_exp(value))
+
+
 automation.register_apply_action(
     "event.trigger",
     TRIGGER_EVENT_SCHEMA,
-    automation.ApplyField(CONF_EVENT_TYPE, "trigger", cg.std_string),
+    automation.ApplyField(
+        CONF_EVENT_TYPE, "trigger", cg.std_string, _event_type_literal
+    ),
 )
 
 

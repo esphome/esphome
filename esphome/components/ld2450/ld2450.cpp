@@ -16,7 +16,7 @@
 
 namespace esphome::ld2450 {
 
-static const char *const TAG = "ld2450";
+ESPHOME_LOG_TAG(TAG, "ld2450");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
