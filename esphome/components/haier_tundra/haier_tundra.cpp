@@ -2,6 +2,9 @@
 
 namespace esphome::haier_tundra {
 
+// Number of bytes in decoded packet sans checksum
+static constexpr uint8_t HAIER_TUNDRA_FRAME_SIZE = 13;
+
 void HaierTundra::transmit_state() {
   remote_base::HaierData remote_state{{
       HAIER_HEADER_UNIT_A,
@@ -121,6 +124,11 @@ bool HaierTundra::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 bool HaierTundra::on_haier_(const remote_base::HaierData &haier) {
+  // Verify frame length and header - only unit A supported currently
+  if (haier.data.size() != HAIER_TUNDRA_FRAME_SIZE || haier.data[0] != HAIER_HEADER_UNIT_A) {
+    return false;
+  }
+
   this->target_temperature = this->get_temperature_(haier.data[1] >> 4);
   this->swing_mode = this->get_swing_mode_(haier.data[1] & 0xF, haier.data[2] >> 5);
   this->health_mode_ = haier.data[3] & 0x2;
