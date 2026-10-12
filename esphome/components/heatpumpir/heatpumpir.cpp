@@ -110,9 +110,6 @@ void HeatpumpIRClimate::setup() {
     return;
   }
   this->heatpump_ir_ = protocol_constructor->second();
-  if (this->is_mitsubishi_heavy_()) {
-    this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
-  }
   climate_ir::ClimateIR::setup();
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
@@ -130,24 +127,9 @@ void HeatpumpIRClimate::setup() {
   }
 }
 
-bool HeatpumpIRClimate::is_mitsubishi_heavy_() const {
-  return this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZJ || this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZMP;
-}
-
-uint8_t HeatpumpIRClimate::mitsubishi_heavy_fan_speed_(uint8_t fan_speed_cmd) const {
-  const auto preset = this->preset.value_or(climate::CLIMATE_PRESET_NONE);
-  if (preset == climate::CLIMATE_PRESET_ECO)
-    return FAN_5;
-  if (preset == climate::CLIMATE_PRESET_BOOST)
-    return FAN_4;
-  // These models run low/medium/high on FAN_1 to FAN_3 and keep FAN_4 and FAN_5 for the presets
-  if (fan_speed_cmd == FAN_2 || fan_speed_cmd == FAN_3 || fan_speed_cmd == FAN_4)
-    return fan_speed_cmd - 1;
-  return fan_speed_cmd;
-}
-
 void HeatpumpIRClimate::control(const climate::ClimateCall &call) {
-  if (this->is_mitsubishi_heavy_() && call.get_fan_mode().has_value() && !call.get_preset().has_value())
+  // Picking a fan speed ends HiPower or Econo, as it does on the remote
+  if (this->has_fan_byte_presets_() && call.get_fan_mode().has_value() && !call.get_preset().has_value())
     this->preset = climate::CLIMATE_PRESET_NONE;
   climate_ir::ClimateIR::control(call);
 }
@@ -215,8 +197,9 @@ void HeatpumpIRClimate::transmit_state() {
   }
 
   // MitsubishiMSCHeatpumpIR only knows FAN_1..FAN_3 and sends anything else as auto,
-  // so low/medium/high have to start at FAN_1 there instead of FAN_2.
-  const bool three_speed_fan = this->protocol_ == PROTOCOL_MITSUBISHI_MSC;
+  // so low/medium/high have to start at FAN_1 there instead of FAN_2. Mitsubishi Heavy
+  // ZJ and ZMP also stop at FAN_3 and use FAN_4 and FAN_5 for HiPower and Econo.
+  const bool three_speed_fan = this->protocol_ == PROTOCOL_MITSUBISHI_MSC || this->has_fan_byte_presets_();
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed_cmd = three_speed_fan ? FAN_1 : FAN_2;
@@ -233,8 +216,17 @@ void HeatpumpIRClimate::transmit_state() {
       break;
   }
 
-  if (this->is_mitsubishi_heavy_()) {
-    fan_speed_cmd = this->mitsubishi_heavy_fan_speed_(fan_speed_cmd);
+  if (this->has_fan_byte_presets_()) {
+    switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
+      case climate::CLIMATE_PRESET_BOOST:
+        fan_speed_cmd = FAN_4;  // HiPower
+        break;
+      case climate::CLIMATE_PRESET_ECO:
+        fan_speed_cmd = FAN_5;  // Econo
+        break;
+      default:
+        break;
+    }
   }
 
   switch (this->mode) {
