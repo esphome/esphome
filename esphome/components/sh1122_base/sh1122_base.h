@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
@@ -47,7 +48,7 @@ class SH1122 : public display::DisplayBuffer {
   int get_height_internal() override;
   int get_width_internal() override;
   size_t get_buffer_length_();
-  const char *model_str_();
+  const LogString *model_str_();
 
   GPIOPin *reset_pin_{nullptr};
   float brightness_{1.0};

@@ -134,12 +134,12 @@ void SH1122::init_reset_() {
     this->reset_pin_->digital_write(true);
   }
 }
-const char *SH1122::model_str_() {
+const LogString *SH1122::model_str_() {
   switch (this->model_) {
     case SH1122_MODEL_256_64:
-      return "SH1122 256x64";
+      return LOG_STR("SH1122 256x64");
     default:
-      return "Unknown";
+      return LOG_STR("Unknown");
   }
 }
 

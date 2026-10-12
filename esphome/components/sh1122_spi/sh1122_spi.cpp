@@ -18,7 +18,7 @@ void SPISH1122::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Model: %s\n"
                 "  Initial Brightness: %.2f",
-                this->model_str_(), this->brightness_);
+                LOG_STR_ARG(this->model_str_()), this->brightness_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
