@@ -13,6 +13,16 @@ opentherm42:
   # reading before actually marking its entity Unknown, instead of flipping back and forth. 0 (the
   # default) marks it Unknown on the very first invalid response.
   max_data_invalid: 3
+  # Selects how this device talks to the boiler on the wire:
+  #   esp32_rmt (the default on ESP32 boards that have it): uses a dedicated hardware peripheral, which
+  #     avoids interference from other components that briefly disable interrupts (e.g. Dallas
+  #     temperature sensors). It's newer than esp_isr below and less proven in real installations so far.
+  #   esp_isr: a software, interrupt-driven implementation. The only option on ESP8266 and on ESP32
+  #     boards without the RMT peripheral, and the longer-proven of the two elsewhere. Pick this
+  #     explicitly if your other components have already claimed every RMT channel on your board, or if
+  #     you have Dallas temperature sensors (or similar) and run into communication errors with esp32_rmt.
+  # Leave unset to have the best option for your board chosen automatically.
+  # datalink: esp32_rmt
   # §5.2: how often this hub re-checks the boiler's mandatory status exchange. This always runs,
   # regardless of which entities below are configured.
   control_and_status_information_boiler_status_update_every: 1
