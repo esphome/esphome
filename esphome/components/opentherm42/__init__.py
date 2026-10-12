@@ -28,8 +28,10 @@ MULTI_CONF = True
 AUTO_LOAD = [
     "binary_sensor",
     "number",
+    "select",
     "sensor",
     "switch",
+    "text_sensor",
 ]
 
 CONF_IN_PIN = "in_pin"
@@ -54,6 +56,20 @@ CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_EVERY = (
     "control_and_status_information_boiler_status_update_every"
 )
 
+# Every id below drives more than one entity from a single conversation, so its update_every lives
+# here at the hub level rather than on any one entity -- see hub.h's Entry and the PR that
+# introduced these for the full catalog/naming rationale.
+CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY = (
+    "control_and_status_information_status_ventilation_heat_recovery_update_every"
+)
+CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_UPDATE_EVERY = (
+    "control_and_status_information_application_specific_fault_flags_update_every"
+)
+CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY = "control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_update_every"
+CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_EVERY = (
+    "control_and_status_information_solar_storage_mode_and_status_update_every"
+)
+
 # Every hub-level update_every option, with the default cadence (in passes) it takes when the user
 # doesn't override it -- see hub.h's Entry for what a pass/cadence means. All cv.Optional: none of
 # these need to be set at all unless you want a different cadence than the default, whether or not
@@ -68,6 +84,11 @@ CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_EVERY = (
 UPDATE_EVERY_OPTIONS: dict[str, int] = {
     # Tier 1: the spec's mandatory heartbeat.
     CONF_CONTROL_AND_STATUS_INFORMATION_BOILER_STATUS_UPDATE_EVERY: 1,
+    # Tier 4: status/fault-flag groups (event-driven, not continuously drifting).
+    CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY: 4,
+    CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_UPDATE_EVERY: 4,
+    CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY: 4,
+    CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_EVERY: 4,
 }
 
 opentherm42_ns = cg.esphome_ns.namespace("opentherm42")
