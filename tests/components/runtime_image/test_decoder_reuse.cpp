@@ -378,6 +378,13 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
 }
 
 TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
+  // Halving the 8x8 gradient keeps its even rows and columns. The words are JPEGDEC's output for those
+  // pixels, red in the top five bits: a decode of the fixture with PIL gives (51, 7, 30) for source
+  // pixel (2, 0), which is word 0x3803 here.
+  static const uint16_t EXPECTED[4 * 4] = {
+      0x0000, 0x3803, 0x8008, 0xB80B, 0x0203, 0x3A07, 0x81EC, 0xBA0F,
+      0x03E7, 0x3C0B, 0x83F0, 0xBC13, 0x05EC, 0x3E0F, 0x85F4, 0xBE17,
+  };
   TestableRuntimeImage rgb565_little_endian(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
   TestableRuntimeImage rgb565_big_endian(JPEG, image::IMAGE_TYPE_RGB565, true, 4, 4);
 
@@ -390,9 +397,9 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
 
   const uint8_t *little = rgb565_little_endian.get_data_start();
   const uint8_t *big = rgb565_big_endian.get_data_start();
-  for (size_t pos = 0; pos < 4 * 4 * 2; pos += 2) {
-    EXPECT_EQ(little[pos], big[pos + 1]) << "byte order mismatch at byte " << pos;
-    EXPECT_EQ(little[pos + 1], big[pos]) << "byte order mismatch at byte " << pos + 1;
+  for (size_t i = 0; i < 4 * 4; i++) {
+    EXPECT_EQ(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i]) << "little-endian pixel " << i;
+    EXPECT_EQ((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i]) << "big-endian pixel " << i;
   }
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG

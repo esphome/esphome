@@ -235,7 +235,7 @@ class RuntimeImage : public image::Image {
   /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
   bool external_buffer_{false};
 
-  friend class JpegDecoder;
+  friend class ImageDecoder;
 };
 
 }  // namespace esphome::runtime_image

@@ -2,6 +2,7 @@
 #ifdef USE_RUNTIME_IMAGE_JPEG
 
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/components/image/image.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -58,7 +59,7 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
       const uint16_t x2 = this->x_boundaries_[absolute_x + 1];
       const uint8_t *pixel = pixels + (source_y * w + source_x) * 2;
       for (uint16_t destination_y = y1; destination_y < y2; destination_y++) {
-        uint8_t *destination = this->image_->buffer_ + (destination_y * this->image_->get_buffer_width() + x1) * 2;
+        uint8_t *destination = this->image_buffer_() + (destination_y * this->image_->get_buffer_width() + x1) * 2;
         for (uint16_t destination_x = x1; destination_x < x2; destination_x++) {
           destination[0] = pixel[0];
           destination[1] = pixel[1];
@@ -92,14 +93,14 @@ static int draw_callback(JPEGDRAW *jpeg) {
 #ifdef USE_ESP_IDF
   }
 #endif
-  size_t position = 0;
-  size_t height = static_cast<size_t>(jpeg->iHeight);
-  size_t width = static_cast<size_t>(jpeg->iWidth);
   if (decoder->uses_direct_rgb565()) {
     decoder->draw_rgb565(jpeg->x, jpeg->y, jpeg->iWidth, jpeg->iHeight,
                          reinterpret_cast<const uint8_t *>(jpeg->pPixels));
     return 1;
   }
+  size_t position = 0;
+  size_t height = static_cast<size_t>(jpeg->iHeight);
+  size_t width = static_cast<size_t>(jpeg->iWidth);
   for (size_t y = 0; y < height; y++) {
     for (size_t x = 0; x < width; x++) {
       auto rg = decode_value(jpeg->pPixels[position++]);
@@ -140,7 +141,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   this->jpeg_.setUserPointer(this);
   this->direct_rgb565_ = this->image_->get_type() == image::IMAGE_TYPE_RGB565 && !this->image_->has_transparency();
   if (this->direct_rgb565_) {
-    this->jpeg_.setPixelType(this->image_->is_big_endian_ ? RGB565_BIG_ENDIAN : RGB565_LITTLE_ENDIAN);
+    this->jpeg_.setPixelType(this->image_is_big_endian_() ? RGB565_BIG_ENDIAN : RGB565_LITTLE_ENDIAN);
   } else {
     this->jpeg_.setPixelType(RGB8888);
   }
