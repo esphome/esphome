@@ -51,7 +51,7 @@ TEST(UpdateLock, IsHeldTracksOwnership) {
 
 class TestUpdateLock : public UpdateLock {
  public:
-  using UpdateLock::force_release_;
+  using UpdateLock::force_release;
 };
 
 TEST(UpdateLock, HoldUntilRebootOutlivesHolder) {
@@ -63,7 +63,7 @@ TEST(UpdateLock, HoldUntilRebootOutlivesHolder) {
   }
   UpdateLock next;
   EXPECT_FALSE(next.try_acquire());
-  TestUpdateLock::force_release_();
+  TestUpdateLock::force_release();
   EXPECT_TRUE(next.try_acquire());
 }
 

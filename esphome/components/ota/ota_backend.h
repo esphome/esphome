@@ -122,7 +122,7 @@ class UpdateLock {
 
  protected:
   /// Clears the lock whoever holds it. For tests only, to undo hold_until_reboot().
-  static void force_release_();
+  static void force_release();
 
   bool held_{false};
 };

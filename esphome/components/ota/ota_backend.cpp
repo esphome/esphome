@@ -67,7 +67,7 @@ void UpdateLock::release() {
   this->held_ = false;
 }
 
-void UpdateLock::force_release_() {
+void UpdateLock::force_release() {
   with_update_lock_mutex([]() {
     update_locked = false;
     return true;
