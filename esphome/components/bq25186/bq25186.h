@@ -26,8 +26,9 @@ static constexpr uint8_t BQ25186_REG_SYS_REG = 0x0A;
 static constexpr uint8_t BQ25186_REG_TS_CONTROL = 0x0B;
 static constexpr uint8_t BQ25186_REG_MASK_ID = 0x0C;
 static constexpr size_t BQ25186_CONFIG_REGISTER_COUNT = BQ25186_REG_MASK_ID - BQ25186_REG_VBAT_CTRL + 1;
-// STAT0, STAT1 and FLAG0, read together by every poll
-static constexpr size_t BQ25186_STATUS_REGISTER_COUNT = BQ25186_REG_FLAG0 - BQ25186_REG_STAT0 + 1;
+// STAT0 to IC_CTRL, read together by every poll: the status for the entities, then the configuration
+// registers, which show whether the chip was reset
+static constexpr size_t BQ25186_STATUS_REGISTER_COUNT = BQ25186_REG_IC_CTRL - BQ25186_REG_STAT0 + 1;
 
 // VBAT_CTRL pg_mode: the /PG pin is a general purpose output driven by SYS_REG pg_gpo_level
 static constexpr uint8_t BQ25186_VBAT_CTRL_PG_MODE = 0x80;
@@ -47,7 +48,7 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
 
   void set_setup_registers(const BQ25186ConfigRegisters &regs) {
-    this->setup_regs_ = regs;
+    this->regs_ = regs;
     this->configure_on_boot_ = true;
   }
   bool apply_config(const BQ25186ConfigRegisters &regs);
@@ -70,6 +71,8 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   bool write_register_(uint8_t reg, uint8_t value);
+  uint8_t expected_register_(size_t index) const;
+  bool config_matches_(const BQ25186StatusRegisters &regs) const;
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
 #ifdef BQ25186_BINARY_SENSOR_COUNT
@@ -81,8 +84,10 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_BQ25186_PG_GPO
   switch_::Switch *pg_gpo_switch_{nullptr};
 #endif
-  BQ25186ConfigRegisters setup_regs_{};
+  BQ25186ConfigRegisters regs_{};  // the configuration last applied, written again after a chip reset
   bool configure_on_boot_{false};
+  bool configured_{false};  // regs_ went to the chip at least once
+  bool pending_{false};     // a write failed; the warning stays until a poll puts it right
 };
 
 }  // namespace esphome::bq25186

@@ -37,26 +37,45 @@ bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value
   return this->write_register_(reg, reg_value);
 }
 
+uint8_t BQ25186Component::expected_register_(size_t index) const {
+  uint8_t value = this->regs_[index];
+#ifdef USE_BQ25186_PG_GPO
+  if (index == 0 && this->pg_gpo_switch_ != nullptr)
+    value |= BQ25186_VBAT_CTRL_PG_MODE;
+#endif
+  return value;
+}
+
+bool BQ25186Component::config_matches_(const BQ25186StatusRegisters &regs) const {
+  for (uint8_t reg = BQ25186_REG_VBAT_CTRL; reg <= BQ25186_REG_IC_CTRL; reg++) {
+    const size_t index = reg - BQ25186_REG_VBAT_CTRL;
+    const uint8_t mask = progmem_read_byte(&BQ25186_CONFIG_MASKS[index]);
+    if (((regs[reg] ^ this->expected_register_(index)) & mask) != 0)
+      return false;
+  }
+  return true;
+}
+
 bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
   // Setup rejects an unknown chip; the action must not program it before that check or after it failed
   if (!this->is_ready() || this->is_failed()) {
     ESP_LOGW(TAG, "Not applying configuration, setup has not succeeded");
     return false;
   }
+  this->regs_ = regs;
+  this->configured_ = true;
   for (size_t i = 0; i < regs.size(); i++) {
     const uint8_t reg = BQ25186_REG_VBAT_CTRL + i;
     const uint8_t mask = progmem_read_byte(&BQ25186_CONFIG_MASKS[i]);
-    uint8_t value = regs[i];
-#ifdef USE_BQ25186_PG_GPO
-    if (reg == BQ25186_REG_VBAT_CTRL && this->pg_gpo_switch_ != nullptr)
-      value |= BQ25186_VBAT_CTRL_PG_MODE;
-#endif
+    const uint8_t value = this->expected_register_(i);
     const bool ok = mask == 0xFF ? this->write_register_(reg, value) : this->update_register_(reg, mask, value);
     if (!ok) {
+      this->pending_ = true;
       this->status_set_warning(LOG_STR("Configuration partly applied"));
       return false;
     }
   }
+  this->pending_ = false;
   this->status_clear_warning();
   return true;
 }
@@ -79,13 +98,15 @@ void BQ25186Component::setup() {
   // A failed write only sets the warning status: the chip has identified itself, so a later
   // apply_configuration may retry
   if (this->configure_on_boot_)
-    this->apply_config(this->setup_regs_);
+    this->apply_config(this->regs_);
 #ifdef USE_BQ25186_PG_GPO
   if (this->pg_gpo_switch_ != nullptr) {
     // apply_config sets pg_mode when it runs
     if (!this->configure_on_boot_ &&
-        !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE))
+        !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE)) {
+      this->pending_ = true;
       this->status_set_warning(LOG_STR("PG/GPO pin not in output mode"));
+    }
     uint8_t sys_reg;
     auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
     if (initial.has_value()) {
@@ -93,6 +114,7 @@ void BQ25186Component::setup() {
     } else if (this->read_byte(BQ25186_REG_SYS_REG, &sys_reg)) {
       this->pg_gpo_switch_->publish_state((sys_reg & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0);
     } else {
+      this->pending_ = true;
       this->status_set_warning(LOG_STR("PG/GPO level read failed"));
     }
   }
@@ -108,7 +130,20 @@ void BQ25186Component::update() {
     this->status_set_warning(LOG_STR("Status read failed"));
     return;
   }
-  this->status_clear_warning();
+  // A watchdog or hardware reset puts the power-on values back; the configuration is written again
+  if (this->configured_ && !this->config_matches_(status)) {
+    ESP_LOGW(TAG, "Configuration registers changed, the chip was reset; applying the configuration again");
+    this->apply_config(this->regs_);
+  }
+#ifdef USE_BQ25186_PG_GPO
+  else if (this->pg_gpo_switch_ != nullptr && (status[BQ25186_REG_VBAT_CTRL] & BQ25186_VBAT_CTRL_PG_MODE) == 0) {
+    // Nothing was configured at boot, so only the pin mode is put back
+    this->pending_ =
+        !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE);
+  }
+#endif
+  if (!this->pending_)
+    this->status_clear_warning();
 #ifdef BQ25186_BINARY_SENSOR_COUNT
   for (auto *sensor : this->binary_sensors_)
     sensor->on_status(status);
