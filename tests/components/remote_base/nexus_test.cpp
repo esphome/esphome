@@ -62,9 +62,15 @@ TEST(NexusProtocolTest, RoundTripsWithoutTrailingSync) {
 TEST(NexusProtocolTest, ClampsOutOfRangeTemperature) {
   auto decoded = decode(encode(NexusData{.temperature = 300.0f, .channel = 1}));
   ASSERT_TRUE(decoded.has_value());
+  if (!decoded.has_value()) {
+    return;
+  }
   EXPECT_FLOAT_EQ(decoded->temperature, 204.7f);
   decoded = decode(encode(NexusData{.temperature = NAN, .channel = 1}));
   ASSERT_TRUE(decoded.has_value());
+  if (!decoded.has_value()) {
+    return;
+  }
   EXPECT_FLOAT_EQ(decoded->temperature, 0.0f);
 }
 
