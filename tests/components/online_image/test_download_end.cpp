@@ -159,7 +159,7 @@ TEST_F(OnlineImageDownloadEnd, NoDataTimeoutStartsAfterRequest) {
   EXPECT_EQ(this->errors_, 1);
 }
 
-// A JPEG too big for the heap must fail, and leave the configured buffer for the next download.
+// A JPEG too big for the heap must fail, and the next download must get the configured buffer back.
 TEST_F(OnlineImageDownloadEnd, JpegBufferAllocationFailureReportsError) {
   auto image = this->make_image_(runtime_image::JPEG);
   auto huge = std::make_shared<FakeContainer>(std::vector<uint8_t>(16), 16, false);

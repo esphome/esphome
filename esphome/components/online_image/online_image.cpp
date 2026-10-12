@@ -52,6 +52,13 @@ void OnlineImage::update() {
     return;
   }
 
+  // A failed allocation at boot, or while growing the buffer for a JPEG, leaves no download buffer
+  if (this->download_buffer_.size() == 0 && this->download_buffer_.resize(this->download_buffer_initial_size_) == 0) {
+    // resize() logged the failed allocation
+    this->download_error_callback_.call();
+    return;
+  }
+
   ESP_LOGD(TAG, "Updating image from %s", this->url_.c_str());
 
   std::vector<http_request::Header> headers;
@@ -136,8 +143,7 @@ void OnlineImage::update() {
   // JPEG requires the complete image in the download buffer before decoding
   if (format == runtime_image::JPEG && total_size > this->download_buffer_.size() &&
       this->download_buffer_.resize(total_size) == 0) {
-    // resize() logged the failed allocation; get the configured buffer back for later downloads
-    this->download_buffer_.resize(this->download_buffer_initial_size_);
+    // resize() logged the failed allocation; the next update() allocates the configured buffer again
     this->end_connection_();
     this->download_error_callback_.call();
     return;
