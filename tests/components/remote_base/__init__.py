@@ -15,6 +15,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "keeloq",
             "nexus",
             "nec",
+            "rc5x",
         ):
             request_protocol(protocol)
 
