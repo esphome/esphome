@@ -7,16 +7,18 @@
 
 namespace esphome::heatpumpir {
 
-void decode_mitsubishi_heavy_zmp(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH], HeatpumpIRClimate &climate) {
-  // Fan speed sits in bits 7:5 of byte 7; the vertical swing code spans bit 1 of byte 5 and bits 4:3 of byte 7
-  constexpr uint8_t BYTE_SWING_H = 5;
-  constexpr uint8_t BYTE_FAN = 7;
-  constexpr uint8_t FAN_SPEED_MASK = 0xE0;
-  constexpr uint8_t HORIZONTAL_SWING_MASK = 0xDC;
-  constexpr uint8_t HORIZONTAL_SWING_ACTIVE = 0x5C;
-  constexpr uint8_t VS_MASK_BYTE5 = 0x02;
-  constexpr uint8_t VS_MASK_BYTE7 = 0x18;
+// Fan speed sits in bits 7:5 of byte 7; the vertical swing code spans bit 1 of byte 5 and bits 4:3 of byte 7
+static constexpr uint8_t BYTE_SWING_H = 5;
+static constexpr uint8_t BYTE_FAN = 7;
+static constexpr uint8_t FAN_SPEED_MASK = 0xE0;
+static constexpr uint8_t VS_MASK_BYTE5 = 0x02;
+static constexpr uint8_t VS_MASK_BYTE7 = 0x18;
+// The library has no horizontal swing for ZMP and always sends MITSUBISHI_HEAVY_ZMP_HS_STOP (0xCC) in byte 5.
+// Captures of the remote show 0x5C while it swings; the mask leaves out the vertical swing and clean bits.
+static constexpr uint8_t HORIZONTAL_SWING_MASK = 0xDC;
+static constexpr uint8_t HORIZONTAL_SWING_ACTIVE = 0x5C;
 
+void decode_mitsubishi_heavy_zmp(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH], HeatpumpIRClimate &climate) {
   uint8_t fan = frame[BYTE_FAN] & FAN_SPEED_MASK;
   climate.preset = climate::CLIMATE_PRESET_NONE;
   switch (fan) {
