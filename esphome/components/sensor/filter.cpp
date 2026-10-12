@@ -509,6 +509,9 @@ optional<float> RHCorrectionFilter::new_value(float value) {
     offset /= 1.8f;
   }
   const float tnc = tc - offset;
+  // A NaN temperature or offset is a faulted input: keep the last corrected value
+  if (std::isnan(tnc))
+    return {};
   if (!rh_correction_temp_in_band(tc) || !rh_correction_temp_in_band(tnc)) {
     if (!this->warned_) {
       ESP_LOGW(TAG, "RHCorrectionFilter(%p): Temperature out of range -40..50 °C. Tc=%f Tnc=%f", this, tc, tnc);
