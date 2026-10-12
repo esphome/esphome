@@ -310,6 +310,16 @@ bool MQTTClimateComponent::publish_state_() {
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
   char payload[VALUE_ACCURACY_MAX_LEN];
   size_t len;
+  auto publish_target_temperature = [this, &success, &payload, &len, target_accuracy](StringRef topic, float value) {
+    if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value)) {
+      if (!this->publish(topic, "None", 4))
+        success = false;
+      return;
+    }
+    len = value_accuracy_to_buf(payload, value, target_accuracy);
+    if (!this->publish(topic, payload, len))
+      success = false;
+  };
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE) &&
       !std::isnan(this->device_->current_temperature)) {
     len = value_accuracy_to_buf(payload, this->device_->current_temperature, current_accuracy);
@@ -318,16 +328,13 @@ bool MQTTClimateComponent::publish_state_() {
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature_low, target_accuracy);
-    if (!this->publish(this->get_target_temperature_low_state_topic_to(topic_buf), payload, len))
-      success = false;
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature_high, target_accuracy);
-    if (!this->publish(this->get_target_temperature_high_state_topic_to(topic_buf), payload, len))
-      success = false;
+    publish_target_temperature(this->get_target_temperature_low_state_topic_to(topic_buf),
+                               this->device_->target_temperature_low);
+    publish_target_temperature(this->get_target_temperature_high_state_topic_to(topic_buf),
+                               this->device_->target_temperature_high);
   } else {
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature, target_accuracy);
-    if (!this->publish(this->get_target_temperature_state_topic_to(topic_buf), payload, len))
-      success = false;
+    publish_target_temperature(this->get_target_temperature_state_topic_to(topic_buf),
+                               this->device_->target_temperature);
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY) &&
