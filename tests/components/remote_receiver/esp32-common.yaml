@@ -26,3 +26,8 @@ binary_sensor:
     name: Hob2Hood Light On
     hob2hood:
       command: light_on
+  - platform: remote_receiver
+    name: Nexus Sensor
+    nexus:
+      channel: 1
+      address: 0x42
