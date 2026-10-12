@@ -1,3 +1,4 @@
+import logging
 import re
 
 from esphome import automation, pins
@@ -38,6 +39,8 @@ from .const import (
 )
 from .sensors import SENSOR_FORMATS
 
+_LOGGER = logging.getLogger(__name__)
+
 DOMAIN = "mipi_csi"
 CODEOWNERS = ["@Horstexplorer"]
 
@@ -69,6 +72,22 @@ PIXEL_FORMATS = {
 _RESOLUTION_PATTERN = re.compile(r"^\s*(\d+)\s*[xX]\s*(\d+)\s*$")
 
 
+def validate_sensor(value: str) -> str:
+    """Accepts a built-in sensor, or the name of one whose driver comes from another IDF component."""
+    value = cv.string_strict(value).strip().upper()
+    if not value:
+        raise cv.Invalid("Sensor name must not be empty")
+    if value not in SENSOR_FORMATS:
+        _LOGGER.warning(
+            "Sensor '%s' is not built into esp_cam_sensor. Its driver must come from another "
+            "IDF component (for example under esp32: framework: components:). Built-in "
+            "sensors are: %s",
+            value,
+            ", ".join(SENSOR_FORMATS),
+        )
+    return value
+
+
 def validate_resolution(value: str) -> tuple[int, int]:
     """Parses a `WIDTHxHEIGHT` resolution into a pair of pixel counts."""
     value = cv.string(value)
@@ -90,7 +109,7 @@ CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(MipiCsiCamera),
-            cv.Required(CONF_SENSOR): cv.one_of(*SENSOR_FORMATS, upper=True),
+            cv.Required(CONF_SENSOR): validate_sensor,
             cv.Optional(CONF_RESOLUTION): validate_resolution,
             cv.Optional(CONF_PIXEL_FORMAT, default="RGB565"): cv.enum(
                 PIXEL_FORMATS, upper=True
@@ -206,9 +225,10 @@ def _add_idf_config(config: ConfigType) -> None:
     add_idf_component(name="espressif/esp_ipa", ref="2.4.0")
 
     sensor = config[CONF_SENSOR]
-    add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}", True)
-    for format_option in SENSOR_FORMATS[sensor]:
-        add_idf_sdkconfig_option(f"CONFIG_{format_option}", True)
+    if (formats := SENSOR_FORMATS.get(sensor)) is not None:
+        add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}", True)
+        for format_option in formats:
+            add_idf_sdkconfig_option(f"CONFIG_{format_option}", True)
 
     for option, value in {
         # The MIPI-CSI capture path is the only one used. DVP defaults to on, so turn it off; SPI
