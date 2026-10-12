@@ -322,6 +322,9 @@ def _protocol_field(
     return automation.ApplyField(key, f"data.{member} = {{}}", type_)
 
 
+_BYTES = cg.std_vector.template(cg.uint8)
+
+
 def _code_table(config: ConfigType, value: list[int]) -> str:
     # Constant codes share one PROGMEM table pool across the remote protocols
     return f"{automation.progmem_bytes('remote_base_code', value)}, {len(value)}"
@@ -333,9 +336,7 @@ def _bytes_field(conf_key: str, target: str) -> automation.ApplyField:
     The callee must take both ``(const uint8_t *, size_t)``, reading it as PROGMEM, and
     ``const std::vector<uint8_t> &``.
     """
-    return automation.ApplyField(
-        conf_key, target, cg.std_vector.template(cg.uint8), const_fn=_code_table
-    )
+    return automation.ApplyField(conf_key, target, _BYTES, const_fn=_code_table)
 
 
 def register_protocol_action(
@@ -2476,7 +2477,7 @@ register_protocol_action(
         "encode({}, {})",
         (
             (CONF_ADDRESS, cg.uint16),
-            (CONF_DATA, cg.std_vector.template(cg.uint8), _code_table),
+            (CONF_DATA, _BYTES, _code_table),
         ),
     ),
     call="encode_call",
