@@ -226,7 +226,8 @@ void HaierTundra::set_quiet_mode(bool quiet, bool transmit) {
   }
 
   this->quiet_mode_ = quiet;
-  if (transmit) this->transmit_(HAIER_BUTTON_TURBO_QUIET);
+  if (transmit)
+    this->transmit_(HAIER_BUTTON_TURBO_QUIET);
 }
 
 void HaierTundra::set_turbo_mode(bool turbo, bool transmit) {
@@ -241,7 +242,8 @@ void HaierTundra::set_turbo_mode(bool turbo, bool transmit) {
   }
 
   this->turbo_mode_ = turbo;
-  if (transmit) this->transmit_(HAIER_BUTTON_TURBO_QUIET);
+  if (transmit)
+    this->transmit_(HAIER_BUTTON_TURBO_QUIET);
 }
 
 void HaierTundra::toggle_light() {
