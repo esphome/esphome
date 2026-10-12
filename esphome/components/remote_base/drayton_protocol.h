@@ -26,19 +26,4 @@ class DraytonProtocol : public RemoteProtocol<DraytonData> {
 
 DECLARE_REMOTE_PROTOCOL(Drayton)
 
-template<typename... Ts> class DraytonAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint8_t, channel)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    DraytonData data{};
-    data.address = this->address_.value(x...);
-    data.channel = this->channel_.value(x...);
-    data.command = this->command_.value(x...);
-    DraytonProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base
