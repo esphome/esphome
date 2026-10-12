@@ -6,6 +6,7 @@ from esphome.components.uart import (
     CONF_FLUSH_TIMEOUT,
     UARTComponent,
     UARTParityOptions,
+    mark_unclocked,
 )
 from esphome.components.usb_host import (
     get_max_packet_size,
@@ -162,7 +163,9 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.All(
+                                cv.declare_id(USBUartChannel), mark_unclocked
+                            ),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
