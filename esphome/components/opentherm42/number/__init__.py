@@ -20,6 +20,9 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY,
@@ -120,6 +123,38 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
         _number_schema("°C", -40, 127, 2, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": -40, "max_value": 127, "step": 0.1},
         23,
+    ),
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C,
+    # 0..127). A single number entity serves both directions -- see hub.h's RequestKind comment for
+    # why only a successful read ever updates what's displayed.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT: (
+        _number_schema("°C", 0, 127, 6, device_class=DEVICE_CLASS_TEMPERATURE),
+        {"min_value": 0, "max_value": 127, "step": 0.1},
+        56,
+    ),
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C,
+    # 0..127). Same read/write sharing as ID 56 above. An installation-time ceiling on ID 1's Control
+    # Setpoint, not something adjusted day-to-day, so CONFIG.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT: (
+        _number_schema(
+            "°C",
+            0,
+            127,
+            6,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": 0, "max_value": 127, "step": 0.1},
+        57,
+    ),
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
+    # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system. Same
+    # read/write sharing as ID 56 above. A fixed system parameter rather than a live demand, so
+    # CONFIG.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: (
+        _number_schema("%", 0, 100, 6, entity_category=ENTITY_CATEGORY_CONFIG),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        87,
     ),
 }
 
