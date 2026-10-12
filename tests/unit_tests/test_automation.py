@@ -36,12 +36,15 @@ from esphome.automation import (
     register_simple_condition,
     string_ref_literal,
     templatable_bytes,
+    validate_no_deferring_actions,
+    validate_synchronous_automation,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_AUTOMATION_ID, CONF_ID, CONF_THEN
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
+from esphome.types import ConfigType
 from esphome.util import Registry, RegistryEntry
 
 
@@ -211,6 +214,164 @@ def test_has_non_synchronous_actions_dict_input(
     """Direct dict input (single action)."""
     assert has_non_synchronous_actions({"delay": "1s"}) is True
     assert has_non_synchronous_actions({"logger.log": "hello"}) is False
+
+
+def test_has_non_synchronous_actions_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """An option that shares a name with a deferring action is not that action."""
+    actions = [{"logger.log": {"message": "hello", "delay": "1s"}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_nested_option_named_like_action(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Option keys in nested option dicts are not looked up as action names either."""
+    actions = [{"logger.log": {"settings": {"wait_until": {"condition": {}}}}}]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_option_named_like_action_inside_then(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": {"message": "hello", "delay": "1s"}}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_has_non_synchronous_actions_in_else(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """Action lists in any option of an action are searched, not only then:."""
+    actions = [
+        {
+            "if": {
+                "condition": {},
+                "then": [{"logger.log": "hello"}],
+                "else": [{"delay": "1s"}],
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is True
+
+
+def test_has_non_synchronous_actions_automation_dict(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """A single automation, as validate_automation(single=True) returns it."""
+    assert has_non_synchronous_actions({CONF_THEN: [{"delay": "1s"}]}) is True
+    assert has_non_synchronous_actions({CONF_THEN: [{"logger.log": "hi"}]}) is False
+
+
+def test_has_non_synchronous_actions_set_playlist_delay() -> None:
+    """speaker_source.set_playlist_delay is synchronous despite its delay: option."""
+    import esphome.components.speaker_source.media_player  # noqa: F401  # registers the action
+
+    actions = [
+        {
+            "speaker_source.set_playlist_delay": {
+                CONF_ID: "player",
+                "pipeline": 0,
+                "delay": 1000,
+            }
+        }
+    ]
+    assert has_non_synchronous_actions(actions) is False
+
+
+def test_validate_no_deferring_actions_accepts_synchronous(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    value = [{CONF_THEN: [{"logger.log": "hello"}]}]
+    assert validate_no_deferring_actions("on_test")(value) is value
+
+
+def test_validate_no_deferring_actions_accepts_lambda_form(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    """A returning lambda has no action list, so there is nothing to reject."""
+    value = Lambda("return true;")
+    assert validate_no_deferring_actions("on_test")(value) is value
+
+
+def test_validate_no_deferring_actions_rejects_deferring(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    validator = validate_no_deferring_actions("on_test", "the test data")
+    with pytest.raises(
+        cv.Invalid,
+        match=r"not allowed in on_test: the test data is only valid while",
+    ):
+        validator([{CONF_THEN: [{"logger.log": "hello"}, {"delay": "1s"}]}])
+
+
+def test_validate_no_deferring_actions_default_data(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    with pytest.raises(cv.Invalid, match=r"on_test: the trigger data is only valid"):
+        validate_no_deferring_actions("on_test")([{CONF_THEN: [{"delay": "1s"}]}])
+
+
+def test_validate_synchronous_automation_accepts_synchronous() -> None:
+    result = validate_synchronous_automation("on_test")(
+        [{CONF_THEN: [{"lambda": Lambda('ESP_LOGD("test", "ran");')}]}]
+    )
+    assert len(result) == 1
+
+
+def test_validate_synchronous_automation_rejects_deferring() -> None:
+    with pytest.raises(cv.Invalid, match="Deferring actions"):
+        validate_synchronous_automation("on_test")([{CONF_THEN: [{"delay": "1s"}]}])
+
+
+def test_validate_synchronous_automation_rejects_nested_deferring() -> None:
+    actions = [
+        {
+            "if": {
+                "condition": {"lambda": Lambda("return true;")},
+                CONF_THEN: [{"delay": "1s"}],
+            }
+        }
+    ]
+    with pytest.raises(cv.Invalid, match="Deferring actions"):
+        validate_synchronous_automation("on_test")([{CONF_THEN: actions}])
+
+
+def test_validate_synchronous_automation_passes_options() -> None:
+    """extra_schema and single are passed through to validate_automation()."""
+    validator = validate_synchronous_automation(
+        "on_test", extra_schema={cv.Optional("retry"): cv.string}, single=True
+    )
+    result = validator(
+        {"retry": "yes", CONF_THEN: [{"lambda": Lambda('ESP_LOGD("test", "ran");')}]}
+    )
+    assert isinstance(result, dict)
+    assert result["retry"] == "yes"
+    with pytest.raises(cv.Invalid, match="Deferring actions"):
+        validator({CONF_THEN: [{"delay": "1s"}]})
+
+
+def test_validate_synchronous_automation_passes_extra_validators() -> None:
+    """extra_validators is passed through to validate_automation() and runs on each automation."""
+    seen: list[ConfigType] = []
+
+    def extra_validator(value: ConfigType) -> ConfigType:
+        seen.append(value)
+        return value
+
+    validator = validate_synchronous_automation(
+        "on_test", extra_validators=extra_validator
+    )
+    validator([{CONF_THEN: [{"lambda": Lambda('ESP_LOGD("test", "ran");')}]}])
+    assert len(seen) == 1
+    assert CONF_THEN in seen[0]
 
 
 def _build_forwarder(

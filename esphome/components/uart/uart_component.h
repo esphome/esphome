@@ -18,6 +18,9 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
+  // Only USB serial adapters (usb_uart) support these
+  UART_CONFIG_PARITY_MARK,
+  UART_CONFIG_PARITY_SPACE,
 };
 
 #ifdef USE_UART_DEBUGGER
