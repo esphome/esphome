@@ -80,7 +80,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   /// Returns false for a data frame whose state byte is impossible, so it counts as dropped.
   bool handle_data_frame_(const uint8_t *payload, uint16_t len);
   void handle_command_ack_(const uint8_t *payload, uint16_t len);
-  void handle_parameters_(const uint8_t *values, uint16_t len);
+  bool handle_parameters_(const uint8_t *values, uint16_t len);
   void handle_version_(const uint8_t *values, uint16_t len);
   void count_dropped_frame_() {
     if (this->dropped_frames_ < UINT8_MAX) {

@@ -54,6 +54,8 @@ CONFIG_END_TX = "FD:FC:FB:FA:02:00:FE:00:04:03:02:01"
 INIT_TX = [
     CONFIG_START_TX,
     VERSION_READ_TX,
+    # The fixture cuts the first answer short, so the read goes out again
+    PARAMETERS_READ_TX,
     PARAMETERS_READ_TX,
     OUTPUT_MODE_TX,
     CONFIG_END_TX,
@@ -65,7 +67,11 @@ PARAMETERS_WRITE_TX = (
 )
 WRITE_TX = [CONFIG_START_TX, PARAMETERS_WRITE_TX, CONFIG_END_TX]
 # Logged once the version and parameter answers are parsed
-PARSED_ANSWERS = ["Firmware 1.2.3", "Parameters: gates 0 to 16, no delay 10 s"]
+PARSED_ANSWERS = [
+    "Firmware 1.2.3",
+    "Parameter answer too short (4 bytes)",
+    "Parameters: gates 0 to 16, no delay 10 s",
+]
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -148,7 +154,7 @@ async def test_uart_mock_ld2410s(
     def line_callback(line: str) -> None:
         if (frame := _tx_frame(line)) is not None:
             tx_frames.append(frame)
-            if len(tx_frames) >= 8 and not write_done.done():
+            if len(tx_frames) >= 9 and not write_done.done():
                 write_done.set_result(True)
         if "[ld2410s" in line and "Setup done" in line and not setup_done.done():
             setup_done.set_result(True)
@@ -183,7 +189,7 @@ async def test_uart_mock_ld2410s(
         except TimeoutError:
             pytest.fail(f"Init sequence did not finish. TX frames: {tx_frames}")
 
-        assert tx_frames[:5] == INIT_TX
+        assert tx_frames[:6] == INIT_TX
         assert parsed_answers == PARSED_ANSWERS
 
         entities, _ = await client.list_entities_services()
@@ -203,7 +209,7 @@ async def test_uart_mock_ld2410s(
             await asyncio.wait_for(write_done, 5.0)
         except TimeoutError:
             pytest.fail(f"Parameter write not sent. TX frames: {tx_frames}")
-        assert tx_frames[5:8] == WRITE_TX, tx_frames
+        assert tx_frames[6:9] == WRITE_TX, tx_frames
         assert number_states == [pytest.approx(7.0)]
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
@@ -217,7 +223,7 @@ async def test_uart_mock_ld2410s(
         # A target 300 cm away, then none: the distance follows the presence
         assert collector.sensor_states["distance"][:2] == [300, 0]
         # Data frames must not restart the init sequence
-        assert len(tx_frames) == 8, tx_frames
+        assert len(tx_frames) == 9, tx_frames
 
 
 @pytest.mark.asyncio

@@ -382,9 +382,12 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     // Leave the command pending so the timeout resends it
     ESP_LOGW(TAG, "Module rejected command %04X, ack %04X", command, ack);
     return;
-  } else if (command == PARAMETERS_READ_CMD) {
-    this->handle_parameters_(&payload[4], len - 4);
-  } else if (command == VERSION_READ_CMD) {
+  }
+  if (command == PARAMETERS_READ_CMD && !this->handle_parameters_(&payload[4], len - 4)) {
+    // A short answer leaves the read pending the same way, so init cannot finish without the values
+    return;
+  }
+  if (command == VERSION_READ_CMD) {
     this->handle_version_(&payload[4], len - 4);
   }
   this->awaiting_ack_ = false;
@@ -404,11 +407,11 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
   }
 }
 
-// The answer lists the parameter values in key order, 32 bits each
-void LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
+// The answer lists the parameter values in key order, 32 bits each; returns false when it is cut short
+bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
   if (len < PARAMETER_COUNT * PARAMETER_VALUE_SIZE) {
     ESP_LOGW(TAG, "Parameter answer too short (%u bytes)", len);
-    return;
+    return false;
   }
   // Every parameter fits the low byte of its little-endian value; writes stay refused otherwise,
   // so a cut-down value is never sent back
@@ -426,6 +429,7 @@ void LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
   ESP_LOGD(TAG, "Parameters: gates %u to %u, no delay %u s, frequencies %u/%u dHz, response speed %u",
            this->parameters_[1], this->parameters_[0], this->parameters_[2], this->parameters_[3], this->parameters_[4],
            this->parameters_[5]);
+  return true;
 }
 
 void LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
