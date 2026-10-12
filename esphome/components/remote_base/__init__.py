@@ -59,6 +59,7 @@ AUTO_LOAD = ["binary_sensor"]
 DOMAIN = "remote_base"
 
 
+CONF_ADDRESS_2 = "address_2"
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
@@ -67,6 +68,7 @@ CONF_SUFFIX_BITS = "suffix_bits"
 CONF_CONTROL = "control"
 CONF_CONTROL_IN_KEY = "control_in_key"
 CONF_ROLLING_CODE = "rolling_code"
+CONF_EXTENSION = "extension"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -951,16 +953,22 @@ MAGIQUEST_SCHEMA = cv.Schema(
     }
 )
 
+# A wand_id of 0 matches any wand. Magnitude is still accepted but not matched on.
+MAGIQUEST_BINARY_SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_WAND_ID, default=0): cv.hex_uint32_t,
+        cv.Optional(CONF_MAGNITUDE): cv.hex_uint16_t,
+    }
+)
 
-@register_binary_sensor("magiquest", MagiQuestBinarySensor, MAGIQUEST_SCHEMA)
+
+@register_binary_sensor(
+    "magiquest", MagiQuestBinarySensor, MAGIQUEST_BINARY_SENSOR_SCHEMA
+)
 def magiquest_binary_sensor(var, config):
     cg.add(
         var.set_data(
-            cg.StructInitializer(
-                MagiQuestData,
-                ("magnitude", config[CONF_MAGNITUDE]),
-                ("wand_id", config[CONF_WAND_ID]),
-            )
+            cg.StructInitializer(MagiQuestData, ("wand_id", config[CONF_WAND_ID]))
         )
     )
 
@@ -1068,7 +1076,8 @@ NEC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Required(CONF_COMMAND): cv.hex_uint16_t,
-        cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.uint16_t,
+        # Non-RMT transmitters hold an interrupt lock for the whole send, ~108 ms per extra repeat
+        cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.int_range(min=1, max=10),
     }
 )
 
@@ -1492,22 +1501,34 @@ async def raw_action(var, config, args):
 ) = declare_protocol("Drayton")
 DRAYTON_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
-        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Optional(CONF_DATA): cv.hex_int_range(min=0, max=0xF),
+        cv.Optional(CONF_CHANNEL): cv.hex_int_range(min=0, max=0x1F),
+        cv.Optional(CONF_COMMAND): cv.hex_int_range(min=0, max=0x7F),
     }
+)
+# The legacy command is the 4 data bits followed by this many checksum bits
+DRAYTON_NBITS_CHECKSUM_IN_COMMAND = 3
+# Either `data`, or the legacy `channel` + `command` pair (raw packet bits)
+_validate_drayton_form = cv.All(
+    cv.has_none_or_all_keys(CONF_CHANNEL, CONF_COMMAND),
+    cv.has_exactly_one_key(CONF_DATA, CONF_COMMAND),
 )
 
 
-@register_binary_sensor("drayton", DraytonBinarySensor, DRAYTON_SCHEMA)
+@register_binary_sensor(
+    "drayton", DraytonBinarySensor, cv.All(DRAYTON_SCHEMA, _validate_drayton_form)
+)
 def drayton_binary_sensor(var, config):
+    # Matching compares address and data only
+    if (command := config.get(CONF_COMMAND)) is not None:
+        data = command >> DRAYTON_NBITS_CHECKSUM_IN_COMMAND
+    else:
+        data = config[CONF_DATA]
     cg.add(
         var.set_data(
             cg.StructInitializer(
-                DraytonData,
-                ("address", config[CONF_ADDRESS]),
-                ("channel", config[CONF_CHANNEL]),
-                ("command", config[CONF_COMMAND]),
+                DraytonData, ("address", config[CONF_ADDRESS]), ("data", data)
             )
         )
     )
@@ -1528,8 +1549,10 @@ register_protocol_action(
     "Drayton",
     DRAYTON_SCHEMA,
     (CONF_ADDRESS, "address", cg.uint16),
+    (CONF_DATA, "data", cg.uint8),
     (CONF_CHANNEL, "channel", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
+    validate=_validate_drayton_form,
 )
 
 
@@ -1572,6 +1595,47 @@ register_protocol_action(
     RC5_SCHEMA,
     (CONF_ADDRESS, "address", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
+)
+
+
+# RC5X (aka RC5 Marantz)
+RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = declare_protocol("RC5X")
+RC5X_SCHEMA = RC5_SCHEMA.extend(
+    {cv.Required(CONF_EXTENSION): cv.hex_int_range(min=0, max=0x3F)}
+)
+
+
+@register_binary_sensor("rc5x", RC5XBinarySensor, RC5X_SCHEMA)
+def rc5x_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RC5XData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+                ("extension", config[CONF_EXTENSION]),
+            )
+        )
+    )
+
+
+@register_trigger("rc5x", RC5XTrigger, RC5XData)
+def rc5x_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("rc5x", RC5XDumper)
+def rc5x_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "rc5x",
+    "RC5X",
+    RC5X_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+    (CONF_EXTENSION, "extension", cg.uint8),
 )
 
 
@@ -2080,41 +2144,73 @@ register_protocol_action(
 ) = declare_protocol("Panasonic")
 PANASONIC_SCHEMA = cv.Schema(
     {
+        cv.Optional(CONF_NBITS, default=48): cv.one_of(48, 56, int=True),
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Optional(CONF_ADDRESS_2, default=0x00): cv.hex_uint8_t,
         cv.Required(CONF_COMMAND): cv.hex_uint32_t,
     }
 )
 
 
-@register_binary_sensor("panasonic", PanasonicBinarySensor, PANASONIC_SCHEMA)
-def panasonic_binary_sensor(var, config):
+def _panasonic_address_2_needs_56_bits(config: ConfigType) -> ConfigType:
+    # A 48-bit code has no second address byte; a lambda is only known on the device
+    address_2 = config[CONF_ADDRESS_2]
+    if config[CONF_NBITS] == 48 and isinstance(address_2, int) and address_2 != 0:
+        raise cv.Invalid(
+            f"{CONF_ADDRESS_2} is only sent with {CONF_NBITS}: 56", [CONF_ADDRESS_2]
+        )
+    return config
+
+
+# Transmit only
+PANASONIC_ACTION_SCHEMA = PANASONIC_SCHEMA.extend(
+    {
+        cv.Optional(CONF_CARRIER_FREQUENCY, default="35000Hz"): cv.All(
+            cv.frequency, cv.uint32_t
+        ),
+    }
+)
+
+
+@register_binary_sensor(
+    "panasonic",
+    PanasonicBinarySensor,
+    cv.All(PANASONIC_SCHEMA, _panasonic_address_2_needs_56_bits),
+)
+def panasonic_binary_sensor(var: MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_data(
             cg.StructInitializer(
                 PanasonicData,
                 ("address", config[CONF_ADDRESS]),
                 ("command", config[CONF_COMMAND]),
+                ("nbits", config[CONF_NBITS]),
+                ("address_2", config[CONF_ADDRESS_2]),
             )
         )
     )
 
 
 @register_trigger("panasonic", PanasonicTrigger, PanasonicData)
-def panasonic_trigger(var, config):
-    pass
+def panasonic_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("panasonic", PanasonicDumper)
-def panasonic_dumper(var, config):
-    pass
+def panasonic_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
 
 
 register_protocol_action(
     "panasonic",
     "Panasonic",
-    PANASONIC_SCHEMA,
+    PANASONIC_ACTION_SCHEMA,
+    (CONF_NBITS, "nbits", cg.uint8),
     (CONF_ADDRESS, "address", cg.uint16),
+    (CONF_ADDRESS_2, "address_2", cg.uint8),
     (CONF_COMMAND, "command", cg.uint32),
+    (CONF_CARRIER_FREQUENCY, "carrier_frequency", cg.uint32),
+    validate=_panasonic_address_2_needs_56_bits,
 )
 
 

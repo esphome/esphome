@@ -28,6 +28,13 @@ button:
       remote_transmitter.transmit_brennenstuhl:
         code: 0xBD2E2C
   - platform: template
+    name: Drayton Thermostat On
+    id: drayton_thermostat_on
+    on_press:
+      remote_transmitter.transmit_drayton:
+        address: 0x1230
+        data: 0x8
+  - platform: template
     name: Dyson fan up
     id: dyson_fan_up
     on_press:
@@ -104,6 +111,15 @@ button:
         address: 0x4004
         command: 0x1000BCD
   - platform: template
+    name: Panasonic 56 bit
+    on_press:
+      remote_transmitter.transmit_panasonic:
+        nbits: 56
+        address: 0x4004
+        address_2: 0x12
+        command: !lambda return 0x1000BCD;
+        carrier_frequency: 36kHz
+  - platform: template
     name: Pioneer
     on_press:
       - remote_transmitter.transmit_pioneer:
@@ -169,6 +185,13 @@ button:
       remote_transmitter.transmit_raw:
         code: !lambda |-
           return {(int32_t)id(remote_transmitter_test_number).state * 100, -1000};
+  - platform: template
+    name: RC5X Marantz
+    on_press:
+      remote_transmitter.transmit_rc5x:
+        address: 0x10
+        command: 0x0
+        extension: 0x6
   - platform: template
     name: AEHA
     id: eaha_hitachi_climate_power_on

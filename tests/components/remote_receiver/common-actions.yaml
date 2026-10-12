@@ -51,8 +51,8 @@ on_dooya:
 on_drayton:
   then:
     - logger.log:
-        format: "on_drayton: %u %u %u"
-        args: ["x.address", "x.channel", "x.command"]
+        format: "on_drayton: %u %u %u %u"
+        args: ["x.address", "x.channel", "x.command", "x.data"]
 on_dyson:
   then:
     - logger.log:
@@ -116,8 +116,8 @@ on_onkyori:
 on_panasonic:
   then:
     - logger.log:
-        format: "on_panasonic: %u %lu"
-        args: ["x.address", "long(x.command)"]
+        format: "on_panasonic: %u %u %u %lu"
+        args: ["x.nbits", "x.address", "x.address_2", "long(x.command)"]
 on_pioneer:
   then:
     - logger.log:
@@ -138,6 +138,11 @@ on_rc5:
     - logger.log:
         format: "on_rc5: %u %u"
         args: ["x.address", "x.command"]
+on_rc5x:
+  then:
+    - logger.log:
+        format: "on_rc5x: %u %u %u"
+        args: ["x.address", "x.command", "x.extension"]
 on_rc6:
   then:
     - logger.log:
