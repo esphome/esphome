@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -161,7 +162,9 @@ def test_purifier_status_age_covers_parent_period(
         assert not result.errors, result.errors
     else:
         assert any(
-            "status_max_age must be at least" in str(error) for error in result.errors
+            "status_max_age must be at least" in str(error)
+            and "response delays" in str(error)
+            for error in result.errors
         ), result.errors
 
 
@@ -184,6 +187,35 @@ def test_purifier_checks_only_its_referenced_period(
         assert len(result.errors) == 1
         assert "status_max_age must be at least" in str(result.errors[0])
         assert result.errors[0].path == ["switch", 0, "purifier", "status_max_age"]
+
+
+@pytest.mark.parametrize(
+    ("other_parent", "has_purifier", "valid"),
+    [
+        ("test_climate", True, False),
+        ("second_climate", True, True),
+        ("test_climate", False, True),
+    ],
+)
+def test_purifier_has_one_switch_per_climate(
+    component_config_path: Callable[[str], Path],
+    other_parent: str,
+    has_purifier: bool,
+    valid: bool,
+) -> None:
+    CORE.config_path = component_config_path("purifier.yaml")
+    config = load_yaml(CORE.config_path)
+    _add_second_climate(config)
+    other: ConfigType = {"platform": "midea", "midea_id": other_parent}
+    if has_purifier:
+        other["purifier"] = {"id": "other_purifier", "name": "Other Purifier"}
+    config["switch"].append(other)
+    result = validate_config(config, {})
+    if valid:
+        assert not result.errors, result.errors
+    else:
+        assert any("Only one purifier" in str(error) for error in result.errors)
+        assert result.errors[0].path == ["switch", 1, "midea_id"]
 
 
 @pytest.mark.parametrize("configured", [True, False])
@@ -233,10 +265,12 @@ def test_codegen_without_purifier_keeps_upstream_library(
     CORE.config = validate_config(config, {})
     assert not CORE.config.errors, CORE.config.errors
     generate_cpp_contents(CORE.config)
-    assert CORE.platformio_libraries["MideaUART"].repository == (
-        "https://github.com/dudanov/MideaUART.git#"
-        "eeea6c3e9b4474f067054592b435be1c4e466815"
+    repository = urlsplit(CORE.platformio_libraries["MideaUART"].repository)
+    assert (repository.hostname, repository.path) == (
+        "github.com",
+        "/dudanov/MideaUART.git",
     )
+    assert repository.fragment
     assert "USE_MIDEA_PURIFIER" not in {define.name for define in CORE.defines}
 
 

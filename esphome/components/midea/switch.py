@@ -6,7 +6,7 @@ from esphome.core import TimePeriod
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import CONF_PURIFIER
+from . import CONF_PURIFIER, DOMAIN
 from .climate import AirConditioner, midea_ac_ns
 
 DEPENDENCIES = ["climate.midea"]
@@ -41,11 +41,21 @@ CONFIG_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> ConfigType:
     if (purifier := config.get(CONF_PURIFIER)) is not None:
         full_config = fv.full_config.get()
+        purifier_parents = full_config.data.setdefault(DOMAIN, {}).setdefault(
+            CONF_PURIFIER, set()
+        )
+        if config[CONF_MIDEA_ID] in purifier_parents:
+            raise cv.Invalid(
+                "Only one purifier switch may reference a Midea climate",
+                path=[CONF_MIDEA_ID],
+            )
+        purifier_parents.add(config[CONF_MIDEA_ID])
         parent_path = full_config.get_path_for_id(config[CONF_MIDEA_ID])[:-1]
         parent = full_config.get_config_for_path(parent_path)
         if purifier[CONF_STATUS_MAX_AGE] < parent[CONF_PERIOD]:
             raise cv.Invalid(
-                "status_max_age must be at least the referenced Midea climate's period",
+                "status_max_age must be at least the referenced Midea climate's period; "
+                "set it comfortably higher to allow response delays",
                 path=[CONF_PURIFIER, CONF_STATUS_MAX_AGE],
             )
     return config
