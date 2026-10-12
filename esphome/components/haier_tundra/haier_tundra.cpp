@@ -6,6 +6,13 @@ namespace esphome::haier_tundra {
 static constexpr uint8_t HAIER_TUNDRA_FRAME_SIZE = 13;
 
 void HaierTundra::transmit_state() {
+  // Button value does not seem to matter too much except
+  // when toggling light, as it has no bit flag of its own
+  // So in the default case we can simply set it to POWER
+  this->transmit_(HAIER_BUTTON_POWER);
+}
+
+void HaierTundra::transmit_(uint8_t button) {
   // Force Quiet and Turbo off if we're not in Cool or Heat mode
   if (this->mode != climate::CLIMATE_MODE_COOL && this->mode != climate::CLIMATE_MODE_HEAT) {
 #ifdef USE_SWITCH
@@ -32,9 +39,9 @@ void HaierTundra::transmit_state() {
       static_cast<uint8_t>(this->operation_mode_() << 5),
       0x00,
       0x00,
-      static_cast<uint8_t>(this->self_clean_() << 4),
+      static_cast<uint8_t>((button == HAIER_BUTTON_SELF_CLEAN ? 1 : 0) << 4),
       0x00,
-      this->button_(),
+      button,
   }};
 
   auto transmit = this->transmitter_->transmit();
@@ -108,26 +115,6 @@ uint8_t HaierTundra::operation_mode_() {
     default:
       return HAIER_MODE_AUTO;
   }
-}
-
-uint8_t HaierTundra::self_clean_() {
-  if (this->self_clean_flag_) {
-    this->self_clean_flag_ = false;
-    return 1;
-  }
-  return 0;
-}
-
-uint8_t HaierTundra::button_() {
-  // Button field apparently does not matter too much except
-  // when toggling light, as it has no bit flag of its own
-  if (this->light_flag_) {
-    this->light_flag_ = false;
-    return HAIER_BUTTON_LIGHT;
-  }
-
-  // So in all other cases, just pretend we are always powering on/off I guess
-  return HAIER_BUTTON_POWER;
 }
 
 bool HaierTundra::on_receive(remote_base::RemoteReceiveData data) {
@@ -223,7 +210,7 @@ void HaierTundra::set_health_mode(bool health) {
   this->health_mode_ = health;
 
   if (this->mode != climate::CLIMATE_MODE_OFF) {
-    this->transmit_state();
+    this->transmit_(HAIER_BUTTON_HEALTH);
   }
 }
 
@@ -239,7 +226,7 @@ void HaierTundra::set_quiet_mode(bool quiet) {
   }
 
   this->quiet_mode_ = quiet;
-  this->transmit_state();
+  this->transmit_(HAIER_BUTTON_TURBO_QUIET);
 }
 
 void HaierTundra::set_turbo_mode(bool turbo) {
@@ -254,21 +241,18 @@ void HaierTundra::set_turbo_mode(bool turbo) {
   }
 
   this->turbo_mode_ = turbo;
-  this->transmit_state();
+  this->transmit_(HAIER_BUTTON_TURBO_QUIET);
 }
 
 void HaierTundra::toggle_light() {
   if (this->mode != climate::CLIMATE_MODE_OFF) {
-    this->light_flag_ = true;
-    this->transmit_state();
+    this->transmit_(HAIER_BUTTON_LIGHT);
   }
 }
 
 void HaierTundra::start_self_clean() {
-  this->self_clean_flag_ = true;
-
   // Can be started when off
-  this->transmit_state();
+  this->transmit_(HAIER_BUTTON_SELF_CLEAN);
 }
 
 }  // namespace esphome::haier_tundra

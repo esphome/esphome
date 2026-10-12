@@ -107,6 +107,7 @@ class HaierTundra final : public climate_ir::ClimateIR {
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
 
+  void transmit_(uint8_t button);
   uint8_t temperature_();
   uint8_t vertical_swing_();
   uint8_t horizontal_swing_();
@@ -116,8 +117,6 @@ class HaierTundra final : public climate_ir::ClimateIR {
   uint8_t quiet_();
   uint8_t turbo_();
   uint8_t operation_mode_();
-  uint8_t self_clean_();
-  uint8_t button_();
 
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
@@ -131,9 +130,6 @@ class HaierTundra final : public climate_ir::ClimateIR {
   bool health_mode_{false};
   bool quiet_mode_{false};
   bool turbo_mode_{false};
-
-  bool light_flag_{false};
-  bool self_clean_flag_{false};
 };
 
 }  // namespace esphome::haier_tundra
