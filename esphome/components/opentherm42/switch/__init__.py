@@ -16,11 +16,15 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_STATUS_FOR_VENTILATION_HEAT_RECOVERY_VENTILATION_ENABLE,
     CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_STATUS_OTC_ACTIVE,
     CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_STATUS_SUMMER_WINTER_MODE,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2,
     CONF_OPENTHERM42_ID,
 )
 
 OpenTherm42Switch = opentherm42_ns.class_(
     "OpenTherm42Switch", switch.Switch, cg.Component
+)
+OpenTherm42ManualDhwPush2Switch = opentherm42_ns.class_(
+    "OpenTherm42ManualDhwPush2Switch", switch.Switch, cg.Component
 )
 
 
@@ -74,6 +78,17 @@ CONFIG_SCHEMA = cv.Schema(
             cv.Optional(marker): schema.extend(cv.COMPONENT_SCHEMA)
             for marker, schema in TYPES.items()
         },
+        # §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- read/write, packed alongside the three
+        # Operating Mode selects (see the select platform). Populated only from the periodic read (see
+        # hub.cpp's REMOTE_OVERRIDE_OPERATING_MODES_READ case), never from a write-ack echo, so unlike
+        # every switch above there's no restore_mode: it starts at the safe "no push" default until
+        # that first real read arrives. Left as a primary entity (no entity_category): a "boost my hot
+        # water now" action pressed as part of normal use, not a maintenance/admin action.
+        cv.Optional(
+            CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2
+        ): switch.switch_schema(OpenTherm42ManualDhwPush2Switch).extend(
+            cv.COMPONENT_SCHEMA
+        ),
     }
 )
 
@@ -85,3 +100,9 @@ async def to_code(config: dict) -> None:
             var = await switch.new_switch(marker_config)
             await cg.register_component(var, marker_config)
             cg.add(getattr(hub, f"set_{marker}_switch")(var))
+
+    marker = CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2
+    if (marker_config := config.get(marker)) is not None:
+        var = await switch.new_switch(marker_config)
+        await cg.register_component(var, marker_config)
+        cg.add(getattr(hub, f"set_{marker}_switch")(var))

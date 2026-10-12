@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_INDEX,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     UNIT_REVOLUTIONS_PER_MINUTE,
@@ -28,6 +29,10 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE,
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE_SOLAR_STORAGE,
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE_VENTILATION_HEAT_RECOVERY,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_BOILER_CAPACITY,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MINIMUM_MODULATION_LEVEL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_2,
     CONF_FAULT_HISTORY_DATA_FAULT_BUFFER,
     CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_SOLAR_STORAGE,
     CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY,
@@ -511,6 +516,32 @@ TYPES: dict[str, cv.Schema] = {
     CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE: _with_update_every(
         _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
     ),
+    # §5.3.8.2 Class 8, ID 15 HB: Maximum boiler capacity (0..255 kW) -- a fixed hardware rating, not
+    # a live power reading, so DIAGNOSTIC despite the "power" device_class matching its kW unit.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_BOILER_CAPACITY: sensor.sensor_schema(
+        unit_of_measurement="kW",
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_POWER,
+        state_class="measurement",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    # §5.3.8.2 Class 8, ID 15 LB: Minimum modulation level (0..100%) -- a fixed installation rating,
+    # same reasoning as Maximum boiler capacity above, so DIAGNOSTIC. Wire value is a plain u8
+    # (same "Max-Capacity/Min-Mod-Level u8/u8" pair as ID 15 HB), so accuracy_decimals=0.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MINIMUM_MODULATION_LEVEL: _percent_schema(
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.8.3 Class 8, ID 9: Remote Override Room Setpoint (degrees C, 0..30).
+    # 0 = No override, 1..30 = Remote override room Setpoint. Unlike the fixed capability/rating
+    # values just above, this is the setpoint actually in effect right now, so primary.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
+    # §5.3.8.3 Class 8, ID 39: Remote Override Room Setpoint 2 (degrees C, 0..30), same encoding
+    # and reasoning as ID 9 above.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_2: _with_update_every(
+        _TEMPERATURE_SCHEMA, 3
+    ),
     # Synthetic diagnostic, not an OpenTherm data-id -- deliberately not given the
     # sensor_and_informational_data_* prefix used throughout this file, since that names a real spec
     # chapter (§5.3.4 Class 4) this entity has nothing to do with. How long the most recently
@@ -586,6 +617,8 @@ SIMPLE_SENSOR_DATA_IDS: dict[str, int] = {
     CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER: 12,
     CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY: 90,
     CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE: 107,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT: 9,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_2: 39,
     CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_BOILER: 125,
     CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_VENTILATION_HEAT_RECOVERY: 75,
 }

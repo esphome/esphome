@@ -19,6 +19,8 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_COOLING_CONTROL_SIGNAL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING,
     CONF_OPENTHERM42_ID,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT,
@@ -155,6 +157,20 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
         _number_schema("%", 0, 100, 6, entity_category=ENTITY_CATEGORY_CONFIG),
         {"min_value": 0, "max_value": 100, "step": 1},
         87,
+    ),
+    # §5.3.8.1 Class 8, ID 7: Cooling control signal -- signal for the cooling plant (0..100%).
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_COOLING_CONTROL_SIGNAL: (
+        _number_schema("%", 0, 100, 2),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        7,
+    ),
+    # §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting, for sequencer and
+    # off-low&pump control applications (0..100%). An advanced, installation-specific tuning
+    # parameter, so CONFIG.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING: (
+        _number_schema("%", 0, 100, 2, entity_category=ENTITY_CATEGORY_CONFIG),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        14,
     ),
 }
 
