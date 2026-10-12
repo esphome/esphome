@@ -1319,9 +1319,10 @@ def _ota_upload_platforms(config: ConfigType) -> dict[str, None]:
     """The network OTA platforms the config provides, one entry each, in
     config order; the web_server final-validate hook merges duplicates."""
     return {
-        platform: None
+        ota_platform: None
         for ota_item in config.get(CONF_OTA, [])
-        if (platform := ota_item.get(CONF_PLATFORM)) in (CONF_ESPHOME, CONF_WEB_SERVER)
+        if (ota_platform := ota_item.get(CONF_PLATFORM))
+        in (CONF_ESPHOME, CONF_WEB_SERVER)
     }
 
 
