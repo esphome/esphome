@@ -206,7 +206,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         logged with `get_log_str` and `LOG_STR_ARG`, copied out with `ESPHOME_strncpy_P` before `publish_state`.
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `reverse_bits`, `encode_uint16`);
-        a protocol that feeds bits LSB first uses `crc8` on `reverse_bits` of each byte, not its own loop.
+        pick the helper's polynomial and bit-order arguments instead of writing a CRC loop.
     *   **An unset float is `NAN`**, not `optional<float>`; the optional costs 4 to 8 bytes of padding per member.
     *   **`PollingComponent` first runs `update()`** after a random share of the interval; call `this->update()` at the
         end of `setup()` when the entities need a state at boot.
@@ -606,7 +606,7 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Integration tests:** `tests/integration/` runs real firmware on the host. Serial components prove
         timeouts and recovery with the `uart_mock` fixture (`tests/integration/test_uart_mock_*.py`). Its
         `responses` match on content every time they see it; to answer a repeated request differently, use an
-        `on_tx` lambda with a static counter and `inject_to_rx_buffer` (see `uart_mock_ld2410s.yaml`).
+        `on_tx` lambda with a static counter and `inject_to_rx_buffer` (see `uart_mock_ld2412_requery_after_giveup.yaml`).
     *   **Keep build-test variants few:** one `test.<platform>.yaml` per platform the code actually differs
         on. A variant per board for platform-identical code only adds CI time.
     *   **Component Tests:** YAML-based compilation tests are located in `tests/`. The structure is as follows:
