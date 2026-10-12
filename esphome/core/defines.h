@@ -265,6 +265,7 @@
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
+#define USE_WHIRLPOOL_HISENSE_ARG
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
