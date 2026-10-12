@@ -2083,15 +2083,15 @@ PANASONIC_SCHEMA = cv.Schema(
 
 def _panasonic_address_2_needs_56_bits(config: ConfigType) -> ConfigType:
     # A 48-bit code has no second address byte; a lambda is only known on the device
-    address_2 = config.get(CONF_ADDRESS_2, 0)
-    if config.get(CONF_NBITS) == 48 and isinstance(address_2, int) and address_2 != 0:
+    address_2 = config[CONF_ADDRESS_2]
+    if config[CONF_NBITS] == 48 and isinstance(address_2, int) and address_2 != 0:
         raise cv.Invalid(
             f"{CONF_ADDRESS_2} is only sent with {CONF_NBITS}: 56", [CONF_ADDRESS_2]
         )
     return config
 
 
-# A receiver cannot measure the carrier, so only the transmit action takes it.
+# Transmit only
 PANASONIC_ACTION_SCHEMA = PANASONIC_SCHEMA.extend(
     {
         cv.Optional(CONF_CARRIER_FREQUENCY, default="35000Hz"): cv.All(
@@ -2106,7 +2106,7 @@ PANASONIC_ACTION_SCHEMA = PANASONIC_SCHEMA.extend(
     PanasonicBinarySensor,
     cv.All(PANASONIC_SCHEMA, _panasonic_address_2_needs_56_bits),
 )
-def panasonic_binary_sensor(var, config):
+def panasonic_binary_sensor(var: MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_data(
             cg.StructInitializer(
@@ -2121,13 +2121,13 @@ def panasonic_binary_sensor(var, config):
 
 
 @register_trigger("panasonic", PanasonicTrigger, PanasonicData)
-def panasonic_trigger(var, config):
-    pass
+def panasonic_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("panasonic", PanasonicDumper)
-def panasonic_dumper(var, config):
-    pass
+def panasonic_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
 
 
 register_protocol_action(
