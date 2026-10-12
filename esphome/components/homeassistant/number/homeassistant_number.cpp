@@ -1,5 +1,7 @@
 #include "homeassistant_number.h"
 
+#include <cstring>
+
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
@@ -7,7 +9,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.number";
+ESPHOME_LOG_TAG(TAG, "homeassistant.number");
 
 void HomeassistantNumber::state_changed_(StringRef state) {
   auto number_value = parse_number<float>(state.c_str());
@@ -78,14 +80,28 @@ void HomeassistantNumber::control(float value) {
     return;
   }
 
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
+
   this->publish_state(value);
 
-  static constexpr auto SERVICE_NAME = StringRef::from_lit("number.set_value");
+  static constexpr auto NUMBER_SERVICE_NAME = StringRef::from_lit("number.set_value");
+  static constexpr auto INPUT_NUMBER_SERVICE_NAME = StringRef::from_lit("input_number.set_value");
+  static constexpr char INPUT_PREFIX[] = "input_";
   static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
   static constexpr auto VALUE_KEY = StringRef::from_lit("value");
 
   api::HomeassistantActionRequest resp;
-  resp.service = SERVICE_NAME;
+  // input_number entities have their own set_value action
+  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
+    resp.service = INPUT_NUMBER_SERVICE_NAME;
+  } else {
+    resp.service = NUMBER_SERVICE_NAME;
+  }
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();

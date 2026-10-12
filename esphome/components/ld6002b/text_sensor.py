@@ -24,9 +24,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
-    if work_mode_config := config.get(CONF_WORK_MODE):
-        sens = await text_sensor.new_text_sensor(work_mode_config)
-        cg.add(hub.set_work_mode_text_sensor(sens))
-    if ota_config := config.get(CONF_OTA_VERSION):
-        sens = await text_sensor.new_text_sensor(ota_config)
-        cg.add(hub.set_ota_version_text_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_WORK_MODE, hub.set_work_mode_text_sensor)
+    await text_sensors(CONF_OTA_VERSION, hub.set_ota_version_text_sensor)

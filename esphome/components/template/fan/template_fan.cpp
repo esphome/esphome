@@ -3,7 +3,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.fan";
+ESPHOME_LOG_TAG(TAG, "template.fan");
 
 void TemplateFan::setup() {
   // Construct traits before restore so preset modes can be looked up by index

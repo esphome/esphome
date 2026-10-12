@@ -1,16 +1,4 @@
-"""Regression test: on_add:/on_remove: containing an lvgl action must not deadlock.
-
-ListType.to_code() used to build the on_add/on_remove automations directly, during
-widget creation. Every lvgl action's to_code awaits wait_for_widgets(), which only
-resolves once *all* widgets - including the list itself - have finished being
-created. Building an automation containing an lvgl action from inside that same
-widget-creation walk therefore could never complete: codegen deadlocked with
-"Circular dependency detected!". Fixed by deferring the actual build_automation()
-call to finish_list_triggers(), run after set_widgets_completed(True) - and,
-critically, before generate_triggers(), which is what processes other widgets'
-on_click etc. automations that might reference this list (e.g. via lvgl.list.add),
-and which therefore need the list's own on_add/on_remove triggers to already exist.
-"""
+"""Regression test: on_add:/on_remove: containing an lvgl action must not deadlock."""
 
 from __future__ import annotations
 

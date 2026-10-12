@@ -8,8 +8,8 @@
 
 namespace esphome::improv_base {
 
-#if defined(USE_ESP32_IMPROV_NEXT_URL) || defined(USE_IMPROV_SERIAL_NEXT_URL)
-static const char *const TAG = "improv_base";
+#ifdef USE_IMPROV_NEXT_URL
+ESPHOME_LOG_TAG(TAG, "improv_base");
 
 static constexpr const char DEVICE_NAME_PLACEHOLDER[] = "{{device_name}}";
 static constexpr size_t DEVICE_NAME_PLACEHOLDER_LEN = sizeof(DEVICE_NAME_PLACEHOLDER) - 1;

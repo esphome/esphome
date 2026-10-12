@@ -4,7 +4,7 @@
 
 namespace esphome::sds011 {
 
-static const char *const TAG = "sds011";
+ESPHOME_LOG_TAG(TAG, "sds011");
 
 static const uint8_t SDS011_MSG_REQUEST_LENGTH = 19;
 static const uint8_t SDS011_MSG_RESPONSE_LENGTH = 10;
@@ -106,8 +106,6 @@ void SDS011Component::loop() {
   }
 }
 
-void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
-
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
   this->write_byte(SDS011_MSG_HEAD);
   this->write_byte(SDS011_COMMAND_ID_REQUEST);
@@ -117,11 +115,7 @@ void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
 }
 
 uint8_t SDS011Component::sds011_checksum_(const uint8_t *command_data, uint8_t length) const {
-  uint8_t sum = 0;
-  for (uint8_t i = 0; i < length; i++) {
-    sum += command_data[i];
-  }
-  return sum;
+  return sum_bytes(command_data, length);
 }
 
 optional<bool> SDS011Component::check_byte_() const {

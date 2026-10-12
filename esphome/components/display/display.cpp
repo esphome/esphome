@@ -3,11 +3,12 @@
 #include <utility>
 #include <numbers>
 #include "display_color_utils.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::display {
-static const char *const TAG = "display";
+ESPHOME_LOG_TAG(TAG, "display");
 
 // COLOR_OFF and COLOR_ON are now inline constexpr in display.h
 
@@ -677,12 +678,14 @@ void Display::set_pages(std::vector<DisplayPage *> pages) {
 }
 
 void Display::show_page(DisplayPage *page) {
-  this->previous_page_ = this->page_;
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  DisplayPage *previous = this->page_;
   this->page_ = page;
-  if (this->previous_page_ != this->page_) {
-    for (auto *t : on_page_change_triggers_)
-      t->process(this->previous_page_, this->page_);
-  }
+  if (previous != page)
+    this->page_change_callback_.call(previous, page);
+#else
+  this->page_ = page;
+#endif
 }
 
 void Display::do_update_() {
@@ -697,11 +700,6 @@ void Display::do_update_() {
     (*this->writer_)(*this);
   }
   this->clear_clipping_();
-}
-
-void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
-  if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
-    this->trigger(from, to);
 }
 
 void Display::strftime(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
@@ -770,10 +768,12 @@ Rect Display::get_clipping() const {
 
 void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }
 
+void Display::feed_wdt_pixel_slow_() { App.feed_wdt(); }
+
 bool Display::clip(int x, int y) {
   if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
     return false;
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   return true;
 }

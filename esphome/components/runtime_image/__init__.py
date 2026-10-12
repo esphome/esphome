@@ -17,6 +17,7 @@ from esphome.core import CORE
 
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
+DOMAIN = "runtime_image"
 
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
