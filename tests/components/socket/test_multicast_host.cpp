@@ -46,10 +46,14 @@ TEST(JoinMulticastGroup, IPv4JoinSetsIfIndexToZero) {
 }
 
 TEST(JoinMulticastGroup, IPv4JoinNullIfIndexOut) {
-  // Only checks that a null if_index_out is accepted; the join result depends on the host.
-  auto sock = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-  ASSERT_NE(sock, nullptr);
-  (void) join_multicast_group(sock.get(), "239.0.60.53", nullptr);
+  // Whether the host accepts the join or not, a null if_index_out must give the same answer
+  auto sock_with = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  auto sock_without = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock_with, nullptr);
+  ASSERT_NE(sock_without, nullptr);
+  uint32_t if_index = 0;
+  const bool with_out = join_multicast_group(sock_with.get(), "239.0.60.53", &if_index);
+  EXPECT_EQ(join_multicast_group(sock_without.get(), "239.0.60.53", nullptr), with_out);
 }
 
 // =========================================================================
@@ -66,6 +70,8 @@ TEST(JoinMulticastGroup, IPv6JoinSucceedsOrNoInterface) {
   if (join_multicast_group(sock.get(), "ff12::cafe", &if_index)) {
     EXPECT_GT(if_index, 0u);
   } else if (errno != EADDRNOTAVAIL) {
+    // EINVAL can only come from our own parsing, since the address literal is valid
+    ASSERT_NE(errno, EINVAL);
     GTEST_SKIP() << "Host refused the IPv6 multicast join, errno " << errno;
   }
 }
