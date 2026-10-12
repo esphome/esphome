@@ -60,7 +60,7 @@ class DaikinBrcClimate final : public climate_ir::ClimateIR {
     this->fahrenheit_ = value;
     this->temperature_step_ = value ? 0.5f : 1.0f;
   }
-  /// Set sub-unit index for multi-unit systems (0-5)
+  /// Which indoor unit (0 to 5) this climate addresses on a multi-unit system
   void set_sub_unit(uint8_t value) { this->sub_unit_ = value; }
 
  protected:
