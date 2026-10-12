@@ -9,10 +9,10 @@ from esphome.const import CONF_NUM_LEDS, CONF_OUTPUT_ID, CONF_PIN
 from esphome.core import CORE
 from esphome.types import ConfigType
 
+from . import DOMAIN
+
 CODEOWNERS = ["@j9brown"]
 DEPENDENCIES = ["esp32"]
-
-CONF_I2S_CLOCKLESS_LED_STRIP = "i2s_clockless_led_strip"
 
 i2s_clockless_led_strip_ns = cg.esphome_ns.namespace("i2s_clockless_led_strip")
 I2SClocklessLedStrip = i2s_clockless_led_strip_ns.class_(
@@ -53,9 +53,9 @@ class I2SClocklessLedStripData:
 
 
 def _get_data() -> I2SClocklessLedStripData:
-    if CONF_I2S_CLOCKLESS_LED_STRIP not in CORE.data:
-        CORE.data[CONF_I2S_CLOCKLESS_LED_STRIP] = I2SClocklessLedStripData()
-    return CORE.data[CONF_I2S_CLOCKLESS_LED_STRIP]
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = I2SClocklessLedStripData()
+    return CORE.data[DOMAIN]
 
 
 def _final_validate(_: ConfigType) -> None:
