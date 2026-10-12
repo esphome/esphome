@@ -24,8 +24,6 @@ namespace esphome::statsd {
 
 class StatsdComponent final : public PollingComponent {
  public:
-  ~StatsdComponent();
-
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -67,7 +65,7 @@ class StatsdComponent final : public PollingComponent {
   std::vector<sensors_t> sensors_;
 
   std::unique_ptr<esphome::socket::UDPSendSocket> sock_;
-  struct sockaddr_in destination_;
+  struct sockaddr_in destination_ {};
 
   void send_(std::string *out);
 };

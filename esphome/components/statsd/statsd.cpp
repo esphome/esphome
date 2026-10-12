@@ -15,27 +15,13 @@ ESPHOME_LOG_TAG(TAG, "statsD");
 void StatsdComponent::setup() {
   this->sock_ = esphome::socket::socket_udp_send(AF_INET, 0);
   if (!this->sock_) {
-    ESP_LOGE(TAG, "Could not create socket");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Could not create socket"));
     return;
   }
-
-  struct sockaddr_in source {};
-  source.sin_family = AF_INET;
-  source.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-  source.sin_port = htons(this->port_);
-  this->sock_->bind((struct sockaddr *) &source, sizeof(source));
 
   this->destination_.sin_family = AF_INET;
   this->destination_.sin_port = htons(this->port_);
   this->destination_.sin_addr.s_addr = inet_addr(this->host_);
-}
-
-StatsdComponent::~StatsdComponent() {
-  if (!this->sock_) {
-    return;
-  }
-  this->sock_->close();
 }
 
 void StatsdComponent::dump_config() {
