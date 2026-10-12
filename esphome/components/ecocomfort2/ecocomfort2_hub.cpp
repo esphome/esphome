@@ -30,7 +30,7 @@ void Ecocomfort2Hub::update() {
   // The GATT client runs the requests one after the other
   this->read_char_(this->char_handle_state_);
   this->read_char_(this->char_handle_oper_);
-  if (!this->firmware_read_)
+  if (!this->firmware_read_ && this->char_handle_info_ != 0)
     this->read_char_(this->char_handle_info_);
 }
 
@@ -81,23 +81,26 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       this->char_handle_clock_ = 0;
       this->firmware_read_ = false;
       this->set_connected_(false);
+      this->publish_unknown_();
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       // Keep the handles, not the characteristics: ble_client frees its services once all nodes are established.
       auto *oper = this->parent_->get_characteristic(SERVICE_UUID, C_OPER_UUID);
       auto *state = this->parent_->get_characteristic(SERVICE_UUID, C_STATE_UUID);
-      auto *info = this->parent_->get_characteristic(SERVICE_UUID, C_INFO_UUID);
-      auto *clock = this->parent_->get_characteristic(SERVICE_UUID, C_CLOCK_UUID);
-      if (oper == nullptr || state == nullptr || info == nullptr || clock == nullptr) {
-        ESP_LOGW(TAG, "[%s] Ecocomfort characteristics not found, disconnecting", this->parent_->address_str());
+      if (oper == nullptr || state == nullptr) {
+        ESP_LOGW(TAG, "[%s] C_OPER or C_STATE characteristic not found, disconnecting", this->parent_->address_str());
         this->parent_->disconnect();
         break;
       }
       this->char_handle_oper_ = oper->handle;
       this->char_handle_state_ = state->handle;
-      this->char_handle_info_ = info->handle;
-      this->char_handle_clock_ = clock->handle;
+      // The version and clock characteristics only feed optional features, so a unit without them still works
+      this->char_handle_info_ = this->char_handle_clock_ = 0;
+      if (auto *info = this->parent_->get_characteristic(SERVICE_UUID, C_INFO_UUID); info != nullptr)
+        this->char_handle_info_ = info->handle;
+      if (auto *clock = this->parent_->get_characteristic(SERVICE_UUID, C_CLOCK_UUID); clock != nullptr)
+        this->char_handle_clock_ = clock->handle;
       this->node_state = espbt::ClientState::ESTABLISHED;
       this->status_set_warning();
 
@@ -173,7 +176,7 @@ void Ecocomfort2Hub::on_paired_() {
   ESP_LOGI(TAG, "[%s] Encryption confirmed, device ready", this->parent_->address_str());
   this->set_connected_(true);
 #ifdef USE_TIME
-  if (this->time_ != nullptr) {
+  if (this->time_ != nullptr && this->char_handle_clock_ != 0) {
     this->last_clock_sync_ = 0;
     this->sync_clock_();
     this->set_interval(CLOCK_SYNC_ID, CLOCK_CHECK_INTERVAL_MS, [this]() { this->sync_clock_(); });
@@ -186,6 +189,16 @@ void Ecocomfort2Hub::set_connected_(bool connected) {
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr)
     this->connected_binary_sensor_->publish_state(connected);
+#endif
+}
+
+// Readings from a unit that is out of reach would otherwise look current for hours
+void Ecocomfort2Hub::publish_unknown_() {
+#ifdef USE_SENSOR
+  for (auto *sensor : {this->temperature_sensor_, this->humidity_sensor_, this->voc_sensor_, this->direction_sensor_}) {
+    if (sensor != nullptr)
+      sensor->publish_state(NAN);
+  }
 #endif
 }
 

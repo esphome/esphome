@@ -98,6 +98,7 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 
   void on_paired_();
   void set_connected_(bool connected);
+  void publish_unknown_();
   void read_char_(uint16_t handle);
   void on_oper_(const uint8_t *data, uint16_t len);
   void on_state_(const uint8_t *data, uint16_t len);
