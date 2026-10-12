@@ -8,3 +8,20 @@ opentherm42:
   id: my_opentherm42
   in_pin: 4
   out_pin: 5
+  # §4.4.1: some boilers answer "data not available" for a reading a few times in a row before giving a
+  # real value, for no obvious reason. This tolerates that many consecutive invalid responses to the same
+  # reading before actually marking its entity Unknown, instead of flipping back and forth. 0 (the
+  # default) marks it Unknown on the very first invalid response.
+  max_data_invalid: 3
+  # §5.2: how often this hub re-checks the boiler's mandatory status exchange. This always runs,
+  # regardless of which entities below are configured.
+  control_and_status_information_boiler_status_update_every: 1
+
+number:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 1: Control Setpoint, i.e. the CH (central heating) water temperature setpoint
+    # (degrees C, 0..100). Only takes effect while CH enable (above) is on.
+    control_and_status_information_control_setpoint:
+      name: "Control and Status Information: Control Setpoint"
+      initial_value: 40.0
+      update_every: 1
