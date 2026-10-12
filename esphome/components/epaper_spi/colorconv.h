@@ -30,14 +30,6 @@ constexpr uint8_t rec601_luma(Color color) {
  */
 constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }
 
-/// esp_scale() of every value of an RGB565 field, as ColorUtil::to_color() computes it
-template<uint8_t MAX> constexpr std::array<uint8_t, MAX + 1> rgb565_scale_table() {
-  std::array<uint8_t, MAX + 1> table{};
-  for (unsigned i = 0; i <= MAX; i++)
-    table[i] = static_cast<uint8_t>(255u * i / MAX);
-  return table;
-}
-
 /** color_to_mono() of an RGB565 value as ColorUtil::to_color() reads it, from table lookups instead of a division
  * per channel.
  */
@@ -53,12 +45,13 @@ class Rgb565ToMono {
       high = 150;
       middle = 77;
     }
+    // Each field value scaled to 0..255 as esp_scale() does, then weighted
     for (unsigned i = 0; i != 32; i++) {
-      this->high_[i] = high * SCALE_5[i];
-      this->low_[i] = low * SCALE_5[i];
+      this->high_[i] = high * (255u * i / 31);
+      this->low_[i] = low * (255u * i / 31);
     }
     for (unsigned i = 0; i != 64; i++)
-      this->middle_[i] = middle * SCALE_6[i];
+      this->middle_[i] = middle * (255u * i / 63);
   }
 
   uint8_t operator()(uint16_t value) const {
@@ -67,9 +60,6 @@ class Rgb565ToMono {
   }
 
  protected:
-  static constexpr std::array<uint8_t, 32> SCALE_5 = rgb565_scale_table<31>();
-  static constexpr std::array<uint8_t, 64> SCALE_6 = rgb565_scale_table<63>();
-
   // Weighted contribution of each value of each field
   std::array<uint16_t, 32> high_{};
   std::array<uint16_t, 64> middle_{};

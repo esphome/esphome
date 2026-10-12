@@ -307,20 +307,16 @@ bool EPaperBase::initialise(bool partial) {
  * @param y
  * @return false if the coordinates are out of bounds
  */
-bool EPaperBase::transform_point_(int &x, int &y) const {
+bool EPaperBase::rotate_coordinates_(int &x, int &y) {
+  if (this->is_point_clipped(x, y))
+    return false;
   if (this->effective_transform_ & SWAP_XY)
     std::swap(x, y);
   if (this->effective_transform_ & MIRROR_X)
     x = this->width_ - x - 1;
   if (this->effective_transform_ & MIRROR_Y)
     y = this->height_ - y - 1;
-  return x < this->width_ && y < this->height_ && x >= 0 && y >= 0;
-}
-
-bool EPaperBase::rotate_coordinates_(int &x, int &y) {
-  if (this->is_point_clipped(x, y))
-    return false;
-  if (!this->transform_point_(x, y))
+  if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return false;
   this->x_low_ = clamp_at_most(this->x_low_, x);
   this->x_high_ = clamp_at_least(this->x_high_, x + 1);
@@ -449,73 +445,18 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
   this->y_high_ = clamp_at_least(this->y_high_, y_high);
 }
 
-// Writes a block of pixels, as LVGL sends them, straight into a 1 bit per pixel buffer: the same result as
-// draw_pixel_at() for each pixel, without a virtual call and a clipping test per pixel.
+// Writes an RGB565 block of pixels, as LVGL sends them, straight into a 1 bit per pixel buffer that is one block (the
+// usual case): the same result as draw_pixel_at() for each pixel. Anything else goes through draw_pixel_at().
 void HOT EPaperBase::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                                     ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  if (!this->buffer_is_mono() || this->get_clipping().is_set()) {
+  size_t contiguous_length;
+  uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
+  if (!this->buffer_is_mono() || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
+      contiguous_length != this->buffer_length_) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
-  // The buffer is normally one block; then it is written through a pointer rather than SplitBuffer's indexing
-  size_t contiguous_length;
-  uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
-  if (contiguous_length != this->buffer_length_)
-    contiguous = nullptr;
-  if (contiguous != nullptr && bitness == COLOR_BITNESS_565) {
-    this->draw_rgb565_block_(contiguous, x_start, y_start, w, h, ptr, order, big_endian, x_offset, y_offset, x_pad);
-    return;
-  }
-  const size_t line_stride = x_offset + w + x_pad;
-  const Rgb565ToMono rgb565_to_mono(order);
-  int x_low = this->width_, x_high = 0, y_low = this->height_, y_high = 0;
-  for (int row = 0; row != h; row++) {
-    size_t source_idx = (y_offset + row) * line_stride + x_offset;
-    for (int column = 0; column != w; column++, source_idx++) {
-      uint32_t color_value;
-      switch (bitness) {
-        default:
-          color_value = ptr[source_idx];
-          break;
-        case COLOR_BITNESS_565: {
-          const size_t i = source_idx * 2;
-          color_value = big_endian ? (ptr[i] << 8) + ptr[i + 1] : ptr[i] + (ptr[i + 1] << 8);
-          break;
-        }
-        case COLOR_BITNESS_888: {
-          const size_t i = source_idx * 3;
-          color_value = big_endian ? (ptr[i] << 16) + (ptr[i + 1] << 8) + ptr[i + 2]
-                                   : ptr[i] + (ptr[i + 1] << 8) + (ptr[i + 2] << 16);
-          break;
-        }
-      }
-      int x = x_start + column;
-      int y = y_start + row;
-      if (!this->transform_point_(x, y))
-        continue;
-      const size_t byte_position = y * this->row_width_ + x / 8;
-      const uint8_t pixel_bit = 0x80u >> (x % 8);
-      const uint8_t white = bitness == COLOR_BITNESS_565
-                                ? rgb565_to_mono(color_value)
-                                : color_to_mono(ColorUtil::to_color(color_value, order, bitness));
-      uint8_t &byte = contiguous != nullptr ? contiguous[byte_position] : this->buffer_[byte_position];
-      if (white == 0) {
-        byte &= ~pixel_bit;
-      } else {
-        byte |= pixel_bit;
-      }
-      x_low = std::min(x_low, x);
-      x_high = std::max(x_high, x + 1);
-      y_low = std::min(y_low, y);
-      y_high = std::max(y_high, y + 1);
-    }
-  }
-  if (x_high == 0)
-    return;
-  this->x_low_ = clamp_at_most(this->x_low_, x_low);
-  this->x_high_ = clamp_at_least(this->x_high_, x_high);
-  this->y_low_ = clamp_at_most(this->y_low_, y_low);
-  this->y_high_ = clamp_at_least(this->y_high_, y_high);
+  this->draw_rgb565_block_(contiguous, x_start, y_start, w, h, ptr, order, big_endian, x_offset, y_offset, x_pad);
 }
 
 void EPaperBase::dump_config() {

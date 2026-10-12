@@ -130,8 +130,6 @@ class EPaperBase : public Display,
   bool init_buffer_(size_t buffer_length);
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
-  // Maps a point to buffer coordinates; false if it falls outside the panel. Ignores clipping.
-  bool transform_point_(int &x, int &y) const;
   void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                           bool big_endian, int x_offset, int y_offset, int x_pad);
   // Whether the buffer holds 1 bit per pixel as draw_pixel_at() writes it, so draw_pixels_at() can write it directly

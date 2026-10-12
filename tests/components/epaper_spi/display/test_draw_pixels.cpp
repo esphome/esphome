@@ -74,9 +74,9 @@ static std::vector<uint8_t> random_bytes(size_t pixels, uint32_t seed) {
   return out;
 }
 
-/// For every rotation, transform and byte order, in RGB565 and RGB888, with source offsets and padding, and with
-/// blocks inside the panel, running off each edge and larger than the panel, drawing a block directly gives the same
-/// buffer and the same dirty area as drawing it pixel by pixel. The panel width is not a multiple of 8.
+/// For every rotation, mirroring and byte order, with source offsets and padding, and with blocks inside the panel,
+/// running off each edge and larger than the panel, drawing an RGB565 block directly gives the same buffer and the same
+/// dirty area as drawing it pixel by pixel. The panel width is not a multiple of 8.
 TEST(EPaperDrawPixels, SameResultAsDrawingPixelByPixel) {
   struct Block {
     int x, y, w, h;
@@ -85,31 +85,30 @@ TEST(EPaperDrawPixels, SameResultAsDrawingPixelByPixel) {
   const display::DisplayRotation rotations[] = {
       display::DISPLAY_ROTATION_0_DEGREES, display::DISPLAY_ROTATION_90_DEGREES, display::DISPLAY_ROTATION_180_DEGREES,
       display::DISPLAY_ROTATION_270_DEGREES};
+  // Swapping the axes comes from the 90 and 270 degree rotations
+  const uint8_t mirrorings[] = {NONE, MIRROR_X, MIRROR_Y, MIRROR_X | MIRROR_Y};
   uint32_t seed = 1;
-  for (const auto bitness : {display::COLOR_BITNESS_565, display::COLOR_BITNESS_888}) {
-    for (const auto rotation : rotations) {
-      for (uint8_t transform = 0; transform != 8; transform++) {
-        for (const bool big_endian : {false, true}) {
-          for (const auto &block : blocks) {
-            TestableDisplay<EPaperSSD1683> fast(21, 13);
-            TestableDisplay<EPaperSSD1683> slow(21, 13);
-            for (auto *display : {&fast, &slow}) {
-              display->set_transform(transform & ~SWAP_XY);
-              display->set_rotation(rotation);
-            }
-            // a 3 pixel left offset, 2 rows skipped and 4 pixels of padding
-            const auto data = random_bytes((3 + block.w + 4) * (2 + block.h), seed++);
-            fast.draw_pixels_at(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB, bitness,
-                                big_endian, 3, 2, 4);
-            slow.draw_one_by_one(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB, bitness,
-                                 big_endian, 3, 2, 4);
-            const auto where = ::testing::Message()
-                               << "bitness " << int(bitness) << " rotation " << rotation << " transform "
-                               << int(transform) << " big endian " << big_endian << " block " << block.x << ","
-                               << block.y << " " << block.w << "x" << block.h;
-            EXPECT_EQ(fast.buffer(), slow.buffer()) << where;
-            EXPECT_EQ(fast.bounds(), slow.bounds()) << where;
+  for (const auto rotation : rotations) {
+    for (const uint8_t mirroring : mirrorings) {
+      for (const bool big_endian : {false, true}) {
+        for (const auto &block : blocks) {
+          TestableDisplay<EPaperSSD1683> fast(21, 13);
+          TestableDisplay<EPaperSSD1683> slow(21, 13);
+          for (auto *display : {&fast, &slow}) {
+            display->set_transform(mirroring);
+            display->set_rotation(rotation);
           }
+          // a 3 pixel left offset, 2 rows skipped and 4 pixels of padding
+          const auto data = random_bytes((3 + block.w + 4) * (2 + block.h), seed++);
+          fast.draw_pixels_at(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB,
+                              display::COLOR_BITNESS_565, big_endian, 3, 2, 4);
+          slow.draw_one_by_one(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB,
+                               display::COLOR_BITNESS_565, big_endian, 3, 2, 4);
+          const auto where = ::testing::Message() << "rotation " << rotation << " mirroring " << int(mirroring)
+                                                  << " big endian " << big_endian << " block " << block.x << ","
+                                                  << block.y << " " << block.w << "x" << block.h;
+          EXPECT_EQ(fast.buffer(), slow.buffer()) << where;
+          EXPECT_EQ(fast.bounds(), slow.bounds()) << where;
         }
       }
     }
@@ -165,15 +164,30 @@ TEST(EPaperDrawPixels, Rgb565LookupMatchesTheColourConversion) {
   }
 }
 
-/// A buffer split into several blocks is written through SplitBuffer's indexing and gives the same result.
-TEST(EPaperDrawPixels, SplitBufferGivesTheSameResult) {
-  TestableDisplay<EPaperSSD1683> fast(24, 16);
-  TestableDisplay<EPaperSSD1683> slow(24, 16);
-  fast.split_buffer(7);
-  const auto data = rgb565(24 * 16, 5);
-  fast.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
-  slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
-  EXPECT_EQ(fast.buffer(), slow.buffer());
+/// Other bit depths, and a buffer split into several blocks, go through draw_pixel_at() and give the same result.
+TEST(EPaperDrawPixels, OtherCasesDrawPixelByPixel) {
+  {
+    TestableDisplay<EPaperSSD1683> fast(24, 16);
+    TestableDisplay<EPaperSSD1683> slow(24, 16);
+    fast.split_buffer(7);
+    slow.split_buffer(7);
+    const auto data = rgb565(24 * 16, 5);
+    fast.draw_pixels_at(-2, 3, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0,
+                        0);
+    slow.draw_one_by_one(-2, 3, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0,
+                         0);
+    EXPECT_EQ(fast.buffer(), slow.buffer()) << "split buffer";
+    EXPECT_EQ(fast.bounds(), slow.bounds()) << "split buffer";
+  }
+  for (const auto bitness : {display::COLOR_BITNESS_888, display::COLOR_BITNESS_332}) {
+    TestableDisplay<EPaperSSD1683> fast(24, 16);
+    TestableDisplay<EPaperSSD1683> slow(24, 16);
+    const auto data = random_bytes(24 * 16, 9);
+    fast.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, bitness, false, 0, 0, 0);
+    slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, bitness, false, 0, 0, 0);
+    EXPECT_EQ(fast.buffer(), slow.buffer()) << "bitness " << int(bitness);
+    EXPECT_EQ(fast.bounds(), slow.bounds()) << "bitness " << int(bitness);
+  }
 }
 
 }  // namespace esphome::epaper_spi::testing
