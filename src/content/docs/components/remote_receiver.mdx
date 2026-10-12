@@ -66,6 +66,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   - **pronto**: Print remote code in Pronto form. Useful for using arbitrary protocols.
   - **raw**: Print all remote codes in their raw form. Also useful for using arbitrary protocols.
   - **rc5**: Decode and dump RC5 IR codes.
+  - **rc5x**: Decode and dump RC5X (Marantz Extended RC5) infrared codes.
   - **rc6**: Decode and dump RC6 IR codes.
   - **rc_switch**: Decode and dump RCSwitch RF codes.
   - **roomba**: Decode and dump Roomba infrared codes.
@@ -286,6 +287,10 @@ To enable signal demodulation, configure the signal carrier frequency and duty c
 - **on_rc5** (*Optional*, [Automation](/automations)): An automation to perform when a
   RC5 remote code has been decoded. A variable `x` of type <APIStruct text="remote_base::RC5Data" path="remote_base::RC5Data" />
   is passed to the automation for use in lambdas.
+
+- **on_rc5x** (*Optional*, [Automation](/automations)): An automation to perform when a
+  RC5X (Marantz Extended RC5) remote code has been decoded. A variable `x` of type <APIStruct text="remote_base::RC5XData" path="remote_base::RC5XData" />
+  is passed to the automation for use in lambdas. It has the fields `address`, `command` and `extension`.
 
 - **on_rc6** (*Optional*, [Automation](/automations)): An automation to perform when a
   RC6 remote code has been decoded. A variable `x` of type <APIStruct text="remote_base::RC6Data" path="remote_base::RC6Data" />
@@ -577,6 +582,12 @@ Remote code selection (exactly one of these has to be included):
 
   - **address** (**Required**, int): The address to trigger on, see dumper output for more info.
   - **command** (**Required**, int): The RC5 command to listen for.
+
+- **rc5x**: Trigger on a decoded RC5X (Marantz Extended RC5) remote code with the given data.
+
+  - **address** (**Required**, int): The address to trigger on, see dumper output for more info. Range is 0 to 0x1F.
+  - **command** (**Required**, int): The RC5X command to listen for. Range is 0 to 0x7F.
+  - **extension** (**Required**, int): The RC5X extension field to listen for. Range is 0 to 0x3F.
 
 - **rc6**: Trigger on a decoded RC6 remote code with the given data.
 
