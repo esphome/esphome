@@ -23,6 +23,9 @@ static constexpr float TARGET_TEMPERATURE_MAX_C = 31.0f;
 // Multi-bit fields reverse-engineered from factory remote captures, named by the packet type and
 // byte they live in. Both packet types carry a vertical swing flag, in different places. Each value
 // is the field contents the remote sends, not a bit index.
+static constexpr uint8_t GENERAL_BYTE8_PRESET_SLEEP = 1;         // preset field, bits 0-2
+static constexpr uint8_t GENERAL_BYTE8_PRESET_DRY = 2;           // preset field, bits 0-2
+static constexpr uint8_t GENERAL_BYTE8_PRESET_TURBO = 5;         // preset field, bits 0-2
 static constexpr uint8_t GENERAL_BYTE8_VERTICAL_SWING = 7 << 3;  // bits 3-5
 static constexpr uint8_t FAN_BYTE7_VERTICAL_SWING = 4 << 2;      // bits 2-4
 static constexpr uint8_t FAN_BYTE7_HORIZONTAL_SWING = 4 << 5;    // bits 5-7
@@ -96,11 +99,11 @@ PioneerWytData PioneerWytData::make_general(bool power, uint8_t mode, float targ
 
   uint8_t b8 = 0;
   if (turbo) {
-    b8 |= 5;
+    b8 |= GENERAL_BYTE8_PRESET_TURBO;
   } else if (sleep) {
-    b8 |= 1;
+    b8 |= GENERAL_BYTE8_PRESET_SLEEP;
   } else if (mode == PIONEER_WYT_MODE_DRY) {
-    b8 |= 2;
+    b8 |= GENERAL_BYTE8_PRESET_DRY;
   }
   if (up_down_swing) {
     b8 |= GENERAL_BYTE8_VERTICAL_SWING;

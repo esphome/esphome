@@ -134,7 +134,7 @@ button:
       remote_transmitter.transmit_pioneer_wyt:
         power: true
         mode: COOL
-        target_temperature: 22.0
+        target_temperature: !lambda "return 22.0f;"
         fan_speed: HIGH
         vertical_swing: true
   - platform: template

@@ -84,14 +84,13 @@ RemoteReceiverBase = ns.class_("RemoteReceiverBase")
 RemoteTransmitterBase = ns.class_("RemoteTransmitterBase")
 
 
-def templatize(value: cv.Schema | dict) -> cv.Schema:
-    extra_schemas = []
+def templatize(value):
     if isinstance(value, cv.Schema):
-        # Keep validators attached with add_extra(); rebuilding from .schema alone drops them
-        extra_schemas = value.extra_schemas
         value = value.schema
-    ret = {key: cv.templatable(val) for key, val in value.items()}
-    return cv.Schema(ret, extra_schemas=extra_schemas)
+    ret = {}
+    for key, val in value.items():
+        ret[key] = cv.templatable(val)
+    return cv.Schema(ret)
 
 
 REMOTE_LISTENER_SCHEMA = cv.Schema(
@@ -1234,33 +1233,6 @@ PIONEER_WYT_TYPES = {
 }
 
 
-def validate_pioneer_wyt(config: ConfigType) -> ConfigType:
-    if CONF_CODE in config:
-        extra_keys = {
-            CONF_TYPE,
-            CONF_POWER,
-            CONF_MODE,
-            CONF_TARGET_TEMPERATURE,
-            CONF_BEEPER,
-            CONF_DISPLAY,
-            CONF_ECO,
-            CONF_TURBO,
-            CONF_SLEEP,
-            CONF_FOLLOW_ME,
-            CONF_REMOTE_TEMP,
-            CONF_FAN_SPEED,
-            CONF_MUTE,
-            CONF_VERTICAL_SWING,
-            CONF_HORIZONTAL_SWING,
-        }
-        has_any = any(key in config for key in extra_keys)
-        if has_any:
-            raise cv.Invalid(
-                "Cannot specify both code and friendly fields for pioneer_wyt action"
-            )
-    return config
-
-
 def validate_target_temperature(value: float) -> float:
     if abs(value - round(value * 2.0) / 2.0) > 1e-3:
         raise cv.Invalid("Target temperature must be a multiple of 0.5°C")
@@ -1289,10 +1261,28 @@ PIONEER_WYT_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_VERTICAL_SWING): cv.boolean,
         cv.Optional(CONF_HORIZONTAL_SWING): cv.boolean,
     }
-).add_extra(validate_pioneer_wyt)
+)
 
 
-@register_action("pioneer_wyt", PioneerWytAction, PIONEER_WYT_ACTION_SCHEMA)
+def validate_pioneer_wyt(config: ConfigType) -> ConfigType:
+    # Applied after templatize(), which drops validators attached to the schema itself
+    if CONF_CODE not in config:
+        return config
+    if fields := [
+        key
+        for key in map(str, PIONEER_WYT_ACTION_SCHEMA.schema)
+        if key != CONF_CODE and key in config
+    ]:
+        raise cv.Invalid(f"'{CONF_CODE}' cannot be combined with {', '.join(fields)}")
+    return config
+
+
+@register_action(
+    "pioneer_wyt",
+    PioneerWytAction,
+    PIONEER_WYT_ACTION_SCHEMA,
+    validate=validate_pioneer_wyt,
+)
 async def pioneer_wyt_action(
     var: MockObj, config: ConfigType, args: TemplateArgsType
 ) -> None:
