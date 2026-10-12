@@ -104,10 +104,8 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
   void setup() override;
   void set_protocol(Protocol protocol) {
     this->protocol_ = protocol;
-    if (protocol == PROTOCOL_MITSUBISHI_HEAVY_ZMP) {
-      this->presets_.insert(climate::CLIMATE_PRESET_NONE);
-      this->presets_.insert(climate::CLIMATE_PRESET_ECO);
-      this->presets_.insert(climate::CLIMATE_PRESET_BOOST);
+    if (this->has_fan_byte_presets_()) {
+      this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
     }
   }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
@@ -122,8 +120,13 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
 
  protected:
   HeatpumpIR *heatpump_ir_;
+  void control(const climate::ClimateCall &call) override;
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  /// Mitsubishi Heavy ZJ and ZMP carry HiPower and Econo in the fan byte as FAN_4 and FAN_5
+  bool has_fan_byte_presets_() const {
+    return this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZJ || this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZMP;
+  }
   /// Handle received IR data from the remote control.
   bool on_receive(remote_base::RemoteReceiveData data) override;
   Protocol protocol_;
