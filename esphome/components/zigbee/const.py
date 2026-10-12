@@ -72,6 +72,7 @@ CONF_WIPE_ON_BOOT = "wipe_on_boot"
 CONF_REPORT = "report"
 CONF_ROUTER = "router"
 CONF_POWER_SOURCE = "power_source"
+CONF_SLEEPY = "sleepy"
 CONF_USE_DEVICE_TYPE = "use_device_type"
 POWER_SOURCE = {
     "UNKNOWN": 0x00,  # ZB_ZCL_BASIC_POWER_SOURCE_UNKNOWN
@@ -84,6 +85,8 @@ POWER_SOURCE = {
 }
 
 KEY_ZIGBEE = "zigbee"
+KEY_ZIGBEE_AREA_STR = "zigbee_area_str"
+KEY_ZIGBEE_VERSION_STR = "zigbee_version_str"
 
 # BACnet engineering units mapping (ZCL uses BACnet unit codes)
 # See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py

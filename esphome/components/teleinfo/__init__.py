@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@0hax"]
+CODEOWNERS = ["@0hax", "@FredM67"]
 DOMAIN = "teleinfo"
 MULTI_CONF = True
 
