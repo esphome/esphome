@@ -216,10 +216,8 @@ bool WiFiComponent::wifi_apply_hostname_() {
   return true;
 }
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
-#ifdef USE_BK72XX
   // The driver does not return until the join has started
   UnavoidableBlockingScope scope;
-#endif
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
