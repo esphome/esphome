@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/number/number.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
 #include "datalink.h"
 #include "flag_bits.h"
@@ -28,7 +29,8 @@ enum class RequestKind : uint8_t {
 // tier at the C++ level: `update_every` means "due once every N passes" (an entry is due on pass P
 // iff `pass_counter_ % update_every == 0` -- see entries_'s declaration comment), and every id
 // differs from every other one only in which cadence it's configured with. Since 0 % N == 0 for
-// any N, every entry is due on pass 0. `dirty` is set by
+// any N, every entry is due on pass 0, which is what makes the sweep-duration sensor's math work
+// with no extra bookkeeping (see sweep_length_passes_'s declaration comment). `dirty` is set by
 // control()-driven write ids (via set_write_value()/set_sensor_feed_write_value()) to jump the
 // queue immediately (ASAP) rather than waiting for the entry's next due pass -- see
 // build_next_request_()'s ASAP scan. `consecutive_data_invalid` is only meaningful for kinds
@@ -52,6 +54,10 @@ struct Entry {
 // pushed from those constructors, without needing to read anything back off the entity.
 #define OT42_SET_NUMBER(name, member) \
   void set_##name##_number(number::Number *n) { this->member = n; }
+#define OT42_SET_SENSOR(name, member) \
+  void set_##name##_sensor(sensor::Sensor *s) { this->member = s; }
+#define OT42_SET_BINARY_SENSOR(name, member) \
+  void set_##name##_binary_sensor(binary_sensor::BinarySensor *s) { this->member = s; }
 
 // OpenTherm 4.2 master, implementing the OT/+ (OpenTherm/plus) digital protocol only -- §1.2: the
 // two-microprocessor variant, as opposed to OT/- (OpenTherm/Lite), the PWM-signal variant for
@@ -75,6 +81,22 @@ class OpenTherm42Hub : public Component {
   // has either never heard of this id or the bus itself is unreliable, neither of which this grace
   // period is meant to paper over. See should_invalidate_now_().
   void set_max_data_invalid(uint32_t max_data_invalid) { this->max_data_invalid_ = max_data_invalid; }
+  // Synthetic diagnostic entity -- see sweep_length_passes_'s declaration comment. Not tied to any
+  // real OpenTherm data-id, unconditionally available regardless of what else is configured.
+  // Deliberately not named with the sensor_and_informational_data_* prefix used elsewhere in this
+  // file, since that prefix names a real spec chapter (§5.3.4 Class 4) this entity has nothing to
+  // do with.
+  OT42_SET_SENSOR(sweep_duration, sweep_duration_sensor_)
+  // Same nature as the sweep duration sensor above, but for a single pass (one full scan of
+  // entries_, however many of them happened to be due on it) rather than a whole sweep -- see
+  // pass_start_ms_'s declaration comment.
+  OT42_SET_SENSOR(pass_duration, pass_duration_sensor_)
+  // Synthetic diagnostic entity: true if any conversation during the most recently completed sweep
+  // was rejected or failed at the datalink level (timeout, Manchester/parity/stop-bit error,
+  // DATA_INVALID, UNKNOWN_DATA_ID, or an unexpected message type) and actually invalidated an entity --
+  // a DATA_INVALID masked by max_data_invalid's grace period does not count, since it's tolerated by
+  // definition. See sweep_had_error_'s declaration comment for how this is tracked.
+  OT42_SET_BINARY_SENSOR(sweep_had_errors, sweep_had_errors_binary_sensor_)
 
   // §5.2's mandatory heartbeat (id=0) -- unconditionally required in config (see
   // opentherm42/__init__.py), since STATUS is unconditionally scheduled regardless of which, if
@@ -119,7 +141,9 @@ class OpenTherm42Hub : public Component {
   // transmission; 400 ms is the longest a compliant boiler is allowed to take.
   static constexpr uint32_t RESPONSE_TIMEOUT_MS = 400;
 
-  // Populates entries_ from whichever entities got configured -- called once from setup().
+  // Populates entries_ from whichever entities got configured -- called once from setup(). Also
+  // computes sweep_length_passes_ (the max update_every across every entry) once entries_ is
+  // final -- see that field's declaration comment.
   void build_schedule_();
   // Builds the next request to send: the one-off pending_ intercepts first (unchanged from before
   // this redesign), then an ASAP scan over every entry for a dirty write, then
@@ -142,12 +166,13 @@ class OpenTherm42Hub : public Component {
   Entry *find_entry_(RequestKind kind);
   // Scans forward from cursor_ for the next entry due on pass_counter_, advancing cursor_ past
   // every entry it checks. When cursor_ reaches entries_.size() with the current pass's due-list
-  // fully drained, resets cursor_ to 0 and increments pass_counter_ before continuing to scan the
-  // new pass's due-list in the same call -- bounded to one extra lap, so pass_counter_ never
-  // advances more than once per call. Returns an empty optional if a full lap finds nothing due at all (only possible
-  // if no active entry has update_every == 1) -- build_next_request_() falls back to a STATUS filler in that case; the
-  // very next call resumes from the new pass_counter_, so a sparse schedule like this self-corrects within a few calls
-  // rather than needing to search further ahead here.
+  // fully drained, resets cursor_ to 0, increments pass_counter_, and checks the sweep boundary
+  // (see sweep_length_passes_/sweep_start_ms_) before continuing to scan the new pass's due-list in
+  // the same call -- bounded to one extra lap, so pass_counter_ never advances more than once per
+  // call. Returns an empty optional if a full lap finds nothing due at all (only possible if no
+  // active entry has update_every == 1) -- build_next_request_() falls back to a STATUS filler in
+  // that case; the very next call resumes from the new pass_counter_, so a sparse schedule like
+  // this self-corrects within a few calls rather than needing to search further ahead here.
   optional<Frame> pull_next_due_entry_();
   // Interprets a received frame according to which request it answers; logs and discards it if the
   // boiler replied with a message type that isn't legal for that data-id.
@@ -201,6 +226,32 @@ class OpenTherm42Hub : public Component {
   // due, since P % N == 0 whenever P == 0) begins at the very first scheduling decision.
   uint32_t pass_counter_{0};
   size_t cursor_{0};
+  // One sweep = enough passes for every currently-configured entry to be attempted at least once.
+  // Since every entry is due on pass 0 and an entry with update_every=N is next due at pass N, the
+  // slowest entry (the one with the largest update_every) defines how long a sweep is -- computed
+  // once in build_schedule_(), since update_every values are fixed at config time. A sweep boundary
+  // (pass_counter_ a multiple of this) is therefore also exactly when the slowest entry becomes due
+  // again -- nothing extra to detect. "Sweep complete" means every entry was attempted at least
+  // once, not necessarily answered successfully -- a DATA_INVALID/timeout just waits for its own
+  // next due pass, same as any other outcome (see should_invalidate_now_()).
+  uint32_t sweep_length_passes_{1};
+  uint32_t sweep_start_ms_{0};
+  sensor::Sensor *sweep_duration_sensor_{nullptr};
+  // Start time of the pass currently in progress -- reset every time pull_next_due_entry_() wraps
+  // cursor_ back to 0 (i.e. every pass_counter_ increment), regardless of whether that pass also
+  // happened to cross a sweep boundary. Unlike sweep_start_ms_, this always advances once per pass.
+  uint32_t pass_start_ms_{0};
+  sensor::Sensor *pass_duration_sensor_{nullptr};
+  // Set by OT42_LOG_REJECTION() when it's actually invalidating an entity (not for a DATA_INVALID
+  // masked by max_data_invalid's grace period), by OT42_LOG_REJECTION_ALWAYS() (every rejected
+  // conversation of a kind with no grace period), and by loop()'s DataLinkState::ERROR case (every
+  // datalink-level failure) -- accumulating across the sweep currently in progress. Published to
+  // sweep_had_errors_binary_sensor_ and reset to false at every sweep boundary (see
+  // pull_next_due_entry_()), so it always reflects only the most recently *completed* sweep, same
+  // lifecycle as sweep_duration_sensor_.
+  bool sweep_had_error_{false};
+  binary_sensor::BinarySensor *sweep_had_errors_binary_sensor_{nullptr};
+
   // Staged by every hub-level group's set_..._update_every() at wiring time (entries_ doesn't exist
   // yet when those run -- see their declaration comments above), consumed once by build_schedule_()
   // after entries_ is built, then cleared -- only needed transiently during setup(), so

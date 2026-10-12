@@ -1,4 +1,5 @@
 #include "hub.h"
+#include <algorithm>
 #include <cstdio>
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/helpers.h"
@@ -12,10 +13,14 @@ ESPHOME_LOG_TAG(TAG, "opentherm42");
 // (a DATA_INVALID within max_data_invalid's grace period -- see its declaration comment) so the
 // severity reflects that nothing user-visible happened. Expands to the normal ESP_LOGE/ESP_LOGW
 // macros, so compile-time log-level stripping still applies to whichever branch is actually reachable.
+// Only marks the current sweep as having had an error (see sweep_had_error_'s declaration comment) in
+// the ERROR/invalidating case -- a DATA_INVALID masked by max_data_invalid's grace period is, by
+// definition, tolerated, so it must not flip this any more than it flips the entity itself.
 #define OT42_LOG_REJECTION(invalidate_now, ...) \
   do { \
     if (invalidate_now) { \
       ESP_LOGE(TAG, __VA_ARGS__); \
+      this->sweep_had_error_ = true; \
     } else { \
       ESP_LOGW(TAG, __VA_ARGS__); \
     } \
@@ -26,6 +31,7 @@ ESPHOME_LOG_TAG(TAG, "opentherm42");
 #define OT42_LOG_REJECTION_ALWAYS(...) \
   do { \
     ESP_LOGE(TAG, __VA_ARGS__); \
+    this->sweep_had_error_ = true; \
   } while (0)
 
 // set_has_state(false) alone doesn't notify already-connected API/web_server clients -- only
@@ -89,6 +95,7 @@ void OpenTherm42Hub::loop() {
       char kind_desc[80];
       this->describe_request_kind_(this->pending_request_kind_, kind_desc, sizeof(kind_desc));
       ESP_LOGE(TAG, "Conversation failed: %s (%s)", data_link_error_to_string(this->datalink_->get_error()), kind_desc);
+      this->sweep_had_error_ = true;
       this->invalidate_response_(this->pending_request_kind_);
       this->last_conversation_end_ms_ = millis();
       this->datalink_->stop();
@@ -119,6 +126,16 @@ void OpenTherm42Hub::build_schedule_() {
   }
   this->pending_group_update_every_.clear();
   this->pending_group_update_every_.shrink_to_fit();
+
+  // One sweep = enough passes for every currently-configured entry to be attempted at least once --
+  // see sweep_length_passes_'s declaration comment. Computed once here since update_every values
+  // are fixed at config time.
+  this->sweep_length_passes_ = 1;
+  for (auto const &entry : this->entries_) {
+    this->sweep_length_passes_ = std::max(this->sweep_length_passes_, entry.update_every);
+  }
+  this->sweep_start_ms_ = millis();
+  this->pass_start_ms_ = this->sweep_start_ms_;
 }
 
 Frame OpenTherm42Hub::build_next_request_() {
@@ -233,6 +250,21 @@ optional<Frame> OpenTherm42Hub::pull_next_due_entry_() {
     wrapped = true;
     this->cursor_ = 0;
     this->pass_counter_++;
+    uint32_t const now = millis();
+    if (this->pass_duration_sensor_ != nullptr) {
+      this->pass_duration_sensor_->publish_state(now - this->pass_start_ms_);
+    }
+    this->pass_start_ms_ = now;
+    if (this->pass_counter_ % this->sweep_length_passes_ == 0) {
+      if (this->sweep_duration_sensor_ != nullptr) {
+        this->sweep_duration_sensor_->publish_state(now - this->sweep_start_ms_);
+      }
+      this->sweep_start_ms_ = now;
+      if (this->sweep_had_errors_binary_sensor_ != nullptr) {
+        this->sweep_had_errors_binary_sensor_->publish_state(this->sweep_had_error_);
+      }
+      this->sweep_had_error_ = false;
+    }
   }
 }
 
