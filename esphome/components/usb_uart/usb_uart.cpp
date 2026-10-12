@@ -575,6 +575,8 @@ void USBUartComponent::apply_channel_settings(USBUartChannelBase *channel) {
 
 void USBUartComponent::apply_modem_control(USBUartChannelBase *channel) {
   if (this->cfg_active_) {
+    // Deferred like a reload, and with the same single slot: a request for another channel
+    // in the meantime replaces this one. The channel's own dtr_/rts_ are read when it runs.
     this->cfg_pending_modem_ = channel;
     return;
   }
