@@ -94,6 +94,15 @@ button:
         address: 0x4004
         command: 0x1000BCD
   - platform: template
+    name: Panasonic 56 bit
+    on_press:
+      remote_transmitter.transmit_panasonic:
+        nbits: 56
+        address: 0x4004
+        address_2: 0x12
+        command: !lambda return 0x1000BCD;
+        carrier_frequency: 36kHz
+  - platform: template
     name: Pioneer
     on_press:
       - remote_transmitter.transmit_pioneer:
@@ -332,3 +341,80 @@ button:
         code: 0xd19ef0a9
         suffix: 0x00
         suffix_bits: 8
+  - platform: template
+    name: KeeLoq lambda with repeat
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: !lambda return 0x57ffe7b;
+        command: 0x02
+        code: 0xd19ef0a9
+        repeat:
+          times: 3
+          wait_time: 10ms
+  - platform: template
+    name: Toto with repeat
+    on_press:
+      remote_transmitter.transmit_toto:
+        command: 0xEC
+        rc_code_1: 0x0D
+        rc_code_2: 0x0D
+        repeat:
+          times: 2
+          wait_time: 20ms
+  - platform: template
+    name: ByronSX
+    on_press:
+      remote_transmitter.transmit_byronsx:
+        address: 0x12
+        command: 0x05
+  - platform: template
+    name: CanalSat
+    on_press:
+      remote_transmitter.transmit_canalsat:
+        device: 0x25
+        address: 0x01
+        command: 0x1C
+  - platform: template
+    name: CanalSatLD
+    on_press:
+      remote_transmitter.transmit_canalsatld:
+        device: 0x25
+        command: !lambda return 0x1C;
+  - platform: template
+    name: Coolix
+    on_press:
+      remote_transmitter.transmit_coolix:
+        first: 0xB2BF40
+        second: 0xB2BF40
+  - platform: template
+    name: Dish
+    on_press:
+      remote_transmitter.transmit_dish:
+        address: 1
+        command: 16
+  - platform: template
+    name: Drayton
+    on_press:
+      remote_transmitter.transmit_drayton:
+        address: 0x1234
+        channel: 0x01
+        command: 0x05
+  - platform: template
+    name: Gobox
+    on_press:
+      remote_transmitter.transmit_gobox:
+        code: 1
+  - platform: template
+    name: Nexa
+    on_press:
+      remote_transmitter.transmit_nexa:
+        device: 0x38DDB5A
+        group: 0
+        state: 1
+        channel: 15
+        level: 0
+  - platform: template
+    name: Roomba
+    on_press:
+      remote_transmitter.transmit_roomba:
+        data: 0x88

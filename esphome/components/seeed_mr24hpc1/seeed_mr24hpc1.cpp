@@ -11,6 +11,8 @@ ESPHOME_LOG_TAG(TAG, "seeed_mr24hpc1");
 
 static constexpr uint32_t STARTUP_DELAY_MS = 1000;
 
+static constexpr uint32_t STARTUP_DELAY_MS = 1000;
+
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
 // items in an easy-to-read format, including the configuration key-value pairs.
 void MR24HPC1Component::dump_config() {

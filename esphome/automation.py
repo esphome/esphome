@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 import logging
 import string
@@ -465,6 +465,22 @@ def register_apply_action(
 ) -> None:
     """Register an action that only forwards config values to its parent, with no C++ class.
 
+    See ``apply_action_builder``.
+    """
+    register_action(name, ApplyAction, schema, synchronous=True)(
+        apply_action_builder(name, schema, *fields, call=call, id_key=id_key)
+    )
+
+
+def apply_action_builder(
+    name: str,
+    schema: cv.Schema,
+    *fields: ApplyField | ApplyCall,
+    call: str | None = None,
+    id_key: str = CONF_ID,
+) -> Callable[..., Awaitable[MockObj]]:
+    """The builder ``register_apply_action`` registers, for a caller that wraps it.
+
     Generates one static function with the parent (read from ``id_key``) and constants baked
     in, lambdas called inline with the trigger args, and an ``ApplyAction`` templated on it.
     A constant that is an id (``cv.use_id`` under ``cv.templatable``) is the object it names.
@@ -515,7 +531,7 @@ def register_apply_action(
             action_id, cg.void, template_arg, lambda_args, statements
         )
 
-    register_action(name, ApplyAction, schema, synchronous=True)(builder)
+    return builder
 
 
 def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:
