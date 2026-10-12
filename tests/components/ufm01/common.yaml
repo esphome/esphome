@@ -1,0 +1,44 @@
+ufm01:
+  id: ufm01_component
+  uart_id: uart_bus
+
+sensor:
+  - platform: ufm01
+    accumulated_flow:
+      id: accumulated_flow
+      name: "Accumulated flow"
+    flow:
+      id: flow
+      name: "Flow"
+    temperature:
+      id: temperature
+      name: "Temperature"
+
+binary_sensor:
+  - platform: ufm01
+    ufc_chip_error:
+      id: ufc_chip_error
+      name: "UFC chip error"
+    flow_direction_wrong:
+      id: flow_direction_wrong
+      name: "Flow direction wrong"
+    empty_tube:
+      id: empty_tube
+      name: "Empty tube"
+    flow_rate_out_of_range:
+      id: flow_rate_out_of_range
+      name: "Flow rate out of range"
+
+text_sensor:
+  - platform: ufm01
+    meter_id:
+      id: ufm01_meter_id
+      name: "Meter ID"
+    software_version:
+      id: ufm01_software_version
+      name: "Software version"
+
+script:
+  - id: ufm01_clear_accumulated_flow
+    then:
+      - ufm01.clear_accumulated_flow: ufm01_component

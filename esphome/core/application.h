@@ -67,7 +67,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -87,7 +87,7 @@ class Application {
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 #else
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
   void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -104,8 +104,12 @@ class Application {
   void register_area(Area *area) { this->areas_.push_back(area); }
 #endif
 
-  void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
+
+  // Owning script of the action chain currently executing (nullptr when none); used to attribute
+  // blocking warnings for deferred work to the script that scheduled it.
+  void set_current_source(const LogString *source) { this->current_source_ = source; }
+  const LogString *get_current_source() { return this->current_source_; }
 
 // Entity register methods (generated from entity_types.h).
 // Each entity type gets two overloads:
@@ -190,15 +194,6 @@ class Application {
   /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
   void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
 
-  /// Get the build time as a string (deprecated, use get_build_time_string() instead)
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
-  std::string get_compilation_time() {
-    char buf[BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(buf);
-    return std::string(buf);
-  }
-
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
 
@@ -213,8 +208,8 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
-   * Note: This method is not called by ESPHome core code. It is only used by lambda functions
-   * in YAML configurations or by external components.
+   * Sleep per wake is capped at 2 * WDT_FEED_INTERVAL_MS (except host and ESP8266);
+   * raise the platform watchdog timeout to sleep longer.
    *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
@@ -237,6 +232,7 @@ class Application {
   ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
   ///   - ESP8266 HW WDT (~6 s):               ~60x
   ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
+  /// Important: if these are modified align validate_loop_interval in config.py
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
@@ -393,6 +389,7 @@ class Application {
  protected:
   friend Component;
   friend class Scheduler;
+  friend class LoopBlockingGuard;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -401,6 +398,14 @@ class Application {
 
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
+
+  // Publish the running unit's identity (component + source) and dispatch time together, so a
+  // dispatch site can't set one without the others. Friend-only (Scheduler).
+  void set_current_execution_context_(Component *component, const LogString *source, uint32_t now) {
+    this->current_component_ = component;
+    this->current_source_ = source;
+    this->set_loop_component_start_time_(now);
+  }
 
   /// Walk all registered components looking for any whose component_state_
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
@@ -482,6 +487,7 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
+  const LogString *current_source_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
@@ -523,7 +529,7 @@ class Application {
 
   // 1-byte members (grouped together to minimize padding)
   uint8_t app_state_{0};
-  bool name_add_mac_suffix_;
+  bool name_add_mac_suffix_{false};
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
@@ -553,6 +559,78 @@ class Application {
 
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// RAII guard that publishes a current source (e.g. a script name) for a scope and restores the
+/// previous value on exit, attributing deferred work scheduled inside to that source.
+class ScopedSourceGuard {
+ public:
+  explicit ScopedSourceGuard(const LogString *source) : prev_(App.get_current_source()) {
+    App.set_current_source(source);
+  }
+  ~ScopedSourceGuard() { App.set_current_source(this->prev_); }
+  ScopedSourceGuard(const ScopedSourceGuard &) = delete;
+  ScopedSourceGuard &operator=(const ScopedSourceGuard &) = delete;
+
+ private:
+  const LogString *prev_;
+};
+
+// Times one unit of work (a component loop() or a scheduled callback) and warns if it blocks the
+// main loop too long. The constructor publishes the unit's identity + dispatch time to App;
+// finish()/the cold warning path read them back, so the guard stores no copy.
+//
+// Guards must not nest: the constructor publishes to App but never restores on destruction, so a
+// nested guard would clobber the outer's context. Safe because the two dispatch sites (component
+// loop phase, execute_item_) run strictly sequentially and aren't re-entered from a timed callback.
+class LoopBlockingGuard {
+ public:
+  // Publish the unit's identity + dispatch time, then start timing. The millis start lives in App,
+  // so only the runtime-stats micros stamp is kept here.
+  LoopBlockingGuard(Component *component, const LogString *source, uint32_t now) {
+    App.set_current_execution_context_(component, source, now);
+#ifdef USE_RUNTIME_STATS
+    this->started_us_ = micros();
+#endif
+  }
+
+  // Finish the timing operation and return the current time (millis)
+  // Inlined: the fast path is just millis() + subtract + compare
+  inline uint32_t HOT finish() {
+#ifdef USE_RUNTIME_STATS
+    uint32_t elapsed_us = micros() - this->started_us_;
+    // Delays have no component; accumulate into the global counter so loop() can subtract them.
+    Component *component = App.get_current_component();
+    if (component != nullptr) {
+      component->runtime_stats_.record_time(elapsed_us);
+    } else {
+      ComponentRuntimeStats::global_recorded_us += elapsed_us;
+    }
+#endif
+    uint32_t curr_time = MillisInternal::get();
+#ifndef USE_BENCHMARK
+    // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
+    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
+    uint32_t blocking_time = curr_time - App.get_loop_component_start_time();
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(blocking_time);
+      // Exclude synchronous warning-log time from the next operation.
+      curr_time = MillisInternal::get();
+    }
+#endif
+    return curr_time;
+  }
+
+  ~LoopBlockingGuard() = default;
+
+#ifdef USE_RUNTIME_STATS
+ protected:
+  uint32_t started_us_;
+#endif
+
+ private:
+  // Cold path; defined in component.cpp. Reads the current component/source from App to name the culprit.
+  static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
+};
 
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
 // Application::loop() tick regardless of whether a component phase runs, so
@@ -595,8 +673,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
   // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
   // subsequent Socket::ready() checks in this iter observe the published state
-  // without a per-call memw. Wake is independent (xTaskNotifyGive/
-  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // without a per-call memw. Wake is independent (esphome_main_task_notify/
+  // esphome_main_task_wait), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
   // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
   // instead.
   std::atomic_thread_fence(std::memory_order_acquire);
@@ -607,7 +685,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // before/tail splits recorded below.
   uint32_t loop_active_start_us = micros();
   // Snapshot the cumulative component-recorded time so we can subtract the
-  // slice that the scheduler spends inside its own WarnIfComponentBlockingGuard
+  // slice that the scheduler spends inside its own LoopBlockingGuard
   // (scheduler.cpp) — that time is already counted in per-component stats,
   // so charging it again to "before" would double-count.
   uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
@@ -660,12 +738,9 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
          this->current_loop_index_++) {
       Component *component = this->looping_components_[this->current_loop_index_];
 
-      // Update the cached time before each component runs
-      this->loop_component_start_time_ = last_op_end_time;
-
       {
-        this->set_current_component(component);
-        WarnIfComponentBlockingGuard guard{component, last_op_end_time};
+        // Guard publishes this component (no script source) + dispatch time, then times loop().
+        LoopBlockingGuard guard{component, nullptr, last_op_end_time};
         component->loop();
         // Use the finish method to get the current time as the end time
         last_op_end_time = guard.finish();
@@ -701,8 +776,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   }
 #endif
 
-  // Compute sleep: bounded by time-until-next-component-phase and the
-  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // Compute sleep: bounded by time-until-next-component-phase if there are
+  // components with loop enabled and the scheduler's next deadline. When a scheduler timer fires it re-enters
   // loop(), Phase A services it, and the component phase stays gated by
   // loop_interval_. When a background producer calls wake_loop_threadsafe()
   // it sets the wake_request flag and wakes select() / the task notification;
@@ -721,16 +796,47 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint32_t delay_time = 0;
   if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
-    const uint32_t until_phase =
+#ifdef ESPHOME_SUSPEND_LOOP
+    const bool has_loop_work =
+        this->looping_components_active_end_ > 0 || this->dump_config_at_ < this->components_.size();
+    uint32_t until_phase = std::numeric_limits<uint32_t>::max();
+    if (has_loop_work) {
+      until_phase = (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+    }
+#else
+    uint32_t until_phase =
         (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+#endif
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  esphome::internal::wakeable_delay(delay_time);
+  // Cap the sleep so the WDT feed and status-LED dispatch rate limits still get
+  // exercised even when loop_interval is raised or the scheduler and component
+  // phases are gated out for a long sleep. Waking every 2*WDT_FEED_INTERVAL_MS
+  // clears the feed rate limit on every wake, so the WDT is fed at least that
+  // often -- well inside every platform's timeout.
+#if defined(USE_ESP8266)
+  // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
+  // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
+  static constexpr uint32_t MAX_SLEEP_BASE = 0x68D7A3;
+#elif defined(USE_HOST)
+  // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
+  // the config validator, so delay_time is already bounded by loop_interval_.
+  static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
+#else
+  static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;
+#endif
+  uint32_t max_sleep = MAX_SLEEP_BASE;
+#ifdef USE_STATUS_LED
+  if ((this->app_state_ & STATUS_LED_MASK) != 0) {
+    max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
+  }
+#endif
 
+  esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }

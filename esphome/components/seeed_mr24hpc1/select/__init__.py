@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
+from esphome.types import ConfigType
 
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
@@ -38,65 +39,58 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
-    mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if scenemode_config := config.get(CONF_SCENE_MODE):
-        s = await select.new_select(
-            scenemode_config,
-            options=["None", "Living Room", "Bedroom", "Washroom", "Area Detection"],
-        )
-        await cg.register_parented(s, config[CONF_MR24HPC1_ID])
-        cg.add(mr24hpc1_component.set_scene_mode_select(s))
-    if unmantime_config := config.get(CONF_UNMAN_TIME):
-        s = await select.new_select(
-            unmantime_config,
-            options=[
-                "None",
-                "10s",
-                "30s",
-                "1min",
-                "2min",
-                "5min",
-                "10min",
-                "30min",
-                "60min",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_MR24HPC1_ID])
-        cg.add(mr24hpc1_component.set_unman_time_select(s))
-    if existence_boundary_config := config.get(CONF_EXISTENCE_BOUNDARY):
-        s = await select.new_select(
-            existence_boundary_config,
-            options=[
-                "0.5m",
-                "1.0m",
-                "1.5m",
-                "2.0m",
-                "2.5m",
-                "3.0m",
-                "3.5m",
-                "4.0m",
-                "4.5m",
-                "5.0m",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_MR24HPC1_ID])
-        cg.add(mr24hpc1_component.set_existence_boundary_select(s))
-    if motion_boundary_config := config.get(CONF_MOTION_BOUNDARY):
-        s = await select.new_select(
-            motion_boundary_config,
-            options=[
-                "0.5m",
-                "1.0m",
-                "1.5m",
-                "2.0m",
-                "2.5m",
-                "3.0m",
-                "3.5m",
-                "4.0m",
-                "4.5m",
-                "5.0m",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_MR24HPC1_ID])
-        cg.add(mr24hpc1_component.set_motion_boundary_select(s))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_MR24HPC1_ID])
+    selects = select.sub_selects(config, parent=hub)
+    await selects(
+        CONF_SCENE_MODE,
+        hub.set_scene_mode_select,
+        options=["None", "Living Room", "Bedroom", "Washroom", "Area Detection"],
+    )
+    await selects(
+        CONF_UNMAN_TIME,
+        hub.set_unman_time_select,
+        options=[
+            "None",
+            "10s",
+            "30s",
+            "1min",
+            "2min",
+            "5min",
+            "10min",
+            "30min",
+            "60min",
+        ],
+    )
+    await selects(
+        CONF_EXISTENCE_BOUNDARY,
+        hub.set_existence_boundary_select,
+        options=[
+            "0.5m",
+            "1.0m",
+            "1.5m",
+            "2.0m",
+            "2.5m",
+            "3.0m",
+            "3.5m",
+            "4.0m",
+            "4.5m",
+            "5.0m",
+        ],
+    )
+    await selects(
+        CONF_MOTION_BOUNDARY,
+        hub.set_motion_boundary_select,
+        options=[
+            "0.5m",
+            "1.0m",
+            "1.5m",
+            "2.0m",
+            "2.5m",
+            "3.0m",
+            "3.5m",
+            "4.0m",
+            "4.5m",
+            "5.0m",
+        ],
+    )

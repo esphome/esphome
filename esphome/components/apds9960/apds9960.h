@@ -12,7 +12,7 @@
 
 namespace esphome::apds9960 {
 
-class APDS9960 : public PollingComponent, public i2c::I2CDevice {
+class APDS9960 final : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR(red)
   SUB_SENSOR(green)

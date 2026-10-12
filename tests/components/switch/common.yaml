@@ -1,6 +1,6 @@
 binary_sensor:
   - platform: switch
-    id: some_binary_sensor
+    id: switch_some_binary_sensor
     name: "Template Switch State"
     source_id: the_switch
 
@@ -29,3 +29,13 @@ esphome:
     - switch.control:
         id: the_switch
         state: !lambda return (1 > 2);
+    - if:
+        condition:
+          switch.is_on: the_switch
+        then:
+          - logger.log: "Switch is on"
+    - if:
+        condition:
+          switch.is_off: the_switch
+        then:
+          - logger.log: "Switch is off"

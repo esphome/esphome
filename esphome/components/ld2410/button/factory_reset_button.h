@@ -5,7 +5,7 @@
 
 namespace esphome::ld2410 {
 
-class FactoryResetButton : public button::Button, public Parented<LD2410Component> {
+class FactoryResetButton final : public button::Button, public Parented<LD2410Component> {
  public:
   FactoryResetButton() = default;
 

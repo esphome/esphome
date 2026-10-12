@@ -26,6 +26,7 @@ class BLEDescriptor {
   void do_create(BLECharacteristic *characteristic);
   ESPBTUUID get_uuid() const { return this->uuid_; }
 
+  void set_value(const uint8_t *data, size_t length);
   void set_value(std::vector<uint8_t> &&buffer);
   void set_value(std::initializer_list<uint8_t> data);
   void set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
@@ -42,8 +43,6 @@ class BLEDescriptor {
   }
 
  protected:
-  void set_value_impl_(const uint8_t *data, size_t length);
-
   BLECharacteristic *characteristic_{nullptr};
   ESPBTUUID uuid_;
   uint16_t handle_{0xFFFF};

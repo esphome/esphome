@@ -6,7 +6,7 @@
 
 namespace esphome::mpu6886 {
 
-class MPU6886Component : public PollingComponent, public i2c::I2CDevice {
+class MPU6886Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

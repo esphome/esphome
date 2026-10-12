@@ -1,0 +1,16 @@
+display:
+  - id: cst9220_display
+    platform: ili9xxx
+    model: ili9342
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${disp_reset_pin}
+    invert_colors: false
+
+touchscreen:
+  - id: ts_cst9220
+    i2c_id: i2c_bus
+    platform: cst9220
+    display: cst9220_display
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}

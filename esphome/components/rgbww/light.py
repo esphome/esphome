@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
+from esphome.types import ConfigType
 
 rgbww_ns = cg.esphome_ns.namespace("rgbww")
 RGBWWLightOutput = rgbww_ns.class_("RGBWWLightOutput", light.LightOutput)
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 

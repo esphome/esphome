@@ -6,7 +6,7 @@
 
 namespace esphome::ms5611 {
 
-class MS5611Component : public PollingComponent, public i2c::I2CDevice {
+class MS5611Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

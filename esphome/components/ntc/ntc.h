@@ -5,7 +5,7 @@
 
 namespace esphome::ntc {
 
-class NTC : public Component, public sensor::Sensor {
+class NTC final : public Component, public sensor::Sensor {
  public:
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_a(double a) { a_ = a; }

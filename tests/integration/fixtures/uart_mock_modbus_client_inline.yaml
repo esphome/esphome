@@ -1,0 +1,108 @@
+esphome:
+  name: uart-mock-modbus-client-inline
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_client
+              data: !lambda return data;
+  - id: virtual_uart_client
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_client
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 10ms
+    # Short wait so the no-reply cases (address 2 below) time out well within the test window.
+    send_wait_time: 500ms
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return 1234;
+
+sensor:
+  - platform: template
+    name: "inline_value"
+    id: inline_value
+  - platform: template
+    name: "timeout_flag"
+    id: timeout_flag
+  - platform: template
+    name: "skipped_flag"
+    id: skipped_flag
+
+# The same write action fired twice while its first frame is still awaiting a reply: the hub drops the
+# duplicate write (writes are never merged) and the second firing resolves via its own on_not_sent.
+# mode: parallel so the second run starts while the first send is pending.
+script:
+  - id: dup_write
+    mode: parallel
+    then:
+      - modbus_client.send:
+          address: 2
+          pdu: [0x06, 0x00, 0x10, 0x01, 0x02]
+          on_not_sent:
+            then:
+              - lambda: "id(skipped_flag).publish_state(1);"
+
+# Each action is its own hub device: address 1 is served by the mock server, address 2 answers nothing.
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      # Per-send inline on_response: decode this reply where the send was fired (fire-and-continue).
+      - modbus_client.send:
+          address: 1
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          on_response:
+            then:
+              - lambda: |-
+                  if (response.size() >= 4)
+                    id(inline_value).publish_state((response[2] << 8) | response[3]);
+      # No server answers address 2, so this resolves via on_no_response.
+      - modbus_client.send:
+          address: 2
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          on_no_response:
+            then:
+              - lambda: "id(timeout_flag).publish_state(1);"
+      - script.execute: dup_write
+      - script.execute: dup_write

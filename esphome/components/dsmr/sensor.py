@@ -27,6 +27,7 @@ from esphome.const import (
     UNIT_SECOND,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_DSMR_ID, Dsmr
 
@@ -246,10 +247,6 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_KILOWATT,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("electricity_switch_position"): sensor.sensor_schema(
-            accuracy_decimals=3,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("electricity_failures"): sensor.sensor_schema(
@@ -808,11 +805,15 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_DURATION,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional("electricity_switch_position"): cv.invalid(
+            "'electricity_switch_position' has moved to the 'text_sensor' platform."
+            "Move it under 'text_sensor' to fix."
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DSMR_ID])
 
     sensors = []

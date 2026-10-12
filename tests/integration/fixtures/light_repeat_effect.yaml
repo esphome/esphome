@@ -1,0 +1,49 @@
+esphome:
+  name: light-repeat-effect
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: red_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "RED_OUTPUT:%.4f"
+          args: [state]
+  - platform: template
+    id: green_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "GREEN_OUTPUT:%.4f"
+          args: [state]
+  - platform: template
+    id: blue_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "BLUE_OUTPUT:%.4f"
+          args: [state]
+
+light:
+  - platform: rgb
+    name: "Test RGB Light"
+    id: test_rgb_light
+    red: red_output
+    green: green_output
+    blue: blue_output
+    effects:
+      - strobe:
+          name: "Slow Strobe"
+          colors:
+            - red: 100%
+              green: 0%
+              blue: 0%
+              duration: 1s
+            - red: 0%
+              green: 0%
+              blue: 100%
+              duration: 1s

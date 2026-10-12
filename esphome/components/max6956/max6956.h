@@ -35,7 +35,7 @@ enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
 
 enum MAX6956CURRENTMODE { GLOBAL = 0x00, SEGMENT = 0x01 };
 
-class MAX6956 : public Component, public i2c::I2CDevice {
+class MAX6956 final : public Component, public i2c::I2CDevice {
  public:
   MAX6956() = default;
 
@@ -69,7 +69,7 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   int8_t prev_bright_[28] = {0};
 };
 
-class MAX6956GPIOPin : public GPIOPin {
+class MAX6956GPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;

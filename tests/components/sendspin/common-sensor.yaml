@@ -1,4 +1,5 @@
-<<: !include common.yaml
+packages:
+  sendspin: !include common.yaml
 
 sensor:
   - platform: sendspin

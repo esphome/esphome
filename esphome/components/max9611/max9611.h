@@ -33,7 +33,7 @@ enum MAX9611RegisterMap {
   CONTROL_REGISTER_2_ADRR = 0x0B,
 };
 
-class MAX9611Component : public PollingComponent, public i2c::I2CDevice {
+class MAX9611Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

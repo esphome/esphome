@@ -59,7 +59,7 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
 
 PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
 
-class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
+class PulseCounterSensor final : public sensor::Sensor, public PollingComponent {
  public:
   explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
 
