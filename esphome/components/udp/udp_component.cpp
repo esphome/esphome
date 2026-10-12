@@ -10,6 +10,12 @@ namespace esphome::udp {
 ESPHOME_LOG_TAG(TAG, "udp");
 static constexpr uint32_t JOIN_RETRY_INTERVAL_MS = 5000;
 
+static void listen_group(const network::IPAddress &address, struct in_addr *group) {
+  char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  address.str_to(addr_buf);
+  inet_aton(addr_buf, group);
+}
+
 void UDPComponent::setup() {
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
     const char *address = *it;
@@ -70,7 +76,7 @@ void UDPComponent::setup() {
     server.sin_port = htons(this->listen_port_);
 
     if (this->listen_address_.has_value()) {
-      this->listen_group_(&server.sin_addr);
+      listen_group(this->listen_address_.value(), &server.sin_addr);
       // Joined from loop() once the network is up; RP2040 has no interface to join before then
       this->join_pending_ = true;
       this->join_attempt_at_ = millis() - JOIN_RETRY_INTERVAL_MS;
@@ -86,16 +92,12 @@ void UDPComponent::setup() {
   }
 }
 
-void UDPComponent::listen_group_(struct in_addr *group) {
-  char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
-  this->listen_address_.value().str_to(addr_buf);
-  inet_aton(addr_buf, group);
-}
-
 bool UDPComponent::join_multicast_() {
+  if (!this->listen_address_.has_value())
+    return true;
   struct ip_mreq imreq = {};
   imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
-  this->listen_group_(&imreq.imr_multiaddr);
+  listen_group(this->listen_address_.value(), &imreq.imr_multiaddr);
   if (this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) == 0) {
     ESP_LOGD(TAG, "Joined multicast group");
     this->status_clear_warning();

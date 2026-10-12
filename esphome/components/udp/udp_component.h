@@ -31,7 +31,6 @@ class UDPComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
-  void listen_group_(struct in_addr *group);
   bool join_multicast_();
 
   uint32_t join_attempt_at_{};
