@@ -98,6 +98,18 @@ CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVE
 )
 CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY = "configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every"
 CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY = "configuration_information_solar_storage_product_version_number_and_type_update_every"
+# §5.3.6 Class 6, IDs 11/89/106: all three TSP families round-robin through one shared
+# conversation (see hub.h's tsp_slots_) -- this governs how fast that rotation advances as a
+# whole, not any individual slot's own refresh rate. On-demand writes always jump the queue ahead
+# of it regardless.
+CONF_TRANSPARENT_BOILER_PARAMETERS_UPDATE_EVERY = (
+    "transparent_boiler_parameters_update_every"
+)
+# §5.3.7 Class 7, IDs 13/91/108: same shared-rotation reasoning as TSP above, for the (purely
+# read-only) fault-history-buffer entries.
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_UPDATE_EVERY = (
+    "fault_history_data_fault_buffer_update_every"
+)
 
 # Every hub-level update_every option, with the default cadence (in passes) it takes when the user
 # doesn't override it -- see hub.h's Entry for what a pass/cadence means. All cv.Optional: none of
@@ -124,6 +136,8 @@ UPDATE_EVERY_OPTIONS: dict[str, int] = {
     CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
     CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
     CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_UPDATE_EVERY: 7,
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_UPDATE_EVERY: 7,
     # Tier 4: status/fault-flag groups (event-driven, not continuously drifting).
     CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY: 4,
     CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_UPDATE_EVERY: 4,

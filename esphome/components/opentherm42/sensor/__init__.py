@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_DURATION, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import CONF_INDEX, DEVICE_CLASS_DURATION, ENTITY_CATEGORY_DIAGNOSTIC
 
 from .. import OpenTherm42Hub
 from ..const import (
@@ -21,10 +21,19 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE,
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE_SOLAR_STORAGE,
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE_VENTILATION_HEAT_RECOVERY,
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER,
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_SOLAR_STORAGE,
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY,
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER,
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE,
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
     CONF_PASS_DURATION,
     CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE,
     CONF_SWEEP_DURATION,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY,
     CONF_UPDATE_EVERY,
 )
 
@@ -144,6 +153,36 @@ TYPES: dict[str, cv.Schema] = {
     CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE: _code_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
+    # §5.3.6 Class 6, IDs 10/88/105: static capability counts (how many parameters the boiler/
+    # ventilation/Solar Storage system supports), not something that changes -- DIAGNOSTIC.
+    #
+    # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS: _with_update_every(
+        _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
+    # §5.3.6 Class 6, ID 88 HB: Number of TSPs supported by the ventilation/heat-recovery system.
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY: _with_update_every(
+        _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
+    # §5.3.6 Class 6, ID 105 HB: Number of TSPs supported by the Solar Storage.
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE: _with_update_every(
+        _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
+    # §5.3.7 Class 7, IDs 12/90/107: static capability counts (fault history buffer size), same
+    # reasoning as Class 6's TSP counts above -- DIAGNOSTIC.
+    #
+    # §5.3.7 Class 7, ID 12 HB: Size of the fault history buffer supported by the boiler.
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER: _with_update_every(
+        _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
+    # §5.3.7 Class 7, ID 90 HB: Size of the fault history buffer for the ventilation/heat-recovery system.
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY: _with_update_every(
+        _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
+    # §5.3.7 Class 7, ID 107 HB: Size of the fault history buffer for the Solar Storage.
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE: _with_update_every(
+        _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
     # Synthetic diagnostic, not an OpenTherm data-id -- deliberately not given the
     # sensor_and_informational_data_* prefix used throughout this file, since that names a real spec
     # chapter (§5.3.4 Class 4) this entity has nothing to do with. How long the most recently
@@ -177,14 +216,42 @@ TYPES: dict[str, cv.Schema] = {
 # OEM_DIAGNOSTIC_CODE/_VENTILATION_HEAT_RECOVERY, which have bespoke (non-SIMPLE_SENSORS) handling
 # in hub.cpp and so get their own individually-named setters instead -- see to_code() below.
 SIMPLE_SENSOR_DATA_IDS: dict[str, int] = {
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS: 10,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY: 88,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE: 105,
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER: 12,
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY: 90,
+    CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE: 107,
     CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_BOILER: 125,
     CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_VENTILATION_HEAT_RECOVERY: 75,
 }
+
+# §5.3.7 Class 7, IDs 13/91/108: one list of user-named fault-history-buffer slots per family, keyed
+# by which data-id reads that family's fault history.
+FHB_FAMILY_DATA_IDS: dict[str, int] = {
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER: 13,
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY: 91,
+    CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_SOLAR_STORAGE: 108,
+}
+
+# Stored fault-history entries are diagnostic/troubleshooting information by nature, matching Home
+# Assistant's own example of a diagnostic entity.
+FHB_ENTRY_SCHEMA = _code_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC).extend(
+    {
+        # FHB-index: which of the boiler's (opaque, manufacturer-specific) fault history entries this
+        # slot reads.
+        cv.Required(CONF_INDEX): cv.int_range(min=0, max=255),
+    }
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         **{cv.Optional(marker): schema for marker, schema in TYPES.items()},
+        **{
+            cv.Optional(marker, default=[]): cv.ensure_list(FHB_ENTRY_SCHEMA)
+            for marker in FHB_FAMILY_DATA_IDS
+        },
     }
 )
 
@@ -207,3 +274,8 @@ async def to_code(config: dict) -> None:
                     # bespoke (non-SIMPLE_SENSORS) handling in hub.cpp, so each gets its own
                     # individually-named setter instead.
                     cg.add(getattr(hub, f"set_{marker}_update_every")(update_every))
+
+    for marker, data_id in FHB_FAMILY_DATA_IDS.items():
+        for entry in config[marker]:
+            var = await sensor.new_sensor(entry)
+            cg.add(hub.add_fhb_slot(data_id, entry[CONF_INDEX], var))
