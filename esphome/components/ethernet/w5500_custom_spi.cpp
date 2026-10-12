@@ -6,17 +6,21 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <cstring>
-#include <new>
 
 namespace esphome::ethernet {
 
 namespace {
 
-// Per-device context returned by init() and handed back to read/write/deinit.
+// Context returned by init() and handed back to read/write/deinit. There is one W5500 per device, so a
+// single static instance replaces a heap allocation that could fail. It is always clear when init() runs:
+// esp_eth_mac_new_w5500() calls deinit() on every failure after init() succeeded, and nothing else
+// uninstalls the driver
 struct W5500CustomSpiContext {
   spi_device_handle_t handle;
   SemaphoreHandle_t lock;
 };
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - intentional mutable state
+W5500CustomSpiContext w5500_context{};
 
 // Transfers up to the ESP32 SPI hardware FIFO size (64 bytes) stay on the polling path; larger
 // transfers (the frame payloads) use the blocking, DMA-backed transmit.
@@ -25,23 +29,20 @@ constexpr uint32_t W5500_SPI_LOCK_TIMEOUT_MS = 50;
 
 void *w5500_custom_spi_init(const void *spi_config) {
   const auto *config = static_cast<const eth_w5500_config_t *>(spi_config);
-  auto *ctx = new (std::nothrow) W5500CustomSpiContext{};
-  if (ctx == nullptr) {
-    return nullptr;
-  }
+  auto *ctx = &w5500_context;
   // The W5500 SPI frame carries the 16-bit address in the command phase and the 8-bit control
   // byte in the address phase; mirror what the stock driver configures.
   spi_device_interface_config_t devcfg = *config->spi_devcfg;
   devcfg.command_bits = 16;
   devcfg.address_bits = 8;
   if (spi_bus_add_device(config->spi_host_id, &devcfg, &ctx->handle) != ESP_OK) {
-    delete ctx;
+    ctx->handle = nullptr;
     return nullptr;
   }
   ctx->lock = xSemaphoreCreateMutex();
   if (ctx->lock == nullptr) {
     spi_bus_remove_device(ctx->handle);
-    delete ctx;
+    ctx->handle = nullptr;
     return nullptr;
   }
   return ctx;
@@ -51,7 +52,7 @@ esp_err_t w5500_custom_spi_deinit(void *spi_ctx) {
   auto *ctx = static_cast<W5500CustomSpiContext *>(spi_ctx);
   spi_bus_remove_device(ctx->handle);
   vSemaphoreDelete(ctx->lock);
-  delete ctx;
+  *ctx = {};
   return ESP_OK;
 }
 

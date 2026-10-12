@@ -22,9 +22,9 @@ struct RC5XData {
 
 class RC5XProtocol : public RemoteProtocol<RC5XData> {
  public:
-  void encode(RemoteTransmitData *dst, const RC5XData &data) override;
-  optional<RC5XData> decode(RemoteReceiveData src) override;
-  void dump(const RC5XData &data) override;
+  void encode(RemoteTransmitData *dst, const RC5XData &data);
+  optional<RC5XData> decode(RemoteReceiveData src);
+  void dump(const RC5XData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(RC5X)

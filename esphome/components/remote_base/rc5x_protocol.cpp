@@ -8,7 +8,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.rc5x";
+ESPHOME_LOG_TAG(TAG, "remote.rc5x");
 
 static const uint32_t BIT_TIME_US = 889;
 // RC5X sends data in 2 parts separated by pause: Start bit, Field bit, toggle bit and adress first

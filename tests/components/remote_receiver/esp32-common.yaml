@@ -21,3 +21,7 @@ binary_sensor:
       address: 0x00
       command: 0x0D
       extension: 0x03
+  - platform: remote_receiver
+    name: Hob2Hood Light On
+    hob2hood:
+      command: light_on
