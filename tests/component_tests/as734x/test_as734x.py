@@ -48,15 +48,16 @@ def test_as7343_bands_keep_their_index(generate_main) -> None:
         assert f"hub43->set_counts_sensor(s43_{band}, {index});" in main_cpp
 
 
+@pytest.mark.parametrize("band", ["fz", "fy", "fxl"])
 def test_as7341_rejects_as7343_only_band(
-    set_core_config: SetCoreConfigCallable,
+    band: str, set_core_config: SetCoreConfigCallable
 ) -> None:
     full = Config()
     full["as734x"] = [{CONF_ID: ID("hub41"), CONF_TYPE: "AS7341"}]
     full.declare_ids.append((ID("hub41"), ["as734x", 0, CONF_ID]))
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
 
-    with pytest.raises(cv.Invalid, match="no fz band"):
+    with pytest.raises(cv.Invalid, match=f"no {band} band"):
         as734x_sensor.FINAL_VALIDATE_SCHEMA(
-            {CONF_AS734X_ID: ID("hub41"), CONF_COUNTS: {"f1": {}, "fz": {}}}
+            {CONF_AS734X_ID: ID("hub41"), CONF_COUNTS: {"f1": {}, band: {}}}
         )

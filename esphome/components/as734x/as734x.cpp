@@ -17,6 +17,7 @@ static constexpr uint8_t ENABLE_PON = 0x01;
 static constexpr uint8_t ENABLE_SP_EN = 0x02;
 static constexpr uint8_t ENABLE_SMUX_EN = 0x10;
 static constexpr uint8_t CFG0_REG_BANK = 0x10;
+static constexpr uint8_t BANK_SPLIT = 0x80;  // registers below this need REG_BANK set
 static constexpr uint8_t STATUS2_AVALID = 0x40;
 static constexpr uint8_t ASTATUS_ASAT = 0x80;
 
@@ -79,8 +80,8 @@ const ChipInfo AS7341_CHIP PROGMEM = {
 #ifdef USE_AS7343
 static const char AS7343_NAME[] PROGMEM = "AS7343";
 static const char TCS3448_NAME[] PROGMEM = "TCS3448";
-// CFG6, FD_CFG0, CFG10, CFG1, CFG8, CFG20 (auto_smux, 18 channels in 3 cycles), AGC_GAIN_MAX, FD_TIME_1, FD_TIME_2
-static const RegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC6, 0x0C}, {0xC9, 0xC8},
+// CFG6, FD_CFG0, CFG10, CFG8, CFG20 (auto_smux, 18 channels in 3 cycles), AGC_GAIN_MAX, FD_TIME_1, FD_TIME_2
+static const RegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
                                                {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
 static const uint8_t AS7343_SMUX[] PROGMEM = {0x00, 0x04, 0x65, 0x02, 0x00, 0x05, 0x00, 0x01, 0x00, 0x30,
                                               0x00, 0x00, 0x60, 0x20, 0x04, 0x50, 0x03, 0x00, 0x01, 0x05,
@@ -113,14 +114,23 @@ const ChipInfo AS7343_CHIP PROGMEM = as7343_chip(AS7343_NAME);
 const ChipInfo TCS3448_CHIP PROGMEM = as7343_chip(TCS3448_NAME);  // AS7343 register map, address 0x59
 #endif
 
+// Registers below 0x80 are only reachable with the REG_BANK bit of CFG0 set; CFG0 itself always answers.
+bool AS734XComponent::select_bank_(uint8_t reg) {
+  const bool low = reg < BANK_SPLIT;
+  if (low == this->bank_low_) {
+    return true;
+  }
+  this->bank_low_ = low;
+  return this->write_byte(pgm(this->chip_->cfg0_reg), low ? CFG0_REG_BANK : 0);
+}
+
 void AS734XComponent::setup() {
   const ChipInfo *chip = this->chip_;
-  const uint8_t cfg0 = pgm(chip->cfg0_reg);
+  const uint8_t id_reg = pgm(chip->id_reg);
   uint8_t id = 0;
   bool ok = this->write_byte(REG_ENABLE, ENABLE_PON);
   delayMicroseconds(200);  // oscillator start-up
-  // The AS7343 ID and some init registers are only reachable with the low bank selected.
-  ok = ok && this->write_byte(cfg0, CFG0_REG_BANK) && this->read_byte(pgm(chip->id_reg), &id);
+  ok = ok && this->select_bank_(id_reg) && this->read_byte(id_reg, &id);
   if (ok && (id & pgm(chip->id_mask)) != pgm(chip->id_value)) {
     this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
@@ -129,9 +139,10 @@ void AS734XComponent::setup() {
   for (uint8_t i = 0, n = pgm(chip->init_count); ok && i < n; i++) {
     RegValue rv;
     progmem_memcpy(&rv, &init[i], sizeof(rv));
-    ok = this->write_byte(rv.reg, rv.value);
+    ok = this->select_bank_(rv.reg) && this->write_byte(rv.reg, rv.value);
   }
-  ok = ok && this->write_byte(cfg0, 0) && this->write_byte(REG_ATIME, this->atime_) &&
+  // Everything from here on, including the measurement registers, is in the high bank.
+  ok = ok && this->select_bank_(REG_ATIME) && this->write_byte(REG_ATIME, this->atime_) &&
        this->write_byte_16(pgm(chip->astep_reg), byteswap(this->astep_)) &&
        this->write_byte(pgm(chip->cfg1_reg), this->gain_);
   if (pgm(chip->auto_smux)) {

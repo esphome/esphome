@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita", "@mrgnr"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensor"]
 MULTI_CONF = True
 DOMAIN = "as734x"
 

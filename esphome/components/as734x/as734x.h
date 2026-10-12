@@ -78,6 +78,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_counts_sensor(sensor::Sensor *sensor, uint8_t band) { this->sensors_[band] = sensor; }
 
  protected:
+  bool select_bank_(uint8_t reg);
   bool start_step_();
   void read_step_();
   void abort_measurement_(const LogString *reason);
@@ -92,6 +93,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   Gain gain_{GAIN_1X};
   uint8_t atime_{0};
   uint8_t step_{0};
+  bool bank_low_{false};
 };
 
 }  // namespace esphome::as734x
