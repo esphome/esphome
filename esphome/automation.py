@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 import logging
 import string
@@ -465,6 +465,22 @@ def register_apply_action(
 ) -> None:
     """Register an action that only forwards config values to its parent, with no C++ class.
 
+    See ``apply_action_builder``.
+    """
+    register_action(name, ApplyAction, schema, synchronous=True)(
+        apply_action_builder(name, schema, *fields, call=call, id_key=id_key)
+    )
+
+
+def apply_action_builder(
+    name: str,
+    schema: cv.Schema,
+    *fields: ApplyField | ApplyCall,
+    call: str | None = None,
+    id_key: str = CONF_ID,
+) -> Callable[..., Awaitable[MockObj]]:
+    """The builder ``register_apply_action`` registers, for a caller that wraps it.
+
     Generates one static function with the parent (read from ``id_key``) and constants baked
     in, lambdas called inline with the trigger args, and an ``ApplyAction`` templated on it.
     A constant that is an id (``cv.use_id`` under ``cv.templatable``) is the object it names.
@@ -515,7 +531,7 @@ def register_apply_action(
             action_id, cg.void, template_arg, lambda_args, statements
         )
 
-    register_action(name, ApplyAction, schema, synchronous=True)(builder)
+    return builder
 
 
 def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:
@@ -724,7 +740,7 @@ async def condition_group_to_code(
     if len(conditions) == 1:
         return conditions[0]
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -840,11 +856,13 @@ async def if_action_to_code(
     condition = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, if_template_arg, condition)
     if CONF_THEN in config:
-        actions = await build_action_list(config[CONF_THEN], template_arg, args)
-        cg.add(var.add_then(actions))
+        for action in await build_action_list(config[CONF_THEN], template_arg, args):
+            cg.add(var.add_then_action(action))
+        cg.add(var.finish_then())
     if has_else:
-        actions = await build_action_list(config[CONF_ELSE], template_arg, args)
-        cg.add(var.add_else(actions))
+        for action in await build_action_list(config[CONF_ELSE], template_arg, args):
+            cg.add(var.add_else_action(action))
+        cg.add(var.finish_else())
     return var
 
 
@@ -867,8 +885,9 @@ async def while_action_to_code(
 ) -> MockObj:
     condition = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, condition)
-    actions = await build_action_list(config[CONF_THEN], template_arg, args)
-    cg.add(var.add_then(actions))
+    for action in await build_action_list(config[CONF_THEN], template_arg, args):
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -897,7 +916,9 @@ async def repeat_action_to_code(
         cg.TemplateArguments(cg.uint32, *template_arg.args),
         [(cg.uint32, "iteration"), *args],
     )
-    cg.add(var.add_then(actions))
+    for action in actions:
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -1113,7 +1134,8 @@ async def _new_automation(
     templ = cg.TemplateArguments(*(arg[0] for arg in args))
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     actions = await build_action_list(config[CONF_THEN], templ, args)
-    cg.add(obj.add_actions(actions))
+    for action in actions:
+        cg.add(obj.add_action(action))
     return obj
 
 
