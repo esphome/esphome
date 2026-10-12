@@ -125,6 +125,7 @@ class EPaperBase : public Display,
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
+  void abandon_update_();
   bool init_buffer_(size_t buffer_length);
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
@@ -187,9 +188,9 @@ class EPaperBase : public Display,
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
 
+  uint32_t waiting_for_idle_start_{};
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t waiting_for_idle_last_print_{};
-  uint32_t waiting_for_idle_start_{};
 #endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   uint32_t update_start_time_{};
@@ -198,6 +199,8 @@ class EPaperBase : public Display,
   // properties with specific initialisers go last
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
+  // Longer than any panel takes to refresh; past it the busy pin is assumed stuck
+  uint32_t busy_timeout_{120000};
   uint8_t full_update_every_{1};
 };
 

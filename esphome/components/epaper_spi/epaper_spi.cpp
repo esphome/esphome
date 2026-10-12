@@ -131,9 +131,7 @@ void EPaperBase::update() {
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   this->waiting_for_idle_start_ = millis();
-#endif
   this->waiting_for_idle_ = should_wait;
 }
 
@@ -156,6 +154,10 @@ void EPaperBase::loop() {
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
 #endif
     } else {
+      if (now - this->waiting_for_idle_start_ > this->busy_timeout_) {
+        this->abandon_update_();
+        return;
+      }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       if (now - this->waiting_for_idle_last_print_ >= 1000) {
         ESP_LOGV(TAG, "Waiting for idle in state %s", this->epaper_state_to_string_());
@@ -166,6 +168,16 @@ void EPaperBase::loop() {
     }
   }
   this->process_state_();
+}
+
+// The busy pin never cleared: give up on this update so later ones are not refused, and make the next one full
+void EPaperBase::abandon_update_() {
+  ESP_LOGE(TAG, "Display stayed busy for %" PRIu32 " s in state %s; check the busy pin", this->busy_timeout_ / 1000,
+           this->epaper_state_to_string_());
+  this->status_set_warning();
+  this->update_count_ = 0;
+  this->current_data_index_ = 0;
+  this->set_state_(EPaperState::IDLE);
 }
 
 /**
@@ -242,6 +254,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->status_clear_warning();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
       break;
