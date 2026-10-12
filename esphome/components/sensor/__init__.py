@@ -1269,14 +1269,12 @@ async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register(
     "rh_correction",
     RHCorrectionFilter,
-    cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_TEMPERATURE_OFFSET): cv.templatable(cv.float_),
-                cv.Required(CONF_SENSOR_ID): cv.use_id(Sensor),
-                cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
-            }
-        ),
+    cv.Schema(
+        {
+            cv.Required(CONF_TEMPERATURE_OFFSET): cv.templatable(cv.float_),
+            cv.Required(CONF_SENSOR_ID): cv.use_id(Sensor),
+            cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
+        }
     ),
 )
 async def rh_correction_filter_to_code(config, filter_id):
