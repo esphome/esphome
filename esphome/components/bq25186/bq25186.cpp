@@ -80,6 +80,8 @@ void BQ25186Component::setup() {
     this->pg_gpo_switch_->publish_state((sys_reg & 0x10) != 0);
   }
 #endif
+  // The poller first runs after a random share of the interval; the entities get a state now
+  this->update();
 }
 
 // Every poll also serves the I2C watchdog, which wants to see traffic within its period
