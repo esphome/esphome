@@ -90,10 +90,7 @@ void UDPComponent::setup() {
 }
 
 bool UDPComponent::join_multicast_() {
-  struct ip_mreq imreq = {};
-  imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
-  inet_aton(this->listen_address_, &imreq.imr_multiaddr);
-  if (this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) == 0) {
+  if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_)) {
     ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
     // Only undo this path's own warning; setup() may have set one for a bad address
     if (this->join_failed_) {
