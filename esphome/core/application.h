@@ -635,43 +635,24 @@ class LoopBlockingGuard {
 
 /// Leaves a stretch of the current loop pass out of the blocking warning.
 ///
-/// Only for work done from a loop pass that cannot be made shorter and
-/// cannot be split across passes: turning on a radio, the first Wi-Fi
-/// connect, a key generation whose cost is the algorithm itself. The warning
-/// then keeps reporting everything else in the pass, and the component's
-/// threshold does not ratchet up over the one step nothing can be done about.
+/// Only for work that cannot be made shorter or split across passes: radio
+/// bring-up, a first network connect, a key generation. Work that could be
+/// cached, deferred, polled or turned into a state machine stays outside, so
+/// the warning keeps finding it.
 ///
-/// Never use it to paper over a problem that can be solved. A slow driver
-/// call, a loop that could be a state machine, a computation that could be
-/// cached or deferred, a blocking read that could be polled: those are what
-/// the warning exists to find, and wrapping them in this scope hides the
-/// bug instead of fixing it. If in doubt, leave the warning in.
+/// Affects only work timed by LoopBlockingGuard: loop() and scheduler
+/// callbacks, not setup(). Main loop task only. The watchdog is not fed, so
+/// pair long work with watchdog::WatchdogManager. Scopes may nest.
+/// Afterwards App.get_loop_component_start_time() can be earlier than a
+/// millis() read taken before the scope; time the work with millis() at both ends.
 ///
-/// Only work timed by a LoopBlockingGuard is affected, that is a component's
-/// loop() or a scheduler callback; setup() is not timed by the guard, so the
-/// scope has no effect on the warning there. Main loop task only. The watchdog is not fed inside the
-/// scope, so the work must finish within the watchdog timeout, or be paired
-/// with a watchdog::WatchdogManager that raises the timeout for the same
-/// stretch. Scopes may nest; the outermost one decides how much of the pass
-/// is left out.
-/// App.get_loop_component_start_time() reads later in the same pass return
-/// the moved start, which can be earlier than a millis() read taken before or
-/// inside the scope, so subtracting such a read from it underflows. Measure
-/// elapsed time across the scope with millis() at both ends.
-///
-///   void MyComponent::loop() {
-///     if (this->needs_key_) {
-///       UnavoidableBlockingScope scope;
-///       this->generate_key_();
-///     }
-///   }
+///   UnavoidableBlockingScope scope;
+///   this->generate_key_();
 class UnavoidableBlockingScope {
  public:
   UnavoidableBlockingScope() : started_(MillisInternal::get()), pass_start_(App.get_loop_component_start_time()) {}
   ~UnavoidableBlockingScope() {
-    // Move the pass start seen at entry forward by the time spent here, so an
-    // outer scope overrides an inner one instead of adding to it; never past
-    // now, which would underflow the guard's subtraction
+    // Move the pass start seen at entry forward by the time spent here, clamped to now
     const uint32_t now = MillisInternal::get();
     const uint32_t moved = this->pass_start_ + (now - this->started_);
     App.set_loop_component_start_time_(static_cast<int32_t>(now - moved) < 0 ? now : moved);
