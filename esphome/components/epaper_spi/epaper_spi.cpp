@@ -147,8 +147,15 @@ void EPaperBase::loop() {
   auto now = millis();
   // using modulus arithmetic to handle wrap-around
   int diff = now - this->delay_until_;
-  if (diff < 0)
+  if (diff < 0) {
+    // Running the loop continuously cannot shorten a delay longer than one loop interval
+    if (-diff > static_cast<int>(App.get_loop_interval())) {
+      this->high_frequency_loop_.stop();
+    } else {
+      this->high_frequency_loop_.start();
+    }
     return;
+  }
   if (this->waiting_for_idle_) {
     if (this->is_idle_()) {
       this->waiting_for_idle_ = false;
@@ -156,6 +163,8 @@ void EPaperBase::loop() {
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
 #endif
     } else {
+      if (diff > FAST_BUSY_POLL_MS)
+        this->high_frequency_loop_.stop();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       if (now - this->waiting_for_idle_last_print_ >= 1000) {
         ESP_LOGV(TAG, "Waiting for idle in state %s", this->epaper_state_to_string_());
@@ -166,6 +175,8 @@ void EPaperBase::loop() {
     }
   }
   this->process_state_();
+  if (this->is_failed())
+    this->high_frequency_loop_.stop();
 }
 
 /**
@@ -259,9 +270,8 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   this->delay_until_ = millis() + delay;
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
            TRUEFALSE(this->waiting_for_idle_));
-  // Each step of an update otherwise waits for the next loop iteration. The waveform can take seconds, so the
-  // loop goes back to its normal pace while the panel refreshes.
-  if (state == EPaperState::IDLE || state == EPaperState::POWER_OFF) {
+  // Each step of an update otherwise waits for the next loop iteration; loop() slows down again for long waits
+  if (state == EPaperState::IDLE) {
     this->high_frequency_loop_.stop();
   } else {
     this->high_frequency_loop_.start();

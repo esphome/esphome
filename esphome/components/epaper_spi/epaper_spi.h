@@ -32,6 +32,8 @@ static constexpr uint8_t SWAP_XY = 4;
 
 static constexpr uint32_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
+// Longer busy waits are the waveform or a stuck pin, and are polled at the normal loop pace
+static constexpr int FAST_BUSY_POLL_MS = 50;
 static constexpr uint8_t DELAY_FLAG = 0xFF;
 
 class EPaperBase : public Display,
@@ -173,12 +175,12 @@ class EPaperBase : public Display,
   size_t buffer_length_{};
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
-  HighFrequencyLoopRequester high_frequency_loop_;
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
   std::vector<GPIOPin *> enable_pins_{};
   bool waiting_for_idle_{};
+  HighFrequencyLoopRequester high_frequency_loop_;
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state
   uint8_t transform_{};
