@@ -10,7 +10,6 @@ ESPHOME_LOG_TAG(TAG, "lis2dw12");
 static constexpr uint8_t LIS2DW12_WHO_AM_I_VALUE = 0x44;
 static constexpr float GRAVITY_EARTH = 9.80665f;
 static constexpr uint32_t EVENT_COOLDOWN_MS = 500;
-// Interrupts are latched until ALL_INT_SRC is read, so polling slower than the loop loses nothing
 static constexpr uint32_t POLL_INTERVAL_MS = 50;
 static constexpr uint8_t SIXD_POSITION_MASK = 0x3F;  // XL..ZH, leaving out D6D_IA
 

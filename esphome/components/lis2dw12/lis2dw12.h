@@ -169,7 +169,6 @@ class LIS2DW12Component : public PollingComponent {
   void publish_orientation_(RegSixdSrc sixd);
 #endif
 
-  // Word-sized members first, then the byte-sized ones, so nothing is padded
   float offset_x_{0}, offset_y_{0}, offset_z_{0};
   float scale_{0};  // m/s² per LSB after shift_
   uint32_t last_event_ms_[EVENT_COUNT]{};
