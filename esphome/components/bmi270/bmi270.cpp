@@ -5,7 +5,9 @@
 
 namespace esphome::bmi270 {
 
+#ifdef USE_BMI270_BMM150
 using namespace bmm150;  // NOLINT - sole consumer of the BMM150 aux-device definitions
+#endif
 
 ESPHOME_LOG_TAG(TAG, "bmi270");
 
@@ -144,16 +146,17 @@ void BMI270Component::setup() {
   // 9. Optionally bring up whatever is wired to the aux interface.
   // This is entirely additive: it is off by default, and failure only disables
   // magnetometer reporting rather than the whole component.
-  if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
-    this->magnetometer_ready_ = this->setup_magnetometer_();
-    if (!this->magnetometer_ready_) {
-      ESP_LOGW(TAG, "BMM150 magnetometer setup failed; continuing without it");
-    }
+#ifdef USE_BMI270_BMM150
+  this->magnetometer_ready_ = this->setup_magnetometer_();
+  if (!this->magnetometer_ready_) {
+    ESP_LOGW(TAG, "BMM150 magnetometer setup failed; continuing without it");
   }
+#endif
 
   ESP_LOGCONFIG(TAG, "BMI270 initialised successfully");
 }
 
+#ifdef USE_BMI270_BMM150
 bool BMI270Component::wait_for_aux_idle_(uint32_t timeout_ms) {
   // The STATUS aux-busy bit is set while an aux transaction is in flight. Aux transaction
   // duration depends on the attached device's own timing, so poll with a bounded
@@ -258,6 +261,7 @@ bool BMI270Component::setup_magnetometer_() {
   ESP_LOGD(TAG, "BMM150 magnetometer ready");
   return true;
 }
+#endif  // USE_BMI270_BMM150
 
 void BMI270Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI270 IMU:");
@@ -272,10 +276,10 @@ void BMI270Component::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STRS[accel_range_]);
   ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[gyro_range_]);
-  if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
-    ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",
-                  this->magnetometer_ready_ ? LOG_STR_LITERAL("ready") : LOG_STR_LITERAL("NOT DETECTED"));
-  }
+#ifdef USE_BMI270_BMM150
+  ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",
+                this->magnetometer_ready_ ? LOG_STR_LITERAL("ready") : LOG_STR_LITERAL("NOT DETECTED"));
+#endif
   MotionComponent::dump_config();
 }
 
@@ -286,15 +290,21 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   if (this->is_failed())
     return false;
 
-  //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
-  // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
-  // the accel data, so one burst read from AUX_X_LSB fetches both.
+    //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
+    // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
+    // the accel data, so one burst read from AUX_X_LSB fetches both.
+#ifdef USE_BMI270_BMM150
   const bool read_mag = this->magnetometer_ready_ && !this->magnetometer_callback_.empty();
   uint8_t buf[BMI270_AUX_DATA_LEN + REG_READ_LEN];
   const uint8_t *mag_raw = buf;
   const uint8_t *raw_data = read_mag ? buf + BMI270_AUX_DATA_LEN : buf;
   const bool read_ok = read_mag ? this->read_bytes(BMI270_REG_AUX_X_LSB, buf, sizeof(buf))
                                 : this->read_bytes(BMI270_REG_DATA_8, buf, REG_READ_LEN);
+#else
+  uint8_t buf[REG_READ_LEN];
+  const uint8_t *raw_data = buf;
+  const bool read_ok = this->read_bytes(BMI270_REG_DATA_8, buf, REG_READ_LEN);
+#endif
   if (!read_ok) {
     ESP_LOGW(TAG, "Failed to read IMU data");
     return false;
@@ -334,10 +344,12 @@ bool BMI270Component::update_data(motion::MotionData &data) {
     this->temperature_callback_.call(temperature);
   }
 
+#ifdef USE_BMI270_BMM150
   if (read_mag) {
     const BMM150Data mag_data = bmm150_convert(this->mag_trim_, mag_raw);
     this->magnetometer_callback_.call(mag_data);
   }
+#endif
   return true;
 }
 

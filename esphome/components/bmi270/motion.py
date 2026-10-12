@@ -19,11 +19,6 @@ CONF_AUX_ADDRESS = "aux_address"
 
 # What's wired to the BMI270's auxiliary (secondary I2C master) interface, if anything.
 # It's a single secondary bus, not a mux, so only one aux device can be attached at a time.
-BMI270AuxDevice = bmi270_ns.enum("BMI270AuxDevice")
-AUX_DEVICE_OPTIONS = {
-    "NONE": BMI270AuxDevice.BMI270_AUX_DEVICE_NONE,
-    "BMM150": BMI270AuxDevice.BMI270_AUX_DEVICE_BMM150,
-}
 
 #  Enum proxies (must match the C++ enum values exactly)
 BMI270AccelRange = bmi270_ns.enum("BMI270AccelRange")
@@ -86,8 +81,8 @@ CONFIG_SCHEMA = (
             ),
             # Optional device wired to the BMI270's aux interface (not the main I2C bus).
             # Defaults to NONE so existing configs/boards are unaffected.
-            cv.Optional(CONF_AUX_DEVICE, default="NONE"): cv.enum(
-                AUX_DEVICE_OPTIONS, upper=True
+            cv.Optional(CONF_AUX_DEVICE, default="NONE"): cv.one_of(
+                "NONE", "BMM150", upper=True
             ),
             # Default matches the BMM150's fixed I2C address; irrelevant when aux_device is NONE.
             cv.Optional(CONF_AUX_ADDRESS, default=0x10): cv.i2c_address,
@@ -108,5 +103,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_accel_odr(config[CONF_ACCELEROMETER_ODR]))
     cg.add(var.set_gyro_range(config[CONF_GYROSCOPE_RANGE]))
     cg.add(var.set_gyro_odr(config[CONF_GYROSCOPE_ODR]))
-    cg.add(var.set_aux_device(config[CONF_AUX_DEVICE]))
-    cg.add(var.set_aux_device_address(config[CONF_AUX_ADDRESS]))
+    # The aux interface code only compiles when a BMM150 is configured
+    if config[CONF_AUX_DEVICE] == "BMM150":
+        cg.add_define("USE_BMI270_BMM150")
+        cg.add(var.set_aux_device_address(config[CONF_AUX_ADDRESS]))
