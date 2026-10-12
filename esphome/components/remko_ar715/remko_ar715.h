@@ -5,7 +5,7 @@
 namespace esphome::remko_ar715 {
 
 // Remko AR-715 IR remote: 52-bit pulse-distance frame, full state in every command.
-// IRremoteESP8266 implements it as the ClimaButler protocol; Freecom is the OEM.
+// IRremoteESP8266 calls it the ClimaButler protocol after a rebrand; Remko is the manufacturer.
 // Protocol analysis: https://github.com/crankyoldgit/IRremoteESP8266/issues/1812
 //
 // Supported devices:
