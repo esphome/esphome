@@ -10,14 +10,14 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
 )
+from esphome.components.logger import DOMAIN as LOGGER_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 CONFLICTS_WITH = ["usb_host"]
+DOMAIN = "tinyusb"
 
 CONF_ON_MOUNT = "on_mount"
 CONF_ON_UNMOUNT = "on_unmount"
@@ -38,7 +38,6 @@ _USB_CLASS_COMPONENTS = ("usb_cdc_acm",)
 
 tinyusb_ns = cg.esphome_ns.namespace("tinyusb")
 TinyUSB = tinyusb_ns.class_("TinyUSB", cg.Component)
-IsMountedCondition = tinyusb_ns.class_("IsMountedCondition", automation.Condition)
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
@@ -98,7 +97,7 @@ def _final_validate(config: ConfigType) -> None:
     # tinyusb owns the USB OTG peripheral. The logger's USB_CDC backend routes
     # the ROM console through that same peripheral, so the two cannot coexist.
     # (USB_SERIAL_JTAG is a separate peripheral and is fine alongside tinyusb.)
-    logger_config = full_config.get("logger")
+    logger_config = full_config.get(LOGGER_DOMAIN)
     if logger_config and logger_config.get(CONF_HARDWARE_UART) == "USB_CDC":
         raise cv.Invalid(
             "'tinyusb' cannot be used with 'logger.hardware_uart: USB_CDC' "
@@ -136,16 +135,8 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_BCD_DEVICE", 0x0100)
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "tinyusb.is_mounted",
-    IsMountedCondition,
     cv.Schema({cv.GenerateID(): cv.use_id(TinyUSB)}),
+    "is_mounted()",
 )
-async def tinyusb_is_mounted_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)

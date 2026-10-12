@@ -3,7 +3,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.time";
+ESPHOME_LOG_TAG(TAG, "homeassistant.time");
 
 void HomeassistantTime::dump_config() {
   ESP_LOGCONFIG(TAG, "Home Assistant Time");

@@ -17,6 +17,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@hwstar", "@clydebarrow", "@bdraco"]
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pca9554"
 MULTI_CONF = True
 CONF_PIN_COUNT = "pin_count"
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
@@ -66,7 +67,7 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_PCA9554): cv.use_id(PCA9554Component),
+        cv.Required(CONF_PCA9554): pins.use_id_or_address(PCA9554Component),
     }
 )
 
