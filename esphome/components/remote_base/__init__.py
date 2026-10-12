@@ -2077,6 +2077,11 @@ PANASONIC_SCHEMA = cv.Schema(
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Optional(CONF_ADDRESS_2, default=0x00): cv.hex_uint8_t,
         cv.Required(CONF_COMMAND): cv.hex_uint32_t,
+    }
+)
+# A receiver cannot measure the carrier, so only the transmit action takes it.
+PANASONIC_ACTION_SCHEMA = PANASONIC_SCHEMA.extend(
+    {
         cv.Optional(CONF_CARRIER_FREQUENCY, default="35000Hz"): cv.All(
             cv.frequency, cv.uint32_t
         ),
@@ -2090,9 +2095,8 @@ def panasonic_binary_sensor(var, config):
         var.set_data(
             cg.StructInitializer(
                 PanasonicData,
-                ("command", config[CONF_COMMAND]),
-                ("carrier_frequency", config[CONF_CARRIER_FREQUENCY]),
                 ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
                 ("nbits", config[CONF_NBITS]),
                 ("address_2", config[CONF_ADDRESS_2]),
             )
@@ -2113,7 +2117,7 @@ def panasonic_dumper(var, config):
 register_protocol_action(
     "panasonic",
     "Panasonic",
-    PANASONIC_SCHEMA,
+    PANASONIC_ACTION_SCHEMA,
     (CONF_NBITS, "nbits", cg.uint8),
     (CONF_ADDRESS, "address", cg.uint16),
     (CONF_ADDRESS_2, "address_2", cg.uint8),

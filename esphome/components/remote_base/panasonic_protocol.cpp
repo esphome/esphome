@@ -11,85 +11,65 @@ static constexpr uint32_t BIT_HIGH_US = 502;
 static constexpr uint32_t BIT_ZERO_LOW_US = 400;
 static constexpr uint32_t BIT_ONE_LOW_US = 1244;
 
-void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &data) {
-  // Header, one item per bit, trailing mark
-  dst->reserve(3 + 2 * data.nbits);
-  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-  dst->set_carrier_frequency(data.carrier_frequency);
+static void encode_bits(RemoteTransmitData *dst, uint32_t value, uint8_t nbits) {
+  for (uint32_t mask = 1UL << (nbits - 1); mask != 0; mask >>= 1) {
+    dst->item(BIT_HIGH_US, (value & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
+  }
+}
 
+static bool decode_bits(RemoteReceiveData &src, uint32_t &value, uint8_t nbits) {
+  value = 0;
+  for (uint32_t mask = 1UL << (nbits - 1); mask != 0; mask >>= 1) {
+    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+      value |= mask;
+    } else if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &data) {
   if (data.nbits != 48 && data.nbits != 56) {
+    ESP_LOGW(TAG, "Unsupported nbits %u, expected 48 or 56", data.nbits);
     return;
   }
-
-  uint32_t mask;
-  for (mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (data.address & mask) {
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    } else {
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
-    }
-  }
-
+  // Header, one item per bit, trailing mark
+  dst->reserve(3 + 2 * data.nbits);
+  dst->set_carrier_frequency(data.carrier_frequency);
+  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  encode_bits(dst, data.address, 16);
   if (data.nbits == 56) {
-    for (mask = 1UL << 7; mask != 0; mask >>= 1) {
-      if (data.address_2 & mask) {
-        dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-      } else {
-        dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
-      }
-    }
+    encode_bits(dst, data.address_2, 8);
   }
-
-  for (mask = 1UL << 31; mask != 0; mask >>= 1) {
-    if (data.command & mask) {
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    } else {
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
-    }
-  }
+  encode_bits(dst, data.command, 32);
   dst->mark(BIT_HIGH_US);
 }
+
 optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
-  const size_t nbits = src.size() / 2 - 2;
-  if (nbits != 48 && nbits != 56) {
+  uint32_t address;
+  if (!decode_bits(src, address, 16))
     return {};
-  }
+
   PanasonicData out{};
-  out.carrier_frequency = 35000;
-  out.nbits = nbits;
+  out.address = address;
 
-  uint32_t mask;
-  for (mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
-      out.address |= mask;
-    } else if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-      return {};
-    }
+  // Try 56 bits first; a 48-bit frame runs out of bit items before the extra byte plus command decode.
+  RemoteReceiveData rest = src;
+  uint32_t address_2;
+  if (decode_bits(rest, address_2, 8) && decode_bits(rest, out.command, 32)) {
+    out.nbits = 56;
+    out.address_2 = address_2;
+    return out;
   }
-
-  if (out.nbits == 56) {
-    for (mask = 1UL << 7; mask != 0; mask >>= 1) {
-      if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
-        out.address_2 |= mask;
-      } else if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-        return {};
-      }
-    }
-  }
-
-  for (mask = 1UL << 31; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
-      out.command |= mask;
-    } else if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-      return {};
-    }
-  }
-
+  if (!decode_bits(src, out.command, 32))
+    return {};
   return out;
 }
+
 void PanasonicProtocol::dump(const PanasonicData &data) {
   ESP_LOGI(TAG, "Received Panasonic: nbits=%u, address=0x%04X, address_2=0x%02X, command=0x%08" PRIX32, data.nbits,
            data.address, data.address_2, data.command);
