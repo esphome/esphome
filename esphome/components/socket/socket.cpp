@@ -8,6 +8,7 @@
 #include <string>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
@@ -198,24 +199,35 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   }
   return ctx.found_any;
 #else
-  bool found_any = false;
-  struct netif *netif;
-  NETIF_FOREACH(netif) {
-    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
-      continue;
+  // The netif list needs the core lock, but the callback's setsockopt() takes that lock itself.
+  // Devices have only a few interfaces, so the cap drops nothing in practice.
+  static constexpr size_t MAX_IFS = 8;
+  StaticVector<uint8_t, MAX_IFS> indices;
+  {
+    LwIPLock lock;
+    struct netif *netif;
+    NETIF_FOREACH(netif) {
+      if (indices.size() == MAX_IFS) {
+        break;
+      }
+      if (netif->name[0] == 'l' && netif->name[1] == 'o') {
+        continue;
+      }
+      if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
+        continue;
+      }
+      indices.push_back(netif_get_index(netif));
     }
-    if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
-      continue;
-    }
-    found_any = true;
-    if (callback(netif_get_index(netif))) {
+  }
+  for (uint8_t index : indices) {
+    if (callback(index)) {
       break;
     }
   }
-  if (!found_any) {
+  if (indices.empty()) {
     errno = EADDRNOTAVAIL;
   }
-  return found_any;
+  return !indices.empty();
 #endif
 }
 
