@@ -46,7 +46,9 @@ class QuietServerHub : public ModbusServerHub {
   void go_quiet() { this->last_modbus_byte_ -= 1000000; }
   bool tx_blocked() override { return this->busy || this->Modbus::tx_blocked(); }
   bool reply_held() const { return this->deferred_payload_len_ != 0; }
-  void cancel_held_reply() { this->cancel_timeout("deferred_send"); }
+  void cancel_held_reply() {
+    this->cancel_timeout(static_cast<uint32_t>(0));
+  }  // DEFERRED_SEND_TIMEOUT_ID in modbus.cpp
   bool busy{false};
 
  protected:

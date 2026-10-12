@@ -90,8 +90,8 @@ TEST_F(MonitorClient, SeenWhenSentNotWhenQueued) {
   EXPECT_TRUE(this->hub_.waiting());
 }
 
-// The monitor runs at the end of the send step: after the hub has set its state and after the device's on_sent.
-TEST_F(MonitorClient, RequestIsSeenAfterOnSent) {
+// The monitor runs first: after the hub has set its state, before the device's on_sent.
+TEST_F(MonitorClient, RequestIsSeenBeforeOnSent) {
   bool waiting_at_request = false;
   this->hub_.add_on_request_callback(
       [this, &waiting_at_request](uint8_t, std::span<const uint8_t>) { waiting_at_request = this->hub_.waiting(); });
@@ -100,7 +100,7 @@ TEST_F(MonitorClient, RequestIsSeenAfterOnSent) {
   this->hub_.send_next_for_test();
   EXPECT_TRUE(waiting_at_request);
   ASSERT_EQ(device.seen_at_sent.size(), 1u);
-  EXPECT_EQ(device.seen_at_sent[0], 0u);
+  EXPECT_EQ(device.seen_at_sent[0], 1u);
 }
 
 TEST_F(MonitorClient, RetryIsSeenAgain) {
@@ -136,6 +136,21 @@ TEST_F(MonitorClient, RequestQueuedFromTheCallbackIsSent) {
   this->hub_.send_next_for_test();
   EXPECT_EQ(this->seen_.size(), 2u);
   EXPECT_EQ(this->hub_.entries(), 0u);
+}
+
+// The entry is consumed before the monitor runs, so the same write queued from on_response is accepted.
+TEST_F(MonitorClient, SameRequestQueuedFromOnResponseIsAccepted) {
+  ModbusClientDevice device(&this->hub_, 0x02);
+  bool queued = false;
+  this->hub_.add_on_response_callback(
+      [&device, &queued](uint8_t, std::span<const uint8_t> request, std::span<const uint8_t>) {
+        if (!queued)
+          queued = device.queue_pdu(request);
+      });
+  ASSERT_TRUE(device.queue_pdu(WRITE));
+  this->hub_.send_next_for_test();
+  this->hub_.receive_for_test(0x02, WRITE);  // a write single register reply echoes the request
+  EXPECT_TRUE(queued);
 }
 
 TEST(MonitorClientBlocked, NotSentIsNotSeen) {

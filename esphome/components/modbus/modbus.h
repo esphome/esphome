@@ -63,7 +63,7 @@ class Modbus : public uart::UARTDevice, public Component {
 #ifdef MODBUS_ON_REQUEST_COUNT
   /// Called with the address and the request PDU (function code first) of every request: each frame a server hub
   /// parses as a request, each one a client hub sends, broadcasts included. It runs before a device of the hub
-  /// handles the request. The PDU is only valid during the call.
+  /// handles the request (on a client hub: before on_sent). The PDU is only valid during the call.
   template<typename F> void add_on_request_callback(F &&callback) {
     this->request_callback_.add(std::forward<F>(callback));
   }
@@ -71,6 +71,8 @@ class Modbus : public uart::UARTDevice, public Component {
 #ifdef MODBUS_ON_RESPONSE_COUNT
   /// Called with the address, the request PDU and the response PDU of every response: each one a client hub gets for
   /// its request, and each one a server hub sends or sees from another device. The PDUs are only valid during the call.
+  /// A server hub pairs a peer's reply with the last request by address and function code only, so a request that
+  /// looks like a reply (a write echo) can be taken for one when the peer did not answer.
   template<typename F> void add_on_response_callback(F &&callback) {
     this->response_callback_.add(std::forward<F>(callback));
   }
@@ -190,8 +192,8 @@ struct ModbusDeviceCommand {
     return this->frame.address() == BROADCAST_ADDRESS && !this->options.allow_broadcast_read &&
            !this->options.expect_broadcast_write_response;
   }
-  // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
-  // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.
+  // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (sent() runs this before
+  // on_sent), but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.
   void complete_broadcast() {
     this->state = FrameState::RETIRED;
     this->pending = 0;
@@ -250,10 +252,11 @@ struct ModbusDeviceCommand {
   }
 
   // Terminal/lifecycle methods: each owns its transition, callback, and pending accounting and
-  // returns whether a callback ran.
-  bool sent();
-  bool response(std::span<const uint8_t> response_pdu);
-  bool error(ExceptionCode exception_code);
+  // returns whether a callback ran. sent(), response() and error() run before_device (the hub's own
+  // callbacks) after the transition and before the device's callback.
+  template<typename F> bool sent(F &&before_device);
+  template<typename F> bool response(std::span<const uint8_t> response_pdu, F &&before_device);
+  template<typename F> bool error(ExceptionCode exception_code, F &&before_device);
   bool interrupt();
   bool timed_out();
   bool notify_retired();
@@ -423,8 +426,8 @@ class ModbusServerHub : public Modbus {
 /// - Callbacks are delivered only from within loop().
 /// - At most one callback is ever issued between calls to sweep_():
 ///     sweep_ -> parse (response OR error) OR timeout (no_response) -> sweep_ -> send (sent) -> sweep_ (next loop)
-///   The hub's own on_request callbacks run at the end of the send step, after on_sent, and its on_response callbacks
-///   in the parse step right before the device's on_response/on_error; they are not device callbacks.
+///   The hub's own on_request and on_response callbacks run after the entry's transition and before the device's
+///   on_sent, on_response or on_error; they are not device callbacks.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
@@ -627,6 +630,45 @@ class ModbusClientDevice {
   uint8_t address_{0};
   bool custom_response_warned_{false};  // first unhandled custom response warns; repeats log at VERBOSE
 };
+
+template<typename F> bool ModbusDeviceCommand::sent(F &&before_device) {
+  // A broadcast (address 0) is never answered (Modbus 4.1), so it retires here: a request queued from
+  // before_device is a new entry, not merged into this one.
+  if (this->fire_and_forget()) {
+    this->complete_broadcast();
+  } else {
+    this->state = FrameState::WAITING;
+  }
+  before_device();
+  // on_sent() is not a terminal, so nothing is consumed.
+  if (this->device == nullptr)
+    return false;
+  this->device->on_sent(this->frame.address(), this->frame.pdu());
+  return true;
+}
+
+template<typename F> bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu, F &&before_device) {
+  this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_RESPONSE;
+  // A continuous poll is never consumed by its own response; a one-shot consumes one request here.
+  if (!this->options.continuous)
+    this->decrement_pending();
+  before_device();
+  if (this->device == nullptr)
+    return false;
+  this->device->on_response(this->frame.address(), this->frame.pdu(), response_pdu);
+  return true;
+}
+
+template<typename F> bool ModbusDeviceCommand::error(ExceptionCode exception_code, F &&before_device) {
+  this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_EXCEPTION;
+  // An exception ends a continuous poll too, so decrement unconditionally.
+  this->decrement_pending();
+  before_device();
+  if (this->device == nullptr)
+    return false;
+  this->device->on_error(this->frame.address(), this->frame.pdu(), exception_code);
+  return true;
+}
 
 // Compatibility shim adapting the span-based hooks back to the pre-2026.8 on_modbus_data()/
 // on_modbus_error() signatures (the owning-vector heap copy exists only on this deprecated path).
