@@ -25,6 +25,9 @@ KEY_FULL_CERT_BUNDLE = "full_cert_bundle"
 KEY_NETWORK_SDKCONFIG = "network_sdkconfig"
 KEY_MBEDTLS_SDKCONFIG = "mbedtls_sdkconfig"
 
+# sdkconfig_options entries with this prefix are never written to sdkconfig
+OPENTHREAD_CONFIG_PREFIX = "OPENTHREAD_CONFIG_"
+
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32C2 = "ESP32C2"
 VARIANT_ESP32C3 = "ESP32C3"

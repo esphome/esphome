@@ -82,6 +82,7 @@ from .const import (
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
+    OPENTHREAD_CONFIG_PREFIX,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -3533,7 +3534,10 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM", True)
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
-        add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+        # OpenThread core macros, not Kconfig options; the openthread component
+        # writes them to its custom header.
+        if not name.startswith(OPENTHREAD_CONFIG_PREFIX):
+            add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
     # A bundle forced on through sdkconfig_options is a request like any other,
     # so it still gets the CMN variant pinned.
     if conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") == "y":

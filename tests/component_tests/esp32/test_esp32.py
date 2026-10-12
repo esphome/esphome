@@ -2418,3 +2418,14 @@ def test_allow_insecure_tls_only_switches_the_flags_on(
         "CONFIG_ESP_TLS_INSECURE": True,
         "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY": True,
     }
+
+
+def test_openthread_config_options_never_reach_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """OPENTHREAD_CONFIG_* entries are OpenThread macros, not Kconfig options."""
+    generate_main(component_config_path("sdkconfig_openthread_config.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "OPENTHREAD_CONFIG_X" not in sdkconfig
+    assert sdkconfig["CONFIG_FREERTOS_HZ"] == RawSdkconfigValue("1000")
