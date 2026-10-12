@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp9600 {
+namespace esphome::mcp9600 {
 
 enum MCP9600ThermocoupleType : uint8_t {
   MCP9600_THERMOCOUPLE_TYPE_K = 0b000,
@@ -18,7 +17,7 @@ enum MCP9600ThermocoupleType : uint8_t {
   MCP9600_THERMOCOUPLE_TYPE_R = 0b111,
 };
 
-class MCP9600Component : public PollingComponent, public i2c::I2CDevice {
+class MCP9600Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -45,5 +44,4 @@ class MCP9600Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace mcp9600
-}  // namespace esphome
+}  // namespace esphome::mcp9600

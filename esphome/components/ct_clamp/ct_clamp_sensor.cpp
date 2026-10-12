@@ -4,10 +4,11 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace ct_clamp {
+namespace esphome::ct_clamp {
 
-static const char *const TAG = "ct_clamp";
+ESPHOME_LOG_TAG(TAG, "ct_clamp");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
@@ -22,7 +23,7 @@ void CTClampSensor::update() {
   this->high_freq_.start();
 
   // Set timeout for ending sampling phase
-  this->set_timeout("read", this->sample_duration_, [this]() {
+  this->set_timeout(READ_TIMEOUT_ID, this->sample_duration_, [this]() {
     this->is_sampling_ = false;
     this->high_freq_.stop();
 
@@ -70,5 +71,4 @@ void CTClampSensor::loop() {
   this->sample_squared_sum_ += value * value;
 }
 
-}  // namespace ct_clamp
-}  // namespace esphome
+}  // namespace esphome::ct_clamp

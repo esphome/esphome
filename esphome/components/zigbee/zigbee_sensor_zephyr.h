@@ -69,7 +69,7 @@ void zb_zcl_analog_input_init_client();
 
 namespace esphome::zigbee {
 
-class ZigbeeSensor : public ZigbeeEntity, public Component {
+class ZigbeeSensor final : public ZigbeeEntity, public Component {
  public:
   explicit ZigbeeSensor(sensor::Sensor *sensor);
   void set_cluster_attributes(AnalogAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }

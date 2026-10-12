@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from .. import (
     UPONOR_SMATRIX_DEVICE_SCHEMA,
@@ -61,20 +62,13 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
 ).extend(UPONOR_SMATRIX_DEVICE_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await register_uponor_smatrix_device(var, config)
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
-    if external_temperature_config := config.get(CONF_EXTERNAL_TEMPERATURE):
-        sens = await sensor.new_sensor(external_temperature_config)
-        cg.add(var.set_external_temperature_sensor(sens))
-    if humidity_config := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity_config)
-        cg.add(var.set_humidity_sensor(sens))
-    if target_temperature_config := config.get(CONF_TARGET_TEMPERATURE):
-        sens = await sensor.new_sensor(target_temperature_config)
-        cg.add(var.set_target_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_EXTERNAL_TEMPERATURE, var.set_external_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_TARGET_TEMPERATURE, var.set_target_temperature_sensor)

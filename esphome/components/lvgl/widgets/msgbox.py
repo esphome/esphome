@@ -1,5 +1,5 @@
 from esphome import codegen as cg, config_validation as cv
-from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
+from esphome.const import CONF_BUTTON, CONF_HIDDEN, CONF_ID, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_types import nullptr
@@ -14,12 +14,11 @@ from ..defines import (
     CONF_MSGBOXES,
     CONF_SRC,
     CONF_TITLE,
-    LV_OBJ_FLAG,
     TYPE_FLEX,
+    add_lv_use,
     add_warning,
     literal,
 )
-from ..helpers import add_lv_use
 from ..lv_validation import lv_bool, lv_image, lv_text, pixels_or_percent
 from ..lvcode import EVENT_ARG, LambdaContext, LocalVariable, lv, lv_expr, lv_obj
 from ..schemas import (
@@ -33,6 +32,7 @@ from ..styles import LVStyle
 from ..types import LV_EVENT, lv_obj_t
 from . import Widget, WidgetType, add_widgets, set_obj_properties, widget_to_code
 from .button import button_spec, lv_button_t
+from .img import CONF_IMAGE
 from .label import CONF_LABEL
 from .obj import obj_spec
 
@@ -41,7 +41,7 @@ CONF_MSGBOX = "msgbox"
 OUTER_STYLE = LVStyle(
     "msgbox_outer",
     {
-        "bg_opa": 128,
+        "bg_opa": 0.5,
         "bg_color": "black",
         "border_width": 0,
         "pad_all": 0,
@@ -119,6 +119,7 @@ async def msgbox_to_code(top_layer, conf):
         CONF_BUTTON,
         CONF_LABEL,
         CONF_MSGBOX,
+        CONF_IMAGE,
         *button_spec.get_uses(),
     )
     if CONF_BUTTON_STYLE in conf:
@@ -139,7 +140,7 @@ async def msgbox_to_code(top_layer, conf):
     percent100 = await pixels_or_percent.process(1.0)
     lv_obj.set_size(outer, percent100, percent100)
     outer_widget.add_style(await OUTER_STYLE.get_var())
-    outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
+    outer_widget.set_flag(CONF_HIDDEN, True)
     lv.msgbox_add_title(msgbox, title)
     lv.msgbox_add_text(msgbox, text)
     lv_obj.set_style_align(msgbox, literal("LV_ALIGN_CENTER"), 0)
@@ -151,12 +152,12 @@ async def msgbox_to_code(top_layer, conf):
         await widget_to_code(button, header_button_spec, msgbox)
 
     async with LambdaContext(EVENT_ARG, where=messagebox_id) as close_action:
-        outer_widget.add_flag(LV_OBJ_FLAG.HIDDEN)
+        outer_widget.set_flag(CONF_HIDDEN, True)
     if close_button:
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_add_close_button(msgbox)
         ) as close_btn:
-            lv_obj.remove_event_cb(close_btn, nullptr)
+            lv_obj.remove_event(close_btn, 0)
             lv_obj.add_event_cb(
                 close_btn,
                 await close_action.get_lambda(),
@@ -170,6 +171,6 @@ async def msgbox_to_code(top_layer, conf):
 
 
 async def msgboxes_to_code(lv_component, config):
-    top_layer = lv.disp_get_layer_top(lv_component.get_disp())
+    top_layer = lv_expr.disp_get_layer_top(lv_component.get_disp())
     for conf in config.get(CONF_MSGBOXES, ()):
         await msgbox_to_code(top_layer, conf)

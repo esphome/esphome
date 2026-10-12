@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 // Header info
 static constexpr uint8_t NCI_PKT_HEADER_SIZE = 3;     // NCI packet (pkt) headers are always three bytes
@@ -140,5 +139,4 @@ static constexpr uint8_t RF_INTF_ACTIVATED_NTF_INIT_CRED = 5 + NCI_PKT_HEADER_SI
 static constexpr uint8_t RF_INTF_ACTIVATED_NTF_RF_TECH_LENGTH = 6 + NCI_PKT_HEADER_SIZE;
 static constexpr uint8_t RF_INTF_ACTIVATED_NTF_RF_TECH_PARAMS = 7 + NCI_PKT_HEADER_SIZE;
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

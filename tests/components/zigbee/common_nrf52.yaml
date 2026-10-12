@@ -1,0 +1,14 @@
+packages:
+  - !include common.yaml
+
+zigbee:
+  model: zigbee_test
+  manufacturer: test
+  version: 1
+  wipe_on_boot: true
+  on_join:
+    then:
+      - logger.log: "Joined network"
+  on_start:
+    then:
+      - logger.log: "Started zigbee stack"

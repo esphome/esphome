@@ -1,10 +1,9 @@
 #include "mpu6886.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mpu6886 {
+namespace esphome::mpu6886 {
 
-static const char *const TAG = "mpu6886";
+ESPHOME_LOG_TAG(TAG, "mpu6886");
 
 const uint8_t MPU6886_REGISTER_WHO_AM_I = 0x75;
 const uint8_t MPU6886_REGISTER_POWER_MANAGEMENT_1 = 0x6B;
@@ -146,5 +145,4 @@ void MPU6886Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mpu6886
-}  // namespace esphome
+}  // namespace esphome::mpu6886

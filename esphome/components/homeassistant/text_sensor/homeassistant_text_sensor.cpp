@@ -3,10 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.text_sensor";
+ESPHOME_LOG_TAG(TAG, "homeassistant.text_sensor");
 
 void HomeassistantTextSensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
@@ -26,5 +25,4 @@ void HomeassistantTextSensor::dump_config() {
   }
 }
 float HomeassistantTextSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

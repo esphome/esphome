@@ -1,10 +1,13 @@
 import encodings
+import struct
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
-from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components.esp32_ble import BTLoggers, bt_uuid
+from esphome.components.const import CONF_DESCRIPTION, CONF_MANUFACTURER
+from esphome.components.esp32 import request_bluetooth
+from esphome.components.esp32_ble import DOMAIN as ESP32_BLE_DOMAIN, BTLoggers, bt_uuid
 import esphome.config_validation as cv
 from esphome.config_validation import UNDEFINED
 from esphome.const import (
@@ -24,8 +27,10 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
+from esphome.types import ConfigType, TemplateArgsType
 
 AUTO_LOAD = ["esp32_ble", "bytebuffer"]
 CODEOWNERS = ["@jesserockz", "@clydebarrow", "@Rapsssito"]
@@ -36,12 +41,10 @@ CONF_ADVERTISE = "advertise"
 CONF_APPEARANCE = "appearance"
 CONF_BROADCAST = "broadcast"
 CONF_CHARACTERISTICS = "characteristics"
-CONF_DESCRIPTION = "description"
 CONF_DESCRIPTORS = "descriptors"
 CONF_ENDIANNESS = "endianness"
 CONF_FIRMWARE_VERSION = "firmware_version"
 CONF_INDICATE = "indicate"
-CONF_MANUFACTURER = "manufacturer"
 CONF_MANUFACTURER_DATA = "manufacturer_data"
 CONF_MAX_CLIENTS = "max_clients"
 CONF_ON_WRITE = "on_write"
@@ -62,6 +65,26 @@ MANUFACTURER_NAME_CHARACTERISTIC_UUID = 0x2A29
 MODEL_CHARACTERISTIC_UUID = 0x2A24
 FIRMWARE_VERSION_CHARACTERISTIC_UUID = 0x2A26
 
+# Suffix of the Bluetooth Base UUID used to expand 16/32 bit UUIDs to 128 bit.
+_BASE_UUID_SUFFIX = "-0000-1000-8000-00805F9B34FB"
+
+
+def uuid_is(uuid: int | str, uuid16: int) -> bool:
+    """Return True if a validated UUID refers to the given 16-bit short UUID.
+
+    A service/characteristic UUID may be an ``int`` (from ``cv.hex_uint32_t``) or an
+    uppercase string in 16, 32 or 128 bit form (from ``bt_uuid``), so every
+    representation of the same UUID must be considered equivalent.
+    """
+    if isinstance(uuid, int):
+        return uuid == uuid16
+    return uuid.upper() in (
+        f"{uuid16:04X}",
+        f"{uuid16:08X}",
+        f"{uuid16:08X}{_BASE_UUID_SUFFIX}",
+    )
+
+
 # Core key to store the global configuration
 KEY_NOTIFY_REQUIRED = "notify_required"
 KEY_SET_VALUE = "set_value"
@@ -72,7 +95,6 @@ BLECharacteristic_ns = esp32_ble_server_ns.namespace("BLECharacteristic")
 BLEServer = esp32_ble_server_ns.class_(
     "BLEServer",
     cg.Component,
-    esp32_ble.GATTsEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 esp32_ble_server_automations_ns = esp32_ble_server_ns.namespace(
@@ -93,8 +115,6 @@ BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
 )
 bytebuffer_ns = cg.esphome_ns.namespace("bytebuffer")
 Endianness_ns = bytebuffer_ns.namespace("Endian")
-ByteBuffer_ns = bytebuffer_ns.namespace("ByteBuffer")
-ByteBuffer = bytebuffer_ns.class_("ByteBuffer")
 
 
 PROPERTY_MAP = {
@@ -123,6 +143,15 @@ class ValueType:
         return value
 
 
+def float32(value: Any) -> float:
+    value = cv.float_(value)
+    try:
+        struct.pack("<f", value)
+    except OverflowError as e:
+        raise cv.Invalid(f"{value} is out of range for a float") from e
+    return value
+
+
 VALUE_TYPES = {
     type_name: ValueType(type_name, validator, length)
     for type_name, validator, length in (
@@ -134,7 +163,7 @@ VALUE_TYPES = {
         ("int16_t", cv.int_range(-32768, 32767), 2),
         ("int32_t", cv.int_range(-2147483648, 2147483647), 4),
         ("int64_t", cv.int_range(-9223372036854775808, 9223372036854775807), 8),
-        ("float", cv.float_, 4),
+        ("float", float32, 4),
         ("double", cv.float_, 8),
         ("string", cv.string_strict, None),  # Length is variable
     )
@@ -196,7 +225,7 @@ def create_description_cud(char_config):
         return char_config
     # If the config displays a description, there cannot be a descriptor with the CUD UUID
     for desc in char_config[CONF_DESCRIPTORS]:
-        if desc[CONF_UUID] == CUD_DESCRIPTOR_UUID:
+        if uuid_is(desc[CONF_UUID], CUD_DESCRIPTOR_UUID):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has a description, but a CUD descriptor is already present"
             )
@@ -219,7 +248,7 @@ def create_notify_cccd(char_config):
         return char_config
     # If the CCCD descriptor is already present, return the config
     for desc in char_config[CONF_DESCRIPTORS]:
-        if desc[CONF_UUID] == CCCD_DESCRIPTOR_UUID:
+        if uuid_is(desc[CONF_UUID], CCCD_DESCRIPTOR_UUID):
             # Check if the WRITE property is set
             if not desc[CONF_WRITE]:
                 raise cv.Invalid(
@@ -245,7 +274,7 @@ def create_device_information_service(config):
     # If there is already a device information service,
     # there cannot be CONF_MODEL, CONF_MANUFACTURER or CONF_FIRMWARE_VERSION properties
     for service in config[CONF_SERVICES]:
-        if service[CONF_UUID] == DEVICE_INFORMATION_SERVICE_UUID:
+        if uuid_is(service[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID):
             if (
                 CONF_MODEL in config
                 or CONF_MANUFACTURER in config
@@ -288,12 +317,12 @@ def create_device_information_service(config):
     return config
 
 
-def final_validate_config(config):
+def final_validate_config(config) -> None:
     # Validate max_clients does not exceed esp32_ble max_connections
     max_clients = config[CONF_MAX_CLIENTS]
     if max_clients > 1:
         full_config = fv.full_config.get()
-        ble_config = full_config.get("esp32_ble", {})
+        ble_config = full_config.get(ESP32_BLE_DOMAIN, {})
         max_connections = ble_config.get(
             "max_connections", esp32_ble.DEFAULT_MAX_CONNECTIONS
         )
@@ -308,29 +337,34 @@ def final_validate_config(config):
     # Check if all characteristics that require notifications have the notify property set
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_NOTIFY_REQUIRED, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if not char_config[CONF_NOTIFY]:
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has notify actions and the {CONF_NOTIFY} property is not set"
             )
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_SET_VALUE, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if isinstance(char_config.get(CONF_VALUE, {}).get(CONF_DATA), cv.Lambda):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has both a set_value action and a templated value"
             )
-    return config
 
 
 def validate_value_type(value_config):
@@ -472,19 +506,48 @@ def parse_uuid(uuid):
     return ESPBTUUID_ns.from_raw(uuid)
 
 
+_STRUCT_FORMATS = {
+    "uint8_t": "B",
+    "uint16_t": "H",
+    "uint32_t": "I",
+    "uint64_t": "Q",
+    "int8_t": "b",
+    "int16_t": "h",
+    "int32_t": "i",
+    "int64_t": "q",
+    "float": "f",
+    "double": "d",
+}
+
+
+def value_bytes(value_config: ConfigType) -> list[int]:
+    """The bytes of a constant value, as ByteBuffer::wrap packed them at runtime."""
+    value = value_config[CONF_DATA]
+    if isinstance(value, str):
+        return list(value.encode(value_config[CONF_STRING_ENCODING]))
+    if isinstance(value, list):
+        return value
+    order = ">" if value_config[CONF_ENDIANNESS] == "BIG" else "<"
+    return list(struct.pack(order + _STRUCT_FORMATS[value_config[CONF_TYPE]], value))
+
+
 async def parse_value(value_config, args):
     value = value_config[CONF_DATA]
     if isinstance(value, cv.Lambda):
         return await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
+    # An initializer list calls the set_value(std::initializer_list<uint8_t>) overload
+    return cg.ArrayInitializer(*value_bytes(value_config))
 
-    if isinstance(value, str):
-        value = list(value.encode(value_config[CONF_STRING_ENCODING]))
-    if isinstance(value, list):
-        # Generate initializer list {1, 2, 3} instead of std::vector<uint8_t>({1, 2, 3})
-        # This calls the set_value(std::initializer_list<uint8_t>) overload
-        return cg.ArrayInitializer(*value)
-    val = cg.RawExpression(f"{value_config[CONF_TYPE]}({cg.safe_exp(value)})")
-    return ByteBuffer_ns.wrap(val, value_config[CONF_ENDIANNESS])
+
+async def set_value_buffer(
+    var: MockObj, value_config: ConfigType, args: TemplateArgsType
+) -> None:
+    value = value_config[CONF_DATA]
+    if not isinstance(value, cv.Lambda):
+        value = value_bytes(value_config)
+    await automation.templatable_bytes(
+        value, args, var.set_buffer_template, var.set_buffer_static, "ble_server_value"
+    )
 
 
 def calculate_num_handles(service_config):
@@ -572,6 +635,18 @@ async def to_code(config):
     cg.add(var.set_parent(parent))
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     cg.add(var.set_max_clients(config[CONF_MAX_CLIENTS]))
+    # Only advertise for the server itself when the configuration gives clients something to
+    # find. A server that is auto-loaded purely to host a runtime service (improv_ble) stays
+    # silent until that service asks for advertising.
+    cg.add(
+        var.set_advertising_required(
+            CONF_MANUFACTURER_DATA in config
+            or any(
+                not uuid_is(service_config[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID)
+                for service_config in config[CONF_SERVICES]
+            )
+        )
+    )
     if CONF_MANUFACTURER_DATA in config:
         cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
     for service_config in config[CONF_SERVICES]:
@@ -587,7 +662,7 @@ async def to_code(config):
         )
         for char_conf in service_config[CONF_CHARACTERISTICS]:
             await to_code_characteristic(service_var, char_conf)
-        if service_config[CONF_UUID] == DEVICE_INFORMATION_SERVICE_UUID:
+        if uuid_is(service_config[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID):
             cg.add(var.set_device_information_service(service_var))
         else:
             cg.add(var.enqueue_start_service(service_var))
@@ -607,7 +682,7 @@ async def to_code(config):
         )
     cg.add_define("USE_ESP32_BLE_SERVER")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    request_bluetooth()
 
 
 @automation.register_action(
@@ -627,8 +702,7 @@ async def to_code(config):
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    value = await parse_value(config[CONF_VALUE], args)
-    cg.add(var.set_buffer(value))
+    await set_value_buffer(var, config[CONF_VALUE], args)
     cg.add_define("USE_ESP32_BLE_SERVER_SET_VALUE_ACTION")
     return var
 
@@ -647,8 +721,7 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
 async def ble_server_descriptor_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    value = await parse_value(config[CONF_VALUE], args)
-    cg.add(var.set_buffer(value))
+    await set_value_buffer(var, config[CONF_VALUE], args)
     cg.add_define("USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION")
     return var
 

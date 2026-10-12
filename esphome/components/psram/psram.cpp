@@ -8,9 +8,8 @@
 
 #include <esp_heap_caps.h>
 
-namespace esphome {
-namespace psram {
-static const char *const TAG = "psram";
+namespace esphome::psram {
+ESPHOME_LOG_TAG(TAG, "psram");
 
 void PsramComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "PSRAM:");
@@ -25,7 +24,6 @@ void PsramComponent::dump_config() {
   }
 }
 
-}  // namespace psram
-}  // namespace esphome
+}  // namespace esphome::psram
 
 #endif

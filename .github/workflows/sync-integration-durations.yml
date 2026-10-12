@@ -1,0 +1,98 @@
+---
+name: Refresh integration test durations
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 5 * * 1"
+
+# Repo writes (branch push, PR open) happen via the App token minted below,
+# so the workflow's GITHUB_TOKEN does not need any write scopes.
+permissions:
+  contents: read
+  actions: read  # gh api / gh run download for the CI junit artifacts
+
+jobs:
+  sync:
+    name: Refresh integration test durations
+    runs-on: ubuntu-latest
+    if: github.repository == 'esphome/esphome'
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          permission-contents: write       # push the sync branch
+          permission-pull-requests: write  # open or refresh the sync PR
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Refresh from the newest usable dev run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only full matrix dev runs upload junit-integration-* artifacts
+          # (see the integration-tests job); the merge script re-checks
+          # coverage regardless.
+          # Newest-first candidates via their bucket-0 artifact. Fork PRs run
+          # their own ci.yml, so name and branch are spoofable; require
+          # same-repo. Assignment failures trip set -e and fail loudly.
+          candidates=$(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=junit-integration-0&per_page=100" \
+              --jq '.artifacts[] | select(.expired | not) | .workflow_run
+                    | select(.head_branch == "dev" and .head_repository_id != null
+                             and .head_repository_id == .repository_id)
+                    | .id'
+          )
+          # Green runs first, then the rest newest first; a run missing a
+          # bucket fails the coverage check and the next one is tried
+          green=""
+          rest=""
+          for id in ${candidates}; do
+            conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${id}" --jq '.conclusion // ""')
+            if [ "${conclusion}" = "success" ]; then
+              green="${green} ${id}"
+            elif [ -n "${conclusion}" ]; then
+              rest="${rest} ${id}"
+            fi
+          done
+          # helpers.py imports colorama; the script needs nothing else
+          pip install colorama
+          for id in ${green} ${rest}; do
+            rm -rf /tmp/junit
+            if ! gh run download "${id}" --repo "${GITHUB_REPOSITORY}" -p "junit-integration-*" -D /tmp/junit; then
+              echo "::warning::Could not download artifacts for run ${id}; trying the next"
+              continue
+            fi
+            status=0
+            python script/update_integration_test_durations.py /tmp/junit || status=$?
+            if [ "${status}" -eq 0 ]; then
+              echo "Refreshed from run ${id}"
+              exit 0
+            fi
+            # Only EXIT_LOW_COVERAGE (3) from the script advances to the next run
+            [ "${status}" -eq 3 ] || exit 1
+            echo "::warning::Run ${id} covers too few test files; trying the next"
+          done
+          echo "::error::No dev CI run with usable junit artifacts in range; the feed is starved"
+          exit 1
+
+      - name: Commit changes
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "[ci] Refresh integration test durations"
+          committer: esphome[bot] <115708604+esphome[bot]@users.noreply.github.com>
+          author: esphome[bot] <115708604+esphome[bot]@users.noreply.github.com>
+          branch: sync/integration-durations
+          delete-branch: true
+          title: "[ci] Refresh integration test durations"
+          body-path: .github/PULL_REQUEST_TEMPLATE.md
+          token: ${{ steps.generate-token.outputs.token }}

@@ -1,0 +1,3 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+  uart_tcp: !include common.yaml

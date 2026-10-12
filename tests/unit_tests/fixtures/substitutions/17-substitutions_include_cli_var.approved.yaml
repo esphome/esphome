@@ -1,0 +1,6 @@
+substitutions:
+  subs_file: 15-substitutions_inc
+  wifi_password: sub_password
+wifi:
+  ssid: main_ssid
+  password: sub_password

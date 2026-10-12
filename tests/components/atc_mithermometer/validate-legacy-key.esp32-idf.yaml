@@ -1,0 +1,10 @@
+# The esp32_ble_id -> ble_hub_id alias (removal 2027.2.0) still validates.
+esp32_ble_tracker:
+  id: ble_tracker_hub
+
+sensor:
+  - platform: atc_mithermometer
+    esp32_ble_id: ble_tracker_hub
+    mac_address: A4:C1:38:4E:16:78
+    temperature:
+      name: ATC Legacy Key Temperature

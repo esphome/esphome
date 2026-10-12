@@ -8,8 +8,7 @@
 
 #include "ltr_definitions.h"
 
-namespace esphome {
-namespace ltr_als_ps {
+namespace esphome::ltr_als_ps {
 
 enum LtrDataAvail : uint8_t { LTR_NO_DATA, LTR_BAD_DATA, LTR_DATA_OK };
 
@@ -57,6 +56,14 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   void set_actual_gain_sensor(sensor::Sensor *sensor) { this->actual_gain_sensor_ = sensor; }
   void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
   void set_proximity_counts_sensor(sensor::Sensor *sensor) { this->proximity_counts_sensor_ = sensor; }
+
+  template<typename F> void add_on_ps_high_trigger_callback(F &&callback) {
+    this->on_ps_high_trigger_callback_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_ps_low_trigger_callback(F &&callback) {
+    this->on_ps_low_trigger_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   //
@@ -151,36 +158,7 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   }
   bool is_any_ps_sensor_enabled_() const { return this->proximity_counts_sensor_ != nullptr; }
 
-  //
-  // Trigger section for the automations
-  //
-  friend class LTRPsHighTrigger;
-  friend class LTRPsLowTrigger;
-
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
-
-  template<typename F> void add_on_ps_high_trigger_callback_(F &&callback) {
-    this->on_ps_high_trigger_callback_.add(std::forward<F>(callback));
-  }
-
-  template<typename F> void add_on_ps_low_trigger_callback_(F &&callback) {
-    this->on_ps_low_trigger_callback_.add(std::forward<F>(callback));
-  }
 };
-
-class LTRPsHighTrigger : public Trigger<> {
- public:
-  explicit LTRPsHighTrigger(LTRAlsPsComponent *parent) {
-    parent->add_on_ps_high_trigger_callback_([this]() { this->trigger(); });
-  }
-};
-
-class LTRPsLowTrigger : public Trigger<> {
- public:
-  explicit LTRPsLowTrigger(LTRAlsPsComponent *parent) {
-    parent->add_on_ps_low_trigger_callback_([this]() { this->trigger(); });
-  }
-};
-}  // namespace ltr_als_ps
-}  // namespace esphome
+}  // namespace esphome::ltr_als_ps

@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace tm1638 {
+namespace esphome::tm1638 {
 namespace TM1638Translation {
 
 constexpr unsigned char SEVEN_SEG[] PROGMEM = {
@@ -103,5 +102,4 @@ constexpr unsigned char SEVEN_SEG[] PROGMEM = {
 };
 
 };  // namespace TM1638Translation
-}  // namespace tm1638
-}  // namespace esphome
+}  // namespace esphome::tm1638

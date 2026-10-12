@@ -1,10 +1,10 @@
 #pragma once
 
-namespace esphome {
-namespace dashboard_import {
+#include "esphome/core/progmem.h"
 
-const char *get_package_import_url();
-void set_package_import_url(const char *url);
+namespace esphome::dashboard_import {
 
-}  // namespace dashboard_import
-}  // namespace esphome
+ProgmemStr get_package_import_url();
+void set_package_import_url(ProgmemStr url);
+
+}  // namespace esphome::dashboard_import

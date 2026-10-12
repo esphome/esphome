@@ -1,4 +1,7 @@
-from .ili import ILI9341, ILI9342, ST7789V
+from esphome.components.mipi import MODE_RGB
+from esphome.const import CONF_IGNORE_STRAPPING_WARNING, CONF_NUMBER
+
+from .ili import GC9A01A, ILI9341, ILI9342, ST7789V
 
 ILI9341.extend(
     # ESP32-2432S028 CYD board with Micro USB, has ILI9341 controller
@@ -19,8 +22,10 @@ ST7789V.extend(
 # fmt: off
 
 ILI9342.extend(
-    # ESP32-2432S028 CYD board with USB C + Micro USB, has ILI9342 controller
+    # ESP32-2432S028 CYD board with USB C + Micro USB, has ILI9342 controller.
+    # The panel on this board is wired RGB, not the BGR default.
     "ESP32-2432S028-9342",
+    color_order=MODE_RGB,
     data_rate="40MHz",
     cs_pin={"number": 15, "ignore_strapping_warning": True},
     dc_pin={"number": 2, "ignore_strapping_warning": True},
@@ -42,4 +47,11 @@ ILI9342.extend(
         (0xE0, 0x00, 0x0C, 0x11, 0x04, 0x11, 0x08, 0x37, 0x89, 0x4C, 0x06, 0x0C, 0x0A, 0x2E, 0x34, 0x0F),  # Positive Gamma Correction
         (0xE1, 0x00, 0x0B, 0x11, 0x05, 0x13, 0x09, 0x33, 0x67, 0x48, 0x07, 0x0E, 0x0B, 0x23, 0x33, 0x0F),  # Negative Gamma Correction
     )
+)
+
+GC9A01A.extend(
+    "ESP32-2424S012",
+    invert_colors=True,
+    cs_pin=10,
+    dc_pin={CONF_NUMBER: 2, CONF_IGNORE_STRAPPING_WARNING: True},
 )

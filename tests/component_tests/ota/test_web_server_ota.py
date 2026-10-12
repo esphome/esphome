@@ -27,7 +27,7 @@ def test_web_server_ota_generated(generate_main: Callable[[str], str]) -> None:
     assert "global_web_server_base" in main_cpp
 
     # Check component is registered
-    assert "App.register_component_(web_server_webserverotacomponent_id)" in main_cpp
+    assert "App.register_component_(web_server_webserverotacomponent_id" in main_cpp
 
 
 def test_web_server_ota_with_callbacks(generate_main: Callable[[str], str]) -> None:

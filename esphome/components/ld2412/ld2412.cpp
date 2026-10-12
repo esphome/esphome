@@ -10,9 +10,12 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace esphome::ld2412 {
 
-static const char *const TAG = "ld2412";
+ESPHOME_LOG_TAG(TAG, "ld2412");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -73,8 +76,10 @@ enum PeriodicDataValue : uint8_t {
 };
 
 enum AckData : uint8_t {
+  FRAME_LENGTH = 4,  // little-endian count of the bytes between it and the footer
   COMMAND = 6,
   COMMAND_STATUS = 7,
+  ACK_PAYLOAD = 10,
 };
 
 // Memory-efficient lookup tables
@@ -191,13 +196,16 @@ static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0x
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
+// The length field counts the command word, the status word and the gates
+static constexpr uint16_t GATE_SENS_ACK_LENGTH = GATE_SENS_ACK_SIZE - COMMAND - HEADER_FOOTER_SIZE;
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
 void LD2412Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -240,10 +248,10 @@ void LD2412Component::dump_config() {
   LOG_NUMBER("  ", "MaxDistanceGate", this->max_distance_gate_number_);
   LOG_NUMBER("  ", "MinDistanceGate", this->min_distance_gate_number_);
   LOG_NUMBER("  ", "Timeout", this->timeout_number_);
-  for (number::Number *n : this->gate_move_threshold_numbers_) {
+  for (number::Number *n : this->gate_move_thresholds_.numbers) {
     LOG_NUMBER("  ", "Move Thresholds", n);
   }
-  for (number::Number *n : this->gate_still_threshold_numbers_) {
+  for (number::Number *n : this->gate_still_thresholds_.numbers) {
     LOG_NUMBER("  ", "Still Thresholds", n);
   }
 #endif
@@ -397,12 +405,12 @@ void LD2412Component::handle_periodic_data_() {
   */
 #ifdef USE_SENSOR
   SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
-                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
-  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]));
+  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY]);
   SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
-                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]))
-  SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY])
-  if (this->detection_distance_sensor_ != nullptr) {
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]));
+  SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
+  if (this->detection_distance_sensor_.has_sensor()) {
     int new_detect_distance = 0;
     if (target_state != 0x00 && (target_state & MOVE_BITMASK)) {
       new_detect_distance =
@@ -410,7 +418,7 @@ void LD2412Component::handle_periodic_data_() {
     } else if (target_state != 0x00) {
       new_detect_distance = encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]);
     }
-    this->detection_distance_sensor_->publish_state_if_not_dup(new_detect_distance);
+    this->detection_distance_sensor_.publish_state_if_not_dup(new_detect_distance);
   }
   if (engineering_mode) {
     // Engineering mode needs at least LIGHT_SENSOR + 1 bytes
@@ -423,27 +431,27 @@ void LD2412Component::handle_periodic_data_() {
         Moving energy: 20~28th bytes
       */
       for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i]);
       }
       /*
         Still energy: 29~37th bytes
       */
       for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
+        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i]);
       }
       /*
         Light sensor value
       */
-      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
+      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR]);
     }
   } else {
     for (auto &gate_move_sensor : this->gate_move_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor);
     }
     for (auto &gate_still_sensor : this->gate_still_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor);
     }
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_)
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_);
   }
 #endif
   // the radar module won't tell us when it's done, so we just have to keep polling...
@@ -460,6 +468,13 @@ void set_number_value(number::Number *n, float value) {
     n->publish_state(value);
   }
 }
+
+// NaN marks a value the module never received
+static inline bool has_value(number::Number *n) { return n != nullptr && n->has_state() && !std::isnan(n->state); }
+
+// Timeout ids 0 (still) and 1 (motion) for a write waiting on a re-query
+static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
+static constexpr uint32_t GATE_QUERY_TIMEOUT_MS = 2000;
 #endif
 
 bool LD2412Component::handle_ack_data_() {
@@ -555,7 +570,7 @@ bool LD2412Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
@@ -595,19 +610,34 @@ bool LD2412Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Handled set light control command");
       break;
 
-    case CMD_QUERY_MOTION_GATE_SENS: {
-#ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_move_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
-        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]);
-      }
-#endif
-      break;
-    }
-
+    case CMD_QUERY_MOTION_GATE_SENS:
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
-        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]);
+      const uint16_t declared = encode_uint16(this->buffer_data_[FRAME_LENGTH + 1], this->buffer_data_[FRAME_LENGTH]);
+      if (declared != GATE_SENS_ACK_LENGTH || this->buffer_pos_ > GATE_SENS_ACK_SIZE) {
+        // A truncated answer merged with the next frame, or a length this driver does not know
+        ESP_LOGW(TAG, "Dropping gate threshold answer of %u bytes", this->buffer_pos_);
+        return true;
+      }
+      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
+        return false;  // the footer pattern appeared inside the payload, keep reading
+      }
+      const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
+      GateThresholds &group = this->gate_thresholds_(motion);
+      // True only while a held-back write waits for this answer
+      const bool pending = this->cancel_timeout(GATE_QUERY_TIMEOUT_ID + motion);
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        group.last_read[i] = this->buffer_data_[ACK_PAYLOAD + i];
+        // The pending write's user values must survive the answer
+        if (!pending || !has_value(group.numbers[i])) {
+          set_number_value(group.numbers[i], group.last_read[i]);
+        }
+      }
+      group.read = true;
+      if (pending) {
+        this->set_config_mode_(true);
+        this->send_gate_thresholds_(motion);
+        this->set_config_mode_(false);
       }
 #endif
       break;
@@ -747,6 +777,11 @@ void LD2412Component::set_engineering_mode(bool enable) {
 void LD2412Component::factory_reset() {
   this->set_config_mode_(true);
   this->send_command_(CMD_FACTORY_RESET, nullptr, 0);
+#ifdef USE_NUMBER
+  // Reset discards the thresholds; the next write must wait for the re-read
+  this->gate_move_thresholds_.read = false;
+  this->gate_still_thresholds_.read = false;
+#endif
   this->set_timeout(2000, [this]() { this->restart_and_read_all_info(); });
 }
 
@@ -766,32 +801,38 @@ void LD2412Component::get_distance_resolution_() { this->send_command_(CMD_QUERY
 void LD2412Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
 void LD2412Component::set_basic_config() {
+  uint8_t min_gate = 1;
+  uint8_t max_gate = TOTAL_GATES;
+  uint16_t timeout = DEFAULT_PRESENCE_TIMEOUT;
+  uint8_t out_pin_level = 0x01;
+
 #ifdef USE_NUMBER
-  if (!this->min_distance_gate_number_->has_state() || !this->max_distance_gate_number_->has_state() ||
-      !this->timeout_number_->has_state()) {
-    return;
+  if (this->min_distance_gate_number_ != nullptr) {
+    if (!this->min_distance_gate_number_->has_state())
+      return;
+    min_gate = static_cast<int>(this->min_distance_gate_number_->state);
+  }
+  if (this->max_distance_gate_number_ != nullptr) {
+    if (!this->max_distance_gate_number_->has_state())
+      return;
+    max_gate = static_cast<int>(this->max_distance_gate_number_->state) + 1;
+  }
+  if (this->timeout_number_ != nullptr) {
+    if (!this->timeout_number_->has_state())
+      return;
+    timeout = static_cast<int>(this->timeout_number_->state);
   }
 #endif
 #ifdef USE_SELECT
-  if (!this->out_pin_level_select_->has_state()) {
-    return;
+  if (this->out_pin_level_select_ != nullptr) {
+    if (!this->out_pin_level_select_->has_state())
+      return;
+    out_pin_level = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
   }
 #endif
 
   uint8_t value[5] = {
-#ifdef USE_NUMBER
-      lowbyte(static_cast<int>(this->min_distance_gate_number_->state)),
-      lowbyte(static_cast<int>(this->max_distance_gate_number_->state) + 1),
-      lowbyte(static_cast<int>(this->timeout_number_->state)),
-      highbyte(static_cast<int>(this->timeout_number_->state)),
-#else
-      1,    TOTAL_GATES, DEFAULT_PRESENCE_TIMEOUT, 0,
-#endif
-#ifdef USE_SELECT
-      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str()),
-#else
-      0x01,  // Default value if not using select
-#endif
+      lowbyte(min_gate), lowbyte(max_gate), lowbyte(timeout), highbyte(timeout), out_pin_level,
   };
   this->set_config_mode_(true);
   this->send_command_(CMD_BASIC_CONF, value, sizeof(value));
@@ -799,24 +840,48 @@ void LD2412Component::set_basic_config() {
 }
 
 #ifdef USE_NUMBER
-void LD2412Component::set_gate_threshold() {
-  if (this->gate_move_threshold_numbers_.empty() && this->gate_still_threshold_numbers_.empty()) {
-    return;  // No gate threshold numbers set; nothing to do here
+void LD2412Component::send_gate_thresholds_(bool motion) {
+  GateThresholds &group = this->gate_thresholds_(motion);
+  const uint8_t command = motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS;
+  uint8_t value[TOTAL_GATES];
+  uint8_t configured = 0;
+  for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+    number::Number *n = group.numbers[i];
+    if (has_value(n)) {
+      value[i] = static_cast<uint8_t>(n->state);
+      configured++;
+    } else {
+      value[i] = group.last_read[i];
+    }
   }
-  uint8_t value[TOTAL_GATES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  if (configured < TOTAL_GATES && !group.read) {
+    // Unread gates would go out as zero, which is maximum sensitivity
+    ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
+    this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
+    this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, GATE_QUERY_TIMEOUT_MS,
+                      [this, motion]() { this->gate_query_timeout_(motion); });
+    return;
+  }
+  this->send_command_(command, value, sizeof(value));
+}
+
+void LD2412Component::gate_query_timeout_(bool motion) {
+  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its gate thresholds",
+           motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS);
+  // The values on hand never reached the module or are stale, so forgetting them loses nothing
+  for (number::Number *n : this->gate_thresholds_(motion).numbers) {
+    if (n != nullptr) {
+      n->publish_state(NAN);
+    }
+  }
+}
+
+void LD2412Component::set_gate_threshold(number::Number *n) {
+  // Found by pointer: 14 compares per write beat a flag per number
+  const auto &motion_numbers = this->gate_move_thresholds_.numbers;
+  const bool motion = std::find(motion_numbers.begin(), motion_numbers.end(), n) != motion_numbers.end();
   this->set_config_mode_(true);
-  if (!this->gate_move_threshold_numbers_.empty()) {
-    for (size_t i = 0; i < this->gate_move_threshold_numbers_.size(); i++) {
-      value[i] = lowbyte(static_cast<int>(this->gate_move_threshold_numbers_[i]->state));
-    }
-    this->send_command_(CMD_MOTION_GATE_SENS, value, sizeof(value));
-  }
-  if (!this->gate_still_threshold_numbers_.empty()) {
-    for (size_t i = 0; i < this->gate_still_threshold_numbers_.size(); i++) {
-      value[i] = lowbyte(static_cast<int>(this->gate_still_threshold_numbers_[i]->state));
-    }
-    this->send_command_(CMD_STATIC_GATE_SENS, value, sizeof(value));
-  }
+  this->send_gate_thresholds_(motion);
   this->set_config_mode_(false);
 }
 
@@ -846,12 +911,11 @@ void LD2412Component::set_light_out_control() {
 }
 
 #ifdef USE_SENSOR
-// These could leak memory, but they are only set once prior to 'setup()' and should never be used again.
 void LD2412Component::set_gate_move_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_move_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_move_sensors_[gate].set_sensor(s);
 }
 void LD2412Component::set_gate_still_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_still_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_still_sensors_[gate].set_sensor(s);
 }
 #endif
 

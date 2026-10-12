@@ -3,12 +3,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 #include "pid_controller.h"
-#include "pid_simulator.h"
 
 #include <vector>
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 class PIDAutotuner {
  public:
@@ -111,5 +109,4 @@ class PIDAutotuner {
   std::string id_;
 };
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

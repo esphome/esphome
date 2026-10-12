@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
-namespace esphome {
-namespace lcd_menu {
+namespace esphome::lcd_menu {
 
-static const char *const TAG = "lcd_menu";
+ESPHOME_LOG_TAG(TAG, "lcd_menu");
 
 void LCDCharacterMenuComponent::setup() {
   if (this->display_->is_failed()) {
@@ -72,5 +71,4 @@ void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *ite
   this->display_->print(0, row, data);
 }
 
-}  // namespace lcd_menu
-}  // namespace esphome
+}  // namespace esphome::lcd_menu

@@ -3,10 +3,9 @@
 #include "esphome/core/log.h"
 #include "sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
-static const char *const TAG = "sml";
+ESPHOME_LOG_TAG(TAG, "sml");
 
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;
@@ -140,5 +139,4 @@ uint8_t get_code(uint8_t byte) {
   }
 }
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

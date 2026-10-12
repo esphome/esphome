@@ -10,10 +10,9 @@
 #include <Esp.h>
 #endif
 
-namespace esphome {
-namespace shutdown {
+namespace esphome::shutdown {
 
-static const char *const TAG = "shutdown.button";
+ESPHOME_LOG_TAG(TAG, "shutdown.button");
 
 void ShutdownButton::dump_config() { LOG_BUTTON("", "Shutdown Button", this); }
 void ShutdownButton::press_action() {
@@ -29,5 +28,4 @@ void ShutdownButton::press_action() {
 #endif
 }
 
-}  // namespace shutdown
-}  // namespace esphome
+}  // namespace esphome::shutdown
