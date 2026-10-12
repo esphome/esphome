@@ -311,14 +311,19 @@ def register_protocol_action(
     """Register ``transmit_<name>`` with no C++ action class.
 
     One generated function fills ``<protocol>Data`` from ``(conf_key, member, type_)`` fields
-    and sends it; the action is a core ``ApplyAction``.
+    and sends it; the action is a core ``ApplyAction``. A ``member`` containing ``{}`` is a
+    statement on the data instead, e.g. ``"set_temperature({})"``.
     """
     action, schema, validator = _transmit_action(name, schema, validate)
     builder = automation.apply_action_builder(
         action,
         schema,
         *(
-            automation.ApplyField(key, f"data.{member} = {{}}", type_)
+            automation.ApplyField(
+                key,
+                f"data.{member}" if "{}" in member else f"data.{member} = {{}}",
+                type_,
+            )
             for key, member, type_ in fields
         ),
         automation.ApplyField((CONF_REPEAT, CONF_TIMES), "set_send_times", cg.uint32),
@@ -2564,7 +2569,7 @@ register_protocol_action(
     IRA211Data,
     IRA211BinarySensor,
     IRA211Trigger,
-    IRA211Action,
+    _,
     IRA211Dumper,
 ) = declare_protocol("IRA211")
 
@@ -2639,15 +2644,12 @@ def ira211_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
 
-@register_action("ira211", IRA211Action, IRA211_SCHEMA)
-async def ira211_action(
-    var: MockObj, config: ConfigType, args: TemplateArgsType
-) -> None:
-    template_ = await cg.templatable(config[CONF_COMMAND], args, IRA211CommandEnum)
-    cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
-    cg.add(var.set_temperature(template_))
-    template_ = await cg.templatable(config[CONF_MODE], args, IRA211ModeEnum)
-    cg.add(var.set_mode(template_))
-    template_ = await cg.templatable(config[CONF_FAN_MODE], args, IRA211FanEnum)
-    cg.add(var.set_fan(template_))
+register_protocol_action(
+    "ira211",
+    "IRA211",
+    IRA211_SCHEMA,
+    (CONF_COMMAND, "command", IRA211CommandEnum),
+    (CONF_TEMPERATURE, "set_temperature({})", cg.float_),
+    (CONF_MODE, "mode", IRA211ModeEnum),
+    (CONF_FAN_MODE, "fan", IRA211FanEnum),
+)

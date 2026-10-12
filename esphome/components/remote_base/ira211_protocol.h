@@ -62,21 +62,4 @@ class IRA211Protocol : public RemoteProtocol<IRA211Data> {
 
 DECLARE_REMOTE_PROTOCOL(IRA211)
 
-template<typename... Ts> class IRA211Action : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(IRA211Command, command)
-  TEMPLATABLE_VALUE(float, temperature)
-  TEMPLATABLE_VALUE(IRA211Mode, mode)
-  TEMPLATABLE_VALUE(IRA211Fan, fan)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    IRA211Data data{};
-    data.command = this->command_.value(x...);
-    data.set_temperature(this->temperature_.value(x...));
-    data.mode = this->mode_.value(x...);
-    data.fan = this->fan_.value(x...);
-    IRA211Protocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base
