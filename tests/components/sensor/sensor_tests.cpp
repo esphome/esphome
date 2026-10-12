@@ -19,38 +19,38 @@ struct RhFixture {
 TEST(RHCorrectionFilter, CorrectsForTheOffset) {
   RhFixture f([]() -> float { return -7.3f; });
   f.temperature.publish_state(25.0f);
-  EXPECT_NEAR(*f.filter.new_value(40.0f), CORRECTED, 0.05f);
+  EXPECT_NEAR(f.filter.new_value(40.0f).value_or(NAN), CORRECTED, 0.05f);
 }
 
 TEST(RHCorrectionFilter, PositiveOffsetLowersTheHumidity) {
   RhFixture f([]() -> float { return 7.3f; });
   f.temperature.publish_state(25.0f);
-  EXPECT_LT(*f.filter.new_value(40.0f), 40.0f);
+  EXPECT_LT(f.filter.new_value(40.0f).value_or(NAN), 40.0f);
 }
 
 TEST(RHCorrectionFilter, FahrenheitReadingsGiveTheSameResult) {
   // 77 °F is 25 °C and -13.14 °F is -7.3 °C of offset
   RhFixture f([]() -> float { return -13.14f; }, true);
   f.temperature.publish_state(77.0f);
-  EXPECT_NEAR(*f.filter.new_value(40.0f), CORRECTED, 0.05f);
+  EXPECT_NEAR(f.filter.new_value(40.0f).value_or(NAN), CORRECTED, 0.05f);
 }
 
 TEST(RHCorrectionFilter, ClampsToOneHundredPercent) {
   RhFixture f([]() -> float { return -7.3f; });
   f.temperature.publish_state(25.0f);
-  EXPECT_FLOAT_EQ(*f.filter.new_value(90.0f), 100.0f);
+  EXPECT_FLOAT_EQ(f.filter.new_value(90.0f).value_or(NAN), 100.0f);
 }
 
 TEST(RHCorrectionFilter, PassesThroughWithoutAUsableTemperature) {
   RhFixture f([]() -> float { return -7.3f; });
   // No temperature reading yet
-  EXPECT_FLOAT_EQ(*f.filter.new_value(40.0f), 40.0f);
+  EXPECT_FLOAT_EQ(f.filter.new_value(40.0f).value_or(NAN), 40.0f);
   // Out of the -40..50 °C band
   f.temperature.publish_state(60.0f);
-  EXPECT_FLOAT_EQ(*f.filter.new_value(40.0f), 40.0f);
+  EXPECT_FLOAT_EQ(f.filter.new_value(40.0f).value_or(NAN), 40.0f);
   // The band also covers the reconstructed enclosure temperature
   f.temperature.publish_state(45.0f);
-  EXPECT_FLOAT_EQ(*f.filter.new_value(40.0f), 40.0f);
+  EXPECT_FLOAT_EQ(f.filter.new_value(40.0f).value_or(NAN), 40.0f);
 }
 
 TEST(RHCorrectionFilter, DropsTheUpdateOnNaN) {
