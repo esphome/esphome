@@ -3,6 +3,6 @@
 
 namespace esphome::number {
 
-static const char *const TAG = "number";
+ESPHOME_LOG_TAG(TAG, "number");
 
 }  // namespace esphome::number

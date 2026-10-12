@@ -8,6 +8,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "improv_base"
 
 CONF_NEXT_URL = "next_url"
 
@@ -38,9 +39,11 @@ def _process_next_url(url: str) -> str:
     return url
 
 
-async def setup_improv_core(var: MockObj, config: ConfigType, component: str) -> None:
+async def setup_improv_core(var: MockObj, config: ConfigType) -> None:
     if next_url := config.get(CONF_NEXT_URL):
         cg.add(var.set_next_url(_process_next_url(next_url)))
-        cg.add_define(f"USE_{component.upper()}_NEXT_URL")
+        # One define for all transports: next_url_ is per object, so a transport
+        # configured without next_url: calls add_next_url_ and appends nothing.
+        cg.add_define("USE_IMPROV_NEXT_URL")
 
     cg.add_library("improv/Improv", "1.2.7")

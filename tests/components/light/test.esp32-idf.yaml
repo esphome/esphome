@@ -18,4 +18,5 @@ output:
     id: test_ledc_5
     pin: 17
 
-<<: !include common.yaml
+packages:
+  common: !include common.yaml

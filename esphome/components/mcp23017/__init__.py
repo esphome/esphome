@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["mcp23x17_base"]
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "mcp23017"
 MULTI_CONF = True
 
 mcp23017_ns = cg.esphome_ns.namespace("mcp23017")

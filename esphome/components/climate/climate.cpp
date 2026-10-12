@@ -6,7 +6,7 @@
 
 namespace esphome::climate {
 
-static const char *const TAG = "climate";
+ESPHOME_LOG_TAG(TAG, "climate");
 
 // Memory-efficient lookup tables
 struct StringToUint8 {
@@ -368,19 +368,11 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 
 void Climate::save_state_(const ClimateTraits &traits) {
-#if (defined(USE_ESP32) || defined(USE_ESP8266)) && !defined(CLANG_TIDY)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wclass-memaccess"
-#define TEMP_IGNORE_MEMACCESS
-#endif
   ClimateDeviceRestoreState state{};
-  // initialize as zero (including padding) to prevent random data on stack triggering erase
+  // initialize as zero (including padding) to prevent random data on stack triggering erase;
+  // the void * cast tells GCC the bytewise clear of a non-trivial type is intentional
   // NOLINTNEXTLINE(bugprone-raw-memory-call-on-non-trivial-type) -- intentional bytewise zero for RTC save
-  memset(&state, 0, sizeof(ClimateDeviceRestoreState));
-#ifdef TEMP_IGNORE_MEMACCESS
-#pragma GCC diagnostic pop
-#undef TEMP_IGNORE_MEMACCESS
-#endif
+  memset(static_cast<void *>(&state), 0, sizeof(ClimateDeviceRestoreState));
 
   state.mode = this->mode;
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
@@ -435,6 +427,7 @@ void Climate::save_state_(const ClimateTraits &traits) {
 }
 
 void Climate::publish_state() {
+  this->set_has_state(true);
   ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
 

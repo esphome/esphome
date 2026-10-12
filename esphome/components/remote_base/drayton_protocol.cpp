@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.drayton";
+ESPHOME_LOG_TAG(TAG, "remote.drayton");
 
 static constexpr uint32_t BIT_TIME_US = 500;
 static constexpr uint8_t CARRIER_KHZ = 2;

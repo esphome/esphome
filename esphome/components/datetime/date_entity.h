@@ -98,20 +98,6 @@ class DateCall {
 
 inline DateCall DateEntity::make_call() { return DateCall(this); }
 
-template<typename... Ts> class DateSetAction final : public Action<Ts...>, public Parented<DateEntity> {
- public:
-  TEMPLATABLE_VALUE(ESPTime, date)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-
-    if (this->date_.has_value()) {
-      call.set_date(this->date_.value(x...));
-    }
-    call.perform();
-  }
-};
-
 }  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_DATE

@@ -10,7 +10,7 @@
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #endif
 #include <freertos/task.h>
@@ -18,7 +18,7 @@
 
 namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server");
 
 void BLEServer::setup() {
   if (this->parent_->is_failed()) {
