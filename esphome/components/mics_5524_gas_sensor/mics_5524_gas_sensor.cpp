@@ -46,10 +46,12 @@ void MiCS5524Component::setup() {
 void MiCS5524Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MiCS-5524:");
   LOG_UPDATE_INTERVAL(this);
+#ifdef MICS_5524_GAS_COUNT
   for (auto *gas : this->gases_) {
     LOG_SENSOR("  ", "Gas", gas);
     ESP_LOGCONFIG(TAG, "    Range: %.1f - %.1f ppm", gas->get_min_ppm(), gas->get_max_ppm());
   }
+#endif
   ESP_LOGCONFIG(TAG, "  VCC: %.2f V, AO multiplier: x%.3f", this->vcc_, this->voltage_multiplier_);
   ESP_LOGCONFIG(TAG, "  AO samples per reading: %u", static_cast<unsigned>(this->samples_));
   if (this->has_reference_()) {
@@ -72,9 +74,11 @@ float MiCS5524Component::sample_voltage_() {
 }
 
 void MiCS5524Component::publish_ratio_(float ratio) {
+#ifdef MICS_5524_GAS_COUNT
   for (auto *gas : this->gases_) {
     gas->publish_ratio(ratio);
   }
+#endif
 }
 
 bool MiCS5524Component::in_warmup_() {

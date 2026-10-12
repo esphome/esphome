@@ -53,8 +53,10 @@ class MiCS5524Component : public PollingComponent {
   void update() override;
   void dump_config() override;
 
+#ifdef MICS_5524_GAS_COUNT
   /// Add one gas of this sensor; code generation calls it once per configured gas.
   void register_gas_sensor(MiCS5524GasSensor *gas) { this->gases_.push_back(gas); }
+#endif
 
   // ------------------------------------------------------------------ config
   void set_vcc(float vcc) { this->vcc_ = vcc; }
@@ -133,7 +135,12 @@ class MiCS5524Component : public PollingComponent {
   /// Clean-air reference: `x_air` in volts, 0 while there is none.
   float reference_{0.0f};
 
+  // Sized by code generation, one slot per configured gas; a build that runs no code
+  // generation (the C++ unit tests) has no count, so this list and the loops over it
+  // compile out there.
+#ifdef MICS_5524_GAS_COUNT
   StaticVector<MiCS5524GasSensor *, MICS_5524_GAS_COUNT> gases_;
+#endif
 };
 
 }  // namespace esphome::mics_5524_gas_sensor
