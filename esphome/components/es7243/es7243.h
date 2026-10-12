@@ -1,9 +1,12 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/components/audio_adc/audio_adc.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/i2s_audio/i2s_audio.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 namespace esphome::es7243 {
 
@@ -28,3 +31,5 @@ class ES7243 final : public audio_adc::AudioAdc, public Component, public i2c::I
 };
 
 }  // namespace esphome::es7243
+
+#endif  // USE_ESP32

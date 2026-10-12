@@ -1,5 +1,7 @@
 #include "es7243.h"
 
+#ifdef USE_ESP32
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -76,3 +78,5 @@ bool ES7243::set_mic_gain(float mic_gain) {
 bool ES7243::write_mic_gain_() { return this->write_byte(REG_GAIN, gain_reg_value(this->mic_gain_)); }
 
 }  // namespace esphome::es7243
+
+#endif  // USE_ESP32
