@@ -21,7 +21,7 @@
 
 namespace esphome::safe_mode {
 
-static const char *const TAG = "safe_mode";
+ESPHOME_LOG_TAG(TAG, "safe_mode");
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK) && !defined(USE_OTA_PARTITIONS)
 // Find a non-running app partition. If verify is true, only returns a partition

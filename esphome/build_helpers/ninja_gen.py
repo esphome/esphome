@@ -74,33 +74,40 @@ def tool_lines(
         # path gets
         f"python = {_q(strip_win_long_path_prefix(sys.executable))}",
         f"buildtool = {_q(_BUILD_TOOL)}",
-        f"ccache = {_q(ccache) if ccache else ''}",
+        *([f"ccache = {_q(ccache)}"] if ccache else []),
         "",
     ]
 
 
-def compile_rule_lines() -> list[str]:
-    """The compile rules; ``$own_includes`` is empty unless an edge sets it."""
+def compile_rule_lines(ccache: str | None) -> list[str]:
+    """The compile rules; ``$own_includes`` is empty unless an edge sets it.
+
+    ``ccache`` is the launcher ``tool_lines`` was given; the same test here
+    keeps the variable and the rules in step. It is spliced in rather than
+    left as an empty variable: a leading space on the command line makes
+    CreateProcess fail on Windows.
+    """
+    launcher = "$ccache " if ccache else ""
     return [
         "rule c",
-        "  command = $ccache $cc -MMD -MF $out.d $own_includes $cflags $flags -c $in -o $out",
+        f"  command = {launcher}$cc -MMD -MF $out.d $own_includes $cflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CC $out",
         "rule cxx",
-        "  command = $ccache $cxx -MMD -MF $out.d $own_includes $cxxflags $flags -c $in -o $out",
+        f"  command = {launcher}$cxx -MMD -MF $out.d $own_includes $cxxflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CXX $out",
         "rule aspp",
-        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $own_includes $asflags $flags -c $in -o $out",
+        f"  command = {launcher}$cc -MMD -MF $out.d -x assembler-with-cpp $own_includes $asflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = AS $out",
         # Plain assembler, as SCons's ASCOM: no preprocessor, so no
         # depfile and no $flags (defines/includes) either
         "rule asm",
-        "  command = $ccache $cc -x assembler $asflags -c $in -o $out",
+        f"  command = {launcher}$cc -x assembler $asflags -c $in -o $out",
         "  description = AS $out",
     ]
 
@@ -207,9 +214,11 @@ def compile_edges(
 
 
 def library_edges(
-    lines: list[str], libraries: list[ArduinoLibrary]
+    lines: list[str], libraries: list[ArduinoLibrary], extra_flags: str = ""
 ) -> tuple[list[str], list[str]]:
     """Emit every library's compile and archive edges.
+
+    ``extra_flags`` (raw ninja text) precede each library's own flags.
 
     Returns the archive names and the objects that link directly. A
     library's own include dirs lead its compile lines, as PlatformIO searched
@@ -232,7 +241,7 @@ def library_edges(
             lib.sources,
             common_parent(lib.sources),
             f"lib/{lib.name}",
-            flags=" ".join(_shell_token(f) for f in lib.flags),
+            flags=" ".join(filter(None, [extra_flags, *map(_shell_token, lib.flags)])),
             own_includes=" ".join(f"-I{_q(d)}" for d in lib.include_dirs),
         )
         if not lib.lib_archive:

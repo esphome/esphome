@@ -16,7 +16,7 @@
 
 namespace esphome::socket {
 
-static const char *const TAG = "socket";
+ESPHOME_LOG_TAG(TAG, "socket");
 
 bool Ipv4Resolve::consume_failure() {
 #if defined(IPV4_RESOLVE_ATOMIC_STATE)

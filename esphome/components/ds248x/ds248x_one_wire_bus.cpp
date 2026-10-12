@@ -4,7 +4,7 @@
 
 namespace esphome::ds248x {
 
-static const char *const TAG = "ds248x.one_wire";
+ESPHOME_LOG_TAG(TAG, "ds248x.one_wire");
 
 void DS248xOneWireBus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DS248x 1-Wire Bus (Channel %d)...", this->channel_);

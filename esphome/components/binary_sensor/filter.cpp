@@ -8,7 +8,7 @@
 
 namespace esphome::binary_sensor {
 
-static const char *const TAG = "sensor.filter";
+ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 void Filter::output(bool value) {
   if (this->next_ == nullptr) {

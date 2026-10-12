@@ -8,6 +8,7 @@
 #include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -405,10 +406,14 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   /// Check if this holds a static string (const char* stored without allocation)
   /// The pointer is always directly readable (RAM or flash-mapped).
   /// Returns false for FLASH_STRING (PROGMEM on ESP8266, requires _P functions).
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Read the value with ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
   /// Get the static string pointer (only valid if is_static_string() returns true)
   /// The pointer is always directly readable — FLASH_STRING uses a separate type.
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Use ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   const char *get_static_string() const { return this->static_str_; }
 
   /// Check if the string value is empty without allocating.
@@ -489,6 +494,13 @@ template<typename... X> class TemplatableValue<std::string, X...> {
     const char *static_str_;               // For STATIC_STRING and FLASH_STRING types
   };
 };
+
+/// How deferring actions store a trigger argument: a copy, since a referenced object may be gone once the trigger
+/// returns, unless the type cannot be copied (e.g. an entity, which outlives the wait). A copyable `Base &` would be
+/// stored sliced, so entity-like argument types must not be copyable.
+template<typename T>
+using stored_trigger_arg_t =
+    std::conditional_t<std::is_copy_constructible_v<std::remove_cvref_t<T>>, std::remove_cvref_t<T>, T>;
 
 /** Base class for all automation conditions.
  *

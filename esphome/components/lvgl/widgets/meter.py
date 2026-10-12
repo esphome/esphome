@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.image import get_image_metadata
+from esphome.components.image import DOMAIN as IMAGE_DOMAIN, get_image_metadata
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
@@ -38,7 +38,6 @@ from ..defines import (
     CONF_SRC,
     CONF_START_VALUE,
     CONF_TICKS,
-    LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
     add_lv_use,
@@ -214,7 +213,7 @@ INDICATOR_SCHEMA = cv.Schema(
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
-            cv.requires_component("image"),
+            cv.requires_component(IMAGE_DOMAIN),
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
@@ -457,7 +456,7 @@ class MeterType(WidgetType):
                             LV_EVENT.DRAW_TASK_ADDED,
                             nullptr,
                         )
-                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
+                        lv_obj.set_send_draw_task_events(scale_var, True)
 
                 if t == CONF_LINE:
                     # Needle represented by a line

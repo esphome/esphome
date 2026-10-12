@@ -7,6 +7,7 @@ import esphome.config_validation as cv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@dentra"]
+DOMAIN = "web_server_idf"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),

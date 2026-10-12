@@ -10,7 +10,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.text";
+ESPHOME_LOG_TAG(TAG, "homeassistant.text");
 
 void HomeassistantText::state_changed_(StringRef state) {
   if (state == this->state) {
@@ -78,6 +78,13 @@ void HomeassistantText::control(const std::string &value) {
     ESP_LOGE(TAG, "No clients connected to API server");
     return;
   }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    return;
+  }
+#endif
 
   static constexpr auto SERVICE_TEXT = StringRef::from_lit("text.set_value");
   static constexpr auto SERVICE_INPUT_TEXT = StringRef::from_lit("input_text.set_value");

@@ -55,7 +55,7 @@ namespace esphome::web_server_idf {
 #define CRLF_STR "\r\n"
 #define CRLF_LEN (sizeof(CRLF_STR) - 1)
 
-static const char *const TAG = "web_server_idf";
+ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
 // Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
 // arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
@@ -335,9 +335,9 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   return StringRef(buffer.data(), decoded_len);
 }
 
-void AsyncWebServerRequest::redirect(const std::string &url) {
+void AsyncWebServerRequest::redirect(const char *url) {
   httpd_resp_set_status(*this, "302 Found");
-  httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Location", url);
   httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
@@ -850,7 +850,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   for (auto &group : ws->sorting_groups_) {
     json::JsonBuilder builder;
     JsonObject root = builder.root();
-    root["name"] = group.second.name;
+    root["name"] = json::linked(group.second.name);
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
 
