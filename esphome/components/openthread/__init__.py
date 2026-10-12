@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     include_builtin_idf_component,
     only_on_variant,
     require_mbedtls_ecp,
+    require_mbedtls_tls,
     require_mbedtls_tls_extras,
     require_mbedtls_tls_server,
     require_vfs_dir,
@@ -134,13 +135,13 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
-    # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
-    # setting one under sdkconfig_options keeps TLS in the build automatically.
-    # The crypto platform uses AES-CCM and deterministic ECDSA directly.
-    require_mbedtls_tls_server()
+    # OpenThread's SRP and border-router code uses these mbedTLS crypto features directly.
     require_mbedtls_tls_extras(
         ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
     )
+    if border_router:
+        require_mbedtls_tls()
+        require_mbedtls_tls_server()
 
     if not config.get(CONF_TLV):
         if (pan_id := config.get(CONF_PAN_ID)) is not None:
@@ -174,6 +175,8 @@ def set_sdkconfig_options(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     if border_router:
+        # The Border Router's secure transport uses mbedTLS directly, so keep
+        # TLS enabled above, as well as server-side crypto features.
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_PLATFORM_NETIF", True)
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_BORDER_ROUTER", True)
         if not rcp:
@@ -247,10 +250,10 @@ _CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PAN_ID): cv.hex_int,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=11, max=26),
-        cv.Optional(CONF_NETWORK_KEY): cv.hex_int,
+        cv.Optional(CONF_NETWORK_KEY): cv.sensitive(cv.hex_int),
         cv.Optional(CONF_EXT_PAN_ID): cv.hex_int,
         cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
-        cv.Optional(CONF_PSKC): cv.hex_int,
+        cv.Optional(CONF_PSKC): cv.sensitive(cv.hex_int),
         cv.Optional(CONF_MESH_LOCAL_PREFIX): cv.ipv6network,
     }
 )
@@ -333,7 +336,9 @@ CONFIG_SCHEMA = cv.All(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
-            cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
+            cv.Optional(CONF_TLV): cv.sensitive(
+                cv.All(cv.string_strict, _validate_tlv_hex)
+            ),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
