@@ -24,6 +24,7 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS,
     CONF_OPENTHERM42_ID,
     CONF_REMOTE_REQUEST_LAST_RESPONSE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME,
     CONF_UPDATE_EVERY,
 )
 
@@ -129,6 +130,20 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status (Standby/
     # Loading By Sun/Loading By Boiler/Anti-Legionella).
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS: text_sensor.text_sensor_schema(),
+    # §5.3.4 Class 4, IDs 20/21/22 (read side): the boiler's own reported Day-of-week/Time, Date and
+    # Year, combined into one "<Weekday>, YYYY-MM-DD HH:MM"-formatted string -- each of the three
+    # underlying conversations (id=20/21/22) can succeed or fail independently, so a field this
+    # sensor doesn't currently know shows as a placeholder (YYYY/MM/DD/HH/mm, or "?" for the
+    # weekday) rather than the whole sensor going unknown -- see hub.cpp's
+    # publish_date_time_text_(). Independent of time_id: a clock-drift/troubleshooting value, not
+    # something watched day-to-day, so DIAGNOSTIC -- same reasoning as time_synchronized.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ).extend(
+        {
+            cv.Optional(CONF_UPDATE_EVERY, default=7): cv.int_range(min=1),
+        }
+    ),
 }
 
 CONFIG_SCHEMA = cv.Schema(

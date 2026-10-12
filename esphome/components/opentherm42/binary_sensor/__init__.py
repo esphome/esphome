@@ -3,7 +3,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 
-from .. import OpenTherm42Hub
+from .. import OpenTherm42Hub, validate_requires_time_id
 from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_AIR_PRESS_FAULT,
     CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_GAS_FLAME_FAULT,
@@ -31,6 +31,7 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_FREE_VENTILATION_STATUS,
     CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_VENTILATION_MODE,
     CONF_OPENTHERM42_ID,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED,
     CONF_SWEEP_HAD_ERRORS,
 )
 
@@ -158,6 +159,15 @@ DESCRIPTIONS: dict[str, tuple[str | None, str | None]] = {
         "problem",
         None,
     ),
+    # §5.3.4 Class 4, IDs 20/21/22: synthetic diagnostic entity (not a real spec data-id) -- true only
+    # once the most recent Day-of-week/Time, Date and Year writes described by opentherm42/__init__.py's
+    # time_id option all succeeded. No device_class fits "sync succeeded" semantics (HA's closest,
+    # "problem", is inverted: on would mean a problem, not success), so the entity's name alone conveys
+    # the state. A troubleshooting indicator, not something watched day-to-day, so DIAGNOSTIC.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED: (
+        None,
+        ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
     # Synthetic diagnostic entity (not a real spec data-id) -- deliberately not given the
     # sensor_and_informational_data_* prefix used elsewhere in this file, since that names a real
     # spec chapter (§5.3.4 Class 4) this entity has nothing to do with. True if any conversation
@@ -183,6 +193,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         **{cv.Optional(marker): schema for marker, schema in TYPES.items()},
     }
+)
+
+FINAL_VALIDATE_SCHEMA = validate_requires_time_id(
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED
 )
 
 
