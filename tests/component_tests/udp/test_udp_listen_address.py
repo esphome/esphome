@@ -7,6 +7,7 @@ import pytest
 from esphome.components.udp import (
     CONF_ADDRESSES,
     CONF_LISTEN_ADDRESS,
+    _address,
     _final_validate,
     _listen_address,
 )
@@ -26,12 +27,34 @@ def test_listen_address_accepts_multicast_and_broadcast(value: str) -> None:
         # An IPv4 address must report the IPv4 error, not an IPv6 parse failure
         ("192.168.1.10", "not a multicast address nor local broadcast address"),
         ("fe80::1", "not an IPv6 multicast address"),
+        ("ff02::cafe%eth0", "carries a scope id"),
         ("gg::1", "not a valid IPv6 address"),
     ],
 )
 def test_listen_address_reports_matching_family_error(value: str, message: str) -> None:
     with pytest.raises(cv.Invalid, match=message):
         _listen_address(value)
+
+
+@pytest.mark.parametrize(
+    "value", ["10.0.0.1", "255.255.255.255", "ff12::cafe", "2001:db8::1"]
+)
+def test_address_accepts_routable_destinations(value: str) -> None:
+    assert str(_address(value)) == value
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        # The device parses addresses with inet_pton, which takes no scope suffix
+        ("2001:db8::1%wlan0", "carries a scope id"),
+        # No scope id is set on the destination, so a link-local send would fail
+        ("fe80::1", "is link-local"),
+    ],
+)
+def test_address_rejects_unsendable_destinations(value: str, message: str) -> None:
+    with pytest.raises(cv.Invalid, match=message):
+        _address(value)
 
 
 _RAW_LWIP_IPV6 = {

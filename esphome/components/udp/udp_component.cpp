@@ -29,21 +29,26 @@ void UDPComponent::setup() {
   }
   // set up broadcast socket
   if (this->should_broadcast_) {
-    this->broadcast_socket_ = socket::socket_udp_send(AF_INET, IPPROTO_IP);
-    if (this->broadcast_socket_ == nullptr) {
-      this->status_set_error(LOG_STR("Could not create socket"));
-      this->mark_failed();
-      return;
-    }
-    int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
-    }
-    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+#ifdef USE_UDP_IPV6_SEND
+    if (this->ipv4_send_)
+#endif
+    {
+      this->broadcast_socket_ = socket::socket_udp_send(AF_INET, IPPROTO_IP);
+      if (this->broadcast_socket_ == nullptr) {
+        this->status_set_error(LOG_STR("Could not create socket"));
+        this->mark_failed();
+        return;
+      }
+      int enable = 1;
+      auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+      if (err != 0) {
+        this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
+        // we can still continue
+      }
+      err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
+      if (err != 0) {
+        this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+      }
     }
 #ifdef USE_UDP_IPV6_SEND
     if (this->ipv6_send_) {
@@ -227,16 +232,21 @@ void UDPComponent::dump_config() {
 }
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
+  if (this->is_failed())
+    return;  // a send socket may be missing
   for (const auto &entry : this->sockaddrs_) {
 #ifdef USE_UDP_IPV6_SEND
     const bool v6 = entry.sa.sa_family == AF_INET6;
+    // Until the egress interface is set, a multicast packet would leave on the wrong one
+    if (v6 && (this->poll_pending_ & POLL_MCAST_IF) && entry.in6.sin6_addr.s6_addr[0] == 0xff)
+      continue;
     socket::UDPSendSocket *sock = v6 ? this->send_socket_v6_.get() : this->broadcast_socket_.get();
-    socklen_t len = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+    socklen_t addr_len = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
 #else
     socket::UDPSendSocket *sock = this->broadcast_socket_.get();
-    socklen_t len = sizeof(sockaddr_in);
+    socklen_t addr_len = sizeof(sockaddr_in);
 #endif
-    auto result = sock->sendto(data, size, 0, &entry.sa, len);
+    auto result = sock->sendto(data, size, 0, &entry.sa, addr_len);
     if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
     }

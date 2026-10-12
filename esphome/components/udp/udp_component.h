@@ -28,6 +28,8 @@ class UDPComponent final : public Component {
     this->ipv6_send_ = true;
     this->ipv6_multicast_ = multicast;
   }
+  /// An instance whose destinations are all IPv6 needs no IPv4 send socket
+  void set_ipv4_send(bool ipv4_send) { this->ipv4_send_ = ipv4_send; }
 #endif
   template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
@@ -71,6 +73,7 @@ class UDPComponent final : public Component {
   bool poll_failed_{};
   bool poll_warning_{};
 #ifdef USE_UDP_IPV6_SEND
+  bool ipv4_send_{true};
   bool ipv6_send_{};
   bool ipv6_multicast_{};
 #endif
