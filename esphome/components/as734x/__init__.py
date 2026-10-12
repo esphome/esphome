@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_GAIN, CONF_ID, CONF_TYPE
+from esphome.const import CONF_GAIN, CONF_ID, CONF_TYPE, CONF_UPDATE_INTERVAL
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita", "@mrgnr"]
@@ -45,13 +45,29 @@ GAINS_41 = {
 GAINS_43 = {**GAINS_41, "X1024": Gain.GAIN_1024X, "X2048": Gain.GAIN_2048X}
 
 
-def _validate_exposure(config: ConfigType) -> ConfigType:
-    if config[CONF_ATIME] == 0 and config[CONF_ASTEP] == 0:
-        raise cv.Invalid(f"{CONF_ATIME} and {CONF_ASTEP} must not both be 0")
-    return config
+# One integration cycle lasts (ATIME + 1) * (ASTEP + 1) * 2.78 us
+CYCLE_STEP_SECONDS = 2.78e-6
 
 
-def _schema(gains: dict, address: int) -> cv.Schema:
+def _validate_exposure(cycles: int):
+    """Reject an exposure that is empty or longer than the update interval."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        atime, astep = config[CONF_ATIME], config[CONF_ASTEP]
+        if atime == 0 and astep == 0:
+            raise cv.Invalid(f"{CONF_ATIME} and {CONF_ASTEP} must not both be 0")
+        measurement = (atime + 1) * (astep + 1) * CYCLE_STEP_SECONDS * cycles
+        if measurement > config[CONF_UPDATE_INTERVAL].total_seconds:
+            raise cv.Invalid(
+                f"A measurement takes {measurement:.1f}s with these {CONF_ATIME} and "
+                f"{CONF_ASTEP} values, longer than the {CONF_UPDATE_INTERVAL}"
+            )
+        return config
+
+    return validator
+
+
+def _schema(gains: dict, address: int, cycles: int) -> cv.Schema:
     return cv.All(
         cv.Schema(
             {
@@ -63,15 +79,15 @@ def _schema(gains: dict, address: int) -> cv.Schema:
         )
         .extend(cv.polling_component_schema("60s"))
         .extend(i2c.i2c_device_schema(address)),
-        _validate_exposure,
+        _validate_exposure(cycles),
     )
 
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "AS7341": _schema(GAINS_41, 0x39),
-        "AS7343": _schema(GAINS_43, 0x39),
-        "TCS3448": _schema(GAINS_43, 0x59),
+        "AS7341": _schema(GAINS_41, 0x39, cycles=2),  # two SMUX steps per update
+        "AS7343": _schema(GAINS_43, 0x39, cycles=3),
+        "TCS3448": _schema(GAINS_43, 0x59, cycles=3),
     },
     upper=True,
 )

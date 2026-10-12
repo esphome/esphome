@@ -43,6 +43,9 @@ static constexpr uint32_t MIN_COLLECTION_TIMEOUT_MS = 30 * 1000;
 
 #ifdef USE_AS7341
 static const char AS7341_NAME[] PROGMEM = "AS7341";
+static constexpr uint8_t AS7341_ADC_SLOTS = 6;
+static constexpr uint8_t AS7341_SMUX_LEN = 20;
+static constexpr uint8_t AS7341_SMUX_STEPS = 2;
 static const RegValue AS7341_INIT[] PROGMEM = {{0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
 static const uint8_t AS7341_SMUX[] PROGMEM = {
     0x30, 0x01, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x50, 0x00,  // step 0: F1 to F4, NIR, Clear
@@ -50,11 +53,13 @@ static const uint8_t AS7341_SMUX[] PROGMEM = {
     0x00, 0x00, 0x00, 0x40, 0x02, 0x00, 0x10, 0x03, 0x50, 0x10,  // step 1: F5 to F8, NIR, Clear
     0x03, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x50, 0x00, 0x06,  // step 1, continued
 };
+static_assert(sizeof(AS7341_SMUX) == AS7341_SMUX_STEPS * AS7341_SMUX_LEN && AS7341_SMUX_LEN <= MAX_SMUX_LEN);
 static constexpr uint8_t N = NO_SLOT;
 static const uint8_t AS7341_READOUT[] PROGMEM = {
     0, 1, N, 2, 3, N, N, N, N, N, N, N, N,  // step 0
     N, N, N, N, N, N, 0, N, 1, 2, 3, 5, 4,  // step 1: SMUX routes clear to ADC4 and NIR to ADC5
 };
+static_assert(sizeof(AS7341_READOUT) == AS7341_SMUX_STEPS * NUM_BANDS && AS7341_ADC_SLOTS <= MAX_ADC_SLOTS);
 const ChipInfo AS7341_CHIP PROGMEM = {
     .name = AS7341_NAME,
     .init = AS7341_INIT,
@@ -68,10 +73,10 @@ const ChipInfo AS7341_CHIP PROGMEM = {
     .id_reg = 0x92,
     .id_mask = 0xFC,
     .id_value = 0x09 << 2,
-    .adc_slots = 6,
-    .smux_steps = 2,
+    .adc_slots = AS7341_ADC_SLOTS,
+    .smux_steps = AS7341_SMUX_STEPS,
     .integration_cycles = 1,
-    .smux_len = 20,
+    .smux_len = AS7341_SMUX_LEN,
     .auto_smux = false,
     .extra_clear_slot = NO_SLOT,
 };
@@ -79,6 +84,8 @@ const ChipInfo AS7341_CHIP PROGMEM = {
 
 #ifdef USE_AS7343
 static const char AS7343_NAME[] PROGMEM = "AS7343";
+static constexpr uint8_t AS7343_ADC_SLOTS = 18;
+static constexpr uint8_t AS7343_SMUX_LEN = 10;
 static const char TCS3448_NAME[] PROGMEM = "TCS3448";
 // CFG6, FD_CFG0, CFG10, CFG8, CFG20 (auto_smux, 18 channels in 3 cycles), AGC_GAIN_MAX, FD_TIME_1, FD_TIME_2
 static const RegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
@@ -88,6 +95,8 @@ static const uint8_t AS7343_SMUX[] PROGMEM = {0x00, 0x04, 0x65, 0x02, 0x00, 0x05
                                               0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00};
 // Clear is the average of the cycle 1 (slot 4) and cycle 2 (slot 10) readings; cycle 3 always reads 0.
 static const uint8_t AS7343_READOUT[] PROGMEM = {12, 6, 0, 7, 8, 1, 15, 2, 9, 13, 14, 3, 10};
+static_assert(sizeof(AS7343_SMUX) == AS7343_CHAINS * AS7343_SMUX_LEN && AS7343_SMUX_LEN <= MAX_SMUX_LEN);
+static_assert(sizeof(AS7343_READOUT) == NUM_BANDS && AS7343_ADC_SLOTS <= MAX_ADC_SLOTS);
 static constexpr ChipInfo as7343_chip(const char *name) {
   return {
       .name = name,
@@ -102,10 +111,10 @@ static constexpr ChipInfo as7343_chip(const char *name) {
       .id_reg = 0x5A,
       .id_mask = 0xFF,
       .id_value = 0x81,
-      .adc_slots = 18,
+      .adc_slots = AS7343_ADC_SLOTS,
       .smux_steps = 1,
       .integration_cycles = 3,
-      .smux_len = 10,
+      .smux_len = AS7343_SMUX_LEN,
       .auto_smux = true,
       .extra_clear_slot = 4,
   };
@@ -128,7 +137,8 @@ void AS734XComponent::setup() {
   const ChipInfo *chip = this->chip_;
   const uint8_t id_reg = pgm(chip->id_reg);
   uint8_t id = 0;
-  bool ok = this->write_byte(REG_ENABLE, ENABLE_PON);
+  // The sensor keeps its bank across an MCU reset, so the first access always writes CFG0
+  bool ok = this->select_bank_(REG_ENABLE) && this->write_byte(REG_ENABLE, ENABLE_PON);
   delayMicroseconds(200);  // oscillator start-up
   ok = ok && this->select_bank_(id_reg) && this->read_byte(id_reg, &id);
   if (ok && (id & pgm(chip->id_mask)) != pgm(chip->id_value)) {

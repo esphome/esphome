@@ -93,7 +93,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   Gain gain_{GAIN_1X};
   uint8_t atime_{0};
   uint8_t step_{0};
-  bool bank_low_{false};
+  bool bank_low_{true};  // unknown until setup() writes CFG0
 };
 
 }  // namespace esphome::as734x
