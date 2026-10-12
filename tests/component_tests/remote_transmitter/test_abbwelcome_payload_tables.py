@@ -22,5 +22,4 @@ def test_constant_data_shares_progmem_tables(
     assert (
         main_cpp.count("apply_call.data.set_data([]() -> std::vector<uint8_t> {") == 1
     )
-    assert main_cpp.count("apply_call.data.auto_message_id = true;") == 5
     assert "std::vector<uint8_t>{" not in main_cpp

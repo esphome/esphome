@@ -28,7 +28,7 @@ void AEHAProtocol::encode(RemoteTransmitData *dst, uint16_t address, const uint8
   }
 
   for (size_t i = 0; i < len; i++) {
-    const uint8_t bit = progmem_read_byte(data + i);  // data may be a PROGMEM table
+    const uint8_t bit = progmem_read_byte(data + i);
     for (uint8_t mask = 1 << 7; mask != 0; mask >>= 1) {
       if (bit & mask) {
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);

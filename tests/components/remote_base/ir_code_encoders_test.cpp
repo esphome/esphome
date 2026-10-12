@@ -63,12 +63,12 @@ RawTimings with_trailing_space(RawTimings timings) {
 }
 
 // A constant table and a lambda's vector take the two encoder overloads generated actions call
-template<typename P>
+template<typename P, typename... Lead>
 void expect_pointer_and_vector_match(const uint8_t *code, size_t len, const std::vector<uint8_t> &bytes,
-                                     const RawTimings &golden) {
+                                     const RawTimings &golden, const Lead &...lead) {
   RemoteTransmitData fixed, from_vector;
-  P().encode(&fixed, code, len);
-  P().encode(&from_vector, bytes);
+  P().encode(&fixed, lead..., code, len);
+  P().encode(&from_vector, lead..., bytes);
   EXPECT_EQ(fixed.get_data(), golden);
   EXPECT_EQ(from_vector.get_data(), golden);
 }
@@ -91,11 +91,7 @@ TEST(IrCodeEncodersTest, MiragePointerAndVectorMatchGolden) {
 }
 
 TEST(IrCodeEncodersTest, AehaPointerAndVectorMatchGolden) {
-  RemoteTransmitData fixed, from_vector;
-  AEHAProtocol().encode(&fixed, AEHA_ADDRESS, AEHA_CODE, sizeof(AEHA_CODE));
-  AEHAProtocol().encode(&from_vector, AEHA_ADDRESS, aeha_code());
-  EXPECT_EQ(fixed.get_data(), AEHA_GOLDEN);
-  EXPECT_EQ(from_vector.get_data(), AEHA_GOLDEN);
+  expect_pointer_and_vector_match<AEHAProtocol>(AEHA_CODE, sizeof(AEHA_CODE), aeha_code(), AEHA_GOLDEN, AEHA_ADDRESS);
 }
 
 TEST(IrCodeEncodersTest, StructEncodersMatchGolden) {

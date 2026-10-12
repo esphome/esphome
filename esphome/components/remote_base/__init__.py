@@ -326,16 +326,11 @@ _BYTES = cg.std_vector.template(cg.uint8)
 
 
 def _code_table(config: ConfigType, value: list[int]) -> str:
-    # Constant codes share one PROGMEM table pool across the remote protocols
     return f"{automation.progmem_bytes('remote_base_code', value)}, {len(value)}"
 
 
 def _bytes_field(conf_key: str, target: str) -> automation.ApplyField:
-    """A byte payload: ``target`` gets a constant's flash table and length, or a lambda's vector.
-
-    The callee must take both ``(const uint8_t *, size_t)``, reading it as PROGMEM, and
-    ``const std::vector<uint8_t> &``.
-    """
+    """A constant's flash table and length, or a lambda's vector; the callee takes both."""
     return automation.ApplyField(conf_key, target, _BYTES, const_fn=_code_table)
 
 
