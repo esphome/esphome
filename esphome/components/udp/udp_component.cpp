@@ -8,6 +8,7 @@
 namespace esphome::udp {
 
 ESPHOME_LOG_TAG(TAG, "udp");
+static constexpr uint32_t JOIN_RETRY_INTERVAL_MS = 5000;
 
 void UDPComponent::setup() {
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
@@ -72,6 +73,7 @@ void UDPComponent::setup() {
       this->listen_group_(&server.sin_addr);
       // Joined from loop() once the network is up; RP2040 has no interface to join before then
       this->join_pending_ = true;
+      this->join_attempt_at_ = millis() - JOIN_RETRY_INTERVAL_MS;
     }
 
     err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
@@ -96,19 +98,20 @@ bool UDPComponent::join_multicast_() {
   this->listen_group_(&imreq.imr_multiaddr);
   if (this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) == 0) {
     ESP_LOGD(TAG, "Joined multicast group");
+    this->status_clear_warning();
     return true;
   }
-  ESP_LOGE(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
-  this->status_set_error(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
+  ESP_LOGW(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
+  this->status_set_warning(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
   return false;
 }
 
 void UDPComponent::loop() {
   if (this->join_pending_ && network::is_connected()) {
-    this->join_pending_ = false;
-    if (!this->join_multicast_()) {
-      this->mark_failed();
-      return;
+    const uint32_t now = App.get_loop_component_start_time();
+    if (now - this->join_attempt_at_ >= JOIN_RETRY_INTERVAL_MS) {
+      this->join_attempt_at_ = now;
+      this->join_pending_ = !this->join_multicast_();
     }
   }
   if (this->should_listen_) {

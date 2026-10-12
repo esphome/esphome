@@ -34,6 +34,7 @@ class UDPComponent final : public Component {
   void listen_group_(struct in_addr *group);
   bool join_multicast_();
 
+  uint32_t join_attempt_at_{};
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};
   bool should_broadcast_{};

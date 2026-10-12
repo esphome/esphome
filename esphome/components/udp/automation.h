@@ -6,7 +6,7 @@
 
 namespace esphome::udp {
 
-/// Constant payloads up to this size are sent from the stack.
+/// Constant payloads up to this size are sent from the stack on ESP8266.
 static constexpr size_t STACK_PAYLOAD_SIZE = 128;
 
 template<typename... Ts> class UDPWriteAction final : public Action<Ts...>, public Parented<UDPComponent> {
