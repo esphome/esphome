@@ -9,7 +9,7 @@
 
 namespace esphome::captive_portal {
 
-static const char *const TAG = "captive_portal.dns";
+ESPHOME_LOG_TAG(TAG, "captive_portal.dns");
 
 // DNS constants
 static constexpr uint16_t DNS_PORT = 53;
@@ -100,8 +100,9 @@ void DNSServer::process_next_request() {
                          &client_addr_len);
 
   if (len < 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-      ESP_LOGE(TAG, "recvfrom failed: %d", errno);
+    const int err = errno;
+    if (err != EAGAIN && err != EWOULDBLOCK && err != EINTR) {
+      ESP_LOGE(TAG, "recvfrom failed: %d", err);
     }
     return;
   }

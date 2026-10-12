@@ -1,0 +1,66 @@
+esphome:
+  name: blocking-warning-cascade
+  on_boot:
+    then:
+      - script.execute: blocking_60
+      - script.execute: blocking_90
+      - script.execute: blocking_120
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+  on_message:
+    level: WARN
+    then:
+      - lambda: |-
+          uint32_t injected_delay = 0;
+          if (strstr(message, "blocking_60 took a long time") != nullptr) {
+            injected_delay = 60;
+          } else if (strstr(message, "blocking_90 took a long time") != nullptr) {
+            injected_delay = 90;
+          } else if (strstr(message, "blocking_120 took a long time") != nullptr) {
+            injected_delay = 120;
+          }
+          if (injected_delay != 0) {
+            id(injected_delay_total) += injected_delay;
+            const uint32_t start = millis();
+            while (millis() - start < injected_delay) {
+            }
+          }
+
+globals:
+  - id: injected_delay_total
+    type: uint32_t
+    initial_value: "0"
+
+script:
+  - id: blocking_60
+    then:
+      - delay: 20ms
+      - lambda: |-
+          const uint32_t start = millis();
+          while (millis() - start < 80) {
+          }
+
+  - id: blocking_90
+    then:
+      - delay: 300ms
+      - lambda: |-
+          const uint32_t start = millis();
+          while (millis() - start < 80) {
+          }
+
+  - id: blocking_120
+    then:
+      - delay: 600ms
+      - lambda: |-
+          const uint32_t start = millis();
+          while (millis() - start < 80) {
+          }
+      - delay: 200ms
+      - logger.log:
+          format: "BLOCKING_WARNING_CASCADE_TEST_COMPLETE total=%u"
+          args: [id(injected_delay_total)]

@@ -11,7 +11,7 @@
 
 namespace esphome::ble_nus {
 
-class BLENUS : public uart::UARTComponent, public Component {
+class BLENUS final : public uart::UARTComponent, public Component {
   enum TxStatus {
     TX_DISABLED,
     TX_ENABLED,
@@ -26,7 +26,7 @@ class BLENUS : public uart::UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
-  uart::FlushResult flush() override;
+  uart::UARTFlushResult flush() override;
   void check_logger_conflict() override {}
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 #ifdef USE_LOGGER

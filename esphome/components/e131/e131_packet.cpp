@@ -12,10 +12,9 @@
 #include <lwip/ip4_addr.h>
 #include <lwip/ip_addr.h>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
-static const char *const TAG = "e131";
+ESPHOME_LOG_TAG(TAG, "e131");
 
 static const uint8_t ACN_ID[12] = {0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00};
 static const uint32_t VECTOR_ROOT = 4;
@@ -158,6 +157,6 @@ bool E131Component::packet_(const uint8_t *data, size_t len, int &universe, E131
   return true;
 }
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_CLOSE_ACTION,
     CONF_CURRENT_OPERATION,
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPEN_ACTION,
@@ -35,7 +36,11 @@ CONF_HAS_POSITION = "has_position"
 CONF_TOGGLE_ACTION = "toggle_action"
 
 CONFIG_SCHEMA = (
-    cover.cover_schema(TemplateCover)
+    cv.with_visibility(
+        cover.cover_schema(TemplateCover),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
@@ -108,12 +113,12 @@ async def to_code(config):
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
-    cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
 
 
-@automation.register_action(
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both map to the position field.
+automation.register_apply_action(
     "cover.template.publish",
-    cover.CoverPublishAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(cover.Cover),
@@ -125,23 +130,11 @@ async def to_code(config):
             cv.Optional(CONF_TILT): cv.templatable(cv.zero_to_one_float),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_STATE, "position = {}", cg.float_),
+    automation.ApplyField(CONF_POSITION, "position = {}", cg.float_),
+    automation.ApplyField(CONF_TILT, "tilt = {}", cg.float_),
+    automation.ApplyField(
+        CONF_CURRENT_OPERATION, "current_operation = {}", cover.CoverOperation
+    ),
+    automation.ApplyCall("publish_state()"),
 )
-async def cover_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, float)
-        cg.add(var.set_position(template_))
-    if CONF_POSITION in config:
-        template_ = await cg.templatable(config[CONF_POSITION], args, float)
-        cg.add(var.set_position(template_))
-    if CONF_TILT in config:
-        template_ = await cg.templatable(config[CONF_TILT], args, float)
-        cg.add(var.set_tilt(template_))
-    if CONF_CURRENT_OPERATION in config:
-        template_ = await cg.templatable(
-            config[CONF_CURRENT_OPERATION], args, cover.CoverOperation
-        )
-        cg.add(var.set_current_operation(template_))
-    return var

@@ -4,18 +4,14 @@
 #include <algorithm>
 #include <cinttypes>
 
-namespace esphome {
-namespace vbus {
+namespace esphome::vbus {
 
-static const char *const TAG = "vbus";
+ESPHOME_LOG_TAG(TAG, "vbus");
 
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 
-void VBus::dump_config() {
-  ESP_LOGCONFIG(TAG, "VBus:");
-  check_uart_settings(9600);
-}
+void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
   for (int i = 0; i < count; i++, septet >>= 1) {
@@ -67,8 +63,7 @@ void VBus::loop() {
         }
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
-        uint32_t value =
-            (this->buffer_[12] << 24) + (this->buffer_[11] << 16) + (this->buffer_[10] << 8) + this->buffer_[9];
+        uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
         ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
       } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
@@ -132,5 +127,4 @@ void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, 
   this->handle_message(message);
 }
 
-}  // namespace vbus
-}  // namespace esphome
+}  // namespace esphome::vbus

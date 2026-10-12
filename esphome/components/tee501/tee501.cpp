@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tee501 {
+namespace esphome::tee501 {
 
-static const char *const TAG = "tee501";
+ESPHOME_LOG_TAG(TAG, "tee501");
 
 static constexpr size_t TEE501_SERIAL_NUMBER_SIZE = 7;
 
@@ -66,5 +65,4 @@ void TEE501Component::update() {
   });
 }
 
-}  // namespace tee501
-}  // namespace esphome
+}  // namespace esphome::tee501

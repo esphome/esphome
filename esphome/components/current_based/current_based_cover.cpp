@@ -4,10 +4,11 @@
 #include "esphome/core/application.h"
 #include <cfloat>
 
-namespace esphome {
-namespace current_based {
+namespace esphome::current_based {
 
-static const char *const TAG = "current_based.cover";
+ESPHOME_LOG_TAG(TAG, "current_based.cover");
+
+static constexpr uint32_t ROLLBACK_TIMEOUT_ID = 0;
 
 using namespace esphome::cover;
 
@@ -40,7 +41,7 @@ void CurrentBasedCover::control(const CoverCall &call) {
   auto opt_pos = call.get_position();
   if (opt_pos.has_value()) {
     auto pos = *opt_pos;
-    if (fabsf(this->position - pos) < 0.01) {
+    if (fabsf(this->position - pos) < 0.01f) {
       // already at target
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
@@ -74,7 +75,7 @@ void CurrentBasedCover::loop() {
       ESP_LOGD(TAG, "'%s' - Obstacle detected during opening.", this->name_.c_str());
       this->direction_idle_();
       if (this->obstacle_rollback_ != 0) {
-        this->set_timeout("rollback", 300, [this]() {
+        this->set_timeout(ROLLBACK_TIMEOUT_ID, 300, [this]() {
           ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
           this->target_position_ = clamp(this->position - this->obstacle_rollback_, 0.0F, 1.0F);
           this->start_direction_(COVER_OPERATION_CLOSING);
@@ -95,7 +96,7 @@ void CurrentBasedCover::loop() {
       ESP_LOGD(TAG, "'%s' - Obstacle detected during closing.", this->name_.c_str());
       this->direction_idle_();
       if (this->obstacle_rollback_ != 0) {
-        this->set_timeout("rollback", 300, [this]() {
+        this->set_timeout(ROLLBACK_TIMEOUT_ID, 300, [this]() {
           ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
           this->target_position_ = clamp(this->position + this->obstacle_rollback_, 0.0F, 1.0F);
           this->start_direction_(COVER_OPERATION_OPENING);
@@ -271,5 +272,4 @@ void CurrentBasedCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace current_based
-}  // namespace esphome
+}  // namespace esphome::current_based

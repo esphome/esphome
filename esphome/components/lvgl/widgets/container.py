@@ -1,11 +1,10 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_HEIGHT, CONF_WIDTH
-from esphome.cpp_generator import MockObj
 
-from ..defines import CONF_CONTAINER, CONF_MAIN, CONF_OBJ, CONF_SCROLLBAR
+from ..defines import CONF_CONTAINER, CONF_MAIN, CONF_SCROLLBAR
 from ..lv_validation import size
-from ..lvcode import lv
-from ..types import WidgetType, lv_obj_t
+from ..types import lv_obj_t
+from . import WidgetType
 
 CONTAINER_SCHEMA = cv.Schema(
     {
@@ -28,12 +27,9 @@ class ContainerType(WidgetType):
             (CONF_MAIN, CONF_SCROLLBAR),
             schema=CONTAINER_SCHEMA,
             modify_schema={},
-            lv_name=CONF_OBJ,
+            lv_name=CONF_CONTAINER,
         )
         self.styles = {}
-
-    def on_create(self, var: MockObj, config: dict):
-        lv.obj_remove_style_all(var)
 
 
 container_spec = ContainerType()

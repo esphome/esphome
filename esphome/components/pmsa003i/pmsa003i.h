@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace pmsa003i {
+namespace esphome::pmsa003i {
 
 /**! Structure holding Plantower's standard packet **/
 // From https://github.com/adafruit/Adafruit_PM25AQI
@@ -27,7 +26,7 @@ struct PM25AQIData {
   uint16_t checksum;         ///< Packet checksum
 };
 
-class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
+class PMSA003IComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -47,6 +46,7 @@ class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
   void set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0) { this->pmc_10_0_sensor_ = pmc_10_0; }
 
  protected:
+  void poll_until_ready_or_timeout_(uint32_t start_time);
   bool read_data_(PM25AQIData *data);
 
   bool standard_units_;
@@ -63,5 +63,4 @@ class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
 };
 
-}  // namespace pmsa003i
-}  // namespace esphome
+}  // namespace esphome::pmsa003i

@@ -108,11 +108,11 @@ class MQTTComponent : public Component {
 
   /// Set QOS for state messages.
   void set_qos(uint8_t qos);
-  uint8_t get_qos() const;
+  uint8_t get_qos() const { return this->qos_; }
 
   /// Set whether state message should be retained.
   void set_retain(bool retain);
-  bool get_retain() const;
+  bool get_retain() const { return this->retain_; }
 
   /// Disable discovery. Sets friendly name to "".
   void disable_discovery();
@@ -146,6 +146,9 @@ class MQTTComponent : public Component {
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
+
+  /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
+  bool is_resend_pending() const { return this->resend_state_; }
 
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();
@@ -270,6 +273,8 @@ class MQTTComponent : public Component {
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
  protected:
+  static constexpr uint32_t SEND_DEFER_ID = 0;
+
   /// Helper method to get the discovery topic for this component into a buffer.
   StringRef get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
                                     const MQTTDiscoveryInfo &discovery_info) const;

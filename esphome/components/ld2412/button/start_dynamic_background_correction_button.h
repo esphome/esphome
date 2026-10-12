@@ -5,7 +5,7 @@
 
 namespace esphome::ld2412 {
 
-class StartDynamicBackgroundCorrectionButton : public button::Button, public Parented<LD2412Component> {
+class StartDynamicBackgroundCorrectionButton final : public button::Button, public Parented<LD2412Component> {
  public:
   StartDynamicBackgroundCorrectionButton() = default;
 

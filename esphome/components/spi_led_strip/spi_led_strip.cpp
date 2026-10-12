@@ -1,8 +1,7 @@
 #include "spi_led_strip.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace spi_led_strip {
+namespace esphome::spi_led_strip {
 
 SpiLedStrip::SpiLedStrip(uint16_t num_leds) {
   this->num_leds_ = num_leds;
@@ -65,5 +64,4 @@ light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
   return {this->buf_ + pos + 2,       this->buf_ + pos + 1, this->buf_ + pos + 0, nullptr,
           this->effect_data_ + index, &this->correction_};
 }
-}  // namespace spi_led_strip
-}  // namespace esphome
+}  // namespace esphome::spi_led_strip

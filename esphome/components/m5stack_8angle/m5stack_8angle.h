@@ -3,8 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 static const uint8_t M5STACK_8ANGLE_REGISTER_ANALOG_INPUT_12B = 0x00;
 static const uint8_t M5STACK_8ANGLE_REGISTER_ANALOG_INPUT_8B = 0x10;
@@ -17,7 +16,7 @@ enum AnalogBits : uint8_t {
   BITS_12 = 12,
 };
 
-class M5Stack8AngleComponent : public i2c::I2CDevice, public Component {
+class M5Stack8AngleComponent final : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -29,5 +28,4 @@ class M5Stack8AngleComponent : public i2c::I2CDevice, public Component {
   uint8_t fw_version_;
 };
 
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

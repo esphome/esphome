@@ -73,9 +73,16 @@ async def test_uart_mock_ld2410(
         ],
     )
 
-    # Signal when we see recovery frame values
+    # Signal when we see ALL recovery frame values to avoid race where some
+    # arrive after the waiter fires but before we index into the lists
     recovery_received = collector.add_waiter(
-        lambda: pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+        lambda: (
+            pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(75.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(100.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(80.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(127.0) in collector.sensor_states["detection_distance"]
+        )
     )
 
     async with (

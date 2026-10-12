@@ -4,9 +4,9 @@
 
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace nextion {
-static const char *const TAG = "nextion.upload";
+namespace esphome::nextion {
+
+ESPHOME_LOG_TAG(TAG, "nextion.upload");
 
 bool Nextion::upload_end_(bool successful) {
   if (successful) {
@@ -33,7 +33,6 @@ bool Nextion::upload_end_(bool successful) {
   return successful;
 }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
 
 #endif  // USE_NEXTION_TFT_UPLOAD

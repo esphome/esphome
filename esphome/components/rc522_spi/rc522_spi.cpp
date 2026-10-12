@@ -5,10 +5,9 @@
 // Based on:
 // - https://github.com/miguelbalboa/rfid
 
-namespace esphome {
-namespace rc522_spi {
+namespace esphome::rc522_spi {
 
-static const char *const TAG = "rc522_spi";
+ESPHOME_LOG_TAG(TAG, "rc522_spi");
 
 void RC522Spi::setup() {
   this->spi_setup();
@@ -136,5 +135,4 @@ void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write t
   ESP_LOGVV(TAG, "write_register_(%d, %d) -> %s", reg, count, buf.c_str());
 }
 
-}  // namespace rc522_spi
-}  // namespace esphome
+}  // namespace esphome::rc522_spi

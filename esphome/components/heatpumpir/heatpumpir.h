@@ -8,8 +8,7 @@
 // that conflict with ESPHome.
 class HeatpumpIR;
 
-namespace esphome {
-namespace heatpumpir {
+namespace esphome::heatpumpir {
 
 // Simple enum to represent protocols.
 enum Protocol {
@@ -94,7 +93,7 @@ enum VerticalDirection {
 const float TEMP_MIN = 0;    // Celsius
 const float TEMP_MAX = 100;  // Celsius
 
-class HeatpumpIRClimate : public climate_ir::ClimateIR {
+class HeatpumpIRClimate final : public climate_ir::ClimateIR {
  public:
   HeatpumpIRClimate()
       : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
@@ -126,7 +125,6 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
   float min_temperature_;
 };
 
-}  // namespace heatpumpir
-}  // namespace esphome
+}  // namespace esphome::heatpumpir
 
 #endif

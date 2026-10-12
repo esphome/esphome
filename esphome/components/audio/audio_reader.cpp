@@ -11,8 +11,7 @@
 #include "esp_crt_bundle.h"
 #endif
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
@@ -23,7 +22,7 @@ static const size_t HTTP_STREAM_BUFFER_SIZE = 2048;
 
 static const uint8_t MAX_REDIRECTIONS = 5;
 
-static const char *const TAG = "audio_reader";
+ESPHOME_LOG_TAG(TAG, "audio_reader");
 
 // Some common HTTP status codes - borrowed from http_request component accessed 20241224
 enum HttpStatus {
@@ -55,10 +54,13 @@ enum HttpStatus {
 
 AudioReader::~AudioReader() { this->cleanup_connection_(); }
 
-esp_err_t AudioReader::add_sink(const std::weak_ptr<RingBuffer> &output_ring_buffer) {
+esp_err_t AudioReader::add_sink(const std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer) {
   if (current_audio_file_ != nullptr) {
     // A transfer buffer isn't ncessary for a local file
     this->file_ring_buffer_ = output_ring_buffer.lock();
+    if (this->file_ring_buffer_ == nullptr) {
+      return ESP_ERR_INVALID_STATE;
+    }
     return ESP_OK;
   }
 
@@ -70,7 +72,7 @@ esp_err_t AudioReader::add_sink(const std::weak_ptr<RingBuffer> &output_ring_buf
   return ESP_ERR_INVALID_STATE;
 }
 
-esp_err_t AudioReader::start(AudioFile *audio_file, AudioFileType &file_type) {
+esp_err_t AudioReader::start(const AudioFile *audio_file, AudioFileType &file_type) {
   file_type = AudioFileType::NONE;
 
   this->current_audio_file_ = audio_file;
@@ -289,7 +291,6 @@ void AudioReader::cleanup_connection_() {
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

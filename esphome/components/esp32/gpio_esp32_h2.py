@@ -5,11 +5,13 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
+from .gpio_common import check_usb_jtag_hold, check_usb_jtag_pin
+
 _ESP32H2_SPI_FLASH_PINS = {6, 7, 15, 16, 17, 18, 19, 20, 21}
 
 _ESP32H2_USB_JTAG_PINS = {26, 27}
 
-_ESP32H2_STRAPPING_PINS = {2, 3, 8, 9, 25}
+_ESP32H2_STRAPPING_PINS = {8, 9, 25}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,12 +26,7 @@ def esp32_h2_validate_gpio_pin(value: int) -> int:
             "See https://docs.espressif.com/projects/esp-idf/en/latest/esp32h2/api-reference/peripherals/gpio.html",
             value,
         )
-    if value in _ESP32H2_USB_JTAG_PINS:
-        _LOGGER.warning(
-            "GPIO%d is reserved for the USB-Serial-JTAG interface.\n"
-            "To use this pin as GPIO, USB-Serial-JTAG will be disabled.",
-            value,
-        )
+    check_usb_jtag_pin(value, _ESP32H2_USB_JTAG_PINS, _LOGGER)
 
     return value
 
@@ -44,5 +41,6 @@ def esp32_h2_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
+    check_usb_jtag_hold(value, _ESP32H2_USB_JTAG_PINS, _LOGGER)
     check_strapping_pin(value, _ESP32H2_STRAPPING_PINS, _LOGGER)
     return value

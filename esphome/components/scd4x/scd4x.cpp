@@ -2,10 +2,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace scd4x {
+namespace esphome::scd4x {
 
-static const char *const TAG = "scd4x";
+ESPHOME_LOG_TAG(TAG, "scd4x");
 
 static const uint16_t SCD41_ID = 0x1408;
 static const uint16_t SCD40_ID = 0x440;
@@ -324,5 +323,4 @@ bool SCD4XComponent::start_measurement_() {
   return false;
 }
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

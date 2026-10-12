@@ -3,6 +3,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <new>
+#include <string>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
 
@@ -22,8 +24,12 @@
 #define ESPHOME_strcasecmp_P strcasecmp_P
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
+#define ESPHOME_strlen_P strlen_P
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
+// Storage class for PROGMEM_STRING_TABLE data; LOG_STR_ARG treats a LogString as PGM_P
+// on ESP8266, so the table data must be in flash to match.
+#define ESPHOME_PROGMEM_STRING_TABLE_STORAGE PROGMEM
 #else
 #define ESPHOME_F(string_literal) (string_literal)
 #define ESPHOME_PGM_P const char *
@@ -35,11 +41,21 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strcasecmp_P strcasecmp
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
+#define ESPHOME_strlen_P strlen
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
+// No-op on non-ESP8266 platforms where PROGMEM itself is a no-op.
+#define ESPHOME_PROGMEM_STRING_TABLE_STORAGE
 #endif
 
 namespace esphome {
+
+/// Copies a string stored with ESPHOME_F into a std::string.
+#ifdef USE_ESP8266
+std::string progmem_string(ProgmemStr str);
+#else
+inline std::string progmem_string(ProgmemStr str) { return std::string(str); }
+#endif
 
 /// Helper for C++20 string literal template arguments
 template<size_t N> struct FixedString {
@@ -99,12 +115,14 @@ struct LogString;
     static constexpr size_t COUNT = Table::COUNT; \
     static constexpr uint8_t LAST_INDEX = COUNT - 1; \
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
-    static constexpr auto BLOB PROGMEM = Table::make_blob(); \
-    static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
+    static constexpr auto BLOB ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_blob(); \
+    static constexpr auto OFFSETS ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_offsets(); \
     static const char *get_(uint8_t idx, uint8_t fallback) { \
       if (idx >= COUNT) \
         idx = fallback; \
-      return &BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]; \
+      /* std::launder is used here to prevent the inter-procedural analysis that */ \
+      /* causes the false positive that the string is not null terminated */ \
+      return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
     } \
     static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
       return reinterpret_cast<::ProgmemStr>(get_(idx, fallback)); \

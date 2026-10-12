@@ -11,6 +11,7 @@ void nvmc_wait();
 nrfx_err_t nrfx_nvmc_uicr_erase();
 }
 
+// NOLINTBEGIN(clang-analyzer-core.FixedAddressDereference) -- NRF_UICR / NRF_TIMER2 are MMIO at fixed addresses
 namespace esphome::nrf52 {
 
 enum class StatusFlags : uint8_t {
@@ -113,6 +114,7 @@ static int board_esphome_init() {
   return 0;
 }
 }  // namespace esphome::nrf52
+// NOLINTEND(clang-analyzer-core.FixedAddressDereference)
 
 static int board_esphome_init() { return esphome::nrf52::board_esphome_init(); }
 

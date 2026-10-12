@@ -1,9 +1,8 @@
 #include "opentherm_number.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
-static const char *const TAG = "opentherm.number";
+ESPHOME_LOG_TAG(TAG, "opentherm.number");
 
 void OpenthermNumber::control(float value) {
   this->publish_state(value);
@@ -38,5 +37,4 @@ void OpenthermNumber::dump_config() {
                 this->restore_value_, this->initial_value_, this->state);
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

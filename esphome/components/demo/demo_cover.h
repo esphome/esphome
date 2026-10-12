@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoCoverType {
   TYPE_1,
@@ -13,7 +12,7 @@ enum class DemoCoverType {
   TYPE_4,
 };
 
-class DemoCover : public cover::Cover, public Component {
+class DemoCover final : public cover::Cover, public Component {
  public:
   void set_type(DemoCoverType type) { type_ = type; }
   void setup() override {
@@ -37,6 +36,8 @@ class DemoCover : public cover::Cover, public Component {
   }
 
  protected:
+  static constexpr uint32_t MOVE_TIMEOUT_ID = 0;
+
   void control(const cover::CoverCall &call) override {
     auto pos = call.get_position();
     if (pos.has_value()) {
@@ -44,7 +45,7 @@ class DemoCover : public cover::Cover, public Component {
       this->current_operation =
           target > this->position ? cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING;
 
-      this->set_timeout("move", 2000, [this, target]() {
+      this->set_timeout(MOVE_TIMEOUT_ID, 2000, [this, target]() {
         this->current_operation = cover::COVER_OPERATION_IDLE;
         this->position = target;
         this->publish_state();
@@ -55,7 +56,7 @@ class DemoCover : public cover::Cover, public Component {
       this->tilt = *tilt;
     }
     if (call.get_stop()) {
-      this->cancel_timeout("move");
+      this->cancel_timeout(MOVE_TIMEOUT_ID);
     }
 
     this->publish_state();
@@ -85,5 +86,4 @@ class DemoCover : public cover::Cover, public Component {
   DemoCoverType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

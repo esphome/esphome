@@ -6,7 +6,7 @@
 
 namespace esphome::uptime {
 
-static const char *const TAG = "uptime.sensor";
+ESPHOME_LOG_TAG(TAG, "uptime.sensor");
 
 static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *separator, unsigned value,
                         const char *label) {
@@ -70,7 +70,7 @@ void UptimeTextSensor::update() {
   if (show_seconds)
     append_unit(buf, sizeof(buf), pos, this->separator_, seconds, this->seconds_text_);
 
-  this->publish_state(buf);
+  this->publish_state(buf, pos);
 }
 
 float UptimeTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }

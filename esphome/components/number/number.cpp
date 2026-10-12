@@ -5,7 +5,7 @@
 
 namespace esphome::number {
 
-static const char *const TAG = "number";
+ESPHOME_LOG_TAG(TAG, "number");
 
 // Function implementation of LOG_NUMBER macro to reduce code size
 void log_number(const char *tag, const char *prefix, const char *type, Number *obj) {
@@ -22,15 +22,11 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
 void Number::publish_state(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGD(TAG, "'%s' >> %.2f", this->get_name().c_str(), state);
+  ESP_LOGV(TAG, "'%s' >> %.2f", this->get_name().c_str(), state);
   this->state_callback_.call(state);
 #if defined(USE_NUMBER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_number_update(this);
 #endif
-}
-
-void Number::add_on_state_callback(std::function<void(float)> &&callback) {
-  this->state_callback_.add(std::move(callback));
 }
 
 }  // namespace esphome::number

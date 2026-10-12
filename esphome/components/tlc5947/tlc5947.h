@@ -7,10 +7,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tlc5947 {
+namespace esphome::tlc5947 {
 
-class TLC5947 : public Component {
+class TLC5947 final : public Component {
  public:
   const uint8_t N_CHANNELS_PER_CHIP = 24;
 
@@ -42,5 +41,4 @@ class TLC5947 : public Component {
   bool update_{true};
 };
 
-}  // namespace tlc5947
-}  // namespace esphome
+}  // namespace esphome::tlc5947

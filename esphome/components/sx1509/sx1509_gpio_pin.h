@@ -2,12 +2,11 @@
 
 #include "esphome/core/gpio.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
 class SX1509Component;
 
-class SX1509GPIOPin : public GPIOPin {
+class SX1509GPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -29,5 +28,4 @@ class SX1509GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

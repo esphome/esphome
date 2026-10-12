@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
@@ -28,7 +29,11 @@ def esp32_validate_gpio_pin(value: int) -> int:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-39)")
     if value in _ESP_SDIO_PINS:
         raise cv.Invalid(
-            f"This pin cannot be used on ESP32s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
+            f"This pin cannot be used on ESP32s and is already used by the flash interface"
+            f" (function: {_ESP_SDIO_PINS[value]})."
+            f" If you are using an ESP32 module that uses a different flash pin"
+            f" configuration (e.g. ESP32-PICO-V3-02), you can set"
+            f" 'ignore_pin_validation_error: true' to bypass this check."
         )
     if 9 <= value <= 10:
         _LOGGER.warning(
@@ -49,6 +54,7 @@ def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     is_output = mode[CONF_OUTPUT]
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
+    is_hold = value.get(CONF_HOLD_STATE)
 
     if is_input:
         # All ESP32 pins support input mode
@@ -66,6 +72,14 @@ def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
         raise cv.Invalid(
             f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
         )
+    if is_hold and 34 <= num <= 39:
+        raise cv.Invalid(
+            f"GPIO{num} (34-39) is input-only and cannot be held.",
+            [CONF_HOLD_STATE],
+        )
+    if is_hold and num == 20:
+        # Not in the digital hold mask and not an RTC pad, so the driver cannot hold it
+        raise cv.Invalid("GPIO20 has no hold function.", [CONF_HOLD_STATE])
 
     check_strapping_pin(value, _ESP32_STRAPPING_PINS, _LOGGER)
     return value

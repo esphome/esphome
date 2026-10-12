@@ -14,7 +14,9 @@ class DateTimeBase : public EntityBase {
  public:
   virtual ESPTime state_as_esptime() const = 0;
 
-  void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
 #ifdef USE_TIME
   void set_rtc(time::RealTimeClock *rtc) { this->rtc_ = rtc; }
@@ -27,13 +29,6 @@ class DateTimeBase : public EntityBase {
 #ifdef USE_TIME
   time::RealTimeClock *rtc_;
 #endif
-};
-
-class DateTimeStateTrigger : public Trigger<ESPTime> {
- public:
-  explicit DateTimeStateTrigger(DateTimeBase *parent) {
-    parent->add_on_state_callback([this, parent]() { this->trigger(parent->state_as_esptime()); });
-  }
 };
 
 }  // namespace esphome::datetime

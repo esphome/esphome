@@ -2,15 +2,15 @@
 
 #include "statsd.h"
 
-#ifdef USE_NETWORK
-namespace esphome {
-namespace statsd {
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
+
+namespace esphome::statsd {
 
 // send UDP packet if we reach 1Kb packed size
 // this is needed since statsD does not support fragmented UDP packets
 static const uint16_t SEND_THRESHOLD = 1024;
 
-static const char *const TAG = "statsD";
+ESPHOME_LOG_TAG(TAG, "statsD");
 
 void StatsdComponent::setup() {
 #ifndef USE_ESP8266
@@ -165,6 +165,6 @@ void StatsdComponent::send_(std::string *out) {
 #endif
 }
 
-}  // namespace statsd
-}  // namespace esphome
+}  // namespace esphome::statsd
+
 #endif

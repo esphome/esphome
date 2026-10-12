@@ -5,8 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bl0942 {
+namespace esphome::bl0942 {
 
 // The BL0942 IC is "calibration-free", which means that it doesn't care
 // at all about calibration, and that's left to software. It measures a
@@ -84,7 +83,7 @@ enum LineFrequency : uint8_t {
   LINE_FREQUENCY_60HZ = 60,
 };
 
-class BL0942 : public PollingComponent, public uart::UARTDevice {
+class BL0942 final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
@@ -141,12 +140,10 @@ class BL0942 : public PollingComponent, public uart::UARTDevice {
   bool reset_ = false;
   LineFrequency line_freq_ = LINE_FREQUENCY_50HZ;
   optional<uint32_t> rx_start_{};
-  uint32_t prev_cf_cnt_ = 0;
 
   bool validate_checksum_(DataPacket *data);
   int read_reg_(uint8_t reg);
   void write_reg_(uint8_t reg, uint32_t val);
   void received_package_(DataPacket *data);
 };
-}  // namespace bl0942
-}  // namespace esphome
+}  // namespace esphome::bl0942

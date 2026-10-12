@@ -153,6 +153,31 @@ class MediaSource {
     }
   }
 
+  // === Listener request helpers for smart sources ===
+  // Smart sources (those with internal playlists or external control) use these to request
+  // the orchestrator to take actions. Simple sources never call these.
+
+  /// @brief Request the orchestrator to play a new URI
+  void request_play_uri_(const std::string &uri) {
+    if (this->listener_ != nullptr) {
+      this->listener_->request_play_uri(uri);
+    }
+  }
+
+  /// @brief Request the orchestrator to change volume
+  void request_volume_(float volume) {
+    if (this->listener_ != nullptr) {
+      this->listener_->request_volume(volume);
+    }
+  }
+
+  /// @brief Request the orchestrator to change mute state
+  void request_mute_(bool is_muted) {
+    if (this->listener_ != nullptr) {
+      this->listener_->request_mute(is_muted);
+    }
+  }
+
  private:
   // Private to enforce the invariant that listener notifications always fire on state changes.
   // All state transitions must go through set_state_() which couples the update with notification.

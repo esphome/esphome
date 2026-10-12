@@ -4,10 +4,9 @@
 #include "esphome/components/ssd1327_base/ssd1327_base.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ssd1327_i2c {
+namespace esphome::ssd1327_i2c {
 
-class I2CSSD1327 : public ssd1327_base::SSD1327, public i2c::I2CDevice {
+class I2CSSD1327 final : public ssd1327_base::SSD1327, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -19,5 +18,4 @@ class I2CSSD1327 : public ssd1327_base::SSD1327, public i2c::I2CDevice {
   enum ErrorCode { NONE = 0, COMMUNICATION_FAILED } error_code_{NONE};
 };
 
-}  // namespace ssd1327_i2c
-}  // namespace esphome
+}  // namespace esphome::ssd1327_i2c

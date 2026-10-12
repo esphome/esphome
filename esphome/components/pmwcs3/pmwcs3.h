@@ -1,5 +1,4 @@
 #pragma once
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
@@ -7,10 +6,9 @@
 // ref:
 // https://github.com/tinovi/i2cArduino/blob/master/i2cArduino.h
 
-namespace esphome {
-namespace pmwcs3 {
+namespace esphome::pmwcs3 {
 
-class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
+class PMWCS3Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void update() override;
   void dump_config() override;
@@ -33,36 +31,4 @@ class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *vwc_sensor_{nullptr};
 };
 
-template<typename... Ts> class PMWCS3AirCalibrationAction : public Action<Ts...> {
- public:
-  PMWCS3AirCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->air_calibration(); }
-
- protected:
-  PMWCS3Component *parent_;
-};
-
-template<typename... Ts> class PMWCS3WaterCalibrationAction : public Action<Ts...> {
- public:
-  PMWCS3WaterCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->water_calibration(); }
-
- protected:
-  PMWCS3Component *parent_;
-};
-
-template<typename... Ts> class PMWCS3NewI2cAddressAction : public Action<Ts...> {
- public:
-  PMWCS3NewI2cAddressAction(PMWCS3Component *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(int, new_address)
-
-  void play(const Ts &...x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
-
- protected:
-  PMWCS3Component *parent_;
-};
-
-}  // namespace pmwcs3
-}  // namespace esphome
+}  // namespace esphome::pmwcs3

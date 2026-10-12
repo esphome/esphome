@@ -3,8 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace emc2101 {
+namespace esphome::emc2101 {
 
 /** Enum listing all DAC conversion rates for the EMC2101.
  *
@@ -26,7 +25,7 @@ enum Emc2101DACConversionRate {
 /// This class includes support for the EMC2101 i2c fan controller.
 /// The device has an output (PWM or DAC) and several sensors and this
 /// class is for the EMC2101 configuration.
-class Emc2101Component : public Component, public i2c::I2CDevice {
+class Emc2101Component final : public Component, public i2c::I2CDevice {
  public:
   /** Sets the mode of the output.
    *
@@ -111,5 +110,4 @@ class Emc2101Component : public Component, public i2c::I2CDevice {
   Emc2101DACConversionRate dac_conversion_rate_;
 };
 
-}  // namespace emc2101
-}  // namespace esphome
+}  // namespace esphome::emc2101

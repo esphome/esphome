@@ -1,10 +1,9 @@
 #include "emmeti.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace emmeti {
+namespace esphome::emmeti {
 
-static const char *const TAG = "emmeti.climate";
+ESPHOME_LOG_TAG(TAG, "emmeti.climate");
 
 // setters
 uint8_t EmmetiClimate::set_temp_() {
@@ -308,5 +307,4 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(curr_state);
 }
 
-}  // namespace emmeti
-}  // namespace esphome
+}  // namespace esphome::emmeti

@@ -10,6 +10,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_BL0940_ID, bl0940_ns
 from ..sensor import BL0940
@@ -27,7 +28,7 @@ CalibrationNumber = bl0940_ns.class_(
 )
 
 
-def validate_min_max(config):
+def validate_min_max(config: ConfigType) -> ConfigType:
     if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
         raise cv.Invalid("max_value must be greater than min_value")
     return config
@@ -69,7 +70,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Get the BL0940 component instance
     bl0940 = await cg.get_variable(config[CONF_BL0940_ID])
 
@@ -89,6 +90,6 @@ async def to_code(config):
             )
             await cg.register_component(var, conf)
 
-            if restore_value := config.get(CONF_RESTORE_VALUE):
+            if restore_value := conf.get(CONF_RESTORE_VALUE):
                 cg.add(var.set_restore_value(restore_value))
             cg.add(getattr(bl0940, setter_method)(var))
