@@ -2,16 +2,10 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import CORE
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
-
-
-def AUTO_LOAD() -> list[str]:
-    if CORE.is_esp8266 or CORE.is_rp2:
-        return []
-    return ["socket"]
 
 
 CONF_TARGET_MAC_ADDRESS = "target_mac_address"
