@@ -3,6 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cmath>
@@ -174,17 +175,9 @@ void APC1Component::parse_frame_(uint16_t total_len) {
   }
 }
 
-// One message per error bit, bit 0 first. Not LOG_STR: a table of those is filled in at runtime.
-static const char ERROR_FAN_RESTART[] PROGMEM = "Fan restart error (too many restarts)";
-static const char ERROR_FAN_SPEED_LOW[] PROGMEM = "Fan speed low";
-static const char ERROR_PHOTODIODE[] PROGMEM = "Photodiode fault";
-static const char ERROR_FAN_STOPPED[] PROGMEM = "Fan stopped / startup error";
-static const char ERROR_LASER[] PROGMEM = "Laser fault";
-static const char ERROR_VOC[] PROGMEM = "VOC sensor fault";
-static const char ERROR_RHT[] PROGMEM = "RHT sensor fault";
-static const char *const ERROR_BITS[] PROGMEM = {
-    ERROR_FAN_RESTART, ERROR_FAN_SPEED_LOW, ERROR_PHOTODIODE, ERROR_FAN_STOPPED, ERROR_LASER, ERROR_VOC, ERROR_RHT,
-};
+// One message per error bit, bit 0 first
+PROGMEM_STRING_TABLE(ErrorStrings, "Fan restart error (too many restarts)", "Fan speed low", "Photodiode fault",
+                     "Fan stopped / startup error", "Laser fault", "VOC sensor fault", "RHT sensor fault");
 
 void APC1Component::parse_measurement_frame_() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -193,9 +186,9 @@ void APC1Component::parse_measurement_frame_() {
   uint8_t error_code = this->rx_buffer_[APC1_MEASUREMENT_OFFSET_ERROR_CODE];
   if (error_code != this->last_error_code_) {
     if (error_code != 0) {
-      for (size_t bit = 0; bit < std::size(ERROR_BITS); bit++) {
+      for (uint8_t bit = 0; bit < ErrorStrings::COUNT; bit++) {
         if (error_code & (1 << bit)) {
-          ESP_LOGW(TAG, "APC1: %s", progmem_read_ptr(&ERROR_BITS[bit]));
+          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ErrorStrings::get_log_str(bit, ErrorStrings::LAST_INDEX)));
         }
       }
       this->status_set_warning(LOG_STR("Sensor reported hardware error"));
