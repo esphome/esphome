@@ -6,7 +6,27 @@ namespace esphome::emontx {
 
 ESPHOME_LOG_TAG(TAG, "emontx");
 
-void EmonTx::setup() { this->buffer_pos_ = 0; }
+void EmonTx::setup() {
+  this->buffer_pos_ = 0;
+  if (!this->lock_on_reboot_)
+    return;
+  // The line feed ends any boot noise first
+  ESP_LOGI(TAG, "Unlocking emonTx after boot");
+  this->write_byte('\n');
+  this->send_command("emonunlock");
+}
+
+void EmonTx::on_shutdown() {
+  if (!this->lock_on_reboot_)
+    return;
+  if (this->is_paused()) {
+    ESP_LOGW(TAG, "Not locking emonTx before shutdown, UART is paused");
+    return;
+  }
+  ESP_LOGI(TAG, "Locking emonTx before shutdown");
+  this->send_command("emonlock");
+  this->flush();
+}
 
 /**
  * @brief Implements the main loop for parsing data from the serial port.
@@ -16,6 +36,20 @@ void EmonTx::setup() { this->buffer_pos_ = 0; }
  * 2. If line starts with '{', parse as JSON and update sensors/callbacks
  */
 void EmonTx::loop() {
+  if (this->is_paused()) {
+    this->was_paused_ = true;
+    return;
+  }
+  if (this->was_paused_) {
+    // Drop what arrived during the pause and resync at the next line start
+    this->was_paused_ = false;
+    this->buffer_pos_ = 0;
+    this->discarding_line_ = true;
+    uint8_t dropped;
+    while (this->available() > 0 && this->read_byte(&dropped))
+      this->discarding_line_ = dropped != '\n';
+  }
+
   // Read all available data to prevent UART buffer overflow
   while (this->available() > 0) {
     uint8_t received;
@@ -45,7 +79,7 @@ void EmonTx::loop() {
         }
       }
     } else if (received == '\r' || this->discarding_line_) {
-      // Ignore CR, and the rest of a line that overflowed the buffer
+      // Ignore CR, and the rest of a line that overflowed or was interrupted by a pause
     } else if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
       ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding line", MAX_LINE_LENGTH);
       this->buffer_pos_ = 0;
@@ -83,6 +117,7 @@ void EmonTx::parse_json_(const char *data, size_t len) {
  */
 void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "EmonTx:");
+  ESP_LOGCONFIG(TAG, "  Lock on reboot: %s", YESNO(this->lock_on_reboot_));
 
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
@@ -100,6 +135,10 @@ void EmonTx::dump_config() {
  * @param command The command string to send (LF will be appended automatically).
  */
 void EmonTx::send_command(const char *command) {
+  if (this->is_paused()) {
+    ESP_LOGW(TAG, "Not sending command, UART is paused: %s", command);
+    return;
+  }
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command);
   this->write_str(command);
   this->write_byte('\n');

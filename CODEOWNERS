@@ -156,6 +156,7 @@ esphome/components/ds1307/* @badbadc0ffee
 esphome/components/ds1603l/* @JakeLC15
 esphome/components/ds2484/* @mrk-its
 esphome/components/ds248x/* @tomwellnitz
+esphome/components/ds3231/* @linkedupbits
 esphome/components/dsmr/* @glmnet @PolarGoose
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M
@@ -183,6 +184,7 @@ esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_hosted/* @swoboda1337
 esphome/components/esp32_hosted/update/* @swoboda1337
+esphome/components/esp32_power_management/* @rwrozelle
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
@@ -303,6 +305,7 @@ esphome/components/ld2410/* @regevbr @sebcaps
 esphome/components/ld2412/* @Rihan9
 esphome/components/ld2420/* @descipher
 esphome/components/ld2450/* @hareeshmu
+esphome/components/ld2460/* @jesusvallejo
 esphome/components/ld24xx/* @kbx81
 esphome/components/ld6002b/* @hepter
 esphome/components/ledc/* @OttoWinter
@@ -311,6 +314,9 @@ esphome/components/libretiny_pwm/* @kuba2k2
 esphome/components/light/* @esphome/core
 esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
+esphome/components/lis2dw12/* @latonita
+esphome/components/lis2dw12_i2c/* @latonita
+esphome/components/lis2dw12_spi/* @latonita
 esphome/components/lm75b/* @beormund
 esphome/components/ln882h_ble/* @Bl00d-B0b
 esphome/components/ln882h_ble_tracker/* @Bl00d-B0b
@@ -347,7 +353,6 @@ esphome/components/mcp4461/* @p1ngb4ck
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
 esphome/components/mcp9600/* @mreditor97
-esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
@@ -413,6 +418,7 @@ esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
 esphome/components/pcm5122/* @remcom
+esphome/components/pd_pioneer_ir/* @martinsah
 esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
@@ -431,6 +437,7 @@ esphome/components/pn7160/* @jesserockz @kbx81
 esphome/components/pn7160_i2c/* @jesserockz @kbx81
 esphome/components/pn7160_spi/* @jesserockz @kbx81
 esphome/components/pn71xx/* @jesserockz @kbx81
+esphome/components/power_management/* @rwrozelle
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
 esphome/components/provisioning/* @esphome/core
@@ -503,6 +510,7 @@ esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht3xd/* @mrtoy-me
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
+esphome/components/siemens_ira211/* @fonix232
 esphome/components/sigma_delta_output/* @Cat-Ion
 esphome/components/sim800l/* @glmnet
 esphome/components/sm10bit_base/* @Cossid
@@ -639,7 +647,7 @@ esphome/components/web_server_idf/* @dentra
 esphome/components/weikai/* @DrCoolZic
 esphome/components/weikai_i2c/* @DrCoolZic
 esphome/components/weikai_spi/* @DrCoolZic
-esphome/components/whirlpool/* @glmnet
+esphome/components/whirlpool/* @arpena @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
