@@ -127,14 +127,48 @@ sensor:
     reactive_energy_returned_tariff4:
       name: "Reactive Energy Exported Tariff 4. OBIS: 1-0:4.8.4"
 
+    # Channel 1-1 fields (CH), sent by meters such as the Iskraemeco AM550 used by Swiss grid operators
+    energy_delivered_ch:
+      name: "Energy Consumed (CH). OBIS: 1-1:1.8.0"
     energy_delivered_tariff1_ch:
       name: "Energy Consumed Tariff 1 (CH). OBIS: 1-1:1.8.1"
     energy_delivered_tariff2_ch:
       name: "Energy Consumed Tariff 2 (CH). OBIS: 1-1:1.8.2"
+    energy_returned_ch:
+      name: "Energy Produced (CH). OBIS: 1-1:2.8.0"
     energy_returned_tariff1_ch:
       name: "Energy Produced Tariff 1 (CH). OBIS: 1-1:2.8.1"
     energy_returned_tariff2_ch:
       name: "Energy Produced Tariff 2 (CH). OBIS: 1-1:2.8.2"
+
+    total_imported_energy_ch:
+      name: "Reactive Energy Imported (CH). OBIS: 1-1:3.8.0"
+    total_exported_energy_ch:
+      name: "Reactive Energy Exported (CH). OBIS: 1-1:4.8.0"
+    reactive_energy_q1_ch:
+      name: "Reactive Energy Q1 +Ri (CH). OBIS: 1-1:5.8.0"
+    reactive_energy_q1_tariff1_ch:
+      name: "Reactive Energy Q1 +Ri Tariff 1 (CH). OBIS: 1-1:5.8.1"
+    reactive_energy_q1_tariff2_ch:
+      name: "Reactive Energy Q1 +Ri Tariff 2 (CH). OBIS: 1-1:5.8.2"
+    reactive_energy_q2_ch:
+      name: "Reactive Energy Q2 +Rc (CH). OBIS: 1-1:6.8.0"
+    reactive_energy_q2_tariff1_ch:
+      name: "Reactive Energy Q2 +Rc Tariff 1 (CH). OBIS: 1-1:6.8.1"
+    reactive_energy_q2_tariff2_ch:
+      name: "Reactive Energy Q2 +Rc Tariff 2 (CH). OBIS: 1-1:6.8.2"
+    reactive_energy_q3_ch:
+      name: "Reactive Energy Q3 -Ri (CH). OBIS: 1-1:7.8.0"
+    reactive_energy_q3_tariff1_ch:
+      name: "Reactive Energy Q3 -Ri Tariff 1 (CH). OBIS: 1-1:7.8.1"
+    reactive_energy_q3_tariff2_ch:
+      name: "Reactive Energy Q3 -Ri Tariff 2 (CH). OBIS: 1-1:7.8.2"
+    reactive_energy_q4_ch:
+      name: "Reactive Energy Q4 -Rc (CH). OBIS: 1-1:8.8.0"
+    reactive_energy_q4_tariff1_ch:
+      name: "Reactive Energy Q4 -Rc Tariff 1 (CH). OBIS: 1-1:8.8.1"
+    reactive_energy_q4_tariff2_ch:
+      name: "Reactive Energy Q4 -Rc Tariff 2 (CH). OBIS: 1-1:8.8.2"
 
     energy_delivered_tariff1_il:
       name: "Energy Consumed Tariff 1 (IL). OBIS: 1-0:1.8.11"
@@ -163,6 +197,37 @@ sensor:
       name: "Power Consumed (CH). OBIS: 1-1:1.7.0"
     power_returned_ch:
       name: "Power Produced (CH). OBIS: 1-1:2.7.0"
+
+    power_delivered_l1_ch:
+      name: "Power Consumed Phase 1 (CH). OBIS: 1-1:21.7.0"
+    power_delivered_l2_ch:
+      name: "Power Consumed Phase 2 (CH). OBIS: 1-1:41.7.0"
+    power_delivered_l3_ch:
+      name: "Power Consumed Phase 3 (CH). OBIS: 1-1:61.7.0"
+    power_returned_l1_ch:
+      name: "Power Produced Phase 1 (CH). OBIS: 1-1:22.7.0"
+    power_returned_l2_ch:
+      name: "Power Produced Phase 2 (CH). OBIS: 1-1:42.7.0"
+    power_returned_l3_ch:
+      name: "Power Produced Phase 3 (CH). OBIS: 1-1:62.7.0"
+
+    reactive_power_delivered_l1_ch:
+      name: "Reactive Power Imported L1 (CH). OBIS: 1-1:23.7.0"
+    reactive_power_delivered_l2_ch:
+      name: "Reactive Power Imported L2 (CH). OBIS: 1-1:43.7.0"
+    reactive_power_delivered_l3_ch:
+      name: "Reactive Power Imported L3 (CH). OBIS: 1-1:63.7.0"
+    reactive_power_returned_l1_ch:
+      name: "Reactive Power Exported L1 (CH). OBIS: 1-1:24.7.0"
+    reactive_power_returned_l2_ch:
+      name: "Reactive Power Exported L2 (CH). OBIS: 1-1:44.7.0"
+    reactive_power_returned_l3_ch:
+      name: "Reactive Power Exported L3 (CH). OBIS: 1-1:64.7.0"
+
+    maximum_power_delivered_ch:
+      name: "Maximum Power Consumed (CH). OBIS: 1-1:1.6.0"
+    maximum_power_returned_ch:
+      name: "Maximum Power Produced (CH). OBIS: 1-1:2.6.0"
 
     electricity_threshold:
       name: "Electricity Threshold. OBIS: 0-0:17.0.0"
