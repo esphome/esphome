@@ -10,6 +10,11 @@ ESPHOME_LOG_TAG(TAG, "remote.ira211");
 static constexpr uint32_t CARRIER_FREQUENCY = 38000;
 static constexpr uint32_t T_US = 800;
 static constexpr uint32_t HEADER_US = 19 * T_US / 2;  // 7600 us, also the gap that separates frames
+// Midway between the longest data run (9 bits, 7200 us) and the gap, so a gap captured a little short still
+// ends the frame
+static constexpr uint32_t GAP_MIN_US = HEADER_US - T_US / 4;
+static constexpr uint8_t MIN_HALF_DEGREES = static_cast<uint8_t>(IRA211_MIN_TEMPERATURE * 2);
+static constexpr uint8_t MAX_HALF_DEGREES = static_cast<uint8_t>(IRA211_MAX_TEMPERATURE * 2);
 
 static constexpr uint8_t DEVICE_ID = 0x66;
 static constexpr uint8_t BITS_PER_PACKET = 10;
@@ -55,6 +60,29 @@ static uint8_t packet_count(const CommandLayout &layout) {
 
 // Value to wire byte and back; the transform is its own inverse
 static uint8_t wire_xform(uint8_t value) { return reverse_bits(static_cast<uint8_t>(~value)); }
+
+static bool is_known_mode(uint8_t value) {
+  switch (static_cast<IRA211Mode>(value)) {
+    case IRA211Mode::IRA211_MODE_PROTECTION:
+    case IRA211Mode::IRA211_MODE_TIMER:
+    case IRA211Mode::IRA211_MODE_COMFORT:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static bool is_known_fan(uint8_t value) {
+  switch (static_cast<IRA211Fan>(value)) {
+    case IRA211Fan::IRA211_FAN_AUTO:
+    case IRA211Fan::IRA211_FAN_LOW:
+    case IRA211Fan::IRA211_FAN_MEDIUM:
+    case IRA211Fan::IRA211_FAN_HIGH:
+      return true;
+    default:
+      return false;
+  }
+}
 
 static uint8_t checksum(const uint8_t *bytes, uint8_t count) {
   uint8_t sum = count;
@@ -139,9 +167,9 @@ optional<IRA211Data> IRA211Protocol::decode(RemoteReceiveData src) {
     const bool is_mark = raw > 0;
     const uint32_t duration = is_mark ? raw : -raw;
     // A mark followed by the gap or the end of the data is the trailing mark, not a data bit
-    if (is_mark && (!src.is_valid(1) || src.peek(1) <= -static_cast<int32_t>(HEADER_US)))
+    if (is_mark && (!src.is_valid(1) || src.peek(1) <= -static_cast<int32_t>(GAP_MIN_US)))
       break;
-    if (!is_mark && duration >= HEADER_US)
+    if (!is_mark && duration >= GAP_MIN_US)
       break;
     const uint32_t run = (duration + T_US / 2) / T_US;
     if (run == 0 || bits + run > MAX_BITS)
@@ -169,16 +197,28 @@ optional<IRA211Data> IRA211Protocol::decode(RemoteReceiveData src) {
     return {};
   }
 
+  // A checksum-valid frame can still carry values outside what the thermostat accepts
   uint8_t index = 2;
   if (layout->fields & FIELD_TEMPERATURE) {
     const uint8_t whole = wire_xform(bytes[index++]);
     const uint8_t tenths = wire_xform(bytes[index++]);
-    out.half_degrees = whole * 2 + (tenths >= 5 ? 1 : 0);
+    const uint16_t half_degrees = whole * 2 + (tenths >= 5 ? 1 : 0);
+    if (half_degrees < MIN_HALF_DEGREES || half_degrees > MAX_HALF_DEGREES)
+      return {};
+    out.half_degrees = static_cast<uint8_t>(half_degrees);
   }
-  if (layout->fields & FIELD_MODE)
-    out.mode = static_cast<IRA211Mode>(wire_xform(bytes[index++]));
-  if (layout->fields & FIELD_FAN)
-    out.fan = static_cast<IRA211Fan>(wire_xform(bytes[index++]));
+  if (layout->fields & FIELD_MODE) {
+    const uint8_t mode = wire_xform(bytes[index++]);
+    if (!is_known_mode(mode))
+      return {};
+    out.mode = static_cast<IRA211Mode>(mode);
+  }
+  if (layout->fields & FIELD_FAN) {
+    const uint8_t fan = wire_xform(bytes[index++]);
+    if (!is_known_fan(fan))
+      return {};
+    out.fan = static_cast<IRA211Fan>(fan);
+  }
   return out;
 }
 

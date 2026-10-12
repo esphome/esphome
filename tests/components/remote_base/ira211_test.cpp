@@ -186,6 +186,39 @@ TEST(IRA211ProtocolTest, RejectsAFrameOfTheWrongLengthForItsCommand) {
   EXPECT_FALSE(decode(timings).has_value());
 }
 
+// transmit_state() sends POWER then SYNC back to back, so a receiver with a long idle sees both in one capture.
+// The gap may be captured a little short; it must still end the first frame.
+TEST(IRA211ProtocolTest, DecodesTheFirstOfTwoFramesWithAShortenedGap) {
+  const IRA211Data power =
+      make_data(IRA211Command::IRA211_COMMAND_POWER, 20.5f, IRA211Mode::IRA211_MODE_COMFORT, IRA211Fan::IRA211_FAN_LOW);
+  const IRA211Data sync =
+      make_data(IRA211Command::IRA211_COMMAND_SYNC, 20.5f, IRA211Mode::IRA211_MODE_COMFORT, IRA211Fan::IRA211_FAN_LOW);
+  RawTimings timings = encode(power);
+  timings.back() = -int32_t(HEADER_US - 100);
+  const RawTimings second = encode(sync);
+  timings.insert(timings.end(), second.begin(), second.end());
+  expect_round_trip(timings, power);
+}
+
+// Values are encoded as given, so a frame with an out-of-range field still gets a valid checksum.
+TEST(IRA211ProtocolTest, RejectsAnOutOfRangeTemperature) {
+  for (uint8_t half_degrees : {uint8_t(9), uint8_t(71), uint8_t(72), uint8_t(255)}) {
+    IRA211Data data = make_data(IRA211Command::IRA211_COMMAND_SYNC, 20.5f, IRA211Mode::IRA211_MODE_COMFORT,
+                                IRA211Fan::IRA211_FAN_AUTO);
+    data.half_degrees = half_degrees;
+    EXPECT_FALSE(decode(encode(data)).has_value()) << "half degrees " << int(half_degrees);
+  }
+}
+
+TEST(IRA211ProtocolTest, RejectsAnUnknownModeOrFan) {
+  IRA211Data mode =
+      make_data(IRA211Command::IRA211_COMMAND_MODE, 20.5f, static_cast<IRA211Mode>(1), IRA211Fan::IRA211_FAN_AUTO);
+  EXPECT_FALSE(decode(encode(mode)).has_value());
+  IRA211Data fan =
+      make_data(IRA211Command::IRA211_COMMAND_SYNC, 20.5f, IRA211Mode::IRA211_MODE_COMFORT, static_cast<IRA211Fan>(1));
+  EXPECT_FALSE(decode(encode(fan)).has_value());
+}
+
 TEST(IRA211ProtocolTest, RejectsAForeignFrame) {
   const RawTimings nec_like = {9000, -4500, 560, -560, 560, -1690, 560, -560, 560};
   EXPECT_FALSE(decode(nec_like).has_value());

@@ -79,6 +79,8 @@ void SiemensIRA211Climate::setup() {
     this->modes_.erase(climate::CLIMATE_MODE_COOL);
   }
   climate_ir::ClimateIR::setup();
+  // Match the restored state, so the first command after a reboot does not send a needless POWER frame
+  this->is_on_ = this->mode != climate::CLIMATE_MODE_OFF;
 }
 
 climate::ClimateMode SiemensIRA211Climate::active_mode_() const {
