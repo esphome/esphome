@@ -210,9 +210,7 @@ static inline struct lwip_sock *get_sock(int fd) {
   return sock;
 }
 
-struct lwip_sock *esphome_lwip_get_sock(int fd) {
-  return get_sock(fd);
-}
+struct lwip_sock *esphome_lwip_get_sock(int fd) { return get_sock(fd); }
 
 void esphome_lwip_hook_socket(struct lwip_sock *sock) {
   // Save original callback once — all LwIP sockets share the same static event_callback
