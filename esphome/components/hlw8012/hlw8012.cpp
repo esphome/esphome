@@ -3,7 +3,7 @@
 
 namespace esphome::hlw8012 {
 
-static const char *const TAG = "hlw8012";
+ESPHOME_LOG_TAG(TAG, "hlw8012");
 
 // valid for HLW8012 and CSE7759
 static const uint32_t HLW8012_CLOCK_FREQUENCY = 3579000;

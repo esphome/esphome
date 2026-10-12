@@ -6,7 +6,9 @@
 
 namespace esphome::hdc302x {
 
-static const char *const TAG = "hdc302x.sensor";
+ESPHOME_LOG_TAG(TAG, "hdc302x.sensor");
+
+static constexpr uint32_t HEATER_OFF_TIMEOUT_ID = 0;
 
 // Commands (per datasheet Table 7-4)
 static const uint8_t HDC302X_CMD_SOFT_RESET[2] = {0x30, 0xa2};
@@ -68,14 +70,14 @@ void HDC302XComponent::start_heater(uint16_t power, uint32_t duration_ms) {
     return;
   }
   this->heater_active_ = true;
-  this->cancel_timeout("heater_off");
+  this->cancel_timeout(HEATER_OFF_TIMEOUT_ID);
   if (duration_ms > 0) {
-    this->set_timeout("heater_off", duration_ms, [this]() { this->stop_heater(); });
+    this->set_timeout(HEATER_OFF_TIMEOUT_ID, duration_ms, [this]() { this->stop_heater(); });
   }
 }
 
 void HDC302XComponent::stop_heater() {
-  this->cancel_timeout("heater_off");
+  this->cancel_timeout(HEATER_OFF_TIMEOUT_ID);
   if (!this->disable_heater_()) {
     ESP_LOGW(TAG, "Heater stop failed");
   }

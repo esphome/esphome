@@ -2,8 +2,10 @@
 
 #ifdef USE_SERIAL_PROXY
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include "esphome/core/util.h"
 
@@ -12,9 +14,16 @@
 #include "esphome/components/api/api_server.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+#include "esphome/components/usb_uart/usb_uart.h"
+#endif
+
 namespace esphome::serial_proxy {
 
-static const char *const TAG = "serial_proxy";
+ESPHOME_LOG_TAG(TAG, "serial_proxy");
+
+uint32_t SerialProxy::stall_loop_time = 0;
+uint32_t SerialProxy::stall_spent_ms = 0;
 
 void SerialProxy::setup() {
   // Set up modem control pins if configured
@@ -29,6 +38,12 @@ void SerialProxy::setup() {
 #ifdef USE_API
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
+#endif
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  if (this->usb_channel_ != nullptr) {
+    this->usb_channel_->get_parent()->add_on_connection_callback(
+        [this](bool connected) { this->on_usb_connection_changed_(connected); });
+  }
 #endif
 #ifdef USE_SERIAL_PROXY_TAP
   // A tap sets itself up before this runs (its setup priority is higher), so it may
@@ -156,9 +171,10 @@ void SerialProxy::dump_config() {
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
                 this->instance_index_, this->name_ != nullptr ? this->name_ : "",
-                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? LOG_STR_LITERAL("RS485")
-                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? LOG_STR_LITERAL("RS232")
-                                                                               : LOG_STR_LITERAL("TTL"),
+                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485        ? LOG_STR_LITERAL("RS485")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232      ? LOG_STR_LITERAL("RS232")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_USB_SERIAL ? LOG_STR_LITERAL("USB_SERIAL")
+                                                                                    : LOG_STR_LITERAL("TTL"),
                 this->rts_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"),
                 this->dtr_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"));
 }
@@ -293,6 +309,35 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
 #endif
   if (data == nullptr || len == 0)
     return;
+  // Whatever the driver cannot buffer stalls the main loop for its wire time. At high baud
+  // rates that is brief and losing nothing is worth it; at low ones it would trip the
+  // watchdog, so cap the stall and drop the rest. The cap covers the whole loop pass:
+  // several writes can arrive in one, and each alone might stay under it.
+  const size_t free = this->parent_->available_for_write();
+  bool trimmed = false;
+  if (len > free) {
+    const uint32_t loop_time = App.get_loop_component_start_time();
+    if (loop_time != stall_loop_time) {
+      stall_loop_time = loop_time;
+      stall_spent_ms = 0;
+    }
+    const uint32_t stall_ms = this->wire_time_ms_(len - free);
+    trimmed = stall_spent_ms + stall_ms > SERIAL_PROXY_MAX_WRITE_STALL_MS;
+    if (trimmed && !this->trim_warned_) {
+      ESP_LOGW(TAG,
+               "TX buffer full on serial proxy [%" PRIu32 "]: dropping %zu of %zu bytes (would stall %" PRIu32
+               " ms at %" PRIu32 " baud); raise the UART tx_buffer_size or pace writes",
+               this->instance_index_, len - free, len, stall_ms, this->parent_->get_baud_rate());
+    }
+    if (trimmed) {
+      len = free;
+    } else {
+      stall_spent_ms += stall_ms;
+    }
+  }
+  this->trim_warned_ = trimmed;
+  if (len == 0)
+    return;
   this->write_array(data, len);
 
 #ifdef USE_SERIAL_PROXY_TAP
@@ -301,6 +346,12 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
     this->tap_->on_client_tx(data, len);
   }
 #endif
+}
+
+uint32_t SerialProxy::wire_time_ms_(size_t bytes) const {
+  const uint32_t bits_per_byte = 1 + this->parent_->get_data_bits() + this->parent_->get_stop_bits() +
+                                 (this->parent_->get_parity() != uart::UART_CONFIG_PARITY_NONE ? 1 : 0);
+  return static_cast<uint64_t>(bytes) * bits_per_byte * 1000 / std::max<uint32_t>(this->parent_->get_baud_rate(), 1);
 }
 
 SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {
@@ -332,6 +383,60 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   }
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
+
+#ifdef USE_API
+void SerialProxy::send_identity(api::APIConnection *api_connection) {
+  IdentityScratch scratch;
+  api::SerialProxyIdentity msg{};
+  this->fill_identity_(scratch, msg);
+  api_connection->send_serial_proxy_identity(msg);
+}
+
+void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api::SerialProxyIdentity &msg) const {
+  msg.instance = this->instance_index_;
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  // The define is global, so a hardware UART port in the same config also gets here
+  if (this->usb_channel_ != nullptr) {
+    msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_USB;
+    // Covers a removed device, a channel the device has no CDC function for and a failed channel setup
+    if (!this->usb_channel_->is_connected()) {
+      return;
+    }
+    auto *client = this->usb_channel_->get_parent();
+    msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
+    if (!client->get_device_info(scratch)) {
+      msg.flags |= api::enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR;
+      return;
+    }
+    msg.usb.vendor_id = scratch.vendor_id;
+    msg.usb.product_id = scratch.product_id;
+    msg.usb.bcd_device = scratch.bcd_device;
+    msg.usb.interface_number = this->usb_channel_->get_interface_number();
+    msg.manufacturer = StringRef(scratch.manufacturer);
+    msg.product = StringRef(scratch.product);
+    msg.serial_number = StringRef(scratch.serial_number);
+    return;
+  }
+#endif
+  // Zero-initialized message: source NONE, no flags
+}
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+void SerialProxy::on_usb_connection_changed_(bool connected) {
+  ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
+           connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
+#ifdef USE_API
+  if (api::global_api_server == nullptr) {
+    return;
+  }
+  IdentityScratch scratch;
+  api::SerialProxyIdentity msg{};
+  this->fill_identity_(scratch, msg);
+  api::global_api_server->send_serial_proxy_identity(msg);
+#endif
+}
+#endif
 
 uint32_t SerialProxy::get_modem_pins() const {
   return (this->rts_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |

@@ -102,7 +102,14 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void setup() override;
-  void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
+  void set_protocol(Protocol protocol) {
+    this->protocol_ = protocol;
+    if (protocol == PROTOCOL_MITSUBISHI_HEAVY_ZMP) {
+      this->presets_.insert(climate::CLIMATE_PRESET_NONE);
+      this->presets_.insert(climate::CLIMATE_PRESET_ECO);
+      this->presets_.insert(climate::CLIMATE_PRESET_BOOST);
+    }
+  }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
   }
@@ -117,6 +124,8 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
   HeatpumpIR *heatpump_ir_;
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  /// Handle received IR data from the remote control.
+  bool on_receive(remote_base::RemoteReceiveData data) override;
   Protocol protocol_;
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;

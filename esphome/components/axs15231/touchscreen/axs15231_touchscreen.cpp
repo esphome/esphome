@@ -5,7 +5,7 @@
 
 namespace esphome::axs15231 {
 
-static const char *const TAG = "ax15231.touchscreen";
+ESPHOME_LOG_TAG(TAG, "ax15231.touchscreen");
 
 constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x8};
 

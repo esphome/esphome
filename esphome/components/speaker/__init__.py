@@ -8,6 +8,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "speaker"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -18,10 +19,6 @@ Speaker = speaker_ns.class_("Speaker")
 PlayAction = speaker_ns.class_(
     "PlayAction", automation.Action, cg.Parented.template(Speaker)
 )
-
-
-IsPlayingCondition = speaker_ns.class_("IsPlayingCondition", automation.Condition)
-IsStoppedCondition = speaker_ns.class_("IsStoppedCondition", automation.Condition)
 
 
 async def setup_speaker_core_(var, config):
@@ -45,12 +42,6 @@ SPEAKER_SCHEMA = cv.Schema.extend(audio.AUDIO_COMPONENT_SCHEMA).extend(
 SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(Speaker)}
 )
-
-
-async def speaker_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
@@ -91,13 +82,12 @@ for _name, _call in (
         _name, SPEAKER_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
     )
 
-automation.register_condition(
-    "speaker.is_playing", IsPlayingCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
-
-automation.register_condition(
-    "speaker.is_stopped", IsStoppedCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
+automation.register_apply_condition(
+    "speaker.is_playing", SPEAKER_AUTOMATION_SCHEMA, "is_running()"
+)
+automation.register_apply_condition(
+    "speaker.is_stopped", SPEAKER_AUTOMATION_SCHEMA, "is_stopped()"
+)
 
 
 automation.register_apply_action(
