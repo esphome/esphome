@@ -13,6 +13,7 @@ from esphome.components.ld2450.text import (
     CONFIG_SCHEMA as TEXT_CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA as TEXT_FINAL_VALIDATE_SCHEMA,
 )
+from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_PLATFORM, PlatformFramework
 from esphome.core import ID
@@ -141,3 +142,91 @@ def test_presence_on_another_ld2450_is_rejected(
         ),
     ):
         TEXT_FINAL_VALIDATE_SCHEMA(_text_config("couch"))
+
+
+def _esp8266_config(
+    zones_per_hub: list[int], *, restore_from_flash: bool = False
+) -> tuple[Config, ConfigType]:
+    """A full ESP8266 config with the given number of zones on each LD2450, and the first text entry."""
+    texts: list[ConfigType] = []
+    zone_ids: list[str] = []
+    for hub, count in enumerate(zones_per_hub):
+        ids = [f"zone_{hub}_{n}" for n in range(count)]
+        zone_ids += ids
+        texts.append({CONF_PLATFORM: "ld2450", **_text_config(*ids)})
+    full = Config()
+    full["esp8266"] = {"restore_from_flash": restore_from_flash}
+    full["text"] = texts
+    full["binary_sensor"] = _binary_sensors(*zone_ids)
+    return full, texts[0]
+
+
+@pytest.mark.parametrize(
+    ("zones_per_hub", "restore_from_flash"),
+    [([3], False), ([4], True), ([2, 1], False)],
+)
+def test_esp8266_zones_that_fit_pass_quietly(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    zones_per_hub: list[int],
+    restore_from_flash: bool,
+) -> None:
+    full, text = _esp8266_config(zones_per_hub, restore_from_flash=restore_from_flash)
+    set_core_config(PlatformFramework.ESP8266_ARDUINO, full_config=full)
+
+    TEXT_FINAL_VALIDATE_SCHEMA(text)
+    assert "polygon zones fill" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("zones_per_hub", "restore_from_flash"),
+    [([4], False), ([2, 2], False), ([5], True)],
+)
+def test_esp8266_zones_that_fill_the_space_warn(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    zones_per_hub: list[int],
+    restore_from_flash: bool,
+) -> None:
+    full, text = _esp8266_config(zones_per_hub, restore_from_flash=restore_from_flash)
+    set_core_config(PlatformFramework.ESP8266_ARDUINO, full_config=full)
+
+    TEXT_FINAL_VALIDATE_SCHEMA(text)
+    assert "polygon zones fill the ESP8266's space for saved settings" in caplog.text
+
+
+def test_esp8266_too_many_zones_in_rtc_memory_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Zones are counted across every LD2450, and restore_from_flash is suggested."""
+    full, text = _esp8266_config([3, 2])
+    set_core_config(PlatformFramework.ESP8266_ARDUINO, full_config=full)
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"^5 polygon zones don't fit .* in RTC memory: at most 4 fit, .*restore_from_flash: true",
+    ):
+        TEXT_FINAL_VALIDATE_SCHEMA(text)
+
+
+def test_esp8266_too_many_zones_in_flash_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    full, text = _esp8266_config([6], restore_from_flash=True)
+    set_core_config(PlatformFramework.ESP8266_ARDUINO, full_config=full)
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"^6 polygon zones don't fit .* at most 5 fit, .*use fewer zones$",
+    ):
+        TEXT_FINAL_VALIDATE_SCHEMA(text)
+
+
+def test_space_is_not_checked_off_esp8266(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    full, text = _esp8266_config([8])
+    del full["esp8266"]
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+
+    TEXT_FINAL_VALIDATE_SCHEMA(text)
