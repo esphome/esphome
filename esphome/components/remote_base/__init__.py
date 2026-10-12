@@ -2186,7 +2186,7 @@ NEXUS_ACTION_SCHEMA = NEXUS_SCHEMA.extend(
 
 
 @register_binary_sensor("nexus", NexusBinarySensor, NEXUS_SCHEMA)
-def nexus_binary_sensor(var, config):
+def nexus_binary_sensor(var: MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_data(
             cg.StructInitializer(
@@ -2199,13 +2199,13 @@ def nexus_binary_sensor(var, config):
 
 
 @register_trigger("nexus", NexusTrigger, NexusData)
-def nexus_trigger(var, config):
-    pass
+def nexus_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("nexus", NexusDumper)
-def nexus_dumper(var, config):
-    pass
+def nexus_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
 
 
 register_protocol_action(
