@@ -90,8 +90,8 @@ TEST_F(MonitorClient, SeenWhenSentNotWhenQueued) {
   EXPECT_TRUE(this->hub_.waiting());
 }
 
-// The monitor runs first: after the hub has set its state, before the device's on_sent.
-TEST_F(MonitorClient, RequestIsSeenBeforeOnSent) {
+// The monitor runs at the end of the send step: after the hub has set its state and after the device's on_sent.
+TEST_F(MonitorClient, RequestIsSeenAfterOnSent) {
   bool waiting_at_request = false;
   this->hub_.add_on_request_callback(
       [this, &waiting_at_request](uint8_t, std::span<const uint8_t>) { waiting_at_request = this->hub_.waiting(); });
@@ -100,7 +100,7 @@ TEST_F(MonitorClient, RequestIsSeenBeforeOnSent) {
   this->hub_.send_next_for_test();
   EXPECT_TRUE(waiting_at_request);
   ASSERT_EQ(device.seen_at_sent.size(), 1u);
-  EXPECT_EQ(device.seen_at_sent[0], 1u);
+  EXPECT_EQ(device.seen_at_sent[0], 0u);
 }
 
 TEST_F(MonitorClient, RetryIsSeenAgain) {
