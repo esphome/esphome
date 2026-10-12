@@ -1228,6 +1228,24 @@ register_protocol_action(
 )
 
 
+# PioneerWyt
+PioneerWytData = ns.class_("PioneerWytData")
+PIONEER_WYT_SCHEMA = cv.Schema(
+    {
+        # 13 bytes get the checksum appended; a 14th byte is replaced by the recomputed checksum
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=14)),
+    }
+)
+
+register_protocol_action(
+    "pioneer_wyt",
+    "PioneerWyt",
+    PIONEER_WYT_SCHEMA,
+    _bytes_field(CONF_CODE, f"data = {PioneerWytData}({{}})"),
+    automation.ApplyCall("data.finalize()"),
+)
+
+
 # Pronto
 (
     ProntoData,
