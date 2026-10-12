@@ -23,6 +23,7 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
     CONF_PASS_DURATION,
+    CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE,
     CONF_SWEEP_DURATION,
     CONF_UPDATE_EVERY,
 )
@@ -134,6 +135,13 @@ TYPES: dict[str, cv.Schema] = {
     ),
     # §5.3.2 Class 2, ID 104 LB: Solar Storage product version number and type: product version (0..255).
     CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.3 Class 3, ID 4 LB: Req-Response-Code of the most recent remote request
+    # (0..127 = request refused, 128..255 = request accepted). Feedback for the Class 3 remote-request
+    # buttons, which are all technician/installer actions (entity_category CONFIG) -- not a value
+    # anyone watches day-to-day, so DIAGNOSTIC.
+    CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE: _code_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # Synthetic diagnostic, not an OpenTherm data-id -- deliberately not given the
