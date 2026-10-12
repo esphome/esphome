@@ -310,14 +310,11 @@ bool MQTTClimateComponent::publish_state_() {
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
   char payload[VALUE_ACCURACY_MAX_LEN];
   size_t len;
-  auto publish_target_temperature = [this, &success, &payload, &len, target_accuracy](StringRef topic, float value) {
-    if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value)) {
-      if (!this->publish(topic, "None", 4))
-        success = false;
-      return;
-    }
-    len = value_accuracy_to_buf(payload, value, target_accuracy);
-    if (!this->publish(topic, payload, len))
+  auto publish_target_temperature = [this, &success, &payload, target_accuracy](StringRef topic, float value) {
+    const bool publish_none = mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value);
+    const char *target_payload = publish_none ? "None" : payload;
+    const size_t target_len = publish_none ? 4 : value_accuracy_to_buf(payload, value, target_accuracy);
+    if (!this->publish(topic, target_payload, target_len))
       success = false;
   };
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE) &&
