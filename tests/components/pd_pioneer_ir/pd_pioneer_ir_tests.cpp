@@ -294,6 +294,22 @@ TEST(PDPioneerIR, ReceivesAnEvenBurstWithoutItsOddBurst) {
   EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_OFF);
 }
 
+TEST(PDPioneerIR, ReceivedUnknownModeIsIgnored) {
+  Fixture f;
+  f.command(climate::CLIMATE_MODE_COOL, 22.0f, climate::CLIMATE_FAN_HIGH);
+  // Mode byte 0x05 belongs to no mode of this remote
+  EXPECT_FALSE(f.receive(even_frame(0x24, 0x05, 0x07, 0x05, 0x80)));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 22.0f);
+}
+
+TEST(PDPioneerIR, ReceivedTemperatureIsClamped) {
+  Fixture f;
+  // Position 7 above 0x0F would decode below the 16 C minimum
+  EXPECT_TRUE(f.receive(even_frame(0x24, 0x03, 0x1F, 0x05, 0x80)));
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 16.0f);
+}
+
 TEST(PDPioneerIR, ReceivedAutoModeIsIgnoredWithoutHeatCool) {
   Fixture f;
   f.climate.set_supports_heat_cool(false);

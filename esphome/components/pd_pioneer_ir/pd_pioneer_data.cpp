@@ -54,7 +54,7 @@ void ControlData::set_mode(ClimateMode mode) {
   this->even_[5] = PWR_ON;
 }
 
-ClimateMode ControlData::get_mode(const PDPioneerData &even) {
+optional<ClimateMode> ControlData::get_mode(const PDPioneerData &even) {
   if (even[5] == PWR_OFF)
     return ClimateMode::CLIMATE_MODE_OFF;
   switch (even[6]) {
@@ -69,7 +69,7 @@ ClimateMode ControlData::get_mode(const PDPioneerData &even) {
     case MODE_AUTO:
       return ClimateMode::CLIMATE_MODE_HEAT_COOL;
     default:
-      return ClimateMode::CLIMATE_MODE_COOL;
+      return {};
   }
 }
 

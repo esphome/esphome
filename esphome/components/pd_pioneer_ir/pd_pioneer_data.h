@@ -2,6 +2,7 @@
 
 #include "esphome/components/remote_base/pd_pioneer_protocol.h"
 #include "esphome/components/climate/climate_mode.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::pd_pioneer_ir {
 
@@ -29,10 +30,13 @@ class ControlData {
   const PDPioneerData &odd() const { return this->odd_; }
   const PDPioneerData &even() const { return this->even_; }
 
+  /// Clamped to the set point range, so a frame from a sibling remote cannot publish an impossible value
   static float get_temp(const PDPioneerData &even) {
-    return ((even[12] & 0x04) ? 31.5f : 31.0f) - static_cast<float>(even[7]);
+    const float temp = ((even[12] & 0x04) ? 31.5f : 31.0f) - static_cast<float>(even[7]);
+    return clamp(temp, static_cast<float>(PDPIONEER_TEMPC_MIN), static_cast<float>(PDPIONEER_TEMPC_MAX));
   }
-  static ClimateMode get_mode(const PDPioneerData &even);
+  /// Empty for a mode byte this remote does not use
+  static optional<ClimateMode> get_mode(const PDPioneerData &even);
   static bool get_eco(const PDPioneerData &even) { return even[5] == PWR_ECO; }
   static ClimateFanMode get_fan_mode(const PDPioneerData &even);
   /// Only the odd burst carries horizontal swing; the even burst carries vertical swing
