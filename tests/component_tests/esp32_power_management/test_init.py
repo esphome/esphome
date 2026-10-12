@@ -7,7 +7,12 @@ from unittest import mock
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32H2
+from esphome.components.esp32 import (
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+)
 from esphome.components.esp32_power_management.power_management import (
     CONF_ENABLE_LIGHT_SLEEP,
     CONF_IDLE_TIME_BEFORE_SLEEP,
@@ -18,6 +23,7 @@ from esphome.components.esp32_power_management.power_management import (
     CONFIG_SCHEMA,
     _final_validate,
     to_code,
+    valid_min_frequencies,
 )
 from esphome.components.openthread.const import CONF_DEVICE_TYPE, CONF_POLL_PERIOD
 from esphome.const import CONF_OPENTHREAD, KEY_FRAMEWORK_VERSION, PlatformFramework
@@ -76,6 +82,45 @@ def _set_variant(
             nullcontext(),
             id="power_down_peripherals_top_pd_variant",
         ),
+        # The ESP32 keeps its reference clock divider at 10 or more
+        pytest.param(
+            VARIANT_ESP32,
+            {CONF_MIN_FREQUENCY: "8MHZ"},
+            pytest.raises(cv.Invalid, match="not a valid minimum frequency"),
+            id="min_frequency_below_esp32_floor",
+        ),
+        # 26 MHz crystal modules exist, so 13 MHz is reachable on an ESP32
+        pytest.param(
+            VARIANT_ESP32,
+            {CONF_MIN_FREQUENCY: "13MHZ"},
+            nullcontext(),
+            id="min_frequency_esp32_26mhz_crystal",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            {CONF_MIN_FREQUENCY: "80MHZ"},
+            nullcontext(),
+            id="min_frequency_pll",
+        ),
+        # The ESP32-H2 runs from a 32 MHz crystal, so 8 MHz divides it and 10 MHz does not
+        pytest.param(
+            VARIANT_ESP32H2,
+            {CONF_MIN_FREQUENCY: "8MHZ"},
+            nullcontext(),
+            id="min_frequency_h2_crystal_divider",
+        ),
+        pytest.param(
+            VARIANT_ESP32H2,
+            {CONF_MIN_FREQUENCY: "10MHZ"},
+            pytest.raises(cv.Invalid, match="must divide the crystal"),
+            id="min_frequency_h2_not_a_divider",
+        ),
+        pytest.param(
+            VARIANT_ESP32C6,
+            {CONF_MIN_FREQUENCY: "1MHZ"},
+            pytest.raises(cv.Invalid, match="not a valid minimum frequency"),
+            id="min_frequency_below_reference_clock_floor",
+        ),
     ],
 )
 def test_schema_validation(
@@ -87,6 +132,22 @@ def test_schema_validation(
     _set_variant(set_core_config, variant)
     with expectation:
         CONFIG_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected"),
+    [
+        pytest.param(
+            VARIANT_ESP32, [10, 12, 13, 20, 24, 26, 40, 80, 160, 240], id="esp32"
+        ),
+        pytest.param(VARIANT_ESP32H2, [2, 4, 8, 16, 32, 48, 64, 96], id="esp32h2"),
+        pytest.param(
+            VARIANT_ESP32C6, [2, 4, 5, 8, 10, 20, 40, 80, 120, 160], id="esp32c6"
+        ),
+    ],
+)
+def test_valid_min_frequencies(variant: str, expected: list[int]) -> None:
+    assert valid_min_frequencies(variant) == expected
 
 
 def test_frequencies_are_kept_in_mhz(set_core_config: SetCoreConfigCallable) -> None:

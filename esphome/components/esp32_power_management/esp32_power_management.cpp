@@ -27,7 +27,9 @@ void ESP32PowerManagement::setup() {
   };
   esp_err_t rc = esp_pm_configure(&pm_config);
   if (rc != ESP_OK) {
-    ESP_LOGE(TAG, "esp_pm_configure failed: %s", esp_err_to_name(rc));
+    // The usual cause is a minimum frequency that does not divide this board's crystal
+    ESP_LOGE(TAG, "esp_pm_configure failed: %s (crystal %u MHz)", esp_err_to_name(rc),
+             static_cast<unsigned>(esp_clk_xtal_freq() / MHZ));
     this->mark_failed();
   }
 }

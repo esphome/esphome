@@ -3,6 +3,9 @@ import logging
 import esphome.codegen as cg
 from esphome.components import esp32, power_management
 from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
@@ -10,6 +13,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H4,
     VARIANT_ESP32H21,
     VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
@@ -51,6 +56,27 @@ _TOP_PD_VARIANTS = [
     VARIANT_ESP32S31,
 ]
 
+# Crystal frequencies each variant can be built for (ESP-IDF's SOC_XTAL_FREQ_* values).
+# Below the PLL frequencies the CPU runs from the crystal through an integer divider.
+_XTAL_MHZ = {
+    VARIANT_ESP32: (24, 26, 40),
+    VARIANT_ESP32C2: (26, 32, 40),
+    VARIANT_ESP32C3: (32, 40),
+    VARIANT_ESP32C5: (40, 48),
+    VARIANT_ESP32C6: (40,),
+    VARIANT_ESP32C61: (40,),
+    VARIANT_ESP32H2: (32,),
+    VARIANT_ESP32H21: (32,),
+    VARIANT_ESP32H4: (32,),
+    VARIANT_ESP32P4: (40,),
+    VARIANT_ESP32S2: (40,),
+    VARIANT_ESP32S3: (32, 40),
+    VARIANT_ESP32S31: (40,),
+}
+# esp_pm_configure() keeps the 1 MHz reference clock reachable: its divider must be
+# at least 10 on the ESP32 and 2 on every other variant.
+_MIN_FREQUENCY_FLOOR_MHZ = {VARIANT_ESP32: 10}
+
 esp32_power_management_ns = cg.esphome_ns.namespace("esp32_power_management")
 PowerManagement = esp32_power_management_ns.class_(
     "ESP32PowerManagement", power_management.PowerManagementComponent
@@ -60,6 +86,23 @@ PowerManagement = esp32_power_management_ns.class_(
 def _mhz(value: object) -> int:
     """Validate a frequency and keep it as whole megahertz."""
     return int(cv.frequency(value)) // 1_000_000
+
+
+def valid_min_frequencies(variant: str) -> list[int]:
+    """The minimum CPU frequencies esp_pm_configure() accepts on a variant, in MHz.
+
+    A value must divide one of the variant's crystal frequencies, stay above the
+    reference clock floor, or be one of the PLL frequencies.
+    """
+    floor = _MIN_FREQUENCY_FLOOR_MHZ.get(variant, 2)
+    mhz = {
+        xtal // divider
+        for xtal in _XTAL_MHZ[variant]
+        for divider in range(1, xtal // floor + 1)
+        if xtal % divider == 0
+    }
+    mhz.update(int(freq[:-3]) for freq in esp32.CPU_FREQUENCIES[variant])
+    return sorted(mhz)
 
 
 def _validate(config: ConfigType) -> ConfigType:
@@ -72,6 +115,15 @@ def _validate(config: ConfigType) -> ConfigType:
                 f"Valid options are: {', '.join(valid)}",
                 path=[CONF_MAX_FREQUENCY],
             )
+    if (min_mhz := config.get(CONF_MIN_FREQUENCY)) is not None and (
+        min_mhz not in (valid_min := valid_min_frequencies(variant))
+    ):
+        raise cv.Invalid(
+            f"{min_mhz}MHZ is not a valid minimum frequency for {variant}; it must "
+            f"divide the crystal frequency. Valid options are: "
+            f"{', '.join(f'{mhz}MHZ' for mhz in valid_min)}",
+            path=[CONF_MIN_FREQUENCY],
+        )
     if not config[CONF_ENABLE_LIGHT_SLEEP]:
         for key in (CONF_POWER_DOWN_PERIPHERALS, CONF_POWER_DOWN_FLASH):
             if config.get(key):
@@ -95,7 +147,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PowerManagement),
             cv.Optional(CONF_MAX_FREQUENCY): _mhz,
-            cv.Optional(CONF_MIN_FREQUENCY): cv.All(_mhz, cv.int_range(min=10)),
+            cv.Optional(CONF_MIN_FREQUENCY): _mhz,
             cv.Optional(CONF_ENABLE_LIGHT_SLEEP, default=False): cv.boolean,
             cv.Optional(CONF_IDLE_TIME_BEFORE_SLEEP, default=3): cv.int_range(
                 min=2, max=4294967295
