@@ -49,8 +49,7 @@ TEST(M5StackUnitLCDLight, StateWrittenBeforeDisplaySetupIsAppliedAtBoot) {
   f.display.run_setup();
   const auto w = f.bus.writes();
   ASSERT_GE(w.size(), 1u);
-  EXPECT_EQ(w[0].written,
-            (std::vector<uint8_t>{CMD_SET_SLEEP, 0, CMD_SET_POWER, 1, CMD_ROTATE, 0, CMD_BRIGHTNESS, 51, CMD_INVOFF}));
+  EXPECT_EQ(w[0].written, config_bytes(51));
 }
 
 }  // namespace esphome::m5stack_unit_lcd::testing

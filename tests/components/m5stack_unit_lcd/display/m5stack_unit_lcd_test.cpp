@@ -7,6 +7,7 @@
 namespace esphome::m5stack_unit_lcd::testing {
 
 static constexpr size_t TX_MAX_BYTES = M5StackUnitLCD::TX_HEADER_LEN + CHUNK * M5StackUnitLCD::BYTES_PER_PIXEL;
+static constexpr size_t FRAME_PIXELS = PANEL_WIDTH * PANEL_HEIGHT;
 
 // ---------------------------------------------------------------------------------------------
 // Setup / identification
@@ -24,13 +25,12 @@ TEST(M5StackUnitLCDSetup, ReadsIdThenConfiguresAndBlanksPanel) {
   ASSERT_FALSE(f.bus.log.empty());
   EXPECT_EQ(f.bus.log[0].written, std::vector<uint8_t>{CMD_READ_ID});
   EXPECT_EQ(f.bus.log[0].read_len, 4u);
+  EXPECT_EQ(f.bus.query_count(CMD_READ_BUFCOUNT), 0u);
 
   const auto writes = f.bus.writes();
   ASSERT_EQ(writes.size(), 2u);
-  // Wake, normal power, native rotation, brightness, inversion - concatenated fixed-length commands.
-  const std::vector<uint8_t> expected_cfg = {CMD_SET_SLEEP,  0,   CMD_SET_POWER, 1, CMD_ROTATE, 0,
-                                             CMD_BRIGHTNESS, 204, CMD_INVON};
-  EXPECT_EQ(writes[0].written, expected_cfg);
+  // Settings as concatenated fixed-length commands, sleep state last.
+  EXPECT_EQ(writes[0].written, config_bytes(204, true));
   // Then a full-screen black fill so the panel matches the empty frame buffer.
   const std::vector<uint8_t> expected_blank = {CMD_FILLRECT_16, 0, 0, PANEL_WIDTH - 1, PANEL_HEIGHT - 1, 0, 0};
   EXPECT_EQ(writes[1].written, expected_blank);
@@ -41,9 +41,7 @@ TEST(M5StackUnitLCDSetup, DefaultsToFullBrightnessNotInverted) {
   f.display.run_setup();
   const auto writes = f.bus.writes();
   ASSERT_GE(writes.size(), 1u);
-  const std::vector<uint8_t> expected_cfg = {CMD_SET_SLEEP,  0,   CMD_SET_POWER, 1, CMD_ROTATE, 0,
-                                             CMD_BRIGHTNESS, 255, CMD_INVOFF};
-  EXPECT_EQ(writes[0].written, expected_cfg);
+  EXPECT_EQ(writes[0].written, config_bytes(255));
 }
 
 TEST(M5StackUnitLCDSetup, FailsOnWrongIdBytes) {
@@ -216,7 +214,8 @@ TEST(M5StackUnitLCDPixels, FillCoversWholeFrame) {
       EXPECT_EQ(t.pixels()[2 * i + 1], 0x1F);
     }
   }
-  EXPECT_EQ(total, static_cast<size_t>(PANEL_WIDTH * PANEL_HEIGHT));
+  EXPECT_EQ(total, FRAME_PIXELS);
+  EXPECT_TRUE(f.panel_in_sync());
 }
 
 TEST(M5StackUnitLCDPixels, FillWithSameHighAndLowBytesUsesFastPath) {
@@ -226,13 +225,8 @@ TEST(M5StackUnitLCDPixels, FillWithSameHighAndLowBytesUsesFastPath) {
   f.display.set_writer([](display::Display &it) { it.fill(Color(255, 255, 255)); });
   f.display.update();
   f.drain();
-  size_t total = 0;
-  for (const auto &t : f.bus.pixel_writes()) {
-    total += t.pixel_count();
-    for (uint8_t b : t.pixels())
-      EXPECT_EQ(b, 0xFF);
-  }
-  EXPECT_EQ(total, static_cast<size_t>(PANEL_WIDTH * PANEL_HEIGHT));
+  EXPECT_EQ(f.bus.pixels_sent(), FRAME_PIXELS);
+  EXPECT_EQ(f.bus.panel.ram, rgb565_bytes(255, 255, 255, FRAME_PIXELS));
 }
 
 TEST(M5StackUnitLCDPixels, FillHonoursTheClippingRectangle) {
@@ -364,6 +358,7 @@ TEST(M5StackUnitLCDDiff, RegionSpanIsUnionOfRowSpans) {
   EXPECT_EQ(std::vector<uint8_t>(px[0].written.begin(), px[0].written.begin() + 6),
             (std::vector<uint8_t>{CMD_CASET, 2, 50, CMD_RASET, 20, 21}));
   EXPECT_EQ(px[0].pixel_count(), 49u * 2);
+  EXPECT_TRUE(f.panel_in_sync());
 }
 
 TEST(M5StackUnitLCDDiff, RedrawingAPixelWithItsCurrentColorSendsNothing) {
@@ -383,6 +378,72 @@ TEST(M5StackUnitLCDDiff, RedrawingAPixelWithItsCurrentColorSendsNothing) {
   f.display.update();
   f.drain();
   EXPECT_TRUE(f.bus.pixel_writes().empty());
+}
+
+// ---------------------------------------------------------------------------------------------
+// Split frame buffers
+//
+// On a fragmented heap the frame buffers are allocated in several chunks. Chunks of 2025 and
+// 1000 bytes put boundaries in the middle of rows, and 2025 also splits pixels between chunks.
+// ---------------------------------------------------------------------------------------------
+
+TEST(M5StackUnitLCDSplitBuffers, FullFrameReachesThePanel) {
+  Fixture f;
+  f.boot();
+  f.display.use_split_buffers(2025, 1000);
+  f.display.set_writer([](display::Display &it) { draw_noise(it, 1); });
+  f.display.update();
+  f.drain();
+  EXPECT_EQ(f.bus.pixels_sent(), FRAME_PIXELS);
+  EXPECT_TRUE(f.panel_in_sync());
+}
+
+TEST(M5StackUnitLCDSplitBuffers, PixelAcrossAChunkBoundaryIsSentAlone) {
+  Fixture f;
+  f.boot();
+  f.display.use_split_buffers(2025, 1000);
+  // Native (67, 7) is bytes 2024 and 2025: the first ends one frame chunk, the second starts the next.
+  f.display.set_writer([](display::Display &it) { it.draw_pixel_at(67, 7, Color(255, 0, 0)); });
+  f.display.update();
+  f.drain();
+  const auto px = f.bus.pixel_writes();
+  ASSERT_EQ(px.size(), 1u);
+  const std::vector<uint8_t> expected = {CMD_CASET, 67, 67, CMD_RASET, 7, 7, CMD_WRITE_RAW_16, 0xF8, 0x00};
+  EXPECT_EQ(px[0].written, expected);
+
+  // Drawing it again in the same colour changes nothing.
+  f.bus.clear();
+  f.display.update();
+  f.drain();
+  EXPECT_TRUE(f.bus.pixel_writes().empty());
+}
+
+TEST(M5StackUnitLCDSplitBuffers, FillKeepsPixelBytesInOrder) {
+  Fixture f;
+  f.boot();
+  f.display.use_split_buffers(2025, 4050);
+  // 0x001F has different high and low bytes, so an odd chunk boundary must not shift the pattern.
+  f.display.set_writer([](display::Display &it) { it.fill(Color(0, 0, 255)); });
+  f.display.update();
+  f.drain();
+  EXPECT_EQ(f.bus.panel.ram, rgb565_bytes(0, 0, 255, FRAME_PIXELS));
+  EXPECT_TRUE(f.panel_in_sync());
+}
+
+TEST(M5StackUnitLCDSplitBuffers, PartialUpdatesStayInSync) {
+  Fixture f;
+  f.display.set_auto_clear(true);
+  f.boot();
+  f.display.use_split_buffers(2025, 1000);
+  for (int frame = 0; frame < 6; frame++) {
+    f.display.set_writer([frame](display::Display &it) {
+      it.filled_rectangle(frame * 11, frame * 29, 40, 25, Color(255 - frame * 30, frame * 40, 128));
+      it.draw_pixel_at(67, 7, Color(frame * 40, 255, 0));
+    });
+    f.display.update();
+    f.drain();
+    EXPECT_TRUE(f.panel_in_sync()) << "frame " << frame;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -473,13 +534,33 @@ TEST(M5StackUnitLCDTransfer, LoopIsIdleWhenNothingPending) {
   EXPECT_TRUE(f.bus.log.empty());
 }
 
+TEST(M5StackUnitLCDTransfer, SettingsCommandsBetweenChunksKeepThePicture) {
+  // The unit keeps its write cursor across other commands (see PanelModel), so backlight,
+  // inversion and sleep commands can go out between the chunks of a frame.
+  Fixture f;
+  f.boot();
+  f.bus.delay_per_write_ms = 12;  // one chunk per loop()
+  f.display.set_writer([](display::Display &it) { draw_noise(it, 4, 20); });
+  f.display.update();
+  for (int i = 0; f.display.is_transfer_pending() && i < 1000; i++) {
+    f.display.loop();
+    f.display.set_brightness(static_cast<float>(i % 10) / 10.0f);
+    f.display.set_invert_colors(i % 2 == 0);
+    f.display.set_sleep(false);
+  }
+  EXPECT_FALSE(f.display.is_transfer_pending());
+  EXPECT_GT(f.bus.pixel_writes().size(), 10u);
+  EXPECT_GT(f.bus.writes().size(), 3 * f.bus.pixel_writes().size()) << "commands were interleaved";
+  EXPECT_TRUE(f.panel_in_sync());
+}
+
 // ---------------------------------------------------------------------------------------------
 // Command-buffer flow control
 // ---------------------------------------------------------------------------------------------
 
 TEST(M5StackUnitLCDFlowControl, WaitsWhilePanelBufferIsFull) {
   Fixture f;
-  f.bus.bufcount = 10;  // panel reports almost no free slots, from boot onwards
+  f.bus.bufcount = 10;  // panel reports almost no free space, from boot onwards
   f.boot();
   f.display.set_writer([](display::Display &it) { it.draw_pixel_at(0, 0, Color(255, 255, 255)); });
   f.display.update();
@@ -503,14 +584,14 @@ TEST(M5StackUnitLCDFlowControl, DoesNotQueryPanelWhileCreditRemains) {
   f.bus.clear();
   f.display.update();
   f.drain();
-  // 64 px + window is a handful of slots; one refill query at most.
-  EXPECT_LE(f.bus.query_count(CMD_READ_BUFCOUNT), 1u);
+  // The probe in update() refreshes the credit; 64 px then fit without asking again.
+  EXPECT_EQ(f.bus.query_count(CMD_READ_BUFCOUNT), 1u);
 }
 
 TEST(M5StackUnitLCDFlowControl, CreditIsConsumedByPixelDataAndRefilled) {
   Fixture f;
   f.boot();
-  // A full-frame fill is ~32k px; at ~1 slot per 4 px that is far more than the 255 slots the
+  // A full-frame fill is ~32k px; at ~1 unit per 4 px that is far more than the 255 units the
   // panel can report, so the driver must query READ_BUFCOUNT repeatedly during the transfer.
   f.display.set_writer([](display::Display &it) { it.fill(Color(255, 255, 255)); });
   f.display.update();
@@ -520,19 +601,46 @@ TEST(M5StackUnitLCDFlowControl, CreditIsConsumedByPixelDataAndRefilled) {
 
 TEST(M5StackUnitLCDFlowControl, GivesUpWaitingAfterTimeoutAndContinues) {
   Fixture f;
-  f.bus.bufcount = 0;  // panel never reports space
+  f.bus.bufcount = 1;  // the lowest count the unit reports
   f.boot();
   f.display.set_writer([](display::Display &it) { it.draw_pixel_at(0, 0, Color(255, 255, 255)); });
+  Fixture::at(0);
   f.display.update();
   f.display.loop();
+  Fixture::at(499);
+  f.display.loop();
   EXPECT_TRUE(f.bus.pixel_writes().empty());
-  delay(600);  // NOLINT - longer than the driver's 500 ms credit timeout
+  Fixture::at(500);
   f.display.loop();
   EXPECT_EQ(f.bus.pixel_writes().size(), 1u) << "after the timeout the driver must not stall forever";
 }
 
+TEST(M5StackUnitLCDFlowControl, SettingsCommandsLeaveTheWaitTimerAlone) {
+  // Settings commands never query the unit or start the wait timer, so a stale timer cannot
+  // make a later transfer skip its wait.
+  Fixture f;
+  f.bus.bufcount = 10;  // the unit reports a nearly full queue throughout
+  f.boot();
+  Fixture::at(0);
+  f.display.set_brightness(0.5f);
+  f.display.set_invert_colors(true);
+  f.display.set_sleep(false);
+  EXPECT_EQ(f.bus.query_count(CMD_READ_BUFCOUNT), 0u);
+
+  Fixture::at(1000);
+  f.display.set_writer([](display::Display &it) { it.draw_pixel_at(0, 0, Color(255, 255, 255)); });
+  f.display.update();
+  f.display.loop();
+  f.display.loop();
+  EXPECT_TRUE(f.bus.pixel_writes().empty()) << "the transfer must wait for the unit, not time out at once";
+
+  Fixture::at(1500);
+  f.display.loop();
+  EXPECT_EQ(f.bus.pixel_writes().size(), 1u);
+}
+
 // ---------------------------------------------------------------------------------------------
-// Error handling
+// Error handling and reconnecting
 // ---------------------------------------------------------------------------------------------
 
 TEST(M5StackUnitLCDErrors, FailedWriteIsRetriedWithFreshWindow) {
@@ -556,11 +664,12 @@ TEST(M5StackUnitLCDErrors, FailedWriteIsRetriedWithFreshWindow) {
   EXPECT_TRUE(retries[0].has_window()) << "the panel's write pointer is unknown after a failure";
   EXPECT_EQ(retries[0].written, attempts[0].written) << "the same pixels must be resent";
 
-  // And once it succeeded, nothing is pending or resent.
+  // A single failure is not a lost unit: the next update sends nothing extra.
   f.bus.clear();
   f.display.update();
   f.drain();
-  EXPECT_TRUE(f.bus.pixel_writes().empty());
+  EXPECT_TRUE(f.bus.writes().empty());
+  EXPECT_TRUE(f.panel_in_sync());
 }
 
 TEST(M5StackUnitLCDErrors, MidRegionFailureResendsOnlyUnsentPixels) {
@@ -575,7 +684,7 @@ TEST(M5StackUnitLCDErrors, MidRegionFailureResendsOnlyUnsentPixels) {
   f.bus.fail_after_pixel_writes = ok_chunks;
   f.display.set_writer([](display::Display &it) { it.filled_rectangle(0, 0, PANEL_WIDTH, 2, Color(255, 255, 255)); });
   f.display.update();
-  f.drain(ok_chunks + 1);
+  f.display.loop();  // on this fast bus the good chunks and the failing one all go in one slice
   ASSERT_TRUE(f.display.is_transfer_pending());
   EXPECT_TRUE(f.display.status_has_warning());
 
@@ -593,6 +702,147 @@ TEST(M5StackUnitLCDErrors, MidRegionFailureResendsOnlyUnsentPixels) {
             (std::vector<uint8_t>{CMD_CASET, resend_x, PANEL_WIDTH - 1, CMD_RASET, 1, 1}));
   EXPECT_EQ(px[0].pixel_count(), total - sent_ok);
   EXPECT_EQ(px[0].pixels(), rgb565_bytes(255, 255, 255, total - sent_ok));
+  EXPECT_TRUE(f.panel_in_sync());
+}
+
+TEST(M5StackUnitLCDErrors, FailedSettingsCommandIsSentAgainAtTheNextUpdate) {
+  Fixture f;
+  f.boot();
+  f.bus.fail_writes = true;
+  f.display.set_brightness(0.2f);  // -> 51, lost on the bus
+  f.bus.fail_writes = false;
+  EXPECT_EQ(f.bus.panel.brightness, 255);
+  f.display.update();
+  EXPECT_EQ(f.bus.panel.brightness, 51);
+}
+
+TEST(M5StackUnitLCDConnection, UnpluggedMidTransferStopsRetrying) {
+  Fixture f;
+  f.boot();
+  f.bus.delay_per_write_ms = 12;  // one chunk per loop()
+  f.display.set_writer([](display::Display &it) { draw_noise(it, 2); });
+  f.display.update();
+  f.display.loop();
+  f.display.loop();
+  ASSERT_TRUE(f.display.is_transfer_pending());
+  f.bus.delay_per_write_ms = 0;
+
+  f.bus.unplugged = true;
+  f.bus.clear();
+  for (int i = 0; i < 100; i++)
+    f.display.loop();
+  EXPECT_FALSE(f.display.is_transfer_pending());
+  EXPECT_TRUE(f.display.status_has_warning());
+  EXPECT_EQ(f.bus.log.size(), 3u) << "a few attempts, then nothing until the next update";
+}
+
+TEST(M5StackUnitLCDConnection, UnpluggedWhileIdleIsNoticedAtTheNextUpdate) {
+  Fixture f;
+  f.boot();
+  f.display.set_writer([](display::Display &it) { draw_noise(it, 3); });
+  f.display.update();
+  f.drain();
+  ASSERT_TRUE(f.panel_in_sync());
+
+  f.bus.unplugged = true;
+  f.display.update();  // the probe fails: nothing to send, but the unit is marked as gone
+  EXPECT_TRUE(f.display.status_has_warning());
+  EXPECT_FALSE(f.display.is_transfer_pending());
+
+  f.bus.clear();
+  f.display.update();  // still gone: a single ID check and nothing else
+  ASSERT_EQ(f.bus.log.size(), 1u);
+  EXPECT_EQ(f.bus.log[0].written, std::vector<uint8_t>{CMD_READ_ID});
+}
+
+TEST(M5StackUnitLCDConnection, ReplugRedrawsEverythingWithTheSettings) {
+  Fixture f;
+  f.boot();
+  f.display.set_brightness(0.4f);  // -> 102
+  f.display.set_writer([](display::Display &it) { draw_noise(it, 5); });
+  f.display.update();
+  f.drain();
+  ASSERT_TRUE(f.panel_in_sync());
+
+  f.bus.unplugged = true;
+  f.display.update();
+  ASSERT_TRUE(f.display.status_has_warning());
+
+  // Plugged back in, the unit has rebooted: its picture and settings are gone.
+  f.bus.unplugged = false;
+  f.bus.panel.reboot();
+  ASSERT_FALSE(f.panel_in_sync());
+  f.bus.clear();
+  f.display.update();
+  f.drain();
+  EXPECT_FALSE(f.display.status_has_warning());
+  const auto w = f.bus.writes();
+  ASSERT_FALSE(w.empty());
+  EXPECT_EQ(w[0].written, config_bytes(102));
+  EXPECT_EQ(f.bus.pixels_sent(), FRAME_PIXELS);
+  EXPECT_TRUE(f.panel_in_sync());
+  EXPECT_EQ(f.bus.panel.brightness, 102);
+
+  // Back to normal: the next update sends nothing.
+  f.bus.clear();
+  f.display.update();
+  f.drain();
+  EXPECT_TRUE(f.bus.writes().empty());
+}
+
+TEST(M5StackUnitLCDConnection, ReplugDuringATransferRedrawsEverything) {
+  Fixture f;
+  f.boot();
+  f.bus.delay_per_write_ms = 12;  // one chunk per loop()
+  f.display.set_writer([](display::Display &it) { draw_noise(it, 6); });
+  f.display.update();
+  for (int i = 0; i < 5; i++)
+    f.display.loop();
+  f.bus.delay_per_write_ms = 0;
+  f.bus.unplugged = true;
+  for (int i = 0; i < 5; i++)
+    f.display.loop();
+  ASSERT_FALSE(f.display.is_transfer_pending());
+
+  f.bus.unplugged = false;
+  f.bus.panel.reboot();
+  f.display.update();
+  f.drain();
+  EXPECT_TRUE(f.panel_in_sync());
+  EXPECT_FALSE(f.display.status_has_warning());
+}
+
+TEST(M5StackUnitLCDConnection, ReplugRestoresInversionAndSleep) {
+  Fixture f;
+  f.boot();
+  f.display.set_invert_colors(true);
+  f.display.set_sleep(true);
+  f.bus.unplugged = true;
+  f.display.update();
+  f.bus.unplugged = false;
+  f.bus.panel.reboot();
+  f.bus.clear();
+  f.display.update();
+  const auto w = f.bus.writes();
+  ASSERT_FALSE(w.empty());
+  EXPECT_EQ(w[0].written, config_bytes(255, true, true));
+  EXPECT_TRUE(f.bus.panel.inverted);
+  EXPECT_TRUE(f.bus.panel.sleeping);
+}
+
+TEST(M5StackUnitLCDConnection, SettingsChangedWhileUnpluggedAreAppliedOnReconnect) {
+  Fixture f;
+  f.boot();
+  f.bus.unplugged = true;
+  f.display.update();
+  f.bus.clear();
+  f.display.set_brightness(0.2f);  // -> 51; nothing is attempted while the unit is gone
+  EXPECT_TRUE(f.bus.log.empty());
+
+  f.bus.unplugged = false;
+  f.bus.panel.reboot();
+  f.display.update();
+  EXPECT_EQ(f.bus.panel.brightness, 51);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -628,6 +878,7 @@ TEST(M5StackUnitLCDRescan, UpdateDuringTransferIsPickedUpBeforeFinishing) {
   }
   EXPECT_TRUE(row0_sent);
   EXPECT_FALSE(f.display.is_transfer_pending());
+  EXPECT_TRUE(f.panel_in_sync());
 }
 
 TEST(M5StackUnitLCDRescan, RowChangedBetweenItsOwnChunksIsResentInFull) {
@@ -649,37 +900,7 @@ TEST(M5StackUnitLCDRescan, RowChangedBetweenItsOwnChunksIsResentInFull) {
   f.bus.delay_per_write_ms = 0;
   f.drain();
   EXPECT_FALSE(f.display.is_transfer_pending());
-
-  // Everything the panel holds for those two rows must now be green: the stale red start of
-  // row 0 has to have been resent within the same transfer, not left for a later update.
-  std::vector<uint8_t> row0(PANEL_WIDTH * 2, 0), row1(PANEL_WIDTH * 2, 0);
-  for (const auto &t : f.bus.pixel_writes()) {
-    // Replay the writes onto a model of the panel (window per write, continuation follows on).
-    static int xs = 0, xe = 0, ys = 0, ye = 0, cx = 0, cy = 0;
-    if (t.has_window()) {
-      xs = t.written[1];
-      xe = t.written[2];
-      ys = t.written[4];
-      ye = t.written[5];
-      cx = xs;
-      cy = ys;
-    }
-    const auto px = t.pixels();
-    for (size_t i = 0; i + 1 < px.size(); i += 2) {
-      auto &row = cy == 0 ? row0 : row1;
-      if (cy <= 1) {
-        row[cx * 2] = px[i];
-        row[cx * 2 + 1] = px[i + 1];
-      }
-      if (++cx > xe) {
-        cx = xs;
-        if (++cy > ye)
-          cy = ys;
-      }
-    }
-  }
-  EXPECT_EQ(row0, rgb565_bytes(0, 255, 0, PANEL_WIDTH));
-  EXPECT_EQ(row1, rgb565_bytes(0, 255, 0, PANEL_WIDTH));
+  EXPECT_TRUE(f.panel_in_sync()) << "the stale red start of row 0 must be resent within the same transfer";
 
   // And a further update with the same frame has nothing left to send.
   f.bus.clear();
@@ -709,6 +930,7 @@ TEST(M5StackUnitLCDControls, BrightnessInvertAndSleepSendCommands) {
   EXPECT_EQ(w[2].written, (std::vector<uint8_t>{CMD_SET_SLEEP, 1}));
   EXPECT_EQ(w[3].written, (std::vector<uint8_t>{CMD_SET_SLEEP, 0}));
   EXPECT_EQ(w[4].written, std::vector<uint8_t>{CMD_INVOFF});
+  EXPECT_EQ(f.bus.query_count(CMD_READ_BUFCOUNT), 0u) << "settings commands do not query the unit";
 }
 
 TEST(M5StackUnitLCDControls, SettersBeforeSetupOnlyRecordState) {
@@ -720,8 +942,7 @@ TEST(M5StackUnitLCDControls, SettersBeforeSetupOnlyRecordState) {
   f.display.run_setup();
   const auto w = f.bus.writes();
   ASSERT_GE(w.size(), 1u);
-  EXPECT_EQ(w[0].written,
-            (std::vector<uint8_t>{CMD_SET_SLEEP, 0, CMD_SET_POWER, 1, CMD_ROTATE, 0, CMD_BRIGHTNESS, 10, CMD_INVON}));
+  EXPECT_EQ(w[0].written, config_bytes(10, true, true));
 }
 
 TEST(M5StackUnitLCDControls, BrightnessIsClampedToRange) {

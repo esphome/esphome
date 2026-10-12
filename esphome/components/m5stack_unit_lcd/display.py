@@ -12,7 +12,6 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@ChillingSilence"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["split_buffer"]
 

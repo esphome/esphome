@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
@@ -20,6 +21,10 @@ namespace esphome::m5stack_unit_lcd {
 /// 3.5 s at 400 kHz with one chunk per main-loop tick), so the transfer is time-sliced from
 /// loop() and the main loop keeps running while pixels stream out.
 ///
+/// If the unit stops answering (for example it was unplugged), the driver stops retrying and
+/// checks for it again at each update. A unit that comes back has rebooted and lost its picture
+/// and settings, so the settings are sent again and the whole frame is redrawn.
+///
 /// Memory: two 135x240x16-bit buffers, about 130 KB in total, allocated in PSRAM when available.
 /// Rotation is applied in software; the panel stays in its native portrait orientation.
 class M5StackUnitLCD : public display::Display, public i2c::I2CDevice {
@@ -28,11 +33,15 @@ class M5StackUnitLCD : public display::Display, public i2c::I2CDevice {
   static constexpr int HEIGHT = 240;
   static constexpr size_t BYTES_PER_PIXEL = 2;
   static constexpr size_t TX_HEADER_LEN = 7;  // CASET(3) + RASET(3) + WRITE_RAW_16(1)
-#ifdef USE_ARDUINO
-  /// Arduino Wire buffers a whole transaction: 128 bytes on ESP32, so keep each write under that.
+#if defined(USE_ESP8266)
+  /// The ESP8266 Wire library sends each write from a 128-byte buffer.
   static constexpr size_t MAX_PIXELS_PER_TX = (128 - TX_HEADER_LEN) / BYTES_PER_PIXEL;
+#elif defined(USE_RP2)
+  /// The RP2040 Wire library sends each write from a 256-byte buffer.
+  static constexpr size_t MAX_PIXELS_PER_TX = (256 - TX_HEADER_LEN) / BYTES_PER_PIXEL;
 #else
-  /// 263-byte transactions finish within ESP-IDF's 100 ms transaction timeout even at 50 kHz.
+  /// The other I2C buses have no write buffer limit. A 263-byte write also finishes well inside
+  /// ESP-IDF's 100 ms transaction timeout at the default 50 kHz.
   static constexpr size_t MAX_PIXELS_PER_TX = 128;
 #endif
 
@@ -63,6 +72,12 @@ class M5StackUnitLCD : public display::Display, public i2c::I2CDevice {
   static constexpr size_t ROW_BYTES = WIDTH * BYTES_PER_PIXEL;
   static constexpr size_t FRAME_BYTES = ROW_BYTES * HEIGHT;
 
+  enum class CreditResult : uint8_t {
+    CREDIT_RESULT_GRANTED,
+    CREDIT_RESULT_WAIT,
+    CREDIT_RESULT_BUS_ERROR,
+  };
+
   int get_width_internal() override { return WIDTH; }
   int get_height_internal() override { return HEIGHT; }
 
@@ -70,13 +85,28 @@ class M5StackUnitLCD : public display::Display, public i2c::I2CDevice {
   bool row_touched_(int y) const { return (this->touched_rows_[y >> 3] >> (y & 7)) & 1; }
   void mark_row_touched_(int y) { this->touched_rows_[y >> 3] |= 1 << (y & 7); }
   void clear_row_touched_(int y) { this->touched_rows_[y >> 3] &= ~(1 << (y & 7)); }
+  /// Copy len bytes of the frame buffer starting at index into dst.
+  void read_frame_(size_t index, uint8_t *dst, size_t len);
+  /// Copy len bytes of the frame buffer starting at index into the shadow copy.
+  void mirror_frame_(size_t index, size_t len);
 
   bool read_id_();
   bool send_(const uint8_t *data, size_t len);
+  /// Send a single command outside a transfer. When the unit is not reachable the state is only
+  /// stored; send_config_() applies it after the next (re)connect.
+  void send_command_(const uint8_t *data, size_t len);
   bool send_config_();
-  /// Reserve room in the unit's command buffer for a command of the given cost. Non-blocking:
-  /// returns false if the panel is still busy and the caller should retry on a later loop().
-  bool reserve_(int cost);
+  /// Probe the unit before a transfer. Returns false when it is not reachable.
+  bool check_connection_();
+  void start_transfer_();
+  void note_bus_error_();
+  void note_bus_ok_();
+  void lose_connection_();
+  /// Reserve room in the unit's command buffer for a chunk of the given cost. Non-blocking: on
+  /// CREDIT_RESULT_WAIT the caller retries on a later loop().
+  CreditResult reserve_(int cost);
+  /// Account for a one-off command without querying the unit or touching the wait timer.
+  void consume_credit_(int cost) { this->buf_free_ = std::max(0, this->buf_free_ - cost); }
   /// Compare a row against the shadow buffer; on a difference return the changed column span.
   bool row_dirty_(int y, int &x0, int &x1);
   /// Find the next run of dirty rows starting at next_row_ and make it the active region.
@@ -95,7 +125,8 @@ class M5StackUnitLCD : public display::Display, public i2c::I2CDevice {
 
   // Transfer state machine, driven from loop() while transfer_active_.
   bool transfer_active_{false};
-  bool rescan_{false};  // update() ran mid-transfer: scan the frame again when this pass ends
+  bool rescan_{false};       // update() ran mid-transfer: scan the frame again when this pass ends
+  bool full_resend_{false};  // this pass sends every row, whatever the shadow copy says
   int next_row_{0};
   bool region_active_{false};
   bool region_started_{false};  // window (CASET/RASET) already sent for the active region
@@ -113,8 +144,15 @@ class M5StackUnitLCD : public display::Display, public i2c::I2CDevice {
   bool waiting_for_credit_{false};
   uint32_t credit_wait_start_{0};
 
+  // Connection tracking (see check_connection_()).
+  uint8_t consecutive_failures_{0};
+  bool connection_lost_{false};
+  bool resync_pending_{false};  // send the settings and redraw everything at the next transfer
+  bool config_dirty_{false};    // a settings command failed; send the settings again
+
   uint8_t brightness_{255};
   bool invert_{false};
+  bool sleeping_{false};
   uint8_t fw_major_{0};
   uint8_t fw_minor_{0};
 };
