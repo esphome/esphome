@@ -73,9 +73,6 @@ def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
             length, pos = varint(pos)
             assert pos + length <= len(buf), "truncated length-delimited field"
             value, pos = bytes(buf[pos : pos + length]), pos + length
-        elif wire_type == 5:
-            assert pos + 4 <= len(buf), "truncated fixed32 field"
-            value, pos = int.from_bytes(buf[pos : pos + 4], "little"), pos + 4
         else:
             raise AssertionError(f"unexpected wire type {wire_type}")
         fields.setdefault(tag >> 3, []).append(value)
@@ -92,15 +89,13 @@ class FrameParser:
 
     def __init__(self) -> None:
         self._buf = bytearray()
-        self.frames: deque[tuple[int, bytes]] = deque()
 
-    def feed(self, data: bytes) -> list[int]:
+    def feed(self, data: bytes) -> list[tuple[int, bytes]]:
         self._buf.extend(data)
-        types: list[int] = []
+        frames: list[tuple[int, bytes]] = []
         while (frame := self._try_parse()) is not None:
-            self.frames.append(frame)
-            types.append(frame[0])
-        return types
+            frames.append(frame)
+        return frames
 
     def _try_parse(self) -> tuple[int, bytes] | None:
         buf = self._buf
@@ -126,6 +121,7 @@ class RawApiClient:
     def __init__(self, port: int, recv_buffer_size: int | None = None) -> None:
         self._port = port
         self._parser = FrameParser()
+        self._frames: deque[tuple[int, bytes]] = deque()
         self.bytes_received = 0
         self.frame_counts: Counter[int] = Counter()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -172,7 +168,9 @@ class RawApiClient:
         data = await asyncio.get_running_loop().sock_recv(self._sock, _READ_CHUNK)
         assert data, "server closed the connection unexpectedly"
         self.bytes_received += len(data)
-        self.frame_counts.update(self._parser.feed(data))
+        frames = self._parser.feed(data)
+        self.frame_counts.update(msg_type for msg_type, _ in frames)
+        self._frames.extend(frames)
 
     async def read_until_frame(self, msg_type: int, timeout: float = 10.0) -> None:
         """Read until at least one frame of msg_type has been received."""
@@ -184,11 +182,8 @@ class RawApiClient:
         await asyncio.wait_for(_read_loop(), timeout)
 
     async def read_frame(self, msg_type: int, timeout: float = 10.0) -> bytes:
-        """Return the payload of the oldest unconsumed frame of msg_type, dropping other frames before it.
-
-        Frames received earlier, also through read_until_frame, count as unconsumed.
-        """
-        frames = self._parser.frames
+        """Return the oldest unconsumed payload of msg_type, dropping earlier frames of other types."""
+        frames = self._frames
 
         async def _read_loop() -> bytes:
             while True:

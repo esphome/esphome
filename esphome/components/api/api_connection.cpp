@@ -2406,9 +2406,8 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
 bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  // Skip dump for log messages (recursive logging risk), camera frames (high-frequency noise),
-  // and YAML recovery payloads (every chunk would log the embedded config, including any
-  // secrets the user opted into).
+  // Skip dump for log messages (recursive logging risk), camera frames (high-frequency noise)
+  // and YAML chunks (may contain secrets)
   if (message_type != SubscribeLogsResponse::MESSAGE_TYPE
 #ifdef USE_CAMERA
       && message_type != CameraImageResponse::MESSAGE_TYPE

@@ -22,6 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@bdraco"]
 DEPENDENCIES = ["api"]
+DOMAIN = "store_yaml"
 
 CONF_INCLUDE_SECRETS = "include_secrets"
 CONF_ALLOW_UNENCRYPTED = "allow_unencrypted"
@@ -107,23 +108,17 @@ def _gather_files(
             ", ".join(discovered.unresolved),
         )
 
-    # Resolved (not just absolute) because discovery returns resolved paths
-    # and relative_to needs both sides on the same footing when symlinks are
-    # in play; CORE.config_dir is only absolute.
+    # Resolved to match discovery's resolved paths; CORE.config_dir is only absolute.
     root = CORE.config_path.resolve().parent
 
     entries: list[tuple[str, Path]] = []
     secret_rels: set[str] = set()
     for path in discovered.files:
-        # Files outside the project root (e.g. ../common.yaml or a secrets file
-        # in $HOME) keep their ".." components so the include graph is preserved
-        # and files from different directories with the same basename don't
-        # collide.
+        # Keep ".." for files outside the root so same-named files don't collide.
         try:
             rel_str = path.relative_to(root, walk_up=True).as_posix()
         except ValueError as err:
-            # Different anchors (a Windows file on another drive) cannot be
-            # expressed relative to the config root.
+            # No common anchor, e.g. a Windows file on another drive.
             raise EsphomeError(
                 f"store_yaml: cannot place {path} in the recovery envelope; "
                 f"it does not share a root with {root}: {err}"
@@ -143,8 +138,6 @@ def _read_files_verbatim(entries: list[tuple[str, Path]]) -> list[tuple[str, byt
         try:
             files.append((rel, path.read_bytes()))
         except OSError as err:
-            # A silently partial recovery blob defeats the feature; fail the
-            # build instead of embedding an incomplete file set.
             raise EsphomeError(
                 f"store_yaml: cannot read tracked YAML file {path}: {err}"
             ) from err
@@ -201,37 +194,33 @@ def _check_sensitive_usage(
     for rel, tree in trees.items():
         for path, node, is_key in _iter_nodes(tree):
             text = str(node)
-            info = sensitive.get(text)
-            if is_key:
-                if info is not None:
+            if (info := sensitive.get(text)) is not None:
+                if is_key:
                     key_hits.append(
                         f"{info.config_path} (as the mapping key at "
                         f"{'.'.join((*path, text))} in {rel})"
                     )
-                continue
-            if info is not None:
-                if path and (
-                    path[0] == "substitutions" or path[-1] in info.sensitive_keys
+                elif not path or (
+                    path[0] != "substitutions" and path[-1] not in info.sensitive_keys
                 ):
-                    continue
-                _LOGGER.warning(
-                    "store_yaml: the sensitive value at %s also matches the "
-                    "scalar at %s in %s; the recovered config will reference "
-                    "!secret %s there too",
-                    info.config_path,
-                    ".".join(path),
-                    rel,
-                    info.secret_name,
-                )
+                    _LOGGER.warning(
+                        "store_yaml: the sensitive value at %s also matches the "
+                        "scalar at %s in %s; the recovered config will reference "
+                        "!secret %s there too",
+                        info.config_path,
+                        ".".join(path),
+                        rel,
+                        info.secret_name,
+                    )
+                continue
+            if is_key:
                 continue
             for value, other in sensitive.items():
                 if value not in text:
                     continue
                 if other.from_secret:
-                    # The value lives in a real secrets.yaml, so the
-                    # move-into-!secret remedy does not apply; overlaps like
-                    # an SSID inside an entity name are common and benign.
-                    # Warn naming the location, never the value.
+                    # Already a real !secret and overlaps (an SSID in a name)
+                    # are common, so warn without the value instead of failing.
                     _LOGGER.warning(
                         "store_yaml: the value of !secret %s (sensitive at %s) "
                         "appears inside the value at %s in %s; substring "
@@ -292,10 +281,7 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
 def _uncaptured_note(
     unresolved: list[str], remote_packages: list[str]
 ) -> tuple[str, bytes] | None:
-    """Comment-only YAML entry listing content that could not be captured, so
-    a recovered config never silently appears complete. Emitted for both the
-    redacted and verbatim paths; user files are never modified to carry it.
-    Returns None when there is nothing to record."""
+    """Return a comment-only entry listing uncaptured content, or None if there is none."""
     if not unresolved and not remote_packages:
         return None
     parts = ["# store_yaml: the following content could not be captured.\n"]
@@ -330,10 +316,9 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
 def _generate_redacted_files(
     entries: list[tuple[str, Path]], secret_rels: set[str], remote_packages: list[str]
 ) -> list[tuple[str, bytes]]:
-    """Re-dump each captured file with cv.sensitive values as `!secret` references
-    and secrets files as a fill-in skeleton, so the recovered config flashes once
-    secrets.yaml is filled in. The dumper does the swap; comments and formatting
-    are not preserved.
+    """Re-dump captured files with sensitive values as `!secret` and secrets files as a skeleton.
+
+    Comments and formatting are not preserved.
     """
     sensitive = _collect_sensitive_values()
 
@@ -349,10 +334,8 @@ def _generate_redacted_files(
     with yaml_util.secret_values_registered(registered) as skeleton_keys:
         texts = {rel: yaml_util.dump(tree) for rel, tree in trees.items()}
 
-    # skeleton_keys now holds exactly the `!secret` names the dumper emitted.
-    # A registered inline value whose name was never emitted was not found as
-    # a whole scalar in any captured file, so it would ship nowhere and the
-    # redaction promise cannot be verified — fail the build.
+    # An inline value whose name was never emitted was not found as a whole
+    # scalar, so its redaction cannot be verified.
     leaked = [
         info.config_path
         for info in sensitive.values()
@@ -390,8 +373,7 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
     seen: set[str] = set()
     for path, content in files:
         if path in seen:
-            # unpack_envelope builds a dict, so a duplicate would silently
-            # replace the earlier entry — fail the build instead.
+            # unpack_envelope would silently keep only the last duplicate.
             raise EsphomeError(f"store_yaml: duplicate envelope path: {path}")
         seen.add(path)
         path_bytes = path.encode("utf-8")
@@ -407,10 +389,10 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
 
 
 def unpack_envelope(blob: bytes) -> dict[str, bytes]:
-    """Reference decoder for the EHY1 envelope, for tests and recovery tools.
+    """Reference decoder for the EHY1 envelope.
 
-    Absolute paths are rejected. ``..`` paths are valid (files outside the config
-    root), so callers writing to disk must confine paths to their target dir."""
+    Absolute paths are rejected but ``..`` is allowed; callers writing to disk must confine paths.
+    """
     if blob[:4] != ENVELOPE_MAGIC:
         raise EsphomeError("envelope must start with EHY1 magic")
     pos = 4
@@ -445,8 +427,7 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_STORE_YAML")
 
-    # Re-parse at codegen time to capture only user files; this also refills the
-    # secret registry that save_compiled_config cleared, which redaction relies on.
+    # Re-parse to capture only user files; also refills the secret registry redaction needs.
     discovered = yaml_util.discover_user_yaml_files(CORE.config_path)
     entries, secret_rels = _gather_files(discovered)
     remote_packages = _remote_package_descriptions()
