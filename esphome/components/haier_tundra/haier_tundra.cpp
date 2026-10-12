@@ -6,6 +6,21 @@ namespace esphome::haier_tundra {
 static constexpr uint8_t HAIER_TUNDRA_FRAME_SIZE = 13;
 
 void HaierTundra::transmit_state() {
+  // Force Quiet and Turbo off if we're not in Cool or Heat mode
+  if (this->mode != climate::CLIMATE_MODE_COOL && this->mode != climate::CLIMATE_MODE_HEAT) {
+#ifdef USE_SWITCH
+    if (this->quiet_switch_ != nullptr) {
+      this->quiet_switch_->publish_state(false);
+    }
+    if (this->turbo_switch_ != nullptr) {
+      this->turbo_switch_->publish_state(false);
+    }
+#endif
+
+    this->quiet_mode_ = false;
+    this->turbo_mode_ = false;
+  }
+
   remote_base::HaierData remote_state{{
       HAIER_HEADER_UNIT_A,
       static_cast<uint8_t>(this->temperature_() << 4 | this->vertical_swing_()),
@@ -216,7 +231,7 @@ void HaierTundra::set_quiet_mode(bool quiet) {
   // Quiet & Turbo cannot be enabled at the same time
   if (quiet) {
 #ifdef USE_SWITCH
-    if (this->turbo_switch_ != nullptr && this->turbo_switch_->state) {
+    if (this->turbo_switch_ != nullptr) {
       this->turbo_switch_->publish_state(false);
     }
 #endif
@@ -231,7 +246,7 @@ void HaierTundra::set_turbo_mode(bool turbo) {
   // Quiet & Turbo cannot be enabled at the same time
   if (turbo) {
 #ifdef USE_SWITCH
-    if (this->quiet_switch_ != nullptr && this->quiet_switch_->state) {
+    if (this->quiet_switch_ != nullptr) {
       this->quiet_switch_->publish_state(false);
     }
 #endif
