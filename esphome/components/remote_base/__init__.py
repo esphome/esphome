@@ -2170,7 +2170,7 @@ register_protocol_action(
     NexusData,
     NexusBinarySensor,
     NexusTrigger,
-    NexusAction,
+    _,
     NexusDumper,
 ) = declare_protocol("Nexus")
 
@@ -2213,20 +2213,17 @@ def nexus_dumper(var, config):
     pass
 
 
-@register_action("nexus", NexusAction, NEXUS_SCHEMA)
-async def nexus_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
-    cg.add(var.set_channel(template_))
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
-    cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
-    cg.add(var.set_temperature(template_))
-    template_ = await cg.templatable(config[CONF_HUMIDITY], args, cg.uint8)
-    cg.add(var.set_humidity(template_))
-    template_ = await cg.templatable(config[CONF_BATTERY_LEVEL], args, cg.bool_)
-    cg.add(var.set_battery_level(template_))
-    template_ = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
-    cg.add(var.set_force_update(template_))
+register_protocol_action(
+    "nexus",
+    "Nexus",
+    NEXUS_SCHEMA,
+    (CONF_CHANNEL, "channel", cg.uint8),
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_TEMPERATURE, "temperature", cg.float_),
+    (CONF_HUMIDITY, "humidity", cg.uint8),
+    (CONF_BATTERY_LEVEL, "battery_level", cg.bool_),
+    (CONF_FORCE_UPDATE, "force_update", cg.bool_),
+)
 
 
 # Midea
