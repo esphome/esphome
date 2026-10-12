@@ -7,7 +7,15 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     async def to_code_testing(config: ConfigType) -> None:
         # Protocol sources are compiled only behind their define; keep the ones under test.
-        for protocol in ("hob2hood", "haier", "mirage", "aeha", "keeloq", "rc5x"):
+        for protocol in (
+            "hob2hood",
+            "haier",
+            "mirage",
+            "aeha",
+            "keeloq",
+            "nexus",
+            "rc5x",
+        ):
             request_protocol(protocol)
 
     manifest.to_code = to_code_testing
