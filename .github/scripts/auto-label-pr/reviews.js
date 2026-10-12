@@ -42,8 +42,8 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
     let message = `${TOO_BIG_MARKER}\n### 📦 Pull Request Size\n\n`;
 
     message +=
-      `Hey @${prAuthor}, thanks for the contribution! Just a heads up, ` +
-      `this PR is on the large side `;
+      `Hey @${prAuthor}, thanks for the contribution. This PR is on the ` +
+      `large side `;
 
     if (tooManyLabels && tooManyChanges) {
       message +=
@@ -57,16 +57,31 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
     }
 
     message += `, which makes it harder for maintainers to review.\n\n`;
+    let condition;
+    if (tooManyLabels && tooManyChanges) {
+      condition =
+        `is at most ${TOO_BIG_THRESHOLD} lines (excluding tests) and touches ` +
+        `at most ${MAX_LABELS} components/areas`;
+    } else if (tooManyLabels) {
+      condition = `touches at most ${MAX_LABELS} components/areas`;
+    } else {
+      condition = `is at most ${TOO_BIG_THRESHOLD} lines (excluding tests)`;
+    }
     message +=
-      `Smaller, focused PRs tend to be reviewed much faster since they ` +
-      `fit into the short gaps between other maintainer work; large ones ` +
-      `often have to wait for a rare long uninterrupted block of time. ` +
-      `If you can break this up into smaller pieces that can be reviewed ` +
-      `independently, it will almost certainly land faster overall.\n\n`;
+      `**This PR will not be reviewed until it ${condition}.** We know ` +
+      `that is not what you want to hear after this much work, and we want ` +
+      `to be upfront so you do not wait for a review that is not coming: ` +
+      `please split the change. The label is removed automatically once ` +
+      `the PR ${condition}.\n\n`;
     message +=
-      `Before putting more time in, it's also worth popping into ` +
-      `\`#devs\` on [Discord](https://esphome.io/chat) so we can help ` +
-      `you scope things and flag anything already in flight.\n\n`;
+      `There is no exception you can request. Rarely, a maintainer agrees in ` +
+      `\`#devs\` on [Discord](https://esphome.io/chat) to review a change that ` +
+      `genuinely cannot be split as one piece and adds the \`mega-pr\` label, ` +
+      `but that is rare enough that you should plan on splitting rather than ` +
+      `wait for it. Smaller, focused PRs are picked up much faster because ` +
+      `they fit into the short gaps between other maintainer work. For a new ` +
+      `component, the first PR brings the hub and a single platform (for ` +
+      `example \`sensor\`); each further platform is its own PR on top of it.\n\n`;
     message +=
       `For more details (including how to split the work up), see: ` +
       `https://developers.esphome.io/contributing/submitting-your-work/` +
@@ -214,6 +229,7 @@ async function handleMaintainerAccessComment(github, context, maintainerAccess) 
 }
 
 module.exports = {
+  generateReviewMessages,
   handleReviews,
   handleMaintainerAccessComment
 };
