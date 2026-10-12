@@ -15,6 +15,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "keeloq",
             "nexus",
             "ira211",
+            "nec",
             "magiquest",
             "rc5x",
             "panasonic",
