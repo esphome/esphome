@@ -66,26 +66,27 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LD2410S_PARAMETERS")
     hub = await cg.get_variable(config[CONF_LD2410S_ID])
     numbers = number.sub_numbers(config, parent=hub)
     await numbers(
         CONF_MAX_DISTANCE,
-        partial(hub.set_number, Parameter.MAX_DISTANCE),
-        Parameter.MAX_DISTANCE,
+        partial(hub.set_number, Parameter.PARAMETER_MAX_DISTANCE),
+        Parameter.PARAMETER_MAX_DISTANCE,
         GATE_WIDTH_M,
         **_DISTANCE_RANGE,
     )
     await numbers(
         CONF_MIN_DISTANCE,
-        partial(hub.set_number, Parameter.MIN_DISTANCE),
-        Parameter.MIN_DISTANCE,
+        partial(hub.set_number, Parameter.PARAMETER_MIN_DISTANCE),
+        Parameter.PARAMETER_MIN_DISTANCE,
         GATE_WIDTH_M,
         **_DISTANCE_RANGE,
     )
     await numbers(
         CONF_NO_DELAY,
-        partial(hub.set_number, Parameter.NO_DELAY),
-        Parameter.NO_DELAY,
+        partial(hub.set_number, Parameter.PARAMETER_NO_DELAY),
+        Parameter.PARAMETER_NO_DELAY,
         1,
         min_value=1,
         max_value=120,
@@ -93,15 +94,15 @@ async def to_code(config: ConfigType) -> None:
     )
     await numbers(
         CONF_STATUS_REPORTING_FREQUENCY,
-        partial(hub.set_number, Parameter.STATUS_FREQUENCY),
-        Parameter.STATUS_FREQUENCY,
+        partial(hub.set_number, Parameter.PARAMETER_STATUS_FREQUENCY),
+        Parameter.PARAMETER_STATUS_FREQUENCY,
         FREQUENCY_SCALE,
         **_FREQUENCY_RANGE,
     )
     await numbers(
         CONF_DISTANCE_REPORTING_FREQUENCY,
-        partial(hub.set_number, Parameter.DISTANCE_FREQUENCY),
-        Parameter.DISTANCE_FREQUENCY,
+        partial(hub.set_number, Parameter.PARAMETER_DISTANCE_FREQUENCY),
+        Parameter.PARAMETER_DISTANCE_FREQUENCY,
         FREQUENCY_SCALE,
         **_FREQUENCY_RANGE,
     )

@@ -26,15 +26,15 @@ static_assert(RX_BUFFER_SIZE <= 255, "frame lengths are kept in a byte");
 
 /// The module's common parameters, in the order the parameter read answers them
 enum class Parameter : uint8_t {
-  MAX_DISTANCE,
-  MIN_DISTANCE,
-  NO_DELAY,
-  STATUS_FREQUENCY,
-  DISTANCE_FREQUENCY,
-  RESPONSE_SPEED,
-  COUNT,
+  PARAMETER_MAX_DISTANCE,
+  PARAMETER_MIN_DISTANCE,
+  PARAMETER_NO_DELAY,
+  PARAMETER_STATUS_FREQUENCY,
+  PARAMETER_DISTANCE_FREQUENCY,
+  PARAMETER_RESPONSE_SPEED,
+  PARAMETER_COUNT,
 };
-static constexpr uint8_t PARAMETER_COUNT = static_cast<uint8_t>(Parameter::COUNT);
+static constexpr uint8_t PARAMETER_COUNT = static_cast<uint8_t>(Parameter::PARAMETER_COUNT);
 // Response speed values, in the order of the select's options (Normal, Fast)
 static constexpr uint8_t RESPONSE_SPEEDS[] PROGMEM = {5, 10};
 static constexpr uint8_t RESPONSE_SPEED_COUNT = sizeof(RESPONSE_SPEEDS);
@@ -64,7 +64,9 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 
   /// Store a parameter in the module's units; loop() then writes all of them to the module.
   /// Returns false, and changes nothing, until the module's own values have been read.
+#ifdef USE_LD2410S_PARAMETERS
   bool set_parameter(Parameter parameter, uint32_t value);
+#endif
 #ifdef USE_NUMBER
   void set_number(Parameter parameter, LD2410SNumber *number) {
     this->numbers_[static_cast<uint8_t>(parameter)] = number;
@@ -80,8 +82,12 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   /// Returns false for a data frame whose state byte is impossible, so it counts as dropped.
   bool handle_data_frame_(const uint8_t *payload, uint16_t len);
   void handle_command_ack_(const uint8_t *payload, uint16_t len);
+#ifdef USE_LD2410S_PARAMETERS
   bool handle_parameters_(const uint8_t *values, uint16_t len);
+#endif
+#ifdef USE_TEXT_SENSOR
   void handle_version_(const uint8_t *values, uint16_t len);
+#endif
   void count_dropped_frame_() {
     if (this->dropped_frames_ < UINT8_MAX) {
       this->dropped_frames_++;
@@ -98,7 +104,9 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   uint16_t current_command_() const;
   void send_command_(uint16_t command);
   void publish_target_(bool target, uint16_t distance);
+#ifdef USE_LD2410S_PARAMETERS
   void publish_parameters_();
+#endif
 
 #ifdef USE_NUMBER
   LD2410SNumber *numbers_[PARAMETER_COUNT]{};  // null for parameters without a number
@@ -107,7 +115,9 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   const uint16_t *sequence_{nullptr};  // PROGMEM; null while nothing is being sent
   uint32_t next_send_at_{0};
   uint32_t last_frame_at_{0};
+#ifdef USE_LD2410S_PARAMETERS
   uint8_t parameters_[PARAMETER_COUNT]{};  // all fit a byte: gates, seconds, tenths of a hertz, speed
+#endif
   uint8_t rx_buffer_[RX_BUFFER_SIZE];
   uint8_t rx_len_{0};
   uint8_t expected_len_{0};
@@ -119,8 +129,10 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   bool awaiting_ack_{false};
   bool rescanning_{false};
   bool init_done_{false};
+#ifdef USE_LD2410S_PARAMETERS
   bool parameters_known_{false};  // the module answered the parameter read at least once
   bool parameters_dirty_{false};
+#endif
 };
 
 }  // namespace esphome::ld2410s

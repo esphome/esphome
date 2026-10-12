@@ -38,19 +38,33 @@ static constexpr uint8_t PARAMETER_VALUE_SIZE = 4;
 static constexpr uint8_t PARAMETERS_WRITE_SIZE = PARAMETER_COUNT * (PARAMETER_KEY_SIZE + PARAMETER_VALUE_SIZE);
 static constexpr uint8_t CMD_FRAME_MAX_SIZE = LONG_PAYLOAD_POS + 2 + PARAMETERS_WRITE_SIZE + sizeof(CMD_FRAME_FOOTER);
 // Keys of the parameters, in Parameter order
+#ifdef USE_LD2410S_PARAMETERS
 static constexpr uint16_t PARAMETER_KEYS[] PROGMEM = {0x0005, 0x000A, 0x0006, 0x0002, 0x000C, 0x000B};
 static_assert(sizeof(PARAMETER_KEYS) / sizeof(PARAMETER_KEYS[0]) == PARAMETER_COUNT, "one key per parameter");
+#endif
 // The version answer: 4 bytes device type, then major, minor and patch as 16-bit words
 static constexpr uint8_t VERSION_TYPE_SIZE = 4;
 static constexpr uint8_t VERSION_SIZE = VERSION_TYPE_SIZE + 3 * 2;
 
-// Everything the module needs at start: configuration mode on, read the version and parameters,
-// pick the output mode, configuration mode off
-static constexpr uint16_t INIT_SEQUENCE[] PROGMEM = {CONFIG_MODE_START_CMD, VERSION_READ_CMD, PARAMETERS_READ_CMD,
-                                                     OUTPUT_MODE_SWITCH_CMD, CONFIG_MODE_END_CMD};
+// Everything the module needs at start: configuration mode on, read the version and parameters when
+// an entity shows them, pick the output mode, configuration mode off
+static constexpr uint16_t INIT_SEQUENCE[] PROGMEM = {
+    CONFIG_MODE_START_CMD,
+#ifdef USE_TEXT_SENSOR
+    VERSION_READ_CMD,
+#endif
+#ifdef USE_LD2410S_PARAMETERS
+    PARAMETERS_READ_CMD,
+#endif
+    OUTPUT_MODE_SWITCH_CMD, CONFIG_MODE_END_CMD,
+};
+#ifdef USE_LD2410S_PARAMETERS
 static constexpr uint16_t WRITE_SEQUENCE[] PROGMEM = {CONFIG_MODE_START_CMD, PARAMETERS_WRITE_CMD, CONFIG_MODE_END_CMD};
+#endif
 static constexpr uint8_t INIT_SEQUENCE_LENGTH = sizeof(INIT_SEQUENCE) / sizeof(INIT_SEQUENCE[0]);
+#ifdef USE_LD2410S_PARAMETERS
 static constexpr uint8_t WRITE_SEQUENCE_LENGTH = sizeof(WRITE_SEQUENCE) / sizeof(WRITE_SEQUENCE[0]);
+#endif
 static constexpr uint8_t STEP_MAX_TIMEOUTS = 2;
 static constexpr uint32_t ACK_TIMEOUT_MS = 300;
 static constexpr uint32_t COMMAND_GAP_MS = 300;     // pause after an acknowledgement before the next command
@@ -99,9 +113,11 @@ void LD2410SComponent::loop() {
   if (this->sequence_ == nullptr) {
     if (!this->init_done_) {
       this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now);
+#ifdef USE_LD2410S_PARAMETERS
     } else if (this->parameters_dirty_) {
       this->parameters_dirty_ = false;
       this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, this->next_send_at_);
+#endif
     }
   }
   this->run_sequence_(now);
@@ -115,6 +131,7 @@ void LD2410SComponent::loop() {
   }
 }
 
+#ifdef USE_LD2410S_PARAMETERS
 bool LD2410SComponent::set_parameter(Parameter parameter, uint32_t value) {
   // All six are written together, so the other five must be the module's own values
   if (!this->init_done_ || !this->parameters_known_) {
@@ -125,15 +142,18 @@ bool LD2410SComponent::set_parameter(Parameter parameter, uint32_t value) {
   this->parameters_dirty_ = true;  // written by loop() once no sequence is running
   return true;
 }
+#endif
 
 void LD2410SComponent::restart_init_(uint32_t at) {
+  this->init_done_ = false;
+#ifdef USE_LD2410S_PARAMETERS
   // The module's own values count again once it is set up anew
   if (this->parameters_dirty_) {
     ESP_LOGW(TAG, "Dropping the pending parameter change, the module's values are read back");
   }
-  this->init_done_ = false;
   this->parameters_dirty_ = false;
   this->parameters_known_ = false;  // a refused value may sit in parameters_ until the read replaces it
+#endif
   this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, at);
 }
 
@@ -184,6 +204,7 @@ void LD2410SComponent::send_command_(uint16_t command) {
       frame[pos++] = CONFIG_MODE_START_VALUE & 0xFF;
       frame[pos++] = CONFIG_MODE_START_VALUE >> 8;
       break;
+#ifdef USE_LD2410S_PARAMETERS
     case PARAMETERS_READ_CMD:
     case PARAMETERS_WRITE_CMD:
       for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
@@ -198,6 +219,7 @@ void LD2410SComponent::send_command_(uint16_t command) {
         }
       }
       break;
+#endif
     default:
       break;
   }
@@ -370,6 +392,7 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     ESP_LOGV(TAG, "Unexpected acknowledgement %04X", command_word);
     return;
   }
+#ifdef USE_LD2410S_PARAMETERS
   if (ack != 0 && command == PARAMETERS_WRITE_CMD) {
     // Resending the same values would be rejected again; leave configuration mode and read the
     // module's own values back, which republishes them
@@ -387,9 +410,12 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     // A short answer leaves the read pending the same way, so init cannot finish without the values
     return;
   }
+#endif
+#ifdef USE_TEXT_SENSOR
   if (command == VERSION_READ_CMD) {
     this->handle_version_(&payload[4], len - 4);
   }
+#endif
   this->awaiting_ack_ = false;
   this->step_timeouts_ = 0;
   const uint32_t now = App.get_loop_component_start_time();
@@ -407,6 +433,7 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
   }
 }
 
+#ifdef USE_LD2410S_PARAMETERS
 // The answer lists the parameter values in key order, 32 bits each; returns false when it is cut short
 bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
   if (len < PARAMETER_COUNT * PARAMETER_VALUE_SIZE) {
@@ -431,7 +458,9 @@ bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
            this->parameters_[5]);
   return true;
 }
+#endif
 
+#ifdef USE_TEXT_SENSOR
 void LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
   if (len < VERSION_SIZE) {
     ESP_LOGW(TAG, "Version answer too short (%u bytes)", len);
@@ -448,6 +477,7 @@ void LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
   }
 #endif
 }
+#endif
 
 void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 #ifdef USE_BINARY_SENSOR
@@ -461,6 +491,7 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 #endif
 }
 
+#ifdef USE_LD2410S_PARAMETERS
 void LD2410SComponent::publish_parameters_() {
 #ifdef USE_NUMBER
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
@@ -471,7 +502,7 @@ void LD2410SComponent::publish_parameters_() {
 #endif
 #ifdef USE_SELECT
   if (this->response_speed_select_ != nullptr) {
-    const uint8_t speed = this->parameters_[static_cast<uint8_t>(Parameter::RESPONSE_SPEED)];
+    const uint8_t speed = this->parameters_[static_cast<uint8_t>(Parameter::PARAMETER_RESPONSE_SPEED)];
     for (uint8_t i = 0; i < RESPONSE_SPEED_COUNT; i++) {
       if (progmem_read_byte(&RESPONSE_SPEEDS[i]) == speed) {
         this->response_speed_select_->publish_state(i);
@@ -482,5 +513,6 @@ void LD2410SComponent::publish_parameters_() {
   }
 #endif
 }
+#endif
 
 }  // namespace esphome::ld2410s

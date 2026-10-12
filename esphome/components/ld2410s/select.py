@@ -23,6 +23,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LD2410S_PARAMETERS")
     hub = await cg.get_variable(config[CONF_LD2410S_ID])
     selects = select.sub_selects(config, parent=hub)
     await selects(

@@ -1,0 +1,9 @@
+ld2410s:
+  id: ld2410s_bare
+  uart_id: uart_bus
+
+binary_sensor:
+  - platform: ld2410s
+    ld2410s_id: ld2410s_bare
+    has_target:
+      name: Has Target
