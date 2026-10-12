@@ -24,18 +24,12 @@ static constexpr float APPROACH_TIME_S = 0.02f;
 // Skip VACTUAL writes that change the speed by less than 1/16, each write blocks the loop for the UART transfer
 static constexpr int32_t VACTUAL_CHANGE_DIVISOR = 16;
 
-static uint8_t crc8(const uint8_t *data, size_t len) {
+// CRC-8 with polynomial 0x07 over the datagram bits in the order they go out on the wire, LSB first
+static uint8_t datagram_crc(const uint8_t *data, size_t len) {
   uint8_t crc = 0;
   for (size_t i = 0; i < len; i++) {
-    uint8_t byte = data[i];
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if ((crc >> 7) ^ (byte & 0x01)) {
-        crc = (crc << 1) ^ 0x07;
-      } else {
-        crc = crc << 1;
-      }
-      byte >>= 1;
-    }
+    const uint8_t reflected = reverse_bits(data[i]);
+    crc = crc8(&reflected, 1, crc, 0x07, true);
   }
   return crc;
 }
@@ -68,7 +62,7 @@ void TMC22XXStepper::setup() {
 
   this->write_field(PDN_DISABLE, true);
   this->write_field(MSTEP_REG_SELECT, true);
-  this->write_field(INTERNAL_RSENSE, !this->rsense_.has_value());
+  this->write_field(INTERNAL_RSENSE, std::isnan(this->rsense_));
   this->write_field(I_SCALE_ANALOG, this->analog_current_scale_);
   if (this->vsense_.has_value())
     this->write_field(VSENSE, *this->vsense_);
@@ -82,10 +76,10 @@ void TMC22XXStepper::setup() {
     this->toff_ = *toff;
 
   this->set_microsteps(this->initial_microsteps_);
-  if (this->initial_run_current_.has_value())
-    this->set_run_current(*this->initial_run_current_);
-  if (this->initial_hold_current_.has_value())
-    this->set_hold_current(*this->initial_hold_current_);
+  if (!std::isnan(this->initial_run_current_))
+    this->set_run_current(this->initial_run_current_);
+  if (!std::isnan(this->initial_hold_current_))
+    this->set_hold_current(this->initial_hold_current_);
 
   if (this->index_pin_ != nullptr) {
     // INDEX toggles on every step of the internal pulse generator that VACTUAL drives
@@ -253,7 +247,7 @@ void TMC22XXStepper::set_hold_current(float current) {
 
 float TMC22XXStepper::full_scale_current_() {
   return (this->vsense_active_ ? 0.180f : 0.325f) /
-         (this->rsense_.value_or(INTERNAL_RSENSE_OHM) + SENSE_RESISTOR_OFFSET);
+         ((std::isnan(this->rsense_) ? INTERNAL_RSENSE_OHM : this->rsense_) + SENSE_RESISTOR_OFFSET);
 }
 
 float TMC22XXStepper::scale_to_current(uint8_t scale) {
@@ -302,7 +296,7 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
                                      static_cast<uint8_t>(value >> 8),
                                      static_cast<uint8_t>(value),
                                      0};
-  datagram[7] = crc8(datagram, 7);
+  datagram[7] = datagram_crc(datagram, 7);
 
   while (this->available())
     this->read();
@@ -327,7 +321,7 @@ optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
     return *shadow;
 
   uint8_t request[READ_REQUEST_SIZE] = {SYNC_BYTE, this->address_, reg, 0};
-  request[3] = crc8(request, 3);
+  request[3] = datagram_crc(request, 3);
 
   while (this->available())
     this->read();
@@ -339,7 +333,7 @@ optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};
   }
-  if (reply[0] != SYNC_BYTE || reply[1] != MASTER_ADDRESS || reply[2] != reg || reply[7] != crc8(reply, 7)) {
+  if (reply[0] != SYNC_BYTE || reply[1] != MASTER_ADDRESS || reply[2] != reg || reply[7] != datagram_crc(reply, 7)) {
     ESP_LOGV(TAG, "Invalid reply reading register 0x%02X", reg);
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};

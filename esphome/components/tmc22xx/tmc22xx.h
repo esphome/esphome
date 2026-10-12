@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "esphome/components/stepper/stepper.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
@@ -143,9 +145,10 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   uint32_t tpowerdown_{0x14};
   uint32_t tpwmthrs_{0};
   uint32_t vactual_reg_{0};
-  optional<float> rsense_{};
-  optional<float> initial_run_current_{};
-  optional<float> initial_hold_current_{};
+  // NaN while not configured
+  float rsense_{NAN};
+  float initial_run_current_{NAN};
+  float initial_hold_current_{NAN};
   IndexPulseStore index_store_{};
   uint16_t initial_microsteps_{16};
   optional<bool> vsense_{};
