@@ -116,8 +116,8 @@ on_onkyori:
 on_panasonic:
   then:
     - logger.log:
-        format: "on_panasonic: %u %lu"
-        args: ["x.address", "long(x.command)"]
+        format: "on_panasonic: %u %u %u %lu"
+        args: ["x.nbits", "x.address", "x.address_2", "long(x.command)"]
 on_pioneer:
   then:
     - logger.log:

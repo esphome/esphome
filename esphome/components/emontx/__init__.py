@@ -27,6 +27,7 @@ EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
+CONF_LOCK_ON_REBOOT = "lock_on_reboot"
 
 DOMAIN = "emontx"
 
@@ -58,6 +59,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(EmonTx),
             cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
             cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
+            cv.Optional(CONF_LOCK_ON_REBOOT, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -132,6 +134,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+    if config[CONF_LOCK_ON_REBOOT]:
+        cg.add(var.set_lock_on_reboot(True))
 
 
 # Action: emontx.send_command
