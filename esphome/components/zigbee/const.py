@@ -85,6 +85,8 @@ POWER_SOURCE = {
 }
 
 KEY_ZIGBEE = "zigbee"
+KEY_ZIGBEE_AREA_STR = "zigbee_area_str"
+KEY_ZIGBEE_VERSION_STR = "zigbee_version_str"
 
 # BACnet engineering units mapping (ZCL uses BACnet unit codes)
 # See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
