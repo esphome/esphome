@@ -308,26 +308,38 @@ def register_action(
     return decorator
 
 
+ProtocolField = (
+    tuple[str, str, SafeExpType] | automation.ApplyField | automation.ApplyCall
+)
+
+
+def _protocol_field(
+    field: ProtocolField,
+) -> automation.ApplyField | automation.ApplyCall:
+    if not isinstance(field, tuple):
+        return field
+    key, member, type_ = field
+    return automation.ApplyField(key, f"data.{member} = {{}}", type_)
+
+
 def register_protocol_action(
     name: str,
     protocol: str,
     schema: cv.Schema,
-    *fields: tuple[str, str, SafeExpType],
+    *fields: ProtocolField,
     validate: Callable[[ConfigType], ConfigType] | None = None,
 ) -> None:
     """Register ``transmit_<name>`` with no C++ action class.
 
     One generated function fills ``<protocol>Data`` from ``(conf_key, member, type_)`` fields
-    and sends it; the action is a core ``ApplyAction``.
+    and sends it; the action is a core ``ApplyAction``. ``ApplyField`` and ``ApplyCall`` pass through
+    and target the call object, whose protocol data is ``data``.
     """
     action, schema, validator = _transmit_action(name, schema, validate)
     builder = automation.apply_action_builder(
         action,
         schema,
-        *(
-            automation.ApplyField(key, f"data.{member} = {{}}", type_)
-            for key, member, type_ in fields
-        ),
+        *(_protocol_field(field) for field in fields),
         automation.ApplyField((CONF_REPEAT, CONF_TIMES), "set_send_times", cg.uint32),
         automation.ApplyField(
             (CONF_REPEAT, CONF_WAIT_TIME), "set_send_wait", cg.uint32
@@ -1206,7 +1218,7 @@ register_protocol_action(
     ProntoData,
     ProntoBinarySensor,
     ProntoTrigger,
-    ProntoAction,
+    _,
     ProntoDumper,
 ) = declare_protocol("Pronto")
 PRONTO_SCHEMA = cv.Schema(
@@ -1240,10 +1252,10 @@ def pronto_dumper(var, config):
     pass
 
 
-@register_action("pronto", ProntoAction, PRONTO_SCHEMA)
-async def pronto_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.std_string)
-    cg.add(var.set_data(template_))
+# delta only matters when matching a received code
+register_protocol_action(
+    "pronto", "Pronto", PRONTO_SCHEMA, (CONF_DATA, "data", cg.std_string)
+)
 
 
 # Gobox
@@ -1640,7 +1652,7 @@ register_protocol_action(
 
 
 # RC6
-RC6Data, RC6BinarySensor, RC6Trigger, RC6Action, RC6Dumper = declare_protocol("RC6")
+RC6Data, RC6BinarySensor, RC6Trigger, _, RC6Dumper = declare_protocol("RC6")
 RC6_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
@@ -1674,12 +1686,17 @@ def rc6_dumper(var, config):
     pass
 
 
-@register_action("rc6", RC6Action, RC6_SCHEMA)
-async def rc6_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
-    cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
-    cg.add(var.set_command(template_))
+register_protocol_action(
+    "rc6",
+    "RC6",
+    RC6_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+    # Each action flips its own toggle bit, starting at 0: the lambda's static is per action
+    automation.ApplyCall(
+        "data.toggle = []() {{ static uint8_t toggle; return toggle++; }}()"
+    ),
+)
 
 
 # RC Switch Raw
