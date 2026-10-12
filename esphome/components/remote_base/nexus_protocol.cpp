@@ -22,8 +22,8 @@ ESPHOME_LOG_TAG(TAG, "remote.nexus");
 
 static constexpr uint8_t NBITS = 36;
 
-static constexpr uint32_t HEADER_HIGH_US = 500;
-static constexpr uint32_t HEADER_LOW_US = 3900;
+static constexpr uint32_t SYNC_HIGH_US = 500;
+static constexpr uint32_t SYNC_LOW_US = 3900;
 static constexpr uint32_t BIT_HIGH_US = 500;
 static constexpr uint32_t BIT_ZERO_LOW_US = 980;
 static constexpr uint32_t BIT_ONE_LOW_US = 1950;
@@ -36,15 +36,16 @@ void NexusProtocol::encode(RemoteTransmitData *dst, const NexusData &data) {
                           uint64_t(data.force_update) << 26 | uint64_t((data.channel - 1) & 0b11) << 24 |
                           uint64_t(t & 0x0FFF) << 12 | 0b1111 << 8 | data.humidity;
 
-  dst->reserve(2 + NBITS * 2);
-  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  dst->reserve(NBITS * 2 + 2);
   for (int8_t i = NBITS - 1; i >= 0; i--)
     dst->item(BIT_HIGH_US, (packet >> i) & 1 ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
+  // The sync follows the bits, as the sensors send it: its mark ends the last space, its gap separates repeats
+  dst->item(SYNC_HIGH_US, SYNC_LOW_US);
 }
 
 optional<NexusData> NexusProtocol::decode(RemoteReceiveData src) {
-  // The sync item is optional: the receiver may split frames on it.
-  src.expect_item(HEADER_HIGH_US, HEADER_LOW_US);
+  // A buffer may start with the previous frame's sync when the receiver did not split on it
+  src.expect_item(SYNC_HIGH_US, SYNC_LOW_US);
   if (src.size() < NBITS * 2)
     return {};
 

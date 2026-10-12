@@ -27,7 +27,10 @@ void expect_round_trip(float temperature, bool drop_sync) {
   RawTimings timings = encode(sent);
   ASSERT_EQ(timings.size(), 2u + 36u * 2u);
   if (drop_sync) {
-    timings.erase(timings.begin(), timings.begin() + 2);
+    timings.resize(timings.size() - 2);
+  } else {
+    // The receiver kept the previous frame's sync in front of this one
+    timings.insert(timings.begin(), timings.end() - 2, timings.end());
   }
   auto decoded = decode(timings);
   ASSERT_TRUE(decoded.has_value()) << temperature;
@@ -44,14 +47,14 @@ void expect_round_trip(float temperature, bool drop_sync) {
 
 }  // namespace
 
-TEST(NexusProtocolTest, RoundTripsWithSync) {
+TEST(NexusProtocolTest, RoundTripsWithLeadingSync) {
   expect_round_trip(13.8f, false);
   expect_round_trip(-12.3f, false);
   expect_round_trip(-204.8f, false);
   expect_round_trip(204.7f, false);
 }
 
-TEST(NexusProtocolTest, RoundTripsWithoutSync) {
+TEST(NexusProtocolTest, RoundTripsWithoutTrailingSync) {
   expect_round_trip(0.0f, true);
   expect_round_trip(-0.1f, true);
 }
@@ -67,8 +70,8 @@ TEST(NexusProtocolTest, ClampsOutOfRangeTemperature) {
 
 TEST(NexusProtocolTest, RejectsWrongConstantBits) {
   RawTimings timings = encode(NexusData{.temperature = 20.0f, .channel = 1});
-  // Constant bits are data bits 24-27; item 0 is the sync, each bit is a mark and a space.
-  timings[2 + 24 * 2 + 1] = -980;
+  // Constant bits are data bits 24-27; each bit is a mark and a space, the sync comes last.
+  timings[24 * 2 + 1] = -980;
   EXPECT_FALSE(decode(timings).has_value());
 }
 
