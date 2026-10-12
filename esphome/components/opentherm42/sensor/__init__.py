@@ -36,6 +36,10 @@ from ..const import (
     CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
     CONF_PASS_DURATION,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND,
     CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED,
@@ -454,6 +458,28 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.4 Class 4, ID 123: Number of hours the burner is in operation during DHW mode.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS: _with_update_every(
         _hours_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 8
+    ),
+    # §5.3.5 Class 5, IDs 48/49: fixed installation-time adjustment bounds for the DHW Setpoint / max
+    # CH water Setpoint, not something the user watches change -- DIAGNOSTIC.
+    #
+    # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp
+    # (degrees C). Wire value is a plain s8, not f8.8 like ID 56's DHW Setpoint itself, so no
+    # fractional part is ever possible -- accuracy_decimals=0.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND: _temperature_schema(
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 48 LB: DHWsetp low-bound -- lower bound for adjustment of DHW setp (degrees C).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND: _temperature_schema(
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 49 HB: max CHsetp upp-bound -- upper bound for adjustment of maxCHsetp
+    # (degrees C), same plain-s8 reasoning as ID 48 above.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND: _temperature_schema(
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND: _temperature_schema(
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.6 Class 6, IDs 10/88/105: static capability counts (how many parameters the boiler/
     # ventilation/Solar Storage system supports), not something that changes -- DIAGNOSTIC.
