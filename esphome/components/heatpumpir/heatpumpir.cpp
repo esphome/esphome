@@ -1,5 +1,7 @@
 #include "heatpumpir.h"
 
+#include "receiver_mitsubishi_heavy.h"
+
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include <cmath>
@@ -244,6 +246,23 @@ void HeatpumpIRClimate::transmit_state() {
   IRSenderESPHome esp_sender(this->transmitter_);
   heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
                      swing_h_cmd);
+}
+
+bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
+  switch (this->protocol_) {
+    case PROTOCOL_MITSUBISHI_HEAVY_ZMP: {
+      uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH];
+      if (!decode_mitsubishi_heavy_frame(data, frame, *this))
+        return false;
+      decode_mitsubishi_heavy_zmp(frame, *this);
+      break;
+    }
+    default:
+      return false;  // no decoder for this protocol
+  }
+  this->target_temperature = clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
+  this->publish_state();
+  return true;
 }
 
 }  // namespace esphome::heatpumpir
