@@ -175,5 +175,12 @@ def test_precomputed_register_values() -> None:
     assert component.encode_temperature(config["temperature_low"], True) == 0xF9E0
 
 
+def test_threshold_encoding_rounds_half_steps_away_from_zero() -> None:
+    assert component.encode_temperature(30.03125, False) == 481 << 4
+    assert component.encode_temperature(-30.03125, False) == (-481 << 4) & 0xFFFF
+    assert component.encode_temperature(30.03125, True) == 481 << 3
+    assert component.encode_temperature(-30.03125, True) == (-481 << 3) & 0xFFFF
+
+
 def test_defaults_match_chip_reset() -> None:
     assert component.build_configuration({}) == 0x0080

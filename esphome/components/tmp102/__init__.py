@@ -1,5 +1,7 @@
 """Shared TMP102 types and configuration validation."""
 
+import math
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import CONF_CONVERSION_RATE
@@ -62,7 +64,8 @@ def get_number_configuration(parent_id: object) -> dict[str, bool | float] | Non
 
 def encode_temperature(temperature: float, extended: bool) -> int:
     """Encode a temperature as a TMP102 limit-register word."""
-    steps = round(temperature / TMP102_CONVERSION_FACTOR)
+    scaled = temperature / TMP102_CONVERSION_FACTOR
+    steps = int(math.copysign(math.floor(abs(scaled) + 0.5), scaled))
     return (steps << (3 if extended else 4)) & 0xFFFF
 
 
