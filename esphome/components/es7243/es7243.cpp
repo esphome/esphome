@@ -53,7 +53,7 @@ void ES7243::setup() {
   const bool ok = this->write_byte(0x00, 0x01) && this->write_byte(0x06, 0x00) && this->write_byte(0x05, 0x1B) &&
                   this->write_byte(0x01, 0x0C) && this->write_mic_gain_() && this->write_byte(0x05, 0x13);
   if (!ok) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->setup_complete_ = true;
@@ -72,7 +72,15 @@ void ES7243::dump_config() {
 
 bool ES7243::set_mic_gain(float mic_gain) {
   this->mic_gain_ = clamp(mic_gain, MIN_GAIN, MAX_GAIN);
-  return !this->setup_complete_ || this->write_mic_gain_();
+  if (!this->setup_complete_)
+    return true;
+  const bool ok = this->write_mic_gain_();
+  if (ok) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning();
+  }
+  return ok;
 }
 
 bool ES7243::write_mic_gain_() { return this->write_byte(REG_GAIN, gain_reg_value(this->mic_gain_)); }
