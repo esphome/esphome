@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INDEX,
     CONF_INVERTED,
+    CONF_KEY,
     CONF_LEVEL,
     CONF_MAGNITUDE,
     CONF_NBITS,
@@ -63,6 +64,10 @@ CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
 CONF_SUFFIX = "suffix"
 CONF_SUFFIX_BITS = "suffix_bits"
+CONF_CONTROL = "control"
+CONF_CONTROL_IN_KEY = "control_in_key"
+CONF_ROLLING_CODE = "rolling_code"
+CONF_EXTENSION = "extension"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -1577,6 +1582,47 @@ register_protocol_action(
 )
 
 
+# RC5X (aka RC5 Marantz)
+RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = declare_protocol("RC5X")
+RC5X_SCHEMA = RC5_SCHEMA.extend(
+    {cv.Required(CONF_EXTENSION): cv.hex_int_range(min=0, max=0x3F)}
+)
+
+
+@register_binary_sensor("rc5x", RC5XBinarySensor, RC5X_SCHEMA)
+def rc5x_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RC5XData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+                ("extension", config[CONF_EXTENSION]),
+            )
+        )
+    )
+
+
+@register_trigger("rc5x", RC5XTrigger, RC5XData)
+def rc5x_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("rc5x", RC5XDumper)
+def rc5x_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "rc5x",
+    "RC5X",
+    RC5X_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+    (CONF_EXTENSION, "extension", cg.uint8),
+)
+
+
 # RC6
 RC6Data, RC6BinarySensor, RC6Trigger, RC6Action, RC6Dumper = declare_protocol("RC6")
 RC6_SCHEMA = cv.Schema(
@@ -2119,6 +2165,42 @@ register_protocol_action(
     (CONF_COMMAND, "command", cg.uint32),
 )
 
+
+# SomfyRts
+SOMFY_RTS_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_KEY): cv.hex_uint8_t,
+        cv.Required(CONF_CONTROL): cv.All(cv.hex_uint8_t, cv.Range(max=0x0F)),
+        cv.Required(CONF_ROLLING_CODE): cv.hex_uint16_t,
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_uint32_t, cv.Range(max=0xFFFFFF)),
+        cv.Optional(CONF_CONTROL_IN_KEY, default=False): cv.boolean,
+    }
+)
+
+
+def _validate_somfy_rts(config: ConfigType) -> ConfigType:
+    key = config[CONF_KEY]
+    if config[CONF_CONTROL_IN_KEY] is True and isinstance(key, int) and key & 0x0F:
+        raise cv.Invalid(
+            f"With {CONF_CONTROL_IN_KEY} the low nibble of {CONF_KEY} carries {CONF_CONTROL} "
+            "and must be 0",
+            path=[CONF_KEY],
+        )
+    return config
+
+
+# Transmit only: the protocol has no decoder yet, so no binary sensor, trigger or dumper.
+register_protocol_action(
+    "somfy_rts",
+    "SomfyRts",
+    SOMFY_RTS_SCHEMA,
+    (CONF_KEY, "key", cg.uint8),
+    (CONF_CONTROL, "control", cg.uint8),
+    (CONF_ROLLING_CODE, "rolling_code", cg.uint16),
+    (CONF_ADDRESS, "address", cg.uint32),
+    (CONF_CONTROL_IN_KEY, "control_in_key", cg.bool_),
+    validate=_validate_somfy_rts,
+)
 
 # Nexa
 NexaData, NexaBinarySensor, NexaTrigger, _, NexaDumper = declare_protocol("Nexa")
