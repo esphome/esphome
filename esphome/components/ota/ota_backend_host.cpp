@@ -200,6 +200,8 @@ bool validate_executable_(const char *staging_path, const std::string &exe_path)
 std::unique_ptr<HostOTABackend> make_ota_backend() { return make_unique<HostOTABackend>(); }
 
 OTAResponseTypes HostOTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   // 0 = unknown size (web_server multipart); cap at MAX_OTA_SIZE.

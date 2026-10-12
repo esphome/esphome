@@ -20,6 +20,8 @@ ESPHOME_LOG_TAG(TAG, "ota");
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
 OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
 #ifdef USE_OTA_PARTITIONS
   this->ota_type_ = ota_type;
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {

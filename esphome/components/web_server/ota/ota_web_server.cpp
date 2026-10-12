@@ -9,12 +9,6 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
-#ifdef USE_ARDUINO
-#if defined(USE_LIBRETINY)
-#include <Update.h>
-#endif
-#endif  // USE_ARDUINO
-
 #if USE_ESP32
 using PlatformString = std::string;
 #elif USE_ARDUINO
@@ -140,15 +134,6 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     // Notify OTA started - use notify_state_deferred_ since we're in web server task
     this->parent_->notify_state_deferred_(ota::OTA_STARTED, 0.0f, 0);
 #endif
-
-    // Platform-specific pre-initialization
-#ifdef USE_ARDUINO
-#if defined(USE_LIBRETINY)
-    if (Update.isRunning()) {
-      Update.abort();
-    }
-#endif
-#endif  // USE_ARDUINO
 
     this->ota_backend_ = ota::make_ota_backend();
     if (!this->ota_backend_) {

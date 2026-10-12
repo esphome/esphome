@@ -263,6 +263,7 @@ def test_receive_exactly_closed_connection_is_network_error(mock_socket: Mock) -
             espota2.RESPONSE_ERROR_BOOTLOADER_UPDATE,
             "An error occurred while updating the bootloader",
         ),
+        (espota2.RESPONSE_ERROR_UPDATE_BUSY, "The device is busy with another update"),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
 )

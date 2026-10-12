@@ -30,6 +30,34 @@ bool version_is_older(const char *candidate, const char *reference) {
   }
 }
 
+// The mutex only guards the check-and-set: the lock may be released from another task than the one
+// that took it, which a FreeRTOS mutex does not allow, and not every platform has atomic exchange.
+static bool update_locked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static Mutex &update_lock_mutex() {
+  static Mutex mutex;
+  return mutex;
+}
+
+bool UpdateLock::try_acquire() {
+  if (this->held_)
+    return true;
+  LockGuard guard(update_lock_mutex());
+  if (update_locked)
+    return false;
+  update_locked = true;
+  this->held_ = true;
+  return true;
+}
+
+void UpdateLock::release() {
+  if (!this->held_)
+    return;
+  LockGuard guard(update_lock_mutex());
+  update_locked = false;
+  this->held_ = false;
+}
+
 #ifdef USE_OTA_STATE_LISTENER
 OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

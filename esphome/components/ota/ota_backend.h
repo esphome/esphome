@@ -51,6 +51,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92,
   OTA_RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93,
   OTA_RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94,
+  OTA_RESPONSE_ERROR_UPDATE_BUSY = 0x95,
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
 
@@ -93,6 +94,28 @@ enum OTAType : uint8_t {
   OTA_TYPE_UPDATE_APP = 0x00,
   OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01,
   OTA_TYPE_UPDATE_BOOTLOADER = 0x02,
+};
+
+/** Lock that keeps flash updates from running at the same time.
+ *
+ * Every OTA backend takes it in begin() and holds it until the backend is destroyed.
+ * A component that writes to the update partition outside of OTA (for example to stage
+ * firmware for another chip) holds it for the duration of that work, so the two refuse
+ * each other instead of overwriting each other's data.
+ */
+class UpdateLock {
+ public:
+  UpdateLock() = default;
+  ~UpdateLock() { this->release(); }
+  UpdateLock(const UpdateLock &) = delete;
+  UpdateLock &operator=(const UpdateLock &) = delete;
+
+  /// Returns false if another holder has the lock. Safe from any task.
+  bool try_acquire();
+  void release();
+
+ protected:
+  bool held_{false};
 };
 
 // The OTA backend method surface. Exactly one backend exists per build,

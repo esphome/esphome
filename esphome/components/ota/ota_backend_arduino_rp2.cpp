@@ -16,6 +16,8 @@ ESPHOME_LOG_TAG(TAG, "ota");
 std::unique_ptr<ArduinoRP2OTABackend> make_ota_backend() { return make_unique<ArduinoRP2OTABackend>(); }
 
 OTAResponseTypes ArduinoRP2OTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
   if (ota_type != OTA_TYPE_UPDATE_APP) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
