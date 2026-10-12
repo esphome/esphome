@@ -37,8 +37,7 @@ void DS3231Component::dump_config() {
 
 bool DS3231Component::read_temperature(float &out) {
   uint8_t raw[2];
-  if (!this->read_bytes(DS3231_REG_TEMPERATURE, raw, sizeof(raw))) {
-    ESP_LOGE(TAG, "Can't read temperature registers.");
+  if (this->is_failed() || !this->read_bytes(DS3231_REG_TEMPERATURE, raw, sizeof(raw))) {
     return false;
   }
   // 10-bit two's complement, 0.25 degC per LSB.
@@ -51,7 +50,7 @@ void DS3231Component::force_temperature_conversion() {
   // Just kick off the conversion - the chip clears CONV and updates the temperature
   // register on its own within ~200 ms, and the next temperature poll picks it up.
   // Blocking here to wait for it would stall the main loop.
-  if (!this->read_control_status_())
+  if (this->is_failed() || !this->read_control_status_())
     return;
   if ((this->status_reg_ & STATUS_BSY) != 0) {
     ESP_LOGW(TAG, "A temperature conversion is already in progress.");
@@ -64,7 +63,7 @@ void DS3231Component::force_temperature_conversion() {
 bool DS3231Component::read_control_status_() {
   uint8_t raw[2];
   if (!this->read_bytes(DS3231_REG_CONTROL, raw, sizeof(raw))) {
-    ESP_LOGE(TAG, "Can't read control/status registers.");
+    ESP_LOGW(TAG, "Can't read control/status registers.");
     return false;
   }
   this->control_reg_ = raw[0];
@@ -74,7 +73,7 @@ bool DS3231Component::read_control_status_() {
 
 bool DS3231Component::write_control_() {
   if (!this->write_byte(DS3231_REG_CONTROL, this->control_reg_)) {
-    ESP_LOGE(TAG, "Can't write control register.");
+    ESP_LOGW(TAG, "Can't write control register.");
     return false;
   }
   return true;

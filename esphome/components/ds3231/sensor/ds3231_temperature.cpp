@@ -15,6 +15,9 @@ void DS3231TemperatureSensor::update() {
   this->publish_state(temperature);
 }
 
-void DS3231TemperatureSensor::dump_config() { LOG_SENSOR("  ", "DS3231 Temperature", this); }
+void DS3231TemperatureSensor::dump_config() {
+  LOG_SENSOR("", "DS3231 Temperature", this);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 }  // namespace esphome::ds3231
