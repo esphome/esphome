@@ -1,3 +1,0 @@
-packages:
-  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-ard.yaml
-  remko_ar715: !include common.yaml
