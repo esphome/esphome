@@ -17,8 +17,10 @@ class LD2410SNumber final : public number::Number, public Parented<LD2410SCompon
 
  protected:
   void control(float value) override {
-    if (this->parent_->set_parameter(this->parameter_, lroundf(value / this->scale_)))
-      this->publish_state(value);
+    // Show the step the module got, not a value between two steps
+    const uint32_t raw = lroundf(value / this->scale_);
+    if (this->parent_->set_parameter(this->parameter_, raw))
+      this->publish_raw(raw);
   }
 
   const Parameter parameter_;

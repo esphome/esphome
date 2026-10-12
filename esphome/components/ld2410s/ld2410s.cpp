@@ -128,6 +128,9 @@ bool LD2410SComponent::set_parameter(Parameter parameter, uint32_t value) {
 
 void LD2410SComponent::restart_init_(uint32_t at) {
   // The module's own values count again once it is set up anew
+  if (this->parameters_dirty_) {
+    ESP_LOGW(TAG, "Dropping the pending parameter change, the module's values are read back");
+  }
   this->init_done_ = false;
   this->parameters_dirty_ = false;
   this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, at);
@@ -410,7 +413,7 @@ void LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
     const uint8_t *v = &values[i * PARAMETER_VALUE_SIZE];
     if ((v[1] | v[2] | v[3]) != 0) {
-      ESP_LOGV(TAG, "Parameter %u out of range: %" PRIu32, i, encode_uint32(v[3], v[2], v[1], v[0]));
+      ESP_LOGW(TAG, "Parameter %u out of range: %" PRIu32, i, encode_uint32(v[3], v[2], v[1], v[0]));
     }
     this->parameters_[i] = v[0];
   }
