@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pcf8574"
 MULTI_CONF = True
 
 pcf8574_ns = cg.esphome_ns.namespace("pcf8574")
@@ -63,7 +64,7 @@ PCF8574_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_PCF8574): cv.use_id(PCF8574Component),
+        cv.Required(CONF_PCF8574): pins.use_id_or_address(PCF8574Component),
     }
 )
 

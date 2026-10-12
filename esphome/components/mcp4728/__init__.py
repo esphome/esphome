@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@berfenger"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "mcp4728"
 MULTI_CONF = True
 CONF_STORE_IN_EEPROM = "store_in_eeprom"
 

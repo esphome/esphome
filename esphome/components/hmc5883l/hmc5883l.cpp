@@ -6,7 +6,7 @@
 
 namespace esphome::hmc5883l {
 
-static const char *const TAG = "hmc5883l";
+ESPHOME_LOG_TAG(TAG, "hmc5883l");
 static const uint8_t HMC5883L_ADDRESS = 0x1E;
 static const uint8_t HMC5883L_REGISTER_CONFIG_A = 0x00;
 static const uint8_t HMC5883L_REGISTER_CONFIG_B = 0x01;

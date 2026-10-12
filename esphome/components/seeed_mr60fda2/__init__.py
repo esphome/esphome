@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@limengdu"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "seeed_mr60fda2"
 MULTI_CONF = True
 
 mr60fda2_ns = cg.esphome_ns.namespace("seeed_mr60fda2")
