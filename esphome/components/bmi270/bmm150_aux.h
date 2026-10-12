@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <cstdint>
+#include "esphome/core/helpers.h"
 
 // BMM150 magnetometer definitions - the chip that can optionally be wired to the BMI270's
 // auxiliary (secondary I2C master) interface. Lives in its own header/namespace because this
@@ -58,19 +59,24 @@ struct BMM150Trim {
 };
 
 // Decodes the trim registers; `regs` holds the bytes of registers 0x5D onwards (at least 21).
+// A little-endian 16-bit trim word, addressed by its register
+inline uint16_t bmm150_trim_word(const uint8_t *regs, uint8_t reg) {
+  const uint8_t offset = reg - BMM150_REG_TRIM_START;
+  return encode_uint16(regs[offset + 1], regs[offset]);
+}
+
 inline BMM150Trim bmm150_parse_trim(const uint8_t *regs) {
-  auto u16 = [regs](uint8_t offset) { return (uint16_t) ((regs[offset + 1] << 8) | regs[offset]); };
   BMM150Trim trim;
-  trim.x1 = (int8_t) regs[BMM150_TRIM_X1 - BMM150_REG_TRIM_START];
-  trim.y1 = (int8_t) regs[BMM150_TRIM_Y1 - BMM150_REG_TRIM_START];
-  trim.z4 = (int16_t) u16(BMM150_TRIM_Z4 - BMM150_REG_TRIM_START);
-  trim.x2 = (int8_t) regs[BMM150_TRIM_X2 - BMM150_REG_TRIM_START];
-  trim.y2 = (int8_t) regs[BMM150_TRIM_Y2 - BMM150_REG_TRIM_START];
-  trim.z2 = (int16_t) u16(BMM150_TRIM_Z2 - BMM150_REG_TRIM_START);
-  trim.z1 = u16(BMM150_TRIM_Z1 - BMM150_REG_TRIM_START);
-  trim.xyz1 = u16(BMM150_TRIM_XYZ1 - BMM150_REG_TRIM_START) & BMM150_TRIM_XYZ1_MASK;
-  trim.z3 = (int16_t) u16(BMM150_TRIM_Z3 - BMM150_REG_TRIM_START);
-  trim.xy2 = (int8_t) regs[BMM150_TRIM_XY2 - BMM150_REG_TRIM_START];
+  trim.x1 = static_cast<int8_t>(regs[BMM150_TRIM_X1 - BMM150_REG_TRIM_START]);
+  trim.y1 = static_cast<int8_t>(regs[BMM150_TRIM_Y1 - BMM150_REG_TRIM_START]);
+  trim.z4 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z4));
+  trim.x2 = static_cast<int8_t>(regs[BMM150_TRIM_X2 - BMM150_REG_TRIM_START]);
+  trim.y2 = static_cast<int8_t>(regs[BMM150_TRIM_Y2 - BMM150_REG_TRIM_START]);
+  trim.z2 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z2));
+  trim.z1 = bmm150_trim_word(regs, BMM150_TRIM_Z1);
+  trim.xyz1 = bmm150_trim_word(regs, BMM150_TRIM_XYZ1) & BMM150_TRIM_XYZ1_MASK;
+  trim.z3 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z3));
+  trim.xy2 = static_cast<int8_t>(regs[BMM150_TRIM_XY2 - BMM150_REG_TRIM_START]);
   trim.xy1 = regs[BMM150_TRIM_XY1 - BMM150_REG_TRIM_START];
   return trim;
 }
