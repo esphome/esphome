@@ -67,6 +67,7 @@ CONF_SUFFIX_BITS = "suffix_bits"
 CONF_CONTROL = "control"
 CONF_CONTROL_IN_KEY = "control_in_key"
 CONF_ROLLING_CODE = "rolling_code"
+CONF_EXTENSION = "extension"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -1572,6 +1573,47 @@ register_protocol_action(
     RC5_SCHEMA,
     (CONF_ADDRESS, "address", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
+)
+
+
+# RC5X (aka RC5 Marantz)
+RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = declare_protocol("RC5X")
+RC5X_SCHEMA = RC5_SCHEMA.extend(
+    {cv.Required(CONF_EXTENSION): cv.hex_int_range(min=0, max=0x3F)}
+)
+
+
+@register_binary_sensor("rc5x", RC5XBinarySensor, RC5X_SCHEMA)
+def rc5x_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RC5XData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+                ("extension", config[CONF_EXTENSION]),
+            )
+        )
+    )
+
+
+@register_trigger("rc5x", RC5XTrigger, RC5XData)
+def rc5x_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("rc5x", RC5XDumper)
+def rc5x_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "rc5x",
+    "RC5X",
+    RC5X_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+    (CONF_EXTENSION, "extension", cg.uint8),
 )
 
 
