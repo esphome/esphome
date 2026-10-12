@@ -409,3 +409,14 @@ button:
     on_press:
       remote_transmitter.transmit_roomba:
         data: 0x88
+  - platform: template
+    name: Pronto
+    on_press:
+      remote_transmitter.transmit_pronto:
+        data: "0000 006D 0022 0002 0157 00AC 0015 0016 0015 0041 0015 0016 0015 0016 0015 0016 0015 0016 0015 0016 0015 0016 0015 0041 0015 0016 0015 0041 0015 0041 0015 0041 0015 0041 0015 0041 0015 0041 0015 0016 0015 0016 0015 0016 0015 0041 0015 0016 0015 0016 0015 0016 0015 0016 0015 0041 0015 0041 0015 0041 0015 0016 0015 0041 0015 0041 0015 0041 0015 0041 0015 0689 0157 0056 0015 0E94"
+  - platform: template
+    name: RC6
+    on_press:
+      remote_transmitter.transmit_rc6:
+        address: 0x00
+        command: !lambda return 0x0C;
