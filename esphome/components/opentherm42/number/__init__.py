@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_INITIAL_VALUE, DEVICE_CLASS_TEMPERATURE
+from esphome.const import (
+    CONF_INDEX,
+    CONF_INITIAL_VALUE,
+    DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_CONFIG,
+)
 
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
@@ -9,11 +14,17 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
+    CONF_TRANSPARENT_BOILER_PARAMETERS,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY,
     CONF_UPDATE_EVERY,
 )
 
 OpenTherm42Number = opentherm42_ns.class_(
     "OpenTherm42Number", number.Number, cg.Component
+)
+OpenTherm42TspNumber = opentherm42_ns.class_(
+    "OpenTherm42TspNumber", number.Number, cg.Component
 )
 
 
@@ -82,12 +93,37 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
     ),
 }
 
+# §5.3.6 Class 6, IDs 11/89/106: one list of user-named TSP slots per family, keyed by which data-id
+# reads/writes that family's transparent-boiler-parameters.
+TSP_FAMILY_DATA_IDS: dict[str, int] = {
+    CONF_TRANSPARENT_BOILER_PARAMETERS: 11,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY: 89,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE: 106,
+}
+
+TSP_ENTRY_SCHEMA = (
+    # Raw, opaque, manufacturer-specific parameter access -- an advanced/expert interface, not a
+    # value anyone adjusts as part of normal operation, so CONFIG.
+    number.number_schema(OpenTherm42TspNumber, entity_category=ENTITY_CATEGORY_CONFIG)
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(
+        {
+            # TSP-index: which of the boiler's (opaque, manufacturer-specific) parameters this slot reads/writes.
+            cv.Required(CONF_INDEX): cv.int_range(min=0, max=255),
+        }
+    )
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         **{
             cv.Optional(marker): schema.extend(cv.COMPONENT_SCHEMA)
             for marker, (schema, _traits, _id) in TYPES.items()
+        },
+        **{
+            cv.Optional(marker, default=[]): cv.ensure_list(TSP_ENTRY_SCHEMA)
+            for marker in TSP_FAMILY_DATA_IDS
         },
     }
 )
@@ -102,3 +138,11 @@ async def to_code(config: dict) -> None:
             cg.add(var.set_initial_value(marker_config[CONF_INITIAL_VALUE]))
             cg.add(var.set_update_every(marker_config[CONF_UPDATE_EVERY]))
             cg.add(getattr(hub, f"set_{marker}_number")(var))
+
+    for marker, data_id in TSP_FAMILY_DATA_IDS.items():
+        for entry in config[marker]:
+            var = await number.new_number(
+                entry, hub, min_value=0, max_value=255, step=1
+            )
+            await cg.register_component(var, entry)
+            cg.add(hub.add_tsp_slot(data_id, entry[CONF_INDEX], var))
