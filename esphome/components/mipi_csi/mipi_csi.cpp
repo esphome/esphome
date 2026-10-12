@@ -557,9 +557,9 @@ void MipiCsiCamera::report_throughput_(uint32_t now) {
   // Only interesting while frames are actually being delivered.
   if (this->published_frames_ != 0) {
     const uint32_t elapsed = now - this->last_stats_;
-    ESP_LOGD(TAG, "Delivered %" PRIu32 " frames in %" PRIu32 " ms (%.1f fps, avg %" PRIu32 " bytes), configured %u fps",
+    ESP_LOGD(TAG, "Delivered %" PRIu32 " frames in %" PRIu32 " ms (%.1f fps, avg %zu bytes), configured %u fps",
              this->published_frames_, elapsed, this->published_frames_ * 1000.0f / elapsed,
-             this->published_bytes_ / this->published_frames_, this->framerate_);
+             static_cast<size_t>(this->published_bytes_ / this->published_frames_), this->framerate_);
     this->published_frames_ = 0;
     this->published_bytes_ = 0;
   }
