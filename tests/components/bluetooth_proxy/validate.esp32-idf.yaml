@@ -1,0 +1,13 @@
+# Connections given as a bare list, with no explicit per-entry id. The ids are
+# generated during validation, so this config breaks if the schema validates the
+# connections list more than once.
+packages:
+  common: !include common.yaml
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: true
+  connections:
+    - {}
+    - {}

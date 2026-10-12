@@ -9,6 +9,8 @@
 
 namespace esphome::sx127x {
 
+static constexpr size_t SX127X_MAX_PACKET_SIZE = 255;  // the payload length register is 8 bits
+
 enum SX127xBw : uint8_t {
   SX127X_BW_2_6,
   SX127X_BW_3_1,
@@ -41,9 +43,9 @@ class SX127xListener {
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
-class SX127x : public Component,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                     spi::DATA_RATE_8MHZ> {
+class SX127x final : public Component,
+                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                           spi::DATA_RATE_8MHZ> {
  public:
   size_t get_max_packet_size();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -81,7 +83,10 @@ class SX127x : public Component,
   void set_sync_value(const std::vector<uint8_t> &sync_value) { this->sync_value_ = sync_value; }
   void run_image_cal();
   void configure();
-  SX127xError transmit_packet(const std::vector<uint8_t> &packet);
+  SX127xError transmit_packet(const uint8_t *data, size_t len);
+  SX127xError transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
   void register_listener(SX127xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
@@ -90,7 +95,7 @@ class SX127x : public Component,
   void configure_fsk_ook_();
   void configure_lora_();
   void set_mode_(uint8_t modulation, uint8_t mode);
-  void write_fifo_(const std::vector<uint8_t> &packet);
+  void write_fifo_(const uint8_t *data, size_t len);
   void read_fifo_(std::vector<uint8_t> &packet);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);

@@ -5,7 +5,7 @@
 
 namespace esphome::haier {
 
-class BeeperSwitch : public switch_::Switch, public Parented<HonClimate> {
+class BeeperSwitch final : public switch_::Switch, public Parented<HonClimate> {
  public:
   BeeperSwitch() = default;
 

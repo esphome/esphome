@@ -7,7 +7,7 @@
 
 namespace esphome::mics_4514 {
 
-class MICS4514Component : public PollingComponent, public i2c::I2CDevice {
+class MICS4514Component final : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(carbon_monoxide)
   SUB_SENSOR(nitrogen_dioxide)
   SUB_SENSOR(methane)

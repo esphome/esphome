@@ -65,7 +65,7 @@ struct ADE7880Store {
   static void gpio_intr(ADE7880Store *arg);
 };
 
-class ADE7880 : public i2c::I2CDevice, public PollingComponent {
+class ADE7880 final : public i2c::I2CDevice, public PollingComponent {
  public:
   void set_irq0_pin(InternalGPIOPin *pin) { this->irq0_pin_ = pin; }
   void set_irq1_pin(InternalGPIOPin *pin) { this->irq1_pin_ = pin; }

@@ -9,7 +9,7 @@
 
 namespace esphome::lvgl {
 
-class LVGLSwitch : public switch_::Switch, public Component {
+class LVGLSwitch final : public switch_::Switch, public Component {
  public:
   LVGLSwitch(std::function<void(bool)> state_lambda) : state_lambda_(std::move(state_lambda)) {}
 

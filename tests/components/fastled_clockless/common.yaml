@@ -21,6 +21,8 @@ light:
               green: 0%
               blue: 0%
               num_leds: 1
+            - color: darkred
+              num_leds: 1
           add_led_interval: 100ms
           reverse: false
       - addressable_scan:

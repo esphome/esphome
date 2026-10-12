@@ -50,7 +50,12 @@ static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
 static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 
-static const char *const TAG = "speaker_media_player";
+ESPHOME_LOG_TAG(TAG, "speaker_media_player");
+
+static constexpr uint32_t UNPAUSE_MEDIA_INTERVAL_ID = 0;
+static constexpr uint32_t NEXT_ANNOUNCEMENT_TIMEOUT_ID = 1;
+static constexpr uint32_t NEXT_MEDIA_TIMEOUT_ID = 2;
+static constexpr uint32_t UNPAUSE_ANNOUNCEMENT_INTERVAL_ID = 3;
 
 void SpeakerMediaPlayer::setup() {
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
@@ -112,13 +117,13 @@ void SpeakerMediaPlayer::set_playlist_delay_ms(AudioPipelineType pipeline_type, 
 void SpeakerMediaPlayer::stop_and_unpause_media_() {
   this->media_pipeline_->stop();
   this->unpause_media_remaining_ = 3;
-  this->set_interval("unpause_med", 50, [this]() {
+  this->set_interval(UNPAUSE_MEDIA_INTERVAL_ID, 50, [this]() {
     if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-      this->cancel_interval("unpause_med");
+      this->cancel_interval(UNPAUSE_MEDIA_INTERVAL_ID);
       this->media_pipeline_->set_pause_state(false);
       this->is_paused_ = false;
     } else if (--this->unpause_media_remaining_ == 0) {
-      this->cancel_interval("unpause_med");
+      this->cancel_interval(UNPAUSE_MEDIA_INTERVAL_ID);
     }
   });
 }
@@ -152,8 +157,9 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
         if (!enqueue) {
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
-          this->cancel_timeout("next_ann");
+          this->cancel_timeout(NEXT_ANNOUNCEMENT_TIMEOUT_ID);
           this->announcement_playlist_.clear();
+          this->announcement_item_failed_ = false;
           if (media_command.file.has_value()) {
             this->announcement_pipeline_->start_file(playlist_item.file.value());
           } else if (media_command.url.has_value()) {
@@ -165,8 +171,9 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       } else {
         if (!enqueue) {
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
-          this->cancel_timeout("next_media");
+          this->cancel_timeout(NEXT_MEDIA_TIMEOUT_ID);
           this->media_playlist_.clear();
+          this->media_item_failed_ = false;
           if (this->is_paused_) {
             // If paused, stop the media pipeline and unpause it after confirming its stopped. This avoids playing a
             // short segment of the paused file before starting the new one.
@@ -222,7 +229,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           break;
         case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
           this->is_turn_off_ = true;
-          // Intentional Fall-through
+          [[fallthrough]];
 #endif
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
           // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
@@ -234,23 +241,25 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
 #endif
             if (this->announcement_pipeline_ != nullptr) {
-              this->cancel_timeout("next_ann");
+              this->cancel_timeout(NEXT_ANNOUNCEMENT_TIMEOUT_ID);
               this->announcement_playlist_.clear();
+              this->announcement_item_failed_ = false;
               this->announcement_pipeline_->stop();
               this->unpause_announcement_remaining_ = 3;
-              this->set_interval("unpause_ann", 50, [this]() {
+              this->set_interval(UNPAUSE_ANNOUNCEMENT_INTERVAL_ID, 50, [this]() {
                 if (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED) {
-                  this->cancel_interval("unpause_ann");
+                  this->cancel_interval(UNPAUSE_ANNOUNCEMENT_INTERVAL_ID);
                   this->announcement_pipeline_->set_pause_state(false);
                 } else if (--this->unpause_announcement_remaining_ == 0) {
-                  this->cancel_interval("unpause_ann");
+                  this->cancel_interval(UNPAUSE_ANNOUNCEMENT_INTERVAL_ID);
                 }
               });
             }
           } else {
             if (this->media_pipeline_ != nullptr) {
-              this->cancel_timeout("next_media");
+              this->cancel_timeout(NEXT_MEDIA_TIMEOUT_ID);
               this->media_playlist_.clear();
+              this->media_item_failed_ = false;
               this->stop_and_unpause_media_();
             }
           }
@@ -351,8 +360,10 @@ void SpeakerMediaPlayer::loop() {
 
   if (this->media_pipeline_state_ == AudioPipelineState::ERROR_READING) {
     ESP_LOGE(TAG, "The media pipeline's file reader encountered an error.");
+    this->media_item_failed_ = true;
   } else if (this->media_pipeline_state_ == AudioPipelineState::ERROR_DECODING) {
     ESP_LOGE(TAG, "The media pipeline's audio decoder encountered an error.");
+    this->media_item_failed_ = true;
   }
 
   AudioPipelineState old_announcement_pipeline_state = this->announcement_pipeline_state_;
@@ -362,8 +373,10 @@ void SpeakerMediaPlayer::loop() {
 
   if (this->announcement_pipeline_state_ == AudioPipelineState::ERROR_READING) {
     ESP_LOGE(TAG, "The announcement pipeline's file reader encountered an error.");
+    this->announcement_item_failed_ = true;
   } else if (this->announcement_pipeline_state_ == AudioPipelineState::ERROR_DECODING) {
     ESP_LOGE(TAG, "The announcement pipeline's audio decoder encountered an error.");
+    this->announcement_item_failed_ = true;
   }
 
   if (this->announcement_pipeline_state_ != AudioPipelineState::STOPPED) {
@@ -371,7 +384,12 @@ void SpeakerMediaPlayer::loop() {
   } else {
     if (!this->announcement_playlist_.empty()) {
       uint32_t timeout_ms = 0;
-      if (old_announcement_pipeline_state == AudioPipelineState::PLAYING) {
+      if (this->announcement_item_failed_) {
+        // Drop the item that failed, even with repeat enabled; otherwise it is restarted as soon as the pipeline
+        // stops, which after an error is usually on the next loop
+        this->announcement_item_failed_ = false;
+        this->announcement_playlist_.pop_front();
+      } else if (old_announcement_pipeline_state == AudioPipelineState::PLAYING) {
         // Finished the current announcement file
         if (!this->announcement_repeat_one_) {
           //  Pop item off the playlist if repeat is disabled
@@ -395,10 +413,13 @@ void SpeakerMediaPlayer::loop() {
           this->announcement_pipeline_->set_pause_state(true);
           // Internally unpause the pipeline after the delay between playlist items. Announcements do not follow the
           // media player's pause state.
-          this->set_timeout("next_ann", timeout_ms, [this]() { this->announcement_pipeline_->set_pause_state(false); });
+          this->set_timeout(NEXT_ANNOUNCEMENT_TIMEOUT_ID, timeout_ms,
+                            [this]() { this->announcement_pipeline_->set_pause_state(false); });
         }
       }
     } else {
+      // Nothing left to retry
+      this->announcement_item_failed_ = false;
       if (this->is_paused_) {
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
         if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
@@ -412,7 +433,12 @@ void SpeakerMediaPlayer::loop() {
       } else if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
         if (!media_playlist_.empty()) {
           uint32_t timeout_ms = 0;
-          if (old_media_pipeline_state == AudioPipelineState::PLAYING) {
+          if (this->media_item_failed_) {
+            // Drop the item that failed, even with repeat enabled; otherwise it is restarted as soon as the pipeline
+            // stops. The flag also covers an error that happened while an announcement was playing.
+            this->media_item_failed_ = false;
+            this->media_playlist_.pop_front();
+          } else if (old_media_pipeline_state == AudioPipelineState::PLAYING) {
             // Finished the current media file
             if (!this->media_repeat_one_) {
               // Pop item off the playlist if repeat is disabled
@@ -434,11 +460,13 @@ void SpeakerMediaPlayer::loop() {
               this->media_pipeline_->set_pause_state(true);
               // Internally unpause the pipeline after the delay between playlist items, if the media player state is
               // not paused.
-              this->set_timeout("next_media", timeout_ms,
+              this->set_timeout(NEXT_MEDIA_TIMEOUT_ID, timeout_ms,
                                 [this]() { this->media_pipeline_->set_pause_state(this->is_paused_); });
             }
           }
         } else {
+          // Nothing left to retry
+          this->media_item_failed_ = false;
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
           if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
             this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
@@ -471,7 +499,7 @@ void SpeakerMediaPlayer::loop() {
 #endif
 }
 
-void SpeakerMediaPlayer::play_file(audio::AudioFile *media_file, bool announcement, bool enqueue) {
+void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool announcement, bool enqueue) {
   if (!this->is_ready()) {
     // Ignore any commands sent before the media player is setup
     return;
@@ -595,8 +623,11 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 }
 
 void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
-  // Remap the volume to fit with in the configured limits
-  float bounded_volume = remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
+  // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
+  // the speaker silences it, otherwise volume_min would make it audible.
+  float bounded_volume = (volume < SILENT_VOLUME_THRESHOLD)
+                             ? 0.0f
+                             : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
 
   if (this->media_speaker_ != nullptr) {
     this->media_speaker_->set_volume(bounded_volume);
@@ -609,13 +640,6 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   if (publish) {
     this->volume = volume;
     this->save_volume_restore_state_();
-  }
-
-  // Turn on the mute state if the volume is effectively zero, off otherwise
-  if (volume < 0.001) {
-    this->set_mute_state_(true);
-  } else {
-    this->set_mute_state_(false);
   }
 
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });

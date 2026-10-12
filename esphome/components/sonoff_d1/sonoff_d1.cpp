@@ -46,19 +46,13 @@
 
 namespace esphome::sonoff_d1 {
 
-static const char *const TAG = "sonoff_d1";
+ESPHOME_LOG_TAG(TAG, "sonoff_d1");
 
 // Protocol constants
 static constexpr size_t SONOFF_D1_ACK_SIZE = 7;
 static constexpr size_t SONOFF_D1_MAX_CMD_SIZE = 17;
 
-uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) {
-  uint8_t crc = 0;
-  for (size_t i = 2; i < len - 1; i++) {
-    crc += cmd[i];
-  }
-  return crc;
-}
+uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) { return sum_bytes(cmd + 2, len - 3); }
 
 void SonoffD1Output::populate_checksum_(uint8_t *cmd, const size_t len) {
   // Update the checksum

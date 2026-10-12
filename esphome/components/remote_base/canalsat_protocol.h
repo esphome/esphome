@@ -19,9 +19,9 @@ struct CanalSatLDData : public CanalSatData {};
 
 class CanalSatBaseProtocol : public RemoteProtocol<CanalSatData> {
  public:
-  void encode(RemoteTransmitData *dst, const CanalSatData &data) override;
-  optional<CanalSatData> decode(RemoteReceiveData src) override;
-  void dump(const CanalSatData &data) override;
+  void encode(RemoteTransmitData *dst, const CanalSatData &data);
+  optional<CanalSatData> decode(RemoteReceiveData src);
+  void dump(const CanalSatData &data);
 
  protected:
   uint16_t frequency_;
@@ -41,36 +41,6 @@ class CanalSatLDProtocol : public CanalSatBaseProtocol {
 
 DECLARE_REMOTE_PROTOCOL(CanalSat)
 
-template<typename... Ts> class CanalSatAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, device)
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) {
-    CanalSatData data{};
-    data.device = this->device_.value(x...);
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    CanalSatProtocol().encode(dst, data);
-  }
-};
-
 DECLARE_REMOTE_PROTOCOL(CanalSatLD)
-
-template<typename... Ts> class CanalSatLDAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, device)
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) {
-    CanalSatData data{};
-    data.device = this->device_.value(x...);
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    CanalSatLDProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

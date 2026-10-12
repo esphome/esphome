@@ -6,13 +6,13 @@
 
 namespace esphome::demo {
 
-class DemoTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class DemoTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   void update() override {
     float val = random_float();
-    if (val < 0.33) {
+    if (val < 0.33f) {
       this->publish_state("foo");
-    } else if (val < 0.66) {
+    } else if (val < 0.66f) {
       this->publish_state("bar");
     } else {
       this->publish_state("foobar");

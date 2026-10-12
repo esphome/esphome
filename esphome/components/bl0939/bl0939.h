@@ -56,7 +56,7 @@ union DataPacket {  // NOLINT(altera-struct-pack-align)
   };
 } __attribute__((packed));
 
-class BL0939 : public PollingComponent, public uart::UARTDevice {
+class BL0939 final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor_1(sensor::Sensor *current_sensor_1) { current_sensor_1_ = current_sensor_1; }
@@ -66,6 +66,7 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   void set_energy_sensor_1(sensor::Sensor *energy_sensor_1) { energy_sensor_1_ = energy_sensor_1; }
   void set_energy_sensor_2(sensor::Sensor *energy_sensor_2) { energy_sensor_2_ = energy_sensor_2; }
   void set_energy_sensor_sum(sensor::Sensor *energy_sensor_sum) { energy_sensor_sum_ = energy_sensor_sum; }
+  void set_internal_temperature_sensor(sensor::Sensor *sensor) { this->internal_temperature_sensor_ = sensor; }
 
   void loop() override;
 
@@ -84,6 +85,7 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *energy_sensor_1_{nullptr};
   sensor::Sensor *energy_sensor_2_{nullptr};
   sensor::Sensor *energy_sensor_sum_{nullptr};
+  sensor::Sensor *internal_temperature_sensor_{nullptr};
 
   // Divide by this to turn into Watt
   float power_reference_ = BL0939_PREF;

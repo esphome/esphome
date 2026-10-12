@@ -82,7 +82,7 @@ enum LSM6DSGyroODR : uint8_t {
 };
 
 // ── Main component class ─────────────────────────────────────────────────────
-class LSM6DSComponent : public motion::MotionComponent, public i2c::I2CDevice {
+class LSM6DSComponent final : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

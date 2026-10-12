@@ -194,7 +194,7 @@ def cmd_update(args: argparse.Namespace) -> int:
 
 
 def cmd_har_only(args: argparse.Namespace) -> int:
-    Path(args.har).write_text(run_waterfall(TARGET_MODULE))
+    Path(args.har).write_text(run_waterfall(TARGET_MODULE), encoding="utf-8")
     print(f"Wrote waterfall HAR to {args.har}")
     return 0
 

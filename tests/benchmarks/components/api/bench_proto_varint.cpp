@@ -58,7 +58,7 @@ BENCHMARK(ProtoVarInt_Parse_FiveByte);
 
 static void Encode_Varint_Small(benchmark::State &state) {
   APIBuffer buffer;
-  buffer.resize(16);
+  (void) buffer.resize(16);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -73,7 +73,7 @@ BENCHMARK(Encode_Varint_Small);
 
 static void Encode_Varint_Large(benchmark::State &state) {
   APIBuffer buffer;
-  buffer.resize(16);
+  (void) buffer.resize(16);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -88,7 +88,7 @@ BENCHMARK(Encode_Varint_Large);
 
 static void Encode_Varint_MaxUint32(benchmark::State &state) {
   APIBuffer buffer;
-  buffer.resize(16);
+  (void) buffer.resize(16);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {

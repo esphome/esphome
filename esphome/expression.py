@@ -1,4 +1,4 @@
-"""Helpers for detecting substitution variables and Jinja expressions."""
+"""Helpers for detecting and matching substitution variables and Jinja expressions."""
 
 import re
 
@@ -8,7 +8,7 @@ SUBSTITUTION_VARIABLE_PROG = re.compile(
     rf"\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\}})"
 )
 
-_JINJA_RE = re.compile(
+JINJA_PROG = re.compile(
     r"<%.+?%>"  # Block: <% ... %>
     r"|\$\{[^}]+\}",  # Braced: ${ ... }
     flags=re.MULTILINE,
@@ -17,7 +17,7 @@ _JINJA_RE = re.compile(
 
 def has_jinja(value: str) -> bool:
     """Check if a string contains Jinja expressions."""
-    return _JINJA_RE.search(value) is not None
+    return JINJA_PROG.search(value) is not None
 
 
 def has_substitution_or_expression(value: str) -> bool:

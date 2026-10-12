@@ -6,7 +6,7 @@
 
 namespace esphome::output {
 
-class OutputLock : public lock::Lock, public Component {
+class OutputLock final : public lock::Lock, public Component {
  public:
   void set_output(BinaryOutput *output) { output_ = output; }
 

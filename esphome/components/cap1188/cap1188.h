@@ -26,7 +26,7 @@ enum {
   CAP1188_SENSITVITY = 0x1f,
 };
 
-class CAP1188Channel : public binary_sensor::BinarySensor {
+class CAP1188Channel final : public binary_sensor::BinarySensor {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
   void process(uint8_t data) { this->publish_state(static_cast<bool>(data & (1 << this->channel_))); }
@@ -35,7 +35,7 @@ class CAP1188Channel : public binary_sensor::BinarySensor {
   uint8_t channel_{0};
 };
 
-class CAP1188Component : public Component, public i2c::I2CDevice {
+class CAP1188Component final : public Component, public i2c::I2CDevice {
  public:
   void register_channel(CAP1188Channel *channel) { this->channels_.push_back(channel); }
   void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };

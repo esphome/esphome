@@ -5,7 +5,7 @@
 
 namespace esphome::demo {
 
-class DemoBinarySensor : public binary_sensor::BinarySensor, public PollingComponent {
+class DemoBinarySensor final : public binary_sensor::BinarySensor, public PollingComponent {
  public:
   void setup() override { this->publish_initial_state(false); }
   void update() override {

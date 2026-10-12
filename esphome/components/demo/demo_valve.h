@@ -9,7 +9,7 @@ enum class DemoValveType {
   TYPE_2,
 };
 
-class DemoValve : public valve::Valve {
+class DemoValve final : public valve::Valve {
  public:
   valve::ValveTraits get_traits() override {
     valve::ValveTraits traits;

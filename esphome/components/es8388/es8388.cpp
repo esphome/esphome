@@ -6,7 +6,7 @@
 
 namespace esphome::es8388 {
 
-static const char *const TAG = "es8388";
+ESPHOME_LOG_TAG(TAG, "es8388");
 
 // Mark the component as failed; use only in setup
 #define ES8388_ERROR_FAILED(func) \
@@ -173,8 +173,14 @@ bool ES8388::set_mute_state_(bool mute_state) {
   ES8388_ERROR_CHECK(this->read_byte(ES8388_DACCONTROL3, &value));
   ESP_LOGV(TAG, "Read ES8388_DACCONTROL3: 0x%02X", value);
 
+  // Only toggle the DACMute bit; the other bits of this register hold unrelated
+  // DAC settings that must be preserved. Previously muting overwrote the whole
+  // register with 0x3C and unmuting never cleared the bit, so once muted the DAC
+  // could not be unmuted again.
   if (mute_state) {
-    value = 0x3C;
+    value |= ES8388_DACCONTROL3_DAC_MUTE;
+  } else {
+    value &= ~ES8388_DACCONTROL3_DAC_MUTE;
   }
 
   ESP_LOGV(TAG, "Setting ES8388_DACCONTROL3 to 0x%02X (muted: %s)", value, YESNO(mute_state));
@@ -225,7 +231,7 @@ bool ES8388::set_dac_output(DacOutputLine line) {
 optional<DacOutputLine> ES8388::get_dac_power() {
   uint8_t dac_power;
   if (!this->read_byte(ES8388_DACPOWER, &dac_power)) {
-    this->status_momentary_warning("dacpower_read");
+    this->status_momentary_warning();
     return {};
   }
   switch (dac_power) {
@@ -268,7 +274,7 @@ bool ES8388::set_adc_input_mic(AdcInputMicLine line) {
 optional<AdcInputMicLine> ES8388::get_mic_input() {
   uint8_t mic_input;
   if (!this->read_byte(ES8388_ADCCONTROL2, &mic_input)) {
-    this->status_momentary_warning("adccontrol2_read");
+    this->status_momentary_warning();
     return {};
   }
   switch (mic_input) {

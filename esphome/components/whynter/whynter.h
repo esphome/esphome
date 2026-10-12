@@ -12,7 +12,7 @@ const uint8_t TEMP_MAX_C = 32;  // Celsius
 const uint8_t TEMP_MIN_F = 61;  // Fahrenheit
 const uint8_t TEMP_MAX_F = 89;  // Fahrenheit
 
-class Whynter : public climate_ir::ClimateIR {
+class Whynter final : public climate_ir::ClimateIR {
  public:
   Whynter()
       : climate_ir::ClimateIR(TEMP_MIN_C, TEMP_MAX_C, 1.0, true, true,

@@ -1,5 +1,7 @@
+from typing import Any
+
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -17,6 +19,7 @@ from esphome.const import (
     UNIT_MILLIMETER,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CONF_TANK_TYPE = "tank_type"
 CONF_CUSTOM_DISTANCE_FULL = "custom_distance_full"
@@ -28,7 +31,7 @@ ICON_PROPANE_TANK = "mdi:propane-tank"
 TANK_TYPE_CUSTOM = "CUSTOM"
 
 
-def small_distance(value):
+def small_distance(value: Any) -> float:
     """small_distance is stored in mm"""
     meters = cv.distance(value)
     return meters * 1000
@@ -50,14 +53,15 @@ CONF_SUPPORTED_TANKS_MAP = {
 }
 
 CODEOWNERS = ["@Fabian-Schmidt"]
-DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["ble_device_base"]
 
 mopeka_std_check_ns = cg.esphome_ns.namespace("mopeka_std_check")
 MopekaStdCheck = mopeka_std_check_ns.class_(
-    "MopekaStdCheck", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+    "MopekaStdCheck", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("mopeka_std_check"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MopekaStdCheck),
@@ -93,15 +97,15 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
@@ -124,15 +128,8 @@ async def to_code(config):
     if CONF_PROPANE_BUTANE_MIX in config:
         cg.add(var.set_propane_butane_mix(config[CONF_PROPANE_BUTANE_MIX]))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_LEVEL])
-        cg.add(var.set_level(sens))
-    if CONF_DISTANCE in config:
-        sens = await sensor.new_sensor(config[CONF_DISTANCE])
-        cg.add(var.set_distance(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_LEVEL, var.set_level)
+    await sensors(CONF_DISTANCE, var.set_distance)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)

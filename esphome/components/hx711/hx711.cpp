@@ -4,7 +4,7 @@
 
 namespace esphome::hx711 {
 
-static const char *const TAG = "hx711";
+ESPHOME_LOG_TAG(TAG, "hx711");
 
 void HX711Sensor::setup() {
   this->sck_pin_->setup();

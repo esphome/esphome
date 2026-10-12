@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+logger:
+
+api:
+
+button:
+  - platform: homeassistant
+    id: ha_button
+    name: HA button
+    entity_id: button.example
+  - platform: homeassistant
+    id: ha_input_button
+    name: HA input_button
+    entity_id: input_button.example

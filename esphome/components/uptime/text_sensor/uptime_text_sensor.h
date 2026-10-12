@@ -7,7 +7,7 @@
 
 namespace esphome::uptime {
 
-class UptimeTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class UptimeTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   UptimeTextSensor(const char *days_text, const char *hours_text, const char *minutes_text, const char *seconds_text,
                    const char *separator, bool expand)
