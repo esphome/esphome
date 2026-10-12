@@ -29,7 +29,8 @@ void MiCS5524Component::setup() {
   if (this->calibration_enabled_) {
     // Nothing is stored across reboots, so every boot calibrates when it is
     // configured to; 'air_reference:' is the way to skip that.
-    const uint32_t delay = std::max(this->calibration_delay_, this->warmup_remaining_());
+    // The warm-up window starts here, so all of it still lies ahead of the calibration.
+    const uint32_t delay = std::max(this->calibration_delay_, this->warmup_time_);
     this->calibration_pending_ = true;
     this->set_timeout(CALIBRATION_START_ID, delay, [this]() { this->begin_calibration_(); });
     ESP_LOGI(TAG, "air reference calibration in %" PRIu32 " s - the sensor must be in clean air", delay / 1000);
@@ -80,9 +81,15 @@ void MiCS5524Component::publish_ratio_(float ratio) {
 #endif
 }
 
-uint32_t MiCS5524Component::warmup_remaining_() const {
-  const uint32_t elapsed = App.get_loop_component_start_time() - this->warmup_start_;
-  return elapsed < this->warmup_time_ ? this->warmup_time_ - elapsed : 0;
+bool MiCS5524Component::in_warmup_() {
+  if (this->warmup_ended_)
+    return false;
+  if (App.get_loop_component_start_time() - this->warmup_start_ < this->warmup_time_)
+    return true;
+  // A window that has passed is over: latching it keeps the subtraction above from
+  // reopening it once it overflows, ~49.7 days after the start.
+  this->warmup_ended_ = true;
+  return false;
 }
 
 void MiCS5524Component::update() {
@@ -99,14 +106,9 @@ void MiCS5524Component::update() {
     return;
   }
 
-  const uint32_t warmup_left = this->warmup_remaining_();
-  if (warmup_left > 0) {
-    if (!this->warmup_notified_) {
-      this->warmup_notified_ = true;
-      ESP_LOGI(TAG, "warming up, %" PRIu32 " s to go", warmup_left / 1000);
-    }
+  if (this->in_warmup_()) {
     // Published on every pass, so a value computed before a restart never survives the
-    // warm-up window.
+    // warm-up window.  `setup()` logged the window, so there is nothing to repeat here.
     this->publish_ratio_(NAN);
     return;
   }

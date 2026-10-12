@@ -83,10 +83,12 @@ class MiCS5524Component : public PollingComponent {
   /// A clean-air reference (`x_air`) is available.
   bool has_reference_() const { return this->reference_ > 0.0f; }
 
-  /// Time left of the warm-up window, 0 once the sensor is settled.  Elapsed time is
-  /// compared instead of a deadline, so the result survives the 32-bit `millis()`
-  /// rollover.
-  uint32_t warmup_remaining_() const;
+  /// True while the warm-up window of `warmup_time_` is still running; ends the window
+  /// for good once it has passed.
+  ///
+  /// The end has to be latched: subtracting two loop timestamps overflows after about
+  /// 49.7 days, which would report the window as running again and silence the readings.
+  bool in_warmup_();
 
   // ------------------------------------------------------------- configuration
   voltage_sampler::VoltageSampler *source_{nullptr};
@@ -119,9 +121,11 @@ class MiCS5524Component : public PollingComponent {
   /// was not settled, see `calibration_is_stable()`.
   float calibration_min_{0.0f};
   float calibration_max_{0.0f};
-  /// Loop time the warm-up window started at, 0 without a `warmup_time:`.
+  /// Loop time the warm-up window started at; only read while `in_warmup_()` holds it
+  /// open.
   uint32_t warmup_start_{0};
-  bool warmup_notified_{false};
+  /// The warm-up window ended; latched, so `in_warmup_()` never reports it again.
+  bool warmup_ended_{false};
   bool warned_no_reference_{false};
   bool warned_voltage_{false};
 
