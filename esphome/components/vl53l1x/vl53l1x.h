@@ -10,7 +10,8 @@ namespace esphome::vl53l1x {
 // Values index the distance mode and timing budget tables in the .cpp.
 enum DistanceMode : uint8_t {
   DISTANCE_MODE_SHORT = 0,
-  DISTANCE_MODE_LONG = 1,
+  DISTANCE_MODE_MEDIUM = 1,
+  DISTANCE_MODE_LONG = 2,
 };
 
 class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {

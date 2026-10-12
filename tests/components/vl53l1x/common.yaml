@@ -9,7 +9,7 @@ sensor:
     name: VL53L1X Short Range
     address: 0x30
     enable_pin: GPIO13
-    distance_mode: short
+    distance_mode: medium
     timing_budget: 33ms
     roi_width: 8
     roi_height: 8

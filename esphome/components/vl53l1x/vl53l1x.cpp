@@ -144,7 +144,8 @@ static const uint8_t DEFAULT_CONFIG[] PROGMEM = {
     0x00,  // 0x87: SYSTEM_MODE_START
 };
 
-// ULD SetDistanceMode values, indexed by DistanceMode
+// ULD SetDistanceMode values, indexed by DistanceMode. The ULD only knows short and long; medium
+// is ST's standard ranging preset, which is what the ULD default configuration above programs.
 struct DistanceModeConfig {
   uint8_t phasecal_timeout;
   uint8_t vcsel_period_a;
@@ -155,6 +156,7 @@ struct DistanceModeConfig {
 };
 static const DistanceModeConfig DISTANCE_MODE_CONFIGS[] PROGMEM = {
     {0x14, 0x07, 0x05, 0x38, 0x0705, 0x0606},  // short
+    {0x0B, 0x0B, 0x09, 0x78, 0x0B09, 0x0A0A},  // medium
     {0x0A, 0x0F, 0x0D, 0xB8, 0x0F0D, 0x0E0E},  // long
 };
 
@@ -172,11 +174,25 @@ static const TimingBudgetConfig LONG_TIMING_BUDGETS[] PROGMEM = {
     {20, 0x001E, 0x0022},  {33, 0x0060, 0x006E},  {50, 0x00AD, 0x00C6},
     {100, 0x01CC, 0x01EA}, {200, 0x02D9, 0x02F8}, {500, 0x048F, 0x04A4},
 };
+// The ULD has no medium table: these are the long values scaled by the VCSEL period ratio
+// (16/12 for A, 14/10 for B), since the macro period grows with the period and the timeouts
+// count macro periods. The data-ready poll tolerates the small error this leaves.
+static const TimingBudgetConfig MEDIUM_TIMING_BUDGETS[] PROGMEM = {
+    {20, 0x0028, 0x0030},  {33, 0x0080, 0x009A},  {50, 0x00E7, 0x018B},
+    {100, 0x0288, 0x02A4}, {200, 0x0390, 0x03AD}, {500, 0x04BE, 0x04E5},
+};
 
 // Copies the entry for budget_ms out of flash; false when the mode has no such budget.
 static bool find_timing_budget(DistanceMode mode, uint16_t budget_ms, TimingBudgetConfig *out) {
-  const TimingBudgetConfig *table = mode == DISTANCE_MODE_SHORT ? SHORT_TIMING_BUDGETS : LONG_TIMING_BUDGETS;
-  const size_t count = mode == DISTANCE_MODE_SHORT ? std::size(SHORT_TIMING_BUDGETS) : std::size(LONG_TIMING_BUDGETS);
+  const TimingBudgetConfig *table = LONG_TIMING_BUDGETS;
+  size_t count = std::size(LONG_TIMING_BUDGETS);
+  if (mode == DISTANCE_MODE_SHORT) {
+    table = SHORT_TIMING_BUDGETS;
+    count = std::size(SHORT_TIMING_BUDGETS);
+  } else if (mode == DISTANCE_MODE_MEDIUM) {
+    table = MEDIUM_TIMING_BUDGETS;
+    count = std::size(MEDIUM_TIMING_BUDGETS);
+  }
   for (size_t i = 0; i < count; i++) {
     progmem_memcpy(out, &table[i], sizeof(TimingBudgetConfig));
     if (out->budget_ms == budget_ms)
@@ -375,6 +391,17 @@ void VL53L1XSensor::loop() {
   this->publish_state(distance_mm / 1000.0f);
 }
 
+static const LogString *distance_mode_name(DistanceMode mode) {
+  switch (mode) {
+    case DISTANCE_MODE_SHORT:
+      return LOG_STR("short");
+    case DISTANCE_MODE_MEDIUM:
+      return LOG_STR("medium");
+    default:
+      return LOG_STR("long");
+  }
+}
+
 void VL53L1XSensor::dump_config() {
   LOG_SENSOR("", "VL53L1X", this);
   LOG_UPDATE_INTERVAL(this);
@@ -385,8 +412,8 @@ void VL53L1XSensor::dump_config() {
                 "  Timing Budget: %u ms\n"
                 "  ROI: %ux%u\n"
                 "  Offset: %d mm",
-                this->distance_mode_ == DISTANCE_MODE_SHORT ? LOG_STR_LITERAL("short") : LOG_STR_LITERAL("long"),
-                this->budget_ms_, this->roi_width_, this->roi_height_, this->offset_mm_);
+                LOG_STR_ARG(distance_mode_name(this->distance_mode_)), this->budget_ms_, this->roi_width_,
+                this->roi_height_, this->offset_mm_);
   if (this->roi_center_ != 0) {
     ESP_LOGCONFIG(TAG, "  ROI Center: %u", this->roi_center_);
   }

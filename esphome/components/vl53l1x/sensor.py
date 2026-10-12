@@ -28,6 +28,7 @@ VL53L1XSensor = vl53l1x_ns.class_(
 DistanceMode = vl53l1x_ns.enum("DistanceMode")
 DISTANCE_MODE_OPTIONS = {
     "short": DistanceMode.DISTANCE_MODE_SHORT,
+    "medium": DistanceMode.DISTANCE_MODE_MEDIUM,
     "long": DistanceMode.DISTANCE_MODE_LONG,
 }
 
@@ -44,6 +45,7 @@ ROI_CENTER_LARGE = 199
 # Timing budgets in ms supported by the ST Ultra Lite Driver tables, per distance mode
 TIMING_BUDGETS = {
     "short": (15, 20, 33, 50, 100, 200, 500),
+    "medium": (20, 33, 50, 100, 200, 500),
     "long": (20, 33, 50, 100, 200, 500),
 }
 
