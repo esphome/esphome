@@ -320,20 +320,12 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   // Clear before processing: process_modbus_client_frame_ dispatches to a server device which sends
   // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
   // This requires copying the frame data to a local buffer beforehand.
-  const uint16_t pdu_len = frame_length - 3;  // less the address byte and the CRC
-  uint8_t pdu_buffer[MAX_PDU_SIZE] = {};
-  std::memcpy(pdu_buffer, this->rx_buffer_.data() + 1, pdu_len);
-  const std::span<const uint8_t> pdu(pdu_buffer, pdu_len);
-  const std::span<const uint8_t> data = pdu.subspan(1);  // after the function code
+  uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
+  uint16_t data_len = frame_length - 2 - data_offset;
+  uint8_t data_buffer[MAX_FRAME_SIZE] = {};
+  std::memcpy(data_buffer, this->rx_buffer_.data() + data_offset, data_len);
+  std::span<const uint8_t> data(data_buffer, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
-#ifdef MODBUS_ON_RESPONSE_COUNT
-  std::memcpy(this->request_, pdu_buffer, pdu_len);
-  this->request_len_ = static_cast<uint8_t>(pdu_len);
-#endif
-#ifdef MODBUS_ON_REQUEST_COUNT
-  // Before a device here answers, so the monitor sees the bus in order.
-  this->request_callback_.call(address, pdu);
-#endif
 
   if (address == BROADCAST_ADDRESS) {
     // Keep the unicast response buffers out of the broadcast call chain.
@@ -388,10 +380,6 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   // ("stop polling now") wins. A device-less shell runs no callback and the sweep erases it.
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
-#ifdef MODBUS_ON_RESPONSE_COUNT
-  // Next to the device's on_response/on_error. Also for a device-less shell, which runs no device callback.
-  this->response_callback_.call(address, cmd->frame.pdu(), pdu);
-#endif
   if (helpers::is_function_code_exception(function_code)) {
     uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
     ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "us after last send",
@@ -403,18 +391,13 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   }
 }
 
-void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
+void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t>) {
   if (this->find_device_(address) != nullptr) {
     ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
   }
 
   if (this->expecting_peer_response_ == address) {
     ESP_LOGV(TAG, "Expected response from peer %" PRIu8 " received", address);
-#ifdef MODBUS_ON_RESPONSE_COUNT
-    if ((pdu[0] & FUNCTION_CODE_MASK) == this->request_[0]) {
-      this->response_callback_.call(address, std::span<const uint8_t>(this->request_, this->request_len_), pdu);
-    }
-#endif
   } else {
     ESP_LOGV(TAG, "Unexpected response from peer %" PRIu8 " received", address);
   }
@@ -865,14 +848,9 @@ void ModbusClientHub::send_next_frame_() {
     ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected");
     cmd->complete_broadcast();
     this->sweep_needed_ = true;
-  } else {
-    this->waiting_for_response_ = true;
+    return;
   }
-#ifdef MODBUS_ON_REQUEST_COUNT
-  // Once per frame on the wire, retries included. After the bookkeeping: a broadcast queued from the handler
-  // must not be merged into the one just completed.
-  this->request_callback_.call(cmd->frame.address(), cmd->frame.pdu());
-#endif
+  this->waiting_for_response_ = true;
 }
 
 void ModbusClientHub::dump_config() {
@@ -1244,7 +1222,7 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
       this->deferred_payload_len_ = 0;
-      if (!this->send_reply_(frame)) {
+      if (!this->send_frame_(frame)) {
         ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
       }
     });
@@ -1252,20 +1230,9 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   }
 
   ModbusFrame frame(payload[0], payload + 1, len - 1);
-  if (!this->send_reply_(frame)) {
+  if (!this->send_frame_(frame)) {
     ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");
   }
-}
-
-bool ModbusServerHub::send_reply_(const ModbusFrame &frame) {
-  if (!this->send_frame_(frame))
-    return false;
-#ifdef MODBUS_ON_RESPONSE_COUNT
-  // Only once on the wire: a reply that is dropped is not reported.
-  this->response_callback_.call(frame.address(), std::span<const uint8_t>(this->request_, this->request_len_),
-                                frame.pdu());
-#endif
-  return true;
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
