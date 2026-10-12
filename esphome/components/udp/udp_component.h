@@ -31,10 +31,14 @@ class UDPComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
+  void listen_group_(struct in_addr *group);
+  bool join_multicast_();
+
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
+  bool join_pending_{};
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
   std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
