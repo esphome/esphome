@@ -1576,7 +1576,7 @@ RC5X_SCHEMA = RC5_SCHEMA.extend(
 
 
 @register_binary_sensor("rc5x", RC5XBinarySensor, RC5X_SCHEMA)
-def rc5x_binary_sensor(var, config):
+def rc5x_binary_sensor(var: MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_data(
             cg.StructInitializer(
@@ -1590,13 +1590,13 @@ def rc5x_binary_sensor(var, config):
 
 
 @register_trigger("rc5x", RC5XTrigger, RC5XData)
-def rc5x_trigger(var, config):
-    pass
+def rc5x_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("rc5x", RC5XDumper)
-def rc5x_dumper(var, config):
-    pass
+def rc5x_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
 
 
 register_protocol_action(
