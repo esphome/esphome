@@ -50,7 +50,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
 
   /// Lock the emonTx ('emonlock') before a reboot, so serial garbage during the reboot is not taken
-  /// as a command. setup() always unlocks it.
+  /// as a command, and unlock it in setup(). Needs emonTx firmware v1.2.0 or later.
   void set_lock_on_reboot(bool lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
 
 #ifdef USE_SENSOR
@@ -69,7 +69,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint16_t buffer_pos_{0};
   std::atomic<bool> paused_{false};
   bool was_paused_{false};
-  bool lock_on_reboot_{true};
+  bool lock_on_reboot_{false};
   bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
 };

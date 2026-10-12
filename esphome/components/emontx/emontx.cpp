@@ -8,7 +8,9 @@ ESPHOME_LOG_TAG(TAG, "emontx");
 
 void EmonTx::setup() {
   this->buffer_pos_ = 0;
-  // Always, as the previous firmware may have locked it. The line feed ends any boot noise first.
+  if (!this->lock_on_reboot_)
+    return;
+  // The line feed ends any boot noise first
   ESP_LOGI(TAG, "Unlocking emonTx after boot");
   this->write_byte('\n');
   this->send_command("emonunlock");
