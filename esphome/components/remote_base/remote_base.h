@@ -201,7 +201,7 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     explicit ProtocolCall(RemoteTransmitterBase *parent) : parent_(parent) {}
     void set_send_times(uint32_t send_times) { this->send_times_ = send_times; }
     void set_send_wait(uint32_t send_wait) { this->send_wait_ = send_wait; }
-    void perform() { this->parent_->transmit<Protocol>(this->data, this->send_times_, this->send_wait_); }
+    void perform() { this->parent_->template transmit<Protocol>(this->data, this->send_times_, this->send_wait_); }
 
     typename Protocol::ProtocolData data{};
 
