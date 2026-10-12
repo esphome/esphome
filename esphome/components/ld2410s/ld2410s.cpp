@@ -133,6 +133,7 @@ void LD2410SComponent::restart_init_(uint32_t at) {
   }
   this->init_done_ = false;
   this->parameters_dirty_ = false;
+  this->parameters_known_ = false;  // a refused value may sit in parameters_ until the read replaces it
   this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, at);
 }
 
@@ -409,15 +410,18 @@ void LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
     ESP_LOGW(TAG, "Parameter answer too short (%u bytes)", len);
     return;
   }
-  // Every parameter fits the low byte of its little-endian value
+  // Every parameter fits the low byte of its little-endian value; writes stay refused otherwise,
+  // so a cut-down value is never sent back
+  bool fits = true;
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
     const uint8_t *v = &values[i * PARAMETER_VALUE_SIZE];
     if ((v[1] | v[2] | v[3]) != 0) {
       ESP_LOGW(TAG, "Parameter %u out of range: %" PRIu32, i, encode_uint32(v[3], v[2], v[1], v[0]));
+      fits = false;
     }
     this->parameters_[i] = v[0];
   }
-  this->parameters_known_ = true;
+  this->parameters_known_ = fits;
   this->publish_parameters_();
   ESP_LOGD(TAG, "Parameters: gates %u to %u, no delay %u s, frequencies %u/%u dHz, response speed %u",
            this->parameters_[1], this->parameters_[0], this->parameters_[2], this->parameters_[3], this->parameters_[4],
