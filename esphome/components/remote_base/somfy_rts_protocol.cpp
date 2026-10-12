@@ -6,8 +6,7 @@ namespace esphome::remote_base {
 ESPHOME_LOG_TAG(TAG, "remote.somfy_rts");
 
 static constexpr uint8_t FRAME_SIZE_IN_BYTES = 7;
-static constexpr uint16_t BIT_LENGTH_US_HIGH = 600;
-static constexpr uint16_t BIT_LENGTH_US_LOW = 600;
+static constexpr uint16_t BIT_US = 600;
 
 static constexpr uint16_t WAKEUP_HIGH_US = 10000;
 static constexpr uint32_t WAKEUP_LOW_US = 98000;
@@ -19,62 +18,36 @@ static constexpr uint16_t SW_SYNC_LOW_US = 650;
 
 static constexpr uint16_t INTERFRAME_GAP_US = 30415;
 
-// Private
-void SomfyRtsProtocol::wakeup_(RemoteTransmitData *dst) const { dst->item(WAKEUP_HIGH_US, WAKEUP_LOW_US); }
-
-// Private
-void SomfyRtsProtocol::hw_sync_(RemoteTransmitData *dst) const {
-  dst->item(HW_SYNC_US, HW_SYNC_US);
-  dst->item(HW_SYNC_US, HW_SYNC_US);
-}
-
-// Private
-void SomfyRtsProtocol::sw_sync_(RemoteTransmitData *dst) const { dst->item(SW_SYNC_HIGH_US, SW_SYNC_LOW_US); }
-
-// Private (Manchester encoding)
-void SomfyRtsProtocol::one_(RemoteTransmitData *dst) const {
-  dst->space(BIT_LENGTH_US_LOW);
-  dst->mark(BIT_LENGTH_US_HIGH);
-}
-
-// Private (Manchester encoding)
-void SomfyRtsProtocol::zero_(RemoteTransmitData *dst) const {
-  dst->mark(BIT_LENGTH_US_HIGH);
-  dst->space(BIT_LENGTH_US_LOW);
-}
+// Wakeup, two hardware syncs and a software sync (8), two entries per bit (112), the gap (1)
+static constexpr uint32_t FRAME_ENTRIES = 8 + FRAME_SIZE_IN_BYTES * 8 * 2 + 1;
 
 void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data) {
+  dst->reserve(FRAME_ENTRIES);
   dst->set_carrier_frequency(0);
-
-  // Send wakeup
-  this->wakeup_(dst);
-
-  // Hardware sync
-  this->hw_sync_(dst);
-
-  // Software sync
-  this->sw_sync_(dst);
+  dst->item(WAKEUP_HIGH_US, WAKEUP_LOW_US);
+  dst->item(HW_SYNC_US, HW_SYNC_US);
+  dst->item(HW_SYNC_US, HW_SYNC_US);
+  dst->item(SW_SYNC_HIGH_US, SW_SYNC_LOW_US);
 
   uint8_t frame[FRAME_SIZE_IN_BYTES];
   // Some non standard implementations of the SomfyRTS protocol encode the commands inside the key instead of inside the
   // control field
   if (data.control_in_key) {
     frame[0] = data.key | data.control;
-    frame[1] = (0xf << 4);
+    frame[1] = 0xF0;
   } else {
     frame[0] = data.key;
-    frame[1] = (data.control << 4);
+    frame[1] = data.control << 4;
   }
-  frame[2] = (data.rolling_code >> 8);
-  frame[3] = (data.rolling_code & 0xFF);
-  frame[4] = (data.address >> 16);
-  frame[5] = (data.address >> 8) & 0xFF;
-  frame[6] = (data.address & 0xFF);
+  frame[2] = data.rolling_code >> 8;
+  frame[3] = data.rolling_code;
+  frame[4] = data.address >> 16;
+  frame[5] = data.address >> 8;
+  frame[6] = data.address;
 
-  // Create checksum
   uint8_t crc = 0;
   for (uint8_t data_byte : frame) {
-    crc = crc ^ (data_byte >> 4) ^ (data_byte & 0xF);
+    crc ^= (data_byte >> 4) ^ (data_byte & 0xF);
   }
   frame[1] |= (crc & 0x0F);
 
@@ -83,13 +56,15 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
     frame[i] ^= frame[i - 1];
   }
 
-  // Manchester encode bits
+  // Manchester, MSB first: a 1 is space then mark, a 0 is mark then space
   for (uint8_t data_byte : frame) {
-    for (int8_t y = 7; y >= 0; y--) {  // Send MSB first
+    for (int8_t y = 7; y >= 0; y--) {
       if (data_byte & (1 << y)) {
-        this->one_(dst);
+        dst->space(BIT_US);
+        dst->mark(BIT_US);
       } else {
-        this->zero_(dst);
+        dst->mark(BIT_US);
+        dst->space(BIT_US);
       }
     }
   }

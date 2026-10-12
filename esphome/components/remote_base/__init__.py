@@ -5,11 +5,6 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.components.const import (
-    CONF_CONTROL,
-    CONF_CONTROL_IN_KEY,
-    CONF_ROLLING_CODE,
-)
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -65,6 +60,9 @@ CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
 CONF_SUFFIX = "suffix"
 CONF_SUFFIX_BITS = "suffix_bits"
+CONF_CONTROL = "control"
+CONF_CONTROL_IN_KEY = "control_in_key"
+CONF_ROLLING_CODE = "rolling_code"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")

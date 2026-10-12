@@ -2,8 +2,6 @@
 
 #include "remote_base.h"
 
-#include <cinttypes>
-
 namespace esphome::remote_base {
 
 struct SomfyRtsData {
@@ -21,15 +19,6 @@ struct SomfyRtsData {
 };
 
 class SomfyRtsProtocol : public RemoteProtocol<SomfyRtsData> {
- private:
-  void wakeup_(RemoteTransmitData *dst) const;
-  void hw_sync_(RemoteTransmitData *dst) const;
-  void sw_sync_(RemoteTransmitData *dst) const;
-
-  // Helper functions for manchester encoding
-  inline void zero_(RemoteTransmitData *dst) const;
-  inline void one_(RemoteTransmitData *dst) const;
-
  public:
   void encode(RemoteTransmitData *dst, const SomfyRtsData &data);
   optional<SomfyRtsData> decode(RemoteReceiveData src);
