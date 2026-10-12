@@ -59,7 +59,8 @@ void BLEDescriptor::set_value(const uint8_t *data, size_t length) {
     return;
   }
   this->value_.attr_len = length;
-  memcpy(this->value_.attr_value, data, length);
+  if (length != 0)  // An empty constant is a nullptr table
+    memcpy(this->value_.attr_value, data, length);
 }
 
 void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
