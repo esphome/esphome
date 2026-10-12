@@ -692,8 +692,8 @@ template<typename... Ts> class ActionList {
   Action<Ts...> **tail_() {
     Action<Ts...> **tail = &this->actions_;
     while (*tail != nullptr) {
-      // Not checked in release builds: only automation.py builds these lists, calling add_then/add_else
-      // once per action, so appending after set_owner() would be a codegen bug, which tests cover.
+      // Not checked in release builds: only automation.py builds these lists, appending each action and
+      // then finishing the branch once, so appending after set_owner() would be a codegen bug.
       ESPHOME_DEBUG_ASSERT(!(*tail)->next_is_owner_());
       tail = &(*tail)->next_;
     }

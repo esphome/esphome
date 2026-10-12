@@ -158,6 +158,62 @@ TEST(ActionBranchOwner, IfThenResumesAfterTheIfOnce) {
   EXPECT_EQ(top.num_running(), 0);
 }
 
+// The per-item calls automation.py emits
+TEST(ActionBranchOwner, PerItemIfAndWhileResumeAfterTheirBranch) {
+  Log log;
+  FlagCondition cond;
+  IfAction<true> if_action(&cond);
+  RecordAction t1(&log, 1), t2(&log, 2), e1(&log, 3), after(&log, 4);
+  if_action.add_then_action(&t1);
+  if_action.add_then_action(&t2);
+  if_action.finish_then();
+  if_action.add_else_action(&e1);
+  if_action.finish_else();
+  ActionList<> top;
+  top.add_actions({&if_action, &after});
+  top.play();
+  cond.value = false;
+  top.play();
+  EXPECT_EQ(log, (Log{1, 2, 4, 3, 4}));
+
+  log.clear();
+  CountdownCondition loop_cond(2);
+  WhileAction<> loop(&loop_cond);
+  DeferredAction wait(&log, 5);
+  RecordAction after2(&log, 6);
+  loop.add_then_action(&wait);
+  loop.finish_then();
+  ActionList<> top2;
+  top2.add_actions({&loop, &after2});
+  top2.play();
+  wait.finish();
+  wait.finish();
+  EXPECT_EQ(log, (Log{5, 5, 6}));
+  EXPECT_FALSE(top2.is_running());
+}
+
+// then: [] generates finish_then() with no actions
+TEST(ActionBranchOwner, PerItemEmptyBranchesFinishImmediately) {
+  Log log;
+  FlagCondition cond;
+  IfAction<true> if_action(&cond);
+  if_action.finish_then();
+  if_action.finish_else();
+  WhileAction<> loop(&cond);
+  loop.finish_then();
+  RecordAction after(&log, 1), after2(&log, 2);
+  ActionList<> top, top2;
+  top.add_actions({&if_action, &after});
+  top2.add_actions({&loop, &after2});
+  top.play();
+  cond.value = false;
+  top.play();
+  cond.value = true;
+  top2.play();
+  EXPECT_EQ(log, (Log{1, 1, 2}));
+  EXPECT_FALSE(top2.is_running());
+}
+
 TEST(ActionBranchOwner, ConditionThatStopsTheRunStartsNoBranch) {
   Log log;
   StoppingCondition cond;
