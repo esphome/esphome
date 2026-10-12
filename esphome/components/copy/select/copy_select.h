@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/select/select.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-class CopySelect : public select::Select, public Component {
+class CopySelect final : public select::Select, public Component {
  public:
   void set_source(select::Select *source) { source_ = source; }
   void setup() override;
@@ -18,5 +17,4 @@ class CopySelect : public select::Select, public Component {
   select::Select *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

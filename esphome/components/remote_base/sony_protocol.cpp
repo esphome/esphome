@@ -1,10 +1,9 @@
 #include "sony_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.sony";
+ESPHOME_LOG_TAG(TAG, "remote.sony");
 
 static constexpr uint32_t HEADER_HIGH_US = 2400;
 static constexpr uint32_t HEADER_LOW_US = 600;
@@ -65,5 +64,4 @@ void SonyProtocol::dump(const SonyData &data) {
   ESP_LOGI(TAG, "Received Sony: data=0x%08" PRIX32 ", nbits=%d", data.data, data.nbits);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

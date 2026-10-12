@@ -1,10 +1,9 @@
 #include "midea_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.midea";
+ESPHOME_LOG_TAG(TAG, "remote.midea");
 
 static const int32_t TICK_US = 560;
 static const int32_t HEADER_MARK_US = 8 * TICK_US;
@@ -75,5 +74,4 @@ void MideaProtocol::dump(const MideaData &data) {
   ESP_LOGI(TAG, "Received Midea: %s", data.to_str(buf));
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

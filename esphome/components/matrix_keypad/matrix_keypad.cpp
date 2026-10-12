@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace matrix_keypad {
+namespace esphome::matrix_keypad {
 
-static const char *const TAG = "matrix_keypad";
+ESPHOME_LOG_TAG(TAG, "matrix_keypad");
 
 void MatrixKeypad::setup() {
   for (auto *pin : this->rows_) {
@@ -59,8 +58,8 @@ void MatrixKeypad::loop() {
       ESP_LOGD(TAG, "key @ row %d, col %d released", row, col);
       for (auto &listener : this->listeners_)
         listener->button_released(row, col);
-      if (this->pressed_key_ < (int) this->keys_.size()) {
-        uint8_t keycode = this->keys_[this->pressed_key_];
+      if (this->keys_ != nullptr) {
+        uint8_t keycode = progmem_read_byte(&this->keys_[this->pressed_key_]);
         ESP_LOGD(TAG, "key '%c' released", keycode);
         for (auto &listener : this->listeners_)
           listener->key_released(keycode);
@@ -82,8 +81,8 @@ void MatrixKeypad::loop() {
   ESP_LOGD(TAG, "key @ row %d, col %d pressed", row, col);
   for (auto &listener : this->listeners_)
     listener->button_pressed(row, col);
-  if (key < (int) this->keys_.size()) {
-    uint8_t keycode = this->keys_[key];
+  if (this->keys_ != nullptr) {
+    uint8_t keycode = progmem_read_byte(&this->keys_[key]);
     ESP_LOGD(TAG, "key '%c' pressed", keycode);
     for (auto &trigger : this->key_triggers_)
       trigger->trigger(keycode);
@@ -110,5 +109,4 @@ void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->lis
 
 void MatrixKeypad::register_key_trigger(MatrixKeyTrigger *trig) { this->key_triggers_.push_back(trig); }
 
-}  // namespace matrix_keypad
-}  // namespace esphome
+}  // namespace esphome::matrix_keypad

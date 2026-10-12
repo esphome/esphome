@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ade7953_spi {
+namespace esphome::ade7953_spi {
 
-static const char *const TAG = "ade7953";
+ESPHOME_LOG_TAG(TAG, "ade7953");
 
 // Datasheet requires at least 1.2µs after clearing CONFIG LOCK_BIT before raising CS
 constexpr uint8_t CONFIG_LOCK_SETTLE_US = 2;
@@ -83,5 +82,4 @@ bool AdE7953Spi::ade_read_32(uint16_t reg, uint32_t *value) {
   return false;
 }
 
-}  // namespace ade7953_spi
-}  // namespace esphome
+}  // namespace esphome::ade7953_spi

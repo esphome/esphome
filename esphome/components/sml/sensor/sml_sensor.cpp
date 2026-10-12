@@ -2,10 +2,9 @@
 #include "sml_sensor.h"
 #include "../sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
-static const char *const TAG = "sml_sensor";
+ESPHOME_LOG_TAG(TAG, "sml_sensor");
 
 SmlSensor::SmlSensor(std::string server_id, std::string obis_code)
     : SmlListener(std::move(server_id), std::move(obis_code)) {}
@@ -37,5 +36,4 @@ void SmlSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  OBIS Code: %s", this->obis_code.c_str());
 }
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

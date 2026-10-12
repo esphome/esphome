@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ee895 {
+namespace esphome::ee895 {
 
-static const char *const TAG = "ee895";
+ESPHOME_LOG_TAG(TAG, "ee895");
 
 // Serial number is 16 bytes
 static constexpr size_t EE895_SERIAL_NUMBER_SIZE = 16;
@@ -111,5 +110,4 @@ uint16_t EE895Component::calc_crc16_(const uint8_t buf[], uint8_t len) {
   uint16_t crc = crc16(&addr, 1);
   return crc16(buf, len, crc);
 }
-}  // namespace ee895
-}  // namespace esphome
+}  // namespace esphome::ee895

@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ina3221 {
+namespace esphome::ina3221 {
 
-static const char *const TAG = "ina3221";
+ESPHOME_LOG_TAG(TAG, "ina3221");
 
 static const uint8_t INA3221_REGISTER_CONFIG = 0x00;
 static const uint8_t INA3221_REGISTER_CHANNEL1_SHUNT_VOLTAGE = 0x01;
@@ -128,5 +127,4 @@ bool INA3221Component::INA3221Channel::should_measure_bus_voltage() {
   return this->bus_voltage_sensor_ != nullptr || this->power_sensor_ != nullptr;
 }
 
-}  // namespace ina3221
-}  // namespace esphome
+}  // namespace esphome::ina3221

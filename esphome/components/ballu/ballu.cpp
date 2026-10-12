@@ -1,10 +1,9 @@
 #include "ballu.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ballu {
+namespace esphome::ballu {
 
-static const char *const TAG = "ballu.climate";
+ESPHOME_LOG_TAG(TAG, "ballu.climate");
 
 const uint16_t BALLU_HEADER_MARK = 9000;
 const uint16_t BALLU_HEADER_SPACE = 4500;
@@ -147,10 +146,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t checksum = 0;
-  // Calculate  checksum and compare with signal value.
-  for (uint8_t i = 0; i < BALLU_STATE_LENGTH - 1; i++)
-    checksum += remote_state[i];
+  const uint8_t checksum = sum_bytes(remote_state, BALLU_STATE_LENGTH - 1);
 
   if (checksum != remote_state[BALLU_STATE_LENGTH - 1]) {
     ESP_LOGVV(TAG, "Checksum fail");
@@ -235,5 +231,4 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace ballu
-}  // namespace esphome
+}  // namespace esphome::ballu

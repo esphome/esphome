@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lilygo_t5_47 {
+namespace esphome::lilygo_t5_47 {
 
-static const char *const TAG = "lilygo_t5_47.touchscreen";
+ESPHOME_LOG_TAG(TAG, "lilygo_t5_47.touchscreen");
 
 static const uint8_t POWER_REGISTER = 0xD6;
 static const uint8_t TOUCH_REGISTER = 0xD0;
@@ -104,5 +103,4 @@ void LilygoT547Touchscreen::dump_config() {
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
 
-}  // namespace lilygo_t5_47
-}  // namespace esphome
+}  // namespace esphome::lilygo_t5_47

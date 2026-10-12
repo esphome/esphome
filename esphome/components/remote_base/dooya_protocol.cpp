@@ -1,10 +1,9 @@
 #include "dooya_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.dooya";
+ESPHOME_LOG_TAG(TAG, "remote.dooya");
 
 static constexpr uint32_t HEADER_HIGH_US = 5000;
 static constexpr uint32_t HEADER_LOW_US = 1500;
@@ -116,5 +115,4 @@ void DooyaProtocol::dump(const DooyaData &data) {
            data.button, data.check);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

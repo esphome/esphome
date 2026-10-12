@@ -5,10 +5,9 @@
 
 #include "lightwaverf.h"
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
-static const char *const TAG = "lightwaverf.sensor";
+ESPHOME_LOG_TAG(TAG, "lightwaverf.sensor");
 
 static const uint8_t DEFAULT_REPEAT = 10;
 static const bool DEFAULT_INVERT = false;
@@ -62,7 +61,6 @@ void LightWaveRF::dump_config() {
   LOG_PIN("  Pin RX: ", this->pin_rx_);
   LOG_UPDATE_INTERVAL(this);
 }
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf
 
 #endif

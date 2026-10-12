@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "bh1900nux.h"
 
-namespace esphome {
-namespace bh1900nux {
+namespace esphome::bh1900nux {
 
-static const char *const TAG = "bh1900nux.sensor";
+ESPHOME_LOG_TAG(TAG, "bh1900nux.sensor");
 
 // I2C Registers
 static const uint8_t TEMPERATURE_REG = 0x00;
@@ -50,5 +49,4 @@ void BH1900NUXSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace bh1900nux
-}  // namespace esphome
+}  // namespace esphome::bh1900nux

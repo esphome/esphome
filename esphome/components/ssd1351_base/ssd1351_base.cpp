@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ssd1351_base {
+namespace esphome::ssd1351_base {
 
-static const char *const TAG = "ssd1351";
+ESPHOME_LOG_TAG(TAG, "ssd1351");
 
 static const uint16_t SSD1351_COLORMASK = 0xffff;
 static const uint8_t SSD1351_MAX_CONTRAST = 15;
@@ -198,5 +197,4 @@ const char *SSD1351::model_str_() {
   }
 }
 
-}  // namespace ssd1351_base
-}  // namespace esphome
+}  // namespace esphome::ssd1351_base

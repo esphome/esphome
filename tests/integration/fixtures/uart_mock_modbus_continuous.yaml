@@ -1,0 +1,115 @@
+esphome:
+  name: uart-mock-modbus-continuous
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+# When set, the mock server stops forwarding its replies to the controller, so the controller sees
+# timeouts - used by the recovery test to drive a live continuous poll offline and back.
+globals:
+  - id: silence_server
+    type: bool
+    initial_value: "false"
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - if:
+              condition:
+                lambda: "return !id(silence_server);"
+              then:
+                - uart_mock.inject_rx:
+                    id: virtual_uart_controller
+                    data: !lambda return data;
+  - id: virtual_uart_controller
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_controller
+    id: virtual_modbus_controller
+    role: client
+    turnaround_time: 10ms
+    # Short timeout so the recovery test drives the poll offline quickly; when the server answers,
+    # replies arrive within turnaround_time, so this does not slow the streaming path.
+    send_wait_time: 100ms
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_controller
+    id: modbus_controller_1
+    # A long update_interval means that without continuous polling only the boot poll would run in the
+    # test window. continuous: true re-queues the read after each success, so it streams as fast as the
+    # bus allows.
+    update_interval: 30s
+    continuous: true
+    # One retry so a silenced device trips offline fast (initial send + 1 retry, each 100ms).
+    max_cmd_retries: 1
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      # Each read returns the next counter value, so every poll publishes a distinct state the test can
+      # count (proving the read actually ran, not just that the state changed once).
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: |-
+          static uint16_t counter = 0;
+          return counter++;
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "continuous_reg"
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    # Trigger the first poll deterministically. PollingComponent's first update() would otherwise land
+    # somewhere in the 30s update_interval; once this one read completes, continuous re-queuing takes over.
+    on_press:
+      - lambda: "id(modbus_controller_1)->update();"
+
+switch:
+  # Toggles whether the mock server forwards its replies. On = silence (controller sees timeouts);
+  # off = answer again. The recovery test uses it to drive a live continuous poll offline and back.
+  - platform: template
+    name: "Silence Server"
+    id: silence_server_switch
+    optimistic: true
+    turn_on_action:
+      - lambda: "id(silence_server) = true;"
+    turn_off_action:
+      - lambda: "id(silence_server) = false;"

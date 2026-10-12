@@ -1,0 +1,4 @@
+# Config-only: the ESP32-P4 has a distinct value set (hex mode, 20/100/200MHz).
+# With no options it resolves mode -> hex and speed -> 20MHz, exercising the
+# P4-specific default branch of the per-variant enums.
+psram:

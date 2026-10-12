@@ -5,10 +5,9 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace daikin_arc {
+namespace esphome::daikin_arc {
 
-static const char *const TAG = "daikin.climate";
+ESPHOME_LOG_TAG(TAG, "daikin.climate");
 
 void DaikinArcClimate::setup() {
   climate_ir::ClimateIR::setup();
@@ -217,7 +216,7 @@ uint8_t DaikinArcClimate::temperature_() {
       return 0xc0;
     default:
       float new_temp = clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX);
-      uint8_t temperature = (uint8_t) floor(new_temp);
+      uint8_t temperature = (uint8_t) std::floor(new_temp);
       return temperature << 1 | (new_temp - temperature > 0 ? 0x01 : 0);
   }
 }
@@ -247,10 +246,7 @@ climate::ClimateTraits DaikinArcClimate::traits() {
 }
 
 bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DAIKIN_STATE_FRAME_SIZE - 1);
   if (frame[DAIKIN_STATE_FRAME_SIZE - 1] != checksum) {
     ESP_LOGI(TAG, "checksum error");
     return false;
@@ -492,5 +488,4 @@ void DaikinArcClimate::control(const climate::ClimateCall &call) {
   climate_ir::ClimateIR::control(call);
 }
 
-}  // namespace daikin_arc
-}  // namespace esphome
+}  // namespace esphome::daikin_arc

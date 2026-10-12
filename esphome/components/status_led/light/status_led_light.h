@@ -5,10 +5,9 @@
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/output/binary_output.h"
 
-namespace esphome {
-namespace status_led {
+namespace esphome::status_led {
 
-class StatusLEDLightOutput : public light::LightOutput, public Component {
+class StatusLEDLightOutput final : public light::LightOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_output(output::BinaryOutput *output) { output_ = output; }
@@ -39,5 +38,4 @@ class StatusLEDLightOutput : public light::LightOutput, public Component {
   void output_state_(bool state);
 };
 
-}  // namespace status_led
-}  // namespace esphome
+}  // namespace esphome::status_led

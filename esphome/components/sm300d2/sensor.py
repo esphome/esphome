@@ -26,6 +26,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -88,30 +89,21 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sm300d2", baud_rate=9600, require_rx=True, data_bits=8, parity="NONE", stop_bits=1
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_CO2 in config:
-        sens = await sensor.new_sensor(config[CONF_CO2])
-        cg.add(var.set_co2_sensor(sens))
-    if CONF_FORMALDEHYDE in config:
-        sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
-        cg.add(var.set_formaldehyde_sensor(sens))
-    if CONF_TVOC in config:
-        sens = await sensor.new_sensor(config[CONF_TVOC])
-        cg.add(var.set_tvoc_sensor(sens))
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
-    if CONF_PM_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_10_0])
-        cg.add(var.set_pm_10_0_sensor(sens))
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_FORMALDEHYDE, var.set_formaldehyde_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)

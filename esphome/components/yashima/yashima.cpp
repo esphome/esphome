@@ -1,10 +1,9 @@
 #include "yashima.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace yashima {
+namespace esphome::yashima {
 
-static const char *const TAG = "yashima.climate";
+ESPHOME_LOG_TAG(TAG, "yashima.climate");
 
 const uint16_t YASHIMA_STATE_LENGTH = 9;
 const uint16_t YASHIMA_BITS = YASHIMA_STATE_LENGTH * 8;
@@ -197,5 +196,4 @@ void YashimaClimate::transmit_state_() {
   transmit.perform();
 }
 
-}  // namespace yashima
-}  // namespace esphome
+}  // namespace esphome::yashima

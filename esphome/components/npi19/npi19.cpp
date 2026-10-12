@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace npi19 {
+namespace esphome::npi19 {
 
-static const char *const TAG = "npi19";
+ESPHOME_LOG_TAG(TAG, "npi19");
 
 static const uint8_t READ_COMMAND = 0xAC;
 
@@ -101,5 +100,4 @@ void NPI19Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace npi19
-}  // namespace esphome
+}  // namespace esphome::npi19

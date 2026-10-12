@@ -1,0 +1,15 @@
+ds3231:
+  - id: ds3231_component
+    i2c_id: i2c_bus
+    address: 0x68
+
+sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    name: DS3231 Temperature
+    update_interval: never
+
+interval:
+  - interval: 60s
+    then:
+      - ds3231.force_temperature_conversion: ds3231_component

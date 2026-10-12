@@ -2,15 +2,14 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-namespace esphome {
-namespace wts01 {
+namespace esphome::wts01 {
 
 constexpr uint8_t HEADER_1 = 0x55;
 constexpr uint8_t HEADER_2 = 0x01;
 constexpr uint8_t HEADER_3 = 0x01;
 constexpr uint8_t HEADER_4 = 0x04;
 
-static const char *const TAG = "wts01";
+ESPHOME_LOG_TAG(TAG, "wts01");
 
 void WTS01Sensor::loop() {
   // Process all available data at once
@@ -59,10 +58,7 @@ void WTS01Sensor::process_packet_() {
   // Based on Tasmota implementation
   // Format: 55 01 01 04 01 11 16 12 95
   // header            T  Td Ck  - T = Temperature, Td = Temperature decimal, Ck = Checksum
-  uint8_t calculated_checksum = 0;
-  for (uint8_t i = 0; i < PACKET_SIZE - 1; i++) {
-    calculated_checksum += this->buffer_[i];
-  }
+  const uint8_t calculated_checksum = sum_bytes(this->buffer_, PACKET_SIZE - 1);
 
   uint8_t received_checksum = this->buffer_[PACKET_SIZE - 1];
   if (calculated_checksum != received_checksum) {
@@ -90,5 +86,4 @@ void WTS01Sensor::process_packet_() {
   this->publish_state(temperature);
 }
 
-}  // namespace wts01
-}  // namespace esphome
+}  // namespace esphome::wts01

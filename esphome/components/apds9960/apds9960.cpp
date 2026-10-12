@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace apds9960 {
+namespace esphome::apds9960 {
 
-static const char *const TAG = "apds9960";
+ESPHOME_LOG_TAG(TAG, "apds9960");
 
 #define APDS9960_ERROR_CHECK(func) \
   if (!(func)) { \
@@ -402,5 +401,4 @@ bool APDS9960::is_gesture_enabled_() const {
 #endif
 }
 
-}  // namespace apds9960
-}  // namespace esphome
+}  // namespace esphome::apds9960

@@ -1,10 +1,9 @@
 #include "tlc5947.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tlc5947 {
+namespace esphome::tlc5947 {
 
-static const char *const TAG = "tlc5947";
+ESPHOME_LOG_TAG(TAG, "tlc5947");
 
 void TLC5947::setup() {
   this->data_pin_->setup();
@@ -69,5 +68,4 @@ void TLC5947::set_channel_value(uint16_t channel, uint16_t value) {
   this->pwm_amounts_[channel] = value;
 }
 
-}  // namespace tlc5947
-}  // namespace esphome
+}  // namespace esphome::tlc5947
