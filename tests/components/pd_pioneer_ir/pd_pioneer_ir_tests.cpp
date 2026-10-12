@@ -359,13 +359,13 @@ TEST(PDPioneerIR, AutoFanIsReceivedBack) {
   EXPECT_EQ(receiver.climate.fan_mode, climate::CLIMATE_FAN_AUTO);
 }
 
-TEST(PDPioneerIR, ActionSendsAStaticCodeWithItsChecksum) {
-  // A 13-byte code: the action fills in the checksum
+TEST(PDPioneerIR, StaticCodeIsSentWithItsChecksum) {
+  // A 13-byte code, filled and finalized as the transmit action does
   static const uint8_t CODE[] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x07, 0x05, 0x00, 0x00, 0x00, 0x80};
-  remote_base::PDPioneerAction<> action;
-  action.set_code_static(CODE, sizeof(CODE));
+  remote_base::PDPioneerData data(CODE, sizeof(CODE));
+  data.finalize();
   remote_base::RemoteTransmitData dst;
-  action.encode(&dst);
+  remote_base::PDPioneerProtocol().encode(&dst, data);
   EXPECT_EQ(decode(dst.get_data()), even_frame(0x24, 0x03, 0x07, 0x05, 0x80));
 }
 

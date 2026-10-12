@@ -2414,7 +2414,7 @@ register_protocol_action(
     PDPioneerData,
     PDPioneerBinarySensor,
     PDPioneerTrigger,
-    PDPioneerAction,
+    _,
     PDPioneerDumper,
 ) = declare_protocol("PDPioneer")
 
@@ -2456,13 +2456,13 @@ def pd_pioneer_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
 
-@register_action("pd_pioneer", PDPioneerAction, PDPIONEER_SCHEMA)
-async def pd_pioneer_action(
-    var: MockObj, config: ConfigType, args: TemplateArgsType
-) -> None:
-    await _code_bytes(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
-    )
+register_protocol_action(
+    "pd_pioneer",
+    "PDPioneer",
+    PDPIONEER_SCHEMA,
+    _bytes_field(CONF_CODE, f"data = {PDPioneerData}({{}})"),
+    automation.ApplyCall("data.finalize()"),
+)
 
 
 # Midea

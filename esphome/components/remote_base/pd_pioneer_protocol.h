@@ -69,16 +69,4 @@ class PDPioneerProtocol : public RemoteProtocol<PDPioneerData> {
 
 DECLARE_REMOTE_PROTOCOL(PDPioneer)
 
-template<typename... Ts> class PDPioneerAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_BYTES(code)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    PDPioneerData data = this->code_.is_static() ? PDPioneerData(this->code_.data(), this->code_.size())
-                                                 : PDPioneerData(this->code_.value(x...));
-    data.finalize();
-    PDPioneerProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base
