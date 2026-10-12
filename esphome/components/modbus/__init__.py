@@ -188,22 +188,6 @@ def reject_broadcast_options_for_unicast(
     return validator
 
 
-def synchronous_handler(component: str) -> Callable[[ConfigType], ConfigType]:
-    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
-    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
-
-    def validator(value: ConfigType) -> ConfigType:
-        if automation.has_non_synchronous_actions(value):
-            raise cv.Invalid(
-                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in {component} "
-                "handlers: the request/response data is only valid while the handler runs. Copy what you "
-                "need into globals first, then defer in a separate script or automation."
-            )
-        return value
-
-    return validator
-
-
 # A PDU handed to an automation undecoded, as a span that dies when the handler returns.
 PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
