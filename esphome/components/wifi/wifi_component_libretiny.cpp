@@ -252,9 +252,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
-  WiFiStatus status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
-                                 ap.get_channel(),  // 0 = auto
-                                 ap.has_bssid() ? ap.get_bssid().data() : NULL);
+  WiFiStatus status;
+  {
+    // The driver blocks until the join has started, or finished on Realtek
+    UnavoidableBlockingScope scope;
+    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
+                        ap.get_channel(),  // 0 = auto
+                        ap.has_bssid() ? ap.get_bssid().data() : NULL);
+  }
   if (status != WL_CONNECTED) {
     ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
     // Without this reset the state machine stays at CONNECTING and each retry
