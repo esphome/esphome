@@ -22,7 +22,7 @@ extern "C" {
 
 namespace esphome::esp32_hosted {
 
-static const char *const TAG = "esp32_hosted.update";
+ESPHOME_LOG_TAG(TAG, "esp32_hosted.update");
 
 // Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;

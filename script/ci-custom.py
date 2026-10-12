@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import ast
 import codecs
 import collections
 from collections.abc import Iterator
@@ -811,6 +812,40 @@ def lint_const_py_frozen(fname, content):
     return None
 
 
+@lint_content_check(include=["esphome/components/*/__init__.py"])
+def lint_component_domain(fname: Path, content: str) -> str | None:
+    """Require every component's __init__.py to define DOMAIN as its own name."""
+    if len(fname.parts) != 4:
+        # Platform packages such as esphome/components/<name>/sensor/__init__.py
+        return None
+    domain = fname.parts[2]
+    expected = f'DOMAIN = "{domain}"'
+    try:
+        tree = ast.parse(content, filename=str(fname))
+    except SyntaxError:
+        # Reported by the Python linters; nothing useful to add here.
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if (
+            any(isinstance(t, ast.Name) and t.id == "DOMAIN" for t in targets)
+            and isinstance(node.value, ast.Constant)
+            and node.value.value == domain
+        ):
+            return None
+    return (
+        f"Component is missing the {highlight(expected)} constant. "
+        "Add it in alphabetical order with the other component metadata such as "
+        "CODEOWNERS and DEPENDENCIES, so other code can refer to the component by "
+        "name, e.g. CORE.data[DOMAIN]."
+    )
+
+
 def relative_cpp_search_text(fname: Path, content) -> str:
     parts = fname.parts
     integration = parts[2]
@@ -1030,15 +1065,13 @@ HEAP_ALLOCATING_HELPERS = {
     r"str_sprintf|"
     r"str_snprintf|"
     r"value_accuracy_to_string"
-    r")\s*\(" + CPP_RE_EOL,
+    # Explicit template arguments at any nesting depth, e.g. format_hex<std::array<uint8_t, 4>>(
+    r")\s*(?:<[^;{}()\n]*>\s*)?\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves
         "esphome/core/alloc_helpers.h",
         "esphome/core/alloc_helpers.cpp",
-        # Backward compatibility re-exports (remove before 2026.11.0)
-        "esphome/core/helpers.h",
-        "esphome/core/helpers.cpp",
         # Vendored third-party library
         "esphome/components/http_request/httplib.h",
     ],
@@ -1091,7 +1124,6 @@ def lint_no_sprintf(fname, match):
         # Vendored library
         "esphome/components/http_request/httplib.h",
         # Deprecated helpers that return std::string
-        "esphome/core/helpers.cpp",
         "esphome/core/alloc_helpers.cpp",
         # The using declaration itself
         "esphome/core/helpers.h",
@@ -1233,6 +1265,39 @@ def lint_no_std_nothrow(fname, match):
         f"  After:  {highlight('auto buf = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(n);')}\n"
         f"For one object use {highlight('RAMAllocator<T>().make_unique(args...)')}; both return empty on failure.\n"
         f"Default flags prefer PSRAM; pass RAMAllocator<T>::PREFER_INTERNAL to keep it where new put it.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
+    r"\s*(?:=\s*\{?|[{(])\s*\"",
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+)
+def lint_log_tag_macro(fname, match):
+    return (
+        f"Declare log tags with {highlight('ESPHOME_LOG_TAG(TAG, "name");')}, which keeps the tag in flash on "
+        f"ESP8266.\n"
+        f"  Before: {highlight('static const char *const TAG = "name";')}\n"
+        f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
+        f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*TAG\b"
+    r"|\bstd::string\s+\w+\s*[={(]\s*TAG\b",
+    mask=True,
+    prefilter="TAG",
+    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+)
+def lint_log_tag_as_string(fname, match):
+    return (
+        f"{highlight('TAG')} is in flash on ESP8266 (ESPHOME_LOG_TAG), so it can only be used for logging.\n"
+        f"Use a separate name or a numeric id for scheduler calls, and do not pass it to string functions.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 

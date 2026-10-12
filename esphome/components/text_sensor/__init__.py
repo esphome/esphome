@@ -39,6 +39,7 @@ DEVICE_CLASSES = [
 ]
 
 
+DOMAIN = "text_sensor"
 IS_PLATFORM_COMPONENT = True
 
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
@@ -207,7 +208,8 @@ async def setup_text_sensor_core_(var, config):
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_TEXT_SENSOR_FILTER")
         filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_text_sensor_automations, var, config)
 

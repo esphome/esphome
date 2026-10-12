@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.ssd1677_gray4";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1677_gray4");
 
 // Combine two source bytes (4 pixels each, 2 bits per pixel, most significant pixel first) into
 // one plane byte covering the same 8 pixels (1 bit per pixel), choosing high or low bit

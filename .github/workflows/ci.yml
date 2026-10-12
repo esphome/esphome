@@ -286,7 +286,7 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Run prek
-        uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
+        uses: j178/prek-action@1382ad72dea72f9d53832f2bcb65b3e87a947204 # v3.0.1
         with:
           prek-version: ${{ steps.prek.outputs.version }}
           # This job only runs on pull requests, so nothing ever populates
@@ -626,7 +626,7 @@ jobs:
             apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
+        uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5.4.0
         with:
           run: |
             . venv/bin/activate
@@ -893,14 +893,20 @@ jobs:
       matrix:
         include:
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 IDF 1/3
-            options: --environment esp32-idf-tidy --split-num 3 --split-at 1
+            name: Run script/clang-tidy for ESP32 IDF 1/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 1
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 IDF 2/3
-            options: --environment esp32-idf-tidy --split-num 3 --split-at 2
+            name: Run script/clang-tidy for ESP32 IDF 2/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 2
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 IDF 3/3
-            options: --environment esp32-idf-tidy --split-num 3 --split-at 3
+            name: Run script/clang-tidy for ESP32 IDF 3/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 3
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 IDF 4/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 4
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 IDF 5/5
+            options: --environment esp32-idf-tidy --split-num 5 --split-at 5
 
     steps:
       - name: Check out code from GitHub
@@ -1329,6 +1335,91 @@ jobs:
           # config first, so a separate config pass is redundant.
           python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino --fail-on-no-tests
 
+  test-esp8266-native-windows:
+    name: Compile esp8266 with the native toolchain on Windows (ccache ${{ matrix.ccache }})
+    runs-on: windows-latest
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp8266-native == 'true'
+    # A hung compiler must fail the job, not hold the runner for six hours.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both ways the build runs on Windows: ESPHome Desktop bundles
+        # ccache and puts it on PATH, a pip install has none.
+        ccache: ["1", "0"]
+    env:
+      ESPHOME_CCACHE_ENABLE: ${{ matrix.ccache }}
+      # The test script prints characters the cp1252 console cannot encode
+      PYTHONUTF8: "1"
+      # The exact static build ESPHome Desktop ships
+      CCACHE_URL: https://github.com/ccache/ccache/releases/download/v4.14/ccache-4.14-windows-x86_64.zip
+      CCACHE_SHA256: 2568347a697e103ca1b073981c704ad76fb2507d066c38dba038dd73399d968f
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Install ccache
+        if: matrix.ccache == '1'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "ccache"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $zip = Join-Path $dir "ccache.zip"
+          Invoke-WebRequest -Uri $env:CCACHE_URL -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:CCACHE_SHA256) {
+            Write-Host "::error::ccache archive sha256 $hash does not match $env:CCACHE_SHA256"
+            exit 1
+          }
+          Expand-Archive -Path $zip -DestinationPath $dir
+          $bin = Get-ChildItem -Path $dir -Recurse -Filter ccache.exe | Select-Object -First 1
+          Add-Content -Path $env:GITHUB_PATH -Value $bin.DirectoryName
+          & $bin.FullName --version
+
+      - name: Compile
+        shell: pwsh
+        # One component test: web_server brings wifi, api and the async web
+        # server libraries, the shape of a typical ESP8266 device
+        run: |
+          . .\venv\Scripts\Activate.ps1
+          $arguments = "script/test_build_components.py", "-e", "compile", "-t", "esp8266-ard", "-c", "web_server", "--base-only", "--toolchain", "arduino", "--fail-on-no-tests"
+          $p = Start-Process -FilePath python -ArgumentList $arguments -NoNewWindow -PassThru
+          # Reading the handle keeps ExitCode available after the process exits
+          $null = $p.Handle
+          if (-not $p.WaitForExit(25 * 60 * 1000)) {
+            Write-Host "::error::The compile did not finish in 25 minutes; processes still running:"
+            Get-CimInstance Win32_Process |
+              Where-Object { $_.CommandLine -match 'xtensa|ccache|ninja|esphome' } |
+              Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine |
+              Format-List | Out-String -Width 4096 | Write-Host
+            Get-Process |
+              Where-Object { $_.Name -match 'cc1|ccache|ninja|xtensa|python' } |
+              Select-Object Id, Name, CPU, WorkingSet64 |
+              Format-Table | Out-String | Write-Host
+            taskkill /PID $p.Id /T /F
+            exit 1
+          }
+          exit $p.ExitCode
+
+      - name: Show ccache statistics
+        # Also after a failed or killed compile: the counters say whether
+        # ccache was ever reached
+        if: always() && matrix.ccache == '1'
+        shell: pwsh
+        # The build keeps its store under the esphome tools cache
+        run: |
+          $env:CCACHE_DIR = Join-Path $env:LOCALAPPDATA "esphome\Cache\arduino8266\ccache"
+          ccache -s
+
   device-builder:
     name: Test downstream esphome/device-builder
     runs-on: ubuntu-24.04
@@ -1416,31 +1507,27 @@ jobs:
             echo "::warning::ci_memory_impact_extract.py not found on target branch, skipping memory impact analysis"
           fi
 
-      # Check if test files exist on the target branch for the requested
-      # components and platform. When a PR adds new test files for a platform,
-      # the target branch won't have them yet, so skip instead of failing.
-      # This check must be done here (not in determine-jobs.py) because
-      # determine-jobs runs on the PR branch and cannot see what the target
-      # branch has.
+      # The build below uses --base-only, so skip unless the target branch has
+      # test.<platform>.yaml for every requested component (test-*.yaml
+      # variants alone compile nothing, and a partial set would compare a
+      # smaller target build against the PR build). Checked here, not in
+      # determine-jobs.py, because determine-jobs runs on the PR branch and
+      # cannot see the target branch.
       - name: Check for test files on target branch
         id: check-tests
         if: steps.check-script.outputs.skip != 'true'
         run: |
           components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
           platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
-          found=false
+          missing=""
           for component in $(echo "$components" | jq -r '.[]'); do
-            # Check for test files matching the platform (test.platform.yaml or test-*.platform.yaml)
-            for f in tests/components/${component}/test*.${platform}.yaml; do
-              if [ -f "$f" ]; then
-                found=true
-                break 2
-              fi
-            done
+            if [ ! -f "tests/components/${component}/test.${platform}.yaml" ]; then
+              missing="${missing} ${component}"
+            fi
           done
-          if [ "$found" = false ]; then
+          if [ -n "$missing" ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "::warning::No test files found on target branch for platform ${platform}, skipping memory impact analysis"
+            echo "::warning::No test.${platform}.yaml on target branch for${missing}, skipping memory impact analysis"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
@@ -1703,6 +1790,7 @@ jobs:
       - test-build-components-split
       - test-esp32-platformio
       - test-esp8266-native
+      - test-esp8266-native-windows
       - device-builder
       - memory-impact-target-branch
       - memory-impact-pr-branch

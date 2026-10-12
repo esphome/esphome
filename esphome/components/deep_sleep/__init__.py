@@ -491,6 +491,7 @@ for _name, _call in (
     )
 
 
+DOMAIN = "deep_sleep"
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "deep_sleep_esp32.cpp": {

@@ -77,7 +77,7 @@
 
 namespace esphome::ethernet {
 
-static const char *const TAG = "ethernet";
+ESPHOME_LOG_TAG(TAG, "ethernet");
 
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
@@ -462,9 +462,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   }
 #endif  // USE_ETHERNET_KSZ8081
 
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
   }
+#endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #ifdef USE_ETHERNET_GENERIC
@@ -1043,10 +1045,6 @@ void EthernetComponent::dump_connect_params_() {
 #endif /* USE_NETWORK_IPV6 */
 }
 
-#ifndef USE_ETHERNET_SPI
-void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
-#endif
-
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   if (!this->ethernet_initialized_) {
     // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
@@ -1144,6 +1142,7 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 }
 #endif  // USE_ETHERNET_KSZ8081
 
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;
 
@@ -1168,6 +1167,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   }
 #endif
 }
+#endif  // ESPHOME_ETHERNET_PHY_REGISTER_COUNT
 
 #ifdef USE_ETHERNET_YT8531
 void EthernetComponent::yt8531_phy_init_() {

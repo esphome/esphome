@@ -3,7 +3,7 @@
 
 namespace esphome::mcp23s08 {
 
-static const char *const TAG = "mcp23s08";
+ESPHOME_LOG_TAG(TAG, "mcp23s08");
 
 // IOCON register bits
 static constexpr uint8_t IOCON_SEQOP = 0x20;  // Sequential operation mode

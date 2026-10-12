@@ -3,7 +3,7 @@
 
 namespace esphome::xiaomi_mhoc303 {
 
-static const char *const TAG = "xiaomi_mhoc303";
+ESPHOME_LOG_TAG(TAG, "xiaomi_mhoc303");
 
 void XiaomiMHOC303::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MHOC303");
