@@ -46,8 +46,7 @@ UNIT_NANOSIEVERT = "nSv"
 aranet_ns = cg.esphome_ns.namespace("aranet")
 Aranet = aranet_ns.class_("Aranet", ble_device_base.ESPBTDeviceListener, cg.Component)
 
-CONFIG_SCHEMA = cv.All(
-    ble_device_base.rename_legacy_hub_id("aranet"),
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Aranet),
@@ -131,7 +130,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA)
 )
 
 
