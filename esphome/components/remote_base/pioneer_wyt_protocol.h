@@ -50,27 +50,6 @@ class PioneerWytData {
 class PioneerWytProtocol : public RemoteProtocol<PioneerWytData> {
  public:
   void encode(RemoteTransmitData *dst, const PioneerWytData &data);
-  /// A lambda code must have the same length the schema allows; logs a warning otherwise
-  static bool valid_length(size_t len);
-};
-
-template<typename... Ts> class PioneerWytAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_BYTES(code)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    PioneerWytData data;
-    if (this->code_.is_static()) {
-      data = PioneerWytData(this->code_.data(), this->code_.size());
-    } else {
-      const std::vector<uint8_t> code = this->code_.value(x...);
-      if (!PioneerWytProtocol::valid_length(code.size()))
-        return;
-      data = PioneerWytData(code);
-    }
-    data.finalize();
-    PioneerWytProtocol().encode(dst, data);
-  }
 };
 
 }  // namespace esphome::remote_base

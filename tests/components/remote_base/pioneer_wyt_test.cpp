@@ -42,13 +42,6 @@ TEST(PioneerWytProtocolTest, FanFrameChecksumHasOffset) {
   EXPECT_EQ(data[PioneerWytData::SIZE - 1], 0xF5);
 }
 
-TEST(PioneerWytProtocolTest, OnlyFrameLengthsAreValid) {
-  EXPECT_TRUE(PioneerWytProtocol::valid_length(13));
-  EXPECT_TRUE(PioneerWytProtocol::valid_length(14));
-  EXPECT_FALSE(PioneerWytProtocol::valid_length(5));
-  EXPECT_FALSE(PioneerWytProtocol::valid_length(15));
-}
-
 TEST(PioneerWytProtocolTest, EncodesHeaderAndAllBits) {
   RemoteTransmitData dst;
   PioneerWytProtocol().encode(&dst, PioneerWytData(COOL_26_CAPTURE.data(), COOL_26_CAPTURE.size()));

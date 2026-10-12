@@ -31,3 +31,8 @@ button:
     on_press:
       - remote_transmitter.transmit_midea:
           code: !lambda return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};
+  - platform: template
+    name: Pioneer WYT lambda
+    on_press:
+      - remote_transmitter.transmit_pioneer_wyt:
+          code: !lambda return {0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80};

@@ -1229,7 +1229,7 @@ register_protocol_action(
 
 
 # PioneerWyt
-PioneerWytAction = ns.class_("PioneerWytAction", RemoteTransmitterActionBase)
+PioneerWytData = ns.class_("PioneerWytData")
 PIONEER_WYT_SCHEMA = cv.Schema(
     {
         # 13 bytes get the checksum appended; a 14th byte is replaced by the recomputed checksum
@@ -1237,14 +1237,13 @@ PIONEER_WYT_SCHEMA = cv.Schema(
     }
 )
 
-
-@register_action("pioneer_wyt", PioneerWytAction, PIONEER_WYT_SCHEMA)
-async def pioneer_wyt_action(
-    var: MockObj, config: ConfigType, args: TemplateArgsType
-) -> None:
-    await _code_bytes(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
-    )
+register_protocol_action(
+    "pioneer_wyt",
+    "PioneerWyt",
+    PIONEER_WYT_SCHEMA,
+    _bytes_field(CONF_CODE, f"data = {PioneerWytData}({{}})"),
+    automation.ApplyCall("data.finalize()"),
+)
 
 
 # Pronto

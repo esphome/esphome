@@ -11,7 +11,7 @@ def test_byte_payloads(
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("byte_payloads.yaml"))
-    abb, aeha, midea = protocol_call_bodies(main_cpp)
+    abb, aeha, midea, pioneer_wyt = protocol_call_bodies(main_cpp)
     # The address length goes first, a configured id turns the automatic one off
     assert abb.index("set_three_byte_address(true);") < abb.index("set_source_address(")
     assert abb.index("auto_message_id = true;") < abb.index(
@@ -31,3 +31,9 @@ def test_byte_payloads(
         in midea
     )
     assert midea.rstrip().endswith("apply_call.data.finalize();")
+    # A 13-byte code is copied into the frame and the checksum is appended by finalize()
+    assert (
+        "apply_call.data = remote_base::PioneerWytData([]() -> std::vector<uint8_t> {"
+        in pioneer_wyt
+    )
+    assert pioneer_wyt.rstrip().endswith("apply_call.data.finalize();")

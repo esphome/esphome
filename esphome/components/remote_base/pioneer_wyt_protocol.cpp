@@ -13,14 +13,6 @@ static constexpr uint32_t BIT_MARK_US = 500;
 static constexpr uint32_t BIT_ONE_SPACE_US = 1100;
 static constexpr uint32_t BIT_ZERO_SPACE_US = 350;
 
-bool PioneerWytProtocol::valid_length(size_t len) {
-  if (len == PioneerWytData::SIZE || len == PioneerWytData::SIZE - 1)
-    return true;
-  ESP_LOGW(TAG, "Code must have %u or %u bytes, got %u", PioneerWytData::SIZE - 1, PioneerWytData::SIZE,
-           static_cast<unsigned>(len));
-  return false;
-}
-
 void PioneerWytProtocol::encode(RemoteTransmitData *dst, const PioneerWytData &data) {
   char hex_buf[format_hex_pretty_size(PioneerWytData::SIZE)];
   ESP_LOGD(TAG, "Transmit PioneerWyt: %s", format_hex_pretty_to(hex_buf, data.data(), data.size()));
