@@ -74,11 +74,14 @@ class LvColorPickerType : public LvCompound {
       left_width = HUE_WIDTH_PCT;
       left = this->create_slider_(outer, SLIDER_HUE, "Hue", true, &hue_bar, 360);
       lv_obj_set_size(left, lv_pct(HUE_WIDTH_PCT), lv_pct(100));
-    } else if (this->use_wheel_) {
+    }
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
+    else if (this->use_wheel_) {
       left_width = WHEEL_WIDTH_PCT;
       left = this->create_wheel_(outer);
       lv_obj_set_size(left, lv_pct(WHEEL_WIDTH_PCT), lv_pct(WHEEL_WIDTH_PCT));
     }
+#endif
     if (left != nullptr) {
       lv_obj_set_style_align(left, LV_ALIGN_LEFT_MID, LV_PART_MAIN);
       // A narrow hue column may be slimmer than its label.
@@ -163,8 +166,15 @@ class LvColorPickerType : public LvCompound {
     std::array<lv_color_t, 7> hues{lv_color_hex(0xFF0000), lv_color_hex(0xFFFF00), lv_color_hex(0x00FF00),
                                    lv_color_hex(0x00FFFF), lv_color_hex(0x0000FF), lv_color_hex(0xFF00FF),
                                    lv_color_hex(0xFF0000)};
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
     lv_grad_conical_init(&wheel_hue_grad, lv_pct(50), lv_pct(50), 0, 360, LV_GRAD_EXTEND_PAD);
     lv_grad_init_stops(&wheel_hue_grad, hues.data(), nullptr, nullptr, static_cast<int>(hues.size()));
+    // White at the centre fading out at the rim, giving saturation over the hue wheel.
+    const lv_color_t whites[] = {lv_color_white(), lv_color_white()};
+    const lv_opa_t white_opas[] = {LV_OPA_COVER, LV_OPA_TRANSP};
+    lv_grad_radial_init(&wheel_white_grad, lv_pct(50), lv_pct(50), lv_pct(100), lv_pct(50), LV_GRAD_EXTEND_PAD);
+    lv_grad_init_stops(&wheel_white_grad, whites, white_opas, nullptr, 2);
+#endif
     // A vertical slider has its minimum at the bottom, so the hue bar runs the other way.
     std::reverse(hues.begin(), hues.end());
     lv_grad_vertical_init(&hue_bar);
@@ -173,12 +183,6 @@ class LvColorPickerType : public LvCompound {
     init_bar(&red_bar, LV_GRAD_DIR_VER, lv_color_hex(0xFF0000), lv_color_white());
     init_bar(&green_bar, LV_GRAD_DIR_VER, lv_color_hex(0x00FF00), lv_color_white());
     init_bar(&blue_bar, LV_GRAD_DIR_VER, lv_color_hex(0x0000FF), lv_color_white());
-
-    // White at the centre fading out at the rim, giving saturation over the hue wheel.
-    const lv_color_t whites[] = {lv_color_white(), lv_color_white()};
-    const lv_opa_t white_opas[] = {LV_OPA_COVER, LV_OPA_TRANSP};
-    lv_grad_radial_init(&wheel_white_grad, lv_pct(50), lv_pct(50), lv_pct(100), lv_pct(50), LV_GRAD_EXTEND_PAD);
-    lv_grad_init_stops(&wheel_white_grad, whites, white_opas, nullptr, 2);
 
     lv_style_init(&plain_box);
     lv_style_set_bg_opa(&plain_box, LV_OPA_TRANSP);
@@ -259,6 +263,14 @@ class LvColorPickerType : public LvCompound {
 
   bool enabled_(SliderIndex index) const { return (this->sliders_mask_ & (1 << index)) != 0; }
   bool has_(SliderIndex index) const { return this->sliders_[index] != nullptr; }
+  bool can_change_saturation_() const {
+    return this->use_wheel_ || (this->sliders_mask_ &
+                                (SLIDER_FLAG_SATURATION | SLIDER_FLAG_RED | SLIDER_FLAG_GREEN | SLIDER_FLAG_BLUE)) != 0;
+  }
+  bool can_change_brightness_() const {
+    return (this->sliders_mask_ & (SLIDER_FLAG_BRIGHTNESS | SLIDER_FLAG_RED | SLIDER_FLAG_GREEN | SLIDER_FLAG_BLUE)) !=
+           0;
+  }
 
   // A slider the widget was built without keeps the value held internally.
   int32_t slider_value_(SliderIndex index, int32_t fallback) const {
@@ -305,6 +317,7 @@ class LvColorPickerType : public LvCompound {
     this->add_value_label_(index, text_color);
   }
 
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
   // A full-size circle filled with a gradient.
   static lv_obj_t *create_disc(lv_obj_t *parent, const lv_grad_dsc_t *grad) {
     auto *disc = create_box(parent);
@@ -342,6 +355,7 @@ class LvColorPickerType : public LvCompound {
     lv_obj_add_event_cb(this->wheel_, wheel_size_cb, LV_EVENT_SIZE_CHANGED, this);
     return container;
   }
+#endif
 
   void add_value_label_(SliderIndex index, lv_color_t color) {
     auto *slider = this->sliders_[index];
@@ -369,8 +383,10 @@ class LvColorPickerType : public LvCompound {
   }
   static void hsv_changed_cb(lv_event_t *event) { from_event(event)->update_hsv_(); }
   static void rgb_changed_cb(lv_event_t *event) { from_event(event)->update_rgb_(); }
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
   static void wheel_touch_cb(lv_event_t *event) { from_event(event)->update_from_wheel_touch_(); }
   static void wheel_size_cb(lv_event_t *event) { from_event(event)->update_wheel_handle_(); }
+#endif
   static void size_changed_cb(lv_event_t *event) { from_event(event)->update_bar_thickness_(); }
 
   // Gives the horizontal bars the thickness of the vertical ones, half a hue column, so every
@@ -440,6 +456,7 @@ class LvColorPickerType : public LvCompound {
     this->tint_knob_(SLIDER_BLUE, lv_color_make(255 - this->state_.b, 255 - this->state_.b, 255));
   }
 
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
   // Returns the wheel's radius, which is zero until it has been laid out.
   double wheel_radius_(lv_area_t *area) const {
     lv_obj_get_coords(this->wheel_, area);
@@ -485,6 +502,7 @@ class LvColorPickerType : public LvCompound {
     // Only sliders send this themselves; without it on_value would not fire for the wheel.
     lv_obj_send_event(this->wheel_, LV_EVENT_VALUE_CHANGED, nullptr);
   }
+#endif
 
   // Lets events from the internal sliders reach the widget, where the triggers listen. Every
   // object in between needs the flag; the widget itself does not, so events stop there.
@@ -504,7 +522,9 @@ class LvColorPickerType : public LvCompound {
     this->update_text_();
     this->update_values_();
     this->update_knobs_(full_hue);
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
     this->update_wheel_handle_();
+#endif
   }
 
   // Sets the colour from the hue, saturation and brightness, and moves the RGB sliders to match.
@@ -533,10 +553,25 @@ class LvColorPickerType : public LvCompound {
     this->hue_ = hsv.h;
     this->saturation_ = hsv.s;
     this->brightness_ = hsv.v;
-    this->set_slider_value_(SLIDER_HUE, hsv.h);
-    this->set_slider_value_(SLIDER_SATURATION, hsv.s);
-    this->set_slider_value_(SLIDER_BRIGHTNESS, hsv.v);
-    this->refresh_();
+    // A grey, white or black colour leaves a picker stuck there if nothing it has can move the
+    // saturation, or the brightness, away from zero.
+    bool stuck = false;
+    if (this->saturation_ == 0 && !this->can_change_saturation_()) {
+      this->saturation_ = 100;
+      stuck = true;
+    }
+    if (this->brightness_ == 0 && !this->can_change_brightness_()) {
+      this->brightness_ = 100;
+      stuck = true;
+    }
+    this->set_slider_value_(SLIDER_HUE, this->hue_);
+    this->set_slider_value_(SLIDER_SATURATION, this->saturation_);
+    this->set_slider_value_(SLIDER_BRIGHTNESS, this->brightness_);
+    if (stuck) {
+      this->apply_hsv_();
+    } else {
+      this->refresh_();
+    }
   }
 
   void update_color_() {
@@ -553,8 +588,10 @@ class LvColorPickerType : public LvCompound {
   inline static lv_grad_dsc_t red_bar{};
   inline static lv_grad_dsc_t green_bar{};
   inline static lv_grad_dsc_t blue_bar{};
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
   inline static lv_grad_dsc_t wheel_hue_grad{};
   inline static lv_grad_dsc_t wheel_white_grad{};
+#endif
   inline static lv_style_t plain_box{};
   inline static lv_style_t slider_vert{};
   inline static lv_style_t slider_vert_knob{};
@@ -576,9 +613,11 @@ class LvColorPickerType : public LvCompound {
   const uint8_t sliders_mask_;
   const bool use_wheel_;
   bool tint_knobs_{true};
+#ifdef USE_LVGL_COLOR_PICKER_WHEEL
   // Null unless use_wheel_ is set.
   lv_obj_t *wheel_{};
   lv_obj_t *wheel_handle_{};
+#endif
 };
 
 }  // namespace esphome::lvgl

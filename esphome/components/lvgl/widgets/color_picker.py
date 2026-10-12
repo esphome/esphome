@@ -205,6 +205,9 @@ class ColorPickerType(WidgetType):
     async def to_code(self, w: Widget, config: dict) -> None:
         # Only the configuration that creates the widget has `sliders`; an update does not.
         creating = CONF_SLIDERS in config
+        if creating and config[CONF_WHEEL]:
+            # Without a wheel anywhere, its code and gradients are left out of the build.
+            cg.add_define("USE_LVGL_COLOR_PICKER_WHEEL")
         color = config.get(CONF_COLOR)
         if (
             color is None

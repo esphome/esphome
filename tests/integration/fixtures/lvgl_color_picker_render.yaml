@@ -21,6 +21,10 @@ api:
         - lvgl.color_picker.update:
             id: picker_wheel
             color: 0xFF8800
+        # White has no saturation, which a hue-only picker could never change again
+        - lvgl.color_picker.update:
+            id: picker_hue
+            color: 0xFFFFFF
 
 logger:
   level: DEBUG

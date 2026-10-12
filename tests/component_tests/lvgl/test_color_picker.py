@@ -252,6 +252,23 @@ class TestColorPickerCodeGeneration:
         """Each of these can change saturation, so the grey it starts with is no trap."""
         assert f"{var}->set_color(" not in main_cpp
 
+    def test_wheel_code_is_built_for_a_wheel(self, main_cpp: str) -> None:
+        from esphome.core import CORE
+
+        assert "USE_LVGL_COLOR_PICKER_WHEEL" in {d.name for d in CORE.defines}
+
+    def test_wheel_code_is_left_out_without_a_wheel(
+        self,
+        generate_main: Callable[[str | Path], str],
+        component_config_path: Callable[[str], Path],
+    ) -> None:
+        """Its gradients would otherwise take RAM in every build with a picker."""
+        from esphome.core import CORE
+
+        generate_main(component_config_path("color_picker_theme.yaml"))
+
+        assert "USE_LVGL_COLOR_PICKER_WHEEL" not in {d.name for d in CORE.defines}
+
     def test_hue_only_picker_starts_saturated(self, main_cpp: str) -> None:
         """With no way to change saturation, a grey start would leave it stuck at grey."""
         assert "picker_hue->set_color(lv_color_make(255, 0, 0));" in main_cpp

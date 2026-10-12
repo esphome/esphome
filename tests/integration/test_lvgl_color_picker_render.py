@@ -2,7 +2,7 @@
 
 Pickers are drawn with every slider, with a colour wheel, at the size taken from the font,
 and with only some of the sliders. The first two are then given a new colour by
-`lvgl.color_picker.update` and drawn again. Each picture is compared against a hash, as in
+`lvgl.color_picker.update`, and the hue-only one is given white, and they are drawn again. Each picture is compared against a hash, as in
 test_lvgl_headless_render.py. If a change alters the output, the test fails, keeps the image it
 saw and prints its hash; update the hash once the image has been looked at and found to be
 correct.
@@ -27,9 +27,10 @@ HEIGHT = 480
 EXPECTED_INITIAL_SHA256 = (
     "5d93f4bd98fcbe418ef8d34572e3b0912e0421cfd87e61e8cc3c49778a0e0e47"
 )
-# The first two pickers showing 0xFF8800, after the update action.
+# The first two pickers showing 0xFF8800, and the hue-only one red rather than stuck at white,
+# after the update action.
 EXPECTED_UPDATED_SHA256 = (
-    "ad4bb1c27410debd96f1e2ecf380df2d1d70fbab0026e3117e0f7436bb5138b0"
+    "8300a6d95f38e60ea3d175aa413e71b99de6ac7ad78c9adf5248bfb350cb35d3"
 )
 # The LVGL version the hashes were generated against; a version change can move them.
 EXPECTED_LVGL_VERSION = "9.6.0"
