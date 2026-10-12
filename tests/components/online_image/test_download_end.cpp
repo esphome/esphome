@@ -83,14 +83,14 @@ static void set_loop_time(uint32_t now) { LoopBlockingGuard clock(nullptr, LOG_S
 
 class OnlineImageDownloadEnd : public ::testing::Test {
  protected:
-  std::unique_ptr<OnlineImage> make_image(runtime_image::ImageFormat format) {
+  std::unique_ptr<OnlineImage> make_image_(runtime_image::ImageFormat format) {
     auto img = std::make_unique<OnlineImage>("http://example.com/image", 0, 0, format, image::IMAGE_TYPE_RGB,
                                              image::TRANSPARENCY_OPAQUE, nullptr, 256);
     img->set_parent(&this->http_);
     return img;
   }
 
-  void start(OnlineImage &image, const std::shared_ptr<FakeContainer> &container) {
+  void start_(OnlineImage &image, const std::shared_ptr<FakeContainer> &container) {
     image.add_on_finished_callback([this](bool) { this->finished_++; });
     image.add_on_error_callback([this]() { this->errors_++; });
     this->http_.next = container;
@@ -108,8 +108,8 @@ TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishes) {
   std::vector<uint8_t> bmp = make_bmp();
   bmp.resize(BMP_HEADER_SIZE + BMP_ROW_SIZE);  // only the first row, so the decoder is not finished
   auto container = std::make_shared<FakeContainer>(bmp, bmp.size(), true);
-  auto image = this->make_image(runtime_image::BMP);
-  this->start(*image, container);
+  auto image = this->make_image_(runtime_image::BMP);
+  this->start_(*image, container);
 
   for (int i = 0; i < 4 && this->finished_ + this->errors_ == 0; i++)
     image->loop();
@@ -122,9 +122,9 @@ TEST_F(OnlineImageDownloadEnd, ChunkedStreamEndWithAllDataUsedFinishes) {
 TEST_F(OnlineImageDownloadEnd, NoDataForTimeoutReportsError) {
   this->http_.set_timeout(100);
   auto container = std::make_shared<FakeContainer>(make_bmp(), 20, false);
-  auto image = this->make_image(runtime_image::BMP);
+  auto image = this->make_image_(runtime_image::BMP);
   set_loop_time(1000);
-  this->start(*image, container);
+  this->start_(*image, container);
 
   image->loop();
   ASSERT_EQ(container->get_bytes_read(), 20u);
@@ -140,10 +140,10 @@ TEST_F(OnlineImageDownloadEnd, NoDataForTimeoutReportsError) {
 
 // A JPEG too big for the heap must fail, and leave the configured buffer for the next download.
 TEST_F(OnlineImageDownloadEnd, JpegBufferAllocationFailureReportsError) {
-  auto image = this->make_image(runtime_image::JPEG);
+  auto image = this->make_image_(runtime_image::JPEG);
   auto huge = std::make_shared<FakeContainer>(std::vector<uint8_t>(16), 16, false);
   huge->set_content_length(SIZE_MAX / 2);
-  this->start(*image, huge);
+  this->start_(*image, huge);
   EXPECT_EQ(this->errors_, 1);
 
   // A chunked response does not resize the buffer. The body is not a real JPEG, so the decoder
