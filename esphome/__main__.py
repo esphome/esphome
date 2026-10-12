@@ -1785,11 +1785,13 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
         return
     # The HTTP path has no key handshake; decide before prompting or
     # compiling. A serial target is a serial flash: the key is not even
-    # asked for, and --ota-platform means nothing to it.
+    # asked for, and --ota-platform means nothing to it. Every entry must
+    # be serial: a missing port is skipped and the next entry may be a host
     devices = getattr(args, "device", None) or []
-    serial_target = bool(devices) and (
-        devices[0] == "SERIAL"
-        or get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL)
+    serial_target = bool(devices) and all(
+        device == "SERIAL"
+        or get_port_type(device) in (PortType.SERIAL, PortType.BOOTSEL)
+        for device in devices
     )
     chosen = (
         _choose_ota_platform(config, getattr(args, "ota_platform", None))
@@ -1804,7 +1806,7 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     if serial_target:
         _LOGGER.warning(
             "The presented OTA key only applies to network uploads; ignored for %s",
-            devices[0],
+            ", ".join(devices),
         )
         return
     key = read_secret_line("OTA encryption key: ") if prompt else env_key

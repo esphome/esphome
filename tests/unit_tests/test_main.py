@@ -2519,6 +2519,31 @@ def test_read_ota_key_lets_a_serial_target_through(
     assert any(f"ignored for {device}" in r.message for r in caplog.records)
 
 
+def test_read_ota_key_serial_then_network_still_asks(
+    mock_get_port_type: Mock,
+) -> None:
+    """`--device SERIAL --device OTA` with no port attached ends up on the
+    network, so the key is read and a web_server only config is refused."""
+    mock_get_port_type.side_effect = lambda d: (
+        PortType.SERIAL if d.startswith("/dev") else PortType.NETWORK
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    args.device = ["/dev/ttyUSB0", "OTA"]
+    with patch("esphome.__main__.read_secret_line", return_value=key) as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_called_once()
+    assert args.ota_key == key
+    args = MockArgs(prompt_ota_key=True)
+    args.device = ["SERIAL", "OTA"]
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only apply to the esphome OTA platform"),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
+    read.assert_not_called()
+
+
 def test_read_ota_key_ignored_for_a_host_build(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
