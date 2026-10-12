@@ -261,6 +261,122 @@ CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE = "remote_request_last_response_code"
 # rather than the raw code.
 CONF_REMOTE_REQUEST_LAST_RESPONSE = "remote_request_last_response"
 
+# §5.3.4 Class 4: read-only sensors.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL = (
+    "sensor_and_informational_data_relative_modulation_level"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_WATER_PRESSURE = (
+    "sensor_and_informational_data_ch_water_pressure"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_FLOW_RATE = (
+    "sensor_and_informational_data_dhw_flow_rate"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_WATER_TEMPERATURE = (
+    "sensor_and_informational_data_boiler_water_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_TEMPERATURE = (
+    "sensor_and_informational_data_dhw_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_RETURN_WATER_TEMPERATURE = (
+    "sensor_and_informational_data_return_water_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_STORAGE_TEMPERATURE = (
+    "sensor_and_informational_data_solar_storage_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SOLAR_COLLECTOR_TEMPERATURE = (
+    "sensor_and_informational_data_solar_collector_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_FLOW_TEMPERATURE_CH2 = (
+    "sensor_and_informational_data_flow_temperature_ch2"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW2_TEMPERATURE = (
+    "sensor_and_informational_data_dhw2_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_TEMPERATURE = (
+    "sensor_and_informational_data_exhaust_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_HEAT_EXCHANGER_TEMPERATURE = (
+    "sensor_and_informational_data_boiler_heat_exchanger_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_SETPOINT = (
+    "sensor_and_informational_data_boiler_fan_speed_setpoint"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED = (
+    "sensor_and_informational_data_boiler_fan_speed"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_FLAME_CURRENT = (
+    "sensor_and_informational_data_flame_current"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_VENTILATION = (
+    "sensor_and_informational_data_relative_ventilation"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_INLET_TEMPERATURE = (
+    "sensor_and_informational_data_supply_inlet_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_OUTLET_TEMPERATURE = (
+    "sensor_and_informational_data_supply_outlet_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_INLET_TEMPERATURE = (
+    "sensor_and_informational_data_exhaust_inlet_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_OUTLET_TEMPERATURE = (
+    "sensor_and_informational_data_exhaust_outlet_temperature"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED = (
+    "sensor_and_informational_data_actual_exhaust_fan_speed"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED = (
+    "sensor_and_informational_data_actual_inlet_fan_speed"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS = (
+    "sensor_and_informational_data_cooling_operation_hours"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES = (
+    "sensor_and_informational_data_power_cycles"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS = (
+    "sensor_and_informational_data_electricity_producer_starts"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS = (
+    "sensor_and_informational_data_electricity_producer_hours"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCTION = (
+    "sensor_and_informational_data_electricity_production"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION = (
+    "sensor_and_informational_data_cumulative_electricity_production"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS = (
+    "sensor_and_informational_data_number_of_unsuccessful_burner_starts"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW = (
+    "sensor_and_informational_data_number_of_times_flame_signal_too_low"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS = (
+    "sensor_and_informational_data_successful_burner_starts"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS = (
+    "sensor_and_informational_data_ch_pump_starts"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS = (
+    "sensor_and_informational_data_dhw_pump_valve_starts"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS = (
+    "sensor_and_informational_data_dhw_burner_starts"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS = (
+    "sensor_and_informational_data_burner_operation_hours"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS = (
+    "sensor_and_informational_data_ch_pump_operation_hours"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS = (
+    "sensor_and_informational_data_dhw_pump_valve_operation_hours"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS = (
+    "sensor_and_informational_data_dhw_burner_operation_hours"
+)
+
 # Synthetic diagnostic entity, not tied to any OpenTherm data-id -- deliberately NOT given the
 # sensor_and_informational_data_* prefix used throughout this file, since that prefix names a real
 # spec chapter (§5.3.4 Class 4) this entity has nothing to do with. How long the most recent full
@@ -279,6 +395,54 @@ CONF_PASS_DURATION = "pass_duration"
 # thing that otherwise only ever shows up as a log line. Same lifecycle as the sweep duration
 # entity above (unconditionally available, no update_every field, published once per sweep).
 CONF_SWEEP_HAD_ERRORS = "sweep_had_errors"
+
+# §5.3.4 Class 4: reset-by-writing-zero buttons for the 14 counter/hour ids above (optional for the
+# boiler to honor). ID 111 (Electricity production) is read-only and has no reset.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_cooling_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES_RESET = (
+    "sensor_and_informational_data_power_cycles_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS_RESET = (
+    "sensor_and_informational_data_electricity_producer_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS_RESET = (
+    "sensor_and_informational_data_electricity_producer_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION_RESET = (
+    "sensor_and_informational_data_cumulative_electricity_production_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS_RESET = (
+    "sensor_and_informational_data_number_of_unsuccessful_burner_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW_RESET = (
+    "sensor_and_informational_data_number_of_times_flame_signal_too_low_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS_RESET = (
+    "sensor_and_informational_data_successful_burner_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS_RESET = (
+    "sensor_and_informational_data_ch_pump_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS_RESET = (
+    "sensor_and_informational_data_dhw_pump_valve_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS_RESET = (
+    "sensor_and_informational_data_dhw_burner_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_burner_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_ch_pump_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_dhw_pump_valve_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_dhw_burner_operation_hours_reset"
+)
 
 # §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
 CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS = (
