@@ -13,11 +13,16 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_SYSTA_BUS_ID, SystaBus, register_systa_bus_listener, systa_bus_ns
+from .. import (
+    CONF_SYSTA_BUS_ID,
+    CONF_SYSTASOLAR_AQUA,
+    SystaBus,
+    register_systa_bus_listener,
+    systa_bus_ns,
+)
 
 SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
 
-CONF_SYSTASOLAR_AQUA = "systasolar_aqua"
 CONF_TEMPERATURE_TSA = "temperature_tsa"
 CONF_TEMPERATURE_TSE = "temperature_tse"
 CONF_TEMPERATURE_TWU = "temperature_twu"

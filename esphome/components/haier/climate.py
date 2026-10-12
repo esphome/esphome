@@ -186,7 +186,12 @@ def _base_config_schema(class_: MockObjClass) -> cv.Schema:
                 cv.Optional(
                     CONF_ANSWER_TIMEOUT,
                 ): cv.positive_time_period_milliseconds,
-                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation({}),
+                # data points into the protocol's receive buffer, reused for the next frame
+                cv.Optional(
+                    CONF_ON_STATUS_MESSAGE
+                ): automation.validate_synchronous_automation(
+                    "on_status_message", "the received frame"
+                ),
             }
         )
         .extend(uart.UART_DEVICE_SCHEMA)

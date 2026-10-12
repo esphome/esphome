@@ -129,7 +129,7 @@ async def to_code(config: ConfigType) -> None:
     # Also enable esp_driver_twai for future migration to new API
     include_builtin_idf_component("esp_driver_twai")
     var = cg.new_Pvariable(config[CONF_ID])
-    await canbus.register_canbus(var, config)
+    await canbus.register_canbus(var, config, reports_status=True)
 
     cg.add(var.set_rx(config[CONF_RX_PIN]))
     cg.add(var.set_tx(config[CONF_TX_PIN]))

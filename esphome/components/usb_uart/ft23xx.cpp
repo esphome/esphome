@@ -362,34 +362,8 @@ bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, b
     }
     case 2: {  // set line properties (data bits / parity / stop bits)
       uint16_t value = channel->data_bits_;
-      switch (channel->parity_) {
-        case UART_CONFIG_PARITY_NONE:
-          value |= (0x00 << 8);
-          break;
-        case UART_CONFIG_PARITY_ODD:
-          value |= (0x01 << 8);
-          break;
-        case UART_CONFIG_PARITY_EVEN:
-          value |= (0x02 << 8);
-          break;
-        case UART_CONFIG_PARITY_MARK:
-          value |= (0x03 << 8);
-          break;
-        case UART_CONFIG_PARITY_SPACE:
-          value |= (0x04 << 8);
-          break;
-      }
-      switch (channel->stop_bits_) {
-        default:  // 1 bit
-          value |= (0x00 << 11);
-          break;
-        case UART_CONFIG_STOP_BITS_1_5:
-          value |= (0x01 << 11);
-          break;
-        case UART_CONFIG_STOP_BITS_2:
-          value |= (0x02 << 11);
-          break;
-      }
+      value |= static_cast<uint8_t>(channel->line_parity_()) << 8;
+      value |= static_cast<uint8_t>(channel->line_stop_bits_()) << 11;
       value |= (0x00 << 14);
       this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
                              channel->cdc_dev_.bulk_interface_number + 1);

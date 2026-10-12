@@ -3,6 +3,7 @@ from pathlib import Path
 
 import esphome.codegen as cg
 from esphome.components import audio, media_source, psram
+from esphome.components.const import CONF_VERIFY_SSL
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TASK_STACK_IN_PSRAM
 import esphome.final_validate as fv
@@ -16,7 +17,6 @@ AUTO_LOAD = ["audio"]
 CONF_PERSISTENT_RING_BUFFER = "persistent_ring_buffer"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 CONF_HTTP_REQUEST = "http_request"
-CONF_VERIFY_SSL = "verify_ssl"
 
 audio_http_ns = cg.esphome_ns.namespace("audio_http")
 AudioHTTPMediaSource = audio_http_ns.class_(

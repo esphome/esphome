@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import logging
 
 from esphome import automation, pins
 from esphome.automation import Condition
@@ -62,7 +61,6 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["network"]
 DOMAIN = "ethernet"
-LOGGER = logging.getLogger(__name__)
 
 # Key for tracking IP state listener count in CORE.data
 ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
@@ -212,13 +210,6 @@ emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 CLK_MODES = {
     "CLK_EXT_IN": emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
     "CLK_OUT": emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-}
-
-CLK_MODES_DEPRECATED = {
-    "GPIO0_IN": ("CLK_EXT_IN", 0),
-    "GPIO0_OUT": ("CLK_OUT", 0),
-    "GPIO16_OUT": ("CLK_OUT", 16),
-    "GPIO17_OUT": ("CLK_OUT", 17),
 }
 
 spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
@@ -387,23 +378,6 @@ def _validate(config: ConfigType) -> ConfigType:
                 get_esp32_variant,
             )
 
-            if CONF_CLK_MODE in config:
-                mode, pin = CLK_MODES_DEPRECATED[config[CONF_CLK_MODE]]
-                LOGGER.warning(
-                    "[ethernet] The 'clk_mode' option is deprecated. "
-                    "Please replace 'clk_mode: %s' with:\n"
-                    "  clk:\n"
-                    "    mode: %s\n"
-                    "    pin: %s\n"
-                    "Removal scheduled for 2026.11.0.",
-                    config[CONF_CLK_MODE],
-                    mode,
-                    pin,
-                )
-                config[CONF_CLK] = CLK_SCHEMA({CONF_MODE: mode, CONF_PIN: pin})
-                del config[CONF_CLK_MODE]
-            elif CONF_CLK not in config:
-                raise cv.Invalid("'clk' is a required option for [ethernet].")
             variant = get_esp32_variant()
             if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
                 raise cv.Invalid(
@@ -452,10 +426,17 @@ RMII_SCHEMA = cv.All(
             {
                 cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
                 cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_CLK_MODE): cv.enum(
-                    CLK_MODES_DEPRECATED, upper=True, space="_"
+                # Removed in 2026.11.0 - kept to provide helpful error message
+                # Remove before 2027.5.0
+                cv.Optional(CONF_CLK_MODE): cv.invalid(
+                    "The 'clk_mode' option has been removed in ESPHome 2026.11.0.\n"
+                    "Replace it with a 'clk:' block containing 'mode:' and 'pin:':\n"
+                    "  GPIO0_IN   -> mode: CLK_EXT_IN, pin: GPIO0\n"
+                    "  GPIO0_OUT  -> mode: CLK_OUT, pin: GPIO0\n"
+                    "  GPIO16_OUT -> mode: CLK_OUT, pin: GPIO16\n"
+                    "  GPIO17_OUT -> mode: CLK_OUT, pin: GPIO17"
                 ),
-                cv.Optional(CONF_CLK): CLK_SCHEMA,
+                cv.Required(CONF_CLK): CLK_SCHEMA,
                 cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
                 cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
