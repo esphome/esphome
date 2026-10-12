@@ -57,6 +57,8 @@ DOMAIN = "remote_base"
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
+CONF_SUFFIX = "suffix"
+CONF_SUFFIX_BITS = "suffix_bits"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -255,8 +257,12 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 ).extend(REMOTE_TRANSMITTABLE_SCHEMA)
 
 
-def register_action(name, type_, schema):
+def register_action(
+    name, type_, schema, *, validate: Callable[[ConfigType], ConfigType] | None = None
+):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
+    if validate is not None:
+        validator = cv.All(validator, validate)
     registerer = automation.register_action(
         f"remote_transmitter.transmit_{name}",
         type_,
@@ -939,6 +945,27 @@ KEELOQ_SCHEMA = cv.Schema(
 )
 
 
+def _keeloq_suffix_fits(config: ConfigType) -> ConfigType:
+    # A lambda is only known on the device. A plain value has to fit the width.
+    suffix = config[CONF_SUFFIX]
+    bits = config[CONF_SUFFIX_BITS]
+    if isinstance(suffix, int) and isinstance(bits, int) and suffix >> bits:
+        raise cv.Invalid(
+            f"suffix 0x{suffix:X} does not fit in {bits} suffix_bits", [CONF_SUFFIX]
+        )
+    return config
+
+
+KEELOQ_ACTION_SCHEMA = KEELOQ_SCHEMA.extend(
+    {
+        cv.Optional(CONF_SUFFIX, default=0): cv.All(
+            cv.hex_int, cv.Range(min=0, max=0xFFFF)
+        ),
+        cv.Optional(CONF_SUFFIX_BITS, default=0): cv.int_range(min=0, max=16),
+    }
+)
+
+
 @register_binary_sensor("keeloq", KeeloqBinarySensor, KEELOQ_SCHEMA)
 def Keeloq_binary_sensor(var, config):
     cg.add(
@@ -962,7 +989,9 @@ def keeloq_dumper(var, config):
     pass
 
 
-@register_action("keeloq", KeeloqAction, KEELOQ_SCHEMA)
+@register_action(
+    "keeloq", KeeloqAction, KEELOQ_ACTION_SCHEMA, validate=_keeloq_suffix_fits
+)
 async def keeloq_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
     cg.add(var.set_address(template_))
@@ -972,6 +1001,12 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
     cg.add(var.set_vlow(template_))
+    # Without suffix bits nothing of the suffix is sent, so both stay at their C++ default.
+    if (suffix_bits := config[CONF_SUFFIX_BITS]) != 0:
+        template_ = await cg.templatable(config[CONF_SUFFIX], args, cg.uint16)
+        cg.add(var.set_suffix(template_))
+        template_ = await cg.templatable(suffix_bits, args, cg.uint8)
+        cg.add(var.set_suffix_bits(template_))
 
 
 # NEC
