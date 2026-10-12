@@ -388,21 +388,20 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   // ("stop polling now") wins. A device-less shell runs no callback and the sweep erases it.
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
-  // The hub's on_response, also for a device-less shell, which runs no device callback.
-  const auto monitor = [&]() {
-#ifdef MODBUS_ON_RESPONSE_COUNT
-    this->response_callback_.call(address, cmd->frame.pdu(), pdu);
-#endif
-  };
   if (helpers::is_function_code_exception(function_code)) {
     uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
     ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "us after last send",
              function_code, exception, address, us_since_send(this->last_modbus_byte_, this->last_send_));
-    cmd->error(static_cast<ExceptionCode>(exception), monitor);
-  } else if (!cmd->response(pdu, monitor)) {
+    cmd->error(static_cast<ExceptionCode>(exception));
+  } else if (!cmd->response(pdu)) {
     ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "us after last send", address,
              us_since_send(this->last_modbus_byte_, this->last_send_));
   }
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  // After the terminal: the entry is consumed, so the same request queued from the handler is accepted. The entry
+  // stays in the deque until the sweep, so its PDU is still valid. Also for a device-less shell.
+  this->response_callback_.call(address, cmd->frame.pdu(), pdu);
+#endif
 }
 
 void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
@@ -861,21 +860,23 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
+  cmd->sent();
   if (cmd->fire_and_forget()) {
-    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: sent() retires the
-    // entry with on_sent and no terminal callback instead of occupying the waiting slot until the send-wait
-    // timeout expires. The turnaround delay already spaces the next frame; the following sweep erases the entry.
+    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
+    // reports the transmission, and the entry then retires with no terminal callback instead of
+    // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
+    // spaces the next frame; the following sweep erases the entry.
     ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected");
+    cmd->complete_broadcast();
     this->sweep_needed_ = true;
   } else {
     this->waiting_for_response_ = true;
   }
-  cmd->sent([&]() {
 #ifdef MODBUS_ON_REQUEST_COUNT
-    // Once per frame on the wire, retries included.
-    this->request_callback_.call(cmd->frame.address(), cmd->frame.pdu());
+  // Once per frame on the wire, retries included. After the bookkeeping: a broadcast queued from the handler
+  // must not be merged into the one just completed.
+  this->request_callback_.call(cmd->frame.address(), cmd->frame.pdu());
 #endif
-  });
 }
 
 void ModbusClientHub::dump_config() {
@@ -970,12 +971,42 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
   return best;
 }
 
+bool ModbusDeviceCommand::sent() {
+  this->state = FrameState::WAITING;
+  // on_sent() is not a terminal, so nothing is consumed.
+  if (this->device == nullptr)
+    return false;
+  this->device->on_sent(this->frame.address(), this->frame.pdu());
+  return true;
+}
+
 bool ModbusDeviceCommand::notify_retired() {
   if (!this->decrement_pending())
     return false;  // nothing owed - stop the sweep draining this entry
   if (this->device != nullptr)
     this->device->on_not_sent(this->frame.address(), this->frame.pdu());
   return true;  // consumed one debt (delivered, or silent when device-less) - keep draining to zero
+}
+
+bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
+  this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_RESPONSE;
+  // A continuous poll is never consumed by its own response; a one-shot consumes one request here.
+  if (!this->options.continuous)
+    this->decrement_pending();
+  if (this->device == nullptr)
+    return false;
+  this->device->on_response(this->frame.address(), this->frame.pdu(), response_pdu);
+  return true;
+}
+
+bool ModbusDeviceCommand::error(ExceptionCode exception_code) {
+  this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_EXCEPTION;
+  // An exception ends a continuous poll too, so decrement unconditionally.
+  this->decrement_pending();
+  if (this->device == nullptr)
+    return false;
+  this->device->on_error(this->frame.address(), this->frame.pdu(), exception_code);
+  return true;
 }
 
 bool ModbusDeviceCommand::interrupt() {
