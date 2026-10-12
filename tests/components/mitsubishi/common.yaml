@@ -2,3 +2,8 @@ climate:
   - platform: mitsubishi
     name: Mitsubishi
     transmitter_id: xmitr
+    fahrenheit_compatibility: true
+    vertical_vanes: 2
+  - platform: mitsubishi
+    name: Mitsubishi Celsius
+    transmitter_id: xmitr

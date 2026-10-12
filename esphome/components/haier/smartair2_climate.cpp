@@ -9,7 +9,7 @@ using namespace esphome::uart;
 
 namespace esphome::haier {
 
-static const char *const TAG = "haier.climate";
+ESPHOME_LOG_TAG(TAG, "haier.climate");
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
 constexpr uint8_t CONTROL_MESSAGE_RETRIES = 5;
 constexpr std::chrono::milliseconds CONTROL_MESSAGE_RETRIES_INTERVAL = std::chrono::milliseconds(500);
@@ -464,14 +464,14 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
         // AC just turned on from remote need to turn off display
         this->force_send_control_ = true;
       } else if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
-        this->display_status_ = disp_status ? SwitchState::ON : SwitchState::OFF;
+        this->display_status_ = disp_status ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
       }
     }
   }
   // Health mode
   if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
     bool old_health_mode = this->get_health_mode();
-    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::ON : SwitchState::OFF;
+    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
     should_publish = should_publish || (old_health_mode != this->get_health_mode());
   }
   {

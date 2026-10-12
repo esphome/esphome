@@ -1,0 +1,11 @@
+# Advertisement-only proxy on the bk72xx BLE hub (active-scan-capable since the
+# tracker's packed-command start). Config-only: the CI base board generic-bk7252
+# is BLE 4.2 and cannot compile the BLE 5.x tracker. Same bare-hub arrangement
+# as test.ln882x-ard.yaml: no explicit ble_hub_id so a grouped build cannot
+# collide with bk72xx_ble_tracker's own fixture id.
+packages:
+  common: !include common.yaml
+
+bk72xx_ble_tracker:
+
+bluetooth_proxy:

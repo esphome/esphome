@@ -13,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_PROBLEM,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_DELTASOL_BS2,
@@ -256,157 +257,84 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
 
     if config[CONF_MODEL] == CONF_DELTASOL_BS_PLUS:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x4221))
         cg.add(var.set_dest(0x0010))
-        if CONF_RELAY1 in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_RELAY1])
-            cg.add(var.set_relay1_bsensor(sens))
-        if CONF_RELAY2 in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_RELAY2])
-            cg.add(var.set_relay2_bsensor(sens))
-        if CONF_SENSOR1_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
-            cg.add(var.set_s1_error_bsensor(sens))
-        if CONF_SENSOR2_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
-            cg.add(var.set_s2_error_bsensor(sens))
-        if CONF_SENSOR3_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
-            cg.add(var.set_s3_error_bsensor(sens))
-        if CONF_SENSOR4_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
-            cg.add(var.set_s4_error_bsensor(sens))
-        if CONF_COLLECTOR_MAX in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_MAX])
-            cg.add(var.set_collector_max_bsensor(sens))
-        if CONF_COLLECTOR_MIN in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_MIN])
-            cg.add(var.set_collector_min_bsensor(sens))
-        if CONF_COLLECTOR_FROST in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_FROST])
-            cg.add(var.set_collector_frost_bsensor(sens))
-        if CONF_TUBE_COLLECTOR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_TUBE_COLLECTOR])
-            cg.add(var.set_tube_collector_bsensor(sens))
-        if CONF_RECOOLING in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_RECOOLING])
-            cg.add(var.set_recooling_bsensor(sens))
-        if CONF_HQM in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_HQM])
-            cg.add(var.set_hqm_bsensor(sens))
+        await binary_sensors(CONF_RELAY1, var.set_relay1_bsensor)
+        await binary_sensors(CONF_RELAY2, var.set_relay2_bsensor)
+        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_bsensor)
+        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_bsensor)
+        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_bsensor)
+        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
+        await binary_sensors(CONF_COLLECTOR_MAX, var.set_collector_max_bsensor)
+        await binary_sensors(CONF_COLLECTOR_MIN, var.set_collector_min_bsensor)
+        await binary_sensors(CONF_COLLECTOR_FROST, var.set_collector_frost_bsensor)
+        await binary_sensors(CONF_TUBE_COLLECTOR, var.set_tube_collector_bsensor)
+        await binary_sensors(CONF_RECOOLING, var.set_recooling_bsensor)
+        await binary_sensors(CONF_HQM, var.set_hqm_bsensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_BS_2009:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x427B))
         cg.add(var.set_dest(0x0010))
-        if CONF_SENSOR1_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
-            cg.add(var.set_s1_error_bsensor(sens))
-        if CONF_SENSOR2_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
-            cg.add(var.set_s2_error_bsensor(sens))
-        if CONF_SENSOR3_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
-            cg.add(var.set_s3_error_bsensor(sens))
-        if CONF_SENSOR4_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
-            cg.add(var.set_s4_error_bsensor(sens))
-        if CONF_FROST_PROTECTION_ACTIVE in config:
-            sens = await binary_sensor.new_binary_sensor(
-                config[CONF_FROST_PROTECTION_ACTIVE]
-            )
-            cg.add(var.set_frost_protection_active_bsensor(sens))
+        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_bsensor)
+        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_bsensor)
+        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_bsensor)
+        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
+        await binary_sensors(
+            CONF_FROST_PROTECTION_ACTIVE, var.set_frost_protection_active_bsensor
+        )
 
     elif config[CONF_MODEL] == CONF_DELTASOL_BS2:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x4278))
         cg.add(var.set_dest(0x0010))
-        if CONF_SENSOR1_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
-            cg.add(var.set_s1_error_bsensor(sens))
-        if CONF_SENSOR2_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
-            cg.add(var.set_s2_error_bsensor(sens))
-        if CONF_SENSOR3_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
-            cg.add(var.set_s3_error_bsensor(sens))
-        if CONF_SENSOR4_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
-            cg.add(var.set_s4_error_bsensor(sens))
+        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_bsensor)
+        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_bsensor)
+        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_bsensor)
+        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_C:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x4212))
         cg.add(var.set_dest(0x0010))
-        if CONF_SENSOR1_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
-            cg.add(var.set_s1_error_bsensor(sens))
-        if CONF_SENSOR2_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
-            cg.add(var.set_s2_error_bsensor(sens))
-        if CONF_SENSOR3_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
-            cg.add(var.set_s3_error_bsensor(sens))
-        if CONF_SENSOR4_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
-            cg.add(var.set_s4_error_bsensor(sens))
+        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_bsensor)
+        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_bsensor)
+        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_bsensor)
+        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_CS2:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x1121))
         cg.add(var.set_dest(0x0010))
-        if CONF_SENSOR1_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
-            cg.add(var.set_s1_error_bsensor(sens))
-        if CONF_SENSOR2_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
-            cg.add(var.set_s2_error_bsensor(sens))
-        if CONF_SENSOR3_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
-            cg.add(var.set_s3_error_bsensor(sens))
-        if CONF_SENSOR4_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
-            cg.add(var.set_s4_error_bsensor(sens))
+        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_bsensor)
+        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_bsensor)
+        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_bsensor)
+        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_CS4:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x1122))
         cg.add(var.set_dest(0x0010))
-        if CONF_SENSOR1_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
-            cg.add(var.set_s1_error_bsensor(sens))
-        if CONF_SENSOR2_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
-            cg.add(var.set_s2_error_bsensor(sens))
-        if CONF_SENSOR3_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
-            cg.add(var.set_s3_error_bsensor(sens))
-        if CONF_SENSOR4_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
-            cg.add(var.set_s4_error_bsensor(sens))
+        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_bsensor)
+        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_bsensor)
+        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_bsensor)
+        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
 
     elif config[CONF_MODEL] == CONF_DELTASOL_CS_PLUS:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x2211))
         cg.add(var.set_dest(0x0010))
-        if CONF_SENSOR1_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
-            cg.add(var.set_s1_error_bsensor(sens))
-        if CONF_SENSOR2_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
-            cg.add(var.set_s2_error_bsensor(sens))
-        if CONF_SENSOR3_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
-            cg.add(var.set_s3_error_bsensor(sens))
-        if CONF_SENSOR4_ERROR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
-            cg.add(var.set_s4_error_bsensor(sens))
+        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_bsensor)
+        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_bsensor)
+        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_bsensor)
+        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
 
     elif config[CONF_MODEL] == CONF_CUSTOM:
         if CONF_COMMAND in config:
