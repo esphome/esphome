@@ -1,4 +1,5 @@
 #include "ld2410s.h"
+#include "ld2410s_number.h"
 #include <algorithm>
 #include <cstring>
 #include "esphome/core/application.h"
@@ -64,17 +65,15 @@ void LD2410SComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Has Target", this->target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Distance", this->distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Distance", this->distance_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
 #endif
 #ifdef USE_NUMBER
-  LOG_NUMBER("  ", "Max Distance", this->max_distance_number_);
-  LOG_NUMBER("  ", "Min Distance", this->min_distance_number_);
-  LOG_NUMBER("  ", "No Delay", this->no_delay_number_);
-  LOG_NUMBER("  ", "Status Reporting Frequency", this->status_reporting_frequency_number_);
-  LOG_NUMBER("  ", "Distance Reporting Frequency", this->distance_reporting_frequency_number_);
+  for (auto *number : this->numbers_) {
+    LOG_NUMBER("  ", "Setting", number);
+  }
 #endif
 #ifdef USE_SELECT
   LOG_SELECT("  ", "Response Speed", this->response_speed_select_);
@@ -97,8 +96,13 @@ void LD2410SComponent::loop() {
     avail -= len;
   }
   const uint32_t now = App.get_loop_component_start_time();
-  if (this->sequence_ == nullptr && !this->init_done_) {
-    this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now);
+  if (this->sequence_ == nullptr) {
+    if (!this->init_done_) {
+      this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now);
+    } else if (this->parameters_dirty_) {
+      this->parameters_dirty_ = false;
+      this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, this->next_send_at_);
+    }
   }
   this->run_sequence_(now);
   if (this->init_done_ && now - this->last_frame_at_ > LINK_TIMEOUT_MS) {
@@ -107,8 +111,7 @@ void LD2410SComponent::loop() {
              this->dropped_frames_);
     this->dropped_frames_ = 0;
     this->status_set_warning();
-    this->init_done_ = false;
-    this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now);
+    this->restart_init_(now);
   }
 }
 
@@ -119,12 +122,15 @@ bool LD2410SComponent::set_parameter(Parameter parameter, uint32_t value) {
     return false;
   }
   this->parameters_[static_cast<uint8_t>(parameter)] = value;
-  if (this->sequence_ != nullptr) {
-    this->parameters_dirty_ = true;  // written once the running sequence ends
-  } else {
-    this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, App.get_loop_component_start_time());
-  }
+  this->parameters_dirty_ = true;  // written by loop() once no sequence is running
   return true;
+}
+
+void LD2410SComponent::restart_init_(uint32_t at) {
+  // The module's own values count again once it is set up anew
+  this->init_done_ = false;
+  this->parameters_dirty_ = false;
+  this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, at);
 }
 
 void LD2410SComponent::start_sequence_(const uint16_t *sequence, uint8_t length, uint32_t now) {
@@ -149,8 +155,7 @@ void LD2410SComponent::run_sequence_(uint32_t now) {
                REINIT_PAUSE_MS / 1000);
       // Leave configuration mode whatever state the module is in, then begin again
       this->send_command_(CONFIG_MODE_END_CMD);
-      this->init_done_ = false;
-      this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now + REINIT_PAUSE_MS);
+      this->restart_init_(now + REINIT_PAUSE_MS);
       return;
     }
     ESP_LOGD(TAG, "No acknowledgement for command %04X, resending", command);
@@ -182,7 +187,7 @@ void LD2410SComponent::send_command_(uint16_t command) {
         frame[pos++] = key & 0xFF;
         frame[pos++] = key >> 8;
         if (command == PARAMETERS_WRITE_CMD) {
-          const uint32_t value = this->parameters_[i];
+          const uint32_t value = this->parameters_[i];  // a 32-bit field on the wire
           for (uint8_t shift = 0; shift < 32; shift += 8) {
             frame[pos++] = (value >> shift) & 0xFF;
           }
@@ -321,23 +326,20 @@ bool LD2410SComponent::handle_frame_() {
 }
 
 bool LD2410SComponent::handle_data_frame_(const uint8_t *payload, uint16_t len) {
-  uint8_t state;
-  uint16_t distance;
-  if (this->frame_type_ == FrameType::SHORT_DATA) {
-    // [state][distance low][distance high]
-    state = payload[0];
-    distance = encode_uint16(payload[2], payload[1]);
-  } else if (len >= 4 && payload[0] == DATA_TYPE_STANDARD) {
-    // [type][state][distance low][distance high]...; the module only sends these before the init
-    // sequence switches it to minimal output
-    state = payload[1];
-    distance = encode_uint16(payload[3], payload[2]);
-  } else {
-    if (len >= 1) {
-      ESP_LOGV(TAG, "Ignoring data frame type %02X", payload[0]);
+  // Short frames carry [state][distance low][distance high]; standard frames put a type byte first, and the
+  // module only sends them before the init sequence switches it to minimal output
+  const uint8_t *data = payload;
+  if (this->frame_type_ == FrameType::STD_DATA) {
+    if (len < 4 || payload[0] != DATA_TYPE_STANDARD) {
+      if (len >= 1) {
+        ESP_LOGV(TAG, "Ignoring data frame type %02X", payload[0]);
+      }
+      return true;
     }
-    return true;
+    data = payload + 1;
   }
+  const uint8_t state = data[0];
+  const uint16_t distance = encode_uint16(data[2], data[1]);
   // States 0 and 1 mean no target, 2 and 3 a target; anything else is line noise that happened to
   // carry the header and footer bytes
   if (state > 3) {
@@ -355,18 +357,28 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
   }
   const uint16_t command_word = encode_uint16(payload[1], payload[0]);
   const uint16_t ack = encode_uint16(payload[3], payload[2]);
-  if (this->sequence_ == nullptr || !this->awaiting_ack_ ||
-      command_word != (this->current_command_() | CMD_CONFIRMATION)) {
+  if (!this->awaiting_ack_) {
     ESP_LOGV(TAG, "Unexpected acknowledgement %04X", command_word);
     return;
   }
   const uint16_t command = this->current_command_();
+  if (command_word != (command | CMD_CONFIRMATION)) {
+    ESP_LOGV(TAG, "Unexpected acknowledgement %04X", command_word);
+    return;
+  }
+  if (ack != 0 && command == PARAMETERS_WRITE_CMD) {
+    // Resending the same values would be rejected again; leave configuration mode and read the
+    // module's own values back, which republishes them
+    ESP_LOGW(TAG, "Module rejected the parameters, ack %04X", ack);
+    this->send_command_(CONFIG_MODE_END_CMD);
+    this->restart_init_(App.get_loop_component_start_time() + COMMAND_GAP_MS);
+    return;
+  }
   if (ack != 0) {
     // Leave the command pending so the timeout resends it
     ESP_LOGW(TAG, "Module rejected command %04X, ack %04X", command, ack);
     return;
-  }
-  if (command == PARAMETERS_READ_CMD) {
+  } else if (command == PARAMETERS_READ_CMD) {
     this->handle_parameters_(&payload[4], len - 4);
   } else if (command == VERSION_READ_CMD) {
     this->handle_version_(&payload[4], len - 4);
@@ -386,11 +398,6 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
     this->last_frame_at_ = now;
     this->status_clear_warning();
   }
-  // A parameter changed while a sequence was running
-  if (this->parameters_dirty_) {
-    this->parameters_dirty_ = false;
-    this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, now + COMMAND_GAP_MS);
-  }
 }
 
 // The answer lists the parameter values in key order, 32 bits each
@@ -399,15 +406,17 @@ void LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
     ESP_LOGW(TAG, "Parameter answer too short (%u bytes)", len);
     return;
   }
+  // Every parameter fits the low byte of its little-endian value
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
     const uint8_t *v = &values[i * PARAMETER_VALUE_SIZE];
-    this->parameters_[i] = encode_uint32(v[3], v[2], v[1], v[0]);
-    this->publish_parameter_(static_cast<Parameter>(i));
+    if ((v[1] | v[2] | v[3]) != 0) {
+      ESP_LOGV(TAG, "Parameter %u out of range: %" PRIu32, i, encode_uint32(v[3], v[2], v[1], v[0]));
+    }
+    this->parameters_[i] = v[0];
   }
   this->parameters_known_ = true;
-  ESP_LOGD(TAG,
-           "Parameters: gates %" PRIu32 " to %" PRIu32 ", no delay %" PRIu32 " s, frequencies %" PRIu32 "/%" PRIu32
-           " dHz, response speed %" PRIu32,
+  this->publish_parameters_();
+  ESP_LOGD(TAG, "Parameters: gates %u to %u, no delay %u s, frequencies %u/%u dHz, response speed %u",
            this->parameters_[1], this->parameters_[0], this->parameters_[2], this->parameters_[3], this->parameters_[4],
            this->parameters_[5]);
 }
@@ -437,47 +446,28 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 #endif
 #ifdef USE_SENSOR
   // The module keeps reporting the last distance after the target left
-  if (this->distance_sensor_ != nullptr) {
-    this->distance_sensor_->publish_state(target ? distance : 0);
-  }
+  SAFE_PUBLISH_SENSOR(this->distance_sensor_, target ? distance : 0);
 #endif
 }
 
-void LD2410SComponent::publish_parameter_(Parameter parameter) {
-  const uint32_t raw = this->parameters_[static_cast<uint8_t>(parameter)];
+void LD2410SComponent::publish_parameters_() {
 #ifdef USE_NUMBER
-  number::Number *num = nullptr;
-  float value = raw;
-  switch (parameter) {
-    case Parameter::MAX_DISTANCE:
-      num = this->max_distance_number_;
-      value = raw * GATE_WIDTH_M;
-      break;
-    case Parameter::MIN_DISTANCE:
-      num = this->min_distance_number_;
-      value = raw * GATE_WIDTH_M;
-      break;
-    case Parameter::NO_DELAY:
-      num = this->no_delay_number_;
-      break;
-    case Parameter::STATUS_FREQUENCY:
-      num = this->status_reporting_frequency_number_;
-      value = raw / 10.0f;
-      break;
-    case Parameter::DISTANCE_FREQUENCY:
-      num = this->distance_reporting_frequency_number_;
-      value = raw / 10.0f;
-      break;
-    default:
-      break;
-  }
-  if (num != nullptr) {
-    num->publish_state(value);
+  for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
+    if (this->numbers_[i] != nullptr) {
+      this->numbers_[i]->publish_raw(this->parameters_[i]);
+    }
   }
 #endif
 #ifdef USE_SELECT
-  if (parameter == Parameter::RESPONSE_SPEED && this->response_speed_select_ != nullptr) {
-    this->response_speed_select_->publish_state(raw == RESPONSE_SPEED_FAST ? 1 : 0);
+  if (this->response_speed_select_ != nullptr) {
+    const uint8_t speed = this->parameters_[static_cast<uint8_t>(Parameter::RESPONSE_SPEED)];
+    for (uint8_t i = 0; i < RESPONSE_SPEED_COUNT; i++) {
+      if (progmem_read_byte(&RESPONSE_SPEEDS[i]) == speed) {
+        this->response_speed_select_->publish_state(i);
+        return;
+      }
+    }
+    ESP_LOGV(TAG, "Unknown response speed %u", speed);
   }
 #endif
 }

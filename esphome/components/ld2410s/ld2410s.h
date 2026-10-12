@@ -9,12 +9,10 @@
 #endif
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/ld24xx/ld24xx.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
-#endif
-#ifdef USE_NUMBER
-#include "esphome/components/number/number.h"
 #endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
@@ -37,27 +35,23 @@ enum class Parameter : uint8_t {
   COUNT,
 };
 static constexpr uint8_t PARAMETER_COUNT = static_cast<uint8_t>(Parameter::COUNT);
-// Distances are counted in gates of 0.7 m; the response speed is one of two fixed values
-static constexpr float GATE_WIDTH_M = 0.7f;
-static constexpr uint32_t RESPONSE_SPEED_NORMAL = 5;
-static constexpr uint32_t RESPONSE_SPEED_FAST = 10;
+// Response speed values, in the order of the select's options (Normal, Fast)
+static constexpr uint8_t RESPONSE_SPEEDS[] PROGMEM = {5, 10};
+static constexpr uint8_t RESPONSE_SPEED_COUNT = sizeof(RESPONSE_SPEEDS);
+
+#ifdef USE_NUMBER
+class LD2410SNumber;
+#endif
 
 class LD2410SComponent final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(target)
 #endif
 #ifdef USE_SENSOR
-  SUB_SENSOR(distance)
+  SUB_SENSOR_WITH_DEDUP(distance, uint16_t)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
-#endif
-#ifdef USE_NUMBER
-  SUB_NUMBER(max_distance)
-  SUB_NUMBER(min_distance)
-  SUB_NUMBER(no_delay)
-  SUB_NUMBER(status_reporting_frequency)
-  SUB_NUMBER(distance_reporting_frequency)
 #endif
 #ifdef USE_SELECT
   SUB_SELECT(response_speed)
@@ -68,9 +62,14 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
-  /// Store a parameter in the module's units and write all of them to the module.
+  /// Store a parameter in the module's units; loop() then writes all of them to the module.
   /// Returns false, and changes nothing, until the module's own values have been read.
   bool set_parameter(Parameter parameter, uint32_t value);
+#ifdef USE_NUMBER
+  void set_number(Parameter parameter, LD2410SNumber *number) {
+    this->numbers_[static_cast<uint8_t>(parameter)] = number;
+  }
+#endif
 
  protected:
   enum class FrameType : uint8_t { NONE, SHORT_DATA, STD_DATA, COMMAND };
@@ -94,16 +93,21 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
     this->frame_type_ = FrameType::NONE;
   }
   void start_sequence_(const uint16_t *sequence, uint8_t length, uint32_t now);
+  void restart_init_(uint32_t at);
   void run_sequence_(uint32_t now);
   uint16_t current_command_() const;
   void send_command_(uint16_t command);
   void publish_target_(bool target, uint16_t distance);
-  void publish_parameter_(Parameter parameter);
+  void publish_parameters_();
+
+#ifdef USE_NUMBER
+  LD2410SNumber *numbers_[PARAMETER_COUNT]{};  // null for parameters without a number
+#endif
 
   const uint16_t *sequence_{nullptr};  // PROGMEM; null while nothing is being sent
   uint32_t next_send_at_{0};
   uint32_t last_frame_at_{0};
-  uint32_t parameters_[PARAMETER_COUNT]{};
+  uint8_t parameters_[PARAMETER_COUNT]{};  // all fit a byte: gates, seconds, tenths of a hertz, speed
   uint8_t rx_buffer_[RX_BUFFER_SIZE];
   uint8_t rx_len_{0};
   uint8_t expected_len_{0};

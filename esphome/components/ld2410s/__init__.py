@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["ld24xx"]
 CODEOWNERS = ["@NovakIrs"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "ld2410s"

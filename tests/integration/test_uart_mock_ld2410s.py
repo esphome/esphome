@@ -143,10 +143,13 @@ async def test_uart_mock_ld2410s(
     warning_cleared = loop.create_future()
     dropped_states: list[str] = []
     parsed_answers: list[str] = []
+    write_done = loop.create_future()
 
     def line_callback(line: str) -> None:
         if (frame := _tx_frame(line)) is not None:
             tx_frames.append(frame)
+            if len(tx_frames) >= 8 and not write_done.done():
+                write_done.set_result(True)
         if "[ld2410s" in line and "Setup done" in line and not setup_done.done():
             setup_done.set_result(True)
         parsed_answers.extend(answer for answer in PARSED_ANSWERS if answer in line)
@@ -161,14 +164,11 @@ async def test_uart_mock_ld2410s(
         sensor_names=["distance"], binary_sensor_names=["has_target"]
     )
     number_states: list[float] = []
-    write_done = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         collector.on_state(state)
         if isinstance(state, NumberState) and state.key == max_distance_key:
             number_states.append(state.state)
-        if len(tx_frames) >= 8 and not write_done.done():
-            write_done.set_result(True)
 
     all_presence = collector.add_waiter(
         lambda: len(collector.binary_states["has_target"]) >= len(EXPECTED_PRESENCE)
@@ -192,9 +192,17 @@ async def test_uart_mock_ld2410s(
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
         await initial_state_helper.wait_for_initial_states()
+        # The values read from the module: gate 16 and 10 s
+        no_delay_key = require_entity(entities, "no_delay", NumberInfo).key
+        initial = initial_state_helper.initial_states
+        assert initial[max_distance_key].state == pytest.approx(11.2)
+        assert initial[no_delay_key].state == pytest.approx(10)
 
         client.number_command(max_distance_key, 7.0)
-        await asyncio.sleep(1.0)
+        try:
+            await asyncio.wait_for(write_done, 5.0)
+        except TimeoutError:
+            pytest.fail(f"Parameter write not sent. TX frames: {tx_frames}")
         assert tx_frames[5:8] == WRITE_TX, tx_frames
         assert number_states == [pytest.approx(7.0)]
 
