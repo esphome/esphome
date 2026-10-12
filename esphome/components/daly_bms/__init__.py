@@ -5,6 +5,7 @@ from esphome.const import CONF_ADDRESS, CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@s1lvi0"]
+DOMAIN = "daly_bms"
 MULTI_CONF = True
 DEPENDENCIES = ["uart"]
 

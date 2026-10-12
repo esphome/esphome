@@ -42,18 +42,20 @@ def test_platform_without_ble_server_rejected(
     assert "only available on" in capsys.readouterr().out
 
 
-def test_automations_emit_renamed_triggers(
+def test_automations_register_state_callbacks(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("automations.yaml"))
-    for trigger in (
-        "ImprovBLEProvisionedTrigger",
-        "ImprovBLEProvisioningTrigger",
-        "ImprovBLEStartTrigger",
-        "ImprovBLEStateTrigger",
-        "ImprovBLEStoppedTrigger",
+    assert "Trigger" not in main_cpp
+    for state in (
+        "improv::STATE_PROVISIONED",
+        "improv::STATE_PROVISIONING",
+        "improv::STATE_AUTHORIZED",
+        "improv::STATE_STOPPED",
     ):
-        assert f"improv_ble::{trigger}" in main_cpp
+        assert f"state == {state}" in main_cpp
+    assert main_cpp.count("add_on_state_callback(") == 5
+    assert "->is_failed()" in main_cpp
     assert "set_authorizer" in main_cpp
     assert "set_status_indicator" in main_cpp

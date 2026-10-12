@@ -92,9 +92,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
     cg.add(var.set_filter_mode(config[CONF_INTERNAL_FILTER_MODE]))
 
-    if CONF_TOTAL in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL])
-        cg.add(var.set_total_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TOTAL, var.set_total_sensor)
 
 
 automation.register_apply_action(

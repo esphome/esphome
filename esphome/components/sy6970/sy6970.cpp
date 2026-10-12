@@ -4,7 +4,7 @@
 
 namespace esphome::sy6970 {
 
-static const char *const TAG = "sy6970";
+ESPHOME_LOG_TAG(TAG, "sy6970");
 
 static const char *i2c_watchdog_timeout_to_string(I2CWatchdogTimeout timeout) {
   switch (timeout) {
