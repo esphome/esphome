@@ -2602,6 +2602,31 @@ TEST(ModbusClientHubRequestAddress, ActionHandlersReportTheirOwnRequestsAddress)
   EXPECT_EQ(dropped.addresses, (std::vector<uint8_t>{0x05, 0x06, 0x07}));
 }
 
+// A full queue refuses the send at the door: on_not_sent reports the address of the refused request, also
+// while the action's address moves from one play to the next.
+TEST(ModbusClientHubRequestAddress, FullQueueReportsTheRefusedRequestsAddress) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  modbus_client::ModbusClientSendAction<> action;
+  action.set_parent(&hub);
+  action.set_pdu([]() { return read_pdu(); });
+  static uint8_t target;
+  action.set_target_address([]() -> uint8_t { return target; });
+  AddressRecorder<std::span<const uint8_t>> dropped(action.get_not_sent_trigger());
+
+  for (target = 1; target <= MODBUS_TX_BUFFER_SIZE; target++)
+    action.play_complex();  // one entry per address fills the queue
+  ASSERT_TRUE(dropped.addresses.empty());
+  target = 200;
+  action.play_complex();
+  target = 201;
+  action.play_complex();
+
+  EXPECT_EQ(dropped.addresses, (std::vector<uint8_t>{200, 201}));
+}
+
 // The on_no_response handler re-plays the action at 0x03 and the hub refuses it (empty PDU), which reports
 // 0x03 to on_not_sent. The retry lambda that runs after the handler still gets 0x02, the timed-out request.
 TEST(ModbusClientHubRequestAddress, RetryGetsTheTimedOutRequestsAddress) {
