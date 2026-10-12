@@ -6,16 +6,15 @@ namespace esphome::heatpumpir {
 
 class HeatpumpIRClimate;
 
-/// Length of a Mitsubishi Heavy IR frame (header + payload).
-static constexpr uint8_t FRAME_LENGTH = 11;
+/// Bytes in a Mitsubishi Heavy IR frame, prefix included
+inline constexpr uint8_t MITSUBISHI_HEAVY_FRAME_LENGTH = 11;
 
-/// Read and validate a Mitsubishi Heavy IR frame (header, 11 bytes, XOR checksums).
-/// Decodes shared fields: mode and target_temperature. Fills frame[FRAME_LENGTH] with raw bytes.
-/// Returns true if a valid frame was read and decoded.
-bool decode_mitsubishi_heavy_frame(remote_base::RemoteReceiveData &data, uint8_t frame[FRAME_LENGTH],
+/// Read a Mitsubishi Heavy frame into `frame`, check its prefix and inverted byte pairs, and apply the
+/// fields every variant shares (mode and target temperature). Returns false when no valid frame was read.
+bool decode_mitsubishi_heavy_frame(remote_base::RemoteReceiveData &data, uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH],
                                    HeatpumpIRClimate &climate);
 
-/// Decode ZMP-specific frame bytes (fan, preset, swing) into `climate`.
-bool decode_mitsubishi_heavy_zmp(const uint8_t frame[FRAME_LENGTH], HeatpumpIRClimate &climate);
+/// Apply the ZMP-specific fields (fan, preset, swing) of a validated frame.
+void decode_mitsubishi_heavy_zmp(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH], HeatpumpIRClimate &climate);
 
 }  // namespace esphome::heatpumpir

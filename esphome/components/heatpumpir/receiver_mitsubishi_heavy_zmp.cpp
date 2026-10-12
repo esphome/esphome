@@ -7,14 +7,15 @@
 
 namespace esphome::heatpumpir {
 
-bool decode_mitsubishi_heavy_zmp(const uint8_t frame[FRAME_LENGTH], HeatpumpIRClimate &climate) {
-  static const uint8_t BYTE_SWING_H = 5;
-  static const uint8_t BYTE_FAN = 7;
-  static const uint8_t FAN_SPEED_MASK = 0xE0;
-  static const uint8_t HORIZONTAL_SWING_MASK = 0xDC;
-  static const uint8_t HORIZONTAL_SWING_ACTIVE = 0x5C;
-  static const uint8_t VS_MASK_BYTE5 = 0x02;
-  static const uint8_t VS_MASK_BYTE7 = 0x18;
+void decode_mitsubishi_heavy_zmp(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH], HeatpumpIRClimate &climate) {
+  // Fan speed sits in bits 7:5 of byte 7; the vertical swing code spans bit 1 of byte 5 and bits 4:3 of byte 7
+  constexpr uint8_t BYTE_SWING_H = 5;
+  constexpr uint8_t BYTE_FAN = 7;
+  constexpr uint8_t FAN_SPEED_MASK = 0xE0;
+  constexpr uint8_t HORIZONTAL_SWING_MASK = 0xDC;
+  constexpr uint8_t HORIZONTAL_SWING_ACTIVE = 0x5C;
+  constexpr uint8_t VS_MASK_BYTE5 = 0x02;
+  constexpr uint8_t VS_MASK_BYTE7 = 0x18;
 
   uint8_t fan = frame[BYTE_FAN] & FAN_SPEED_MASK;
   climate.preset = climate::CLIMATE_PRESET_NONE;
@@ -33,10 +34,10 @@ bool decode_mitsubishi_heavy_zmp(const uint8_t frame[FRAME_LENGTH], HeatpumpIRCl
       break;
     case MITSUBISHI_HEAVY_ZMP_HIPOWER:
       climate.preset = climate::CLIMATE_PRESET_BOOST;
-      break;  // fan_mode intentionally preserved — remote restores it on preset exit
+      break;  // the remote keeps the fan mode and restores it when the preset ends
     case MITSUBISHI_HEAVY_ZMP_ECONO:
       climate.preset = climate::CLIMATE_PRESET_ECO;
-      break;  // fan_mode intentionally preserved — remote restores it on preset exit
+      break;
   }
 
   uint8_t swing_h = frame[BYTE_SWING_H] & HORIZONTAL_SWING_MASK;
@@ -53,8 +54,6 @@ bool decode_mitsubishi_heavy_zmp(const uint8_t frame[FRAME_LENGTH], HeatpumpIRCl
   } else {
     climate.swing_mode = climate::CLIMATE_SWING_OFF;
   }
-
-  return true;
 }
 
 }  // namespace esphome::heatpumpir
