@@ -20,6 +20,7 @@ struct Frame {
   uint8_t value_hb{0};
   uint8_t value_lb{0};
 
+  uint16_t value_u16() const { return (static_cast<uint16_t>(this->value_hb) << 8) | this->value_lb; }
   // f8.8: signed fixed point, 1 sign bit + 7 integer bits + 8 fractional bits (§5.1).
   void set_value_f88(float value) {
     auto const raw = static_cast<uint16_t>(static_cast<int16_t>(std::clamp(value * 256.0f, -32768.0f, 32767.0f)));
