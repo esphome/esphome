@@ -5,7 +5,6 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.components.const import CONF_EXTENSION
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -60,6 +59,7 @@ CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
 CONF_SUFFIX = "suffix"
 CONF_SUFFIX_BITS = "suffix_bits"
+CONF_EXTENSION = "extension"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -1570,12 +1570,8 @@ register_protocol_action(
 
 # RC5X (aka RC5 Marantz)
 RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = declare_protocol("RC5X")
-RC5X_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
-        cv.Required(CONF_EXTENSION): cv.All(cv.hex_int, cv.Range(min=0, max=0x3F)),
-    }
+RC5X_SCHEMA = RC5_SCHEMA.extend(
+    {cv.Required(CONF_EXTENSION): cv.All(cv.hex_int, cv.Range(min=0, max=0x3F))}
 )
 
 
