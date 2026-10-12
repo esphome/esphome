@@ -171,15 +171,18 @@ TEST_F(EmonTxTest, ShutdownSendsNothingWhenDisabled) {
   EXPECT_TRUE(this->uart_.tx.empty());
 }
 
-TEST_F(EmonTxTest, SetupUnlocksByDefault) {
-  this->sut_.setup();
-  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "emonunlock\n");
+TEST_F(EmonTxTest, ShutdownSendsNothingWhilePaused) {
+  EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.set_paused(true);
+  this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
 }
 
-TEST_F(EmonTxTest, SetupSendsNothingWhenDisabled) {
+// Also when disabled: the previous firmware may have locked it
+TEST_F(EmonTxTest, SetupAlwaysUnlocks) {
   this->sut_.set_lock_on_reboot(false);
   this->sut_.setup();
-  EXPECT_TRUE(this->uart_.tx.empty());
+  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "\nemonunlock\n");
 }
 
 }  // namespace esphome::emontx::testing

@@ -8,18 +8,22 @@ ESPHOME_LOG_TAG(TAG, "emontx");
 
 void EmonTx::setup() {
   this->buffer_pos_ = 0;
-  if (this->lock_on_reboot_) {
-    ESP_LOGI(TAG, "Unlocking emonTx after boot");
-    this->send_command("emonunlock");
-  }
+  // Always, as the previous firmware may have locked it. The line feed ends any boot noise first.
+  ESP_LOGI(TAG, "Unlocking emonTx after boot");
+  this->write_byte('\n');
+  this->send_command("emonunlock");
 }
 
 void EmonTx::on_shutdown() {
-  if (this->lock_on_reboot_) {
-    ESP_LOGI(TAG, "Locking emonTx before reboot");
-    this->send_command("emonlock");
-    this->flush();
+  if (!this->lock_on_reboot_)
+    return;
+  if (this->is_paused()) {
+    ESP_LOGW(TAG, "Not locking emonTx before shutdown, UART is paused");
+    return;
   }
+  ESP_LOGI(TAG, "Locking emonTx before shutdown");
+  this->send_command("emonlock");
+  this->flush();
 }
 
 /**
