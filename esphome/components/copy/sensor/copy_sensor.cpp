@@ -3,7 +3,7 @@
 
 namespace esphome::copy {
 
-static const char *const TAG = "copy.sensor";
+ESPHOME_LOG_TAG(TAG, "copy.sensor");
 
 void CopySensor::setup() {
   source_->add_on_state_callback([this](float value) { this->publish_state(value); });

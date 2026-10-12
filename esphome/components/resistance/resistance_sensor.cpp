@@ -3,7 +3,7 @@
 
 namespace esphome::resistance {
 
-static const char *const TAG = "resistance";
+ESPHOME_LOG_TAG(TAG, "resistance");
 
 void ResistanceSensor::dump_config() {
   LOG_SENSOR("", "Resistance Sensor", this);
