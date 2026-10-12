@@ -484,6 +484,51 @@ CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS_RESET = (
     "sensor_and_informational_data_dhw_burner_operation_hours_reset"
 )
 
+# §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags for DHW Setpoint / max CHsetpoint.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_DHW_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_MAX_CHSETPOINT = (
+    "pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_DHW_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_MAX_CHSETPOINT = (
+    "pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint"
+)
+
+# §5.3.5 Class 5, ID 86: same transfer-enable/read-write flags, for ventilation/heat-recovery's
+# Nominal ventilation value.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE = "pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value"
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE = "pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value"
+
+# §5.3.5 Class 5, IDs 48/49: upper/lower adjustment bounds for the DHW Setpoint / max CH water Setpoint.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND = (
+    "pre_defined_remote_boiler_parameters_dhwsetp_upper_bound"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND = (
+    "pre_defined_remote_boiler_parameters_dhwsetp_lower_bound"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND = (
+    "pre_defined_remote_boiler_parameters_max_chsetp_upper_bound"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND = (
+    "pre_defined_remote_boiler_parameters_max_chsetp_lower_bound"
+)
+
+# §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves -- R/W ids, same
+# single-number-entity pattern as Class 4's IDs 27/38/78/79.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_dhw_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_max_ch_water_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE = (
+    "pre_defined_remote_boiler_parameters_nominal_ventilation_value"
+)
+
 # §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
 CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS = (
     "transparent_boiler_parameters_number_of_tsps"
