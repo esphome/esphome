@@ -34,27 +34,36 @@ bool version_is_older(const char *candidate, const char *reference) {
 // that took it, which a FreeRTOS mutex does not allow, and not every platform has atomic exchange.
 static bool update_locked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static Mutex &update_lock_mutex() {
+template<typename F> static bool with_update_lock_mutex(F &&f) {
+#if defined(USE_ESP8266) || defined(USE_RP2)
+  // Single-threaded: nothing can run between the check and the set.
+  return f();
+#else
   static Mutex mutex;
-  return mutex;
+  LockGuard guard(mutex);
+  return f();
+#endif
 }
 
 bool UpdateLock::try_acquire() {
-  if (this->held_)
-    return true;
-  LockGuard guard(update_lock_mutex());
-  if (update_locked)
-    return false;
-  update_locked = true;
-  this->held_ = true;
-  return true;
+  if (!this->held_) {
+    this->held_ = with_update_lock_mutex([]() {
+      if (update_locked)
+        return false;
+      update_locked = true;
+      return true;
+    });
+  }
+  return this->held_;
 }
 
 void UpdateLock::release() {
   if (!this->held_)
     return;
-  LockGuard guard(update_lock_mutex());
-  update_locked = false;
+  with_update_lock_mutex([]() {
+    update_locked = false;
+    return true;
+  });
   this->held_ = false;
 }
 

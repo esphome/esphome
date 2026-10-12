@@ -320,10 +320,13 @@ OTAResponseTypes HostOTABackend::end() {
   host::arm_reexec(this->final_path_);
   this->staging_path_.clear();
   ESP_LOGI(TAG, "OTA staged at %s; will re-exec on reboot", this->final_path_.c_str());
+  this->lock_.hold_until_reboot();
   return OTA_RESPONSE_OK;
 }
 
 void HostOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+    return;
   if (this->fd_ >= 0) {
     ::close(this->fd_);
     this->fd_ = -1;

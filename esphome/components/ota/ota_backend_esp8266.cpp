@@ -305,10 +305,13 @@ OTAResponseTypes ESP8266OTABackend::end() {
   this->buffer_.reset();
   esp8266::preferences_prevent_write(false);
 
+  this->lock_.hold_until_reboot();
   return OTA_RESPONSE_OK;
 }
 
 void ESP8266OTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+    return;
   this->buffer_.reset();
   this->buffer_len_ = 0;
   this->image_size_ = 0;

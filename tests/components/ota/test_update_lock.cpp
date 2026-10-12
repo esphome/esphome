@@ -39,11 +39,25 @@ TEST(UpdateLock, DestructorReleases) {
   EXPECT_TRUE(next.try_acquire());
 }
 
+TEST(UpdateLock, IsHeldTracksOwnership) {
+  UpdateLock holder;
+  UpdateLock other;
+  EXPECT_FALSE(holder.is_held());
+  EXPECT_TRUE(holder.try_acquire());
+  EXPECT_TRUE(holder.is_held());
+  EXPECT_FALSE(other.try_acquire());
+  EXPECT_FALSE(other.is_held());
+}
+
 TEST(UpdateLock, SecondBackendBeginIsBusy) {
   auto first = make_ota_backend();
   auto second = make_ota_backend();
   ASSERT_EQ(first->begin(1024), OTA_RESPONSE_OK);
   EXPECT_EQ(second->begin(1024), OTA_RESPONSE_ERROR_UPDATE_BUSY);
+  // The native OTA calls abort() after a refused begin(); it must not disturb the running update.
+  second->abort();
+  uint8_t data[16] = {};
+  EXPECT_EQ(first->write(data, sizeof(data)), OTA_RESPONSE_OK);
   first->abort();
   first.reset();
   EXPECT_EQ(second->begin(1024), OTA_RESPONSE_OK);

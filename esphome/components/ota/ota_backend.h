@@ -113,6 +113,9 @@ class UpdateLock {
   /// Returns false if another holder has the lock. Safe from any task.
   bool try_acquire();
   void release();
+  bool is_held() const { return this->held_; }
+  /// After a committed update: keep the lock set until the reboot, so nothing can overwrite the image.
+  void hold_until_reboot() { this->held_ = false; }
 
  protected:
   bool held_{false};

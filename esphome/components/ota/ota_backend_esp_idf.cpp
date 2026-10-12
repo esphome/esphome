@@ -198,7 +198,7 @@ OTAResponseTypes IDFOTABackend::end() {
   // signature, and only re-points boot at an already-installed app -- so it is
   // intentionally not run through the signature verifier below.
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    return this->update_partition_table();
+    return this->hold_lock_if_ok_(this->update_partition_table());
   }
   if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
@@ -211,7 +211,7 @@ OTAResponseTypes IDFOTABackend::end() {
   }
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
-    return this->finalize_bootloader_update_(err);
+    return this->hold_lock_if_ok_(this->finalize_bootloader_update_(err));
   }
 #endif
   if (err == ESP_OK) {
@@ -244,7 +244,7 @@ OTAResponseTypes IDFOTABackend::end() {
 #endif
     err = esp_ota_set_boot_partition(this->partition_);
     if (err == ESP_OK) {
-      return OTA_RESPONSE_OK;
+      return this->hold_lock_if_ok_(OTA_RESPONSE_OK);
     }
   }
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
@@ -262,6 +262,8 @@ OTAResponseTypes IDFOTABackend::end() {
 }
 
 void IDFOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+    return;
 #ifdef USE_OTA_PARTITIONS
   if (this->partition_table_part_ != nullptr) {
     esp_partition_deregister_external(this->partition_table_part_);

@@ -65,6 +65,7 @@ OTAResponseTypes ArduinoRP2OTABackend::end() {
   // Use strict validation (false) when MD5 is set, lenient validation (true) when no MD5
   // This matches the behavior of the old web_server OTA implementation
   if (Update.end(!this->md5_set_)) {
+    this->lock_.hold_until_reboot();
     return OTA_RESPONSE_OK;
   }
 
@@ -75,6 +76,8 @@ OTAResponseTypes ArduinoRP2OTABackend::end() {
 }
 
 void ArduinoRP2OTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin(): another update owns the platform state
+    return;
   Update.end();
   rp2::preferences_prevent_write(false);
 }
