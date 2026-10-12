@@ -1,6 +1,6 @@
 ---
 description: "Instructions for setting up French Teleinformation"
-title: "Teleinformation from Linky electrical counter."
+title: "Teleinformation from Linky electrical meter."
 ---
 
 import { Image } from 'astro:assets';
@@ -13,13 +13,13 @@ import APIRef from '@components/APIRef.astro';
 ## Component/Hub
 
 The `teleinfo` component allows you to retrieve data from a
-French electrical counter using Teleinformation ([datasheet](https://www.enedis.fr/media/2035/download)). It works with Linky electrical
-counter but also legacy EDF electrical counter.
+French electrical meter using Teleinformation ([datasheet](https://www.enedis.fr/media/2035/download)). It works with Linky electrical
+meter but also legacy EDF electrical meter.
 
 <Figure
   src={teleinfoFullImg}
   alt=""
-  caption="Linky electrical counter"
+  caption="Linky electrical meter"
   layout="constrained"
 />
 
@@ -27,20 +27,20 @@ counter but also legacy EDF electrical counter.
 
 A simple electronic assembly with an optocoupler and a resistor could
 let you retrieve detailed power consumption or power production.
-There is plenty of example on the web.
+There are plenty of examples on the web.
 
 As the communication with the Teleinformation is done using UART, you need to
 have an [UART bus](/components/uart) in your configuration with the `rx_pin`
 connected to the output of the optocoupler component. Additionally, you need to
-set the baud rate to 9600bps if counter is configured to work in standard
+set the baud rate to 9600bps if meter is configured to work in standard
 mode or 1200bps in historical mode. To find out which mode you are using,
-simply press -/+ buttons on the counter and look for `Standard mode` or
+simply press -/+ buttons on the meter and look for `Standard mode` or
 `Historical mode` as below.
 
 <Figure
   src={teleinfoStandardImg}
   alt=""
-  caption="Linky electrical counter configured in standard mode."
+  caption="Linky electrical meter configured in standard mode."
   layout="constrained"
 />
 
@@ -49,7 +49,7 @@ simply press -/+ buttons on the counter and look for `Standard mode` or
 <Figure
   src={teleinfoHistoricalImg}
   alt=""
-  caption="Linky electrical counter configured in historical mode."
+  caption="Linky electrical meter configured in historical mode."
   layout="constrained"
 />
 
@@ -83,27 +83,70 @@ In teleinfo platform:
 sensor:
   - platform: teleinfo
     tag_name: "HCHC"
-    name: "hchc"
-    unit_of_measurement: "Wh"
-    icon: mdi:flash
+    name: "Off-peak hours consumption"
     teleinfo_id: myteleinfo
   - platform: teleinfo
     tag_name: "HCHP"
-    name: "hchp"
-    unit_of_measurement: "Wh"
-    icon: mdi:flash
+    name: "Peak hours consumption"
     teleinfo_id: myteleinfo
   - platform: teleinfo
     tag_name: "PAPP"
-    name: "papp"
-    unit_of_measurement: "VA"
-    icon: mdi:flash
+    name: "Apparent power"
     teleinfo_id: myteleinfo
 ```
 
 - **tag_name** (**Required**, string): Specify the tag you want to retrieve from the Teleinformation.
 - **teleinfo_id** (*Optional*, [ID](/guides/configuration-types#id)): Specify the ID of used hub.
 - All other options from [Sensor](/components/sensor).
+
+#### Pre-Defined Sensor Configurations
+
+The `unit_of_measurement`, `device_class` and `state_class` of a sensor are set automatically
+based on the prefix of its `tag_name`, for the main tags of both standard and historical mode:
+
+| Tag prefix | Mode | Unit | Device class | State class |
+| --- | --- | --- | --- | --- |
+| `EA` | Standard | `Wh` | `energy` | `total_increasing` |
+| `ER` | Standard | `varh` | `reactive_energy` | `total_increasing` |
+| `IRMS` | Standard | `A` | `current` | `measurement` |
+| `URMS`, `UMOY` | Standard | `V` | `voltage` | `measurement` |
+| `SINST`, `SMAX` | Standard | `VA` | `apparent_power` | `measurement` |
+| `PREF`, `PCOUP` | Standard | `kVA` | `apparent_power` | `measurement` |
+| `CC` | Standard | `W` | `power` | `measurement` |
+| `BASE`, `HCH`, `EJP`, `BBRH` | Historical | `Wh` | `energy` | `total_increasing` |
+| `IINST`, `IMAX`, `ISOUSC`, `ADPS`, `ADIR` | Historical | `A` | `current` | `measurement` |
+| `PAPP` | Historical | `VA` | `apparent_power` | `measurement` |
+| `PMAX` | Historical | `W` | `power` | `measurement` |
+
+For example, `IINST1`, `IINST2` and `IINST3` all match the `IINST` prefix.
+
+Tags that do not match any prefix get the following defaults: unit `Wh`, device class `energy`,
+state class `total_increasing` and icon `mdi:flash`.
+
+Any value you set explicitly in your configuration takes precedence over the pre-defined one.
+If you set a `unit_of_measurement` that is compatible with the pre-defined `device_class` (for example
+`kWh` for an `energy` tag, or `mA` for a `current` tag), the pre-defined `device_class` is kept.
+If it is not compatible, the pre-defined `device_class` is not applied, so that you don't end up
+with an inconsistent combination. The same applies the other way round when you set `device_class`.
+
+```yaml
+sensor:
+  - platform: teleinfo
+    tag_name: "HCHP"
+    name: "Peak hours consumption"
+    # kWh is compatible with the pre-defined energy device class, which is kept
+    unit_of_measurement: "kWh"
+    filters:
+      - multiply: 0.001
+    accuracy_decimals: 3
+    teleinfo_id: myteleinfo
+```
+
+> [!WARNING]
+> Previously, every sensor defaulted to `Wh`/`energy`/`total_increasing`, whatever its tag.
+> Sensors whose tag matches a prefix above now use the correct unit and device class, for example
+> `PAPP` now reports `VA` instead of `Wh`. To keep the previous behavior, set `unit_of_measurement`,
+> `device_class`, `state_class` and `icon` explicitly.
 
 ### Text Sensor
 

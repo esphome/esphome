@@ -87,6 +87,11 @@ canbus:
   - `500KBPS`
   - `1000KBPS`
 
+- **max_frames_per_loop** (*Optional*, int): Maximum number of received CAN frames processed in one pass of the main
+  loop. Frames still queued after that are handled on the next pass, so one burst cannot stall the rest of the
+  firmware. A warning is logged each time the limit is reached, since the receive queue may overflow and drop frames
+  if it keeps happening. Must be at least `1`. Defaults to `50`.
+
 - **on_frame** (*Optional*, [Automation](/automations)): An automation to perform when a
   CAN frame is received. See [`on_frame` Trigger](#canbus-on-frame).
 

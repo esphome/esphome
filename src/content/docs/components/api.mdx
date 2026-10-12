@@ -554,6 +554,8 @@ Each page lists **entities**, **inputs**, or both:
   - **standalone** (`id`): it only stores an entity ID, for use in [lambdas](/automations/templates#config-lambda).
     `id(my_input).entity_id()` returns the picked entity ID, and `id(my_input).has_entity_id()` returns whether one
     has been picked. See also the [`api.wizard.input_is_set` Condition](#api-wizard-input_is_set-condition).
+    With `multiple: true` the user can pick several entities, and `entity_id()` returns them as one comma separated
+    list such as `calendar.home,calendar.work`, see [Multiple Entities Example](#multiple-entities-example).
 
 Titles and descriptions are sent to Home Assistant as they are, so they can also be Home Assistant translation
 placeholders such as `"[%key:component::example::feature::enable%]"`.
@@ -581,6 +583,11 @@ shorten the texts or use fewer pages, entities or filters.
       the device to link the input to.
     - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a new standalone input.
     - **description** (*Optional*, string): A text shown with the input. At most 255 characters.
+    - **multiple** (*Optional*, boolean): Let the user pick more than one entity. Only for standalone inputs (`id`).
+      Defaults to `false`.
+    - **max_length** (*Optional*, int): Only with `multiple: true`. The longest list of entity IDs, in bytes, the
+      input accepts, from 255 to 4095. The device reserves this much RAM for the input. Defaults to `255`, which
+      holds about 10 to 15 entity IDs.
     - **target** (*Optional*): Limits which Home Assistant entities the user can pick.
 
       - **entity** (**Required**, list): A list of filters. An entity can be picked if it matches any one of
@@ -669,6 +676,56 @@ interval:
 ```
 
 The `homeassistant.action` needs Home Assistant to allow the device to perform actions, see [Actions](#actions).
+
+### Multiple Entities Example
+
+A standalone input with `multiple: true` lets the user pick several entities. `entity_id()` returns them as one comma
+separated list without spaces, such as `calendar.home,calendar.work`, which actions like `calendar.get_events` accept
+as they are. This wizard asks for the calendars to show and fetches the next day of events from all of them every
+hour.
+
+```yaml
+api:
+  wizard:
+    pages:
+      - title: Calendars
+        inputs:
+          - id: calendars
+            description: Calendars to show
+            multiple: true
+            max_length: 1023
+            target:
+              entity:
+                - domain: calendar
+
+interval:
+  - interval: 1h
+    then:
+      - if:
+          condition:
+            api.wizard.input_is_set: calendars
+          then:
+            - homeassistant.action:
+                action: calendar.get_events
+                data:
+                  duration: "24:00:00"
+                  entity_id: !lambda 'return id(calendars).entity_id().c_str();'
+```
+
+`has_entity_id()` and the [`api.wizard.input_is_set` Condition](#api-wizard-input_is_set-condition) still say whether
+any entity has been picked. In lambdas, `id(calendars).entity_id_count()` returns how many entities were picked, and
+`id(calendars).for_each_entity_id(...)` calls a callback once for each entity ID, in order. The callback gets a
+`StringRef` that is not null terminated, so print it with `%.*s`:
+
+```cpp
+id(calendars).for_each_entity_id([](StringRef entity_id) {
+  ESP_LOGI("calendars", "Picked %.*s", (int) entity_id.size(), entity_id.c_str());
+});
+```
+
+> [!NOTE]
+> Picking several entities needs a Home Assistant version that supports it. An older Home Assistant shows a single
+> entity picker, and the input then holds one entity.
 
 <span id="api-device-actions"></span>
 
