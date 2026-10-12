@@ -655,7 +655,9 @@ class LoopBlockingGuard {
 /// stretch. Scopes may nest; the outermost one decides how much of the pass
 /// is left out.
 /// App.get_loop_component_start_time() reads later in the same pass return
-/// the moved start, so elapsed time across the scope needs millis().
+/// the moved start, which can be earlier than a millis() read taken before or
+/// inside the scope, so subtracting such a read from it underflows. Measure
+/// elapsed time across the scope with millis() at both ends.
 ///
 ///   void MyComponent::loop() {
 ///     if (this->needs_key_) {
