@@ -2643,12 +2643,12 @@ def ira211_binary_sensor(var: MockObj, config: ConfigType) -> None:
 
 @register_trigger("ira211", IRA211Trigger, IRA211Data)
 def ira211_trigger(var: MockObj, config: ConfigType) -> None:
-    pass
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("ira211", IRA211Dumper)
 def ira211_dumper(var: MockObj, config: ConfigType) -> None:
-    pass
+    """The dumper takes no options."""
 
 
 register_protocol_action(
