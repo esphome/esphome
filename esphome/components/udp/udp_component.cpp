@@ -13,7 +13,7 @@ void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
     const char *address = *it;
-    struct sockaddr saddr {};
+    struct sockaddr saddr{};
     if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
       ESP_LOGW(TAG, "Invalid address %s", address);
       // A dropped address silently receives nothing; surface the misconfiguration
@@ -63,7 +63,7 @@ void UDPComponent::setup() {
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
     }
-    struct sockaddr_in server {};
+    struct sockaddr_in server{};
 
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = ESPHOME_INADDR_ANY;

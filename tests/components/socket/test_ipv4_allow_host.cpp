@@ -21,7 +21,7 @@ static const Ipv4AllowEntry ENTRIES[] = {
 
 // Runs the peer through the same parser production addresses go through.
 static bool allows_peer(const Ipv4Allow &list, const char *ip) {
-  struct sockaddr_storage peer {};
+  struct sockaddr_storage peer{};
   EXPECT_NE(set_sockaddr(reinterpret_cast<struct sockaddr *>(&peer), sizeof(peer), ip, 0), 0);
   return list.allows(reinterpret_cast<const struct sockaddr *>(&peer));
 }

@@ -39,7 +39,7 @@ class UartTcpDisconnect : public ::testing::Test {
     signal(SIGPIPE, SIG_IGN);
     this->listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(this->listen_fd_, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     ASSERT_EQ(::bind(this->listen_fd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);

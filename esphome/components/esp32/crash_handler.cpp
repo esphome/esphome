@@ -153,8 +153,8 @@ struct RawCrashData {
   uint32_t other_backtrace[MAX_BACKTRACE];
 #endif
 };
-static RawCrashData __attribute__((section(".noinit")))
-s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static RawCrashData
+    __attribute__((section(".noinit"))) s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Whether crash data was found and validated this boot.
 static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

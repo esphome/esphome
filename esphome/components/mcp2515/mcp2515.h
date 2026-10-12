@@ -55,7 +55,7 @@ class MCP2515 final : public canbus::Canbus,
                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                             spi::DATA_RATE_8MHZ> {
  public:
-  MCP2515(){};
+  MCP2515() {};
   void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };
   void set_mcp_mode(const CanctrlReqopMode mode) { this->mcp_mode_ = mode; }
   canbus::CanStatus get_status() override;

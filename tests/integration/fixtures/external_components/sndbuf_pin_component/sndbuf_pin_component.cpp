@@ -22,7 +22,7 @@ void SndbufPinComponent::setup() {
     socklen_t len = sizeof(type);
     if (::getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &len) != 0 || type != SOCK_STREAM)
       continue;
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     socklen_t addr_len = sizeof(addr);
     if (::getsockname(fd, reinterpret_cast<struct sockaddr *>(&addr), &addr_len) != 0) {
       ESP_LOGW(TAG, "fd %d: getsockname failed, errno %d", fd, errno);

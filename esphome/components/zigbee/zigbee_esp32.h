@@ -25,7 +25,9 @@ static const uint32_t EZB_PRIMARY_CHANNEL_MASK = 0x07FFF800U; /* channels 11-26 
 static constexpr uint8_t MAX_ZB_QUEUE_SIZE = 32;
 
 #define EZB_DEFAULT_RADIO_CONFIG() \
-  { .radio_mode = ESP_ZIGBEE_RADIO_MODE_NATIVE, }
+  { \
+      .radio_mode = ESP_ZIGBEE_RADIO_MODE_NATIVE, \
+  }
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 

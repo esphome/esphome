@@ -184,7 +184,7 @@ struct StatusReply {
     return buf;
   }
 
-  void byteswap(){};
+  void byteswap() {};
 } __attribute__((packed));
 
 // Serialize the given object to a new byte vector.

@@ -680,7 +680,9 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
 
 #ifdef USE_LVGL_KEYBOARD
 static const char *const KB_SPECIAL_KEYS[] = {
-    "abc", "ABC", "1#",
+    "abc",
+    "ABC",
+    "1#",
     // maybe add other special keys here
 };
 

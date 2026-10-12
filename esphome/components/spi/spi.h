@@ -189,7 +189,7 @@ class SPIDelegate {
     this->cs_pin_->digital_write(true);
   }
 
-  virtual ~SPIDelegate(){};
+  virtual ~SPIDelegate() {};
 
   // enable CS if configured.
   virtual void begin_transaction() { this->cs_pin_->digital_write(false); }
@@ -277,7 +277,7 @@ class SPIDelegateDummy : public SPIDelegate {
   SPIDelegateDummy() = default;
 
   uint8_t transfer(uint8_t data) override { return 0; }
-  void end_transaction() override{};
+  void end_transaction() override {};
 
   void begin_transaction() override;
 };

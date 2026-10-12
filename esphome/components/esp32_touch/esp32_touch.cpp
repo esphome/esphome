@@ -261,16 +261,11 @@ void ESP32TouchComponent::dump_config() {
   if (this->filter_configured_) {
     // TOUCH_BM_IIR_FILTER_256 only exists on V2, shifting JITTER's position
     static constexpr const char *FILTER_STRS[] = {
-      "IIR_4",
-      "IIR_8",
-      "IIR_16",
-      "IIR_32",
-      "IIR_64",
-      "IIR_128",
+        "IIR_4",   "IIR_8", "IIR_16", "IIR_32", "IIR_64", "IIR_128",
 #if SOC_TOUCH_SENSOR_VERSION == 2
-      "IIR_256",
+        "IIR_256",
 #endif
-      "JITTER",
+        "JITTER",
     };
     static constexpr const char *SMOOTH_STRS[] = {"OFF", "IIR_2", "IIR_4", "IIR_8"};
     const char *filter_s = lookup_str(FILTER_STRS, this->filter_mode_);

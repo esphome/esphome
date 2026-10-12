@@ -13,7 +13,9 @@ namespace esphome::ade7880 {
 
 // adapted from https://stackoverflow.com/a/55912127/1886371
 template<size_t Bits, typename T> inline T sign_extend(const T &v) noexcept {
-  using S = struct { signed Val : Bits; };
+  using S = struct {
+    signed Val : Bits;
+  };
   return reinterpret_cast<const S *>(&v)->Val;
 }
 

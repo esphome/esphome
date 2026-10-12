@@ -575,7 +575,7 @@ using esphome::ESPTime;
 
 // Helper to call libc mktime with same fields
 static time_t libc_mktime(int year, int month, int day, int hour, int min, int sec) {
-  struct tm tm {};
+  struct tm tm{};
   tm.tm_year = year - 1900;
   tm.tm_mon = month - 1;
   tm.tm_mday = day;
@@ -1066,7 +1066,7 @@ TEST_P(LibcVerificationTest, MatchesLibc) {
   ParsedTimezone tz = make_tz();
 
   // Our implementation
-  struct tm our_tm {};
+  struct tm our_tm{};
   ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &our_tm));
 
   // libc implementation

@@ -25,7 +25,7 @@ const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3,
 // for all components that implement the process(uint16_t data )
 class SX1509Processor {
  public:
-  virtual void process(uint16_t data){};
+  virtual void process(uint16_t data) {};
 };
 
 class SX1509KeyTrigger final : public Trigger<uint8_t> {};

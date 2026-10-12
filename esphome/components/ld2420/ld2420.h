@@ -34,10 +34,10 @@ enum OpMode : uint8_t {
 
 class LD2420Listener {
  public:
-  virtual void on_presence(bool presence){};
-  virtual void on_distance(uint16_t distance){};
-  virtual void on_energy(uint16_t *sensor_energy, size_t size){};
-  virtual void on_fw_version(std::string &fw){};
+  virtual void on_presence(bool presence) {};
+  virtual void on_distance(uint16_t distance) {};
+  virtual void on_energy(uint16_t *sensor_energy, size_t size) {};
+  virtual void on_fw_version(std::string &fw) {};
 };
 
 class LD2420Component final : public Component, public uart::UARTDevice {

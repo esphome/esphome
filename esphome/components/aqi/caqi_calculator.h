@@ -30,8 +30,7 @@ class CAQICalculator : public AbstractAQICalculator {
       {0.0f, 15.1f},
       {15.1f, 30.1f},
       {30.1f, 55.1f},
-      {55.1f, 110.1f}
-      // clang-format on
+      {55.1f, 110.1f}  // clang-format on
   };
 
   static constexpr float PM10_0_GRID[NUM_LEVELS][2] = {
@@ -39,8 +38,7 @@ class CAQICalculator : public AbstractAQICalculator {
       {0.0f, 25.1f},
       {25.1f, 50.1f},
       {50.1f, 90.1f},
-      {90.1f, 180.1f}
-      // clang-format on
+      {90.1f, 180.1f}  // clang-format on
   };
 
   static float calculate_index(float value, const float array[NUM_LEVELS][2]) {

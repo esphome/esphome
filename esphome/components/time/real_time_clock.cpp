@@ -85,8 +85,9 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
     ESP_LOGW(TAG, "clock_settime() failed with code %d", ret);
   }
 #else
-  struct timeval timev {
-    .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
+  struct timeval timev{
+      .tv_sec = static_cast<time_t>(epoch),
+      .tv_usec = 0,
   };
 #ifdef USE_ESP8266
   // ESP8266 settimeofday() requires tz to be nullptr
