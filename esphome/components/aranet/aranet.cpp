@@ -7,7 +7,7 @@
 
 namespace esphome::aranet {
 
-static const char *const TAG = "aranet";
+ESPHOME_LOG_TAG(TAG, "aranet");
 static constexpr uint16_t ARANET_MANUFACTURER_ID = 0x0702;
 static constexpr size_t ARANET4_DATA_LENGTH = 22;
 static constexpr size_t OTHER_ARANET_DATA_LENGTH = 24;
