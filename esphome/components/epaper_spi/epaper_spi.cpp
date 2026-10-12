@@ -349,6 +349,106 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   }
 }
 
+namespace {
+// One source row of an RGB565 block, written into a contiguous 1 bit per pixel buffer. Without SwapAxes the row lies
+// along a buffer row and the bit moves by step; with it the row lies along a bit column and the byte moves by step
+// rows.
+template<bool SwapAxes, bool BigEndianSource>
+void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_width, const uint8_t *source, int count,
+                          const Rgb565ToMono &to_mono) {
+  const ptrdiff_t byte_step = SwapAxes ? step * static_cast<ptrdiff_t>(row_width) : 0;
+  for (; count != 0; count--, source += 2) {
+    const uint16_t value = BigEndianSource ? (source[0] << 8) | source[1] : source[0] | (source[1] << 8);
+    if (to_mono(value)) {
+      *byte |= mask;
+    } else {
+      *byte &= ~mask;
+    }
+    if constexpr (SwapAxes) {
+      byte += byte_step;
+    } else if (step > 0) {
+      mask >>= 1;
+      if (mask == 0) {
+        mask = 0x80;
+        byte++;
+      }
+    } else {
+      mask <<= 1;
+      if (mask == 0) {
+        mask = 0x01;
+        byte--;
+      }
+    }
+  }
+}
+}  // namespace
+
+// Each source column maps to one buffer coordinate and each source row to the other, each moving by 1 per pixel, so
+// the visible part of a block and its dirty area are worked out once for the whole block.
+void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                        ColorOrder order, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  const bool swap = this->effective_transform_ & SWAP_XY;
+  const bool mirror_x = this->effective_transform_ & MIRROR_X;
+  const bool mirror_y = this->effective_transform_ & MIRROR_Y;
+  // The buffer axis a source column moves along, and the one a source row moves along
+  const int column_limit = swap ? this->height_ : this->width_;
+  const int row_limit = swap ? this->width_ : this->height_;
+  const bool column_mirrored = swap ? mirror_y : mirror_x;
+  const bool row_mirrored = swap ? mirror_x : mirror_y;
+  const int first_column = std::max(0, -x_start);
+  const int end_column = std::min(w, column_limit - x_start);
+  const int first_row = std::max(0, -y_start);
+  const int end_row = std::min(h, row_limit - y_start);
+  if (first_column >= end_column || first_row >= end_row)
+    return;
+  auto column_to_buffer = [&](int column) {
+    const int u = x_start + column;
+    return column_mirrored ? column_limit - 1 - u : u;
+  };
+  auto row_to_buffer = [&](int row) {
+    const int v = y_start + row;
+    return row_mirrored ? row_limit - 1 - v : v;
+  };
+
+  const int column_low = std::min(column_to_buffer(first_column), column_to_buffer(end_column - 1));
+  const int row_low = std::min(row_to_buffer(first_row), row_to_buffer(end_row - 1));
+  const int columns = end_column - first_column;
+  const int rows = end_row - first_row;
+  const int x_low = swap ? row_low : column_low;
+  const int y_low = swap ? column_low : row_low;
+  const int x_high = x_low + (swap ? rows : columns);
+  const int y_high = y_low + (swap ? columns : rows);
+
+  const Rgb565ToMono to_mono(order);
+  const size_t line_stride = x_offset + w + x_pad;
+  const size_t row_width = this->row_width_;
+  const int step = column_mirrored ? -1 : 1;
+  for (int row = first_row; row != end_row; row++) {
+    const uint8_t *source = ptr + ((y_offset + row) * line_stride + x_offset + first_column) * 2;
+    const int along = column_to_buffer(first_column);
+    const int across = row_to_buffer(row);
+    const int x = swap ? across : along;
+    const int y = swap ? along : across;
+    uint8_t *byte = buffer + y * row_width + x / 8;
+    const uint8_t mask = 0x80u >> (x % 8);
+    if (swap) {
+      if (big_endian) {
+        write_rgb565_row<true, true>(byte, mask, step, row_width, source, columns, to_mono);
+      } else {
+        write_rgb565_row<true, false>(byte, mask, step, row_width, source, columns, to_mono);
+      }
+    } else if (big_endian) {
+      write_rgb565_row<false, true>(byte, mask, step, row_width, source, columns, to_mono);
+    } else {
+      write_rgb565_row<false, false>(byte, mask, step, row_width, source, columns, to_mono);
+    }
+  }
+  this->x_low_ = clamp_at_most(this->x_low_, x_low);
+  this->x_high_ = clamp_at_least(this->x_high_, x_high);
+  this->y_low_ = clamp_at_most(this->y_low_, y_low);
+  this->y_high_ = clamp_at_least(this->y_high_, y_high);
+}
+
 // Writes a block of pixels, as LVGL sends them, straight into a 1 bit per pixel buffer: the same result as
 // draw_pixel_at() for each pixel, without a virtual call and a clipping test per pixel.
 void HOT EPaperBase::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
@@ -357,7 +457,17 @@ void HOT EPaperBase::draw_pixels_at(int x_start, int y_start, int w, int h, cons
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
+  // The buffer is normally one block; then it is written through a pointer rather than SplitBuffer's indexing
+  size_t contiguous_length;
+  uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
+  if (contiguous_length != this->buffer_length_)
+    contiguous = nullptr;
+  if (contiguous != nullptr && bitness == COLOR_BITNESS_565) {
+    this->draw_rgb565_block_(contiguous, x_start, y_start, w, h, ptr, order, big_endian, x_offset, y_offset, x_pad);
+    return;
+  }
   const size_t line_stride = x_offset + w + x_pad;
+  const Rgb565ToMono rgb565_to_mono(order);
   int x_low = this->width_, x_high = 0, y_low = this->height_, y_high = 0;
   for (int row = 0; row != h; row++) {
     size_t source_idx = (y_offset + row) * line_stride + x_offset;
@@ -385,10 +495,14 @@ void HOT EPaperBase::draw_pixels_at(int x_start, int y_start, int w, int h, cons
         continue;
       const size_t byte_position = y * this->row_width_ + x / 8;
       const uint8_t pixel_bit = 0x80u >> (x % 8);
-      if (color_to_mono(ColorUtil::to_color(color_value, order, bitness)) == 0) {
-        this->buffer_[byte_position] &= ~pixel_bit;
+      const uint8_t white = bitness == COLOR_BITNESS_565
+                                ? rgb565_to_mono(color_value)
+                                : color_to_mono(ColorUtil::to_color(color_value, order, bitness));
+      uint8_t &byte = contiguous != nullptr ? contiguous[byte_position] : this->buffer_[byte_position];
+      if (white == 0) {
+        byte &= ~pixel_bit;
       } else {
-        this->buffer_[byte_position] |= pixel_bit;
+        byte |= pixel_bit;
       }
       x_low = std::min(x_low, x);
       x_high = std::max(x_high, x + 1);

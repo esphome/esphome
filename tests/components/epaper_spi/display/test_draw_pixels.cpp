@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "../common.h"
+#include "esphome/components/epaper_spi/colorconv.h"
 #include "esphome/components/epaper_spi/epaper_spi_ssd1677_gray4.h"
 #include "esphome/components/epaper_spi/epaper_spi_ssd1683.h"
 
@@ -31,6 +32,14 @@ template<typename Driver> class TestableDisplay : public Driver {
     return out;
   }
 
+  /// Reallocates the buffer in blocks of at most max_block bytes, as SplitBuffer does when memory is fragmented.
+  void split_buffer(size_t max_block) {
+    ASSERT_TRUE(this->buffer_.init(this->buffer_length_, max_block));
+    ASSERT_GT(this->buffer_.get_buffer_count(), 1u);
+    this->clear();
+    this->reset_bounds();
+  }
+
   std::vector<uint16_t> bounds() const { return {this->x_low_, this->y_low_, this->x_high_, this->y_high_}; }
 
   void draw_one_by_one(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -54,31 +63,68 @@ static std::vector<uint8_t> rgb565(size_t pixels, uint32_t seed) {
   return out;
 }
 
-/// For every rotation and transform, with source offsets, padding and a block that runs off the panel,
-/// drawing a block directly gives the same buffer and the same dirty area as drawing it pixel by pixel.
+/// Random bytes for a block of pixels, enough for 3 bytes a pixel.
+static std::vector<uint8_t> random_bytes(size_t pixels, uint32_t seed) {
+  std::vector<uint8_t> out;
+  uint32_t state = seed;
+  for (size_t i = 0; i != pixels * 3; i++) {
+    state = state * 1103515245u + 12345u;
+    out.push_back(static_cast<uint8_t>(state >> 16));
+  }
+  return out;
+}
+
+/// For every rotation, transform and byte order, in RGB565 and RGB888, with source offsets and padding, and with
+/// blocks inside the panel, running off each edge and larger than the panel, drawing a block directly gives the same
+/// buffer and the same dirty area as drawing it pixel by pixel. The panel width is not a multiple of 8.
 TEST(EPaperDrawPixels, SameResultAsDrawingPixelByPixel) {
+  struct Block {
+    int x, y, w, h;
+  };
+  const Block blocks[] = {{6, 5, 12, 6}, {-3, -2, 10, 8}, {14, 8, 12, 9}, {-5, 4, 30, 3}, {-2, -3, 26, 20}};
   const display::DisplayRotation rotations[] = {
       display::DISPLAY_ROTATION_0_DEGREES, display::DISPLAY_ROTATION_90_DEGREES, display::DISPLAY_ROTATION_180_DEGREES,
       display::DISPLAY_ROTATION_270_DEGREES};
-  for (const auto rotation : rotations) {
-    for (uint8_t transform = 0; transform != 8; transform++) {
-      for (const bool big_endian : {false, true}) {
-        TestableDisplay<EPaperSSD1683> fast(24, 16);
-        TestableDisplay<EPaperSSD1683> slow(24, 16);
-        for (auto *display : {&fast, &slow}) {
-          display->set_transform(transform & ~SWAP_XY);
-          display->set_rotation(rotation);
+  uint32_t seed = 1;
+  for (const auto bitness : {display::COLOR_BITNESS_565, display::COLOR_BITNESS_888}) {
+    for (const auto rotation : rotations) {
+      for (uint8_t transform = 0; transform != 8; transform++) {
+        for (const bool big_endian : {false, true}) {
+          for (const auto &block : blocks) {
+            TestableDisplay<EPaperSSD1683> fast(21, 13);
+            TestableDisplay<EPaperSSD1683> slow(21, 13);
+            for (auto *display : {&fast, &slow}) {
+              display->set_transform(transform & ~SWAP_XY);
+              display->set_rotation(rotation);
+            }
+            // a 3 pixel left offset, 2 rows skipped and 4 pixels of padding
+            const auto data = random_bytes((3 + block.w + 4) * (2 + block.h), seed++);
+            fast.draw_pixels_at(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB, bitness,
+                                big_endian, 3, 2, 4);
+            slow.draw_one_by_one(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB, bitness,
+                                 big_endian, 3, 2, 4);
+            const auto where = ::testing::Message()
+                               << "bitness " << int(bitness) << " rotation " << rotation << " transform "
+                               << int(transform) << " big endian " << big_endian << " block " << block.x << ","
+                               << block.y << " " << block.w << "x" << block.h;
+            EXPECT_EQ(fast.buffer(), slow.buffer()) << where;
+            EXPECT_EQ(fast.bounds(), slow.bounds()) << where;
+          }
         }
-        // a 20x12 block at (6, 5) with a 3 pixel left offset, 2 rows skipped and 4 pixels of padding
-        const auto data = rgb565((3 + 20 + 4) * (2 + 12), rotation * 16 + transform);
-        fast.draw_pixels_at(6, 5, 20, 12, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, big_endian,
-                            3, 2, 4);
-        slow.draw_one_by_one(6, 5, 20, 12, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565,
-                             big_endian, 3, 2, 4);
-        EXPECT_EQ(fast.buffer(), slow.buffer()) << "rotation " << rotation << " transform " << int(transform);
-        EXPECT_EQ(fast.bounds(), slow.bounds()) << "rotation " << rotation << " transform " << int(transform);
       }
     }
+  }
+}
+
+/// The colour order reaches the RGB565 block writer.
+TEST(EPaperDrawPixels, ColourOrderIsHonoured) {
+  for (const auto order : {display::COLOR_ORDER_RGB, display::COLOR_ORDER_BGR, display::COLOR_ORDER_GRB}) {
+    TestableDisplay<EPaperSSD1683> fast(21, 13);
+    TestableDisplay<EPaperSSD1683> slow(21, 13);
+    const auto data = random_bytes(21 * 13, 99);
+    fast.draw_pixels_at(0, 0, 21, 13, data.data(), order, display::COLOR_BITNESS_565, false, 0, 0, 0);
+    slow.draw_one_by_one(0, 0, 21, 13, data.data(), order, display::COLOR_BITNESS_565, false, 0, 0, 0);
+    EXPECT_EQ(fast.buffer(), slow.buffer()) << "order " << int(order);
   }
 }
 
@@ -102,6 +148,31 @@ TEST(EPaperDrawPixels, OtherBufferLayoutsDrawPixelByPixel) {
   const auto data = rgb565(16 * 4, 11);
   fast.draw_pixels_at(0, 0, 16, 4, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
   slow.draw_one_by_one(0, 0, 16, 4, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
+  EXPECT_EQ(fast.buffer(), slow.buffer());
+}
+
+/// The RGB565 lookup gives exactly what converting the colour and thresholding it does, for every value and order.
+TEST(EPaperDrawPixels, Rgb565LookupMatchesTheColourConversion) {
+  for (const auto order : {display::COLOR_ORDER_RGB, display::COLOR_ORDER_BGR, display::COLOR_ORDER_GRB}) {
+    const Rgb565ToMono to_mono(order);
+    size_t mismatches = 0;
+    for (uint32_t value = 0; value != 0x10000; value++) {
+      const uint8_t expected = color_to_mono(ColorUtil::to_color(value, order, display::COLOR_BITNESS_565));
+      if (to_mono(static_cast<uint16_t>(value)) != expected)
+        mismatches++;
+    }
+    EXPECT_EQ(mismatches, 0u) << "order " << int(order);
+  }
+}
+
+/// A buffer split into several blocks is written through SplitBuffer's indexing and gives the same result.
+TEST(EPaperDrawPixels, SplitBufferGivesTheSameResult) {
+  TestableDisplay<EPaperSSD1683> fast(24, 16);
+  TestableDisplay<EPaperSSD1683> slow(24, 16);
+  fast.split_buffer(7);
+  const auto data = rgb565(24 * 16, 5);
+  fast.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
+  slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
   EXPECT_EQ(fast.buffer(), slow.buffer());
 }
 
