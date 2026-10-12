@@ -45,23 +45,21 @@ class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
   void arm_timer_();
   void disarm_timer_();
 
-  InternalGPIOPin *pin_;
-
-  sdm_channel_handle_t sdm_handle_{nullptr};
-  gptimer_handle_t timer_handle_{nullptr};
-
   // Single producer (play) / single consumer (timer ISR) ring of 8-bit pulse densities.
   // Indices run freely and are masked on access.
   static constexpr size_t RING_SIZE = 4096;
   static_assert((RING_SIZE & (RING_SIZE - 1)) == 0, "RING_SIZE must be a power of two");
   std::array<int8_t, RING_SIZE> ring_{};
+
+  InternalGPIOPin *pin_;
+  sdm_channel_handle_t sdm_handle_{nullptr};
+  gptimer_handle_t timer_handle_{nullptr};
   std::atomic<uint32_t> ring_read_{0};   // Moved only by the ISR
   std::atomic<uint32_t> ring_write_{0};  // Moved only by play()
-
   std::atomic<int32_t> gain_q15_{1 << 15};
-  std::atomic<bool> timer_armed_{false};  // Written only from the main loop
   uint32_t last_data_ms_{0};
-  uint32_t last_reported_read_{0};  // Main loop only
+  uint32_t last_reported_read_{0};        // Main loop only
+  std::atomic<bool> timer_armed_{false};  // Written only from the main loop
 
  private:
   void teardown_();
