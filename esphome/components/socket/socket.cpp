@@ -129,25 +129,7 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
   return 0;
 }
 
-std::unique_ptr<Socket> socket_ip(int type, int protocol) {
-#if USE_NETWORK_IPV6
-  return socket(AF_INET6, type, protocol);
-#else
-  return socket(AF_INET, type, protocol);
-#endif /* USE_NETWORK_IPV6 */
-}
-
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-// LWIP_TCP has separate Socket/ListenSocket types — needs out-of-line factory.
-// BSD and LWIP_SOCKETS define this inline in socket.h.
-std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
-#if USE_NETWORK_IPV6
-  return socket_listen_loop_monitored(AF_INET6, type, protocol);
-#else
-  return socket_listen_loop_monitored(AF_INET, type, protocol);
-#endif /* USE_NETWORK_IPV6 */
-}
-#endif
+std::unique_ptr<Socket> socket_ip(int type, int protocol) { return socket(IP_DOMAIN, type, protocol); }
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 // Callback must be a temporary lambda
@@ -236,8 +218,9 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   return found_any;
 #endif
 }
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
-bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out) {
+bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_index_out) {
   if (strchr(ip_address, ':') == nullptr) {
     struct in_addr ipv4mc {};
 #ifdef USE_ZEPHYR
@@ -267,7 +250,8 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
     }
     return true;
   }
-#if USE_NETWORK_IPV6
+  // The raw lwIP implementation has no IPv6 membership support
+#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
   struct ipv6_mreq imreq6 {};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #ifdef USE_ZEPHYR
@@ -318,9 +302,10 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 #else
   errno = EINVAL;
   return false;
-#endif  // USE_NETWORK_IPV6
+#endif  // USE_NETWORK_IPV6 && fd based sockets
 }
 
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
 #if defined(USE_ZEPHYR) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
