@@ -324,18 +324,33 @@ def _protocol_field(
     return automation.ApplyField(key, f"data.{member} = {{}}", type_)
 
 
+_BYTES = cg.std_vector.template(cg.uint8)
+
+
+def _code_table(config: ConfigType, value: list[int]) -> str:
+    return f"{automation.progmem_bytes('remote_base_code', value)}, {len(value)}"
+
+
+def _bytes_field(conf_key: str, target: str) -> automation.ApplyField:
+    """A constant's flash table and length, or a lambda's vector; the callee takes both."""
+    return automation.ApplyField(conf_key, target, _BYTES, const_fn=_code_table)
+
+
 def register_protocol_action(
     name: str,
     protocol: str,
     schema: cv.Schema,
     *fields: ProtocolField,
     validate: Callable[[ConfigType], ConfigType] | None = None,
+    call: str = "protocol_call",
 ) -> None:
     """Register ``transmit_<name>`` with no C++ action class.
 
     One generated function fills ``<protocol>Data`` from ``(conf_key, member, type_)`` fields
     and sends it; the action is a core ``ApplyAction``. ``ApplyField`` and ``ApplyCall`` pass through
     and target the call object, whose protocol data is ``data``.
+    ``call="encode_call"`` targets a plain transmit call whose ``encode()`` runs one of the
+    protocol's encoders, for payloads it encodes straight from a pointer and length.
     """
     action, schema, validator = _transmit_action(name, schema, validate)
     builder = automation.apply_action_builder(
@@ -346,7 +361,7 @@ def register_protocol_action(
         automation.ApplyField(
             (CONF_REPEAT, CONF_WAIT_TIME), "set_send_wait", cg.uint32
         ),
-        call=f"protocol_call<{ns.class_(f'{protocol}Protocol')}>",
+        call=f"{call}<{ns.class_(f'{protocol}Protocol')}>",
         id_key=CONF_TRANSMITTER_ID,
     )
 
@@ -1220,7 +1235,7 @@ register_protocol_action(
     ProntoData,
     ProntoBinarySensor,
     ProntoTrigger,
-    ProntoAction,
+    _,
     ProntoDumper,
 ) = declare_protocol("Pronto")
 PRONTO_SCHEMA = cv.Schema(
@@ -1254,10 +1269,10 @@ def pronto_dumper(var, config):
     pass
 
 
-@register_action("pronto", ProntoAction, PRONTO_SCHEMA)
-async def pronto_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.std_string)
-    cg.add(var.set_data(template_))
+# delta only matters when matching a received code
+register_protocol_action(
+    "pronto", "Pronto", PRONTO_SCHEMA, (CONF_DATA, "data", cg.std_string)
+)
 
 
 # Gobox
@@ -1515,22 +1530,34 @@ async def raw_action(var, config, args):
 ) = declare_protocol("Drayton")
 DRAYTON_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
-        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Optional(CONF_DATA): cv.hex_int_range(min=0, max=0xF),
+        cv.Optional(CONF_CHANNEL): cv.hex_int_range(min=0, max=0x1F),
+        cv.Optional(CONF_COMMAND): cv.hex_int_range(min=0, max=0x7F),
     }
+)
+# The legacy command is the 4 data bits followed by this many checksum bits
+DRAYTON_NBITS_CHECKSUM_IN_COMMAND = 3
+# Either `data`, or the legacy `channel` + `command` pair (raw packet bits)
+_validate_drayton_form = cv.All(
+    cv.has_none_or_all_keys(CONF_CHANNEL, CONF_COMMAND),
+    cv.has_exactly_one_key(CONF_DATA, CONF_COMMAND),
 )
 
 
-@register_binary_sensor("drayton", DraytonBinarySensor, DRAYTON_SCHEMA)
+@register_binary_sensor(
+    "drayton", DraytonBinarySensor, cv.All(DRAYTON_SCHEMA, _validate_drayton_form)
+)
 def drayton_binary_sensor(var, config):
+    # Matching compares address and data only
+    if (command := config.get(CONF_COMMAND)) is not None:
+        data = command >> DRAYTON_NBITS_CHECKSUM_IN_COMMAND
+    else:
+        data = config[CONF_DATA]
     cg.add(
         var.set_data(
             cg.StructInitializer(
-                DraytonData,
-                ("address", config[CONF_ADDRESS]),
-                ("channel", config[CONF_CHANNEL]),
-                ("command", config[CONF_COMMAND]),
+                DraytonData, ("address", config[CONF_ADDRESS]), ("data", data)
             )
         )
     )
@@ -1551,8 +1578,10 @@ register_protocol_action(
     "Drayton",
     DRAYTON_SCHEMA,
     (CONF_ADDRESS, "address", cg.uint16),
+    (CONF_DATA, "data", cg.uint8),
     (CONF_CHANNEL, "channel", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
+    validate=_validate_drayton_form,
 )
 
 
@@ -1640,7 +1669,7 @@ register_protocol_action(
 
 
 # RC6
-RC6Data, RC6BinarySensor, RC6Trigger, RC6Action, RC6Dumper = declare_protocol("RC6")
+RC6Data, RC6BinarySensor, RC6Trigger, _, RC6Dumper = declare_protocol("RC6")
 RC6_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
@@ -1674,12 +1703,17 @@ def rc6_dumper(var, config):
     pass
 
 
-@register_action("rc6", RC6Action, RC6_SCHEMA)
-async def rc6_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
-    cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
-    cg.add(var.set_command(template_))
+register_protocol_action(
+    "rc6",
+    "RC6",
+    RC6_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+    # Each action flips its own toggle bit, starting at 0: the lambda's static is per action
+    automation.ApplyCall(
+        "data.toggle = []() {{ static uint8_t toggle; return toggle++; }}()"
+    ),
+)
 
 
 # RC Switch Raw
@@ -2358,10 +2392,7 @@ register_protocol_action(
 
 
 # Midea
-MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
-    "Midea"
-)
-MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
+MideaData, MideaBinarySensor, MideaTrigger, _, MideaDumper = declare_protocol("Midea")
 MIDEA_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=5, max=5)),
@@ -2384,26 +2415,17 @@ def midea_dumper(var, config):
     pass
 
 
-async def _code_bytes(
-    value: Any, args: TemplateArgsType, set_template: MockObj, set_static: MockObj
-) -> None:
-    """Constant codes share one PROGMEM table pool across the remote protocols."""
-    await automation.templatable_bytes(
-        value, args, set_template, set_static, "remote_base_code"
-    )
-
-
-@register_action("midea", MideaAction, MIDEA_SCHEMA)
-async def midea_action(var, config, args):
-    await _code_bytes(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
-    )
+register_protocol_action(
+    "midea",
+    "Midea",
+    MIDEA_SCHEMA,
+    _bytes_field(CONF_CODE, f"data = {MideaData}({{}})"),
+    automation.ApplyCall("data.finalize()"),
+)
 
 
 # AEHA
-AEHAData, AEHABinarySensor, AEHATrigger, AEHAAction, AEHADumper = declare_protocol(
-    "AEHA"
-)
+AEHAData, AEHABinarySensor, AEHATrigger, _, AEHADumper = declare_protocol("AEHA")
 AEHA_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
@@ -2435,9 +2457,9 @@ def aeha_dumper(var, config):
     pass
 
 
-@register_action(
+register_protocol_action(
     "aeha",
-    AEHAAction,
+    "AEHA",
     AEHA_SCHEMA.extend(
         {
             cv.Optional(CONF_CARRIER_FREQUENCY, default="38000Hz"): cv.All(
@@ -2445,15 +2467,18 @@ def aeha_dumper(var, config):
             ),
         }
     ),
+    automation.ApplyField(
+        CONF_CARRIER_FREQUENCY, "get_data()->set_carrier_frequency({})", cg.uint32
+    ),
+    automation.ApplyCall(
+        "encode({}, {})",
+        (
+            (CONF_ADDRESS, cg.uint16),
+            (CONF_DATA, _BYTES, _code_table),
+        ),
+    ),
+    call="encode_call",
 )
-async def aeha_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
-    cg.add(var.set_address(template_))
-    await _code_bytes(
-        config[CONF_DATA], args, var.set_data_template, var.set_data_static
-    )
-    templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
-    cg.add(var.set_carrier_frequency(templ))
 
 
 # Hob2Hood
@@ -2512,10 +2537,7 @@ register_protocol_action(
 
 
 # Haier
-HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_protocol(
-    "Haier"
-)
-HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
+HaierData, HaierBinarySensor, HaierTrigger, _, HaierDumper = declare_protocol("Haier")
 HAIER_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.All(
@@ -2545,11 +2567,13 @@ def haier_dumper(var, config):
     pass
 
 
-@register_action("haier", HaierAction, HAIER_SCHEMA)
-async def haier_action(var, config, args):
-    await _code_bytes(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
-    )
+register_protocol_action(
+    "haier",
+    "Haier",
+    HAIER_SCHEMA,
+    _bytes_field(CONF_CODE, "encode({})"),
+    call="encode_call",
+)
 
 
 # ABBWelcome
@@ -2557,7 +2581,7 @@ async def haier_action(var, config, args):
     ABBWelcomeData,
     ABBWelcomeBinarySensor,
     ABBWelcomeTrigger,
-    ABBWelcomeAction,
+    _,
     ABBWelcomeDumper,
 ) = declare_protocol("ABBWelcome")
 
@@ -2609,49 +2633,28 @@ def abbwelcome_dumper(var, config):
     pass
 
 
-@register_action("abbwelcome", ABBWelcomeAction, ABB_WELCOME_SCHEMA)
-async def abbwelcome_action(var, config, args):
-    cg.add(
-        var.set_three_byte_address(
-            await cg.templatable(config[CONF_THREE_BYTE_ADDRESS], args, cg.bool_)
-        )
-    )
-    cg.add(
-        var.set_source_address(
-            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint32)
-        )
-    )
-    cg.add(
-        var.set_destination_address(
-            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint32)
-        )
-    )
-    cg.add(
-        var.set_retransmission(
-            await cg.templatable(config[CONF_RETRANSMISSION], args, cg.bool_)
-        )
-    )
-    cg.add(
-        var.set_message_type(
-            await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
-        )
-    )
-    template_ = await cg.templatable(CONF_MESSAGE_ID not in config, args, cg.bool_)
-    cg.add(var.set_auto_message_id(template_))
-    if CONF_MESSAGE_ID in config:
-        cg.add(
-            var.set_message_id(
-                await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)
-            )
-        )
-    # TemplatableBytes starts in lambda mode with no function, so a transmit without data sets an empty payload
-    await automation.templatable_bytes(
-        config.get(CONF_DATA, []),
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "abbwelcome_data",
-    )
+register_protocol_action(
+    "abbwelcome",
+    "ABBWelcome",
+    ABB_WELCOME_SCHEMA,
+    # First: the address length decides where the other fields go
+    automation.ApplyField(
+        CONF_THREE_BYTE_ADDRESS, "data.set_three_byte_address({})", cg.bool_
+    ),
+    automation.ApplyField(
+        CONF_SOURCE_ADDRESS, "data.set_source_address({})", cg.uint32
+    ),
+    automation.ApplyField(
+        CONF_DESTINATION_ADDRESS, "data.set_destination_address({})", cg.uint32
+    ),
+    automation.ApplyField(CONF_RETRANSMISSION, "data.set_retransmission({})", cg.bool_),
+    automation.ApplyField(CONF_MESSAGE_TYPE, "data.set_message_type({})", cg.uint8),
+    # Without message_id, finalize() picks one
+    automation.ApplyCall("data.auto_message_id = true"),
+    automation.ApplyField(CONF_MESSAGE_ID, "data.set_fixed_message_id({})", cg.uint8),
+    _bytes_field(CONF_DATA, "data.set_data({})"),
+    automation.ApplyCall("data.finalize()"),
+)
 
 
 # Mirage
@@ -2659,7 +2662,7 @@ async def abbwelcome_action(var, config, args):
     MirageData,
     MirageBinarySensor,
     MirageTrigger,
-    MirageAction,
+    _,
     MirageDumper,
 ) = declare_protocol("Mirage")
 
@@ -2685,11 +2688,13 @@ def mirage_dumper(var, config):
     pass
 
 
-@register_action("mirage", MirageAction, MIRAGE_SCHEMA)
-async def mirage_action(var, config, args):
-    await _code_bytes(
-        config[CONF_CODE], args, var.set_code_template, var.set_code_static
-    )
+register_protocol_action(
+    "mirage",
+    "Mirage",
+    MIRAGE_SCHEMA,
+    _bytes_field(CONF_CODE, "encode({})"),
+    call="encode_call",
+)
 
 
 # Toto

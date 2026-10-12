@@ -22,6 +22,17 @@ binary_sensor:
       command: 0x0D
       extension: 0x03
   - platform: remote_receiver
+    name: Drayton Thermostat On
+    drayton:
+      address: 0x6180
+      data: 0x8
+  - platform: remote_receiver
+    name: Drayton Thermostat On Legacy
+    drayton:
+      address: 0x6180
+      channel: 0x12
+      command: 0x41
+  - platform: remote_receiver
     name: Panasonic 56 bit Remote Input
     panasonic:
       nbits: 56
