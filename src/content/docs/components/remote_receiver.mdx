@@ -57,6 +57,7 @@ Multiple remote receivers can be configured as a list of dict definitions within
   - **midea**: Decode and dump Midea infrared codes.
   - **nec**: Decode and dump NEC infrared codes.
   - **nexa**: Decode and dump Nexa (RF) codes.
+  - **nexus**: Decode and dump Nexus temperature and humidity sensor (RF) codes.
   - **onkyori**: Decode and dump Onkyo RI codes. See
     [transmitter description](/components/remote_transmitter#remote_transmitter-transmit_onkyori)
     for wiring and voltage-level details.
@@ -255,6 +256,12 @@ To enable signal demodulation, configure the signal carrier frequency and duty c
 - **on_nexa** (*Optional*, [Automation](/automations)): An automation to perform when a
   Nexa RF code has been decoded. A variable `x` of type <APIStruct text="remote_base::NexaData" path="remote_base::NexaData" />
   is passed to the automation for use in lambdas.
+
+- **on_nexus** (*Optional*, [Automation](/automations)): An automation to perform when a
+  Nexus RF code has been decoded. A variable `x` of type <APIStruct text="remote_base::NexusData" path="remote_base::NexusData" />
+  is passed to the automation for use in lambdas. It carries `channel` (1 to 4), `address`, `temperature` in °C,
+  `humidity` in %, `battery_level` (`true` while the battery is fine) and `force_update` (`true` for a transmission
+  started by the sensor's button). Each sensor repeats its code several times per transmission.
 
 - **on_onkyori** (*Optional*, [Automation](/automations)): An automation to perform when an
   Onkyo RI code has been decoded. A variable `x` of type <APIStruct text="remote_base::OnkyoRIData" path="remote_base::OnkyoRIData" />
@@ -531,6 +538,11 @@ Remote code selection (exactly one of these has to be included):
   - **state** (**Required**, int): The Nexa state code to trigger on, see dumper output for more info.
   - **channel** (**Required**, int): The Nexa channel code to trigger on, see dumper output for more info.
   - **level** (**Required**, int): The Nexa level code to trigger on, see dumper output for more info.
+
+- **nexus**: Trigger on any decoded Nexus RF code from the given sensor, whatever it reports.
+
+  - **channel** (**Required**, int): The channel (1 to 4) to trigger on, see dumper output for more info.
+  - **address** (**Required**, int): The address (sensor ID) to trigger on, see dumper output for more info.
 
 - **onkyori**: Trigger on a decoded Onkyo RI code with the given data.
 

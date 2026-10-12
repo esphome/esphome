@@ -670,6 +670,38 @@ on_...:
 - **level** (**Required**, int, [templatable](/automations/templates)): The Nexa level code to send, see dumper output for more info.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
+<span id="remote_transmitter-transmit_nexus"></span>
+
+### `remote_transmitter.transmit_nexus` Action
+
+This [action](/automations/actions#all-actions) sends a 36-bit Nexus temperature and humidity sensor code, as used
+by Digoo and similar 433 MHz weather sensors, to a remote transmitter.
+
+```yaml
+on_...:
+  - remote_transmitter.transmit_nexus:
+      channel: 1
+      address: 42
+      temperature: 34.5
+      humidity: 51
+```
+
+#### Configuration variables
+
+- **channel** (**Required**, int, [templatable](/automations/templates)): The channel to send, 1 to 4.
+- **address** (**Required**, int, [templatable](/automations/templates)): The 8-bit address (sensor ID) to send, 0 to
+  255. Each sensor has its own.
+- **temperature** (**Required**, float, [templatable](/automations/templates)): The temperature to send in °C, with a
+  resolution of 0.1 °C, between -204.8 and 204.7.
+- **humidity** (**Required**, int, [templatable](/automations/templates)): The humidity to send in %. The field is
+  8 bits wide, so values up to 255 are accepted.
+- **battery_level** (*Optional*, boolean, [templatable](/automations/templates)): The battery flag to send, `true` for
+  a normal battery and `false` for a low one. Defaults to `true`.
+- **force_update** (*Optional*, boolean, [templatable](/automations/templates)): The forced transmission flag, `true`
+  when the sensor sends because its button was pressed. Defaults to `false`.
+- All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action). Real sensors send each
+  frame about ten times, so set `repeat` with a similar count for receivers that expect it.
+
 <span id="remote_transmitter-transmit_onkyori"></span>
 
 ### `remote_transmitter.transmit_onkyori` Action
