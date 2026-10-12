@@ -251,12 +251,12 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
       continue;
     }
     socket::UDPSendSocket *sock = v6 ? this->send_socket_v6_.get() : this->broadcast_socket_.get();
-    socklen_t addr_len = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+    socklen_t sockaddr_size = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
 #else
     socket::UDPSendSocket *sock = this->broadcast_socket_.get();
-    socklen_t addr_len = sizeof(sockaddr_in);
+    socklen_t sockaddr_size = sizeof(sockaddr_in);
 #endif
-    auto result = sock->sendto(data, size, 0, &entry.sa, addr_len);
+    auto result = sock->sendto(data, size, 0, &entry.sa, sockaddr_size);
     if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
     }
