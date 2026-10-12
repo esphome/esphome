@@ -26,3 +26,8 @@ binary_sensor:
       temperature: 21.5
       mode: comfort
       fan_mode: low
+  - platform: remote_receiver
+    name: Nexus Sensor
+    nexus:
+      channel: 1
+      address: 0x42
