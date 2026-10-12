@@ -5,17 +5,17 @@ namespace esphome::remote_base {
 
 ESPHOME_LOG_TAG(TAG, "remote.rc5x");
 
-static constexpr uint32_t BIT_TIME_US = 889;
-// Start, field and toggle bits plus the address, then a 4 bit pause, then command and extension
+static constexpr uint32_t HALF_BIT_US = 889;  // a Manchester bit is two half-bits
+// Start, field and toggle bits plus the address, then a pause of 4 half-bits, then command and extension
 static constexpr uint8_t RC5_TOGGLE_BIT = 1;
 static constexpr uint8_t RC5_ADDRESS_BITS = 5;
 static constexpr uint8_t FIRST_PART_NBITS = 8;
 static constexpr uint8_t RC5_COMMAND_BITS = 6;
 static constexpr uint8_t RC5_EXT_BITS = 6;
 static constexpr uint8_t NBITS = 20;
-static constexpr uint8_t PAUSE_BITS = 4;
+static constexpr uint8_t PAUSE_HALFBITS = 4;
 // Half-bits in a frame, counting the pause; the pause starts after the first part's half-bits
-static constexpr uint8_t NFRAMEHALFBITS = NBITS * 2 + PAUSE_BITS;
+static constexpr uint8_t NFRAMEHALFBITS = NBITS * 2 + PAUSE_HALFBITS;
 static constexpr uint8_t PAUSE_START = FIRST_PART_NBITS * 2;
 
 void RC5XProtocol::encode(RemoteTransmitData *dst, const RC5XData &data) {
@@ -23,23 +23,24 @@ void RC5XProtocol::encode(RemoteTransmitData *dst, const RC5XData &data) {
   dst->set_carrier_frequency(36000);
   dst->reserve(NFRAMEHALFBITS);
   // Start bit, then the field bit, which is clear for commands 64 to 127
-  const uint32_t start_field = data.command >= 64 ? 0b10 : 0b11;
+  const uint8_t command = data.command & 0x7F;  // bit 6 travels in the field bit, higher bits have no place
+  const uint32_t start_field = command >= 64 ? 0b10 : 0b11;
   const uint32_t out_data = start_field << (RC5_TOGGLE_BIT + RC5_ADDRESS_BITS + RC5_COMMAND_BITS + RC5_EXT_BITS) |
                             uint32_t(toggle) << (RC5_ADDRESS_BITS + RC5_COMMAND_BITS + RC5_EXT_BITS) |
                             uint32_t(data.address & 0x1F) << (RC5_COMMAND_BITS + RC5_EXT_BITS) |
-                            uint32_t(data.command & 0x3F) << RC5_EXT_BITS | (data.extension & 0x3F);
+                            uint32_t(command & 0x3F) << RC5_EXT_BITS | (data.extension & 0x3F);
 
   for (uint8_t bit = NBITS; bit-- > 0;) {
     if (bit == NBITS - 1 - FIRST_PART_NBITS) {
-      for (uint8_t i = 0; i < PAUSE_BITS; i++)
-        dst->space(BIT_TIME_US);
+      for (uint8_t i = 0; i < PAUSE_HALFBITS; i++)
+        dst->space(HALF_BIT_US);
     }
     if (out_data & (1UL << bit)) {
-      dst->space(BIT_TIME_US);
-      dst->mark(BIT_TIME_US);
+      dst->space(HALF_BIT_US);
+      dst->mark(HALF_BIT_US);
     } else {
-      dst->mark(BIT_TIME_US);
-      dst->space(BIT_TIME_US);
+      dst->mark(HALF_BIT_US);
+      dst->space(HALF_BIT_US);
     }
   }
   toggle = !toggle;
@@ -47,7 +48,7 @@ void RC5XProtocol::encode(RemoteTransmitData *dst, const RC5XData &data) {
 
 optional<RC5XData> RC5XProtocol::decode(RemoteReceiveData src) {
   // Expand the runs into half-bit levels (true = mark), as the RC5 decoder does. Each run is one
-  // half-bit (BIT_TIME_US) or two, except the pause, which is PAUSE_BITS half-bits at the idle
+  // half-bit (HALF_BIT_US) or two, except the pause, which is PAUSE_HALFBITS half-bits at the idle
   // level plus up to one merged half on each side (the end of bit 12 and the start of bit 11).
   //
   // halfbits[0] is reserved for the leading half-bit, which is always dropped: S1 is 1, so its
@@ -56,14 +57,14 @@ optional<RC5XData> RC5XProtocol::decode(RemoteReceiveData src) {
   uint8_t n = 1;
   bool pause_seen = false;
   for (uint32_t i = 0; n <= NFRAMEHALFBITS && src.is_valid(i); i++) {
-    if (src.peek_mark(BIT_TIME_US, i)) {
+    if (src.peek_mark(HALF_BIT_US, i)) {
       halfbits[n++] = true;
-    } else if (src.peek_space(BIT_TIME_US, i)) {
+    } else if (src.peek_space(HALF_BIT_US, i)) {
       halfbits[n++] = false;
-    } else if (src.peek_mark(2 * BIT_TIME_US, i)) {
+    } else if (src.peek_mark(2 * HALF_BIT_US, i)) {
       halfbits[n++] = true;
       halfbits[n++] = true;
-    } else if (src.peek_space(2 * BIT_TIME_US, i)) {
+    } else if (src.peek_space(2 * HALF_BIT_US, i)) {
       halfbits[n++] = false;
       halfbits[n++] = false;
     } else {
@@ -72,13 +73,13 @@ optional<RC5XData> RC5XProtocol::decode(RemoteReceiveData src) {
         break;
       const int32_t value = src.peek(i);
       const bool level = value > 0;
-      const uint32_t halves = (static_cast<uint32_t>(value > 0 ? value : -value) + BIT_TIME_US / 2) / BIT_TIME_US;
-      if (level == halfbits[1] || halves < PAUSE_BITS || halves > PAUSE_BITS + 2)
+      const uint32_t halves = (static_cast<uint32_t>(value > 0 ? value : -value) + HALF_BIT_US / 2) / HALF_BIT_US;
+      if (level == halfbits[1] || halves < PAUSE_HALFBITS || halves > PAUSE_HALFBITS + 2)
         break;
       for (uint32_t h = 0; h < halves; h++)
         halfbits[n++] = level;
       // It may also run one half into bit 11, but must cover the whole pause
-      if (n != PAUSE_START + PAUSE_BITS && n != PAUSE_START + PAUSE_BITS + 1)
+      if (n != PAUSE_START + PAUSE_HALFBITS && n != PAUSE_START + PAUSE_HALFBITS + 1)
         return {};
       pause_seen = true;
     }
@@ -97,7 +98,7 @@ optional<RC5XData> RC5XProtocol::decode(RemoteReceiveData src) {
   const bool carrier = halfbits[1];
   uint32_t bits = 0;
   for (uint8_t i = 0; i < NBITS; i++) {
-    const uint8_t h = 2 * i + (i < FIRST_PART_NBITS ? 0 : PAUSE_BITS);
+    const uint8_t h = 2 * i + (i < FIRST_PART_NBITS ? 0 : PAUSE_HALFBITS);
     const bool first = halfbits[h];
     const bool second = halfbits[h + 1];
     if (first == second) {

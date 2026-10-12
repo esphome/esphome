@@ -132,13 +132,15 @@ TEST(RC5XProtocolTest, DecodesAtInvertedPolarity) {
 }
 
 TEST(RC5XProtocolTest, MasksOutOfRangeFields) {
-  RC5XData sent{.address = 0xF0, .command = 0x00, .extension = 0xC6};
+  // Bit 7 of the command has no place on the wire and is dropped like the other high bits
+  RC5XData sent{.address = 0xF0, .command = 0xC5, .extension = 0xC6};
   auto decoded = decode(as_received(encode(sent)));
   ASSERT_TRUE(decoded.has_value());
   if (!decoded.has_value()) {
     return;
   }
   EXPECT_EQ(decoded->address, 0x10);
+  EXPECT_EQ(decoded->command, 0x45);
   EXPECT_EQ(decoded->extension, 0x06);
 }
 
