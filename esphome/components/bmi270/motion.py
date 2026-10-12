@@ -14,15 +14,11 @@ from . import BMI270Component, bmi270_ns
 
 DEPENDENCIES = ["i2c"]
 
+CONF_AUX_ADDRESS = "aux_address"
 CONF_AUX_DEVICE = "aux_device"
 
-BMI270AuxDevice = bmi270_ns.enum("BMI270AuxDevice")
-CONF_AUX_ADDRESS = "aux_address"
-
-# What's wired to the BMI270's auxiliary (secondary I2C master) interface, if anything.
-# It's a single secondary bus, not a mux, so only one aux device can be attached at a time.
-
 #  Enum proxies (must match the C++ enum values exactly)
+BMI270AuxDevice = bmi270_ns.enum("BMI270AuxDevice")
 BMI270AccelRange = bmi270_ns.enum("BMI270AccelRange")
 ACCEL_RANGE_OPTIONS = {
     "2G": BMI270AccelRange.BMI270_ACCEL_RANGE_2G,
