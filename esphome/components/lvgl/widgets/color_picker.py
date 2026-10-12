@@ -3,6 +3,7 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_ITEMS, CONF_WIDTH
+from esphome.core import CORE
 
 from ..defines import (
     CONF_COLOR_PICKER,
@@ -10,6 +11,8 @@ from ..defines import (
     CONF_KNOB,
     CONF_MAIN,
     CONF_STYLES,
+    CONF_THEME,
+    DOMAIN,
     add_define,
     add_lv_use,
     literal,
@@ -89,6 +92,33 @@ COLOR_PICKER_SCHEMA = COLOR_PICKER_MODIFY_SCHEMA.extend(
         cv.Optional(CONF_WHEEL, default=False): cv.boolean,
     }
 )
+
+
+# Starting colour for a picker with no way to change saturation, which would otherwise be stuck
+# at the grey it starts with. Saturation changes with its own slider, the wheel, or any of the
+# red, green and blue sliders, so only these two sliders on their own leave it fixed.
+SATURATED_DEFAULT_COLOR = 0xFF0000
+HUE_AND_BRIGHTNESS = {"hue", "brightness"}
+
+
+def _knob_color_is_set(knob: dict) -> bool:
+    """Whether a knob is given a background colour, directly or through named styles."""
+    return CONF_BG_COLOR in knob or bool(knob.get(CONF_STYLES))
+
+
+def _theme_sets_knob_color() -> bool:
+    """Whether any LVGL theme gives the color picker's knobs a background colour."""
+    configs = CORE.config.get(DOMAIN) or []
+    if isinstance(configs, dict):
+        configs = [configs]
+    return any(
+        _knob_color_is_set(
+            ((config.get(CONF_THEME) or {}).get(CONF_COLOR_PICKER) or {}).get(
+                CONF_KNOB, {}
+            )
+        )
+        for config in configs
+    )
 
 
 def _sliders(config: dict) -> list[str]:
@@ -173,14 +203,26 @@ class ColorPickerType(WidgetType):
         return [(slider, target_part) for slider in self._sliders_of(w)]
 
     async def to_code(self, w: Widget, config: dict) -> None:
+        # Only the configuration that creates the widget has `sliders`; an update does not.
+        creating = CONF_SLIDERS in config
+        color = config.get(CONF_COLOR)
+        if (
+            color is None
+            and creating
+            and not config[CONF_WHEEL]
+            and set(config[CONF_SLIDERS]) <= HUE_AND_BRIGHTNESS
+        ):
+            color = SATURATED_DEFAULT_COLOR
         # A hex colour validates to a plain int, so black must not be mistaken for absent.
-        if (color := config.get(CONF_COLOR)) is not None:
+        if color is not None:
             lv_add(w.var.set_color(await lv_color.process(color)))
         # Each knob is normally tinted with the colour its own slider shows. That is applied
         # as a local style, which outranks any style the knob has been given, so a background
-        # colour configured for the knob would never show; tinting gives way to it instead.
-        knob = config.get(CONF_KNOB, {})
-        if CONF_BG_COLOR in knob or knob.get(CONF_STYLES):
+        # colour configured for the knob, here or in the theme, would never show; tinting
+        # gives way to it instead.
+        if _knob_color_is_set(config.get(CONF_KNOB, {})) or (
+            creating and _theme_sets_knob_color()
+        ):
             lv_add(w.var.set_tint_knobs(False))
         # The widget is square, so the height simply follows the configured width.
         # SIZE_CONTENT works too: the widget reports a size based on its text font.

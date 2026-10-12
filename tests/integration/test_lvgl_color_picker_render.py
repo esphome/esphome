@@ -32,7 +32,7 @@ EXPECTED_UPDATED_SHA256 = (
     "ad4bb1c27410debd96f1e2ecf380df2d1d70fbab0026e3117e0f7436bb5138b0"
 )
 # The LVGL version the hashes were generated against; a version change can move them.
-EXPECTED_LVGL_VERSION = "9.5.0"
+EXPECTED_LVGL_VERSION = "9.6.0"
 
 REDRAW_TIMEOUT = 5.0
 

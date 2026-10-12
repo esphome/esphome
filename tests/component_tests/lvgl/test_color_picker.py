@@ -245,8 +245,16 @@ class TestColorPickerCodeGeneration:
         assert "picker_fixed->set_color(" in main_cpp
         assert "picker_colour_id->set_color(" in main_cpp
 
-    def test_color_is_omitted_when_not_configured(self, main_cpp: str) -> None:
-        assert "picker_content->set_color(" not in main_cpp
+    @pytest.mark.parametrize("var", ["picker_content", "picker_rgb", "picker_wheel"])
+    def test_color_is_omitted_when_not_configured(
+        self, main_cpp: str, var: str
+    ) -> None:
+        """Each of these can change saturation, so the grey it starts with is no trap."""
+        assert f"{var}->set_color(" not in main_cpp
+
+    def test_hue_only_picker_starts_saturated(self, main_cpp: str) -> None:
+        """With no way to change saturation, a grey start would leave it stuck at grey."""
+        assert "picker_hue->set_color(lv_color_make(255, 0, 0));" in main_cpp
 
     def test_black_is_applied(self, main_cpp: str) -> None:
         """A hex colour validates to a plain int, and black must not read as absent."""
@@ -510,9 +518,10 @@ class TestColorPickerObjectProperties:
         """It takes no part, so LVGL cannot apply it to one; that must not pass silently."""
         from esphome.components.lvgl.defines import get_warnings
 
-        assert any("'ext_click_area'" in w and "'knob'" in w for w in get_warnings()), (
-            get_warnings()
-        )
+        assert any(
+            "'ext_click_area'" in w and "'knob'" in w and "'picker_styled'" in w
+            for w in get_warnings()
+        ), get_warnings()
 
     def test_scrollbar_mode_stays_on_the_widget_itself(self, main_cpp: str) -> None:
         """Only the touch margin moves: a slider never scrolls, but the container can."""
@@ -565,3 +574,38 @@ class TestColorPickerSliderConstruction:
     def test_constructor_passes_wheel_false_by_default(self, main_cpp: str) -> None:
         assert "new(picker_hue) LvColorPickerType(" in main_cpp
         assert "LvColorPickerType::SLIDER_FLAG_HUE, false);" in main_cpp
+
+
+class TestColorPickerTheme:
+    """Settings that come from the theme or a style definition rather than the widget."""
+
+    @pytest.fixture()
+    def main_cpp(
+        self,
+        generate_main: Callable[[str | Path], str],
+        component_config_path: Callable[[str], Path],
+    ) -> str:
+        return generate_main(component_config_path("color_picker_theme.yaml"))
+
+    def test_theme_knob_color_turns_tinting_off(self, main_cpp: str) -> None:
+        """The tint is a local style, so it would overwrite the themed colour."""
+        assert "themed_picker->set_tint_knobs(false)" in main_cpp
+
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            ("'ext_click_area'", "style 'clickable_style'"),
+            ("'scrollbar_mode'", "the theme for 'button'"),
+            ("'ext_click_area'", "the theme for 'button' under 'pressed'"),
+        ],
+    )
+    def test_widget_properties_in_styles_are_reported(
+        self, main_cpp: str, expected: tuple[str, str]
+    ) -> None:
+        """A style only holds style properties, so these would be dropped silently."""
+        from esphome.components.lvgl.defines import get_warnings
+
+        prop, place = expected
+        assert any(prop in w and f"in {place} " in w for w in get_warnings()), (
+            get_warnings()
+        )

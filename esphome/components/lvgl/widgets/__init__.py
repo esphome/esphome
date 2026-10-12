@@ -574,12 +574,16 @@ def collect_states(config):
     return states
 
 
-def _misplaced_obj_properties(config: dict) -> Iterator[tuple[str, str]]:
+def misplaced_obj_properties(
+    config: dict, include_top: bool = False
+) -> Iterator[tuple[str, str]]:
     """
     Find object properties set where LVGL has no way to apply them. They belong to a widget
     as a whole, taking neither a part nor a state, so anywhere else they are quietly dropped.
-    :param config: The widget configuration
-    :return: Each place one was found, paired with the property name
+    :param config: A widget, style or theme configuration
+    :param include_top: Also report the top level, as for a style, which never holds them
+    :return: Each place one was found, as a part/state path ("" for the top level), paired
+        with the property name
     """
     from ..schemas import OBJ_PROPERTIES
 
@@ -588,6 +592,8 @@ def _misplaced_obj_properties(config: dict) -> Iterator[tuple[str, str]]:
             for prop in sorted(OBJ_PROPERTIES.intersection(sub)):
                 yield where, prop
 
+    if include_top:
+        yield from scan(config, "")
     for state in STATES:
         if state in config:
             yield from scan(config[state], state)
@@ -671,6 +677,13 @@ def _set_layout_options(w: Widget, layout: dict, base_name: str | None) -> None:
         w.set_style("flex_track_place", literal(track))
 
 
+def _widget_name(w: Widget) -> str:
+    """The id a widget was given, for naming it in a warning."""
+    if isinstance(w.config, dict) and (wid := w.config.get(CONF_ID)) is not None:
+        return str(wid)
+    return str(w.var)
+
+
 async def set_obj_properties(w: Widget, config):
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
 
@@ -689,10 +702,11 @@ async def set_obj_properties(w: Widget, config):
         else:
             base_name = None
         _set_layout_options(w, layout, base_name)
-    for where, prop in _misplaced_obj_properties(config):
+    for where, prop in misplaced_obj_properties(config):
         add_warning(
             f"'{prop}' applies to a widget as a whole, not to one part or state of it, so "
-            f"setting it under '{where}' has no effect. Set it on the widget itself instead."
+            f"setting it under '{where}' of widget '{_widget_name(w)}' has no effect. Set it "
+            f"on the widget itself instead."
         )
     parts = collect_parts(config)
     for part, states in parts.items():
