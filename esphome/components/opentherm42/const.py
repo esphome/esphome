@@ -279,3 +279,44 @@ CONF_PASS_DURATION = "pass_duration"
 # thing that otherwise only ever shows up as a log line. Same lifecycle as the sweep duration
 # entity above (unconditionally available, no update_every field, published once per sweep).
 CONF_SWEEP_HAD_ERRORS = "sweep_had_errors"
+
+# §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS = (
+    "transparent_boiler_parameters_number_of_tsps"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY = (
+    "transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE = (
+    "transparent_boiler_parameters_number_of_tsps_solar_storage"
+)
+
+# §5.3.6 Class 6, IDs 11/89/106: user-named, user-indexed TSP slots -- one list per family. TSP values
+# are opaque and manufacturer-specific, so unlike every other option there's no fixed name/description
+# the spec can supply; the user names and indexes whichever slots their boiler documents.
+CONF_TRANSPARENT_BOILER_PARAMETERS = "transparent_boiler_parameters"
+CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY = (
+    "transparent_boiler_parameters_ventilation_heat_recovery"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE = (
+    "transparent_boiler_parameters_solar_storage"
+)
+
+# §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER = "fault_history_data_size_of_fault_buffer"
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY = (
+    "fault_history_data_size_of_fault_buffer_ventilation_heat_recovery"
+)
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE = (
+    "fault_history_data_size_of_fault_buffer_solar_storage"
+)
+
+# §5.3.7 Class 7, IDs 13/91/108: user-named, user-indexed fault-history-buffer slots -- one list per
+# family. Like Class 6's TSPs, entry values are opaque and manufacturer-specific.
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER = "fault_history_data_fault_buffer"
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY = (
+    "fault_history_data_fault_buffer_ventilation_heat_recovery"
+)
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_SOLAR_STORAGE = (
+    "fault_history_data_fault_buffer_solar_storage"
+)
