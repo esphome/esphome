@@ -398,6 +398,8 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
   const uint8_t *little = rgb565_little_endian.get_data_start();
   const uint8_t *big = rgb565_big_endian.get_data_start();
   for (size_t i = 0; i < 4 * 4; i++) {
+    printf("DBG pixel %zu little=%02X %02X big=%02X %02X\n", i, little[i * 2], little[i * 2 + 1], big[i * 2],
+           big[i * 2 + 1]);
     EXPECT_EQ(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i]) << "little-endian pixel " << i;
     EXPECT_EQ((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i]) << "big-endian pixel " << i;
   }

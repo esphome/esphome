@@ -30,6 +30,9 @@ bool JpegDecoder::prepare_rgb565_scaling_(int width, int height) {
   this->y_boundaries_.clear();
   const uint32_t target_width = this->image_->get_buffer_width();
   const uint32_t target_height = this->image_->get_buffer_height();
+  // Boundary n is the first target pixel source pixel n covers, rounded up. When shrinking, the source
+  // pixel whose span lands on a target pixel paints it, so an 8 to 4 scale keeps columns 0, 2, 4 and 6;
+  // the generic draw() path rounds down and keeps the odd ones instead
   for (uint32_t x = 0; x <= static_cast<uint32_t>(width); x++) {
     this->x_boundaries_.push_back(static_cast<uint16_t>((x * target_width + width - 1) / width));
   }
@@ -43,6 +46,8 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
   if (pixels == nullptr) {
     return;
   }
+  uint8_t *const buffer = this->image_buffer_();
+  const uint32_t buffer_width = this->image_->get_buffer_width();
   for (int source_y = 0; source_y < h; source_y++) {
     const int absolute_y = y + source_y;
     if (absolute_y < 0 || absolute_y >= this->source_height_) {
@@ -59,7 +64,7 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
       const uint16_t x2 = this->x_boundaries_[absolute_x + 1];
       const uint8_t *pixel = pixels + (source_y * w + source_x) * 2;
       for (uint16_t destination_y = y1; destination_y < y2; destination_y++) {
-        uint8_t *destination = this->image_buffer_() + (destination_y * this->image_->get_buffer_width() + x1) * 2;
+        uint8_t *destination = buffer + (destination_y * buffer_width + x1) * 2;
         for (uint16_t destination_x = x1; destination_x < x2; destination_x++) {
           destination[0] = pixel[0];
           destination[1] = pixel[1];
