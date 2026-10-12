@@ -4,12 +4,7 @@
 #ifdef USE_NETWORK
 #include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-#include <WiFiUdp.h>
-#endif
 #include <array>
 #include <initializer_list>
 #include <span>
@@ -42,15 +37,9 @@ class UDPComponent final : public Component {
   bool should_listen_{};
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
-  std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
+  std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
+  std::unique_ptr<socket::UDPSocket> listen_socket_ = nullptr;
   std::vector<struct sockaddr> sockaddrs_{};
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-  std::vector<IPAddress> ipaddrs_{};
-  WiFiUDP udp_client_{};
-#endif
   const char *const *addresses_{nullptr};
 
   optional<network::IPAddress> listen_address_{};
