@@ -51,9 +51,7 @@ async def to_code(config: ConfigType) -> None:
     esp32.include_builtin_idf_component("esp_driver_sdm")
     esp32.include_builtin_idf_component("esp_driver_gptimer")
 
-    var = cg.new_Pvariable(config[CONF_ID])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
+    var = cg.new_Pvariable(config[CONF_ID], pin)
     await cg.register_component(var, config)
     await speaker.register_speaker(var, config)
-
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))

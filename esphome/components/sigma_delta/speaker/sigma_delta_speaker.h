@@ -18,12 +18,12 @@ namespace esphome::sigma_delta {
 
 class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
  public:
+  explicit SigmaDeltaSpeaker(InternalGPIOPin *pin) : pin_(pin) {}
+
   void setup() override;
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
-
-  void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
 
   void start() override;
   void stop() override;
