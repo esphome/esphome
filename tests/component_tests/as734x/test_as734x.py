@@ -8,7 +8,11 @@ which no build test would notice, so the indices are pinned here.
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.as734x import CONF_AS734X_ID, sensor as as734x_sensor
+from esphome.components.as734x import (
+    CONF_AS734X_ID,
+    CONFIG_SCHEMA as HUB_SCHEMA,
+    sensor as as734x_sensor,
+)
 from esphome.config import Config
 from esphome.const import CONF_COUNTS, CONF_ID, CONF_TYPE, PlatformFramework
 from esphome.core import ID
@@ -61,3 +65,30 @@ def test_as7341_rejects_as7343_only_band(
         as734x_sensor.FINAL_VALIDATE_SCHEMA(
             {CONF_AS734X_ID: ID("hub41"), CONF_COUNTS: {"f1": {}, band: {}}}
         )
+
+
+@pytest.mark.parametrize(
+    ("config", "error"),
+    [
+        ({"type": "AS7343", "atime": 0, "astep": 0}, "must not both be 0"),
+        # about 140 s with three cycles, against the default 60 s interval
+        (
+            {"type": "AS7343", "atime": 255, "astep": 65534},
+            "longer than the update_interval",
+        ),
+        # about 93 s with two cycles, rejected only if a third cycle were counted
+        (
+            {"type": "AS7341", "atime": 255, "astep": 65534, "update_interval": "100s"},
+            None,
+        ),
+    ],
+)
+def test_exposure_bound(
+    config: dict, error: str | None, set_core_config: SetCoreConfigCallable
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    if error is None:
+        HUB_SCHEMA(config)
+        return
+    with pytest.raises(cv.Invalid, match=error):
+        HUB_SCHEMA(config)

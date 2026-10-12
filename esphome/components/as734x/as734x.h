@@ -36,7 +36,7 @@ struct RegValue {
 /// Per-chip constants, stored in flash. The pointed-to tables are in flash too.
 struct ChipInfo {
   const char *name;
-  const RegValue *init;    // written with the low register bank selected
+  const RegValue *init;    // written in order; the bank is selected per register address
   const uint8_t *smux;     // AS7341: SMUX RAM image per step; AS7343: the three chain images
   const uint8_t *readout;  // per step, the ADC slot of each band (0xFF: not read in this step)
   uint8_t init_count;
