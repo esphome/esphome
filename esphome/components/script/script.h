@@ -305,9 +305,10 @@ template<class C, typename... Ts> class ScriptWaitAction final : public Action<T
     // Processing all items in a while loop causes infinite loops because
     // play_next_() can trigger more items to be queued
     if (!this->param_queue_.empty()) {
-      auto &params = this->param_queue_.front();
-      std::apply([this](auto &...args) { this->play_next_(args...); }, params);
-      this->param_queue_.pop_front();
+      // Take the item out first: the chain may call stop(), which clears the queue
+      std::list<std::tuple<stored_trigger_arg_t<Ts>...>> current;
+      current.splice(current.begin(), this->param_queue_, this->param_queue_.begin());
+      std::apply([this](auto &...args) { this->play_next_(args...); }, current.front());
     } else {
       // Queue is now empty - disable loop until next play_complex
       this->disable_loop();

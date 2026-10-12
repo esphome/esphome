@@ -93,4 +93,33 @@ TEST(ScriptWaitActionTest, KeepsReferenceToNonCopyableArguments) {
   EXPECT_EQ(entity.value, 1);
 }
 
+class StopWaitAction : public Action<const std::string &> {
+ public:
+  void play(const std::string &value) override {
+    this->wait->stop_complex();
+    this->seen = value;
+  }
+  Action<const std::string &> *wait{nullptr};
+  std::string seen;
+};
+
+// The chain after the wait may stop it, e.g. a script with mode: restart
+TEST(ScriptWaitActionTest, StopDuringChainKeepsArguments) {
+  FakeScript script;
+  ScriptWaitAction<FakeScript, const std::string &> wait(&script);
+  StopWaitAction stop;
+  stop.wait = &wait;
+  ActionList<const std::string &> actions;
+  actions.add_actions({&wait, &stop});
+
+  // With a second item waiting, stop() clears the queue while the first item's chain runs
+  actions.play(std::string("argument longer than the small string buffer"));
+  actions.play(std::string("second argument, also longer than the buffer"));
+  script.running = false;
+  wait.loop();
+  EXPECT_EQ(stop.seen, "argument longer than the small string buffer");
+  wait.loop();
+  EXPECT_EQ(stop.seen, "argument longer than the small string buffer");
+}
+
 }  // namespace esphome::script::testing
