@@ -1,8 +1,10 @@
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import esp32, i2c
 from esphome.components.audio_adc import AudioAdc
+from esphome.components.esp32.const import VARIANT_ESP32, VARIANT_ESP32S2
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_MIC_GAIN, CONF_SAMPLE_RATE
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kahrendt"]
@@ -28,6 +30,17 @@ ES7210_MIC_GAIN_DEFAULT = 24
 
 _validate_bits = cv.float_with_unit("bits", "bit")
 
+
+def _validate_tdm(value: bool) -> bool:
+    """Reject TDM on ESP32 variants without TDM hardware support."""
+    if value and CORE.is_esp32:
+        esp32.only_on_variant(
+            unsupported=[VARIANT_ESP32, VARIANT_ESP32S2],
+            msg_prefix="ES7210 TDM mode",
+        )(value)
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -43,7 +56,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(min=4, max=4),
             ),
             cv.Optional(CONF_SAMPLE_RATE, default=16000): cv.int_range(min=1),
-            cv.Optional(CONF_TDM, default=False): cv.boolean,
+            cv.Optional(CONF_TDM, default=False): cv.All(cv.boolean, _validate_tdm),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
