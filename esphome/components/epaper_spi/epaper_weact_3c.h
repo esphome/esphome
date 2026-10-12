@@ -24,6 +24,7 @@ class EPaperWeAct3C : public EPaperBase {
 
   void fill(Color color) override;
   void clear() override;
+  void set_invert_red(bool invert_red) { this->invert_red_ = invert_red; }
 
  protected:
   void set_window_();
@@ -35,8 +36,10 @@ class EPaperWeAct3C : public EPaperBase {
 
   bool transfer_data() override;
 
-  // Hook for subclasses to transform red plane bytes before they go on the wire.
-  virtual uint8_t transform_red_byte(uint8_t byte) const { return byte; }
+  // Some panels wire the red plane the other way round; models declare which.
+  uint8_t transform_red_byte(uint8_t byte) const { return this->invert_red_ ? static_cast<uint8_t>(~byte) : byte; }
+
+  bool invert_red_{false};
 };
 
 }  // namespace esphome::epaper_spi
