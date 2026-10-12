@@ -138,6 +138,8 @@ class EPaperBase : public Display,
    * @return true if done, false if it should be called next loop
    */
   virtual bool transfer_data() = 0;
+  // Called when an update is abandoned in the middle of transfer_data(), to release anything it left open
+  virtual void abort_transfer() {}
   /**
    * Refresh the screen after data transfer
    */

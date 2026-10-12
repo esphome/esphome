@@ -175,7 +175,9 @@ void EPaperBase::abandon_update_() {
   ESP_LOGE(TAG, "Display stayed busy for %" PRIu32 " s in state %s; check the busy pin", this->busy_timeout_ / 1000,
            this->epaper_state_to_string_());
   this->status_set_warning();
-  this->update_count_ = 0;
+  if (this->state_ == EPaperState::TRANSFER_DATA)
+    this->abort_transfer();
+  this->full_update_requested_ = true;
   this->current_data_index_ = 0;
   this->set_state_(EPaperState::IDLE);
 }
