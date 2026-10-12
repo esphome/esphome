@@ -87,8 +87,8 @@ void SigmaDeltaSpeaker::loop() {
   this->disarm_timer_();
   this->report_played_();
   if (!active) {
-    // Load the write index before re-checking for a restart: play() publishes its data before it posts
-    // COMMAND_START, so a pending start means the drop below would discard a fresh chunk.
+    // A pending command means play() is restarting the speaker; its frames follow the request,
+    // so leave them for the next pass instead of dropping them with the leftovers.
     const uint32_t write = this->ring_write_.load(std::memory_order_acquire);
     if (this->command_.load(std::memory_order_acquire) != COMMAND_NONE)
       return;
@@ -158,6 +158,10 @@ void SigmaDeltaSpeaker::finish() {
 size_t SigmaDeltaSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
   if (this->is_failed())
     return 0;
+  // Request the start before writing: the stopped path in loop() drops the ring only while no
+  // command is pending, so frames written after this request are never dropped as leftovers.
+  if (!this->is_running())
+    this->start();
 
   size_t written = this->write_frames_(data, length);
   const TickType_t start_ticks = xTaskGetTickCount();
@@ -166,14 +170,9 @@ size_t SigmaDeltaSpeaker::play(const uint8_t *data, size_t length, TickType_t ti
     written = this->write_frames_(data, length);
   }
   if (written > 0) {
-    // The data is published before the start request, so loop() never drops it as leftovers
-    if (!this->is_running()) {
-      this->start();
-    } else {
-      std::atomic_thread_fence(std::memory_order_seq_cst);
-      if (!this->timer_armed_.load(std::memory_order_relaxed))
-        this->enable_loop_soon_any_context();
-    }
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (!this->timer_armed_.load(std::memory_order_relaxed))
+      this->enable_loop_soon_any_context();
   }
   return written;
 }
