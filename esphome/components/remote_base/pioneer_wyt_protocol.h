@@ -8,7 +8,7 @@
 
 namespace esphome::remote_base {
 
-static const uint8_t WYT_REMOTE_COMMAND_SIZE = 14;
+static constexpr uint8_t WYT_REMOTE_COMMAND_SIZE = 14;
 
 enum PioneerWytMode : uint8_t {
   PIONEER_WYT_MODE_HEAT = 0x01,
@@ -38,6 +38,9 @@ class PioneerWytData {
   PioneerWytData() {}
   explicit PioneerWytData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
+  }
+  PioneerWytData(const uint8_t *data, size_t len) {
+    progmem_memcpy(this->data_.data(), data, std::min(len, this->data_.size()));
   }
 
   uint8_t size() const { return this->data_.size(); }
@@ -72,7 +75,7 @@ class PioneerWytProtocol {
 
 template<typename... Ts> class PioneerWytAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, code)
+  TEMPLATABLE_BYTES(code)
   TEMPLATABLE_VALUE(PioneerWytDataType, type)
   TEMPLATABLE_VALUE(bool, power)
   TEMPLATABLE_VALUE(PioneerWytMode, mode)
@@ -90,8 +93,10 @@ template<typename... Ts> class PioneerWytAction : public RemoteTransmitterAction
   TEMPLATABLE_VALUE(bool, horizontal_swing)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    if (this->code_.has_value()) {
-      PioneerWytData data(this->code_.value(x...));
+    // The friendly fields always set type; a raw code leaves it unset
+    if (!this->type_.has_value()) {
+      PioneerWytData data = this->code_.is_static() ? PioneerWytData(this->code_.data(), this->code_.size())
+                                                    : PioneerWytData(this->code_.value(x...));
       data.finalize();
       PioneerWytProtocol().encode(dst, data);
     } else {

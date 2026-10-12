@@ -18,7 +18,7 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.speaker";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.speaker");
 
 // Software volume control maps the user-facing (0.0, 1.0) range linearly to a dB reduction in
 // [-49.0, 0.0] dB; 0.0 is silence.
@@ -40,6 +40,16 @@ void I2SAudioSpeakerBase::setup() {
   // When no audio_dac is configured, this initializes software volume control.
   this->set_volume(this->volume_);
   this->set_mute_state(this->mute_state_);
+
+  // Until the I2S driver first starts, dout sits in its reset state (often pulled high, or a JTAG
+  // function on the ESP32-S3), which keeps a SPDIF optical transmitter lit. Park it low now.
+  this->park_dout_pin_();
+}
+
+void I2SAudioSpeakerBase::park_dout_pin_() {
+  gpio_reset_pin(this->dout_pin_);
+  gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
+  gpio_set_level(this->dout_pin_, 0);
 }
 
 void I2SAudioSpeakerBase::dump_config() {
@@ -77,20 +87,15 @@ void I2SAudioSpeakerBase::loop() {
     ESP_LOGV(TAG, "Started");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
     this->state_ = speaker::STATE_RUNNING;
+#ifdef USE_AUDIO_DAC
+    // The task raises TASK_RUNNING only after enabling the channel, so the clocks are already running
+    if (this->audio_dac_ != nullptr) {
+      this->audio_dac_->on_audio_started();
+    }
+#endif  // USE_AUDIO_DAC
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
-    // Lockstep-breaking error bits are latched by the task and cleared along with all other bits
-    // when TASK_STOPPED is processed; log them here, exactly once, as the task winds down.
-    if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
-      ESP_LOGE(TAG, "ISR event queue overflow, restarting speaker task to recover timestamp sync");
-    }
-    if (event_group_bits & SpeakerEventGroupBits::ERR_PARTIAL_WRITE) {
-      ESP_LOGE(TAG, "Partial DMA write broke buffer alignment, restarting speaker task");
-    }
-    if (event_group_bits & SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC) {
-      ESP_LOGE(TAG, "Event/record queues desynced, restarting speaker task");
-    }
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
     this->state_ = speaker::STATE_STOPPING;
   }
@@ -135,7 +140,7 @@ void I2SAudioSpeakerBase::loop() {
 
       if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-        this->status_momentary_error("driver-failure", 1000);
+        this->status_momentary_error(1000);
         break;
       }
 
@@ -148,7 +153,7 @@ void I2SAudioSpeakerBase::loop() {
 
       if (this->speaker_task_handle_ == nullptr) {
         ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-        this->status_momentary_error("task-failure", 1000);
+        this->status_momentary_error(1000);
         this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
@@ -308,9 +313,7 @@ void I2SAudioSpeakerBase::stop_i2s_driver_() {
     // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
     // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
     // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
-    gpio_reset_pin(this->dout_pin_);
-    gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
-    gpio_set_level(this->dout_pin_, 0);
+    this->park_dout_pin_();
   }
   this->parent_->unlock();
 }
@@ -325,21 +328,33 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
   I2SAudioSpeakerBase *this_speaker = (I2SAudioSpeakerBase *) user_ctx;
 
   if (xQueueIsQueueFullFromISR(this_speaker->i2s_event_queue_)) {
-    // Queue is full, so discard the oldest event. Once we drop a completion event, ``i2s_event_queue_``
-    // and any per-buffer record queue maintained by the task are permanently desynced, so the task
-    // must restart to recover. Set both ERR_DROPPED_EVENT (so loop() can log it) and COMMAND_STOP
-    // (so the task bails immediately, closing the race where loop() could clear the error bit
-    // before the task observes it).
+    // Queue is full, so discard the oldest event. The lockstep queues are now desynced; the task resyncs them.
     int64_t dummy;
     xQueueReceiveFromISR(this_speaker->i2s_event_queue_, &dummy, &need_yield1);
-    xEventGroupSetBitsFromISR(this_speaker->event_group_,
-                              SpeakerEventGroupBits::ERR_DROPPED_EVENT | SpeakerEventGroupBits::COMMAND_STOP,
-                              &need_yield2);
+    xEventGroupSetBitsFromISR(this_speaker->event_group_, SpeakerEventGroupBits::ERR_DROPPED_EVENT, &need_yield2);
   }
 
   xQueueSendToBackFromISR(this_speaker->i2s_event_queue_, &now, &need_yield3);
 
   return need_yield1 | need_yield2 | need_yield3;
+}
+
+void I2SAudioSpeakerBase::drain_lockstep_(uint32_t extra_frames) {
+  // Stop DMA so no more completion events arrive while the queues are rebuilt
+  i2s_channel_disable(this->tx_handle_);
+  xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_DROPPED_EVENT);
+
+  uint32_t frames = extra_frames;
+  uint32_t record_frames = 0;
+  while (xQueueReceive(this->write_records_queue_, &record_frames, 0) == pdTRUE) {
+    frames += record_frames;
+  }
+  xQueueReset(this->i2s_event_queue_);
+
+  if (frames > 0) {
+    ESP_LOGV(TAG, "Crediting %" PRIu32 " dropped frames as played", frames);
+    this->audio_output_callback_(frames, esp_timer_get_time());
+  }
 }
 
 void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {

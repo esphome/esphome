@@ -9,7 +9,7 @@
 
 namespace esphome::rp2_ble_tracker {
 
-static const char *const TAG = "rp2_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "rp2_ble_tracker");
 
 // Floor between controller start attempts; insurance against a failing
 // scan_start() being retried every loop.

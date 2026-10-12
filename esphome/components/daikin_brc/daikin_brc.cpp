@@ -1,9 +1,10 @@
 #include "daikin_brc.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin_brc {
 
-static const char *const TAG = "daikin_brc.climate";
+ESPHOME_LOG_TAG(TAG, "daikin_brc.climate");
 
 void DaikinBrcClimate::control(const climate::ClimateCall &call) {
   this->mode_button_ = 0x00;
@@ -160,10 +161,7 @@ uint8_t DaikinBrcClimate::temperature_() {
 }
 
 bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_BRC_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DAIKIN_BRC_STATE_FRAME_SIZE - 1);
   if (frame[DAIKIN_BRC_STATE_FRAME_SIZE - 1] != checksum) {
     ESP_LOGCONFIG(TAG, "Bad CheckSum %x", checksum);
     return false;

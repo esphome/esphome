@@ -4,29 +4,29 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.pioneer_wyt";
+ESPHOME_LOG_TAG(TAG, "remote.pioneer_wyt");
 
 /* These timings are from the tcl112 component, but they're awfully close to what I measured.
  * The protocols are pretty similar as well, probably related. Similar protocol to Mitsubishi
  * also, though with different timing. */
-constexpr uint32_t HEADER_MARK_US = 3100;
-constexpr uint32_t HEADER_SPACE_US = 1650;
-constexpr uint32_t BIT_MARK_US = 500;
-constexpr uint32_t BIT_ONE_SPACE_US = 1100;
-constexpr uint32_t BIT_ZERO_SPACE_US = 350;
+static constexpr uint32_t HEADER_MARK_US = 3100;
+static constexpr uint32_t HEADER_SPACE_US = 1650;
+static constexpr uint32_t BIT_MARK_US = 500;
+static constexpr uint32_t BIT_ONE_SPACE_US = 1100;
+static constexpr uint32_t BIT_ZERO_SPACE_US = 350;
 
-constexpr unsigned int PIONEER_WYT_IR_PACKET_BIT_SIZE = 112;
+static constexpr unsigned int PIONEER_WYT_IR_PACKET_BIT_SIZE = 112;
 
-constexpr float TARGET_TEMPERATURE_MIN_C = 16.0f;
-constexpr float TARGET_TEMPERATURE_MAX_C = 31.0f;
+static constexpr float TARGET_TEMPERATURE_MIN_C = 16.0f;
+static constexpr float TARGET_TEMPERATURE_MAX_C = 31.0f;
 
 // Multi-bit fields reverse-engineered from factory remote captures, named by the packet type and
 // byte they live in. Both packet types carry a vertical swing flag, in different places. Each value
 // is the field contents the remote sends, not a bit index.
-constexpr uint8_t GENERAL_BYTE8_VERTICAL_SWING = 7 << 3;  // bits 3-5
-constexpr uint8_t FAN_BYTE7_VERTICAL_SWING = 4 << 2;      // bits 2-4
-constexpr uint8_t FAN_BYTE7_HORIZONTAL_SWING = 4 << 5;    // bits 5-7
-constexpr uint8_t FAN_BYTE8_CONSTANT = 0xC0;              // same in every captured FAN message
+static constexpr uint8_t GENERAL_BYTE8_VERTICAL_SWING = 7 << 3;  // bits 3-5
+static constexpr uint8_t FAN_BYTE7_VERTICAL_SWING = 4 << 2;      // bits 2-4
+static constexpr uint8_t FAN_BYTE7_HORIZONTAL_SWING = 4 << 5;    // bits 5-7
+static constexpr uint8_t FAN_BYTE8_CONSTANT = 0xC0;              // same in every captured FAN message
 
 uint8_t PioneerWytData::calc_cs_(uint8_t checksum_offset) const {
   for (uint8_t i = 0; i < WYT_REMOTE_COMMAND_SIZE - 1; i++) {

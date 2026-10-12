@@ -5,6 +5,13 @@ number:
     min_value: 0
     max_value: 255
     step: 1
+    on_value:
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x01
+          data: !lambda |-
+            return {(uint8_t) x, 0x20};
 
 button:
   - platform: template
@@ -282,6 +289,16 @@ button:
         button: 1
         check: 1
   - platform: template
+    name: OnkyoRI
+    on_press:
+      remote_transmitter.transmit_onkyori:
+        data: 0xD9
+  - platform: template
+    name: OnkyoRI 12-bit
+    on_press:
+      remote_transmitter.transmit_onkyori:
+        data: 0x170
+  - platform: template
     name: Toto
     on_press:
       - remote_transmitter.transmit_toto:
@@ -297,6 +314,22 @@ button:
         message_type: 0x01
         data: [0x10, 0x20, 0x30]
   - platform: template
+    name: ABBWelcome static same data
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x02
+        data: [0x10, 0x20, 0x30]
+  - platform: template
+    name: ABBWelcome static empty data
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x03
+        data: []
+  - platform: template
     name: ABBWelcome lambda
     on_press:
       remote_transmitter.transmit_abbwelcome:
@@ -311,3 +344,104 @@ button:
       - remote_transmitter.digital_write: true
       - remote_transmitter.digital_write:
           value: false
+      - remote_transmitter.digital_write:
+          transmitter_id: xmitr
+          value: !lambda return id(remote_transmitter_test_number).state > 127;
+  - platform: template
+    name: Hob2Hood
+    on_press:
+      - remote_transmitter.transmit_hob2hood:
+          command: light_on
+  - platform: template
+    name: KeeLoq HCS301
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x57ffe7b
+        command: 0x02
+        code: 0xd19ef0a9
+  - platform: template
+    name: KeeLoq with suffix
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x116ea01
+        command: 0x08
+        code: 0xd19ef0a9
+        suffix: 0x00
+        suffix_bits: 8
+  - platform: template
+    name: KeeLoq lambda with repeat
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: !lambda return 0x57ffe7b;
+        command: 0x02
+        code: 0xd19ef0a9
+        repeat:
+          times: 3
+          wait_time: 10ms
+  - platform: template
+    name: Toto with repeat
+    on_press:
+      remote_transmitter.transmit_toto:
+        command: 0xEC
+        rc_code_1: 0x0D
+        rc_code_2: 0x0D
+        repeat:
+          times: 2
+          wait_time: 20ms
+  - platform: template
+    name: ByronSX
+    on_press:
+      remote_transmitter.transmit_byronsx:
+        address: 0x12
+        command: 0x05
+  - platform: template
+    name: CanalSat
+    on_press:
+      remote_transmitter.transmit_canalsat:
+        device: 0x25
+        address: 0x01
+        command: 0x1C
+  - platform: template
+    name: CanalSatLD
+    on_press:
+      remote_transmitter.transmit_canalsatld:
+        device: 0x25
+        command: !lambda return 0x1C;
+  - platform: template
+    name: Coolix
+    on_press:
+      remote_transmitter.transmit_coolix:
+        first: 0xB2BF40
+        second: 0xB2BF40
+  - platform: template
+    name: Dish
+    on_press:
+      remote_transmitter.transmit_dish:
+        address: 1
+        command: 16
+  - platform: template
+    name: Drayton
+    on_press:
+      remote_transmitter.transmit_drayton:
+        address: 0x1234
+        channel: 0x01
+        command: 0x05
+  - platform: template
+    name: Gobox
+    on_press:
+      remote_transmitter.transmit_gobox:
+        code: 1
+  - platform: template
+    name: Nexa
+    on_press:
+      remote_transmitter.transmit_nexa:
+        device: 0x38DDB5A
+        group: 0
+        state: 1
+        channel: 15
+        level: 0
+  - platform: template
+    name: Roomba
+    on_press:
+      remote_transmitter.transmit_roomba:
+        data: 0x88

@@ -30,7 +30,7 @@ EXPECTED_SHA256 = "a995b002dd1d183c47514da15ab9a60a3e7d788c2e24386a02fddd4865509
 # Bundled LVGL version (esphome/components/lvgl/__init__.py, LVGL_VERSION) the hash above was
 # generated against. A version bump can shift anti-aliasing enough to change the hash even though
 # nothing is actually wrong -- if this test fails, check that first before regenerating the hash.
-EXPECTED_LVGL_VERSION = "9.5.0"
+EXPECTED_LVGL_VERSION = "9.6.0"
 
 
 @pytest.mark.asyncio

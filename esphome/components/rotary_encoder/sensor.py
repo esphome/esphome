@@ -15,8 +15,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_STEPS,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
@@ -41,9 +39,6 @@ CONF_PUBLISH_INITIAL_VALUE = "publish_initial_value"
 
 RotaryEncoderSensor = rotary_encoder_ns.class_(
     "RotaryEncoderSensor", sensor.Sensor, cg.Component
-)
-RotaryEncoderSetValueAction = rotary_encoder_ns.class_(
-    "RotaryEncoderSetValueAction", automation.Action
 )
 
 
@@ -118,25 +113,13 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sensor.rotary_encoder.set_value",
-    RotaryEncoderSetValueAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(RotaryEncoderSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.int_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.int_),
 )
-async def sensor_template_publish_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.int_)
-    cg.add(var.set_value(template_))
-    return var
