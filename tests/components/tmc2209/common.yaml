@@ -1,0 +1,57 @@
+stepper:
+  - platform: tmc2209
+    id: tmc2209_step_dir
+    uart_id: uart_bus
+    address: 0
+    step_pin: ${step_pin}
+    dir_pin: ${dir_pin}
+    enn_pin: ${enn_pin}
+    rsense: 110 mOhm
+    vsense: false
+    ottrim: 1
+    run_current: 800mA
+    hold_current: 400mA
+    microsteps: 16
+    max_speed: 2000 steps/s
+    acceleration: 1000 steps/s^2
+    deceleration: 1000 steps/s^2
+
+  - platform: tmc2209
+    id: tmc2209_serial
+    uart_id: uart_bus
+    address: 1
+    index_pin: ${index_pin}
+    clock_frequency: 12MHz
+    analog_current_scale: true
+    max_speed: 1000 steps/s
+
+esphome:
+  on_boot:
+    then:
+      - tmc2209.configure:
+          id: tmc2209_step_dir
+          inverse_direction: true
+          microsteps: 8
+          interpolation: true
+          enable_spreadcycle: false
+          tpwm_threshold: 0
+      - tmc2209.configure:
+          id: tmc2209_serial
+          microsteps: !lambda "return 32;"
+      - tmc2209.currents:
+          id: tmc2209_step_dir
+          run_current: 1A
+          hold_current: 0.5A
+          iholddelay: 4
+          tpowerdown: 20
+          standstill_mode: freewheeling
+      - tmc2209.currents:
+          id: tmc2209_serial
+          irun: 20
+          ihold: !lambda "return 5;"
+      - tmc2209.enable: tmc2209_serial
+      - stepper.set_target:
+          id: tmc2209_serial
+          target: 1000
+      - tmc2209.disable:
+          id: tmc2209_step_dir

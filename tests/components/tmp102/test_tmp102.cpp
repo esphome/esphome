@@ -47,6 +47,7 @@ class TMP102Test : public ::testing::Test {
  protected:
   RegisterBus bus_;
   TMP102Component chip_;
+  binary_sensor::BinarySensor alert_;
   unsigned publications_{0};
 
   void SetUp() override {
@@ -112,6 +113,83 @@ TEST_F(TMP102Test, WritableConfigurationFields) {
   EXPECT_EQ(this->bus_.registers[2], 0x2580);
 }
 
+TEST_F(TMP102Test, AlertEntityPreservesHardwareAndUsesObservedPolarity) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
+  this->chip_.setup();
+  EXPECT_EQ(this->bus_.transactions, 0);
+  for (uint16_t config : {0x60A0, 0x6080, 0x64A0, 0x6480}) {
+    this->bus_.registers[1] = config;
+    this->chip_.update();
+    run_timers(55);
+    ASSERT_TRUE(this->alert_.has_state());
+    EXPECT_EQ(this->alert_.state, bool(config & 0x20) == bool(config & 0x400));
+    EXPECT_EQ(this->bus_.registers[1], config);
+  }
+  EXPECT_EQ(this->bus_.writes, 0);
+}
+
+TEST_F(TMP102Test, FailedTemperatureOrAlertReadInvalidatesAlert) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
+  this->chip_.setup();
+  this->chip_.update();
+  run_timers(55);
+  ASSERT_TRUE(this->alert_.has_state());
+  for (int reg : {0, 1}) {
+    this->bus_.fail_read = reg;
+    this->chip_.update();
+    run_timers(55);
+    EXPECT_TRUE(this->chip_.status_has_warning());
+    EXPECT_FALSE(this->alert_.has_state());
+    this->bus_.fail_read = -1;
+    this->chip_.update();
+    run_timers(55);
+    EXPECT_FALSE(this->chip_.status_has_warning());
+    EXPECT_TRUE(this->alert_.has_state());
+  }
+}
+
+TEST_F(TMP102Test, ConfiguredAlertUsesObservedPolarity) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
+  for (uint16_t config : {0x0080, 0x00A0, 0x0480, 0x04A0}) {
+    this->configure(config & ~0x0020);
+    this->chip_.setup();
+    this->bus_.registers[1] = config;
+    this->chip_.update();
+    ASSERT_TRUE(this->alert_.has_state());
+    EXPECT_EQ(this->alert_.state, bool(config & 0x0020) == bool(config & 0x0400));
+    EXPECT_FALSE(this->chip_.status_has_warning());
+  }
+}
+
+TEST_F(TMP102Test, ConfiguredAlertInvalidatesDuringRecoveryAndRepublishes) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
+  this->configure(0x0090, 0x2D00, 0x2A80);
+  this->chip_.setup();
+  this->chip_.update();
+  ASSERT_TRUE(this->alert_.has_state());
+
+  this->bus_.registers = {0x1900, 0x60A0, 0x4B00, 0x5000};
+  this->chip_.update();
+  EXPECT_FALSE(this->alert_.has_state());
+  EXPECT_TRUE(this->chip_.status_has_warning());
+
+  this->chip_.update();
+  EXPECT_TRUE(this->alert_.has_state());
+  EXPECT_FALSE(this->chip_.status_has_warning());
+}
+
+TEST_F(TMP102Test, OneShotPublishesAlertAfterDelayedRead) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
+  this->configure(0x0180);
+  this->chip_.setup();
+  this->chip_.update();
+  EXPECT_FALSE(this->alert_.has_state());
+  run_timers(45);
+  EXPECT_TRUE(this->alert_.has_state());
+  EXPECT_TRUE(this->alert_.state);
+  EXPECT_FALSE(this->chip_.status_has_warning());
+}
+
 TEST_F(TMP102Test, RestoresRegistersAfterChipOnlyResetBeforePublishing) {
   this->configure(0x0090, 0x2D00, 0x2A80);
   this->chip_.setup();
@@ -170,13 +248,16 @@ TEST_F(TMP102Test, ReadOnlyConfigurationBitsDoNotTriggerRecovery) {
 }
 
 TEST_F(TMP102Test, OneShotTriggerFailureSetsWarning) {
+  this->chip_.set_alert_binary_sensor(&this->alert_);
   this->configure(0x0180);
   this->chip_.setup();
+  this->alert_.publish_state(false);
   this->bus_.fail_write = 1;
   this->chip_.update();
   run_timers(45);
   EXPECT_EQ(this->publications_, 0);
   EXPECT_TRUE(this->chip_.status_has_warning());
+  EXPECT_FALSE(this->alert_.has_state());
 }
 
 TEST_F(TMP102Test, OneShotRestartsPendingReadAndReselectsTemperature) {

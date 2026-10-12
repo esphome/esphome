@@ -9,6 +9,8 @@ namespace esphome::seeed_mr24hpc1 {
 
 ESPHOME_LOG_TAG(TAG, "seeed_mr24hpc1");
 
+static constexpr uint32_t STARTUP_DELAY_MS = 1000;
+
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
 // items in an easy-to-read format, including the configuration key-value pairs.
 void MR24HPC1Component::dump_config() {
@@ -76,8 +78,7 @@ void MR24HPC1Component::setup() {
     this->custom_mode_end_text_sensor_->publish_state("Not in custom mode");
   }
 #endif
-  this->set_custom_end_mode();
-  this->poll_time_base_func_check_ = true;
+  this->poll_time_base_func_check_ = false;
   this->check_dev_inf_sign_ = true;
   this->sg_start_query_data_ = STANDARD_FUNCTION_QUERY_PRODUCT_MODE;
   this->sg_data_len_ = 0;
@@ -92,7 +93,13 @@ void MR24HPC1Component::setup() {
   memset(this->sg_frame_prase_buf_, 0, FRAME_BUF_MAX_SIZE);
   memset(this->sg_frame_buf_, 0, FRAME_BUF_MAX_SIZE);
 
-  this->set_interval(8000, [this]() { this->update_(); });
+  // The module locks up when queried during its own boot, so hold all TX for a second
+  this->set_timeout(STARTUP_DELAY_MS, [this]() {
+    this->module_ready_ = true;
+    this->set_custom_end_mode();
+    this->poll_time_base_func_check_ = true;
+    this->set_interval(8000, [this]() { this->update_(); });
+  });
 }
 
 // Timed polling of radar data
@@ -680,6 +687,8 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 
 // Sending data frames
 void MR24HPC1Component::send_query_(const uint8_t *query, size_t string_length) {
+  if (!this->module_ready_)
+    return;
   this->write_array(query, string_length);
 }
 

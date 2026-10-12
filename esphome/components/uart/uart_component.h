@@ -18,6 +18,9 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
+  // Only USB serial adapters (usb_uart) support these
+  UART_CONFIG_PARITY_MARK,
+  UART_CONFIG_PARITY_SPACE,
 };
 
 #ifdef USE_UART_DEBUGGER
@@ -61,6 +64,13 @@ class UARTComponent {
   // @param data Pointer to the array of bytes.
   // @param len Length of the array.
   virtual void write_array(const uint8_t *data, size_t len) = 0;
+
+  // Writes bytes that may live in PROGMEM; ESP8266 cannot read flash bytewise, so it copies chunks.
+#ifdef USE_ESP8266
+  void write_array_progmem(const uint8_t *data, size_t len);
+#else
+  void write_array_progmem(const uint8_t *data, size_t len) { this->write_array(data, len); }
+#endif
 
   // Reads a single byte from the UART bus.
   // @param data Pointer to the byte where the read data will be stored.

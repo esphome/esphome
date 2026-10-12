@@ -7,6 +7,7 @@ import pytest
 
 from esphome.components import tmp102 as component
 from esphome.components.tmp102.sensor import CONFIG_SCHEMA
+from esphome.config import read_config
 import esphome.config_validation as cv
 from esphome.core import CORE
 
@@ -30,6 +31,31 @@ def test_advanced_options_enable_configuration_once(
     assert "set_configuration(3648, 7680, 6400)" in source
     defines = " ".join(define.name for define in CORE.defines)
     assert "USE_TMP102_CONFIGURE" in defines
+
+
+def test_alert_entity_is_read_only(
+    generate_main: Callable[[Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = generate_main(component_config_path("alert.yaml"))
+    assert "set_alert_binary_sensor" in source
+    assert "set_configuration" not in source
+    defines = " ".join(define.name for define in CORE.defines)
+    assert "USE_TMP102_BINARY_SENSOR" in defines
+    assert "USE_TMP102_CONFIGURE" not in defines
+
+
+def test_duplicate_alert_entities_are_rejected(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    CORE.config_path = component_config_path("duplicate_alert.yaml")
+    assert read_config({}) is None
+    captured = capsys.readouterr()
+    assert (
+        "Only one TMP102 binary_sensor may reference each temperature sensor"
+        in captured.out
+    )
 
 
 @pytest.mark.parametrize(
