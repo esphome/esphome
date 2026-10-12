@@ -52,6 +52,17 @@ TEST(PanasonicProtocolTest, RoundTrips56BitFrame) {
   EXPECT_EQ(*decoded, FRAME_56);
 }
 
+TEST(PanasonicProtocolTest, Decodes56BitFrameWithTrailingItems) {
+  RawTimings timings = encode(FRAME_56);
+  timings.insert(timings.end(), {-20000, 3502, -1750, 502, -400});
+  auto decoded = decode(timings);
+  ASSERT_TRUE(decoded.has_value());
+  if (!decoded.has_value()) {
+    return;
+  }
+  EXPECT_EQ(*decoded, FRAME_56);
+}
+
 TEST(PanasonicProtocolTest, Decodes48BitFrameWithTrailingItems) {
   RawTimings timings = encode(FRAME_48);
   // A repeat frame arriving inside the idle window.
