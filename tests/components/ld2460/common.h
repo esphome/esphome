@@ -1,10 +1,10 @@
 #pragma once
 #include <cstdint>
-#include <cstring>
 #include <vector>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "esphome/components/ld2460/ld2460.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart_component.h"
 
 namespace esphome::ld2460::testing {
@@ -23,16 +23,8 @@ class MockUARTComponent : public uart::UARTComponent {
 #endif
 };
 
-// Expose protected members for testing.
 class TestableLD2460 : public LD2460Component {
  public:
-  using LD2460Component::buffer_data_;
-  using LD2460Component::buffer_pos_;
-  using LD2460Component::readline_;
-  using LD2460Component::target_info_;
-  using LD2460Component::installation_mode_;
-  using LD2460Component::detection_distance_;
-
   void feed(const std::vector<uint8_t> &data) {
     for (uint8_t byte : data) {
       this->readline_(byte);
@@ -40,36 +32,32 @@ class TestableLD2460 : public LD2460Component {
   }
 };
 
-// LD2460 periodic data frame:
-// Header (4) + Func (1) + Len (2) + Targets * 4 + Footer (4)
-inline std::vector<uint8_t> make_periodic_frame(uint8_t num_targets = 1) {
-  uint16_t len = 11 + num_targets * 4;
+struct Point {
+  int16_t x;  // 0.1 m steps
+  int16_t y;
+};
+
+// Periodic data frame: header (4) + function (1) + length (2) + 4 bytes per target + footer (4)
+inline std::vector<uint8_t> make_periodic_frame(const std::vector<Point> &targets) {
+  auto len = static_cast<uint16_t>(11 + targets.size() * 4);
   std::vector<uint8_t> frame = {
-      0xF4, 0xF3, 0xF2, 0xF1, 0x04, static_cast<uint8_t>(len & 0xFF), static_cast<uint8_t>((len >> 8) & 0xFF),
-  };
-  for (int i = 0; i < num_targets; i++) {
-    // Target X = 15 (1.5m), Target Y = 23 (2.3m)
-    frame.push_back(0x0F);
-    frame.push_back(0x00);
-    frame.push_back(0x17);
-    frame.push_back(0x00);
+      0xF4, 0xF3, 0xF2, 0xF1, 0x04, static_cast<uint8_t>(len & 0xFF), static_cast<uint8_t>(len >> 8)};
+  for (const auto &t : targets) {
+    auto x = static_cast<uint16_t>(t.x);
+    auto y = static_cast<uint16_t>(t.y);
+    frame.insert(frame.end(), {static_cast<uint8_t>(x & 0xFF), static_cast<uint8_t>(x >> 8),
+                               static_cast<uint8_t>(y & 0xFF), static_cast<uint8_t>(y >> 8)});
   }
-  frame.push_back(0xF8);
-  frame.push_back(0xF7);
-  frame.push_back(0xF6);
-  frame.push_back(0xF5);
+  frame.insert(frame.end(), {0xF8, 0xF7, 0xF6, 0xF5});
   return frame;
 }
 
-// LD2460 command ACK frame for CMD_SET_REPORTING (0x06), successful.
-inline std::vector<uint8_t> make_ack_frame() {
-  return {
-      0xFD, 0xFC, 0xFB, 0xFA,  // CMD_FRAME_HEADER
-      0x06,                    // command = reporting
-      0x0C, 0x00,              // length = 12
-      0x11,                    // result = ok, enabled
-      0x04, 0x03, 0x02, 0x01   // CMD_FRAME_FOOTER
-  };
+// One target at (1.5 m, 2.3 m)
+inline std::vector<uint8_t> make_periodic_frame() { return make_periodic_frame({{15, 23}}); }
+
+// ACK for the query installation mode command (0x0A); mode 1 = side, 2 = top
+inline std::vector<uint8_t> make_ack_frame(uint8_t mode) {
+  return {0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x0C, 0x00, mode, 0x04, 0x03, 0x02, 0x01};
 }
 
 }  // namespace esphome::ld2460::testing

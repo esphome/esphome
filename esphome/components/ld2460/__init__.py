@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@jesusvallejo"]
+DOMAIN = "ld2460"
 MULTI_CONF = True
 
 ld2460_ns = cg.esphome_ns.namespace("ld2460")
@@ -26,14 +27,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
 )
 
-LD2460BaseSchema = cv.Schema(
-    {
-        cv.GenerateID(CONF_LD2460_ID): cv.use_id(LD2460Component),
-    },
-)
-
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "ld2460",
+    DOMAIN,
     require_tx=True,
     require_rx=True,
     parity="NONE",
