@@ -259,6 +259,13 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   this->delay_until_ = millis() + delay;
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
            TRUEFALSE(this->waiting_for_idle_));
+  // Each step of an update otherwise waits for the next loop iteration. The waveform can take seconds, so the
+  // loop goes back to its normal pace while the panel refreshes.
+  if (state == EPaperState::IDLE || state == EPaperState::POWER_OFF) {
+    this->high_frequency_loop_.stop();
+  } else {
+    this->high_frequency_loop_.start();
+  }
   if (state == EPaperState::IDLE) {
     this->disable_loop();
   }

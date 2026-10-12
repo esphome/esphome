@@ -5,6 +5,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -172,6 +173,7 @@ class EPaperBase : public Display,
   size_t buffer_length_{};
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
+  HighFrequencyLoopRequester high_frequency_loop_;
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
