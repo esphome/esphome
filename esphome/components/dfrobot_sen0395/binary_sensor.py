@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_MOTION
+from esphome.types import ConfigType
 
 from . import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component
 
@@ -16,7 +17,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_DFROBOT_SEN0395_ID])
     binary_sens = await binary_sensor.new_binary_sensor(config)
 

@@ -15,7 +15,7 @@
 
 namespace esphome::ade7880 {
 
-static const char *const TAG = "ade7880";
+ESPHOME_LOG_TAG(TAG, "ade7880");
 
 void IRAM_ATTR ADE7880Store::gpio_intr(ADE7880Store *arg) { arg->reset_done = true; }
 

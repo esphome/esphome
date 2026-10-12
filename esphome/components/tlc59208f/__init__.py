@@ -2,8 +2,10 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
+DOMAIN = "tlc59208f"
 MULTI_CONF = True
 
 tlc59208f_ns = cg.esphome_ns.namespace("tlc59208f")
@@ -20,7 +22,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

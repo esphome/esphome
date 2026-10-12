@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 exposure_notifications:
   on_exposure_notification:
+    # Explicit ble_hub_id: pins the neutral binding as a declared key.
+    ble_hub_id: ble_tracker_hub
     then:
       - lambda: |
           ESP_LOGD("main", "Got notification:");

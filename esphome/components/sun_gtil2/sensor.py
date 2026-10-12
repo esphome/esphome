@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_SUN_GTIL2_ID, SunGTIL2Component
 
@@ -73,23 +74,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_SUN_GTIL2_ID])
-    if ac_voltage_config := config.get(CONF_AC_VOLTAGE):
-        sens = await sensor.new_sensor(ac_voltage_config)
-        cg.add(hub.set_ac_voltage(sens))
-    if dc_voltage_config := config.get(CONF_DC_VOLTAGE):
-        sens = await sensor.new_sensor(dc_voltage_config)
-        cg.add(hub.set_dc_voltage(sens))
-    if ac_power_config := config.get(CONF_AC_POWER):
-        sens = await sensor.new_sensor(ac_power_config)
-        cg.add(hub.set_ac_power(sens))
-    if dc_power_config := config.get(CONF_DC_POWER):
-        sens = await sensor.new_sensor(dc_power_config)
-        cg.add(hub.set_dc_power(sens))
-    if limiter_power_config := config.get(CONF_LIMITER_POWER):
-        sens = await sensor.new_sensor(limiter_power_config)
-        cg.add(hub.set_limiter_power(sens))
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(hub.set_temperature(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_AC_VOLTAGE, hub.set_ac_voltage)
+    await sensors(CONF_DC_VOLTAGE, hub.set_dc_voltage)
+    await sensors(CONF_AC_POWER, hub.set_ac_power)
+    await sensors(CONF_DC_POWER, hub.set_dc_power)
+    await sensors(CONF_LIMITER_POWER, hub.set_limiter_power)
+    await sensors(CONF_TEMPERATURE, hub.set_temperature)

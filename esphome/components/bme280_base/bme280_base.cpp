@@ -11,7 +11,9 @@
 
 namespace esphome::bme280_base {
 
-static const char *const TAG = "bme280.sensor";
+ESPHOME_LOG_TAG(TAG, "bme280.sensor");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 static const uint8_t BME280_REGISTER_DIG_T1 = 0x88;
 static const uint8_t BME280_REGISTER_DIG_T2 = 0x8A;
@@ -221,7 +223,7 @@ void BME280Component::update() {
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
   meas_time += 2.3f * oversampling_to_time(this->humidity_oversampling_) + 0.575f;
 
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ceilf(meas_time)), [this]() {
     uint8_t data[8];
     if (!this->read_bytes(BME280_REGISTER_MEASUREMENTS, data, 8)) {
       ESP_LOGW(TAG, "Error reading registers");
@@ -341,7 +343,6 @@ void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over
 void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
   this->humidity_oversampling_ = humidity_over_sampling;
 }
-void BME280Component::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);

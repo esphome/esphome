@@ -16,26 +16,11 @@ struct TotoData {
 
 class TotoProtocol : public RemoteProtocol<TotoData> {
  public:
-  void encode(RemoteTransmitData *dst, const TotoData &data) override;
-  optional<TotoData> decode(RemoteReceiveData src) override;
-  void dump(const TotoData &data) override;
+  void encode(RemoteTransmitData *dst, const TotoData &data);
+  optional<TotoData> decode(RemoteReceiveData src);
+  void dump(const TotoData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Toto)
-
-template<typename... Ts> class TotoAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, rc_code_1)
-  TEMPLATABLE_VALUE(uint8_t, rc_code_2)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    TotoData data{};
-    data.rc_code_1 = this->rc_code_1_.value(x...);
-    data.rc_code_2 = this->rc_code_2_.value(x...);
-    data.command = this->command_.value(x...);
-    TotoProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base
