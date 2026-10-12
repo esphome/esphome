@@ -1,5 +1,3 @@
-import logging
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import UNIT_COUNTS
@@ -13,8 +11,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 from esphome.types import ConfigType
-
-_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrgnr"]
 DEPENDENCIES = ["i2c"]
@@ -63,17 +59,7 @@ SENSOR_SCHEMA = sensor.sensor_schema(
 )
 
 
-def _warn_deprecated(config: ConfigType) -> ConfigType:
-    # Remove before 2027.5.0
-    _LOGGER.warning(
-        "'as7341' is deprecated and will be removed in 2027.5.0. Use an 'as734x:' hub with "
-        "'type: AS7341' and a 'sensor:' entry with 'platform: as734x' and the bands under "
-        "'counts:'. The count values change because 'as734x' reads the bytes in the right order."
-    )
-    return config
-
-
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AS7341Component),
@@ -93,8 +79,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x39)),
-    _warn_deprecated,
+    .extend(i2c.i2c_device_schema(0x39))
 )
 
 SENSORS = {
