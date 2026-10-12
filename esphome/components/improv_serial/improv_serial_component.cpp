@@ -20,8 +20,6 @@ ESPHOME_LOG_TAG(TAG, "improv_serial");
 
 static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 0;
 
-static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 0;
-
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
 #ifdef USE_IMPROV_SERIAL_UART
