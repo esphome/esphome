@@ -121,6 +121,15 @@ enum BMI270GyroODR : uint8_t {
   BMI270_GYRO_ODR_3200 = 0x0D,
 };
 
+#ifdef USE_BMI270_BMM150
+// What is wired to this instance's auxiliary (secondary I2C master) interface; another
+// instance in the same build may have nothing attached.
+enum BMI270AuxDevice : uint8_t {
+  BMI270_AUX_DEVICE_NONE = 0,
+  BMI270_AUX_DEVICE_BMM150 = 1,
+};
+#endif
+
 // Main component class
 class BMI270Component final : public motion::MotionComponent, public i2c::I2CDevice {
  public:
@@ -136,6 +145,7 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   void set_gyro_odr(BMI270GyroODR o) { this->gyro_odr_ = o; }
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 #ifdef USE_BMI270_BMM150
+  void set_aux_device(BMI270AuxDevice device) { this->aux_device_ = device; }
   void set_aux_device_address(uint8_t address) { this->aux_device_address_ = address; }
   template<typename F> void add_magnetometer_listener(F &&cb) { this->magnetometer_callback_.add(std::forward<F>(cb)); }
 #endif
@@ -167,6 +177,7 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
 #ifdef USE_BMI270_BMM150
   LazyCallbackManager<void(const bmm150::BMM150Data &)> magnetometer_callback_{};
   bmm150::BMM150Trim mag_trim_{};
+  BMI270AuxDevice aux_device_{BMI270_AUX_DEVICE_NONE};
   uint8_t aux_device_address_{bmm150::BMM150_DEFAULT_I2C_ADDRESS};
   bool magnetometer_ready_{false};
 #endif

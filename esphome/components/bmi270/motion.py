@@ -15,6 +15,8 @@ from . import BMI270Component, bmi270_ns
 DEPENDENCIES = ["i2c"]
 
 CONF_AUX_DEVICE = "aux_device"
+
+BMI270AuxDevice = bmi270_ns.enum("BMI270AuxDevice")
 CONF_AUX_ADDRESS = "aux_address"
 
 # What's wired to the BMI270's auxiliary (secondary I2C master) interface, if anything.
@@ -103,7 +105,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_accel_odr(config[CONF_ACCELEROMETER_ODR]))
     cg.add(var.set_gyro_range(config[CONF_GYROSCOPE_RANGE]))
     cg.add(var.set_gyro_odr(config[CONF_GYROSCOPE_ODR]))
-    # The aux interface code only compiles when a BMM150 is configured
+    # The aux interface code only compiles when some instance has a BMM150; the
+    # instance still records its own device, as another one may have none
     if config[CONF_AUX_DEVICE] == "BMM150":
         cg.add_define("USE_BMI270_BMM150")
+        cg.add(var.set_aux_device(BMI270AuxDevice.BMI270_AUX_DEVICE_BMM150))
         cg.add(var.set_aux_device_address(config[CONF_AUX_ADDRESS]))

@@ -147,9 +147,11 @@ void BMI270Component::setup() {
   // This is entirely additive: it is off by default, and failure only disables
   // magnetometer reporting rather than the whole component.
 #ifdef USE_BMI270_BMM150
-  this->magnetometer_ready_ = this->setup_magnetometer_();
-  if (!this->magnetometer_ready_) {
-    ESP_LOGW(TAG, "BMM150 magnetometer setup failed; continuing without it");
+  if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
+    this->magnetometer_ready_ = this->setup_magnetometer_();
+    if (!this->magnetometer_ready_) {
+      ESP_LOGW(TAG, "BMM150 magnetometer setup failed; continuing without it");
+    }
   }
 #endif
 
@@ -277,8 +279,10 @@ void BMI270Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STRS[accel_range_]);
   ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[gyro_range_]);
 #ifdef USE_BMI270_BMM150
-  ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",
-                this->magnetometer_ready_ ? LOG_STR_LITERAL("ready") : LOG_STR_LITERAL("NOT DETECTED"));
+  if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
+    ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",
+                  this->magnetometer_ready_ ? LOG_STR_LITERAL("ready") : LOG_STR_LITERAL("NOT DETECTED"));
+  }
 #endif
   MotionComponent::dump_config();
 }
