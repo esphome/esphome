@@ -140,20 +140,16 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
-    for key, setter in (
-        (CONF_CO2, var.set_co2_sensor),
-        (CONF_TEMPERATURE, var.set_temperature_sensor),
-        (CONF_HUMIDITY, var.set_humidity_sensor),
-        (CONF_PRESSURE, var.set_pressure_sensor),
-        (CONF_BATTERY_LEVEL, var.set_battery_level_sensor),
-        (CONF_MEASUREMENT_INTERVAL, var.set_measurement_interval_sensor),
-        (CONF_MEASUREMENT_AGE, var.set_measurement_age_sensor),
-        (CONF_SIGNAL_STRENGTH, var.set_signal_strength_sensor),
-        (CONF_RADON, var.set_radon_sensor),
-        (CONF_RADIATION_RATE, var.set_radiation_rate_sensor),
-        (CONF_RADIATION_TOTAL, var.set_radiation_total_sensor),
-        (CONF_RADIATION_DURATION, var.set_radiation_duration_sensor),
-    ):
-        if sensor_config := config.get(key):
-            sens = await sensor.new_sensor(sensor_config)
-            cg.add(setter(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_PRESSURE, var.set_pressure_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_MEASUREMENT_INTERVAL, var.set_measurement_interval_sensor)
+    await sensors(CONF_MEASUREMENT_AGE, var.set_measurement_age_sensor)
+    await sensors(CONF_SIGNAL_STRENGTH, var.set_signal_strength_sensor)
+    await sensors(CONF_RADON, var.set_radon_sensor)
+    await sensors(CONF_RADIATION_RATE, var.set_radiation_rate_sensor)
+    await sensors(CONF_RADIATION_TOTAL, var.set_radiation_total_sensor)
+    await sensors(CONF_RADIATION_DURATION, var.set_radiation_duration_sensor)
