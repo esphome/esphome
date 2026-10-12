@@ -43,6 +43,12 @@ climate:
             level: DEBUG
             format: "Alarm deactivated. Code: %d. Message: \"%s\""
             args: [code, message]
+    on_status_message:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Status message: %u bytes"
+            args: [(unsigned) data_size]
 
 sensor:
   - platform: haier
