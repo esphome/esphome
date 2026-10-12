@@ -56,9 +56,7 @@ def set_number_configuration(
 def get_number_configuration(parent_id: object) -> dict[str, bool | float] | None:
     """Return resolved number limits for a TMP102 sensor."""
     return (
-        CORE.data.get(DOMAIN, {})
-        .get(_KEY_NUMBER_CONFIGURATION, {})
-        .get(str(parent_id))
+        CORE.data.get(DOMAIN, {}).get(_KEY_NUMBER_CONFIGURATION, {}).get(str(parent_id))
     )
 
 
