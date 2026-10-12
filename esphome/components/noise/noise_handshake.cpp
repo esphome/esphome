@@ -112,10 +112,8 @@ int NoiseResponderHandshake::read_message(uint8_t *data, size_t len) {
 
 int NoiseResponderHandshake::write_message(uint8_t *out, size_t capacity, size_t &out_len) {
   out_len = 0;
-#ifdef USE_BK72XX
   // The key agreement cannot be split across loop passes
   UnavoidableBlockingScope scope;
-#endif
   CpuFrequencyBoost boost;
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
