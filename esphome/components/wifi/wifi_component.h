@@ -842,6 +842,7 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_LEASE_CACHE
   void load_lease_settings_();
   void save_lease_settings_();
+  void clear_lease_settings_();
   // Cached lease belongs to the selected network and is still provably valid.
   bool lease_valid_for_apply_() const;
   void renew_cached_lease_();

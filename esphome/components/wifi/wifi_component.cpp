@@ -1158,6 +1158,10 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->selected_sta_index_ = 0;
   // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
   this->skip_cooldown_next_cycle_ = true;
+#ifdef USE_WIFI_LEASE_CACHE
+  // Index 0 is a different network now, so its cached lease must not be re-applied
+  this->clear_lease_settings_();
+#endif
 }
 
 WiFiAP WiFiComponent::build_params_for_current_phase_() {
@@ -2461,6 +2465,14 @@ void WiFiComponent::load_lease_settings_() {
   const uint8_t *ip = reinterpret_cast<const uint8_t *>(&this->cached_lease_.ip);  // network byte order
   ESP_LOGD(TAG, "Loaded cached lease %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
            this->cached_lease_.ap_index, this->cached_lease_.lease_secs);
+}
+
+void WiFiComponent::clear_lease_settings_() {
+  if (this->cached_lease_.version == 0)
+    return;
+  this->cached_lease_ = {};
+  this->lease_cache_pref_.save(&this->cached_lease_);
+  ESP_LOGD(TAG, "Lease cache: cleared");
 }
 #endif
 
