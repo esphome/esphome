@@ -145,7 +145,7 @@ void OnlineImage::update() {
 
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = millis();
-  this->last_data_time_ = App.get_loop_component_start_time();
+  this->last_data_time_ = this->start_time_;
   this->enable_loop();
 }
 

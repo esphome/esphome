@@ -10,6 +10,7 @@
 #include "esphome/components/http_request/http_request.h"
 #include "esphome/components/online_image/online_image.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::online_image::testing {
 
@@ -123,19 +124,39 @@ TEST_F(OnlineImageDownloadEnd, NoDataForTimeoutReportsError) {
   this->http_.set_timeout(100);
   auto container = std::make_shared<FakeContainer>(make_bmp(), 20, false);
   auto image = this->make_image_(runtime_image::BMP);
-  set_loop_time(1000);
   this->start_(*image, container);
 
+  const uint32_t now = millis();
+  set_loop_time(now);
   image->loop();
   ASSERT_EQ(container->get_bytes_read(), 20u);
-  set_loop_time(1099);
+  set_loop_time(now + 99);
   image->loop();
   EXPECT_EQ(this->errors_, 0);
 
-  set_loop_time(1100);
+  set_loop_time(now + 100);
   image->loop();
   EXPECT_EQ(this->errors_, 1);
   EXPECT_EQ(this->finished_, 0);
+}
+
+// The time spent connecting and reading the headers must not count as time without data.
+TEST_F(OnlineImageDownloadEnd, NoDataTimeoutStartsAfterRequest) {
+  this->http_.set_timeout(100);
+  auto container = std::make_shared<FakeContainer>(make_bmp(), 0, false);
+  auto image = this->make_image_(runtime_image::BMP);
+  // update() runs in a dispatch that started before the blocking request, here one second earlier
+  set_loop_time(millis() - 1000);
+  this->start_(*image, container);
+
+  const uint32_t now = millis();
+  set_loop_time(now);
+  image->loop();
+  EXPECT_EQ(this->errors_, 0);
+
+  set_loop_time(now + 100);
+  image->loop();
+  EXPECT_EQ(this->errors_, 1);
 }
 
 // A JPEG too big for the heap must fail, and leave the configured buffer for the next download.
