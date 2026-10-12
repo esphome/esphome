@@ -1569,9 +1569,7 @@ register_protocol_action(
 
 
 # RC5X (aka RC5 Marantz)
-RC5XData, RC5XBinarySensor, RC5XTrigger, RC5XAction, RC5XDumper = declare_protocol(
-    "RC5X"
-)
+RC5XData, RC5XBinarySensor, RC5XTrigger, _, RC5XDumper = declare_protocol("RC5X")
 RC5X_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
@@ -1605,14 +1603,14 @@ def rc5x_dumper(var, config):
     pass
 
 
-@register_action("rc5x", RC5XAction, RC5X_SCHEMA)
-async def rc5x_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
-    cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
-    cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_EXTENSION], args, cg.uint8)
-    cg.add(var.set_extension(template_))
+register_protocol_action(
+    "rc5x",
+    "RC5X",
+    RC5X_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_COMMAND, "command", cg.uint8),
+    (CONF_EXTENSION, "extension", cg.uint8),
+)
 
 
 # RC6

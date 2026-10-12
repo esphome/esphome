@@ -29,19 +29,4 @@ class RC5XProtocol : public RemoteProtocol<RC5XData> {
 
 DECLARE_REMOTE_PROTOCOL(RC5X)
 
-template<typename... Ts> class RC5XAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-  TEMPLATABLE_VALUE(uint8_t, extension)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    RC5XData data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    data.extension = this->extension_.value(x...);
-    RC5XProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base
