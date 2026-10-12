@@ -174,11 +174,12 @@ class LIS2DW12Component : public PollingComponent {
 
   uint8_t events_on_{0};  // bit per Event: binary sensor currently published on
   uint32_t last_event_ms_[EVENT_COUNT]{};
+  uint32_t last_poll_ms_{0};
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *event_binary_sensors_[EVENT_COUNT]{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  uint8_t sixd_last_{0xFF};  // SIXD_SRC bit 7 always reads 0, so the first read publishes
+  uint8_t sixd_last_{0xFF};  // position bits only; 0xFF cannot occur, so the first read publishes
 #endif
 
   bool write_reg_(RegisterMap reg, uint8_t value) { return this->write_byte(static_cast<uint8_t>(reg), value); }

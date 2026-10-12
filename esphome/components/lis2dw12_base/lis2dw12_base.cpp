@@ -10,6 +10,9 @@ ESPHOME_LOG_TAG(TAG, "lis2dw12_base");
 static constexpr uint8_t LIS2DW12_WHO_AM_I_VALUE = 0x44;
 static constexpr float GRAVITY_EARTH = 9.80665f;
 static constexpr uint32_t EVENT_COOLDOWN_MS = 500;
+// Interrupts are latched until ALL_INT_SRC is read, so polling slower than the loop loses nothing
+static constexpr uint32_t POLL_INTERVAL_MS = 50;
+static constexpr uint8_t SIXD_POSITION_MASK = 0x3F;  // XL..ZH, leaving out D6D_IA
 
 static const LogString *power_mode_to_string(PowerMode mode) {
   switch (mode) {
@@ -239,10 +242,11 @@ static const char *orientation_to_string(RegSixdSrc sixd) {
 }
 
 void LIS2DW12Component::publish_orientation_(RegSixdSrc sixd) {
-  if (this->orientation_text_sensor_ == nullptr || sixd.raw == this->sixd_last_) {
+  const uint8_t position = sixd.raw & SIXD_POSITION_MASK;
+  if (this->orientation_text_sensor_ == nullptr || position == this->sixd_last_) {
     return;
   }
-  this->sixd_last_ = sixd.raw;
+  this->sixd_last_ = position;
   this->orientation_text_sensor_->publish_state(orientation_to_string(sixd));
 }
 #endif
@@ -276,6 +280,12 @@ void LIS2DW12Component::handle_event_(Event event, bool active, uint32_t now, La
 }
 
 void LIS2DW12Component::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_poll_ms_ < POLL_INTERVAL_MS) {
+    return;
+  }
+  this->last_poll_ms_ = now;
+
   // SIXD_SRC and ALL_INT_SRC are adjacent; one read captures the orientation before the latch clears
   uint8_t regs[2];
   if (!this->read_bytes(static_cast<uint8_t>(RegisterMap::SIXD_SRC), regs, sizeof(regs))) {
@@ -285,7 +295,6 @@ void LIS2DW12Component::loop() {
   RegAllIntSrc src;
   src.raw = regs[1];
 
-  const uint32_t now = App.get_loop_component_start_time();
   this->handle_event_(EVENT_TAP, src.single_tap, now, this->tap_callback_);
   this->handle_event_(EVENT_DOUBLE_TAP, src.double_tap, now, this->double_tap_callback_);
   this->handle_event_(EVENT_FREEFALL, src.ff_ia, now, this->freefall_callback_);
