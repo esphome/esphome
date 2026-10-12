@@ -65,6 +65,7 @@ class OTARequestHandler : public AsyncWebHandler {
   uint32_t ota_read_length_{0};
   WebServerOTAComponent *parent_;
   bool ota_success_{false};
+  bool ota_busy_{false};  ///< begin() was refused because another update holds the lock
 
  private:
   ota::OTABackendPtr ota_backend_{nullptr};
@@ -106,6 +107,7 @@ void OTARequestHandler::ota_init_(const char *filename) {
   ESP_LOGI(TAG, "OTA Update Start: %s", filename);
   this->ota_read_length_ = 0;
   this->ota_success_ = false;
+  this->ota_busy_ = false;
 }
 
 void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index,
@@ -150,6 +152,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     error_code = this->ota_backend_->begin(0);
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA begin failed: %d", error_code);
+      this->ota_busy_ = error_code == ota::OTA_RESPONSE_ERROR_UPDATE_BUSY;
       this->ota_backend_.reset();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
@@ -206,6 +209,8 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       this->schedule_ota_reboot_();
     } else {
       ESP_LOGE(TAG, "OTA end failed: %d", error_code);
+      // Reset the platform updater too before the lock is released with the backend.
+      this->ota_backend_->abort();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -230,14 +235,17 @@ void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_ESP8266
   static const char UPDATE_SUCCESS[] PROGMEM = "Update Successful!";
   static const char UPDATE_FAILED[] PROGMEM = "Update Failed!";
+  static const char UPDATE_BUSY[] PROGMEM = "Update Failed! Another update is in progress, retry later.";
   static const char TEXT_PLAIN[] PROGMEM = "text/plain";
   static const char CONNECTION_STR[] PROGMEM = "Connection";
   static const char CLOSE_STR[] PROGMEM = "close";
-  const char *msg = this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED;
+  const char *msg = this->ota_success_ ? UPDATE_SUCCESS : (this->ota_busy_ ? UPDATE_BUSY : UPDATE_FAILED);
   response = request->beginResponse_P(200, TEXT_PLAIN, msg);
   response->addHeader(CONNECTION_STR, CLOSE_STR);
 #else
-  const char *msg = this->ota_success_ ? "Update Successful!" : "Update Failed!";
+  const char *msg = this->ota_success_ ? "Update Successful!"
+                    : this->ota_busy_  ? "Update Failed! Another update is in progress, retry later."
+                                       : "Update Failed!";
   response = request->beginResponse(200, "text/plain", msg);
   response->addHeader("Connection", "close");
 #endif

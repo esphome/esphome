@@ -1,5 +1,9 @@
 #include "ota_backend.h"
 
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#include <atomic>
+#endif
+
 namespace esphome::ota {
 
 bool version_is_older(const char *candidate, const char *reference) {
@@ -30,49 +34,58 @@ bool version_is_older(const char *candidate, const char *reference) {
   }
 }
 
-// The mutex only guards the check-and-set: the lock may be released from another task than the one
-// that took it, which a FreeRTOS mutex does not allow, and not every platform has atomic exchange.
+// The flag is set and cleared without blocking; a refused update fails at once. The lock may be released
+// from another task than the one that took it, so it can't simply be a FreeRTOS mutex held for the update.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+// uint8_t rather than bool: GCC on Xtensa does not inline std::atomic<bool> operations.
+static std::atomic<uint8_t> update_locked{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static bool update_lock_test_and_set() { return update_locked.exchange(1) == 0; }
+static void update_lock_clear() { update_locked.store(0); }
+#else
 static bool update_locked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename F> static bool with_update_lock_mutex(F &&f) {
-#ifdef ESPHOME_THREAD_SINGLE
-  // One thread, and no update starts from an interrupt: nothing can run between the check and the set.
-  return f();
-#else
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+// No atomic exchange on these cores (BK72xx): guard only the check-and-set.
+static Mutex &update_lock_mutex() {
   static Mutex mutex;
-  LockGuard guard(mutex);
-  return f();
+  return mutex;
+}
 #endif
+
+static bool update_lock_test_and_set() {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#endif
+  // ESPHOME_THREAD_SINGLE: one thread, and no update starts from an interrupt.
+  if (update_locked)
+    return false;
+  update_locked = true;
+  return true;
 }
 
+static void update_lock_clear() {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#endif
+  update_locked = false;
+}
+#endif
+
 bool UpdateLock::try_acquire() {
-  if (!this->held_) {
-    this->held_ = with_update_lock_mutex([]() {
-      if (update_locked)
-        return false;
-      update_locked = true;
-      return true;
-    });
-  }
+  if (!this->held_)
+    this->held_ = update_lock_test_and_set();
   return this->held_;
 }
 
 void UpdateLock::release() {
   if (!this->held_)
     return;
-  with_update_lock_mutex([]() {
-    update_locked = false;
-    return true;
-  });
+  update_lock_clear();
   this->held_ = false;
 }
 
-void UpdateLock::force_release() {
-  with_update_lock_mutex([]() {
-    update_locked = false;
-    return true;
-  });
-}
+void UpdateLock::force_release() { update_lock_clear(); }
 
 #ifdef USE_OTA_STATE_LISTENER
 OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
