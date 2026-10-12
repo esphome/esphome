@@ -4,7 +4,7 @@
 
 namespace esphome::apds9960 {
 
-static const char *const TAG = "apds9960";
+ESPHOME_LOG_TAG(TAG, "apds9960");
 
 #define APDS9960_ERROR_CHECK(func) \
   if (!(func)) { \

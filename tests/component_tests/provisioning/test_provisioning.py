@@ -11,6 +11,7 @@ from esphome.components.provisioning import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     register_source,
+    report_ap_without_sta,
     report_hardcoded_credentials,
 )
 from esphome.const import CONF_TIMEOUT, PlatformFramework
@@ -64,6 +65,32 @@ def test_provisioning_no_warning_without_hardcoded_credentials(
     with caplog.at_level(logging.WARNING):
         FINAL_VALIDATE_SCHEMA({})
     assert "credentials" not in caplog.text
+
+
+def test_provisioning_warns_on_ap_without_sta(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An access point with no station credentials triggers a reachability warning."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    register_source("network")
+    report_ap_without_sta()
+    with caplog.at_level(logging.WARNING):
+        FINAL_VALIDATE_SCHEMA({})
+    assert "access point" in caplog.text
+    assert "unreachable" in caplog.text
+
+
+def test_provisioning_no_warning_without_ap(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No reachability warning when no AP-without-station setup is reported."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    register_source("network")
+    with caplog.at_level(logging.WARNING):
+        FINAL_VALIDATE_SCHEMA({})
+    assert "access point" not in caplog.text
 
 
 def test_provisioning_rejects_zero_timeout(

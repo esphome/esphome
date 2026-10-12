@@ -3,7 +3,7 @@
 
 namespace esphome::pcf8574 {
 
-static const char *const TAG = "pcf8574";
+ESPHOME_LOG_TAG(TAG, "pcf8574");
 
 void PCF8574Component::setup() {
   if (!this->read_gpio_()) {

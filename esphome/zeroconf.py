@@ -56,6 +56,7 @@ TXT_RECORD_PROJECT_VERSION = b"project_version"
 TXT_RECORD_NETWORK = b"network"
 TXT_RECORD_FRIENDLY_NAME = b"friendly_name"
 TXT_RECORD_VERSION = b"version"
+TXT_RECORD_OTA_SIGNED = b"ota_signed"
 
 
 @dataclass
@@ -76,6 +77,8 @@ class DiscoveredImport:
     project_name: str
     project_version: str
     network: str
+    # Defaults False so entries persisted before this field still load.
+    ota_signed: bool = False
 
 
 class DashboardBrowser(AsyncServiceBrowser):
@@ -169,6 +172,7 @@ class DashboardImportDiscovery:
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
         network = info.properties.get(TXT_RECORD_NETWORK, b"wifi").decode()
+        ota_signed = info.properties.get(TXT_RECORD_OTA_SIGNED) == b"1"
         friendly_name = info.properties.get(TXT_RECORD_FRIENDLY_NAME)
         if friendly_name is not None:
             friendly_name = friendly_name.decode()
@@ -180,6 +184,7 @@ class DashboardImportDiscovery:
             project_name=project_name,
             project_version=project_version,
             network=network,
+            ota_signed=ota_signed,
         )
         is_new = name not in self.import_state
         self.import_state[name] = discovered

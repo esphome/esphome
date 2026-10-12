@@ -16,7 +16,7 @@ namespace esphome::sun {
 
 using namespace esphome::sun::internal;
 
-static const char *const TAG = "sun";
+ESPHOME_LOG_TAG(TAG, "sun");
 
 #undef degrees
 #undef radians

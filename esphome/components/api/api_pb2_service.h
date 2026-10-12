@@ -29,6 +29,13 @@ class APIServerConnectionBase {
 
   void on_device_capabilities_request(){};
 
+#ifdef USE_API_WIZARD
+  void on_device_wizard_request(){};
+#endif
+
+#ifdef USE_API_WIZARD_INPUTS
+  void on_wizard_input_set_request(const WizardInputSetRequest &value){};
+#endif
   void on_list_entities_request(){};
 
   void on_subscribe_states_request(){};
@@ -213,7 +220,7 @@ class APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
 #endif
 
@@ -235,8 +242,19 @@ class APIServerConnectionBase {
   void on_serial_proxy_request(const SerialProxyRequest &value){};
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &value){};
+#endif
+#ifdef USE_SERIAL_PROXY
+  void on_subscribe_serial_proxy_identity_request(){};
+#endif
+
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
+#endif
+
+#ifdef USE_SENDSPIN
+  void on_sendspin_pairing_token_request(){};
 #endif
 };
 

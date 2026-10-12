@@ -3,7 +3,7 @@
 
 namespace esphome::resistance {
 
-static const char *const TAG = "resistance";
+ESPHOME_LOG_TAG(TAG, "resistance");
 
 void ResistanceSensor::dump_config() {
   LOG_SENSOR("", "Resistance Sensor", this);
@@ -11,8 +11,8 @@ void ResistanceSensor::dump_config() {
                 "  Configuration: %s\n"
                 "  Resistor: %.2fΩ\n"
                 "  Reference Voltage: %.1fV",
-                this->configuration_ == UPSTREAM ? "UPSTREAM" : "DOWNSTREAM", this->resistor_,
-                this->reference_voltage_);
+                this->configuration_ == UPSTREAM ? LOG_STR_LITERAL("UPSTREAM") : LOG_STR_LITERAL("DOWNSTREAM"),
+                this->resistor_, this->reference_voltage_);
 }
 void ResistanceSensor::process_(float value) {
   if (std::isnan(value)) {
