@@ -330,15 +330,6 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   std::memcpy(this->request_, pdu_buffer, pdu_len);
   this->request_len_ = static_cast<uint8_t>(pdu_len);
 #endif
-
-  ModbusServerDevice *device = nullptr;
-  if (address != BROADCAST_ADDRESS) {
-    device = this->find_device_(address);
-    if (device == nullptr) {
-      this->expecting_peer_response_ = address;
-      ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
-    }
-  }
 #ifdef MODBUS_ON_REQUEST_COUNT
   // Before a device here answers, so the monitor sees the bus in order.
   this->request_callback_.call(address, pdu);
@@ -347,8 +338,8 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   if (address == BROADCAST_ADDRESS) {
     // Keep the unicast response buffers out of the broadcast call chain.
     this->process_broadcast_frame_(function_code, data);
-  } else if (device != nullptr) {
-    this->process_modbus_client_frame_(device, address, function_code, data);
+  } else {
+    this->process_modbus_client_frame_(address, function_code, data);
   }
 
   return true;
@@ -395,12 +386,12 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   // Deliver at parse time so the response span can point into the rx buffer (zero copy). error()/
   // response() set the state and consume the request BEFORE the callback, so a clear from inside it
   // ("stop polling now") wins. A device-less shell runs no callback and the sweep erases it.
-#ifdef MODBUS_ON_RESPONSE_COUNT
-  // Before the device callback, which may consume the request.
-  this->response_callback_.call(address, cmd->frame.pdu(), pdu);
-#endif
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  // Next to the device's on_response/on_error. Also for a device-less shell, which runs no device callback.
+  this->response_callback_.call(address, cmd->frame.pdu(), pdu);
+#endif
   if (helpers::is_function_code_exception(function_code)) {
     uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
     ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "us after last send",
@@ -638,8 +629,15 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
   return true;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(ModbusServerDevice *device, uint8_t address, uint8_t function_code,
+void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
                                                    std::span<const uint8_t> data) {
+  ModbusServerDevice *device = this->find_device_(address);
+  if (device == nullptr) {
+    this->expecting_peer_response_ = address;
+    ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
+    return;
+  }
+
   ResponseStatus status;
   uint8_t response_buffer[modbus::MAX_RAW_SIZE];
   const uint8_t *response_data = response_buffer;
@@ -858,9 +856,9 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
-  cmd->mark_sent();
+  cmd->sent();
   if (cmd->fire_and_forget()) {
-    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent below
+    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
     // reports the transmission, and the entry then retires with no terminal callback instead of
     // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
     // spaces the next frame; the following sweep erases the entry.
@@ -871,11 +869,10 @@ void ModbusClientHub::send_next_frame_() {
     this->waiting_for_response_ = true;
   }
 #ifdef MODBUS_ON_REQUEST_COUNT
-  // Once per frame on the wire, retries included. After the bookkeeping, so a request queued from the
-  // handler is not taken into a broadcast that has just been completed. Before on_sent: the monitor first.
+  // Once per frame on the wire, retries included. After the bookkeeping: a broadcast queued from the handler
+  // must not be merged into the one just completed.
   this->request_callback_.call(cmd->frame.address(), cmd->frame.pdu());
 #endif
-  cmd->sent();
 }
 
 void ModbusClientHub::dump_config() {
@@ -971,6 +968,7 @@ ModbusDeviceCommand *ModbusClientHub::select_next_ready_() {
 }
 
 bool ModbusDeviceCommand::sent() {
+  this->state = FrameState::WAITING;
   // on_sent() is not a terminal, so nothing is consumed.
   if (this->device == nullptr)
     return false;

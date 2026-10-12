@@ -14,9 +14,8 @@ CONF_ON_REQUEST = "on_request"
 
 
 def _handler() -> cv.All:
-    return cv.All(
-        automation.validate_automation(single=True),
-        modbus.synchronous_handler("modbus_monitor"),
+    return automation.validate_synchronous_automation(
+        "modbus_monitor handlers", "the request/response data", single=True
     )
 
 

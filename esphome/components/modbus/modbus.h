@@ -190,10 +190,8 @@ struct ModbusDeviceCommand {
     return this->frame.address() == BROADCAST_ADDRESS && !this->options.allow_broadcast_read &&
            !this->options.expect_broadcast_write_response;
   }
-  // The frame is on the wire. Set before any callback runs, so a clear from inside one sees it in flight.
-  void mark_sent() { this->state = FrameState::WAITING; }
-  // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent follows),
-  // but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.
+  // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
+  // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.
   void complete_broadcast() {
     this->state = FrameState::RETIRED;
     this->pending = 0;
@@ -253,7 +251,7 @@ struct ModbusDeviceCommand {
 
   // Terminal/lifecycle methods: each owns its transition, callback, and pending accounting and
   // returns whether a callback ran.
-  bool sent();  // on_sent only: its transition is mark_sent(), made first so the hub's on_request runs in between
+  bool sent();
   bool response(std::span<const uint8_t> response_pdu);
   bool error(ExceptionCode exception_code);
   bool interrupt();
@@ -350,8 +348,7 @@ class ModbusServerHub : public Modbus {
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
-  void process_modbus_client_frame_(ModbusServerDevice *device, uint8_t address, uint8_t function_code,
-                                    std::span<const uint8_t> data);
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
   void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
   // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the address order register
@@ -426,8 +423,8 @@ class ModbusServerHub : public Modbus {
 /// - Callbacks are delivered only from within loop().
 /// - At most one callback is ever issued between calls to sweep_():
 ///     sweep_ -> parse (response OR error) OR timeout (no_response) -> sweep_ -> send (sent) -> sweep_ (next loop)
-///   The hub's own on_request callbacks run in the send step right before on_sent, and its on_response callbacks in
-///   the parse step just before the device's on_response/on_error; they are not device callbacks.
+///   The hub's own on_request callbacks run at the end of the send step, after on_sent, and its on_response callbacks
+///   in the parse step right before the device's on_response/on_error; they are not device callbacks.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
