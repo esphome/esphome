@@ -2131,7 +2131,7 @@ SOMFY_RTS_SCHEMA = cv.Schema(
 
 
 @register_binary_sensor("somfy_rts", SomfyRtsBinarySensor, SOMFY_RTS_SCHEMA)
-def somfy_rts_binary_sensor(var, config):
+def somfy_rts_binary_sensor(var: MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_data(
             cg.StructInitializer(
@@ -2147,13 +2147,13 @@ def somfy_rts_binary_sensor(var, config):
 
 
 @register_trigger("somfy_rts", SomfyRtsTrigger, SomfyRtsData)
-def somfy_rts_trigger(var, config):
-    pass
+def somfy_rts_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
 
 
 @register_dumper("somfy_rts", SomfyRtsDumper)
-def somfy_rts_dumper(var, config):
-    pass
+def somfy_rts_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
 
 
 register_protocol_action(

@@ -51,7 +51,6 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
   }
   frame[1] |= (crc & 0x0F);
 
-  // Obfuscate with XOR
   for (uint8_t i = 1; i < FRAME_SIZE_IN_BYTES; i++) {
     frame[i] ^= frame[i - 1];
   }
