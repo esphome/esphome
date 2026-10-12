@@ -350,6 +350,8 @@ This platform works with the `arduino` framework and ESP-IDF (on ESP32), and sho
 
 This platform utilises the library's generic one-size-fits-all API, which might not line up perfectly with all of the supported AC units. For example, some AC units have more fan speed options than what the generic API supports.
 
+The `mitsubishi_heavy_zj` and `mitsubishi_heavy_zmp` protocols expose **ECO** and **BOOST** climate presets. ECO maps to `FAN_5` (Econo / energy-saver mode) and BOOST maps to `FAN_4` (HiPower / turbo mode). On these protocols, `FAN_4` and `FAN_5` are operating modes rather than fan speeds — normal fan control uses `FAN_1` through `FAN_3`. Preset commands take priority over fan speed when both are set.
+
 The `mitsubishi_heavy_zmp` protocol can also decode frames from the physical remote, so the climate state follows
 the remote. Set up a receiver as shown in [Using a Receiver](#ir-receiver_id) and pass its ID as `receiver_id`;
 other protocols ignore received frames.
