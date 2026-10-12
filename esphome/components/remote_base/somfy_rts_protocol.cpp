@@ -29,11 +29,11 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
   uint8_t frame[FRAME_SIZE_IN_BYTES];
   // Some non standard remotes put the control nibble in the key byte and send 0xF in the control nibble
   if (data.control_in_key) {
-    frame[0] = (data.key & 0xF0) | data.control;
+    frame[0] = (data.key & 0xF0) | (data.control & 0x0F);
     frame[1] = 0xF0;
   } else {
     frame[0] = data.key;
-    frame[1] = data.control << 4;
+    frame[1] = (data.control & 0x0F) << 4;
   }
   frame[2] = data.rolling_code >> 8;
   frame[3] = data.rolling_code;
