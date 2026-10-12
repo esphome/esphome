@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FILTERS,
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
     CONF_HAS_TARGET,
@@ -19,6 +20,18 @@ DEPENDENCIES = ["ld2450"]
 ICON_MEDITATION = "mdi:meditation"
 ICON_SHIELD_ACCOUNT = "mdi:shield-account"
 ICON_TARGET_ACCOUNT = "mdi:target-account"
+
+
+def _reject_filters(config: ConfigType) -> ConfigType:
+    # Clearing a polygon makes presence unknown without going through filters, so they would get out of step
+    if CONF_FILTERS in config:
+        raise cv.Invalid(
+            "Polygon zone presence binary sensors can't have filters; use the ld2450 number platform's "
+            "'presence_timeout' to keep presence on after targets leave",
+            path=[CONF_FILTERS],
+        )
+    return config
+
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
@@ -45,7 +58,8 @@ CONFIG_SCHEMA = {
             {
                 cv.Required(CONF_POLYGON_ZONE_ID): cv.use_id(PolygonZone),
             }
-        )
+        ),
+        _reject_filters,
     ),
 }
 
