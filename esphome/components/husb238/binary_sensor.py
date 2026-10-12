@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_NAME, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import CONF_NAME, DEVICE_CLASS_PLUG, ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
 from . import CONF_HUSB238_ID, Husb238Component
@@ -11,16 +11,22 @@ DEPENDENCIES = ["husb238"]
 CONF_ATTACHED = "attached"
 CONF_CC_DIRECTION = "cc_direction"
 
-_DIAGNOSTIC_SCHEMA = cv.maybe_simple_value(
-    binary_sensor.binary_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
-    key=CONF_NAME,
-)
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_HUSB238_ID): cv.use_id(Husb238Component),
-        cv.Optional(CONF_ATTACHED): _DIAGNOSTIC_SCHEMA,
-        cv.Optional(CONF_CC_DIRECTION): _DIAGNOSTIC_SCHEMA,
+        cv.Optional(CONF_ATTACHED): cv.maybe_simple_value(
+            binary_sensor.binary_sensor_schema(
+                device_class=DEVICE_CLASS_PLUG,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            key=CONF_NAME,
+        ),
+        cv.Optional(CONF_CC_DIRECTION): cv.maybe_simple_value(
+            binary_sensor.binary_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            ),
+            key=CONF_NAME,
+        ),
     }
 )
 

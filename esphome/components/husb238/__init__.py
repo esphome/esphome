@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "husb238"
+MULTI_CONF = True
 
 CONF_HUSB238_ID = "husb238_id"
 
