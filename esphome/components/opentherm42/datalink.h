@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include "esphome/core/hal.h"
 
 #ifdef USE_ESP32
@@ -16,6 +17,13 @@ struct Frame {
   uint8_t id{0};
   uint8_t value_hb{0};
   uint8_t value_lb{0};
+
+  // f8.8: signed fixed point, 1 sign bit + 7 integer bits + 8 fractional bits (§5.1).
+  void set_value_f88(float value) {
+    auto const raw = static_cast<uint16_t>(static_cast<int16_t>(std::clamp(value * 256.0f, -32768.0f, 32767.0f)));
+    this->value_hb = static_cast<uint8_t>(raw >> 8);
+    this->value_lb = static_cast<uint8_t>(raw & 0xFF);
+  }
 };
 
 // §4.2.2: the 3-bit MSG-TYPE field. Master-to-boiler uses READ_DATA/WRITE_DATA/INVALID_DATA (011 is
