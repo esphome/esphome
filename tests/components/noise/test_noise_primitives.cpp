@@ -17,12 +17,17 @@ TEST(NoiseContextTest, AllZerosPskIsReserved) {
   EXPECT_FALSE(NoiseContext::is_all_zeros(psk));
 
   NoiseContext ctx;
+  psk_t loaded;
   EXPECT_FALSE(ctx.has_psk());
-  ctx.set_psk(zeros);
-  EXPECT_FALSE(ctx.has_psk());
-  ctx.set_psk(psk);
+  ctx.load_psk(loaded);
+  EXPECT_EQ(loaded, zeros);
+  ctx.set_psk(psk.data());
   EXPECT_TRUE(ctx.has_psk());
-  EXPECT_EQ(ctx.get_psk(), psk);
+  ctx.load_psk(loaded);
+  EXPECT_EQ(loaded, psk);
+  // Callers map the reserved key to nullptr; the context just stores what it is given
+  ctx.set_psk(nullptr);
+  EXPECT_FALSE(ctx.has_psk());
 }
 
 TEST(WireFormatTest, FrameHeaderIsIndicatorPlusBigEndianLength) {

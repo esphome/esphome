@@ -1,0 +1,15 @@
+button:
+  - platform: template
+    name: Duty Time Actions
+    on_press:
+      - if:
+          condition:
+            sensor.duty_time.is_running: pump_duty_time
+          then:
+            - sensor.duty_time.stop: pump_duty_time
+      - if:
+          condition:
+            sensor.duty_time.is_not_running: pump_duty_time
+          then:
+            - sensor.duty_time.start: pump_duty_time
+      - sensor.duty_time.reset: pump_duty_time

@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 #include <zephyr/net/openthread.h>
 
-static const char *const TAG = "openthread";
+ESPHOME_LOG_TAG(TAG, "openthread");
 
 namespace esphome::openthread {
 
@@ -83,9 +83,10 @@ void OpenThreadComponent::setup() {
   }
   openthread_state_changed_cb_register(context, &ot_state_changed_cb);
   openthread_start(context);
-}
 
-void OpenThreadComponent::ot_main() {}
+  InstanceLock lock = InstanceLock::acquire();
+  this->apply_linkmode_(lock.get_instance());
+}
 
 otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
 

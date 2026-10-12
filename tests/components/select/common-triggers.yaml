@@ -1,0 +1,14 @@
+# on_value with both trigger arguments.
+select:
+  - platform: template
+    name: Select Triggers
+    id: select_triggers
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    on_value:
+      - logger.log:
+          format: "Selected %s at %zu"
+          args: [x.c_str(), i]

@@ -53,6 +53,14 @@ def test_jpeg_alias_maps_to_one_enum(
     assert _get_data().artwork_preferences[0]["format"] == IMAGE_FORMAT_JPEG
 
 
+def test_bmp_rejected(set_core_config: SetCoreConfigCallable) -> None:
+    """The Sendspin protocol only allows JPEG and PNG artwork."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    with pytest.raises(cv.Invalid, match="BMP artwork is no longer supported"):
+        CONFIG_SCHEMA(_slot_config(format="BMP"))
+
+
 def test_too_many_slots_rejected(set_core_config: SetCoreConfigCallable) -> None:
     """Slot numbers run out after MAX_ARTWORK_SLOTS entries."""
     set_core_config(PlatformFramework.ESP32_IDF)

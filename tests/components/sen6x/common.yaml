@@ -28,8 +28,21 @@ sensor:
       accuracy_decimals: 1
     nox_index:
       name: NOx Index
+      algorithm_tuning:
+        index_offset: 8
+        learning_time_offset_hours: 6
+        learning_time_gain_hours: 24
+        gating_max_duration_minutes: 900
+        gain_factor: 180
     voc_index:
       name: VOC Index
+      algorithm_tuning:
+        index_offset: 120
+        learning_time_offset_hours: 6
+        learning_time_gain_hours: 24
+        gating_max_duration_minutes: 240
+        std_initial: 75
+        gain_factor: 180
     co2:
       name: Carbon Dioxide
     formaldehyde:

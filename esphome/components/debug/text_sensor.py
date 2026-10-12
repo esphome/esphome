@@ -9,11 +9,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import (  # noqa: F401  pylint: disable=unused-import
-    CONF_DEBUG_ID,
-    FILTER_SOURCE_FILES,
-    DebugComponent,
-)
+from . import CONF_DEBUG_ID, FILTER_SOURCE_FILES, DebugComponent  # noqa: F401  pylint: disable=unused-import
 
 DEPENDENCIES = ["debug"]
 
@@ -35,11 +31,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
+    hub = await cg.get_variable(config[CONF_DEBUG_ID])
 
-    if CONF_DEVICE in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_DEVICE])
-        cg.add(debug_component.set_device_info_sensor(sens))
-    if CONF_RESET_REASON in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_RESET_REASON])
-        cg.add(debug_component.set_reset_reason_sensor(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_DEVICE, hub.set_device_info_sensor)
+    await text_sensors(CONF_RESET_REASON, hub.set_reset_reason_sensor)

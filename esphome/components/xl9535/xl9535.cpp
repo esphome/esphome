@@ -3,7 +3,7 @@
 
 namespace esphome::xl9535 {
 
-static const char *const TAG = "xl9535";
+ESPHOME_LOG_TAG(TAG, "xl9535");
 
 void XL9535Component::setup() {
   // Check to see if the device can read from the register
