@@ -56,8 +56,10 @@ static Mutex &update_lock_mutex() {
 static bool update_lock_test_and_set() {
 #ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
   LockGuard guard(update_lock_mutex());
+#else
+  // ESPHOME_THREAD_SINGLE: network callbacks may run from an interrupt (lwIP on RP2040).
+  InterruptLock guard;
 #endif
-  // ESPHOME_THREAD_SINGLE: one thread, and no update starts from an interrupt.
   if (update_locked)
     return false;
   update_locked = true;
