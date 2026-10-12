@@ -21,8 +21,8 @@ PIOASM_DOWNLOADS = {
         "amd64": f"x86_64-w64-mingw32.{PIOASM_VERSION}.zip",
     },
     "darwin": {
-        "x86_64": f"x86_64-apple-darwin14.{PIOASM_VERSION}.tar.gz",
-        "arm64": f"x86_64-apple-darwin14.{PIOASM_VERSION}.tar.gz",
+        "x86_64": f"x86_64-apple-darwin20.4.{PIOASM_VERSION}.tar.gz",
+        "arm64": f"aarch64-apple-darwin20.4.{PIOASM_VERSION}.tar.gz",
     },
 }
 
