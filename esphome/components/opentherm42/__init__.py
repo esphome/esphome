@@ -113,6 +113,13 @@ CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPDATE_EVERY = (
 CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPDATE_EVERY = (
     "pre_defined_remote_boiler_parameters_max_chsetp_update_every"
 )
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAX_CAPACITY_MIN_MOD_LEVEL_UPDATE_EVERY = (
+    "control_of_special_applications_max_capacity_min_mod_level_update_every"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_EVERY = (
+    "control_of_special_applications_remote_override_operating_mode_update_every"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_EVERY = "control_of_special_applications_remote_override_room_setpoint_function_update_every"
 # §5.3.6 Class 6, IDs 11/89/106: all three TSP families round-robin through one shared
 # conversation (see hub.h's tsp_slots_) -- this governs how fast that rotation advances as a
 # whole, not any individual slot's own refresh rate. On-demand writes always jump the queue ahead
@@ -151,6 +158,7 @@ UPDATE_EVERY_OPTIONS: dict[str, int] = {
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY_FLAGS_UPDATE_EVERY: 6,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPDATE_EVERY: 6,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPDATE_EVERY: 6,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_UPDATE_EVERY: 6,
     # Tier 7: identification strings/versions and TSP/FHB round-robins.
     CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
     CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY: 7,
@@ -164,6 +172,10 @@ UPDATE_EVERY_OPTIONS: dict[str, int] = {
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_EVERY: 4,
     # Tier 3: live process sensors that change during active operation.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_UPDATE_EVERY: 3,
+    # Tier 5: occasional-fault/diagnostic codes and fixed installation ratings.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAX_CAPACITY_MIN_MOD_LEVEL_UPDATE_EVERY: 5,
+    # Tier 2: actively-controlled outputs.
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_UPDATE_EVERY: 2,
 }
 
 # §5.3.2 Class 2: this master's own identity, written to the boiler once at startup (IDs 2 LB/126).
