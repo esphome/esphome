@@ -132,6 +132,53 @@ wifi:
   > Be aware that marking networks as hidden prevents ESPHome from finding the best access point to connect to,
   > so the device may not connect to the AP with the best signal strength.
 
+- **lease_cache** (*Optional*): Only on `esp32` with the ESP-IDF framework. Remembers the DHCP lease the device is
+  assigned and, on the next boot, re-applies it as a static IP **without running DHCP** while it is still valid. This
+  skips the DHCP handshake, so the network is usable in milliseconds. It is most useful for battery-powered devices
+  that wake from deep sleep frequently. Disabled by default. Accepts a boolean, or a settings block:
+
+  ```yaml
+  wifi:
+    # ...
+    lease_cache:
+      storage: rtc
+      max_age: 12h
+  ```
+
+  - **enabled** (*Optional*, boolean): Whether the lease cache is active. Defaults to `true` when the block form is
+    used.
+  - **storage** (*Optional*, string): Where to persist the cached lease. One of:
+
+    - `rtc`: stored in RTC memory, which survives software reboots and deep sleep but **not** power loss, and avoids
+      flash wear. This is the default where RTC memory is available.
+    - `flash`: survives power loss, but wears flash, so it must be selected explicitly. The lease is written again
+      whenever its details change. After a power cycle the device cannot age the stored lease (see the note below),
+      so it runs DHCP and writes the lease once more before the cache is useful again.
+
+    The ESP32-C2 and C61 variants have no RTC memory, so `storage: flash` must be set to use the cache on them.
+    Without it, the configuration is rejected.
+
+  - **max_age** (*Optional*, [Time](/guides/configuration-types#time)): Do not re-use a cached lease older than this,
+    regardless of the lease length the DHCP server granted. By default there is no extra limit, and a cached lease is
+    re-used until its renewal deadline.
+
+  > [!NOTE]
+  > A cached lease is only re-applied after a deep-sleep wake or a software reboot, where the device can measure how
+  > much time has passed; after a power cycle it cannot, so it falls back to a normal DHCP request. A user-configured
+  > `manual_ip` always takes precedence and disables the cache.
+  >
+  > If the device is still awake when a cached lease reaches its renewal deadline (about half the lease by default),
+  > it requests a new address over DHCP. This drops the address for a moment, so open connections such as the native
+  > API or MQTT may drop and reconnect.
+
+  > [!WARNING]
+  > A cached lease is re-applied without checking that the address is still free. If the network behind the SSID
+  > changes — the router is replaced or moved to a different subnet, or the DHCP server forgets the lease and reassigns
+  > the address — the cached address may be wrong or clash with another device. An awake device recovers at the lease's
+  > renewal deadline (about half the lease by default) by falling back to DHCP; a deep-sleep device only re-checks on
+  > each wake, so it can keep applying a stale address until the lease ages past that deadline. Use `max_age` to bound
+  > this window, or a `manual_ip` if the address must never be stale.
+
 - **min_auth_mode** (*Optional*, string): Only on `esp32` and `esp8266`. Sets the minimum WiFi authentication mode
   that the device will accept when connecting to access points. This controls the weakest encryption your device will
   allow. Possible values are:
