@@ -22,6 +22,13 @@ binary_sensor:
       command: 0x0D
       extension: 0x03
   - platform: remote_receiver
+    name: Panasonic 56 bit Remote Input
+    panasonic:
+      nbits: 56
+      address: 0x4004
+      address_2: 0x12
+      command: 0x100BCBD
+  - platform: remote_receiver
     name: Hob2Hood Light On
     hob2hood:
       command: light_on
