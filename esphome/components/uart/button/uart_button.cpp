@@ -7,7 +7,7 @@ ESPHOME_LOG_TAG(TAG, "uart.button");
 
 void UARTButton::press_action() {
   ESP_LOGD(TAG, "'%s': Sending data", this->get_name().c_str());
-  this->write_array(this->data_.data(), this->data_.size());
+  this->write_array_progmem(this->data_, this->data_len_);
 }
 
 void UARTButton::dump_config() { LOG_BUTTON("", "UART Button", this); }
