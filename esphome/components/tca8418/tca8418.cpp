@@ -155,9 +155,11 @@ void TCA8418Component::dispatch_(uint8_t key, bool pressed) {
 void TCA8418Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TCA8418:\n"
-                "  Key matrix: %u rows x %u columns\n"
                 "  Individual inputs: %s",
-                this->rows_, this->columns_, YESNO(this->gpi_events_));
+                YESNO(this->gpi_events_));
+  if (this->rows_ > 0) {
+    ESP_LOGCONFIG(TAG, "  Key matrix: %u rows x %u columns", this->rows_, this->columns_);
+  }
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
