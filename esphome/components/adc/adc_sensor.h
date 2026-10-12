@@ -94,7 +94,7 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   ///   - SamplingMode::MIN: Use the lowest sample value
   ///   - SamplingMode::MAX: Use the highest sample value
   /// @param sampling_mode The desired sampling mode to use for aggregating ADC samples.
-  void set_sampling_mode(SamplingMode sampling_mode);
+  void set_sampling_mode(SamplingMode sampling_mode) { this->sampling_mode_ = sampling_mode; }
 
   /// Perform a single ADC sampling operation and return the measured value.
   /// This function handles raw readings, calibration, and averaging as needed.
