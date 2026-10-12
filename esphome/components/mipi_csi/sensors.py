@@ -4,6 +4,9 @@ Each sensor maps to the Kconfig options that compile in its output formats. A se
 produce the resolutions whose register tables were built into the firmware, and most of them are
 off by default. Every format of the selected sensor is therefore enabled, which lets `resolution`
 pick any of them. The driver for the selected sensor is the only one built.
+
+Sensors not listed here are still accepted when their driver comes from a separate IDF component;
+those get no Kconfig options from this table.
 """
 
 SENSOR_FORMATS = {
