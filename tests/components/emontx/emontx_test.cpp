@@ -158,16 +158,27 @@ TEST_F(EmonTxTest, ResumeAfterCompleteBacklogKeepsNextLine) {
   EXPECT_EQ(this->lines_[0], "{\"P1\":2}");
 }
 
-TEST_F(EmonTxTest, ShutdownLocksWhenUnlockDelaySet) {
+TEST_F(EmonTxTest, ShutdownLocksByDefault) {
   EXPECT_CALL(this->uart_, flush()).Times(1);
-  this->sut_.set_unlock_delay(2000);
   this->sut_.on_shutdown();
   EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "emonlock\n");
 }
 
-TEST_F(EmonTxTest, ShutdownSendsNothingWithoutUnlockDelay) {
+TEST_F(EmonTxTest, ShutdownSendsNothingWhenDisabled) {
   EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.set_lock_on_reboot(false);
   this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
+}
+
+TEST_F(EmonTxTest, SetupUnlocksByDefault) {
+  this->sut_.setup();
+  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "emonunlock\n");
+}
+
+TEST_F(EmonTxTest, SetupSendsNothingWhenDisabled) {
+  this->sut_.set_lock_on_reboot(false);
+  this->sut_.setup();
   EXPECT_TRUE(this->uart_.tx.empty());
 }
 

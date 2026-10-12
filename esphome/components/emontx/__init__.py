@@ -27,7 +27,7 @@ EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
-CONF_UNLOCK_DELAY = "unlock_delay"
+CONF_LOCK_ON_REBOOT = "lock_on_reboot"
 
 DOMAIN = "emontx"
 
@@ -59,7 +59,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(EmonTx),
             cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
             cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
-            cv.Optional(CONF_UNLOCK_DELAY): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_LOCK_ON_REBOOT, default=True): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -135,8 +135,8 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if (unlock_delay := config.get(CONF_UNLOCK_DELAY)) is not None:
-        cg.add(var.set_unlock_delay(unlock_delay))
+    if not config[CONF_LOCK_ON_REBOOT]:
+        cg.add(var.set_lock_on_reboot(False))
 
 
 # Action: emontx.send_command

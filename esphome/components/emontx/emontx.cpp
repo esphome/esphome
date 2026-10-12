@@ -8,17 +8,14 @@ ESPHOME_LOG_TAG(TAG, "emontx");
 
 void EmonTx::setup() {
   this->buffer_pos_ = 0;
-  if (this->unlock_delay_ > 0) {
-    // Lost if paused at that time, so the emonTx stays locked
-    this->set_timeout(this->unlock_delay_, [this]() {
-      ESP_LOGI(TAG, "Unlocking emonTx after boot");
-      this->send_command("emonunlock");
-    });
+  if (this->lock_on_reboot_) {
+    ESP_LOGI(TAG, "Unlocking emonTx after boot");
+    this->send_command("emonunlock");
   }
 }
 
 void EmonTx::on_shutdown() {
-  if (this->unlock_delay_ > 0) {
+  if (this->lock_on_reboot_) {
     ESP_LOGI(TAG, "Locking emonTx before reboot");
     this->send_command("emonlock");
     this->flush();
@@ -114,9 +111,7 @@ void EmonTx::parse_json_(const char *data, size_t len) {
  */
 void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "EmonTx:");
-  if (this->unlock_delay_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Unlock delay: %" PRIu32 " ms", this->unlock_delay_);
-  }
+  ESP_LOGCONFIG(TAG, "  Lock on reboot: %s", YESNO(this->lock_on_reboot_));
 
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
