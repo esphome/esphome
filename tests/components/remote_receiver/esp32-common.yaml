@@ -19,3 +19,7 @@ binary_sensor:
     name: Hob2Hood Light On
     hob2hood:
       command: light_on
+  - platform: remote_receiver
+    name: PD Pioneer Cool
+    pd_pioneer:
+      code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]
