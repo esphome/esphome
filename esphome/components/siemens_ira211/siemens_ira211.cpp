@@ -92,13 +92,10 @@ climate::ClimateMode SiemensIRA211Climate::active_mode_() const {
 void SiemensIRA211Climate::transmit_frame_(IRA211Command command, IRA211Mode mode, IRA211Fan fan) {
   IRA211Data data{};
   data.command = command;
-  data.set_temperature(clamp(this->target_temperature, this->minimum_temperature_, this->maximum_temperature_));
+  data.set_temperature(this->target_temperature);
   data.mode = mode;
   data.fan = fan;
-
-  auto transmit = this->transmitter_->transmit();
-  IRA211Protocol().encode(transmit.get_data(), data);
-  transmit.perform();
+  this->transmit_<IRA211Protocol>(data);
 }
 
 void SiemensIRA211Climate::transmit_state() {

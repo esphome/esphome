@@ -9,7 +9,8 @@ class SiemensIRA211Climate final : public climate_ir::ClimateIR {
  public:
   void setup() override;
   SiemensIRA211Climate()
-      : climate_ir::ClimateIR(5.0f, 35.0f, 0.5f, false, false,
+      : climate_ir::ClimateIR(remote_base::IRA211_MIN_TEMPERATURE, remote_base::IRA211_MAX_TEMPERATURE, 0.5f, false,
+                              false,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {}, {climate::CLIMATE_PRESET_COMFORT, climate::CLIMATE_PRESET_ECO}) {}

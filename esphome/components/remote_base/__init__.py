@@ -301,31 +301,38 @@ def register_action(
     return decorator
 
 
+ProtocolField = (
+    tuple[str, str, SafeExpType] | automation.ApplyField | automation.ApplyCall
+)
+
+
+def _protocol_field(
+    field: ProtocolField,
+) -> automation.ApplyField | automation.ApplyCall:
+    if not isinstance(field, tuple):
+        return field
+    key, member, type_ = field
+    return automation.ApplyField(key, f"data.{member} = {{}}", type_)
+
+
 def register_protocol_action(
     name: str,
     protocol: str,
     schema: cv.Schema,
-    *fields: tuple[str, str, SafeExpType],
+    *fields: ProtocolField,
     validate: Callable[[ConfigType], ConfigType] | None = None,
 ) -> None:
     """Register ``transmit_<name>`` with no C++ action class.
 
     One generated function fills ``<protocol>Data`` from ``(conf_key, member, type_)`` fields
-    and sends it; the action is a core ``ApplyAction``. A ``member`` containing ``{}`` is a
-    statement on the data instead, e.g. ``"set_temperature({})"``.
+    and sends it; the action is a core ``ApplyAction``. ``ApplyField`` and ``ApplyCall`` pass through
+    and target the call object, whose protocol data is ``data``.
     """
     action, schema, validator = _transmit_action(name, schema, validate)
     builder = automation.apply_action_builder(
         action,
         schema,
-        *(
-            automation.ApplyField(
-                key,
-                f"data.{member}" if "{}" in member else f"data.{member} = {{}}",
-                type_,
-            )
-            for key, member, type_ in fields
-        ),
+        *(_protocol_field(field) for field in fields),
         automation.ApplyField((CONF_REPEAT, CONF_TIMES), "set_send_times", cg.uint32),
         automation.ApplyField(
             (CONF_REPEAT, CONF_WAIT_TIME), "set_send_wait", cg.uint32
@@ -2636,12 +2643,12 @@ def ira211_binary_sensor(var: MockObj, config: ConfigType) -> None:
 
 @register_trigger("ira211", IRA211Trigger, IRA211Data)
 def ira211_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
+    pass
 
 
 @register_dumper("ira211", IRA211Dumper)
 def ira211_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
+    pass
 
 
 register_protocol_action(
@@ -2649,7 +2656,7 @@ register_protocol_action(
     "IRA211",
     IRA211_SCHEMA,
     (CONF_COMMAND, "command", IRA211CommandEnum),
-    (CONF_TEMPERATURE, "set_temperature({})", cg.float_),
+    automation.ApplyField(CONF_TEMPERATURE, "data.set_temperature({})", cg.float_),
     (CONF_MODE, "mode", IRA211ModeEnum),
     (CONF_FAN_MODE, "fan", IRA211FanEnum),
 )
