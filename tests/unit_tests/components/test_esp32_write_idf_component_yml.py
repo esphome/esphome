@@ -10,11 +10,13 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 
 from esphome.components import esp32
 import esphome.config_validation as cv
 from esphome.const import (
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     Framework,
@@ -173,3 +175,47 @@ def test_write_idf_component_yml_arduino_stubs_follow_idf_version(
         / esp32._idf_component_stub_name("espressif__libsodium")
     )
     assert stub_dir.is_dir() is libsodium_stubbed
+
+
+def test_write_idf_component_yml_stub_yields_to_converted_library_of_same_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """IDF names a component after its directory and the later registration wins,
+    so the espressif/libsodium stub and the converted esphome/libsodium raced on
+    path order (#20102). The stub entry points at the converted library instead."""
+    _setup_core(tmp_path)
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(3, 3, 11)
+    CORE.data[esp32.KEY_ESP32] = {
+        esp32.KEY_COMPONENTS: {},
+        esp32.KEY_IDF_VERSION: cv.Version(5, 5, 5),
+        esp32.KEY_ARDUINO_LIBRARIES: set(),
+    }
+    # A stale stub from an earlier build must not linger beside the real library
+    stale_stub = tmp_path / "component_stubs" / "libsodium"
+    stale_stub.mkdir(parents=True)
+
+    converted = MagicMock()
+    converted.get_sanitized_name.return_value = "esphome/libsodium"
+    converted.path = tmp_path / "pio_components" / "esphome" / "libsodium"
+    monkeypatch.setattr(
+        esp32, "generate_idf_components", lambda libraries, managed=None: [converted]
+    )
+
+    esp32._write_idf_component_yml()
+
+    manifest = yaml.safe_load(
+        (tmp_path / "src" / "idf_component.yml").read_text(encoding="utf-8")
+    )["dependencies"]
+    assert manifest["espressif/libsodium"] == {
+        "version": "*",
+        "override_path": str(converted.path),
+    }
+    assert manifest["esphome/libsodium"] == {"override_path": str(converted.path)}
+    assert not stale_stub.exists()
+    # Stubs without a converted namesake are unaffected
+    assert (tmp_path / "component_stubs" / "cbor").is_dir()
+    assert manifest["espressif/cbor"]["override_path"] == str(
+        tmp_path / "component_stubs" / "cbor"
+    )

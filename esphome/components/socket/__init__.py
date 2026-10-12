@@ -5,6 +5,7 @@ from ipaddress import IPv4Address, IPv4Network
 import logging
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.core import CORE, ID
@@ -13,6 +14,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "socket"
 
 socket_ns = cg.esphome_ns.namespace("socket")
 Ipv4AllowEntry = socket_ns.struct("Ipv4AllowEntry")
@@ -148,6 +150,21 @@ def require_wake_loop_threadsafe() -> None:
 IPV4_ALLOW_SCHEMA = cv.All(cv.ensure_list(cv.ipv4network), cv.Length(max=255))
 
 
+_HOST = cv.Any(cv.domain, cv.hostname)
+
+
+def ipv4_host(value: object) -> str:
+    """Validate an IPv4 address or a hostname; the resolver behind it is IPv4 only."""
+    value = cv.string(value)
+    try:
+        cv.ipv6address(value)
+    except cv.Invalid:
+        return _HOST(value)
+    raise cv.Invalid(
+        "IPv6 addresses are not supported, use an IPv4 address or a hostname"
+    )
+
+
 def _network_order(addr: IPv4Address) -> int:
     """The s_addr value for addr on the little endian targets."""
     return int.from_bytes(addr.packed, "little")
@@ -162,6 +179,7 @@ def add_ipv4_allow(
     """
     if not networks:
         return
+    cg.add_define("USE_SOCKET_IPV4_ALLOW")
     entries = [
         cg.StructInitializer(
             Ipv4AllowEntry,
@@ -184,6 +202,23 @@ def require_tcp_client_link() -> None:
     """Compile the reconnecting TCP client link; call from a consumer's to_code."""
     require_ipv4_resolve()
     cg.add_define("USE_SOCKET_TCP_CLIENT_LINK")
+
+
+def require_tcp_listener() -> None:
+    """Compile the TCP listener; call from a server role's to_code."""
+    require_tcp_client_link()
+    cg.add_define("USE_SOCKET_TCP_LISTENER")
+
+
+def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Socket accounting for a role keyed client or server schema."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        if config[CONF_ROLE] == "server":
+            consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
+        return consume_sockets(1, component)(config)
+
+    return validator
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -234,10 +269,13 @@ async def to_code(config: ConfigType) -> None:
 # consumers that called the matching require_ function.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
+        "lwip_raw_common_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
+        "lwip_raw_udp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
         "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",
         "tcp_client_link.cpp": "USE_SOCKET_TCP_CLIENT_LINK",
+        "tcp_listener.cpp": "USE_SOCKET_TCP_LISTENER",
     }
 )

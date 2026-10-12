@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Szewcson"]
+DOMAIN = "gdk101"
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True

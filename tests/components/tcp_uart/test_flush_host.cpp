@@ -13,7 +13,11 @@ namespace esphome::tcp_uart::testing {
 
 class TcpUartUnderTest : public TcpUart {
  public:
-  TcpUartUnderTest() : TcpUart("peer", 1) { this->link_.begin("flush_test"); }
+  TcpUartUnderTest() {
+    this->set_host("peer");
+    this->set_port(1);
+    this->link_.begin("flush_test");
+  }
   socket::TcpClientLink &link() { return this->link_; }
 };
 

@@ -379,7 +379,6 @@ using AsyncEventSourceClient = AsyncEventSourceResponse;
 
 class AsyncEventSource : public AsyncWebHandler {
   friend class AsyncEventSourceResponse;
-  using connect_handler_t = std::function<void(AsyncEventSourceClient *)>;
 
  public:
   AsyncEventSource(StringRef url, esphome::web_server::WebServer *ws) : url_(url), web_server_(ws) {}
@@ -394,11 +393,6 @@ class AsyncEventSource : public AsyncWebHandler {
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
-  // Callback runs on the main loop (not the httpd task) after the session's
-  // initial ping/config/sorting_groups have been sent.
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
-
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
@@ -418,7 +412,6 @@ class AsyncEventSource : public AsyncWebHandler {
   // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
   std::vector<AsyncEventSourceResponse *> pending_sessions_;
   Mutex pending_mutex_;
-  connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
   std::atomic<bool> has_pending_sessions_{false};
 };
