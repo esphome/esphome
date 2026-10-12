@@ -59,6 +59,8 @@ opentherm42:
   configuration_information_boiler_product_version_number_and_type_update_every: 7
   configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every: 7
   configuration_information_solar_storage_product_version_number_and_type_update_every: 7
+  transparent_boiler_parameters_update_every: 7
+  fault_history_data_fault_buffer_update_every: 7
 
 switch:
   - platform: opentherm42
@@ -127,6 +129,19 @@ number:
       name: "Control and Status Information: Control Setpoint ventilation-heat-recovery"
       initial_value: 0
       update_every: 2
+    # §5.3.6 Class 6, IDs 11/89/106: Transparent Slave Parameters are manufacturer-specific values whose
+    # meaning isn't defined by the OpenTherm spec, so unlike every other option here there's no
+    # off-the-shelf name for them -- check your boiler's own documentation for what slot N means, and
+    # name/index it accordingly.
+    transparent_boiler_parameters:
+      - index: 5
+        name: "Transparent Boiler Parameters: TSP 5"
+    transparent_boiler_parameters_ventilation_heat_recovery:
+      - index: 3
+        name: "Transparent Boiler Parameters: TSP 3 ventilation-heat-recovery"
+    transparent_boiler_parameters_solar_storage:
+      - index: 1
+        name: "Transparent Boiler Parameters: TSP 1 Solar Storage"
 
 binary_sensor:
   - platform: opentherm42
@@ -392,6 +407,43 @@ sensor:
     # for the human-readable version.
     remote_request_last_response_code:
       name: "Remote Request: Last response code"
+    # §5.3.6 Class 6, ID 10 HB: how many Transparent Slave Parameters your boiler supports.
+    transparent_boiler_parameters_number_of_tsps:
+      name: "Transparent Boiler Parameters: Number of TSP's"
+      update_every: 7
+    # §5.3.6 Class 6, ID 88 HB: how many TSPs the ventilation/heat-recovery system supports.
+    transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery:
+      name: "Transparent Boiler Parameters: Number of TSP's ventilation-heat-recovery"
+      update_every: 7
+    # §5.3.6 Class 6, ID 105 HB: how many TSPs the Solar Storage system supports.
+    transparent_boiler_parameters_number_of_tsps_solar_storage:
+      name: "Transparent Boiler Parameters: Number of TSP's Solar Storage"
+      update_every: 7
+    # §5.3.7 Class 7, ID 12 HB: how many entries the boiler's fault history can hold.
+    fault_history_data_size_of_fault_buffer:
+      name: "Fault History Data: Size of Fault Buffer"
+      update_every: 7
+    # §5.3.7 Class 7, ID 90 HB: how many fault history entries the ventilation/heat-recovery system can
+    # hold.
+    fault_history_data_size_of_fault_buffer_ventilation_heat_recovery:
+      name: "Fault History Data: Size of Fault Buffer ventilation-heat-recovery"
+      update_every: 7
+    # §5.3.7 Class 7, ID 107 HB: how many fault history entries the Solar Storage system can hold.
+    fault_history_data_size_of_fault_buffer_solar_storage:
+      name: "Fault History Data: Size of Fault Buffer Solar Storage"
+      update_every: 7
+    # §5.3.7 Class 7, IDs 13/91/108: fault history entries are manufacturer-specific, so unlike every
+    # other option here there's no off-the-shelf name for them -- check your boiler's own documentation
+    # for what entry N means, and name/index it accordingly.
+    fault_history_data_fault_buffer:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0"
+    fault_history_data_fault_buffer_ventilation_heat_recovery:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0 ventilation-heat-recovery"
+    fault_history_data_fault_buffer_solar_storage:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0 Solar Storage"
     # How long it took to refresh every configured reading at least once (one full round of polling).
     # Not a real OpenTherm reading -- useful for noticing if your boiler is responding slowly, or if
     # you've configured enough readings that a full round is taking a long time. Always active, so there's
