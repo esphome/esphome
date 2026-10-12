@@ -1,5 +1,6 @@
 sensor:
   - platform: bmi270
+    bmi270_id: bmi270_motion
     name: "BMI270 Temperature"
 
   - platform: bmi270
