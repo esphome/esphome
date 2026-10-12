@@ -46,6 +46,14 @@ UNIT_NANOSIEVERT = "nSv"
 aranet_ns = cg.esphome_ns.namespace("aranet")
 Aranet = aranet_ns.class_("Aranet", ble_device_base.ESPBTDeviceListener, cg.Component)
 
+DIAGNOSTIC_DURATION_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_SECOND,
+    accuracy_decimals=0,
+    device_class=DEVICE_CLASS_DURATION,
+    state_class=STATE_CLASS_MEASUREMENT,
+    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -82,20 +90,8 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Optional(CONF_MEASUREMENT_INTERVAL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_SECOND,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_DURATION,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_MEASUREMENT_AGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_SECOND,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_DURATION,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
+            cv.Optional(CONF_MEASUREMENT_INTERVAL): DIAGNOSTIC_DURATION_SCHEMA,
+            cv.Optional(CONF_MEASUREMENT_AGE): DIAGNOSTIC_DURATION_SCHEMA,
             cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
                 accuracy_decimals=0,
