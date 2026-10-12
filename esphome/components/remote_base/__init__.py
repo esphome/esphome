@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_DELTA,
     CONF_DEVICE,
     CONF_FAMILY,
+    CONF_FAN_MODE,
     CONF_FORCE_UPDATE,
     CONF_GROUP,
     CONF_HUMIDITY,
@@ -30,6 +31,7 @@ from esphome.const import (
     CONF_KEY,
     CONF_LEVEL,
     CONF_MAGNITUDE,
+    CONF_MODE,
     CONF_NBITS,
     CONF_ONE,
     CONF_PROTOCOL,
@@ -2407,6 +2409,62 @@ register_protocol_action(
 )
 
 
+# PD Pioneer
+(
+    PDPioneerData,
+    PDPioneerBinarySensor,
+    PDPioneerTrigger,
+    _,
+    PDPioneerDumper,
+) = declare_protocol("PDPioneer")
+
+
+def _validate_pd_pioneer_burst(code: list[int]) -> list[int]:
+    """Byte 3 tells the odd (0x02) and even (0x01) bursts apart; decode() drops anything else."""
+    if code[3] not in (0x01, 0x02):
+        raise cv.Invalid("Byte 3 of a pd_pioneer code must be 0x01 or 0x02")
+    return code
+
+
+PDPIONEER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All(
+            [cv.hex_uint8_t], cv.Length(min=13, max=14), _validate_pd_pioneer_burst
+        ),
+    }
+)
+
+
+def _pd_pioneer_finalized(code: list[int]) -> list[int]:
+    """Fill in the checksum: the sum of the first 13 bytes, plus 15 for an odd burst."""
+    checksum = sum(code[:13], 15 if code[3] == 0x02 else 0) & 0xFF
+    return [*code[:13], checksum]
+
+
+@register_binary_sensor("pd_pioneer", PDPioneerBinarySensor, PDPIONEER_SCHEMA)
+def pd_pioneer_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(var.set_data(_pd_pioneer_finalized(config[CONF_CODE])))
+
+
+@register_trigger("pd_pioneer", PDPioneerTrigger, PDPioneerData)
+def pd_pioneer_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("pd_pioneer", PDPioneerDumper)
+def pd_pioneer_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "pd_pioneer",
+    "PDPioneer",
+    PDPIONEER_SCHEMA,
+    _bytes_field(CONF_CODE, f"data = {PDPioneerData}({{}})"),
+    automation.ApplyCall("data.finalize()"),
+)
+
+
 # Midea
 MideaData, MideaBinarySensor, MideaTrigger, _, MideaDumper = declare_protocol("Midea")
 MIDEA_SCHEMA = cv.Schema(
@@ -2770,4 +2828,95 @@ register_protocol_action(
     (CONF_RC_CODE_2, "rc_code_2", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
     validate=_toto_default_repeat,
+)
+
+
+# IRA211
+(
+    IRA211Data,
+    IRA211BinarySensor,
+    IRA211Trigger,
+    _,
+    IRA211Dumper,
+) = declare_protocol("IRA211")
+
+IRA211CommandEnum = ns.enum("IRA211Command", is_class=True)
+IRA211_COMMANDS = {
+    "TEMP_UP": IRA211CommandEnum.IRA211_COMMAND_TEMP_UP,
+    "TEMP_DOWN": IRA211CommandEnum.IRA211_COMMAND_TEMP_DOWN,
+    "MODE": IRA211CommandEnum.IRA211_COMMAND_MODE,
+    "FAN": IRA211CommandEnum.IRA211_COMMAND_FAN,
+    "POWER": IRA211CommandEnum.IRA211_COMMAND_POWER,
+    "SYNC": IRA211CommandEnum.IRA211_COMMAND_SYNC,
+}
+
+IRA211ModeEnum = ns.enum("IRA211Mode", is_class=True)
+IRA211_MODES = {
+    "PROTECTION": IRA211ModeEnum.IRA211_MODE_PROTECTION,
+    "TIMER": IRA211ModeEnum.IRA211_MODE_TIMER,
+    "COMFORT": IRA211ModeEnum.IRA211_MODE_COMFORT,
+}
+
+IRA211FanEnum = ns.enum("IRA211Fan", is_class=True)
+IRA211_FAN_SPEEDS = {
+    "AUTO": IRA211FanEnum.IRA211_FAN_AUTO,
+    "LOW": IRA211FanEnum.IRA211_FAN_LOW,
+    "MEDIUM": IRA211FanEnum.IRA211_FAN_MEDIUM,
+    "HIGH": IRA211FanEnum.IRA211_FAN_HIGH,
+}
+
+
+def _half_degree_step(value: float) -> float:
+    if value * 2 != int(value * 2):
+        raise cv.Invalid("Temperature must be a multiple of 0.5")
+    return value
+
+
+IRA211_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_COMMAND): cv.enum(IRA211_COMMANDS, upper=True),
+        cv.Optional(CONF_TEMPERATURE, default=20): cv.All(
+            cv.float_range(min=5, max=35), _half_degree_step
+        ),
+        cv.Optional(CONF_MODE, default="COMFORT"): cv.enum(IRA211_MODES, upper=True),
+        cv.Optional(CONF_FAN_MODE, default="AUTO"): cv.enum(
+            IRA211_FAN_SPEEDS, upper=True
+        ),
+    }
+)
+
+
+@register_binary_sensor("ira211", IRA211BinarySensor, IRA211_SCHEMA)
+def ira211_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                IRA211Data,
+                ("command", config[CONF_COMMAND]),
+                ("half_degrees", int(config[CONF_TEMPERATURE] * 2)),
+                ("mode", config[CONF_MODE]),
+                ("fan", config[CONF_FAN_MODE]),
+            )
+        )
+    )
+
+
+@register_trigger("ira211", IRA211Trigger, IRA211Data)
+def ira211_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("ira211", IRA211Dumper)
+def ira211_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "ira211",
+    "IRA211",
+    IRA211_SCHEMA,
+    (CONF_COMMAND, "command", IRA211CommandEnum),
+    automation.ApplyField(CONF_TEMPERATURE, "data.set_temperature({})", cg.float_),
+    (CONF_MODE, "mode", IRA211ModeEnum),
+    (CONF_FAN_MODE, "fan", IRA211FanEnum),
 )

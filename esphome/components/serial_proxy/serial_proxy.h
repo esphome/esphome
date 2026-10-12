@@ -89,11 +89,20 @@ class SerialProxyTap {
   /// subscriber holds the port; with one attached, the port mode alone decides.
   virtual bool tap_needs_port() const = 0;
 
+  /// A client turned protocol handling on for this port. The tap has seen none of the
+  /// traffic since it was last on, so anything it remembers from then is stale.
+  virtual void on_protocol_enabled() = 0;
+
   /// A client explicitly turned protocol handling off for this port. Distinct from the
   /// automatic reset when a session ends: this one means a client intends to do something
   /// else with the device -- reflash it, most likely -- so anything the tap believes about
   /// it should be treated as suspect.
   virtual void on_protocol_disabled() = 0;
+
+  /// The device behind the port went away -- unplugged, or its power was cut. Whatever
+  /// session the tap had observed ended with it; the device that appears next starts from
+  /// scratch and may not even be the same one. Only a USB UART can report this.
+  virtual void on_device_disconnected() = 0;
 };
 #endif
 
