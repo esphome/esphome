@@ -1,5 +1,7 @@
 #include "heatpumpir.h"
 
+#include "receiver_mitsubishi_heavy.h"
+
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include <cmath>
@@ -41,7 +43,7 @@ class IRSenderESPHome : public IRSender {
   remote_base::RemoteTransmitterBase::TransmitCall transmit_;
 };
 
-static const char *const TAG = "heatpumpir.climate";
+ESPHOME_LOG_TAG(TAG, "heatpumpir.climate");
 
 const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP = {
     {PROTOCOL_AUX, []() { return new AUXHeatpumpIR(); }},                                    // NOLINT
@@ -217,15 +219,18 @@ void HeatpumpIRClimate::transmit_state() {
     swing_h_cmd = HDIR_SWING;
   }
 
+  // MitsubishiMSCHeatpumpIR only knows FAN_1..FAN_3 and sends anything else as auto,
+  // so low/medium/high have to start at FAN_1 there instead of FAN_2.
+  const bool three_speed_fan = this->protocol_ == PROTOCOL_MITSUBISHI_MSC;
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
-      fan_speed_cmd = FAN_2;
+      fan_speed_cmd = three_speed_fan ? FAN_1 : FAN_2;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed_cmd = FAN_3;
+      fan_speed_cmd = three_speed_fan ? FAN_2 : FAN_3;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed_cmd = FAN_4;
+      fan_speed_cmd = three_speed_fan ? FAN_3 : FAN_4;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
@@ -275,6 +280,23 @@ void HeatpumpIRClimate::transmit_state() {
   IRSenderESPHome esp_sender(this->transmitter_);
   heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
                      swing_h_cmd);
+}
+
+bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
+  switch (this->protocol_) {
+    case PROTOCOL_MITSUBISHI_HEAVY_ZMP: {
+      uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH];
+      if (!decode_mitsubishi_heavy_frame(data, frame, *this))
+        return false;
+      decode_mitsubishi_heavy_zmp(frame, *this);
+      break;
+    }
+    default:
+      return false;  // no decoder for this protocol
+  }
+  this->target_temperature = clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
+  this->publish_state();
+  return true;
 }
 
 }  // namespace esphome::heatpumpir

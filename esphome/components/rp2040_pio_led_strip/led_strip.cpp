@@ -14,7 +14,7 @@
 
 namespace esphome::rp2040_pio_led_strip {
 
-static const char *const TAG = "rp2040_pio_led_strip";
+ESPHOME_LOG_TAG(TAG, "rp2040_pio_led_strip");
 
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {

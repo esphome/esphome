@@ -9,7 +9,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # tests have two decoder types and every retained decoder is under test.
     async def to_code_testing(config: ConfigType) -> None:
         enable_format("BMP")
-        enable_format("PNG")
         enable_format("JPEG")
+        enable_format("PNG")
+        enable_format("QOI")
 
     manifest.to_code = to_code_testing

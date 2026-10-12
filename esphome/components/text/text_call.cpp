@@ -4,7 +4,7 @@
 
 namespace esphome::text {
 
-static const char *const TAG = "text";
+ESPHOME_LOG_TAG(TAG, "text");
 
 TextCall &TextCall::set_value(const std::string &value) {
   this->value_ = value;

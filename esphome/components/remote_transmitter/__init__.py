@@ -4,7 +4,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
 from esphome.components.libretiny import get_libretiny_family
-from esphome.components.libretiny.const import FAMILY_RTL8720C
+from esphome.components.libretiny.const import FAMILY_BK7238, FAMILY_RTL8720C
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -20,13 +20,13 @@ from esphome.const import (
     CONF_VALUE,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["remote_base"]
+DOMAIN = "remote_transmitter"
 
 CONF_EOT_LEVEL = "eot_level"
 CONF_NON_BLOCKING = "non_blocking"
@@ -38,21 +38,21 @@ remote_transmitter_ns = cg.esphome_ns.namespace("remote_transmitter")
 RemoteTransmitterComponent = remote_transmitter_ns.class_(
     "RemoteTransmitterComponent", remote_base.RemoteTransmitterBase, cg.Component
 )
-DigitalWriteAction = remote_transmitter_ns.class_(
-    "DigitalWriteAction",
-    automation.Action,
-    cg.Parented.template(RemoteTransmitterComponent),
-)
+
+
+# Keep in sync with the USE_LIBRETINY_VARIANT_RTL8720C / REMOTE_TRANSMITTER_BK_PWM gates in
+# remote_transmitter.h, which decide where set_non_blocking() is declared
+_NON_BLOCKING_LIBRETINY_FAMILIES = (FAMILY_RTL8720C, FAMILY_BK7238)
 
 
 def _validate_non_blocking_platform(value: bool) -> bool:
-    # non_blocking requires hardware transmission: RMT on ESP32, the gtimer
-    # envelope chain on RTL8720C. Reject everywhere else at config time.
+    # non_blocking requires hardware transmission: RMT on ESP32, a hardware timer
+    # envelope chain on the listed LibreTiny families. Reject elsewhere at config time.
     if CORE.is_esp32:
         return cv.boolean(value)
-    if CORE.is_libretiny and get_libretiny_family() == FAMILY_RTL8720C:
+    if CORE.is_libretiny and get_libretiny_family() in _NON_BLOCKING_LIBRETINY_FAMILIES:
         return cv.boolean(value)
-    raise cv.Invalid("non_blocking is only supported on ESP32 and RTL8720C")
+    raise cv.Invalid("non_blocking is only supported on ESP32, RTL8720C and BK7238")
 
 
 MULTI_CONF = True
@@ -133,23 +133,12 @@ DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "remote_transmitter.digital_write",
-    DigitalWriteAction,
     DIGITAL_WRITE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "digital_write", cg.bool_),
+    id_key=CONF_TRANSMITTER_ID,
 )
-async def digital_write_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_TRANSMITTER_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.bool_)
-    cg.add(var.set_value(template_))
-    return var
 
 
 async def to_code(config: ConfigType) -> None:
@@ -201,6 +190,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "remote_transmitter_rtl87xx.cpp": {
             PlatformFramework.RTL87XX_ARDUINO,
+        },
+        "remote_transmitter_bk72xx.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+        },
+        "remote_transmitter_libretiny_isr.cpp": {
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
         },
         "remote_transmitter.cpp": {
             PlatformFramework.ESP32_ARDUINO,

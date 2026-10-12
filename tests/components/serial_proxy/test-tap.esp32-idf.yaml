@@ -1,0 +1,14 @@
+substitutions:
+  tx_pin: GPIO4
+  rx_pin: GPIO5
+
+# Compile the tap code paths; no tap is attached, so this exercises the
+# null-tap branches that a normal build never defines.
+esphome:
+  platformio_options:
+    build_flags:
+      - "-DUSE_SERIAL_PROXY_TAP"
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  serial_proxy: !include common.yaml

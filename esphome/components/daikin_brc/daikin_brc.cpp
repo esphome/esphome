@@ -1,9 +1,10 @@
 #include "daikin_brc.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin_brc {
 
-static const char *const TAG = "daikin_brc.climate";
+ESPHOME_LOG_TAG(TAG, "daikin_brc.climate");
 
 void DaikinBrcClimate::control(const climate::ClimateCall &call) {
   this->mode_button_ = 0x00;
@@ -19,13 +20,18 @@ void DaikinBrcClimate::transmit_state() {
                                                           0xDA, 0x17, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                           0x00, 0x00, 0x00, 0x00, 0x20, 0x00};
 
+  // The low 3 bits of the frame header byte address the indoor unit, in the preamble and the state frame
+  remote_state[3] |= this->sub_unit_;
+  remote_state[10] |= this->sub_unit_;
+  remote_state[6] += this->sub_unit_;  // preamble checksum covers byte 3
+
   remote_state[12] = this->alt_mode_();
   remote_state[13] = this->mode_button_;
   remote_state[14] = this->operation_mode_();
   remote_state[17] = this->temperature_();
   remote_state[18] = this->fan_speed_swing_();
 
-  // Calculate checksum
+  // Calculate state frame checksum
   for (int i = DAIKIN_BRC_PREAMBLE_SIZE; i < DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1; i++) {
     remote_state[DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1] += remote_state[i];
   }
@@ -160,10 +166,7 @@ uint8_t DaikinBrcClimate::temperature_() {
 }
 
 bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_BRC_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DAIKIN_BRC_STATE_FRAME_SIZE - 1);
   if (frame[DAIKIN_BRC_STATE_FRAME_SIZE - 1] != checksum) {
     ESP_LOGCONFIG(TAG, "Bad CheckSum %x", checksum);
     return false;
@@ -256,8 +259,8 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
       if (byte != 0x17)
         return false;
     } else if (pos == 3) {
-      // frame header
-      if (byte != 0x18)
+      // frame header, with this unit's address in the low 3 bits
+      if (byte != (0x18 | this->sub_unit_))
         return false;
     } else if (pos == 4) {
       // frame type

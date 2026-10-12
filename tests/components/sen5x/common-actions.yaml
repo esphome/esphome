@@ -1,0 +1,5 @@
+button:
+  - platform: template
+    name: SEN5x Clean the fan
+    on_press:
+      - sen5x.start_fan_autoclean: sen54

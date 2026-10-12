@@ -18,6 +18,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@ammmze"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "as5600"
 MULTI_CONF = True
 
 as5600_ns = cg.esphome_ns.namespace("as5600")

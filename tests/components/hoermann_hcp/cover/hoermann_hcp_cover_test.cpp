@@ -68,7 +68,7 @@ TEST(HoermannHcpCoverTest, OpenCommandOpensTheDoor) {
   connect_controller(door);
 
   cover.make_call().set_command_open().perform();
-  EXPECT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
 }
 
 // The same for cover.close, which arrives as a position of 0.0.
@@ -79,7 +79,7 @@ TEST(HoermannHcpCoverTest, CloseCommandClosesTheDoor) {
   connect_controller(door);
 
   cover.make_call().set_command_close().perform();
-  EXPECT_EQ(poll_command(door).first, 0x0220);  // COMMAND_CLOSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0120);  // COMMAND_CLOSE
 }
 
 TEST(HoermannHcpCoverTest, ToggleCommandSendsAnImpulse) {
@@ -89,7 +89,7 @@ TEST(HoermannHcpCoverTest, ToggleCommandSendsAnImpulse) {
   connect_controller(door);
 
   cover.make_call().set_command_toggle().perform();
-  EXPECT_EQ(poll_command(door).first, 0x0240);  // COMMAND_IMPULSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0140);  // COMMAND_IMPULSE
 }
 
 TEST(HoermannHcpCoverTest, StopCommandStopsAMovingDoor) {
@@ -101,7 +101,7 @@ TEST(HoermannHcpCoverTest, StopCommandStopsAMovingDoor) {
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
 
   cover.make_call().set_command_stop().perform();
-  EXPECT_EQ(poll_command(door).first, 0x0240);  // COMMAND_IMPULSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0140);  // COMMAND_IMPULSE
 }
 
 // A position between the end stops starts the door in the right direction; it is stopped there later.
@@ -112,7 +112,7 @@ TEST(HoermannHcpCoverTest, PositionCommandStartsTheDoorTowardsTheTarget) {
   connect_controller(door);
 
   cover.make_call().set_position(0.5f).perform();
-  EXPECT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN
 }
 
 // A command the door cannot take is assumed to have worked by whoever sent it, so the unchanged state has

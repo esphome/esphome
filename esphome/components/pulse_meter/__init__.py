@@ -1,0 +1,1 @@
+DOMAIN = "pulse_meter"
