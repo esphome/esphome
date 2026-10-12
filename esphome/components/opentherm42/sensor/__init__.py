@@ -5,6 +5,17 @@ from esphome.const import DEVICE_CLASS_DURATION, ENTITY_CATEGORY_DIAGNOSTIC
 
 from .. import OpenTherm42Hub
 from ..const import (
+    CONF_CONFIGURATION_INFORMATION_BOILER_MEMBER_ID_CODE,
+    CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE,
+    CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION,
+    CONF_CONFIGURATION_INFORMATION_MEMBER_ID_CODE_VENTILATION_HEAT_RECOVERY,
+    CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_BOILER,
+    CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_VENTILATION_HEAT_RECOVERY,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_MEMBER_ID,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE,
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION,
+    CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE,
+    CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION,
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_DIAGNOSTIC_CODE,
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_DIAGNOSTIC_CODE_VENTILATION_HEAT_RECOVERY,
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE,
@@ -37,6 +48,11 @@ from ..const import (
 # at all, the same as Home Assistant's own convention for identifier-like sensors.
 def _code_schema(*, entity_category: str = cv.UNDEFINED) -> cv.Schema:
     return sensor.sensor_schema(accuracy_decimals=0, entity_category=entity_category)
+
+
+# §5.1: OpenTherm protocol versions are f8.8 (e.g. 2.2, 4.2) -- two decimals is enough to show them exactly.
+def _version_schema(*, entity_category: str = cv.UNDEFINED) -> cv.Schema:
+    return sensor.sensor_schema(accuracy_decimals=2, entity_category=entity_category)
 
 
 _CODE_SCHEMA = _code_schema()
@@ -76,6 +92,50 @@ TYPES: dict[str, cv.Schema] = {
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_DIAGNOSTIC_CODE_VENTILATION_HEAT_RECOVERY: _with_update_every(
         _CODE_SCHEMA, 5
     ),
+    # §5.3.2 Class 2, ID 3 LB: Boiler MemberID code (0..255) -- identifies the boiler's manufacturer.
+    CONF_CONFIGURATION_INFORMATION_BOILER_MEMBER_ID_CODE: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 125: OpenTherm protocol version implemented by the boiler.
+    CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_BOILER: _with_update_every(
+        _version_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
+    # §5.3.2 Class 2, ID 127 HB: Boiler product version number and type: product type (0..255).
+    CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 127 LB: Boiler product version number and type: product version (0..255).
+    CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 74 LB: MemberID code ventilation/heat-recovery (0..255).
+    CONF_CONFIGURATION_INFORMATION_MEMBER_ID_CODE_VENTILATION_HEAT_RECOVERY: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 75: OpenTherm protocol version implemented by the ventilation/heat-recovery system.
+    CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_VENTILATION_HEAT_RECOVERY: _with_update_every(
+        _version_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC), 7
+    ),
+    # §5.3.2 Class 2, ID 76 HB: Ventilation/heat-recovery product version number and type: product type.
+    CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 76 LB: Ventilation/heat-recovery product version number and type: product version.
+    CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 103 LB: Solar Storage member ID (0..255).
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_MEMBER_ID: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 104 HB: Solar Storage product version number and type: product type (0..255).
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.2 Class 2, ID 104 LB: Solar Storage product version number and type: product version (0..255).
+    CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
     # Synthetic diagnostic, not an OpenTherm data-id -- deliberately not given the
     # sensor_and_informational_data_* prefix used throughout this file, since that names a real spec
     # chapter (§5.3.4 Class 4) this entity has nothing to do with. How long the most recently
@@ -103,6 +163,16 @@ TYPES: dict[str, cv.Schema] = {
     ),
 }
 
+# Every 1:1 id above dispatched through hub.cpp's generic SIMPLE_SENSORS table -- update_every
+# for these routes through the single generic hub.set_simple_sensor_update_every(id, n), keyed
+# by data-id rather than one named setter per marker (unlike every other platform here). Excludes
+# OEM_DIAGNOSTIC_CODE/_VENTILATION_HEAT_RECOVERY, which have bespoke (non-SIMPLE_SENSORS) handling
+# in hub.cpp and so get their own individually-named setters instead -- see to_code() below.
+SIMPLE_SENSOR_DATA_IDS: dict[str, int] = {
+    CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_BOILER: 125,
+    CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_VENTILATION_HEAT_RECOVERY: 75,
+}
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
@@ -118,4 +188,14 @@ async def to_code(config: dict) -> None:
             var = await sensor.new_sensor(marker_config)
             cg.add(getattr(hub, f"set_{marker}_sensor")(var))
             if (update_every := marker_config.get(CONF_UPDATE_EVERY)) is not None:
-                cg.add(getattr(hub, f"set_{marker}_update_every")(update_every))
+                if marker in SIMPLE_SENSOR_DATA_IDS:
+                    cg.add(
+                        hub.set_simple_sensor_update_every(
+                            SIMPLE_SENSOR_DATA_IDS[marker], update_every
+                        )
+                    )
+                else:
+                    # OEM_DIAGNOSTIC_CODE/_VENTILATION_HEAT_RECOVERY and OEM_FAULT_CODE_SOLAR_STORAGE --
+                    # bespoke (non-SIMPLE_SENSORS) handling in hub.cpp, so each gets its own
+                    # individually-named setter instead.
+                    cg.add(getattr(hub, f"set_{marker}_update_every")(update_every))
