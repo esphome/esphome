@@ -41,7 +41,8 @@ bool PDPioneerIR::on_receive(remote_base::RemoteReceiveData data) {
   if (this->get_traits().supports_mode(*decoded)) {
     this->mode = *decoded;
   } else {
-    ESP_LOGD(TAG, "Received auto mode is not enabled (supports_heat_cool), keeping the current mode");
+    ESP_LOGD(TAG, "Received mode %s is not enabled, keeping the current mode",
+             LOG_STR_ARG(climate::climate_mode_to_string(*decoded)));
   }
   // Off and fan-only bursts carry no target temperature
   if (*decoded != climate::CLIMATE_MODE_OFF && *decoded != climate::CLIMATE_MODE_FAN_ONLY)
