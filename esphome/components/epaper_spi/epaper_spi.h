@@ -107,6 +107,8 @@ class EPaperBase : public Display,
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   // Make the next update a full one. Applied when that update starts, so one in progress is not affected.
   void request_full_update() { this->full_update_requested_ = true; }
   // True from the start of an update until the display has refreshed and gone back to sleep.
@@ -128,6 +130,10 @@ class EPaperBase : public Display,
   bool init_buffer_(size_t buffer_length);
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
+  // Maps a point to buffer coordinates; false if it falls outside the panel. Ignores clipping.
+  bool transform_point_(int &x, int &y) const;
+  // Whether the buffer holds 1 bit per pixel as draw_pixel_at() writes it, so draw_pixels_at() can write it directly
+  virtual bool buffer_is_mono() const { return false; }
 
   /**
    * Methods that must be implemented by concrete classes to control the display
