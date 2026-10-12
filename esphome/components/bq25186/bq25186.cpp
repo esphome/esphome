@@ -1,4 +1,10 @@
 #include "bq25186.h"
+#ifdef USE_BINARY_SENSOR
+#include "bq25186_binary_sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "bq25186_text_sensor.h"
+#endif
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -7,10 +13,10 @@ namespace esphome::bq25186 {
 
 ESPHOME_LOG_TAG(TAG, "bq25186");
 
-// Bits the configuration owns in each register; the rest are runtime state (VBAT_CTRL pg_mode,
-// SYS_REG GPO level), reset triggers (SHIP_RST) or the device id (MASK_ID) and are kept as read
+// Bits the configuration owns in each register; the rest are the SYS_REG GPO level, reset
+// triggers (SHIP_RST) or the device id (MASK_ID) and are kept as read
 static const uint8_t BQ25186_CONFIG_MASKS[BQ25186_CONFIG_REGISTER_COUNT] PROGMEM = {
-    0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x1F, 0xEF, 0xFF, 0xF0,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x1F, 0xEF, 0xFF, 0xF0,
 };
 
 bool BQ25186Component::write_register_(uint8_t reg, uint8_t value) {
@@ -40,7 +46,12 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
   for (size_t i = 0; i < regs.size(); i++) {
     const uint8_t reg = BQ25186_REG_VBAT_CTRL + i;
     const uint8_t mask = progmem_read_byte(&BQ25186_CONFIG_MASKS[i]);
-    const bool ok = mask == 0xFF ? this->write_register_(reg, regs[i]) : this->update_register_(reg, mask, regs[i]);
+    uint8_t value = regs[i];
+#ifdef USE_BQ25186_PG_GPO
+    if (reg == BQ25186_REG_VBAT_CTRL && this->pg_gpo_switch_ != nullptr)
+      value |= BQ25186_VBAT_CTRL_PG_MODE;
+#endif
+    const bool ok = mask == 0xFF ? this->write_register_(reg, value) : this->update_register_(reg, mask, value);
     if (!ok) {
       this->status_set_warning(LOG_STR("Configuration partly applied"));
       return false;
@@ -69,15 +80,21 @@ void BQ25186Component::setup() {
   // apply_configuration may retry
   if (this->configure_on_boot_)
     this->apply_config(this->setup_regs_);
-#ifdef USE_SWITCH
+#ifdef USE_BQ25186_PG_GPO
   if (this->pg_gpo_switch_ != nullptr) {
-    // Configuration never touches these two bits, so the pin mode and level survive apply_config
-    uint8_t sys_reg;
-    if (!this->update_register_(BQ25186_REG_VBAT_CTRL, 0x80, 0x80) || !this->read_byte(BQ25186_REG_SYS_REG, &sys_reg)) {
+    // apply_config sets pg_mode when it runs
+    if (!this->configure_on_boot_ &&
+        !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE))
       this->status_set_warning(LOG_STR("PG/GPO pin not in output mode"));
-      return;
+    uint8_t sys_reg;
+    auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
+    if (initial.has_value()) {
+      this->pg_gpo_switch_->control(*initial);
+    } else if (this->read_byte(BQ25186_REG_SYS_REG, &sys_reg)) {
+      this->pg_gpo_switch_->publish_state((sys_reg & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0);
+    } else {
+      this->status_set_warning(LOG_STR("PG/GPO level read failed"));
     }
-    this->pg_gpo_switch_->publish_state((sys_reg & 0x10) != 0);
   }
 #endif
   // The poller first runs after a random share of the interval; the entities get a state now
@@ -92,10 +109,13 @@ void BQ25186Component::update() {
     return;
   }
   this->status_clear_warning();
-#ifdef BQ25186_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    listener->on_status(status);
-  }
+#ifdef BQ25186_BINARY_SENSOR_COUNT
+  for (auto *sensor : this->binary_sensors_)
+    sensor->on_status(status);
+#endif
+#ifdef BQ25186_TEXT_SENSOR_COUNT
+  for (auto *sensor : this->text_sensors_)
+    sensor->on_status(status);
 #endif
 }
 
@@ -103,7 +123,7 @@ void BQ25186Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BQ25186:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-#ifdef USE_SWITCH
+#ifdef USE_BQ25186_PG_GPO
   LOG_SWITCH("  ", "PG/GPO", this->pg_gpo_switch_);
 #endif
 }

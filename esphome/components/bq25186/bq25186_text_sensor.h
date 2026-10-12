@@ -8,16 +8,17 @@
 
 namespace esphome::bq25186 {
 
-enum class BQ25186TextSensorKind : uint8_t { CHARGE_STATUS, TS_STATUS };
-
-class BQ25186TextSensor final : public text_sensor::TextSensor, public BQ25186Listener {
+/// A two-bit status field; `first` is the string table index of the field's value 0
+class BQ25186TextSensor final : public text_sensor::TextSensor {
  public:
-  explicit BQ25186TextSensor(BQ25186TextSensorKind kind) : kind_(kind) {}
-  void on_status(const BQ25186StatusRegisters &status) override;
+  BQ25186TextSensor(uint8_t reg, uint8_t shift, uint8_t first) : reg_(reg), shift_(shift), first_(first) {}
+  void on_status(const BQ25186StatusRegisters &status);
 
  protected:
-  const BQ25186TextSensorKind kind_;
-  uint8_t last_{0xFF};  // the two-bit field last published
+  const uint8_t reg_;
+  const uint8_t shift_;
+  const uint8_t first_;
+  uint8_t last_{0xFF};  // the field value last published
 };
 
 }  // namespace esphome::bq25186

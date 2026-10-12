@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import BQ25186_LISTENER_SCHEMA, CONF_BQ25186_ID, bq25186_ns
+from . import BQ25186_CHILD_SCHEMA, CONF_BQ25186_ID, bq25186_ns
 
 DEPENDENCIES = ["bq25186"]
 
@@ -23,23 +23,21 @@ MODE_MASK = 0x60
 # (key, SHIP_RST mask, value, device class, icon)
 _BUTTONS = (
     ("software_reset", SOFTWARE_RESET_MASK, 0x80, DEVICE_CLASS_RESTART, ICON_RESTART),
-    ("shutdown", MODE_MASK, 0x20, None, ICON_POWER),
-    ("ship_mode", MODE_MASK, 0x40, None, ICON_POWER),
+    ("shutdown", MODE_MASK, 0x20, cv.UNDEFINED, ICON_POWER),
+    ("ship_mode", MODE_MASK, 0x40, cv.UNDEFINED, ICON_POWER),
     ("hardware_reset", MODE_MASK, 0x60, DEVICE_CLASS_RESTART, ICON_RESTART_ALERT),
 )
 
 
-def _schema(device_class: str | None, icon: str) -> cv.Schema:
-    extra = {} if device_class is None else {"device_class": device_class}
-    return button.button_schema(
-        BQ25186Button, entity_category=ENTITY_CATEGORY_CONFIG, icon=icon, **extra
-    )
-
-
 CONFIG_SCHEMA = cv.All(
-    BQ25186_LISTENER_SCHEMA.extend(
+    BQ25186_CHILD_SCHEMA.extend(
         {
-            cv.Optional(key): _schema(device_class, icon)
+            cv.Optional(key): button.button_schema(
+                BQ25186Button,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                icon=icon,
+                device_class=device_class,
+            )
             for key, _, _, device_class, icon in _BUTTONS
         }
     ),

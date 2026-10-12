@@ -8,7 +8,7 @@
 
 namespace esphome::bq25186 {
 
-/// Writes one SHIP_RST field when pressed: the software reset bit, or a ship, shutdown or hardware reset code
+/// Writes one SHIP_RST field when pressed
 class BQ25186Button final : public button::Button, public Parented<BQ25186Component> {
  public:
   BQ25186Button(uint8_t mask, uint8_t value) : mask_(mask), value_(value) {}

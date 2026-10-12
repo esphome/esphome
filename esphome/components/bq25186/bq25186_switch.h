@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_SWITCH
+#ifdef USE_BQ25186_PG_GPO
 
 #include "bq25186.h"
 #include "esphome/components/switch/switch.h"
@@ -18,4 +18,4 @@ class BQ25186PgGpoSwitch final : public switch_::Switch, public Parented<BQ25186
 
 }  // namespace esphome::bq25186
 
-#endif  // USE_SWITCH
+#endif  // USE_BQ25186_PG_GPO

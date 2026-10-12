@@ -4,7 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#ifdef USE_SWITCH
+#ifdef USE_BQ25186_PG_GPO
 #include "esphome/components/switch/switch.h"
 #endif
 
@@ -29,14 +29,16 @@ static constexpr size_t BQ25186_CONFIG_REGISTER_COUNT = BQ25186_REG_MASK_ID - BQ
 // STAT0, STAT1 and FLAG0, read together by every poll
 static constexpr size_t BQ25186_STATUS_REGISTER_COUNT = BQ25186_REG_FLAG0 - BQ25186_REG_STAT0 + 1;
 
+// VBAT_CTRL pg_mode: the /PG pin is a general purpose output driven by SYS_REG pg_gpo_level
+static constexpr uint8_t BQ25186_VBAT_CTRL_PG_MODE = 0x80;
+static constexpr uint8_t BQ25186_SYS_REG_PG_GPO_LEVEL = 0x10;
+
 // Register values for VBAT_CTRL..MASK_ID, packed by code generation
 using BQ25186ConfigRegisters = std::array<uint8_t, BQ25186_CONFIG_REGISTER_COUNT>;
 using BQ25186StatusRegisters = std::array<uint8_t, BQ25186_STATUS_REGISTER_COUNT>;
 
-class BQ25186Listener {
- public:
-  virtual void on_status(const BQ25186StatusRegisters &status) = 0;
-};
+class BQ25186BinarySensor;
+class BQ25186TextSensor;
 
 class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -49,25 +51,34 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
     this->configure_on_boot_ = true;
   }
   bool apply_config(const BQ25186ConfigRegisters &regs);
-#ifdef BQ25186_LISTENER_COUNT
-  void register_listener(BQ25186Listener *listener) { this->listeners_.push_back(listener); }
+#ifdef BQ25186_BINARY_SENSOR_COUNT
+  void register_binary_sensor(BQ25186BinarySensor *sensor) { this->binary_sensors_.push_back(sensor); }
 #endif
-#ifdef USE_SWITCH
-  /// The /PG/GPO pin is switched to general purpose output mode at setup when a switch drives it
+#ifdef BQ25186_TEXT_SENSOR_COUNT
+  void register_text_sensor(BQ25186TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
+#endif
+#ifdef USE_BQ25186_PG_GPO
+  /// The /PG/GPO pin is put in general purpose output mode when a switch drives it
   void set_pg_gpo_switch(switch_::Switch *pg_gpo_switch) { this->pg_gpo_switch_ = pg_gpo_switch; }
-  bool write_pg_gpo_level(bool level) { return this->update_register_(BQ25186_REG_SYS_REG, 0x10, level ? 0x10 : 0); }
+  bool write_pg_gpo_level(bool level) {
+    return this->update_register_(BQ25186_REG_SYS_REG, BQ25186_SYS_REG_PG_GPO_LEVEL,
+                                  level ? BQ25186_SYS_REG_PG_GPO_LEVEL : 0);
+  }
 #endif
-  /// Set bits of SHIP_RST: the software reset bit, or the ship, shutdown and hardware reset codes
+  /// Write the masked bits of SHIP_RST
   bool write_ship_rst(uint8_t mask, uint8_t value) { return this->update_register_(BQ25186_REG_SHIP_RST, mask, value); }
 
  protected:
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
-#ifdef BQ25186_LISTENER_COUNT
-  StaticVector<BQ25186Listener *, BQ25186_LISTENER_COUNT> listeners_;
+#ifdef BQ25186_BINARY_SENSOR_COUNT
+  StaticVector<BQ25186BinarySensor *, BQ25186_BINARY_SENSOR_COUNT> binary_sensors_;
 #endif
-#ifdef USE_SWITCH
+#ifdef BQ25186_TEXT_SENSOR_COUNT
+  StaticVector<BQ25186TextSensor *, BQ25186_TEXT_SENSOR_COUNT> text_sensors_;
+#endif
+#ifdef USE_BQ25186_PG_GPO
   switch_::Switch *pg_gpo_switch_{nullptr};
 #endif
   BQ25186ConfigRegisters setup_regs_{};
