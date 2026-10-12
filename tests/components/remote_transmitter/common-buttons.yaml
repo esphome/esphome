@@ -332,3 +332,13 @@ button:
         code: 0xd19ef0a9
         suffix: 0x00
         suffix_bits: 8
+  - platform: template
+    name: KeeLoq lambda with repeat
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: !lambda return 0x57ffe7b;
+        command: 0x02
+        code: 0xd19ef0a9
+        repeat:
+          times: 3
+          wait_time: 10ms

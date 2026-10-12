@@ -199,6 +199,24 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     call.set_send_wait(send_wait);
     call.perform();
   }
+  /// Protocol data filled field by field, then sent by perform(); the call a generated transmit action builds.
+  template<RemoteProtocolEncoder Protocol> class ProtocolCall {
+   public:
+    explicit ProtocolCall(RemoteTransmitterBase *parent) : parent_(parent) {}
+    void set_send_times(uint32_t send_times) { this->send_times_ = send_times; }
+    void set_send_wait(uint32_t send_wait) { this->send_wait_ = send_wait; }
+    void perform() { this->parent_->transmit<Protocol>(this->data, this->send_times_, this->send_wait_); }
+
+    typename Protocol::ProtocolData data{};
+
+   protected:
+    RemoteTransmitterBase *parent_;
+    uint32_t send_times_{1};
+    uint32_t send_wait_{0};
+  };
+  template<RemoteProtocolEncoder Protocol> ProtocolCall<Protocol> protocol_call() {
+    return ProtocolCall<Protocol>(this);
+  }
 
  protected:
   void send_(uint32_t send_times, uint32_t send_wait, uint16_t seq);

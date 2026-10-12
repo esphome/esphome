@@ -44,10 +44,10 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import coroutine
+from esphome.core import ID, coroutine
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -287,6 +287,52 @@ def register_action(
         return registerer(new_func)
 
     return decorator
+
+
+def register_protocol_action(
+    name: str,
+    protocol: str,
+    schema: cv.Schema,
+    *fields: tuple[str, str, SafeExpType],
+    validate: Callable[[ConfigType], ConfigType] | None = None,
+) -> None:
+    """Register ``transmit_<name>`` with no C++ action class.
+
+    One generated function fills ``<protocol>Data`` from ``(conf_key, member, type_)`` fields
+    and sends it; the action is a core ``ApplyAction``.
+    """
+    action = f"remote_transmitter.transmit_{name}"
+    schema = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
+    builder = automation.apply_action_builder(
+        action,
+        schema,
+        *(
+            automation.ApplyField(key, f"data.{member} = {{}}", type_)
+            for key, member, type_ in fields
+        ),
+        automation.ApplyField((CONF_REPEAT, CONF_TIMES), "set_send_times", cg.uint32),
+        automation.ApplyField(
+            (CONF_REPEAT, CONF_WAIT_TIME), "set_send_wait", cg.uint32
+        ),
+        call=f"protocol_call<{ns.class_(f'{protocol}Protocol')}>",
+        id_key=CONF_TRANSMITTER_ID,
+    )
+
+    async def protocol_builder(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: TemplateArgsType,
+    ) -> MockObj:
+        _request_protocol_if_in_tree(name)
+        return await builder(config, action_id, template_arg, args)
+
+    automation.register_action(
+        action,
+        automation.ApplyAction,
+        schema if validate is None else cv.All(schema, validate),
+        synchronous=True,
+    )(protocol_builder)
 
 
 def declare_protocol(name):
@@ -929,7 +975,7 @@ async def magiquest_action(var, config, args):
     KeeloqData,
     KeeloqBinarySensor,
     KeeloqTrigger,
-    KeeloqAction,
+    _,
     KeeloqDumper,
 ) = declare_protocol("Keeloq")
 KEELOQ_SCHEMA = cv.Schema(
@@ -989,24 +1035,18 @@ def keeloq_dumper(var, config):
     pass
 
 
-@register_action(
-    "keeloq", KeeloqAction, KEELOQ_ACTION_SCHEMA, validate=_keeloq_suffix_fits
+register_protocol_action(
+    "keeloq",
+    "Keeloq",
+    KEELOQ_ACTION_SCHEMA,
+    (CONF_ADDRESS, "address", cg.uint32),
+    (CONF_CODE, "encrypted", cg.uint32),
+    (CONF_COMMAND, "command", cg.uint8),
+    (CONF_LEVEL, "vlow", cg.bool_),
+    (CONF_SUFFIX, "suffix", cg.uint16),
+    (CONF_SUFFIX_BITS, "suffix_bits", cg.uint8),
+    validate=_keeloq_suffix_fits,
 )
-async def keeloq_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)
-    cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
-    cg.add(var.set_encrypted(template_))
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
-    cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
-    cg.add(var.set_vlow(template_))
-    # Without suffix bits nothing of the suffix is sent, so both stay at their C++ default.
-    if (suffix_bits := config[CONF_SUFFIX_BITS]) != 0:
-        template_ = await cg.templatable(config[CONF_SUFFIX], args, cg.uint16)
-        cg.add(var.set_suffix(template_))
-        template_ = await cg.templatable(suffix_bits, args, cg.uint8)
-        cg.add(var.set_suffix_bits(template_))
 
 
 # NEC
