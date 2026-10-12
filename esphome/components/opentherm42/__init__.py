@@ -98,6 +98,9 @@ CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVE
 )
 CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY = "configuration_information_ventilation_heat_recovery_product_version_number_and_type_update_every"
 CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_UPDATE_EVERY = "configuration_information_solar_storage_product_version_number_and_type_update_every"
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_UPDATE_EVERY = (
+    "sensor_and_informational_data_boiler_fan_speed_update_every"
+)
 # §5.3.6 Class 6, IDs 11/89/106: all three TSP families round-robin through one shared
 # conversation (see hub.h's tsp_slots_) -- this governs how fast that rotation advances as a
 # whole, not any individual slot's own refresh rate. On-demand writes always jump the queue ahead
@@ -143,6 +146,8 @@ UPDATE_EVERY_OPTIONS: dict[str, int] = {
     CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_UPDATE_EVERY: 4,
     CONF_CONTROL_AND_STATUS_INFORMATION_APPLICATION_SPECIFIC_FAULT_FLAGS_VENTILATION_HEAT_RECOVERY_UPDATE_EVERY: 4,
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_UPDATE_EVERY: 4,
+    # Tier 3: live process sensors that change during active operation.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_UPDATE_EVERY: 3,
 }
 
 # §5.3.2 Class 2: this master's own identity, written to the boiler once at startup (IDs 2 LB/126).
