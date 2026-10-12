@@ -35,6 +35,8 @@ sensor:
       name: 'BL0939 Energy 2'
     energy_total:
       name: 'BL0939 Energy Total'
+    internal_temperature:
+      name: 'BL0939 Internal Temperature'
 ```
 
 > [!NOTE]
@@ -65,6 +67,9 @@ sensor:
 
 - **energy_total** (*Optional*): Use the energy counter value of both channels in kWh. All options from
   [Sensor](/components/sensor).
+
+- **internal_temperature** (*Optional*): The internal temperature of the BL0939 chip in °C.
+  This measures chip temperature, not ambient temperature. All options from [Sensor](/components/sensor).
 
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
