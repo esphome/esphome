@@ -40,7 +40,9 @@ class LD2460Component : public Component, public uart::UARTDevice {
 
  protected:
   void send_query_();
+  void align_to_header_(const uint8_t *header);
   void handle_periodic_data_();
+  void handle_ack_();
   void readline_(uint8_t readch);
 
 #ifdef USE_SENSOR
@@ -58,8 +60,8 @@ class LD2460Component : public Component, public uart::UARTDevice {
   uint8_t buffer_pos_{0};
   // The angle formula depends on how the module is mounted, so it is read from the module at boot
   InstallationMode installation_mode_{InstallationMode::INSTALLATION_MODE_SIDE};
-  // Cleared by the ACK; if still set at the first data frame the query is sent once more
-  bool query_pending_{true};
+  // Queries sent so far; 0 once the module answered. Data frames resend up to MAX_QUERY_ATTEMPTS.
+  uint8_t query_attempts_{1};
 };
 
 }  // namespace esphome::ld2460

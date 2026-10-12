@@ -20,6 +20,7 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 
 static constexpr uint8_t CMD_REPORT_DATA = 0x04;
 static constexpr uint8_t CMD_QUERY_INSTALLATION_MODE = 0x0A;
 static constexpr uint8_t ACK_FRAME_LENGTH = 12;
+static constexpr uint8_t MAX_QUERY_ATTEMPTS = 3;
 // Header, command, length (12, little endian), payload 0x01, footer
 static constexpr uint8_t QUERY_INSTALLATION_MODE_FRAME[] PROGMEM = {
     0xFD, 0xFC, 0xFB, 0xFA, CMD_QUERY_INSTALLATION_MODE, 0x0C, 0x00, 0x01, 0x04, 0x03, 0x02, 0x01,
@@ -42,7 +43,12 @@ void LD2460Component::send_query_() {
 }
 
 void LD2460Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "LD2460:");
+  ESP_LOGCONFIG(TAG,
+                "LD2460:\n"
+                "  Installation mode: %s",
+                this->query_attempts_ != 0                                            ? LOG_STR_LITERAL("unknown")
+                : this->installation_mode_ == InstallationMode::INSTALLATION_MODE_TOP ? LOG_STR_LITERAL("top")
+                                                                                      : LOG_STR_LITERAL("side"));
 #ifdef USE_SENSOR
   LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
   for (const auto &t : this->target_sensors_) {
@@ -81,11 +87,20 @@ void LD2460Component::handle_periodic_data_() {
     ESP_LOGW(TAG, "Periodic packet length mismatch: %u != %u", packet_len, this->buffer_pos_);
     return;
   }
+  if (packet_len < 11 || (packet_len - 11) % 4 != 0) {
+    ESP_LOGW(TAG, "Periodic packet length %u is not a whole number of targets", packet_len);
+    return;
+  }
 
-  if (this->query_pending_) {
-    // The module may have booted after us and missed the query sent from setup()
-    this->query_pending_ = false;
-    this->send_query_();
+  if (this->query_attempts_ != 0) {
+    if (this->query_attempts_ < MAX_QUERY_ATTEMPTS) {
+      // The module may have booted after us and missed the earlier query
+      this->query_attempts_++;
+      this->send_query_();
+    } else if (this->query_attempts_ == MAX_QUERY_ATTEMPTS) {
+      this->query_attempts_++;
+      ESP_LOGW(TAG, "No installation mode reply after %u queries; assuming side mount", MAX_QUERY_ATTEMPTS);
+    }
   }
 
 #ifdef USE_SENSOR
@@ -159,21 +174,55 @@ void LD2460Component::readline_(uint8_t readch) {
 #endif
 
   if (is_data) {
+    this->align_to_header_(DATA_FRAME_HEADER);
     this->handle_periodic_data_();
-  } else if (this->buffer_pos_ == ACK_FRAME_LENGTH &&
-             encode_uint16(this->buffer_data_[6], this->buffer_data_[5]) == ACK_FRAME_LENGTH &&
-             matches(this->buffer_data_, CMD_FRAME_HEADER) && this->buffer_data_[4] == CMD_QUERY_INSTALLATION_MODE) {
-    this->installation_mode_ = static_cast<InstallationMode>(this->buffer_data_[7]);
-    this->query_pending_ = false;
-    ESP_LOGV(TAG, "Installation mode: %u", this->buffer_data_[7]);
-#ifdef USE_SENSOR
-    // Angles depend on the mode, so republish every target on the next frame
-    for (auto &t : this->target_sensors_) {
-      t.last_x = INT16_MIN;
-    }
-#endif
+  } else {
+    this->align_to_header_(CMD_FRAME_HEADER);
+    this->handle_ack_();
   }
   this->buffer_pos_ = 0;
+}
+
+// Stray bytes in front of a frame would otherwise make it fail the header check, so once a
+// footer is matched the buffer is shifted so that it starts at the header.
+void LD2460Component::align_to_header_(const uint8_t *header) {
+  for (uint8_t i = 1; i + HEADER_FOOTER_SIZE <= this->buffer_pos_; i++) {
+    if (matches(&this->buffer_data_[i], header)) {
+      this->buffer_pos_ -= i;
+      std::memmove(this->buffer_data_, &this->buffer_data_[i], this->buffer_pos_);
+      return;
+    }
+  }
+}
+
+void LD2460Component::handle_ack_() {
+  const uint8_t *data = this->buffer_data_;
+  if (this->buffer_pos_ != ACK_FRAME_LENGTH || encode_uint16(data[6], data[5]) != ACK_FRAME_LENGTH ||
+      !matches(data, CMD_FRAME_HEADER)) {
+    ESP_LOGW(TAG, "Dropping malformed command frame");
+    return;
+  }
+  if (data[4] != CMD_QUERY_INSTALLATION_MODE) {
+    ESP_LOGD(TAG, "Ignoring reply to command 0x%02X", data[4]);
+    return;
+  }
+  const uint8_t mode = data[7];
+  if (mode != static_cast<uint8_t>(InstallationMode::INSTALLATION_MODE_SIDE) &&
+      mode != static_cast<uint8_t>(InstallationMode::INSTALLATION_MODE_TOP)) {
+    ESP_LOGW(TAG, "Unexpected installation mode %u", mode);
+    return;
+  }
+  this->installation_mode_ = static_cast<InstallationMode>(mode);
+  this->query_attempts_ = 0;
+  ESP_LOGD(TAG, "Installation mode: %s",
+           mode == static_cast<uint8_t>(InstallationMode::INSTALLATION_MODE_TOP) ? LOG_STR_LITERAL("top")
+                                                                                 : LOG_STR_LITERAL("side"));
+#ifdef USE_SENSOR
+  // Angles depend on the mode, so republish every target on the next frame
+  for (auto &t : this->target_sensors_) {
+    t.last_x = INT16_MIN;
+  }
+#endif
 }
 
 }  // namespace esphome::ld2460

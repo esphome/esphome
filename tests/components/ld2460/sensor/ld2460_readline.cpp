@@ -56,8 +56,7 @@ TEST_F(LD2460ReadlineTest, FooterBytesInsideGarbage) {
 
 TEST_F(LD2460ReadlineTest, OverflowThenValidFrame) {
   this->ld2460_.feed(std::vector<uint8_t>(MAX_LINE_LENGTH + 8, 0x11));
-  // The frame right after the overflow lands behind leftover bytes and is dropped
-  this->ld2460_.feed(make_periodic_frame());
+  // The frame right after the overflow lands behind leftover bytes; the header resync skips them
   this->ld2460_.feed(make_periodic_frame());
   EXPECT_FLOAT_EQ(this->count_.state, 1);
   EXPECT_NEAR(this->x_[0].state, 1.5f, 0.001f);
@@ -110,11 +109,39 @@ TEST_F(LD2460ReadlineTest, AckHandling) {
   EXPECT_NEAR(this->angle_[0].state, 56.89f, 0.05f);
 }
 
-TEST_F(LD2460ReadlineTest, QueryResentOnceWhileNoAck) {
-  // No ACK arrived, so the first data frame resends the 12-byte query, and only that one
-  EXPECT_CALL(this->mock_uart_, write_array(::testing::_, 12)).Times(1);
+TEST_F(LD2460ReadlineTest, QueryResentWhileNoAck) {
+  // No ACK arrived: the first two data frames resend the 12-byte query (three attempts with the
+  // one from setup), after which the hub gives up and assumes a side mount
+  EXPECT_CALL(this->mock_uart_, write_array(::testing::_, 12)).Times(2);
   this->ld2460_.feed(make_periodic_frame());
   this->ld2460_.feed(make_periodic_frame({{20, 20}}));
+  this->ld2460_.feed(make_periodic_frame({{30, 30}}));
+  this->ld2460_.feed(make_periodic_frame({{40, 40}}));
+}
+
+TEST_F(LD2460ReadlineTest, InvalidModeKeepsQuerying) {
+  // A mode byte that is neither side nor top is rejected and the next frame asks again
+  EXPECT_CALL(this->mock_uart_, write_array(::testing::_, 12)).Times(1);
+  this->ld2460_.feed(make_ack_frame(3));
+  this->ld2460_.feed(make_periodic_frame());
+  EXPECT_NEAR(this->angle_[0].state, 33.11f, 0.05f);
+}
+
+TEST_F(LD2460ReadlineTest, StrayBytesBeforeFrame) {
+  // Garbage in front of a frame is skipped once the footer is seen, for data and command frames
+  this->ld2460_.feed({0x01, 0x02, 0x03});
+  this->ld2460_.feed(make_ack_frame(2));
+  this->ld2460_.feed({0xAA, 0xBB});
+  this->ld2460_.feed(make_periodic_frame());
+  EXPECT_FLOAT_EQ(this->count_.state, 1);
+  EXPECT_NEAR(this->angle_[0].state, 56.89f, 0.05f);
+}
+
+TEST_F(LD2460ReadlineTest, PartialTargetRejected) {
+  // 13 bytes of payload is not a whole number of 4-byte targets
+  std::vector<uint8_t> frame = {0xF4, 0xF3, 0xF2, 0xF1, 0x04, 0x0D, 0x00, 0x0F, 0x00, 0xF8, 0xF7, 0xF6, 0xF5};
+  this->ld2460_.feed(frame);
+  EXPECT_TRUE(std::isnan(this->count_.state));
 }
 
 TEST_F(LD2460ReadlineTest, NoQueryAfterAck) {
