@@ -21,6 +21,7 @@ MULTI_CONF = True
 AUTO_LOAD = [
     "binary_sensor",
     "number",
+    "sensor",
     "switch",
 ]
 
