@@ -264,13 +264,17 @@ def string_ref_literal(config: ConfigType, value: str) -> str:
     return f"StringRef({literal_with_length(config, value)})"
 
 
+def _names_parent(text: str) -> bool:
+    return any(f == "parent" for _, f, _, _ in string.Formatter().parse(text))
+
+
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
 
     Each arg is ``(conf_key, type_)`` or ``(conf_key, type_, const_fn)``. A ``conf_key`` may be a
-    path into nested sections. A plain ``str`` ``type_`` is raw C++ type text and may use
-    ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
+    path into nested sections. ``target`` and a plain ``str`` ``type_`` (raw C++ type text) may
+    name the parent object as ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
     id bypasses it. The statement is skipped when none of its keys is set, always emitted when it
     has no keys, and a partial set is a config error.
     """
@@ -282,19 +286,25 @@ class ApplyCall:
         fields = [
             f for _, f, _, _ in string.Formatter().parse(self.target) if f is not None
         ]
-        if any(fields):
+        if any(f not in ("", "parent") for f in fields):
             raise ValueError(
-                f"apply target {self.target!r}: only bare {{}} placeholders"
+                f"apply target {self.target!r}: only {{}} and {{parent}} placeholders"
             )
-        if len(fields) != len(self.args):
+        if (count := fields.count("")) != len(self.args):
             raise ValueError(
-                f"apply target {self.target!r} has {len(fields)} "
+                f"apply target {self.target!r} has {count} "
                 f"placeholder(s) for {len(self.args)} config key(s)"
             )
         if any(len(arg) not in (2, 3) for arg in self.args):
             raise ValueError(
                 f"apply target {self.target!r}: each arg is (conf_key, type_[, const_fn])"
             )
+
+    @property
+    def names_parent(self) -> bool:
+        return _names_parent(self.target) or any(
+            isinstance(arg[1], str) and _names_parent(arg[1]) for arg in self.args
+        )
 
     @property
     def members(self) -> list[tuple[Any, Any, Any]]:
@@ -494,7 +504,7 @@ def register_apply_action(
             exprs = await _render_values(
                 name, target, members, values, config, parent, lambda_args
             )
-            statements.append(f"{receiver}{target.format(*exprs)};")
+            statements.append(f"{receiver}{target.format(*exprs, parent=parent)};")
         if call:
             statements = [
                 f"auto apply_call = {parent}->{call}();",
@@ -526,7 +536,7 @@ async def _render_check(
     exprs = await _render_values(
         name, target, members, values, config, parent, lambda_args, compare=True
     )
-    return target.format(*exprs)
+    return target.format(*exprs, parent=parent)
 
 
 def register_apply_condition(
@@ -699,54 +709,22 @@ XorCondition = cg.esphome_ns.class_("XorCondition", Condition)
 
 
 @register_condition("and", AndCondition, validate_condition_list)
-async def and_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
-    )
-
-
-@register_condition("or", OrCondition, validate_condition_list)
-async def or_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
-    )
-
-
 @register_condition("all", AndCondition, validate_condition_list)
-async def all_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
-    )
-
-
+@register_condition("or", OrCondition, validate_condition_list)
 @register_condition("any", OrCondition, validate_condition_list)
-async def any_condition_to_code(
+@register_condition("xor", XorCondition, validate_condition_list)
+async def condition_group_to_code(
     config: ConfigType,
     condition_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
+    # A group of one is that condition for and, or and xor; skip the wrapper.
+    if len(conditions) == 1:
+        return conditions[0]
     return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), *conditions
     )
 
 
@@ -759,19 +737,6 @@ async def not_condition_to_code(
 ) -> MockObj:
     condition = await build_condition(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, condition)
-
-
-@register_condition("xor", XorCondition, validate_condition_list)
-async def xor_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(
-        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
-    )
 
 
 @register_condition("lambda", LambdaCondition, cv.returning_lambda)
@@ -875,11 +840,13 @@ async def if_action_to_code(
     condition = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, if_template_arg, condition)
     if CONF_THEN in config:
-        actions = await build_action_list(config[CONF_THEN], template_arg, args)
-        cg.add(var.add_then(actions))
+        for action in await build_action_list(config[CONF_THEN], template_arg, args):
+            cg.add(var.add_then_action(action))
+        cg.add(var.finish_then())
     if has_else:
-        actions = await build_action_list(config[CONF_ELSE], template_arg, args)
-        cg.add(var.add_else(actions))
+        for action in await build_action_list(config[CONF_ELSE], template_arg, args):
+            cg.add(var.add_else_action(action))
+        cg.add(var.finish_else())
     return var
 
 
@@ -902,8 +869,9 @@ async def while_action_to_code(
 ) -> MockObj:
     condition = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, condition)
-    actions = await build_action_list(config[CONF_THEN], template_arg, args)
-    cg.add(var.add_then(actions))
+    for action in await build_action_list(config[CONF_THEN], template_arg, args):
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -932,7 +900,9 @@ async def repeat_action_to_code(
         cg.TemplateArguments(cg.uint32, *template_arg.args),
         [(cg.uint32, "iteration"), *args],
     )
-    cg.add(var.add_then(actions))
+    for action in actions:
+        cg.add(var.add_then_action(action))
+    cg.add(var.finish_then())
     return var
 
 
@@ -1068,19 +1038,77 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
     Non-synchronous actions (delay, wait_until, script.wait, etc.) store
     trigger args for later execution, making non-owning types like StringRef
     unsafe.
+
+    Accepts an action list, a single action, or an automation. Only the keys of
+    action entries are looked up as action names; the options of an action are
+    only searched for nested action lists (``then:``, ``else:``, ...), so an
+    option that shares a name with an action, such as the ``delay:`` option of
+    ``speaker_source.set_playlist_delay``, is not mistaken for that action.
     """
     if isinstance(actions, list):
         return any(has_non_synchronous_actions(item) for item in actions)
     if isinstance(actions, dict):
-        for key in actions:
+        for key, options in actions.items():
             if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
                 return True
-        return any(
-            has_non_synchronous_actions(v)
-            for v in actions.values()
-            if isinstance(v, (list, dict))
-        )
+            if _options_have_non_synchronous_actions(options):
+                return True
     return False
+
+
+def _options_have_non_synchronous_actions(options: Any) -> bool:
+    """Search an action's options for nested action lists, without treating option keys as actions."""
+    if isinstance(options, list):
+        return has_non_synchronous_actions(options)
+    if isinstance(options, dict):
+        return any(_options_have_non_synchronous_actions(v) for v in options.values())
+    return False
+
+
+def validate_no_deferring_actions(
+    context: str, data: str = "the trigger data"
+) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator that rejects deferring actions in a validated automation.
+
+    Use it for triggers whose arguments only live while the callback runs (views into a reused
+    buffer, a JSON document freed on return, ...): deferring actions keep the arguments for later.
+
+    :param context: Where the automation is, for the error message, e.g. ``"on_json and on_data"``.
+    :param data: What is only valid while the automation runs, for the error message.
+    """
+
+    def validator(value: ConfigType) -> ConfigType:
+        if has_non_synchronous_actions(value):
+            raise cv.Invalid(
+                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in "
+                f"{context}: {data} is only valid while the automation runs. Copy what you need "
+                "into globals first, then defer in a separate script or automation."
+            )
+        return value
+
+    return validator
+
+
+def validate_synchronous_automation(
+    context: str,
+    data: str = "the trigger data",
+    extra_schema=None,
+    extra_validators=None,
+    single: bool = False,
+) -> cv.All:
+    """``validate_automation()`` that also rejects deferring actions.
+
+    See ``validate_no_deferring_actions()`` for ``context`` and ``data``; the other parameters are
+    passed to ``validate_automation()``.
+    """
+    return cv.All(
+        validate_automation(
+            extra_schema=extra_schema,
+            extra_validators=extra_validators,
+            single=single,
+        ),
+        validate_no_deferring_actions(context, data),
+    )
 
 
 async def _new_automation(
@@ -1090,7 +1118,8 @@ async def _new_automation(
     templ = cg.TemplateArguments(*(arg[0] for arg in args))
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     actions = await build_action_list(config[CONF_THEN], templ, args)
-    cg.add(obj.add_actions(actions))
+    for action in actions:
+        cg.add(obj.add_action(action))
     return obj
 
 
@@ -1106,21 +1135,22 @@ async def build_trigger_callback(
     params: TemplateArgsType,
     forward: Sequence[str | Expression] | None = None,
     when: str | ApplyCall | None = None,
+    parent: MockObj | None = None,
 ) -> LambdaExpression:
     """Build the Automation for ``config`` and return a stateless callback that triggers it.
 
     ``params`` are the parent callback's parameters, ``forward`` the expressions passed to
     ``trigger()`` (default: the parameter names; write the parent as ``parent_ref(var)``),
     ``when`` a filter the callback returns early on, skipped like any ``ApplyCall`` when none
-    of its keys is set.
+    of its keys is set. ``when`` may name ``parent`` as ``{parent}``, e.g.
+    ``"{parent}->is_fully_open()"``.
     """
     members: list[tuple[Any, Any, Any]] = []
     if when is not None:
         call = when if isinstance(when, ApplyCall) else ApplyCall(when)
         members = call.members
-        # A trigger callback has no parent for a str type to name.
-        if any(isinstance(t, str) and "{parent}" in t for _, t, _ in members):
-            raise ValueError(f"trigger filter {call.target!r}: a type names {{parent}}")
+        if parent is None and call.names_parent:
+            raise ValueError(f"trigger filter {call.target!r} names {{parent}}")
     obj = await _new_automation(args, config)
     lambda_args = _apply_lambda_args(params)
     statements: list[str] = []
@@ -1133,7 +1163,7 @@ async def build_trigger_callback(
                 members,
                 values,
                 config,
-                None,
+                None if parent is None else str(parent_ref(parent)),
                 lambda_args,
             )
             statements.append(f"if (!({check}))\n  return;")
@@ -1182,7 +1212,7 @@ async def build_callback_automation(
                 "forwarder cannot be combined with params, forward or when"
             )
         callback = await build_trigger_callback(
-            args, config, args if params is None else params, forward, when
+            args, config, args if params is None else params, forward, when, parent
         )
         cg.add(getattr(parent, callback_method)(callback))
         return

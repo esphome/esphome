@@ -49,11 +49,16 @@ void ZigbeeComponent::factory_reset() {
   esp_zigbee_lock_release();
 }
 
+void ZigbeeComponent::report() {
+  for (const auto &[_, attribute] : this->attributes_) {
+    attribute->report();
+  }
+}
+
 void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode) {
   if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 100,
                                [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
-    App.wake_loop_threadsafe();
     return;
   }
   if (ezb_bdb_start_top_level_commissioning(mode) != EZB_ERR_NONE) {
@@ -92,7 +97,6 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         global_zigbee->set_timeout(COMMISSIONING_RETRY_TIMEOUT_ID, 1000, []() {
           ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_INITIALIZATION);
         });
-        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_BDB_SIGNAL_STEERING: {
@@ -118,7 +122,6 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
             ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(EZB_BDB_MODE_NETWORK_STEERING);
           });
         }
-        App.wake_loop_threadsafe();
       }
     } break;
     case EZB_ZDO_SIGNAL_LEAVE: {
@@ -241,7 +244,8 @@ void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   ESP_LOGD(TAG, "Endpoint %u: Added cluster 0x%04X with role %u", endpoint_id, cluster_id, role);
 }
 
-void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source) {
+void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, const char *location,
+                                        const char *sw_build_id, uint8_t power_source, uint8_t app_version) {
   char date_buf[16];
   time_t time_val = App.get_build_time();
   struct tm *timeinfo = localtime(&time_val);
@@ -250,7 +254,10 @@ void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufactu
       .model = get_zcl_string(model, 31),
       .manufacturer = get_zcl_string(manufacturer, 31),
       .date = get_zcl_string(date_buf, 15),
+      .location = get_zcl_string(location, 15),
+      .sw_build_id = get_zcl_string(sw_build_id, 15),
       .power_source = power_source,
+      .app_version = app_version,
   };
 }
 
@@ -270,6 +277,16 @@ void ZigbeeComponent::update_basic_cluster_(ezb_af_ep_desc_t ep_desc) {
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID,
                                       this->basic_cluster_data_.model);
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_DATE_CODE_ID, this->basic_cluster_data_.date);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_APPLICATION_VERSION_ID,
+                                      &(this->basic_cluster_data_.app_version));
+  uint8_t stack_version = 0;
+  uint8_t hw_version = 0;
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_STACK_VERSION_ID, &stack_version);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_HW_VERSION_ID, &hw_version);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID,
+                                      this->basic_cluster_data_.location);
+  ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_SW_BUILD_ID_ID,
+                                      this->basic_cluster_data_.sw_build_id);
 }
 
 bool ZigbeeComponent::register_device() {
@@ -322,7 +339,7 @@ void ZigbeeComponent::setup() {
 #else
   esp_zigbee_zed_config_s zb_zed_cfg = {
       .ed_timeout = EZB_NWK_ED_TIMEOUT_64MIN,
-      .keep_alive = ED_KEEP_ALIVE,
+      .keep_alive = this->keep_alive_,
   };
   device_config.zed_config = zb_zed_cfg;
 #endif
@@ -342,6 +359,8 @@ void ZigbeeComponent::setup() {
 
 #ifdef CONFIG_ZB_ZCZR
   ezb_bdb_set_router_rejoin_required(true);
+#else
+  ezb_nwk_set_rx_on_when_idle(!this->sleepy_);  // if sleepy, disable RX when idle
 #endif
 
   ezb_aps_secur_enable_distributed_security(false);
@@ -421,28 +440,35 @@ void ZigbeeComponent::loop() {
 }
 
 void ZigbeeComponent::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Zigbee\n"
+                "  Model: %.*s\n"
+                "  Manufacturer: %.*s\n"
+#ifdef CONFIG_ZB_ZCZR
+                "  Router: %s\n"
+#else
+                "  Sleepy end device: %s\n"
+                "  Poll interval: %" PRIu32 " ms\n"
+#endif
+                "  App Version: %u",
+                this->basic_cluster_data_.model[0], reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
+                this->basic_cluster_data_.manufacturer[0],
+                reinterpret_cast<const char *>(this->basic_cluster_data_.manufacturer + 1),
+#ifdef CONFIG_ZB_ZCZR
+                YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER),
+#else
+                YESNO(this->sleepy_), this->keep_alive_,
+#endif
+                this->basic_cluster_data_.app_version);
   if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     ESP_LOGCONFIG(TAG,
-                  "Zigbee\n"
-                  "  Model: %.*s\n"
-                  "  Router: %s\n"
                   "  Device is joined to the network: %s\n"
                   "  Current channel: %d\n"
                   "  Short addr: 0x%04X\n"
                   "  Short pan id: 0x%04X",
-                  this->basic_cluster_data_.model[0],
-                  reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
-                  YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER), YESNO(ezb_bdb_dev_joined()),
-                  ezb_nwk_get_current_channel(), ezb_nwk_get_short_address(), ezb_nwk_get_panid());
+                  YESNO(ezb_bdb_dev_joined()), ezb_nwk_get_current_channel(), ezb_nwk_get_short_address(),
+                  ezb_nwk_get_panid());
     esp_zigbee_lock_release();
-  } else {
-    ESP_LOGCONFIG(TAG,
-                  "Zigbee\n"
-                  "  Model: %.*s\n"
-                  "  Router: %s\n",
-                  this->basic_cluster_data_.model[0],
-                  reinterpret_cast<const char *>(this->basic_cluster_data_.model + 1),
-                  YESNO(this->device_role_ == EZB_NWK_DEVICE_TYPE_ROUTER));
   }
 }
 

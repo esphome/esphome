@@ -1,7 +1,6 @@
 #include "zigbee_time_esp32.h"
 #if defined(USE_ZIGBEE) && defined(USE_ESP32) && defined(USE_TIME)
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome::zigbee {
 
@@ -105,7 +104,6 @@ void ZigbeeTime::set_epoch_time(uint32_t utc) {
     ESP_LOGV(TAG, "Setting device time to UTC: %u", static_cast<unsigned>(utc));
     this->synchronize_epoch_(utc);
   });
-  App.wake_loop_threadsafe();
 }
 
 void ZigbeeTime::dump_config() {

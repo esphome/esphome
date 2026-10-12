@@ -7,6 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "software_serial_rx_decoder.h"
 #include "uart_component.h"
 
 namespace esphome::uart {
@@ -26,24 +27,30 @@ class ESP8266SoftwareSerial {
   size_t available();
 
  protected:
+  /// Above SW_SERIAL_EDGE_MODE_MAX_BAUD; reads the whole byte in the ISR.
   static void gpio_intr(ESP8266SoftwareSerial *arg);
+  static void gpio_intr_edge(ESP8266SoftwareSerial *arg);
 
   void wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
   bool read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
   void write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time);
 
+  void rx_finalize_pending_();
+  void ESPHOME_ALWAYS_INLINE rx_sync_() {
+    if (this->rx_.pending())
+      this->rx_finalize_pending_();
+  }
+
+  // Members ordered largest to smallest to minimize padding
   uint32_t bit_time_{0};
-  uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_;
-  volatile size_t rx_in_pos_{0};
-  size_t rx_out_pos_{0};
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
   InternalGPIOPin *gpio_tx_pin_{nullptr};
   ISRInternalGPIOPin tx_pin_;
   InternalGPIOPin *gpio_rx_pin_{nullptr};
   ISRInternalGPIOPin rx_pin_;
+  SoftwareSerialRxDecoder rx_;
+  UARTParityOptions parity_;
+  uint8_t stop_bits_;
+  uint8_t data_bits_;
 };
 
 class ESP8266UartComponent final : public UARTComponent, public Component {
