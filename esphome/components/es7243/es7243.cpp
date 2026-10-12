@@ -1,84 +1,78 @@
 #include "es7243.h"
+
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include "driver/gpio.h"
+#include <driver/gpio.h>
 
 #include <cmath>
 
 namespace esphome::es7243 {
 
-static const char *const TAG = "es7243";
+ESPHOME_LOG_TAG(TAG, "es7243");
 
-// Gain (dB) -> register 0x08 value, taken directly from ESP-ADF's
-// es7243_adc_set_voice_volume() bucket table (comments there give the dB
-// value for each register byte).
-static uint8_t gain_to_reg(float gain_db) {
-  struct Entry {
-    float db;
-    uint8_t reg;
-  };
-  static const Entry TABLE[] = {
-      {1.0f, 0x11},  {3.5f, 0x13},  {18.0f, 0x21}, {20.5f, 0x23},
-      {22.5f, 0x06}, {24.5f, 0x41}, {25.0f, 0x07}, {27.0f, 0x43},
-  };
-  const Entry *best = &TABLE[0];
-  float best_diff = std::abs(gain_db - best->db);
-  for (const auto &entry : TABLE) {
-    float diff = std::abs(gain_db - entry.db);
-    if (diff < best_diff) {
+static constexpr uint8_t REG_GAIN = 0x08;
+static constexpr uint8_t MCLK_PULSES = 20;
+
+struct GainEntry {
+  float db;
+  uint8_t reg;
+};
+// Register 0x08 values for each gain, from the ESP-ADF es7243 driver
+static constexpr GainEntry GAIN_TABLE[] = {
+    {1.0f, 0x11},  {3.5f, 0x13},  {18.0f, 0x21}, {20.5f, 0x23},
+    {22.5f, 0x06}, {24.5f, 0x41}, {25.0f, 0x07}, {27.0f, 0x43},
+};
+static constexpr float MIN_GAIN = GAIN_TABLE[0].db;
+static constexpr float MAX_GAIN = GAIN_TABLE[std::size(GAIN_TABLE) - 1].db;
+
+static uint8_t gain_reg_value(float gain_db) {
+  const GainEntry *best = GAIN_TABLE;
+  for (const auto &entry : GAIN_TABLE) {
+    if (std::fabs(gain_db - entry.db) < std::fabs(gain_db - best->db))
       best = &entry;
-      best_diff = diff;
-    }
   }
   return best->reg;
 }
 
-void ES7243::prime_mclk_() {
-  // The chip's I2C interface doesn't activate until it has seen MCLK
-  // activity. Bit-bang the pin as a plain GPIO output for a short pulse
-  // train before any I2C traffic, using the raw ESP-IDF driver directly
-  // (not ESPHome's GPIOPin) since this pin is also i2s_record's
-  // i2s_mclk_pin and going through ESPHome's tracked pin schema would trip
-  // its multi-use conflict check. The I2S peripheral takes over driving
-  // this pin as the real MCLK signal once it starts, afterward.
-  auto pin = static_cast<gpio_num_t>(this->mclk_gpio_num_);
-  gpio_set_direction(pin, GPIO_MODE_OUTPUT);
-  for (int i = 0; i < 20; i++) {
-    gpio_set_level(pin, 0);
-    delay(1);
-    gpio_set_level(pin, 1);
-    delay(1);
-  }
-}
-
 void ES7243::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ES7243...");
-  this->prime_mclk_();
-
-  bool ok = true;
-  ok &= this->write_byte(0x00, 0x01);
-  ok &= this->write_byte(0x06, 0x00);
-  ok &= this->write_byte(0x05, 0x1B);
-  ok &= this->write_byte(0x01, 0x0C);
-  ok &= this->write_byte(0x08, gain_to_reg(this->mic_gain_));
-  ok &= this->write_byte(0x05, 0x13);
-
-  if (!ok) {
-    ESP_LOGE(TAG, "Failed to initialize ES7243");
-    this->mark_failed();
+  // The chip ignores I2C until it has seen MCLK, so pulse the pin before the I2S peripheral takes it over
+  const gpio_num_t mclk = this->i2s_->get_pin_config().mclk;
+  gpio_reset_pin(mclk);
+  gpio_set_direction(mclk, GPIO_MODE_OUTPUT);
+  for (uint8_t i = 0; i < MCLK_PULSES; i++) {
+    gpio_set_level(mclk, 0);
+    delay(1);
+    gpio_set_level(mclk, 1);
+    delay(1);
   }
+
+  const bool ok = this->write_byte(0x00, 0x01) && this->write_byte(0x06, 0x00) && this->write_byte(0x05, 0x1B) &&
+                  this->write_byte(0x01, 0x0C) && this->write_mic_gain_() && this->write_byte(0x05, 0x13);
+  if (!ok) {
+    this->mark_failed();
+    return;
+  }
+  this->setup_complete_ = true;
 }
 
 void ES7243::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES7243 audio ADC:");
+  ESP_LOGCONFIG(TAG,
+                "ES7243 audio ADC:\n"
+                "  Mic gain: %.1f dB",
+                this->mic_gain_);
+  LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Failed to initialize");
   }
 }
 
 bool ES7243::set_mic_gain(float mic_gain) {
-  this->mic_gain_ = mic_gain;
-  return this->write_byte(0x08, gain_to_reg(mic_gain));
+  this->mic_gain_ = clamp(mic_gain, MIN_GAIN, MAX_GAIN);
+  return !this->setup_complete_ || this->write_mic_gain_();
 }
+
+bool ES7243::write_mic_gain_() { return this->write_byte(REG_GAIN, gain_reg_value(this->mic_gain_)); }
 
 }  // namespace esphome::es7243
