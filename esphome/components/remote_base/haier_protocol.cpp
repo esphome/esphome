@@ -1,4 +1,5 @@
 #include "haier_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 

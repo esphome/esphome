@@ -1,4 +1,5 @@
 #include "aeha_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 

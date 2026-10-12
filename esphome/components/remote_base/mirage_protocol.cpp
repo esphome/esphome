@@ -1,6 +1,9 @@
 #include "mirage_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <algorithm>
 
 namespace esphome::remote_base {
 
