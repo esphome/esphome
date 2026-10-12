@@ -94,11 +94,11 @@ jd79660.extend(
 # Compatible MIT license, see esphome/LICENSE file.
 #
 # Note: busy pin uses LOW=busy, HIGH=idle. Configure with inverted: true in YAML.
-# Note: panel is 122px wide, but the TRES register needs a multiple of 4, so the
-# vendor code declares 124 (the 2 extra columns fall outside the visible glass).
-# width=124 (not 122) is declared here (as with the V1 variant below) so the driver's
-# per-pixel byte addressing stays aligned to whole bytes on every row; declaring the
-# true 122 causes row boundaries to fall mid-byte and shears the image diagonally.
+# Note: panel is 122px wide, but vendor code declares the TRES register as a fixed
+# 124 on this revision. width=124 is declared here (rather than 122) purely so the
+# transferred bytes-per-row matches what the vendor init tells the IC to expect; the
+# extra 2 columns fall outside the visible glass. The model width must equal the
+# TRES value in initsequence, so overriding dimensions: in YAML brings the shear back.
 #
 # fmt: off
 jd79660.extend(
@@ -107,7 +107,7 @@ jd79660.extend(
     height=250,
 
     initsequence=(
-        (0x61, 0x00, 0x7C, 0x00, 0xFA,),  # TRES: 124x250 fixed (124 = 122 rounded up to a multiple of 4)
+        (0x61, 0x00, 0x7C, 0x00, 0xFA,),  # TRES: 124x250 fixed (124 = TRES stride value)
         (0xE9, 0x01,),
         # Power On (0x04): Must be early part of init seq = Disabled later!
         (0x04,),
@@ -131,6 +131,7 @@ jd79660.extend(
 # declared here (rather than 122) purely so the transferred bytes-per-row matches what
 # the vendor init tells the IC to expect; the extra 6 columns fall outside the visible
 # glass. No fast-update sequence exists in the vendor sample for this revision.
+# The model width must equal the TRES value in initsequence, so overriding dimensions: in YAML brings the shear back.
 #
 # fmt: off
 jd79660.extend(
