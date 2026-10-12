@@ -1,52 +1,28 @@
 # Init sequence sourced from LCDwiki's own published Arduino example for this board:
 # https://github.com/ydedox/st77922 (Example_01_Simple_test/Simple_test/Simple_test.ino)
+# It is the commented-out panel table in that file, with the 0x71 and 0xBE values from the
+# active one, which is what the shipped firmware writes.
 
 from esphome.components.mipi import MODE_RGB, SLPOUT, DriverChip, delay
 from esphome.components.spi import TYPE_QUAD
 from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
-# Display on the LCDwiki ES3C35P (and the speakerless ES3C35P-NS): a 3.5" 320x480
-# panel with a Sitronix ST77922 in quad-SPI (QSPI DBI) mode, on an ESP32-S3 with
-# 8MB octal PSRAM. Vendor page: https://www.lcdwiki.com/3.5inch_ESP32-S3_Display
-#
-# Simple_test.ino carries two ST77922 init tables - one active, one commented out -
-# for two panel variants of the same reference design. This board runs the
-# commented-out variant, except for the 0x71 and 0xBE parameters where it matches the
-# active one. That is what the board's own firmware writes and what was verified on
-# hardware; every byte below appears in one of the two published vendor tables.
-#
-# Board wiring, for reference - none of it is set here except CS:
-#   SPI bus:     CLK GPIO12, data pins [11, 13, 14, 9]  (configure on the spi: bus)
-#   Backlight:   GPIO41, active HIGH   (drive separately via output:/light:)
-#   Touchscreen: Sitronix controller at I2C 0x55 - the in-tree st7123 platform drives
-#                it as-is, with reset_pin GPIO48 and interrupt_pin GPIO47
-#   LCD reset:   tied to the ESP32 EN/CHIP_PU line, so there is no reset_pin to
-#                configure and the framework's software reset is used instead
-#
-# This panel needs ~120ms to settle after SWRESET and again after SLPOUT before it
-# will accept the next command; with a shorter wait it lights but renders black. The
-# framework allows 10ms between its appended SLPOUT and DISPON, so SLPOUT is issued
-# in the sequence below with a longer delay and no_slpout suppresses the appended one.
-
 # fmt: off
-DriverChip(
+ES3C35P = DriverChip(
     "ES3C35P",
     width=320,
     height=480,
     draw_rounding=4,
-    # Rotation is done in software; the hardware axis swap is not used.
     transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     color_order=MODE_RGB,
     invert_colors=True,
     bus_mode=TYPE_QUAD,
-    # The panel datasheet caps the write clock at 62.5MHz. The vendor firmware runs it
-    # at 80MHz regardless; 40MHz is verified on hardware and clocks a full frame in 28ms.
-    data_rate="40MHz",
+    data_rate="40MHz",  # datasheet caps the write clock at 62.5MHz
     cs_pin=10,
-    no_slpout=True,  # SLPOUT is in the init sequence below, with a longer settle
+    reset_delay=120,
+    no_slpout=True,  # SLPOUT is in the init sequence, the panel needs 120ms after it
     requires={"psram"},
     initsequence=(
-        delay(120),  # settle after the framework's software reset
         (0xF1, 0x00),
         (0x60, 0x00, 0x00, 0x00),
         (0x65, 0x80),
@@ -64,7 +40,6 @@ DriverChip(
         (0x8D, 0x0C),
         (0x8E, 0x33, 0x01, 0x0C, 0x13, 0x01, 0x01),
         (0xB3, 0x00, 0x30),
-        (0xF1, 0x00),
         (0x71, 0xD0),
         (0x66, 0x02, 0x3F),
         (0xBE, 0x26, 0x00, 0x9D),
@@ -101,10 +76,11 @@ DriverChip(
         (0xE3, 0x40, 0x40),
         (0xF0, 0x00),
         (0xD0, 0x00),
-        (0x2A, 0x00, 0x00, 0x01, 0x3F),
-        (0x2B, 0x00, 0x00, 0x01, 0xDF),
         (SLPOUT,),
-        delay(200),
+        delay(120),
     ),
 )
 # fmt: on
+
+# The speakerless variant uses the same display
+ES3C35P.extend("ES3C35P-NS")
