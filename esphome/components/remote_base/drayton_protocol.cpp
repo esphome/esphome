@@ -53,57 +53,45 @@ ppppppppppppSSSS-0-1-1-0-0-0-0-1-1-0-0-0-0-0-0-0-0-0-0-0-0-1-0-1-0-0-1-0
 
 --------------------
 
-The 28 bits consist of 20 bits of data and 8 bits of checksum.
+The 28 bits consist of 20 bits of payload and 8 bits of checksum.
 
-In order of transmission the data consists of the following fields:
+In order of transmission the payload consists of the following fields:
 
 Bits Description
-12   ID of the thermostat. LSB transmitted first. Range is 0 to 4095 (decimal).
-     A digistat receiver will only respond to a packet if its ID/address matches the
-     ID that the receiver has previously learnt.
-4    This field is normally set to 0000. The first packets transmitted by thermostat
-     after its batteries are inserted has this field set to 0001. This allows a
-     Digistat receiver in 'learn' mode to synchronise to the ID of the thermostat.
+12   ID of the thermostat. A Digistat receiver will only respond to a packet if its ID
+     matches the ID that the receiver has previously learnt.
+4    Pairing field, normally 0000. The first packets sent by the thermostat after its
+     batteries are inserted have this field set to 0001, which lets a Digistat receiver
+     in pairing mode learn the ID of the thermostat.
 1    Thermostat on (1) or off (0).
 1    Always 0.
 1    Low battery (1) or battery OK (0).
 1    Always 0.
-8    Checksum
 
-By inspection, observing how carry bits ripple through, the checksum is transmitted
-LSB first.  The working assuption is that the ID is also transmitted LSB first.
+The YAML/lambda 'address' is the first 16 bits as sent (the 12 bit ID followed by the
+pairing field, so the pairing flag is the address LSB), and 'data' is the next 4 bits
+(0x8 = on, 0x2 = low battery).
 
-The checksum is calculated by summing the 20 bits of the 'payload'.
+The checksum, as implemented by calc_cs():
+- Split the 20 payload bits into five 4 bit groups in order of transmission, and read
+  each group with its first transmitted bit as the least significant bit.
+- sum = g1 * 16 + g2 * 8 + g3 * 4 + g4 * 2 + g5 (at most 465).
+- If sum is above 0x7F, add 1 (a single 1, whatever the size of the overflow; this is
+  the rule observed on the captured packets).
+- The checksum byte is (sum << 1) truncated to 8 bits, sent least significant bit first,
+  so the first checksum bit sent is always 0.
 
-CS    ID bit/             Payload offset (hex)
-Bit   Function
+The captured packets above give 0x32 (On) and 0x52 (Off).
 
-0     None - always 0
-1     on/off              0
-2                        (1),(4)
-3     1, Lo Batt          2,     (5), 8
-4     2,16               (3),(6), 9,  C
-5     4,32,256,Boot           7,  A,  D, 10
-6     8,64,512                    B,  E, 11
-7     128,1024                        F, 12
-8     2048                               13
-
-The first payload bit transmitted is at offset 0x13. Bit at offset 0 is sent last.
-
-Any overflow in bits 8 or 9 wraps around into bit 1 of the sum.
-Only bits 0-7 of the checksum are sent in the packet, bit 0 first.
-
-The checksum is calculated and appended when a packet is transmitted.
-
-When a packet is receieved the checksum is verified. Packets which fail the checksum
-verification are discarded.
-
-To maintain backward compatibility with the initial revision of this module the address
-is reported without taking the endianness of the address nibbles.
+The checksum is calculated and appended when a packet is built from 'data'. When a
+packet is received the checksum is verified, and packets which fail are discarded
+(logged at debug level with the received and expected checksum).
 
 The initial revision split the 28 bits into address (16), command (7) and channel (5),
-following RFLink. That split does not match the fields above but is kept for existing
-configs: when channel or command is set, the packet is built from them with no checksum.
+following RFLink, so command is the 4 data bits followed by the top 3 checksum bits and
+channel is the low 5 checksum bits. That split is kept for existing configs: when
+channel and command are set, the packet is sent from them as is, with no checksum
+calculated. Decoded packets fill channel and command as well as data.
 
 */
 
@@ -221,7 +209,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     // if there is no transition at the start of the bit period, then the transition in the middle of
     // the previous bit period.
     while (--bit >= 1) {
-      ESP_LOGVV(TAG, "Decode Drayton: Data, %2d %08" PRIx32, bit, out_data);
+      ESP_LOGVV(TAG, "Data %2d %08" PRIx32, bit, out_data);
       if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
           (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
         out_data |= 0 << bit;
@@ -250,7 +238,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     uint8_t expected_cs = calc_cs(out_data);
 
     if (cs != expected_cs) {
-      ESP_LOGV(TAG, "Fail4 CS fail %" PRIx8 " %" PRIx8, cs, expected_cs);
+      ESP_LOGD(TAG, "Dropped %07" PRIx32 ": checksum 0x%02" PRIX8 ", expected 0x%02" PRIX8, out_data, cs, expected_cs);
       continue;
     }
 

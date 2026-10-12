@@ -1485,23 +1485,32 @@ async def raw_action(var, config, args):
 DRAYTON_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
-        cv.Optional(CONF_DATA, default=0): cv.hex_int_range(min=0, max=0xF),
-        cv.Optional(CONF_CHANNEL, default=0): cv.hex_int_range(min=0, max=0x1F),
-        cv.Optional(CONF_COMMAND, default=0): cv.hex_int_range(min=0, max=0x7F),
+        cv.Optional(CONF_DATA): cv.hex_int_range(min=0, max=0xF),
+        cv.Optional(CONF_CHANNEL): cv.hex_int_range(min=0, max=0x1F),
+        cv.Optional(CONF_COMMAND): cv.hex_int_range(min=0, max=0x7F),
     }
+)
+# Either `data`, or the legacy `channel` + `command` pair (raw packet bits)
+_validate_drayton_form = cv.All(
+    cv.has_none_or_all_keys(CONF_CHANNEL, CONF_COMMAND),
+    cv.has_exactly_one_key(CONF_DATA, CONF_COMMAND),
 )
 
 
-@register_binary_sensor("drayton", DraytonBinarySensor, DRAYTON_SCHEMA)
+@register_binary_sensor(
+    "drayton", DraytonBinarySensor, cv.All(DRAYTON_SCHEMA, _validate_drayton_form)
+)
 def drayton_binary_sensor(var, config):
+    # Matching compares address and data only; the legacy command holds the 4 data bits
+    # followed by 3 checksum bits
+    if (command := config.get(CONF_COMMAND)) is not None:
+        data = command >> 3
+    else:
+        data = config[CONF_DATA]
     cg.add(
         var.set_data(
             cg.StructInitializer(
-                DraytonData,
-                ("address", config[CONF_ADDRESS]),
-                ("data", config[CONF_DATA]),
-                ("channel", config[CONF_CHANNEL]),
-                ("command", config[CONF_COMMAND]),
+                DraytonData, ("address", config[CONF_ADDRESS]), ("data", data)
             )
         )
     )
@@ -1525,6 +1534,7 @@ register_protocol_action(
     (CONF_DATA, "data", cg.uint8),
     (CONF_CHANNEL, "channel", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
+    validate=_validate_drayton_form,
 )
 
 
