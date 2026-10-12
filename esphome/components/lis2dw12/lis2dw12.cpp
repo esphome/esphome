@@ -115,19 +115,28 @@ void LIS2DW12Component::setup() {
   this->scale_ = mg * 0.001f * GRAVITY_EARTH;
   this->shift_ = lp1 ? 4 : 2;
 
+  bool events_used = !this->tap_callback_.empty() || !this->double_tap_callback_.empty() ||
+                     !this->freefall_callback_.empty() || !this->active_callback_.empty() ||
+                     !this->orientation_callback_.empty();
 #ifdef USE_BINARY_SENSOR
   for (auto *sensor : this->event_binary_sensors_) {
     if (sensor != nullptr) {
       sensor->publish_initial_state(false);
+      events_used = true;
     }
   }
 #endif
 #ifdef USE_TEXT_SENSOR
   RegSixdSrc sixd;
-  if (this->read_byte(static_cast<uint8_t>(RegisterMap::SIXD_SRC), &sixd.raw)) {
+  if (this->orientation_text_sensor_ != nullptr &&
+      this->read_byte(static_cast<uint8_t>(RegisterMap::SIXD_SRC), &sixd.raw)) {
     this->publish_orientation_(sixd);
+    events_used = true;
   }
 #endif
+  if (!events_used) {
+    this->disable_loop();  // nothing consumes the events, so skip polling the chip
+  }
 }
 
 bool LIS2DW12Component::configure_registers_() {
@@ -286,6 +295,7 @@ void LIS2DW12Component::loop() {
     this->status_set_warning();
     return;
   }
+  this->status_clear_warning();
   RegSixdSrc sixd;
   sixd.raw = regs[0];
   RegAllIntSrc src;
@@ -296,7 +306,6 @@ void LIS2DW12Component::loop() {
   this->handle_event_(EVENT_FREEFALL, src.ff_ia, now, this->freefall_callback_);
   this->handle_event_(EVENT_ACTIVE, src.wu_ia, now, this->active_callback_);
 
-  // The 6D flag is taken from SIXD_SRC itself, the first byte read
   if (sixd.d6d_ia) {
     this->orientation_callback_.call();
 #ifdef USE_TEXT_SENSOR
