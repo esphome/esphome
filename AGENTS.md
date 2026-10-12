@@ -67,6 +67,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         - Function-local constants: `lower_snake_case`
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
+        - Device components are named brand plus model (`siemens_ira211`), without a protocol-family prefix
         - Enumerator names: prefix every value of an `enum class` with the enum name converted to
           `UPPER_SNAKE_CASE` (e.g. `UARTFlushResult::UART_FLUSH_RESULT_SUCCESS`). Never use bare
           names like `SUCCESS`, `FAILURE`, `OK`, or `FAIL`: platform SDK headers define macros with
@@ -177,6 +178,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
         `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
         https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Repeating work:** use `set_interval`, never a `set_timeout` that re-arms itself; every re-arm
+        rebuilds the callback and re-queues a scheduler item, and the period drifts.
     *   **Scheduler ids:** name a timer only when it must be cancelled or replaced, and use a
         `static constexpr uint32_t` id, never a string. Ids are per component instance and cannot clash with other
         components, so number them from 0 and keep all of a component's ids together in one place.
@@ -191,6 +194,18 @@ file does, and it is the authority when they disagree. The most useful starting 
         // Bad - this is exactly what the base class already does
         float get_setup_priority() const override { return setup_priority::DATA; }
         ```
+    *   **Constant data lives in RAM on ESP8266** unless marked `PROGMEM`: `const` tables, class-scope
+        constant arrays, and in-class `std::array` initializers (a `.rodata` template plus a copy). Mark the
+        table `PROGMEM` and read it with `progmem_memcpy()` or `progmem_read_byte()` (`esphome/core/hal.h`);
+        for a table of structs copy the whole entry out and return the copy, never a pointer into flash.
+        On other platforms they are a plain `memcpy` and dereference, so no `#ifdef` is needed. Declare log tags with
+        `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
+        a `TEMPLATABLE_BYTES` field so a static code stays in flash.
+    *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
+        sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+    *   **Fixed platform facts compile to nothing:** gate on `#ifdef USE_ESP8266` and friends, not on a
+        runtime check of something the build already knows.
     *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
         can be stored in flash rather than RAM.
         ```cpp
@@ -534,6 +549,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         `cover.is_open`, `rtttl.is_playing` and `component.is_idle` are in-tree examples.
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
+    An intentionally empty body (an unused `register_dumper` builder, for example) gets a one-line docstring, not `pass`.
 
 *   **Configuration Validation:**
     *   **Reuse existing validators:** Before writing a custom validator, check for an existing one in `config_validation.py` and compose it in `cv.All(...)` rather than duplicating logic across components. For example, rename a config key with `cv.rename_key(CONF_OLD, CONF_NEW, removed_in="2026.6.0")`, and reject mutually-exclusive keys with `cv.has_at_most_one_key(...)` / `cv.has_exactly_one_key(...)`. See how `api` composes `cv.has_exactly_one_key` + `cv.rename_key`.
@@ -569,6 +585,13 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   **Testing:**
     *   **Python:** Run unit tests with `pytest`.
     *   **C++:** Use `clang-tidy` for static analysis.
+    *   **C++ unit tests:** gtests in `tests/components/<component>/*.cpp`, run with
+        `script/cpp_unit_test.py <component>`; see `tests/components/README.md`. Set the loop clock in a test
+        with `LoopBlockingGuard{nullptr, nullptr, now_ms}`; the runner resets it before every test.
+    *   **Integration tests:** `tests/integration/` runs real firmware on the host. Serial components prove
+        timeouts and recovery with the `uart_mock` fixture (`tests/integration/test_uart_mock_*.py`).
+    *   **Keep build-test variants few:** one `test.<platform>.yaml` per platform the code actually differs
+        on. A variant per board for platform-identical code only adds CI time.
     *   **Component Tests:** YAML-based compilation tests are located in `tests/`. The structure is as follows:
         ```
         tests/
@@ -615,6 +638,7 @@ file does, and it is the authority when they disagree. The most useful starting 
             name: My Sensor
         ```
         Components that define buses directly are flagged as "NEEDS MIGRATION" and cannot be grouped, increasing CI build time.
+        `!extend` and `!remove` in a `test.*.yaml` also make the component ungroupable; add a standalone entity with its own id instead.
 
     *   **Testing All Components Together:** To verify that all components can be tested together without ID conflicts or configuration issues, use:
         ```bash
