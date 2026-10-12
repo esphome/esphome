@@ -5,6 +5,7 @@ from esphome.components import i2c, sensor
 from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.const import CONF_PLATFORM
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -34,6 +35,31 @@ FAULT_QUEUE_BITS = {1: 0, 2: 1, 4: 2, 6: 3}
 TMP102_CONVERSION_FACTOR = 0.0625
 TMP102_DEFAULT_THIGH = 80.0
 TMP102_DEFAULT_TLOW = 75.0
+
+_KEY_NUMBER_CONFIGURATION = "number_configuration"
+
+
+def set_number_configuration(
+    parent_id: object, extended: bool, high: float, low: float
+) -> None:
+    """Store resolved number limits for sensor and number code generation."""
+    configurations = CORE.data.setdefault(DOMAIN, {}).setdefault(
+        _KEY_NUMBER_CONFIGURATION, {}
+    )
+    configurations[str(parent_id)] = {
+        CONF_EXTENDED_MODE: extended,
+        CONF_TEMPERATURE_HIGH: high,
+        CONF_TEMPERATURE_LOW: low,
+    }
+
+
+def get_number_configuration(parent_id: object) -> dict[str, bool | float] | None:
+    """Return resolved number limits for a TMP102 sensor."""
+    return (
+        CORE.data.get(DOMAIN, {})
+        .get(_KEY_NUMBER_CONFIGURATION, {})
+        .get(str(parent_id))
+    )
 
 
 def encode_temperature(temperature: float, extended: bool) -> int:

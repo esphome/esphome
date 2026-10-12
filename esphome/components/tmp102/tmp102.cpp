@@ -130,13 +130,7 @@ void TMP102Component::update() {
     if (this->alert_binary_sensor_ != nullptr && !this->read_alert_state_())
       return;
 #endif
-#ifdef USE_TMP102_NUMBER
-    if (!this->threshold_write_failed_) {
-#endif
-      this->status_clear_warning();
-#ifdef USE_TMP102_NUMBER
-    }
-#endif
+    this->status_clear_warning();
   });
 }
 
@@ -211,13 +205,7 @@ void TMP102Component::read_temperature_() {
   if (this->alert_binary_sensor_ != nullptr && !this->read_alert_state_())
     return;
 #endif
-#ifdef USE_TMP102_NUMBER
-  if (!this->threshold_write_failed_) {
-#endif
-    this->status_clear_warning();
-#ifdef USE_TMP102_NUMBER
-  }
-#endif
+  this->status_clear_warning();
 }
 
 #ifdef USE_TMP102_NUMBER
@@ -251,12 +239,6 @@ float TMP102Component::get_limit_temperature_(TMP102LimitType limit) const {
 }
 
 bool TMP102Component::validate_limit_temperature_(TMP102LimitType limit, float temperature) const {
-  const float maximum = this->config_ & TMP102_EXTENDED_MODE_BIT ? 150.0f : 127.9375f;
-  if ((limit != TMP102_LIMIT_HIGH && limit != TMP102_LIMIT_LOW) || !std::isfinite(temperature) ||
-      temperature < -55.0f || temperature > maximum) {
-    ESP_LOGW(TAG, "Rejected threshold outside supported range");
-    return false;
-  }
   const bool extended = this->config_ & TMP102_EXTENDED_MODE_BIT;
   const float quantized = decode_temperature(encode_temperature(temperature, extended), extended);
   if (limit == TMP102_LIMIT_HIGH && quantized < this->get_limit_temperature_(TMP102_LIMIT_LOW)) {
@@ -284,12 +266,10 @@ bool TMP102Component::set_limit_temperature_(TMP102LimitType limit, float temper
   const uint16_t raw = encode_temperature(temperature, extended);
   const uint8_t reg = limit == TMP102_LIMIT_HIGH ? TMP102_REGISTER_HIGH_LIMIT : TMP102_REGISTER_LOW_LIMIT;
   if (!this->write_register_(reg, raw)) {
-    this->threshold_write_failed_ = true;
     this->status_set_warning();
     return false;
   }
 
-  this->threshold_write_failed_ = false;
   if (limit == TMP102_LIMIT_HIGH) {
     this->high_limit_ = raw;
   } else {
@@ -346,8 +326,6 @@ void TMP102LimitNumber::setup() {
 }
 
 void TMP102LimitNumber::control(float value) {
-  static constexpr uint32_t REVERT_TIMEOUT_ID = 0;
-  this->cancel_timeout(REVERT_TIMEOUT_ID);
   if (this->parent_->set_limit_temperature_(this->limit_type_, value)) {
     value = this->parent_->get_limit_temperature_(this->limit_type_);
     this->publish_state(value);
@@ -357,10 +335,7 @@ void TMP102LimitNumber::control(float value) {
     return;
   }
 
-  const float current = this->parent_->get_limit_temperature_(this->limit_type_);
-  this->publish_state(current);
-  this->set_timeout(REVERT_TIMEOUT_ID, 250,
-                    [this]() { this->publish_state(this->parent_->get_limit_temperature_(this->limit_type_)); });
+  this->publish_state(this->parent_->get_limit_temperature_(this->limit_type_));
 }
 
 void TMP102LimitNumber::dump_config() {

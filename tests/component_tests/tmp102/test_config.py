@@ -96,6 +96,13 @@ def test_threshold_numbers_inherit_parent_values(
             "duplicate_numbers.yaml",
             "Only one TMP102 number may reference each temperature sensor",
         ),
+        (
+            "numbers_high_below_default.yaml",
+            (
+                "high limit (50.0°C) is below the chip power-up TLOW default "
+                "(75.0°C). Set temperature_low explicitly."
+            ),
+        ),
     ],
 )
 def test_invalid_number_configurations_are_rejected(

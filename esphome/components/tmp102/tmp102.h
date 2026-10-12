@@ -75,7 +75,6 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
 
   TMP102LimitNumber *high_limit_control_{nullptr};
   TMP102LimitNumber *low_limit_control_{nullptr};
-  bool threshold_write_failed_{false};
 #endif
 
   uint16_t config_{0};
@@ -91,6 +90,7 @@ class TMP102LimitNumber final : public number::Number, public Component {
   TMP102LimitNumber(TMP102Component *parent, TMP102LimitType limit_type) : parent_(parent), limit_type_(limit_type) {}
   void setup() override;
   void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::DATA - 1.0f; }
   void set_initial_value(float initial_value) { this->initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 

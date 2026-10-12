@@ -106,8 +106,12 @@ class TMP102Test : public ::testing::Test {
     return static_cast<uint16_t>(static_cast<uint32_t>(static_cast<uint16_t>(steps)) << (extended ? 3 : 4));
   }
 
-  void numbers_(float initial_high = 30, float initial_low = 25) {
-    this->configure(0x0080, encode(initial_high), encode(initial_low));
+  void numbers_(float initial_high = 30, float initial_low = 25, bool extended = false) {
+    this->configure(extended ? 0x0090 : 0x0080, encode(initial_high, extended), encode(initial_low, extended));
+    if (extended) {
+      this->high_.traits.set_max_value(150);
+      this->low_.traits.set_max_value(150);
+    }
     this->high_.set_initial_value(initial_high);
     this->low_.set_initial_value(initial_low);
     this->chip_.set_high_limit_control(&this->high_);
@@ -260,6 +264,32 @@ TEST_F(TMP102Test, QuantizedRuntimeValuesMatchRegistersAndPreferences) {
   }
 }
 
+TEST_F(TMP102Test, ExtendedModeRuntimeValueMatchesRegister) {
+  this->numbers_(140, 120, true);
+  this->setup_numbers_();
+  this->high_.make_call().set_value(145.0625f).perform();
+  EXPECT_FLOAT_EQ(this->high_.state, 145.0625f);
+  EXPECT_EQ(this->bus_.registers[3], encode(145.0625f, true));
+  EXPECT_FLOAT_EQ(saved(this->high_), 145.0625f);
+}
+
+TEST_F(TMP102Test, HighOnlyInvalidRestoreFallsBackAgainstStaticLow) {
+  this->configure(0x0080, encode(30), encode(25));
+  this->high_.set_initial_value(30);
+  this->chip_.set_high_limit_control(&this->high_);
+  save(this->high_, 20);
+  this->chip_.setup();
+  this->high_.setup();
+  EXPECT_FLOAT_EQ(this->high_.state, 30);
+  EXPECT_EQ(this->bus_.registers[3], encode(30));
+  EXPECT_EQ(this->bus_.registers[2], encode(25));
+  EXPECT_FLOAT_EQ(saved(this->high_), 30);
+}
+
+TEST_F(TMP102Test, NumberSetupRunsAfterParent) {
+  EXPECT_LT(this->high_.get_setup_priority(), this->chip_.get_setup_priority());
+}
+
 TEST_F(TMP102Test, OrderingUsesAcceptedQuantizedThreshold) {
   this->numbers_(30.02f, 30.01f);
   this->setup_numbers_();
@@ -271,15 +301,12 @@ TEST_F(TMP102Test, OrderingUsesAcceptedQuantizedThreshold) {
   EXPECT_FLOAT_EQ(this->high_.state, 30);
 }
 
-TEST_F(TMP102Test, FailedThresholdWriteRetainsWarningAcrossSuccessfulRead) {
+TEST_F(TMP102Test, FailedThresholdWriteWarningClearsAfterSuccessfulRead) {
   this->numbers_();
   this->setup_numbers_();
   this->bus_.fail_write = 3;
   this->high_.make_call().set_value(90).perform();
-  this->chip_.update();
   EXPECT_TRUE(this->chip_.status_has_warning());
-  this->bus_.fail_write = -1;
-  this->high_.make_call().set_value(90).perform();
   this->chip_.update();
   EXPECT_FALSE(this->chip_.status_has_warning());
 }
@@ -434,11 +461,12 @@ TEST_F(TMP102Test, FailedNumberWriteKeepsAcceptedState) {
   save(this->high_, 90);
   save(this->low_, 85);
   this->setup_numbers_();
+  unsigned publications = 0;
+  this->high_.add_on_state_callback([&publications](float) { ++publications; });
   this->bus_.fail_write = 3;
   this->high_.make_call().set_value(100).perform();
   EXPECT_FLOAT_EQ(this->high_.state, 90);
-  run_timers(260);
-  EXPECT_FLOAT_EQ(this->high_.state, 90);
+  EXPECT_EQ(publications, 1);
   EXPECT_FLOAT_EQ(saved(this->high_), 90);
 }
 
