@@ -2,7 +2,7 @@
 
 namespace esphome::micronova {
 
-static const char *const TAG = "micronova.sensor";
+ESPHOME_LOG_TAG(TAG, "micronova.sensor");
 
 void MicroNovaSensor::dump_config() {
   LOG_SENSOR("", "Micronova sensor", this);

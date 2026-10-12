@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_STOP_ACTION,
     CONF_UPDATE_INTERVAL,
 )
+from esphome.types import ConfigType
 
 CONF_OPEN_SENSOR = "open_sensor"
 CONF_CLOSE_SENSOR = "close_sensor"
@@ -23,13 +24,14 @@ CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
 CONF_INFER_ENDSTOP_FROM_MOVEMENT = "infer_endstop_from_movement"
 CONF_DIRECTION_CHANGE_WAIT_TIME = "direction_change_wait_time"
 CONF_ACCELERATION_WAIT_TIME = "acceleration_wait_time"
+CONF_OVERSHOOT_DURATION = "overshoot_duration"
 CONF_OBSTACLE_ROLLBACK = "obstacle_rollback"
 
 endstop_ns = cg.esphome_ns.namespace("feedback")
 FeedbackCover = endstop_ns.class_("FeedbackCover", cover.Cover, cg.Component)
 
 
-def validate_infer_endstop(config):
+def validate_infer_endstop(config: ConfigType) -> ConfigType:
     if config[CONF_INFER_ENDSTOP_FROM_MOVEMENT] is True:
         if config[CONF_HAS_BUILT_IN_ENDSTOP] is False:
             raise cv.Invalid(
@@ -81,6 +83,9 @@ CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
             cv.Optional(
                 CONF_ACCELERATION_WAIT_TIME, "0s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_OVERSHOOT_DURATION, "0s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
         },
     )
@@ -88,14 +93,29 @@ CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
 )
 
 
+def validate_overshoot(config: ConfigType) -> ConfigType:
+    if not config[CONF_OVERSHOOT_DURATION].total_milliseconds:
+        return config
+    if config[CONF_HAS_BUILT_IN_ENDSTOP]:
+        raise cv.Invalid(
+            f"{CONF_OVERSHOOT_DURATION} has no effect with {CONF_HAS_BUILT_IN_ENDSTOP}"
+        )
+    if CONF_OPEN_ENDSTOP in config and CONF_CLOSE_ENDSTOP in config:
+        raise cv.Invalid(
+            f"{CONF_OVERSHOOT_DURATION} has no effect when both endstop sensors are supplied"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     CONFIG_FEEDBACK_COVER_BASE_SCHEMA,
     cv.has_none_or_all_keys(CONF_OPEN_SENSOR, CONF_CLOSE_SENSOR),
     validate_infer_endstop,
+    validate_overshoot,
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
 
@@ -159,4 +179,7 @@ async def to_code(config):
             var.set_direction_change_waittime(config[CONF_DIRECTION_CHANGE_WAIT_TIME])
         )
     cg.add(var.set_acceleration_wait_time(config[CONF_ACCELERATION_WAIT_TIME]))
+    if (overshoot := config[CONF_OVERSHOOT_DURATION]).total_milliseconds:
+        cg.add_define("USE_FEEDBACK_COVER_OVERSHOOT")
+        cg.add(var.set_overshoot_duration(overshoot))
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))

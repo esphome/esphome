@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_CUBIC_METER_PER_HOUR,
     UNIT_LITRE,
 )
+from esphome.types import ConfigType
 
 from . import CONF_UFM01_ID, UFM01Component
 
@@ -47,17 +48,10 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    ufm01_component = await cg.get_variable(config[CONF_UFM01_ID])
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_UFM01_ID])
 
-    if CONF_ACCUMULATED_FLOW in config:
-        sens = await sensor.new_sensor(config[CONF_ACCUMULATED_FLOW])
-        cg.add(ufm01_component.set_accumulated_flow_sensor(sens))
-
-    if CONF_FLOW in config:
-        sens = await sensor.new_sensor(config[CONF_FLOW])
-        cg.add(ufm01_component.set_flow_sensor(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(ufm01_component.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_ACCUMULATED_FLOW, hub.set_accumulated_flow_sensor)
+    await sensors(CONF_FLOW, hub.set_flow_sensor)
+    await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)

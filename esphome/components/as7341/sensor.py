@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLEAR,
@@ -9,6 +10,7 @@ from esphome.const import (
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mrgnr"]
 DEPENDENCIES = ["i2c"]
@@ -31,8 +33,6 @@ CONF_F6 = "f6"
 CONF_F7 = "f7"
 CONF_F8 = "f8"
 CONF_NIR = "nir"
-
-UNIT_COUNTS = "#"
 
 AS7341_GAIN = as7341_ns.enum("AS7341Gain")
 GAIN_OPTIONS = {
@@ -96,7 +96,7 @@ SENSORS = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

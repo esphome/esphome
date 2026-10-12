@@ -3,7 +3,7 @@
 
 namespace esphome::one_wire {
 
-static const char *const TAG = "one_wire";
+ESPHOME_LOG_TAG(TAG, "one_wire");
 
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
 static const uint8_t DALLAS_MODEL_DS1822 = 0x22;
@@ -18,8 +18,9 @@ const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; 
 
 bool OneWireBus::reset_() {
   int res = this->reset_int();
-  if (res == -1)
+  if (res == -1) {
     ESP_LOGE(TAG, "1-wire bus is held low");
+  }
   return res == 1;
 }
 

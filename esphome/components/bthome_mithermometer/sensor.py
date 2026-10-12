@@ -20,6 +20,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from . import bthome_mithermometer_base_schema, setup_bthome_mithermometer
 
@@ -67,22 +68,13 @@ CONFIG_SCHEMA = bthome_mithermometer_base_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_bthome_mithermometer(var, config)
 
-    if temp_sens := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temp_sens)
-        cg.add(var.set_temperature(sens))
-    if humi_sens := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humi_sens)
-        cg.add(var.set_humidity(sens))
-    if batl_sens := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(batl_sens)
-        cg.add(var.set_battery_level(sens))
-    if batv_sens := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(batv_sens)
-        cg.add(var.set_battery_voltage(sens))
-    if sgnl_sens := config.get(CONF_SIGNAL_STRENGTH):
-        sens = await sensor.new_sensor(sgnl_sens)
-        cg.add(var.set_signal_strength(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_HUMIDITY, var.set_humidity)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
+    await sensors(CONF_SIGNAL_STRENGTH, var.set_signal_strength)

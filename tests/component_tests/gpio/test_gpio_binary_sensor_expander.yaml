@@ -1,0 +1,21 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  scl: 16
+  sda: 17
+
+ch422g:
+  - id: ch422g_hub
+
+binary_sensor:
+  - platform: gpio
+    name: "Expander Sensor"
+    id: bs_expander
+    pin:
+      ch422g: ch422g_hub
+      number: 1
+      mode: INPUT

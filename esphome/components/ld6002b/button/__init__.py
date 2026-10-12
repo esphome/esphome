@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import button
+from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA_ID,
@@ -84,14 +85,14 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     hub_id = config[CONF_LD6002B_ID]
 
     if config.get(CONF_APPLY_AREA):
         has_area_id_select = any(
             entry.get(CONF_LD6002B_ID) == hub_id and entry.get(CONF_AREA_ID) is not None
-            for entry in full_config.get("select", [])
+            for entry in full_config.get(SELECT_DOMAIN, [])
         )
         if not has_area_id_select:
             raise cv.Invalid(
@@ -107,8 +108,6 @@ def final_validate(config: ConfigType) -> ConfigType:
                 f"{CONF_WAKE} requires {CONF_WAKEUP_PIN} on the parent ld6002b component",
                 path=[CONF_WAKE],
             )
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
@@ -131,7 +130,7 @@ BUTTON_MAP = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for key, button_type in BUTTON_MAP.items():
         if button_config := config.get(key):
             b = cg.new_Pvariable(button_config[CONF_ID], button_type)
