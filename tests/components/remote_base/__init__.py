@@ -13,6 +13,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "mirage",
             "aeha",
             "keeloq",
+            "nexus",
             "pioneer_wyt",
         ):
             request_protocol(protocol)

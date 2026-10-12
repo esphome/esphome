@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import io
 from pathlib import Path
 import shutil
@@ -1901,9 +1902,39 @@ def test_dump__redacts_sensitive_str_by_default() -> None:
     )  # the raw value is only present inside the wrap
 
 
-def test_dump__show_secrets_emits_sensitive_str_raw() -> None:
-    out = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
-    assert "hunter2" in out
+@pytest.mark.parametrize(
+    ("validator", "value", "rendered"),
+    [
+        (cv.uint32_t, 305419896, "305419896"),
+        (
+            cv.hex_int,
+            0x00112233445566778899AABBCCDDEEFF,
+            "0x112233445566778899AABBCCDDEEFF",
+        ),
+        (cv.int_, -42, "-42"),
+    ],
+)
+def test_dump__redacts_sensitive_integer(
+    validator: Callable[[int], int], value: int, rendered: str
+) -> None:
+    """Mask integer credentials without changing their numeric value or format."""
+    sensitive = cv.sensitive(validator)(value)
+    assert sensitive == value
+    assert str(sensitive) == rendered
+    out = yaml_util.dump({"credential": sensitive})
+    assert f"\\033[8m{rendered}\\033[28m" in out
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (SensitiveStr("hunter2"), "password: hunter2"),
+        (cv.sensitive(cv.hex_int)(0x12345678), "password: 0x12345678"),
+    ],
+)
+def test_dump__show_secrets_emits_sensitive_raw(value: object, expected: str) -> None:
+    out = yaml_util.dump({"password": value}, show_secrets=True)
+    assert out.strip() == expected
     assert "\\033[8m" not in out
     assert "\\033[28m" not in out
 
@@ -1914,19 +1945,20 @@ def test_dump__plain_str_is_not_redacted() -> None:
     assert "\\033[8m" not in out
 
 
-def test_dump__secret_reference_wins_over_redaction() -> None:
+@pytest.mark.parametrize(
+    "value", [SensitiveStr("hunter2"), cv.sensitive(cv.uint32_t)(305419896)]
+)
+def test_dump__secret_reference_wins_over_redaction(
+    value: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # If the value also has an entry in _SECRET_VALUES (i.e., it was loaded
     # via !secret), the dump should render it as !secret <name>, not as a
-    # redacted scalar. SensitiveStr layered on top must not change that.
-    value = SensitiveStr("hunter2")
-    yaml_util._SECRET_VALUES[str(value)] = "my_secret_name"
-    try:
-        out = yaml_util.dump({"password": value})
-        assert "!secret" in out
-        assert "my_secret_name" in out
-        assert "\\033[8m" not in out
-    finally:
-        yaml_util._SECRET_VALUES.clear()
+    # redacted scalar. The sensitive marker layered on top must not change that.
+    monkeypatch.setitem(yaml_util._SECRET_VALUES, str(value), "my_secret_name")
+    out = yaml_util.dump({"password": value})
+    assert "!secret" in out
+    assert "my_secret_name" in out
+    assert "\\033[8m" not in out
 
 
 def test_dump__redaction_flag_does_not_leak_between_calls() -> None:
