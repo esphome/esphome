@@ -825,12 +825,15 @@ def _wrap_bare_if_condition(value: Any) -> Any:
     ]
     if not bare:
         return value
-    if len(bare) > 1 or any(
-        key in value for key in (CONF_CONDITION, CONF_ANY, CONF_ALL)
-    ):
+    if len(bare) > 1:
         raise cv.Invalid(
             f"Only one condition may be given directly under 'if', found {', '.join(bare)}. "
             f"Use '{CONF_CONDITION}', '{CONF_ALL}' or '{CONF_ANY}' to combine conditions"
+        )
+    if other := [k for k in (CONF_CONDITION, CONF_ANY, CONF_ALL) if k in value]:
+        raise cv.Invalid(
+            f"'{bare[0]}' given directly under 'if' cannot be used with '{other[0]}'. "
+            f"Move it into '{other[0]}'"
         )
     key = bare[0]
     result = {k: v for k, v in value.items() if k != key}

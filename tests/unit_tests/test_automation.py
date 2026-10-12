@@ -1562,18 +1562,27 @@ def test_if_any_all_are_not_bare_conditions(key: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "value",
+    ("value", "match"),
     [
-        pytest.param({"or": [], "and": [], CONF_THEN: []}, id="two_bare"),
+        pytest.param(
+            {"or": [], "and": [], CONF_THEN: []},
+            "Only one condition",
+            id="two_bare",
+        ),
         pytest.param(
             {"or": [], CONF_CONDITION: {"and": []}, CONF_THEN: []},
+            "cannot be used with 'condition'",
             id="bare_and_wrapped",
         ),
         pytest.param(
-            {"or": [], CONF_ANY: [{"and": []}], CONF_THEN: []}, id="bare_and_any"
+            {"or": [], CONF_ANY: [{"and": []}], CONF_THEN: []},
+            "cannot be used with 'any'",
+            id="bare_and_any",
         ),
     ],
 )
-def test_if_rejects_ambiguous_bare_condition(value: dict[str, object]) -> None:
-    with pytest.raises(cv.Invalid, match="Only one condition"):
+def test_if_rejects_ambiguous_bare_condition(
+    value: dict[str, object], match: str
+) -> None:
+    with pytest.raises(cv.Invalid, match=match):
         validate_action({"if": value})

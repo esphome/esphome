@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -112,7 +114,7 @@ def validate_parameter_type(value):
     raise cv.Invalid("Parameter type contains invalid characters")
 
 
-def _fill_script_stop_ids(value, script_id: str):
+def _fill_script_stop_ids(value: Any, script_id: str) -> Any:
     """Give `script.stop` actions without an id in a raw action tree the id `script_id`.
 
     Containers are copied only along changed paths so untouched YAML nodes keep their source locations.
@@ -144,7 +146,7 @@ def _fill_script_stop_ids(value, script_id: str):
     return result
 
 
-def default_script_stop_ids(value):
+def default_script_stop_ids(value: Any) -> Any:
     """Make `script.stop` with no id, used inside a script, stop that script."""
     if not isinstance(value, list):
         return value
