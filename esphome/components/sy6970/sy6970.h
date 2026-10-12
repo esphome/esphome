@@ -118,21 +118,16 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   // Resets (kicks) the I2C watchdog timer (REG03 bit 6, self-clearing). Called
   // automatically on its own interval whenever the watchdog is enabled;
   // exposed publicly so a lambda can also call it directly if needed.
-  void reset_i2c_watchdog();
+  // Returns false if the reset could not be written.
+  bool reset_i2c_watchdog();
 
  protected:
   bool read_all_registers_();
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
-  // Kicks the watchdog only if the last register read succeeded and the
-  // watchdog is enabled. Used by the periodic kick interval so a sustained
-  // I2C outage is not masked by still feeding the watchdog.
-  void kick_watchdog_if_healthy_();
-
   SY6970Data data_{};
   std::vector<SY6970Listener *> listeners_;
-  bool last_read_ok_{false};
 
   // Configuration values to set during setup()
   bool led_enabled_;
