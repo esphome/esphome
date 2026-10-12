@@ -212,8 +212,6 @@ file does, and it is the authority when they disagree. The most useful starting 
         end of `setup()` when the entities need a state at boot.
     *   **A multi-step command sequence** leaves the step pending when the answer is malformed, so the existing
         resend and give-up logic handles it; never advance on an answer that was only logged.
-    *   **A chip watchdog that only polling feeds:** validate `update_interval` against the period in the one
-        function that both the component schema and any apply action run.
     *   **Entities that each watch a register field:** one class taking register, shift, mask and match from a Python
         tuple table, in typed `StaticVector`s sized by `cg.slot_counter`; not a template per bit, not a virtual
         listener base (a second vptr per entity).
