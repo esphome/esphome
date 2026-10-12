@@ -17,6 +17,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "nec",
             "magiquest",
             "rc5x",
+            "pioneer_wyt",
             "drayton",
             "panasonic",
         ):

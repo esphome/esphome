@@ -199,7 +199,8 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   }
   return ctx.found_any;
 #else
-  // The netif list needs the core lock, but the callback's setsockopt() takes that lock itself.
+  // The netif list needs the core lock, but the callback's setsockopt() takes that lock itself, so the
+  // indices are collected first. One that goes away before the callback runs is rejected by setsockopt().
   // Devices have only a few interfaces, so the cap drops nothing in practice.
   static constexpr size_t MAX_IFS = 8;
   StaticVector<uint8_t, MAX_IFS> indices;
