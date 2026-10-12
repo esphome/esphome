@@ -60,6 +60,27 @@ ESPHOME_LOG_TAG(TAG, "web_server");
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 
+// One action of a POST /{domain}/{entity}/{action} request, kept in PROGMEM with the name inline so the
+// table needs no RAM on ESP8266.
+template<typename Call> struct ActionEntry {
+  char name[16];
+  Call &(Call::*action)();
+};
+
+// Runs the entry whose name matches the request's action; false when none does.
+template<typename Call, size_t N>
+static bool run_action(const UrlMatch &match, Call &call, const ActionEntry<Call> (&table)[N]) {
+  for (const auto &entry : table) {
+    if (match.method_equals(reinterpret_cast<ProgmemStr>(entry.name))) {
+      Call &(Call::*action)();
+      progmem_memcpy(&action, &entry.action, sizeof(action));
+      (call.*action)();
+      return true;
+    }
+  }
+  return false;
+}
+
 // Out of line: every GET handler ends with this
 [[maybe_unused]] static void send_json(AsyncWebServerRequest *request, json::JsonBuilder &builder) {
   auto data = builder.serialize();
@@ -1051,27 +1072,14 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 
     auto call = obj->make_call();
 
-    // Lookup table for cover methods
-    static const struct {
-      const char *name;
-      cover::CoverCall &(cover::CoverCall::*action)();
-    } METHODS[] = {
+    static constexpr ActionEntry<cover::CoverCall> ACTIONS[] PROGMEM = {
         {"open", &cover::CoverCall::set_command_open},
         {"close", &cover::CoverCall::set_command_close},
         {"stop", &cover::CoverCall::set_command_stop},
         {"toggle", &cover::CoverCall::set_command_toggle},
     };
 
-    bool found = false;
-    for (const auto &method : METHODS) {
-      if (match.method_equals(method.name)) {
-        (call.*method.action)();
-        found = true;
-        break;
-      }
-    }
-
-    if (!found && !match.method_equals(ESPHOME_F("set"))) {
+    if (!run_action(match, call, ACTIONS) && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1745,27 +1753,14 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
 
     auto call = obj->make_call();
 
-    // Lookup table for valve methods
-    static const struct {
-      const char *name;
-      valve::ValveCall &(valve::ValveCall::*action)();
-    } METHODS[] = {
+    static constexpr ActionEntry<valve::ValveCall> ACTIONS[] PROGMEM = {
         {"open", &valve::ValveCall::set_command_open},
         {"close", &valve::ValveCall::set_command_close},
         {"stop", &valve::ValveCall::set_command_stop},
         {"toggle", &valve::ValveCall::set_command_toggle},
     };
 
-    bool found = false;
-    for (const auto &method : METHODS) {
-      if (match.method_equals(method.name)) {
-        (call.*method.action)();
-        found = true;
-        break;
-      }
-    }
-
-    if (!found && !match.method_equals(ESPHOME_F("set"))) {
+    if (!run_action(match, call, ACTIONS) && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1831,11 +1826,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
         static_cast<alarm_control_panel::AlarmControlPanelCall &(
             alarm_control_panel::AlarmControlPanelCall::*) (const char *, size_t)>(&decltype(call)::set_code));
 
-    // Lookup table for alarm control panel methods
-    static const struct {
-      const char *name;
-      alarm_control_panel::AlarmControlPanelCall &(alarm_control_panel::AlarmControlPanelCall::*action)();
-    } METHODS[] = {
+    static constexpr ActionEntry<alarm_control_panel::AlarmControlPanelCall> ACTIONS[] PROGMEM = {
         {"disarm", &alarm_control_panel::AlarmControlPanelCall::disarm},
         {"arm_away", &alarm_control_panel::AlarmControlPanelCall::arm_away},
         {"arm_home", &alarm_control_panel::AlarmControlPanelCall::arm_home},
@@ -1843,16 +1834,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
         {"arm_vacation", &alarm_control_panel::AlarmControlPanelCall::arm_vacation},
     };
 
-    bool found = false;
-    for (const auto &method : METHODS) {
-      if (match.method_equals(method.name)) {
-        (call.*method.action)();
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
+    if (!run_action(match, call, ACTIONS)) {
       request->send(404);
       return;
     }

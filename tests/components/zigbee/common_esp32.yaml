@@ -16,6 +16,9 @@ binary_sensor:
     name: "Garage Door Open 13"
     endpoint: 2
     use_device_type: false
+    on_press:
+      then:
+        - zigbee.report
 
 sensor:
   - platform: template
@@ -26,6 +29,7 @@ sensor:
     endpoint: 1
     use_device_type: true
     cluster: device_class
+    report: enable
   - platform: template
     name: "Light Sensor"
     lambda: return 100.0;
@@ -58,6 +62,8 @@ switch:
 
 zigbee:
   model: zigbee_test
+  manufacturer: test
+  version: 1
   sleepy: true
   polling_interval: 2s
   power_source: BATTERY

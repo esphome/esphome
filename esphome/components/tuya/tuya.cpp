@@ -152,9 +152,7 @@ bool Tuya::validate_message_() {
 
   // Byte 6+LEN: CHECKSUM - sum of all bytes (including header) modulo 256
   uint8_t rx_checksum = new_byte;
-  uint8_t calc_checksum = 0;
-  for (uint32_t i = 0; i < 6 + length; i++)
-    calc_checksum += data[i];
+  const uint8_t calc_checksum = sum_bytes(data, 6 + length);
 
   if (rx_checksum != calc_checksum) {
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
@@ -531,10 +529,8 @@ void Tuya::send_raw_command_(TuyaCommand command) {
   if (!command.payload.empty())
     this->write_array(command.payload.data(), command.payload.size());
 
-  uint8_t checksum = 0x55 + 0xAA + (uint8_t) command.cmd + len_hi + len_lo;
-  for (auto &data : command.payload)
-    checksum += data;
-  this->write_byte(checksum);
+  const uint8_t header_sum = 0x55 + 0xAA + (uint8_t) command.cmd + len_hi + len_lo;
+  this->write_byte(sum_bytes(command.payload.data(), command.payload.size(), header_sum));
 }
 
 void Tuya::process_command_queue_() {
