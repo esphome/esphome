@@ -37,8 +37,8 @@ bool version_is_older(const char *candidate, const char *reference) {
 // The flag is set and cleared without blocking; a refused update fails at once. The lock may be released
 // from another task than the one that took it, so it can't simply be a FreeRTOS mutex held for the update.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-// uint8_t rather than bool: GCC on Xtensa does not inline std::atomic<bool> operations.
-static std::atomic<uint8_t> update_locked{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// uint32_t: a narrower atomic exchange becomes a masked compare-and-swap on the whole word.
+static std::atomic<uint32_t> update_locked{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static bool update_lock_test_and_set() { return update_locked.exchange(1) == 0; }
 static void update_lock_clear() { update_locked.store(0); }
