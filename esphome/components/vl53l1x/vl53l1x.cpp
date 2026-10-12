@@ -144,8 +144,8 @@ static const uint8_t DEFAULT_CONFIG[] PROGMEM = {
     0x00,  // 0x87: SYSTEM_MODE_START
 };
 
-// ULD SetDistanceMode values, indexed by DistanceMode. The ULD only knows short and long; medium
-// is ST's standard ranging preset, which is what the ULD default configuration above programs.
+// ULD SetDistanceMode values, indexed by DistanceMode. The ULD only knows short and long; the
+// medium row is the standard ranging preset of ST's full VL53L1 API.
 struct DistanceModeConfig {
   uint8_t phasecal_timeout;
   uint8_t vcsel_period_a;
