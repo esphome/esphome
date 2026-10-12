@@ -953,16 +953,22 @@ MAGIQUEST_SCHEMA = cv.Schema(
     }
 )
 
+# A wand_id of 0 matches any wand. Magnitude is still accepted but not matched on.
+MAGIQUEST_BINARY_SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_WAND_ID, default=0): cv.hex_uint32_t,
+        cv.Optional(CONF_MAGNITUDE): cv.hex_uint16_t,
+    }
+)
 
-@register_binary_sensor("magiquest", MagiQuestBinarySensor, MAGIQUEST_SCHEMA)
+
+@register_binary_sensor(
+    "magiquest", MagiQuestBinarySensor, MAGIQUEST_BINARY_SENSOR_SCHEMA
+)
 def magiquest_binary_sensor(var, config):
     cg.add(
         var.set_data(
-            cg.StructInitializer(
-                MagiQuestData,
-                ("magnitude", config[CONF_MAGNITUDE]),
-                ("wand_id", config[CONF_WAND_ID]),
-            )
+            cg.StructInitializer(MagiQuestData, ("wand_id", config[CONF_WAND_ID]))
         )
     )
 
@@ -1070,7 +1076,8 @@ NEC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Required(CONF_COMMAND): cv.hex_uint16_t,
-        cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.uint16_t,
+        # Non-RMT transmitters hold an interrupt lock for the whole send, ~108 ms per extra repeat
+        cv.Optional(CONF_COMMAND_REPEATS, default=1): cv.int_range(min=1, max=10),
     }
 )
 
@@ -1513,22 +1520,34 @@ async def raw_action(var, config, args):
 ) = declare_protocol("Drayton")
 DRAYTON_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
-        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Optional(CONF_DATA): cv.hex_int_range(min=0, max=0xF),
+        cv.Optional(CONF_CHANNEL): cv.hex_int_range(min=0, max=0x1F),
+        cv.Optional(CONF_COMMAND): cv.hex_int_range(min=0, max=0x7F),
     }
+)
+# The legacy command is the 4 data bits followed by this many checksum bits
+DRAYTON_NBITS_CHECKSUM_IN_COMMAND = 3
+# Either `data`, or the legacy `channel` + `command` pair (raw packet bits)
+_validate_drayton_form = cv.All(
+    cv.has_none_or_all_keys(CONF_CHANNEL, CONF_COMMAND),
+    cv.has_exactly_one_key(CONF_DATA, CONF_COMMAND),
 )
 
 
-@register_binary_sensor("drayton", DraytonBinarySensor, DRAYTON_SCHEMA)
+@register_binary_sensor(
+    "drayton", DraytonBinarySensor, cv.All(DRAYTON_SCHEMA, _validate_drayton_form)
+)
 def drayton_binary_sensor(var, config):
+    # Matching compares address and data only
+    if (command := config.get(CONF_COMMAND)) is not None:
+        data = command >> DRAYTON_NBITS_CHECKSUM_IN_COMMAND
+    else:
+        data = config[CONF_DATA]
     cg.add(
         var.set_data(
             cg.StructInitializer(
-                DraytonData,
-                ("address", config[CONF_ADDRESS]),
-                ("channel", config[CONF_CHANNEL]),
-                ("command", config[CONF_COMMAND]),
+                DraytonData, ("address", config[CONF_ADDRESS]), ("data", data)
             )
         )
     )
@@ -1549,8 +1568,10 @@ register_protocol_action(
     "Drayton",
     DRAYTON_SCHEMA,
     (CONF_ADDRESS, "address", cg.uint16),
+    (CONF_DATA, "data", cg.uint8),
     (CONF_CHANNEL, "channel", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
+    validate=_validate_drayton_form,
 )
 
 
