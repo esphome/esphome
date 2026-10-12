@@ -8,11 +8,11 @@
 namespace esphome::remote_base {
 
 struct PanasonicData {
-  uint16_t nbits;
-  uint16_t address;
-  uint8_t address_2;
   uint32_t command;
   uint32_t carrier_frequency;
+  uint16_t address;
+  uint8_t nbits;  // 48 or 56
+  uint8_t address_2;
 
   bool operator==(const PanasonicData &rhs) const {
     return address == rhs.address && address_2 == rhs.address_2 && command == rhs.command && nbits == rhs.nbits &&

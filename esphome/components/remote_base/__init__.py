@@ -53,6 +53,7 @@ from esphome.util import Registry, SimpleRegistry
 AUTO_LOAD = ["binary_sensor"]
 DOMAIN = "remote_base"
 
+
 CONF_ADDRESS_2 = "address_2"
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
@@ -2089,11 +2090,11 @@ def panasonic_binary_sensor(var, config):
         var.set_data(
             cg.StructInitializer(
                 PanasonicData,
-                ("nbits", config[CONF_NBITS]),
-                ("address", config[CONF_ADDRESS]),
-                ("address_2", config[CONF_ADDRESS_2]),
                 ("command", config[CONF_COMMAND]),
                 ("carrier_frequency", config[CONF_CARRIER_FREQUENCY]),
+                ("address", config[CONF_ADDRESS]),
+                ("nbits", config[CONF_NBITS]),
+                ("address_2", config[CONF_ADDRESS_2]),
             )
         )
     )
@@ -2113,7 +2114,7 @@ register_protocol_action(
     "panasonic",
     "Panasonic",
     PANASONIC_SCHEMA,
-    (CONF_NBITS, "nbits", cg.uint16),
+    (CONF_NBITS, "nbits", cg.uint8),
     (CONF_ADDRESS, "address", cg.uint16),
     (CONF_ADDRESS_2, "address_2", cg.uint8),
     (CONF_COMMAND, "command", cg.uint32),
