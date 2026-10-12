@@ -2115,10 +2115,6 @@ register_protocol_action(
 
 
 # SomfyRts
-SomfyRtsData, SomfyRtsBinarySensor, SomfyRtsTrigger, _, SomfyRtsDumper = (
-    declare_protocol("SomfyRts")
-)
-
 SOMFY_RTS_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_KEY): cv.hex_uint8_t,
@@ -2130,32 +2126,18 @@ SOMFY_RTS_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("somfy_rts", SomfyRtsBinarySensor, SOMFY_RTS_SCHEMA)
-def somfy_rts_binary_sensor(var: MockObj, config: ConfigType) -> None:
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                SomfyRtsData,
-                ("key", config[CONF_KEY]),
-                ("control", config[CONF_CONTROL]),
-                ("rolling_code", config[CONF_ROLLING_CODE]),
-                ("address", config[CONF_ADDRESS]),
-                ("control_in_key", config[CONF_CONTROL_IN_KEY]),
-            )
+def _validate_somfy_rts(config: ConfigType) -> ConfigType:
+    key = config[CONF_KEY]
+    if config[CONF_CONTROL_IN_KEY] is True and isinstance(key, int) and key & 0x0F:
+        raise cv.Invalid(
+            f"With {CONF_CONTROL_IN_KEY} the low nibble of {CONF_KEY} carries {CONF_CONTROL} "
+            "and must be 0",
+            path=[CONF_KEY],
         )
-    )
+    return config
 
 
-@register_trigger("somfy_rts", SomfyRtsTrigger, SomfyRtsData)
-def somfy_rts_trigger(var: MockObj, config: ConfigType) -> None:
-    """The trigger takes no options beyond the automation."""
-
-
-@register_dumper("somfy_rts", SomfyRtsDumper)
-def somfy_rts_dumper(var: MockObj, config: ConfigType) -> None:
-    """The dumper takes no options."""
-
-
+# Transmit only: the protocol has no decoder yet, so no binary sensor, trigger or dumper.
 register_protocol_action(
     "somfy_rts",
     "SomfyRts",
@@ -2165,6 +2147,7 @@ register_protocol_action(
     (CONF_ROLLING_CODE, "rolling_code", cg.uint16),
     (CONF_ADDRESS, "address", cg.uint32),
     (CONF_CONTROL_IN_KEY, "control_in_key", cg.bool_),
+    validate=_validate_somfy_rts,
 )
 
 # Nexa

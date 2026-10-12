@@ -418,3 +418,15 @@ button:
           key: 0xA0
           rolling_code: 1234
           control_in_key: false
+  - platform: template
+    name: SomfyRTS Control In Key
+    on_press:
+      - remote_transmitter.transmit_somfy_rts:
+          address: 0x630139
+          control: 0x02
+          key: 0xA0
+          rolling_code: !lambda return 1235;
+          control_in_key: true
+          repeat:
+            times: 3
+            wait_time: 30ms

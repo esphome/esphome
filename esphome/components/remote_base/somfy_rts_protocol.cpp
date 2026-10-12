@@ -3,23 +3,20 @@
 
 namespace esphome::remote_base {
 
-ESPHOME_LOG_TAG(TAG, "remote.somfy_rts");
-
+// Timings from https://pushstack.wordpress.com/somfy-rts-protocol/
 static constexpr uint8_t FRAME_SIZE_IN_BYTES = 7;
-static constexpr uint16_t BIT_US = 600;
+static constexpr uint16_t HALF_BIT_US = 604;
 
-static constexpr uint16_t WAKEUP_HIGH_US = 10000;
-static constexpr uint32_t WAKEUP_LOW_US = 98000;
+static constexpr uint16_t WAKEUP_HIGH_US = 9415;
+static constexpr uint32_t WAKEUP_LOW_US = 89565;
 
-static constexpr uint16_t HW_SYNC_US = 2500;
+static constexpr uint16_t HW_SYNC_US = 2560;
 
-static constexpr uint16_t SW_SYNC_HIGH_US = 5000;
-static constexpr uint16_t SW_SYNC_LOW_US = 650;
+static constexpr uint16_t SW_SYNC_HIGH_US = 4550;
+static constexpr uint16_t SW_SYNC_LOW_US = HALF_BIT_US;
 
-static constexpr uint16_t INTERFRAME_GAP_US = 30415;
-
-// Wakeup, two hardware syncs and a software sync (8), two entries per bit (112), the gap (1)
-static constexpr uint32_t FRAME_ENTRIES = 8 + FRAME_SIZE_IN_BYTES * 8 * 2 + 1;
+// Wakeup, two hardware syncs and a software sync (8), two entries per bit (112)
+static constexpr uint32_t FRAME_ENTRIES = 8 + FRAME_SIZE_IN_BYTES * 8 * 2;
 
 void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data) {
   dst->reserve(FRAME_ENTRIES);
@@ -30,10 +27,9 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
   dst->item(SW_SYNC_HIGH_US, SW_SYNC_LOW_US);
 
   uint8_t frame[FRAME_SIZE_IN_BYTES];
-  // Some non standard implementations of the SomfyRTS protocol encode the commands inside the key instead of inside the
-  // control field
+  // Some non standard remotes put the control nibble in the key byte and send 0xF in the control nibble
   if (data.control_in_key) {
-    frame[0] = data.key | data.control;
+    frame[0] = (data.key & 0xF0) | data.control;
     frame[1] = 0xF0;
   } else {
     frame[0] = data.key;
@@ -55,27 +51,19 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
     frame[i] ^= frame[i - 1];
   }
 
-  // Manchester, MSB first: a 1 is space then mark, a 0 is mark then space
+  // Manchester, MSB first: a 1 is space then mark, a 0 is mark then space. Frames repeat with
+  // the 30 ms gap through the action's repeat option, not inside the frame.
   for (uint8_t data_byte : frame) {
     for (int8_t y = 7; y >= 0; y--) {
       if (data_byte & (1 << y)) {
-        dst->space(BIT_US);
-        dst->mark(BIT_US);
+        dst->space(HALF_BIT_US);
+        dst->mark(HALF_BIT_US);
       } else {
-        dst->mark(BIT_US);
-        dst->space(BIT_US);
+        dst->mark(HALF_BIT_US);
+        dst->space(HALF_BIT_US);
       }
     }
   }
-
-  dst->space(INTERFRAME_GAP_US);
 }
-
-void SomfyRtsProtocol::dump(const SomfyRtsData &data) {
-  ESP_LOGD(TAG, "Somfy RTS: key=0x%02X, control=0x%X, rolling_code=%u, address=0x%06X", data.key, data.control,
-           data.rolling_code, data.address);
-}
-
-optional<SomfyRtsData> SomfyRtsProtocol::decode(RemoteReceiveData src) { return {}; }
 
 }  // namespace esphome::remote_base
