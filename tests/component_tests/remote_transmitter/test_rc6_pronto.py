@@ -18,8 +18,7 @@ def test_rc6_toggle_and_pronto(
     bodies = protocol_call_bodies(main_cpp)
     assert len(bodies) == 3
     toggle = (
-        "apply_call.data.toggle = []() { static uint8_t toggle = 1; "
-        "return toggle ^= 1; }();"
+        "apply_call.data.toggle = []() { static uint8_t toggle; return toggle++; }();"
     )
     # Each RC6 action has its own generated function, so its own toggle static.
     assert toggle in bodies[0]
@@ -31,11 +30,8 @@ def test_rc6_toggle_and_pronto(
     assert "delta" not in bodies[2]
 
 
-def test_member_with_placeholder_is_a_statement() -> None:
-    field = _protocol_field((CONF_TEMPERATURE, "set_temperature({})", cv.float_))
-    assert isinstance(field, automation.ApplyField)
-    assert field.target == "data.set_temperature({})"
-    plain = _protocol_field((CONF_TEMPERATURE, "temperature", cv.float_))
-    assert plain.target == "data.temperature = {}"
+def test_apply_objects_pass_through() -> None:
     call = automation.ApplyCall("stop()")
     assert _protocol_field(call) is call
+    plain = _protocol_field((CONF_TEMPERATURE, "temperature", cv.float_))
+    assert plain.target == "data.temperature = {}"

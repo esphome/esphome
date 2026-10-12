@@ -298,30 +298,31 @@ def register_action(
     return decorator
 
 
+ProtocolField = (
+    tuple[str, str, SafeExpType] | automation.ApplyField | automation.ApplyCall
+)
+
+
 def _protocol_field(
-    field: tuple[str, str, SafeExpType] | automation.ApplyField | automation.ApplyCall,
+    field: ProtocolField,
 ) -> automation.ApplyField | automation.ApplyCall:
     if not isinstance(field, tuple):
         return field
     key, member, type_ = field
-    target = f"data.{member}" if "{}" in member else f"data.{member} = {{}}"
-    return automation.ApplyField(key, target, type_)
+    return automation.ApplyField(key, f"data.{member} = {{}}", type_)
 
 
 def register_protocol_action(
     name: str,
     protocol: str,
     schema: cv.Schema,
-    *fields: tuple[str, str, SafeExpType]
-    | automation.ApplyField
-    | automation.ApplyCall,
+    *fields: ProtocolField,
     validate: Callable[[ConfigType], ConfigType] | None = None,
 ) -> None:
     """Register ``transmit_<name>`` with no C++ action class.
 
     One generated function fills ``<protocol>Data`` from ``(conf_key, member, type_)`` fields
-    and sends it; the action is a core ``ApplyAction``. A member with ``{}`` is a statement on
-    the data, such as ``"set_temperature({})"``. ``ApplyField`` and ``ApplyCall`` pass through
+    and sends it; the action is a core ``ApplyAction``. ``ApplyField`` and ``ApplyCall`` pass through
     and target the call object, whose protocol data is ``data``.
     """
     action, schema, validator = _transmit_action(name, schema, validate)
@@ -1621,7 +1622,7 @@ register_protocol_action(
     (CONF_COMMAND, "command", cg.uint8),
     # Each action flips its own toggle bit, starting at 0: the lambda's static is per action
     automation.ApplyCall(
-        "data.toggle = []() {{ static uint8_t toggle = 1; return toggle ^= 1; }}()"
+        "data.toggle = []() {{ static uint8_t toggle; return toggle++; }}()"
     ),
 )
 
