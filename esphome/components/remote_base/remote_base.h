@@ -213,6 +213,16 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   template<RemoteProtocolEncoder Protocol> ProtocolCall<Protocol> protocol_call() {
     return ProtocolCall<Protocol>(this);
   }
+  /// A transmit call whose encode() runs one of Protocol's encoders on its data, for a payload
+  /// the protocol encodes straight from a pointer and length; the call a generated action builds.
+  template<RemoteProtocolEncoder Protocol> class EncodeCall : public TransmitCall {
+   public:
+    explicit EncodeCall(TransmitCall call) : TransmitCall(call) {}
+    template<typename... Args> void encode(const Args &...args) { Protocol().encode(this->get_data(), args...); }
+  };
+  template<RemoteProtocolEncoder Protocol> EncodeCall<Protocol> encode_call() {
+    return EncodeCall<Protocol>(this->transmit());
+  }
 
  protected:
   using EncodeFn = void (*)(RemoteTransmitData *dst, const void *data);
