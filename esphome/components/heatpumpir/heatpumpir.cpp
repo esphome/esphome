@@ -1,5 +1,7 @@
 #include "heatpumpir.h"
 
+#include "receiver_mitsubishi_heavy.h"
+
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include <cmath>
@@ -125,6 +127,13 @@ void HeatpumpIRClimate::setup() {
   }
 }
 
+void HeatpumpIRClimate::control(const climate::ClimateCall &call) {
+  // Picking a fan speed ends HiPower or Econo, as it does on the remote
+  if (this->has_fan_byte_presets_() && call.get_fan_mode().has_value() && !call.get_preset().has_value())
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  climate_ir::ClimateIR::control(call);
+}
+
 void HeatpumpIRClimate::transmit_state() {
   uint8_t power_mode_cmd;
   uint8_t operating_mode_cmd;
@@ -188,8 +197,9 @@ void HeatpumpIRClimate::transmit_state() {
   }
 
   // MitsubishiMSCHeatpumpIR only knows FAN_1..FAN_3 and sends anything else as auto,
-  // so low/medium/high have to start at FAN_1 there instead of FAN_2.
-  const bool three_speed_fan = this->protocol_ == PROTOCOL_MITSUBISHI_MSC;
+  // so low/medium/high have to start at FAN_1 there instead of FAN_2. Mitsubishi Heavy
+  // ZJ and ZMP also stop at FAN_3 and use FAN_4 and FAN_5 for HiPower and Econo.
+  const bool three_speed_fan = this->protocol_ == PROTOCOL_MITSUBISHI_MSC || this->has_fan_byte_presets_();
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed_cmd = three_speed_fan ? FAN_1 : FAN_2;
@@ -204,6 +214,19 @@ void HeatpumpIRClimate::transmit_state() {
     default:
       fan_speed_cmd = FAN_AUTO;
       break;
+  }
+
+  if (this->has_fan_byte_presets_()) {
+    switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
+      case climate::CLIMATE_PRESET_BOOST:
+        fan_speed_cmd = FAN_4;  // HiPower
+        break;
+      case climate::CLIMATE_PRESET_ECO:
+        fan_speed_cmd = FAN_5;  // Econo
+        break;
+      default:
+        break;
+    }
   }
 
   switch (this->mode) {
@@ -244,6 +267,23 @@ void HeatpumpIRClimate::transmit_state() {
   IRSenderESPHome esp_sender(this->transmitter_);
   heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
                      swing_h_cmd);
+}
+
+bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
+  switch (this->protocol_) {
+    case PROTOCOL_MITSUBISHI_HEAVY_ZMP: {
+      uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH];
+      if (!decode_mitsubishi_heavy_frame(data, frame, *this))
+        return false;
+      decode_mitsubishi_heavy_zmp(frame, *this);
+      break;
+    }
+    default:
+      return false;  // no decoder for this protocol
+  }
+  this->target_temperature = clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
+  this->publish_state();
+  return true;
 }
 
 }  // namespace esphome::heatpumpir

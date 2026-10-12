@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -89,6 +90,105 @@ TEST_F(EmonTxTest, OverflowAcrossLoopCalls) {
 
   ASSERT_EQ(this->lines_.size(), 1u);
   EXPECT_EQ(this->lines_[0], "MSG:3");
+}
+
+TEST_F(EmonTxTest, LoopLeavesBytesUntouchedWhenPaused) {
+  this->uart_.push_rx("{\"P1\":123}\n");
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+
+  EXPECT_EQ(this->uart_.available(), std::strlen("{\"P1\":123}\n"));
+  EXPECT_TRUE(this->lines_.empty());
+}
+
+TEST_F(EmonTxTest, SendCommandIsSuppressedWhilePaused) {
+  this->sut_.set_paused(true);
+  this->sut_.send_command("x");
+  EXPECT_TRUE(this->uart_.tx.empty());
+
+  this->sut_.set_paused(false);
+  this->sut_.send_command("x");
+  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "x\n");
+}
+
+// Neither the part before the pause nor the part after it may reach on_data
+TEST_F(EmonTxTest, ResumeDiscardsInterruptedLine) {
+  this->uart_.push_rx("{\"P1\":4");
+  this->sut_.loop();
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  this->sut_.set_paused(false);
+
+  this->uart_.push_rx("56}\n");
+  this->sut_.loop();
+  EXPECT_TRUE(this->lines_.empty());
+
+  this->uart_.push_rx("{\"P1\":789}\n");
+  this->sut_.loop();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], "{\"P1\":789}");
+}
+
+TEST_F(EmonTxTest, ResumeDropsBacklogReceivedWhilePaused) {
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  this->uart_.push_rx("{\"P1\":1}\n{\"P1\":2}\n{\"P1\":");
+  this->sut_.set_paused(false);
+
+  this->sut_.loop();
+  EXPECT_EQ(this->uart_.available(), 0u);
+  EXPECT_TRUE(this->lines_.empty());
+
+  this->uart_.push_rx("3}\n{\"P1\":4}\n");
+  this->sut_.loop();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], "{\"P1\":4}");
+}
+
+TEST_F(EmonTxTest, ResumeAfterCompleteBacklogKeepsNextLine) {
+  this->sut_.set_paused(true);
+  this->sut_.loop();
+  this->uart_.push_rx("{\"P1\":1}\n");
+  this->sut_.set_paused(false);
+
+  this->sut_.loop();
+  this->uart_.push_rx("{\"P1\":2}\n");
+  this->sut_.loop();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_EQ(this->lines_[0], "{\"P1\":2}");
+}
+
+TEST_F(EmonTxTest, ShutdownLocksWhenEnabled) {
+  EXPECT_CALL(this->uart_, flush()).Times(1);
+  this->sut_.set_lock_on_reboot(true);
+  this->sut_.on_shutdown();
+  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "emonlock\n");
+}
+
+// Firmware before v1.2.0 reads "emon..." as the bootloader command
+TEST_F(EmonTxTest, ShutdownSendsNothingByDefault) {
+  EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
+}
+
+TEST_F(EmonTxTest, ShutdownSendsNothingWhilePaused) {
+  EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.set_lock_on_reboot(true);
+  this->sut_.set_paused(true);
+  this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
+}
+
+TEST_F(EmonTxTest, SetupUnlocksWhenEnabled) {
+  this->sut_.set_lock_on_reboot(true);
+  this->sut_.setup();
+  EXPECT_EQ(std::string(this->uart_.tx.begin(), this->uart_.tx.end()), "\nemonunlock\n");
+}
+
+TEST_F(EmonTxTest, SetupSendsNothingByDefault) {
+  this->sut_.setup();
+  EXPECT_TRUE(this->uart_.tx.empty());
 }
 
 }  // namespace esphome::emontx::testing
