@@ -137,6 +137,23 @@ TEST_F(LD2460ReadlineTest, StrayBytesBeforeFrame) {
   EXPECT_NEAR(this->angle_[0].state, 56.89f, 0.05f);
 }
 
+TEST_F(LD2460ReadlineTest, StrayByteThenTruncatedFrame) {
+  // The truncated frame's header is not followed by a matching length, so the full frame is used
+  this->ld2460_.feed({0x00, 0xF4, 0xF3, 0xF2, 0xF1, 0x04});
+  this->ld2460_.feed(make_periodic_frame({{20, 30}}));
+  EXPECT_FLOAT_EQ(this->count_.state, 1);
+  EXPECT_NEAR(this->x_[0].state, 2.0f, 0.001f);
+  EXPECT_NEAR(this->y_[0].state, 3.0f, 0.001f);
+}
+
+TEST_F(LD2460ReadlineTest, HeaderBytesInsidePayload) {
+  // The target bytes F4 F3 F2 F1 repeat the data header; the frame still parses at offset 0
+  this->ld2460_.feed(make_periodic_frame({{static_cast<int16_t>(0xF3F4), static_cast<int16_t>(0xF1F2)}}));
+  EXPECT_FLOAT_EQ(this->count_.state, 1);
+  EXPECT_NEAR(this->x_[0].state, -308.4f, 0.01f);
+  EXPECT_NEAR(this->y_[0].state, -359.8f, 0.01f);
+}
+
 TEST_F(LD2460ReadlineTest, PartialTargetRejected) {
   // 13 bytes of payload is not a whole number of 4-byte targets
   std::vector<uint8_t> frame = {0xF4, 0xF3, 0xF2, 0xF1, 0x04, 0x0D, 0x00, 0x0F, 0x00, 0xF8, 0xF7, 0xF6, 0xF5};

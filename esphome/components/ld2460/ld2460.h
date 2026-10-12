@@ -40,7 +40,7 @@ class LD2460Component : public Component, public uart::UARTDevice {
 
  protected:
   void send_query_();
-  void align_to_header_(const uint8_t *header);
+  bool align_to_header_(const uint8_t *header);
   void handle_periodic_data_();
   void handle_ack_();
   void readline_(uint8_t readch);

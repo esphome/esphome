@@ -32,6 +32,10 @@ static bool matches(const uint8_t *bytes, const uint8_t *pattern) {
   return std::memcmp(bytes, copy, sizeof(copy)) == 0;
 }
 
+// Header (4), command (1), length (2, little endian); the length counts the whole frame
+static constexpr uint8_t FRAME_PREFIX_SIZE = 7;
+static uint16_t frame_length(const uint8_t *frame) { return encode_uint16(frame[6], frame[5]); }
+
 static constexpr float RADIANS_TO_DEGREES = 180.0f / std::numbers::pi_v<float>;
 
 void LD2460Component::setup() { this->send_query_(); }
@@ -78,15 +82,11 @@ void LD2460Component::loop() {
 
 void LD2460Component::handle_periodic_data_() {
   const uint8_t *data = this->buffer_data_;
-  if (!matches(data, DATA_FRAME_HEADER) || data[4] != CMD_REPORT_DATA) {
+  if (!this->align_to_header_(DATA_FRAME_HEADER) || data[4] != CMD_REPORT_DATA) {
     ESP_LOGW(TAG, "Invalid periodic data header");
     return;
   }
-  uint16_t packet_len = encode_uint16(data[6], data[5]);
-  if (packet_len != this->buffer_pos_) {
-    ESP_LOGW(TAG, "Periodic packet length mismatch: %u != %u", packet_len, this->buffer_pos_);
-    return;
-  }
+  const uint8_t packet_len = this->buffer_pos_;
   if (packet_len < 11 || (packet_len - 11) % 4 != 0) {
     ESP_LOGW(TAG, "Periodic packet length %u is not a whole number of targets", packet_len);
     return;
@@ -174,31 +174,33 @@ void LD2460Component::readline_(uint8_t readch) {
 #endif
 
   if (is_data) {
-    this->align_to_header_(DATA_FRAME_HEADER);
     this->handle_periodic_data_();
   } else {
-    this->align_to_header_(CMD_FRAME_HEADER);
     this->handle_ack_();
   }
   this->buffer_pos_ = 0;
 }
 
-// Stray bytes in front of a frame would otherwise make it fail the header check, so once a
-// footer is matched the buffer is shifted so that it starts at the header.
-void LD2460Component::align_to_header_(const uint8_t *header) {
-  for (uint8_t i = 1; i + HEADER_FOOTER_SIZE <= this->buffer_pos_; i++) {
-    if (matches(&this->buffer_data_[i], header)) {
-      this->buffer_pos_ -= i;
-      std::memmove(this->buffer_data_, &this->buffer_data_[i], this->buffer_pos_);
-      return;
+// Once a footer is matched, shift the buffer to the first offset holding a header whose length
+// field ends the frame exactly at the footer. Stray bytes, truncated frames and header bytes inside
+// a payload are skipped this way. Returns false when no such offset exists.
+bool LD2460Component::align_to_header_(const uint8_t *header) {
+  for (uint8_t i = 0; i + FRAME_PREFIX_SIZE <= this->buffer_pos_; i++) {
+    const uint8_t *frame = &this->buffer_data_[i];
+    if (matches(frame, header) && frame_length(frame) == this->buffer_pos_ - i) {
+      if (i != 0) {
+        this->buffer_pos_ -= i;
+        std::memmove(this->buffer_data_, frame, this->buffer_pos_);
+      }
+      return true;
     }
   }
+  return false;
 }
 
 void LD2460Component::handle_ack_() {
   const uint8_t *data = this->buffer_data_;
-  if (this->buffer_pos_ != ACK_FRAME_LENGTH || encode_uint16(data[6], data[5]) != ACK_FRAME_LENGTH ||
-      !matches(data, CMD_FRAME_HEADER)) {
+  if (!this->align_to_header_(CMD_FRAME_HEADER) || this->buffer_pos_ != ACK_FRAME_LENGTH) {
     ESP_LOGW(TAG, "Dropping malformed command frame");
     return;
   }
