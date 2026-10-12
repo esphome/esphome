@@ -55,5 +55,5 @@ binary_sensor:
 text_sensor:
   - platform: ecocomfort2
     ecocomfort2_id: ecocomfort2_hub_2
-    firmware:
+    version:
       name: Ecocomfort2 Firmware

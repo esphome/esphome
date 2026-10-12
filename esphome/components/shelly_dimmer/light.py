@@ -6,7 +6,7 @@ from typing import Any
 from esphome import external_files, pins
 import esphome.codegen as cg
 from esphome.components import light, sensor, uart
-from esphome.components.const import CONF_FIRMWARE, CONF_SHA256
+from esphome.components.const import CONF_SHA256
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
@@ -40,6 +40,7 @@ ShellyDimmer = shelly_dimmer_ns.class_(
     "ShellyDimmer", light.LightOutput, cg.PollingComponent, uart.UARTDevice
 )
 
+CONF_FIRMWARE = "firmware"
 CONF_UPDATE = "update"
 
 CONF_LEADING_EDGE = "leading_edge"
