@@ -112,12 +112,12 @@ void E131Component::join_(int universe) {
 
   if (this->listen_method_ != E131_MULTICAST || this->socket_ == nullptr)
     return;
-  if (!network::is_connected()) {
+  // A pending batch join covers this universe too; joining it here as well would break leave_()
+  if (this->igmp_join_pending_ || !network::is_connected()) {
     ESP_LOGD(TAG, "IGMP join for %d universe of E1.31 deferred until the network is up.", universe);
     this->igmp_join_pending_ = true;
     return;
   }
-  // Only this universe; a second join would raise the lwIP use count and break leave_()
   this->join_universe_(universe);
 }
 
