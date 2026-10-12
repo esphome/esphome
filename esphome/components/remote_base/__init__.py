@@ -9,6 +9,7 @@ from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_BATTERY_LEVEL,
     CONF_BUTTON,
     CONF_CARRIER_FREQUENCY,
     CONF_CHANNEL,
@@ -20,10 +21,13 @@ from esphome.const import (
     CONF_DELTA,
     CONF_DEVICE,
     CONF_FAMILY,
+    CONF_FORCE_UPDATE,
     CONF_GROUP,
+    CONF_HUMIDITY,
     CONF_ID,
     CONF_INDEX,
     CONF_INVERTED,
+    CONF_KEY,
     CONF_LEVEL,
     CONF_MAGNITUDE,
     CONF_NBITS,
@@ -37,6 +41,7 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_STATE,
     CONF_SYNC,
+    CONF_TEMPERATURE,
     CONF_TIMES,
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
@@ -59,6 +64,9 @@ CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_FIRST = "first"
 CONF_SUFFIX = "suffix"
 CONF_SUFFIX_BITS = "suffix_bits"
+CONF_CONTROL = "control"
+CONF_CONTROL_IN_KEY = "control_in_key"
+CONF_ROLLING_CODE = "rolling_code"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -2110,6 +2118,42 @@ register_protocol_action(
 )
 
 
+# SomfyRts
+SOMFY_RTS_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_KEY): cv.hex_uint8_t,
+        cv.Required(CONF_CONTROL): cv.All(cv.hex_uint8_t, cv.Range(max=0x0F)),
+        cv.Required(CONF_ROLLING_CODE): cv.hex_uint16_t,
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_uint32_t, cv.Range(max=0xFFFFFF)),
+        cv.Optional(CONF_CONTROL_IN_KEY, default=False): cv.boolean,
+    }
+)
+
+
+def _validate_somfy_rts(config: ConfigType) -> ConfigType:
+    key = config[CONF_KEY]
+    if config[CONF_CONTROL_IN_KEY] is True and isinstance(key, int) and key & 0x0F:
+        raise cv.Invalid(
+            f"With {CONF_CONTROL_IN_KEY} the low nibble of {CONF_KEY} carries {CONF_CONTROL} "
+            "and must be 0",
+            path=[CONF_KEY],
+        )
+    return config
+
+
+# Transmit only: the protocol has no decoder yet, so no binary sensor, trigger or dumper.
+register_protocol_action(
+    "somfy_rts",
+    "SomfyRts",
+    SOMFY_RTS_SCHEMA,
+    (CONF_KEY, "key", cg.uint8),
+    (CONF_CONTROL, "control", cg.uint8),
+    (CONF_ROLLING_CODE, "rolling_code", cg.uint16),
+    (CONF_ADDRESS, "address", cg.uint32),
+    (CONF_CONTROL_IN_KEY, "control_in_key", cg.bool_),
+    validate=_validate_somfy_rts,
+)
+
 # Nexa
 NexaData, NexaBinarySensor, NexaTrigger, _, NexaDumper = declare_protocol("Nexa")
 NEXA_SCHEMA = cv.Schema(
@@ -2158,6 +2202,62 @@ register_protocol_action(
     (CONF_STATE, "state", cg.uint8),
     (CONF_CHANNEL, "channel", cg.uint8),
     (CONF_LEVEL, "level", cg.uint8),
+)
+
+
+# Nexus
+NexusData, NexusBinarySensor, NexusTrigger, _, NexusDumper = declare_protocol("Nexus")
+NEXUS_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=4),
+        cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
+    }
+)
+NEXUS_ACTION_SCHEMA = NEXUS_SCHEMA.extend(
+    {
+        cv.Required(CONF_TEMPERATURE): cv.All(
+            cv.float_, cv.Range(min=-204.8, max=204.7)
+        ),
+        cv.Required(CONF_HUMIDITY): cv.uint8_t,
+        cv.Optional(CONF_BATTERY_LEVEL, default=True): cv.boolean,
+        cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
+    }
+)
+
+
+@register_binary_sensor("nexus", NexusBinarySensor, NEXUS_SCHEMA)
+def nexus_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                NexusData,
+                ("address", config[CONF_ADDRESS]),
+                ("channel", config[CONF_CHANNEL]),
+            )
+        )
+    )
+
+
+@register_trigger("nexus", NexusTrigger, NexusData)
+def nexus_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("nexus", NexusDumper)
+def nexus_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "nexus",
+    "Nexus",
+    NEXUS_ACTION_SCHEMA,
+    (CONF_CHANNEL, "channel", cg.uint8),
+    (CONF_ADDRESS, "address", cg.uint8),
+    (CONF_TEMPERATURE, "temperature", cg.float_),
+    (CONF_HUMIDITY, "humidity", cg.uint8),
+    (CONF_BATTERY_LEVEL, "battery_level", cg.bool_),
+    (CONF_FORCE_UPDATE, "force_update", cg.bool_),
 )
 
 
