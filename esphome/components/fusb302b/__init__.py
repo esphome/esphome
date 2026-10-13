@@ -1,10 +1,22 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERRUPT_PIN
+from esphome.const import (
+    CONF_CURRENT,
+    CONF_ID,
+    CONF_INTERRUPT_PIN,
+    CONF_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_AMPERE,
+    UNIT_VOLT,
+)
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["sensor"]
 CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "fusb302b"
@@ -24,6 +36,20 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(FUSB302B),
             cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pullup_pin_schema,
             cv.Required(CONF_REQUEST_VOLTAGE): validate_voltage,
+            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_CURRENT): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -38,3 +64,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_request_voltage(config[CONF_REQUEST_VOLTAGE]))
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)

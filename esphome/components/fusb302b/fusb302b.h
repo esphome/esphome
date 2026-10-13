@@ -9,6 +9,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/static_task.h"
 
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+
 #include "pd.h"
 
 namespace esphome::fusb302b {
@@ -16,15 +20,21 @@ namespace esphome::fusb302b {
 /// FUSB302B USB Type-C / Power Delivery sink controller.
 ///
 /// A dedicated task owns all I2C traffic to the chip so that PD replies meet the protocol timing
-/// even while the main loop is busy.
+/// even while the main loop is busy. The main loop only publishes state changes.
 class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
  public:
   explicit FUSB302B(InternalGPIOPin *interrupt_pin) : interrupt_pin_(interrupt_pin) {}
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
   void on_shutdown() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+#ifdef USE_SENSOR
+  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
+  void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
+#endif
 
  protected:
   enum class SourceCapStep : uint8_t {
@@ -37,7 +47,7 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   static void task_func(void *arg);
 
   bool send_message(const PdMsg &msg) override;
-  void on_state_changed() override {}
+  void on_state_changed() override { this->enable_loop_soon_any_context(); }
   void on_soft_reset_received() override { this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT); }
 
   // PHY task only
@@ -56,6 +66,8 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   void check_source_caps_();
   void enter_error_();
 
+  void publish_contract_(PackedContract contract);
+
   InternalGPIOPin *interrupt_pin_;
   StaticTask task_;
 
@@ -63,6 +75,14 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   uint32_t source_cap_step_start_{0};
   SourceCapStep source_cap_step_{SourceCapStep::SOURCE_CAP_STEP_WAIT};
   bool attached_{false};
+
+  // Main loop only
+  uint32_t published_contract_{UINT32_MAX};
+
+#ifdef USE_SENSOR
+  sensor::Sensor *voltage_sensor_{nullptr};
+  sensor::Sensor *current_sensor_{nullptr};
+#endif
 };
 
 }  // namespace esphome::fusb302b

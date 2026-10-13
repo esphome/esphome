@@ -69,6 +69,25 @@ void FUSB302B::setup() {
   this->interrupt_pin_->attach_interrupt(&FUSB302B::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
 }
 
+void FUSB302B::loop() {
+  const uint32_t contract = this->contract_;
+  if (contract != this->published_contract_) {
+    this->published_contract_ = contract;
+    this->publish_contract_(PackedContract{contract});
+  }
+  // Re-enabled by on_state_changed() from the PHY task
+  this->disable_loop();
+}
+
+void FUSB302B::publish_contract_(PackedContract contract) {
+#ifdef USE_SENSOR
+  if (this->voltage_sensor_ != nullptr)
+    this->voltage_sensor_->publish_state(contract.voltage());
+  if (this->current_sensor_ != nullptr)
+    this->current_sensor_->publish_state(contract.current());
+#endif
+}
+
 void FUSB302B::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "FUSB302B:\n"
@@ -76,6 +95,10 @@ void FUSB302B::dump_config() {
                 this->get_request_voltage());
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Current", this->current_sensor_);
+#endif
 }
 
 void FUSB302B::on_shutdown() {
