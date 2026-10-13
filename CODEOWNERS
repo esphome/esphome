@@ -44,6 +44,7 @@ esphome/components/apds9306/* @aodrenah
 esphome/components/apds9930/* @iyesin
 esphome/components/api/* @esphome/core
 esphome/components/aqi/* @freekode @jasstrong @ximex
+esphome/components/aranet/* @patrickod
 esphome/components/as5600/* @ammmze
 esphome/components/as5600/sensor/* @ammmze
 esphome/components/as7341/* @mrgnr
