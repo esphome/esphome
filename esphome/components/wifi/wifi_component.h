@@ -86,6 +86,25 @@ struct SavedWifiFastConnectSettings {
   int8_t ap_index;
 } PACKED;  // NOLINT
 
+#ifdef USE_WIFI_LEASE_CACHE
+// Checked on load; a zeroed record (version 0) means no cached lease.
+static constexpr uint8_t SAVED_WIFI_LEASE_VERSION = 1;
+
+// Cached DHCP lease. IPv4 fields in network byte order, times in seconds.
+struct SavedWifiLeaseSettings {
+  uint8_t version;
+  int8_t ap_index;
+  uint32_t ip;
+  uint32_t netmask;
+  uint32_t gateway;
+  uint32_t dns1;
+  uint32_t dns2;
+  uint32_t lease_secs;
+  uint32_t t1_renew;
+  uint32_t saved_at;  // RTC-domain clock at capture
+} PACKED;             // NOLINT
+#endif
+
 enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
@@ -429,6 +448,10 @@ class WiFiPowerSaveListener {
   virtual void on_wifi_power_save(WiFiPowerSaveMode mode) = 0;
 };
 
+// Scheduler ids
+static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
+static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
+
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
  public:
@@ -565,6 +588,9 @@ class WiFiComponent final : public Component {
   int8_t wifi_rssi();
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+#ifdef USE_WIFI_LEASE_CACHE
+  void set_lease_cache_max_age(uint32_t seconds) { this->lease_cache_max_age_ = seconds; }
+#endif
   void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
 
@@ -687,7 +713,7 @@ class WiFiComponent final : public Component {
  protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
-  /// End the captive portal and turn the AP off.
+  /// End the portals and turn the AP off.
   void disable_ap_();
 #ifdef USE_WIFI_AP_EXCLUSIVE
   /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
@@ -806,11 +832,24 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_dns_ip_(int num);
 
   bool is_captive_portal_active_();
+  /// captive_portal or the web_server AP mode is serving a user on the access point
+  bool is_ap_portal_active_();
+  void start_ap_portal_();
+  void end_ap_portal_();
   bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
   void save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel);
+#endif
+
+#ifdef USE_WIFI_LEASE_CACHE
+  void load_lease_settings_();
+  void save_lease_settings_();
+  void clear_lease_settings_();
+  // Cached lease belongs to the selected network and is still provably valid.
+  bool lease_valid_for_apply_() const;
+  void renew_cached_lease_();
 #endif
 
   // Post-connect roaming methods
@@ -898,6 +937,13 @@ class WiFiComponent final : public Component {
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+  ESPPreferenceObject lease_cache_pref_;
+  SavedWifiLeaseSettings cached_lease_{};  // version 0 = none
+  // Current IP came from the cache (DHCP not run); suppresses saving until a real lease arrives.
+  bool applied_cached_lease_{false};
+  uint32_t lease_cache_max_age_{0};  // 0 = no cap
 #endif
 #ifdef USE_WIFI_CONNECT_TRIGGER
   Trigger<> connect_trigger_;

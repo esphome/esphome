@@ -33,6 +33,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void loop() override;
   void setup() override;
   void dump_config() override;
+  void on_shutdown() override;
 
   template<typename F> void add_on_json_callback(F &&callback) { this->json_callbacks_.add(std::forward<F>(callback)); }
 
@@ -47,6 +48,10 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void set_paused(bool paused) { this->paused_.store(paused, std::memory_order_relaxed); }
 
   bool is_paused() const { return this->paused_.load(std::memory_order_relaxed); }
+
+  /// Lock the emonTx ('emonlock') before a reboot, so serial garbage during the reboot is not taken
+  /// as a command, and unlock it in setup(). Needs emonTx firmware v1.2.0 or later.
+  void set_lock_on_reboot(bool lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
 
 #ifdef USE_SENSOR
   void init_sensors(size_t count) { this->sensors_.init(count); }
@@ -64,6 +69,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
   uint16_t buffer_pos_{0};
   std::atomic<bool> paused_{false};
   bool was_paused_{false};
+  bool lock_on_reboot_{false};
   bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
 };

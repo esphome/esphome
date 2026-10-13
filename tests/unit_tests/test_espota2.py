@@ -263,6 +263,7 @@ def test_receive_exactly_closed_connection_is_network_error(mock_socket: Mock) -
             espota2.RESPONSE_ERROR_BOOTLOADER_UPDATE,
             "An error occurred while updating the bootloader",
         ),
+        (espota2.RESPONSE_ERROR_UPDATE_BUSY, "The device is busy with another update"),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
 )
@@ -797,6 +798,23 @@ def test_run_ota_impl_connection_failed(
     assert mock_socket.close.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS + 1
     assert mock_sleep.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS
     mock_sleep.assert_called_with(espota2.UPLOAD_RETRY_DELAY)
+
+
+@pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
+def test_run_ota_impl_old_key_reconnect_never_waits(
+    mock_socket: Mock, firmware_file: Path, mock_perform_ota: Mock, mock_sleep: Mock
+) -> None:
+    """The reconnect with old_key skips the retry delay even once the
+    address list has been cycled by an earlier connect failure."""
+    mock_socket.connect.side_effect = [OSError("timed out"), None, None]
+    mock_perform_ota.side_effect = [espota2.OTAKeyRejected("rejected"), None]
+
+    result_code, _ = espota2.run_ota_impl_(
+        "test.local", 3232, None, str(firmware_file), noise_psk="a", old_noise_psk="b"
+    )
+
+    assert result_code == 0
+    assert mock_sleep.call_count == 1  # only the connect failure waited
 
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
