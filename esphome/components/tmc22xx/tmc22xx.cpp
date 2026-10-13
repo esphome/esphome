@@ -24,6 +24,9 @@ static constexpr float APPROACH_TIME_S = 0.02f;
 // Skip VACTUAL writes that change the speed by less than 1/16, each write blocks the loop for the UART transfer
 static constexpr int32_t VACTUAL_CHANGE_DIVISOR = 16;
 static constexpr uint32_t STATUS_POLL_INTERVAL_MS = 1000;
+// While the driver does not answer, for example without motor supply, only poll every 10 s; each failed read
+// blocks the loop for the UART timeout
+static constexpr uint8_t UNREACHABLE_POLL_SKIP = 9;
 static constexpr uint32_t GSTAT_FLAGS = 0x07;  // reset, drv_err, uv_cp
 static constexpr uint32_t DRV_STATUS_FLAGS = 0x0FFF;
 
@@ -95,7 +98,9 @@ void TMC22XXStepper::setup() {
     ESP_LOGW(TAG, "Unexpected IC version 0x%02X", this->version_);
   }
 
-  this->configure_driver();
+  this->restore_registers();
+  this->write_register(REG_GSTAT, GSTAT_FLAGS);
+  this->apply_config_();
   // Currents live in a write-only register, so later changes survive a driver reset through its cached value
   if (!std::isnan(this->initial_run_current_))
     this->set_run_current(this->initial_run_current_);
@@ -116,22 +121,31 @@ void TMC22XXStepper::setup() {
     this->diag_pin_->setup();
     this->diag_pin_->attach_interrupt(DiagPinStore::gpio_intr, &this->diag_store_, gpio::INTERRUPT_RISING_EDGE);
   }
-  if (this->diag_pin_ != nullptr || !this->status_callback_.empty()) {
-    // Conditions clear without a DIAG edge, and without DIAG polling is the only way to see them
-    this->set_interval(STATUS_POLL_INTERVAL_MS, [this]() { this->update_status_(); });
-  }
+  // Polling notices a driver reset, and conditions that clear without a DIAG edge
+  this->set_interval(STATUS_POLL_INTERVAL_MS, [this]() {
+    if (this->status_poll_skip_ > 0) {
+      this->status_poll_skip_--;
+      return;
+    }
+    if (!this->update_status_())
+      this->status_poll_skip_ = UNREACHABLE_POLL_SKIP;
+  });
 
   this->set_enabled(true);
 }
 
-void TMC22XXStepper::configure_driver() {
-  // Bring write-only registers in line with their cached values and clear the status flags
+void TMC22XXStepper::restore_registers() {
   this->write_register(REG_IHOLD_IRUN, this->ihold_irun_);
   this->write_register(REG_TPOWERDOWN, this->tpowerdown_);
   this->write_register(REG_TPWMTHRS, this->tpwmthrs_);
   this->write_register(REG_VACTUAL, 0);
-  this->write_register(REG_GSTAT, GSTAT_FLAGS);
+  for (size_t i = 0; i < RESTORED_REGISTERS.size(); i++) {
+    if ((this->restored_written_ & (1u << i)) != 0)
+      this->write_register(RESTORED_REGISTERS[i], this->restored_values_[i]);
+  }
+}
 
+void TMC22XXStepper::apply_config_() {
   this->write_field(PDN_DISABLE, true);
   this->write_field(MSTEP_REG_SELECT, true);
   this->write_field(INTERNAL_RSENSE, std::isnan(this->rsense_));
@@ -162,14 +176,29 @@ void TMC22XXStepper::configure_driver() {
 
 bool TMC22XXStepper::update_status_() {
   auto gstat = this->read_register(REG_GSTAT);
-  auto drv_status = this->read_register(REG_DRV_STATUS);
-  if (!gstat.has_value() || !drv_status.has_value())
+  if (!gstat.has_value())
     return false;
+  uint32_t drv_status = 0;
+  // DRV_STATUS only feeds on_status and the DIAG check, skip the transfer when neither is used
+  if (this->diag_pin_ != nullptr || !this->status_callback_.empty()) {
+    auto value = this->read_register(REG_DRV_STATUS);
+    if (!value.has_value())
+      return false;
+    drv_status = *value;
+  }
   // GSTAT flags stay set until written with 1; they are set again while the condition lasts
   if ((*gstat & GSTAT_FLAGS) != 0)
     this->write_register(REG_GSTAT, *gstat & GSTAT_FLAGS);
 
-  uint16_t status = (*gstat & GSTAT_FLAGS) | ((*drv_status & DRV_STATUS_FLAGS) << 3);
+  uint16_t status = (*gstat & GSTAT_FLAGS) | ((drv_status & DRV_STATUS_FLAGS) << 3);
+  // Restore before reporting, so an on_status automation for the reset sees and can change the restored settings
+  if ((status & (1u << DRIVER_EVENT_RESET)) != 0) {
+    ESP_LOGW(TAG, "Restoring settings after driver reset");
+    this->restore_registers();
+    // The motor stopped with the reset, ramp up again from standstill
+    this->current_speed_ = 0.0f;
+    this->set_enabled(this->enabled_);
+  }
   uint16_t changed = status ^ this->status_;
   this->status_ = status;
   for (uint8_t event = 0; event < DRIVER_EVENT_COUNT; event++) {
@@ -184,14 +213,6 @@ bool TMC22XXStepper::update_status_() {
                active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("cleared"));
     }
     this->status_callback_.call(static_cast<DriverEvent>(event), active);
-  }
-
-  if ((status & (1u << DRIVER_EVENT_RESET)) != 0) {
-    ESP_LOGW(TAG, "Restoring settings after driver reset");
-    this->configure_driver();
-    // The motor stopped with the reset, ramp up again from standstill
-    this->current_speed_ = 0.0f;
-    this->set_enabled(this->enabled_);
   }
   return true;
 }
@@ -237,8 +258,11 @@ void TMC22XXStepper::loop() {
   if (this->diag_store_.triggered) {
     this->diag_store_.triggered = false;
     // DIAG rises on a driver error, any other rise is chip specific
-    if (this->update_status_() && (this->status_ & GSTAT_FLAGS) == 0)
+    if (!this->update_status_()) {
+      ESP_LOGW(TAG, "DIAG rose, but the driver status could not be read");
+    } else if ((this->status_ & GSTAT_FLAGS) == 0) {
       this->on_diag_without_error();
+    }
   }
 
   if (this->has_reached_target()) {
@@ -415,8 +439,16 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
   }
   this->status_clear_warning();
 
-  if (uint32_t *shadow = this->shadow_register(reg))
+  if (uint32_t *shadow = this->shadow_register(reg)) {
     *shadow = value;
+  } else {
+    for (size_t i = 0; i < RESTORED_REGISTERS.size(); i++) {
+      if (RESTORED_REGISTERS[i] == reg) {
+        this->restored_values_[i] = value;
+        this->restored_written_ |= 1u << i;
+      }
+    }
+  }
   return true;
 }
 

@@ -23,8 +23,8 @@ uint32_t *TMC2209Stepper::shadow_register(uint8_t reg) {
   }
 }
 
-void TMC2209Stepper::configure_driver() {
-  TMC22XXStepper::configure_driver();
+void TMC2209Stepper::restore_registers() {
+  TMC22XXStepper::restore_registers();
   this->write_register(REG_TCOOLTHRS, this->tcoolthrs_);
   this->write_register(REG_SGTHRS, this->sgthrs_);
   this->write_register(REG_COOLCONF, this->coolconf_);

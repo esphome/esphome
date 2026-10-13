@@ -41,7 +41,7 @@ class TMC2209Stepper : public tmc22xx::TMC22XXStepper {
  protected:
   uint8_t expected_version() const override { return 0x21; }
   uint32_t *shadow_register(uint8_t reg) override;
-  void configure_driver() override;
+  void restore_registers() override;
   void on_diag_without_error() override { this->stall_callback_.call(); }
 
   LazyCallbackManager<void()> stall_callback_;

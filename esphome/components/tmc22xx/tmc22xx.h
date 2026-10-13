@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cmath>
 
 #include "esphome/components/stepper/stepper.h"
@@ -32,6 +33,9 @@ static constexpr uint8_t REG_VACTUAL = 0x22;
 static constexpr uint8_t REG_CHOPCONF = 0x6C;
 static constexpr uint8_t REG_DRV_STATUS = 0x6F;
 static constexpr uint8_t REG_PWMCONF = 0x70;
+
+// Readable registers that a driver reset sets back to their defaults; the last written values are restored
+static constexpr std::array<uint8_t, 4> RESTORED_REGISTERS{REG_GCONF, REG_FACTORY_CONF, REG_CHOPCONF, REG_PWMCONF};
 
 static constexpr RegisterField I_SCALE_ANALOG{REG_GCONF, 0, 1, false};
 static constexpr RegisterField INTERNAL_RSENSE{REG_GCONF, 1, 1, false};
@@ -161,8 +165,11 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   virtual uint8_t expected_version() const = 0;
   /// Return the cached value of a write-only register, or nullptr when the register is readable.
   virtual uint32_t *shadow_register(uint8_t reg);
-  /// Write all settings to the driver; also used to restore them after the driver has been reset.
-  virtual void configure_driver();
+  /// Write the cached write-only registers and the last written configuration registers to the driver, at setup
+  /// and after a driver reset.
+  virtual void restore_registers();
+  /// Write the settings from the configuration to the readable registers.
+  void apply_config_();
   /// Called when DIAG rises without a driver error.
   virtual void on_diag_without_error() {}
   /// Read GSTAT and DRV_STATUS and report changes. Returns false when the status could not be read.
@@ -187,6 +194,7 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   uint32_t tpowerdown_{0x14};
   uint32_t tpwmthrs_{0};
   uint32_t vactual_reg_{0};
+  std::array<uint32_t, RESTORED_REGISTERS.size()> restored_values_{};
   // NaN while not configured
   float rsense_{NAN};
   float initial_run_current_{NAN};
@@ -199,6 +207,8 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   uint8_t address_{0};
   uint8_t toff_{3};
   uint8_t version_{0};
+  uint8_t restored_written_{0};  // Bit per RESTORED_REGISTERS entry that has been written
+  uint8_t status_poll_skip_{0};
   int8_t direction_{0};
   DiagPinStore diag_store_{};
   bool analog_current_scale_{false};
