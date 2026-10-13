@@ -109,7 +109,7 @@ void ICM20689Component::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+    ESP_LOGE(TAG, "  " ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
