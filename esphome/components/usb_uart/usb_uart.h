@@ -39,6 +39,9 @@ struct CdcEps {
   // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
+  // bInterfaceClass of each interface above, for the identity reported to clients
+  uint8_t bulk_interface_class{0};
+  uint8_t interrupt_interface_class{0};
 };
 
 enum CH34xChipType : uint8_t {
@@ -184,6 +187,13 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   uint8_t get_interface_number() const {
     return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_number
                                                              : this->cdc_dev_.bulk_interface_number;
+  }
+
+  /// bInterfaceClass of the interface `get_interface_number()` names. A communications
+  /// class interface binds a CDC ACM driver on the host, a vendor-specific one a chip driver.
+  uint8_t get_interface_class() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_class
+                                                             : this->cdc_dev_.bulk_interface_class;
   }
 
  protected:
