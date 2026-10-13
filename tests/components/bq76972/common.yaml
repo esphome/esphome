@@ -1,8 +1,8 @@
 bq76972:
   id: bq76972_id
-  address: 0x08           # Optional, set to 0x08 (default value) by default)
-  crc_enabled: true       # Optional, set to false by default (beware that the BQ7697202 has CRC enabled by default)
-  update_interval: 10s    # Optional, set to 10s by default
+  address: 0x08
+  crc_enabled: true
+  update_interval: 10s
   stack_voltage:
     name: "Pack Total Voltage"
   internal_temperature:
@@ -47,15 +47,12 @@ bq76972:
     name: "Cell 15 Voltage"
   cell_16_voltage:
     name: "Cell 16 Voltage"
-  i2c_address_setter:
-    name: "New I2C Address"
-    mode: box
 
 button:
   - platform: template
     name: "Program BQ I2C Address"
-    icon: "mdi:chip"
     on_press:
-      then:
-        - lambda: |-
-            id(bq76972_id).program_address_from_number();
+      - bq76972.program_i2c_address:
+          id: bq76972_id
+          address: 0x09
+      - bq76972.program_i2c_address: !lambda "return 0x08;"

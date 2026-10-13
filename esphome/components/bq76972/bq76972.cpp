@@ -1,428 +1,214 @@
 #include "bq76972.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bq76972 {
 
 ESPHOME_LOG_TAG(TAG, "bq76972");
-static const uint8_t BQ76972_SUBCOMMAND_LSB_REG = 0x3E;
-static const uint8_t BQ76972_SUBCOMMAND_MSB_REG = 0x3F;
-static const uint8_t BQ76972_CMD_BAT_STATUS = 0x12;
-static const uint8_t BQ76972_GET_INT_TEMP = 0x68;
-static const uint8_t BQ76972_CMD_TEMP_START = 0x68;
-static const uint8_t BQ76972_CMD_CELL_START = 0x14;
-static const uint8_t BQ76972_CMD_STACK_VOLTAGE = 0x34;
-static const uint8_t BQ76972_SUBCMD_ENTER_CFG_UPDATE = 0x0090;
-static const uint8_t BQ76972_SUBCMD_EXIT_CFG_UPDATE = 0x0092;
-static const uint16_t BQ76972_MEM_REG0_CONFIG = 0x9237;
-static const uint16_t BQ76972_MEM_REG12_CONFIG = 0x9236;
-static const uint16_t BQ76972_MEM_I2C_ADDRESS = 0x923A;
-static const uint16_t BQ76972_MEM_SWAP_COMM_MODE = 0x29BC;
 
-struct ThermistorConfig {
-  sensor::Sensor *sensor;
-  uint16_t subcommand;
-  const char *name;
-};
+static constexpr uint8_t BQ76972_REG_SUBCOMMAND = 0x3E;  // 0x3E low byte, 0x3F high byte
+static constexpr uint8_t BQ76972_REG_TRANSFER_BUFFER = 0x40;
+static constexpr uint8_t BQ76972_REG_CHECKSUM = 0x60;  // 0x60 checksum, 0x61 length
+static constexpr uint8_t BQ76972_CMD_BAT_STATUS = 0x12;
+static constexpr uint8_t BQ76972_CMD_CELL_START = 0x14;
+static constexpr uint8_t BQ76972_CMD_STACK_VOLTAGE = 0x34;
+static constexpr uint8_t BQ76972_CMD_TEMP_START = 0x68;
+static constexpr uint16_t BQ76972_SUBCMD_ENTER_CFG_UPDATE = 0x0090;
+static constexpr uint16_t BQ76972_SUBCMD_EXIT_CFG_UPDATE = 0x0092;
+static constexpr uint16_t BQ76972_MEM_REG12_CONFIG = 0x9236;
+static constexpr uint16_t BQ76972_MEM_REG0_CONFIG = 0x9237;
+static constexpr uint16_t BQ76972_MEM_I2C_ADDRESS = 0x923A;
+static constexpr uint16_t BQ76972_MEM_SWAP_COMM_MODE = 0x29BC;
+// Pin config of temperature reading N (1 = CFETOFF ... 9 = DDSG) is at this base + N
+static constexpr uint16_t BQ76972_MEM_TEMP_PIN_CONFIG_BASE = 0x92F9;
+static constexpr size_t BQ76972_TS1_INDEX = 4;  // a thermistor input by default
+static constexpr uint8_t BQ76972_PIN_CONFIG_THERMISTOR = 0x07;
 
-uint8_t BQ76972Component::compute_crc8(const uint8_t *data, size_t len) {
-  uint8_t crc = 0x00;  // Initial value is 0
-  for (size_t i = 0; i < len; ++i) {
-    crc ^= data[i];
-    for (int j = 0; j < 8; ++j) {
-      if (crc & 0x80) {
-        crc = (crc << 1) ^ 0x07;  // Polynomial x^8 + x^2 + x + 1
-      } else {
-        crc = (crc << 1);
-      }
-    }
-  }
-  return crc;
-}
+// 16 words with a CRC byte after every data byte
+static constexpr size_t BQ76972_MAX_TRANSFER = 64;
+static constexpr uint8_t BQ76972_MAX_POLLS = 50;
 
-bool BQ76972Component::wait_for_subcommand() {
-  uint8_t reg_uint8;
-  while (true) {
-    if (!this->read_block(BQ76972_SUBCOMMAND_LSB_REG, &reg_uint8, 1))
-      return false;
-    if (reg_uint8 != 0xFF) {
-      break;
-    }
-  }
-  while (true) {
-    if (!this->read_block(BQ76972_SUBCOMMAND_MSB_REG, &reg_uint8, 1))
-      return false;
-    if (reg_uint8 != 0xFF) {
-      break;
-    }
-  }
-  return true;
-}
+static float raw_to_celsius(uint16_t raw) { return static_cast<int16_t>(raw) * 0.1f - 273.15f; }
 
-bool BQ76972Component::wait_for_cfgupdate() {
-  uint16_t reg_uint16;
-  while (true) {
-    if (!this->bq76972_read_multi_16_le(BQ76972_CMD_BAT_STATUS, &reg_uint16, 1))
-      return false;
-    if ((reg_uint16 & 0x0001) == 0x0001) {
-      break;
-    }
-  }
-  return true;
-}
-
-bool BQ76972Component::read_block(uint8_t start_register, uint8_t *data, size_t len) {
-  if (!this->crc_mode_) {
+bool BQ76972Component::read_block_(uint8_t start_register, uint8_t *data, size_t len) {
+  if (!this->crc_mode_)
     return this->read_bytes(start_register, data, len);
-  }
 
-  // When CRC is enabled, every data byte is followed by a CRC byte
-  std::vector<uint8_t> buffer(len * 2);
-
-  if (!this->read_bytes(start_register, buffer.data(), len * 2)) {
-    ESP_LOGE(TAG, "I2C block read failed at register 0x%02X", start_register);
+  // With CRC enabled, every data byte is followed by a CRC byte
+  std::array<uint8_t, BQ76972_MAX_TRANSFER> buffer;
+  if (len == 0 || len * 2 > buffer.size())
     return false;
-  }
+  if (!this->read_bytes(start_register, buffer.data(), len * 2))
+    return false;
 
-  // Verify CRC for the FIRST data byte: Includes write address, register address, read address, and first data byte
-  uint8_t crc0_input[4] = {
-      static_cast<uint8_t>(this->i2c_address_ << 1),        // Write address
-      start_register,                                       // Register address
-      static_cast<uint8_t>((this->i2c_address_ << 1) | 1),  // Read address
-      buffer[0]                                             // First data byte
-  };
-
-  if (this->compute_crc8(crc0_input, 4) != buffer[1]) {
-    ESP_LOGE(TAG, "CRC mismatch on first byte of block read");
+  // The first CRC also covers the write address, register and read address
+  const uint8_t crc0_input[4] = {static_cast<uint8_t>(this->address_ << 1), start_register,
+                                 static_cast<uint8_t>((this->address_ << 1) | 1), buffer[0]};
+  if (crc8(crc0_input, 4, 0x00, 0x07, true) != buffer[1]) {
+    ESP_LOGD(TAG, "CRC mismatch at register 0x%02X byte 0", start_register);
     return false;
   }
   data[0] = buffer[0];
-
-  // Verify CRC for SUBSEQUENT data bytes: Calculated over the data byte only
   for (size_t i = 1; i < len; ++i) {
-    uint8_t crc_sub[1] = {buffer[i * 2]};
-    if (this->compute_crc8(crc_sub, 1) != buffer[i * 2 + 1]) {
-      ESP_LOGE(TAG, "CRC mismatch on byte %d of block read", i);
+    if (crc8(&buffer[i * 2], 1, 0x00, 0x07, true) != buffer[i * 2 + 1]) {
+      ESP_LOGD(TAG, "CRC mismatch at register 0x%02X byte %u", start_register, static_cast<unsigned>(i));
       return false;
     }
     data[i] = buffer[i * 2];
   }
-
   return true;
 }
 
-bool BQ76972Component::write_block(uint8_t start_register, const uint8_t *data, size_t len) {
-  if (!this->crc_mode_) {
+bool BQ76972Component::write_block_(uint8_t start_register, const uint8_t *data, size_t len) {
+  if (!this->crc_mode_)
     return this->write_bytes(start_register, data, len);
-  }
 
-  // When CRC is enabled, every data byte is immediately followed by its CRC
-  std::vector<uint8_t> buffer(len * 2);
+  std::array<uint8_t, BQ76972_MAX_TRANSFER> buffer;
+  if (len == 0 || len * 2 > buffer.size())
+    return false;
 
-  // Calculate CRC for the FIRST data byte: Includes responder write address, register address, and first data byte
-  uint8_t crc0_input[3] = {static_cast<uint8_t>(this->i2c_address_ << 1), start_register, data[0]};
+  // The first CRC also covers the write address and register
+  const uint8_t crc0_input[3] = {static_cast<uint8_t>(this->address_ << 1), start_register, data[0]};
   buffer[0] = data[0];
-  buffer[1] = this->compute_crc8(crc0_input, 3);
-
-  // Calculate CRC for SUBSEQUENT data bytes: Includes ONLY the data byte itself
+  buffer[1] = crc8(crc0_input, 3, 0x00, 0x07, true);
   for (size_t i = 1; i < len; ++i) {
     buffer[i * 2] = data[i];
-    uint8_t crc_sub[1] = {data[i]};
-    buffer[i * 2 + 1] = this->compute_crc8(crc_sub, 1);
+    buffer[i * 2 + 1] = crc8(&data[i], 1, 0x00, 0x07, true);
   }
-
-  return this->write_bytes(start_register, buffer.data(), buffer.size());
+  return this->write_bytes(start_register, buffer.data(), len * 2);
 }
 
-bool BQ76972Component::bq76972_read_multi_16_le(uint8_t a_register, uint16_t *data, size_t num_words) {
-  // destination and size sanity check
-  if (data == nullptr || num_words == 0) {
+bool BQ76972Component::read_words_(uint8_t start_register, uint16_t *data, size_t num_words) {
+  std::array<uint8_t, BQ76972_MAX_TRANSFER / 2> bytes;
+  if (num_words * 2 > bytes.size() || !this->read_block_(start_register, bytes.data(), num_words * 2))
     return false;
-  }
-
-  // With CRC: each uint16_t takes 4 bytes (Data0, CRC0, Data1, CRC1)
-  // Without CRC: each uint16_t takes 2 bytes (Data0, Data1)
-  size_t bytes_per_word = this->crc_mode_ ? 4 : 2;
-  size_t total_bytes_to_read = num_words * bytes_per_word;
-
-  // Use a dynamic buffer (vector) to cleanly handle variable length reads safely
-  std::vector<uint8_t> buffer(total_bytes_to_read);
-
-  if (!this->read_bytes(a_register, buffer.data(), total_bytes_to_read)) {
-    return false;  // Read failed
-  }
-
-  if (this->crc_mode_) {
-    for (size_t i = 0; i < num_words; i++) {
-      size_t offset = i * 4;
-      uint8_t data_lsb = buffer[offset + 0];
-      uint8_t crc_lsb = buffer[offset + 1];
-      uint8_t data_msb = buffer[offset + 2];
-      uint8_t crc_msb = buffer[offset + 3];
-
-      // 1. Check LSB CRC
-      if (i == 0) {
-        // The very first data byte CRC includes communication overhead addresses
-        uint8_t crc0_input[4] = {
-            static_cast<uint8_t>(this->i2c_address_ << 1),        // Write address
-            a_register,                                           // Register address
-            static_cast<uint8_t>((this->i2c_address_ << 1) | 1),  // Read address
-            data_lsb                                              // First data byte (LSB)
-        };
-        uint8_t crc0_calc = this->compute_crc8(crc0_input, 4);
-        if (crc0_calc != crc_lsb) {
-          ESP_LOGE(TAG, "CRC error on Word %d LSB. Expected 0x%02X, got 0x%02X", i, crc0_calc, crc_lsb);
-          return false;
-        }
-      } else {
-        // Subsequent sequential LSB bytes compute CRC only over the data byte itself
-        uint8_t crc_input[1] = {data_lsb};
-        uint8_t crc_calc = this->compute_crc8(crc_input, 1);
-        if (crc_calc != crc_lsb) {
-          ESP_LOGE(TAG, "CRC error on Word %d LSB. Expected 0x%02X, got 0x%02X", i, crc_calc, crc_lsb);
-          return false;
-        }
-      }
-
-      // 2. Check MSB CRC (Always calculated over the MSB data byte only)
-      uint8_t crc1_input[1] = {data_msb};
-      uint8_t crc1_calc = this->compute_crc8(crc1_input, 1);
-      if (crc1_calc != crc_msb) {
-        ESP_LOGE(TAG, "CRC error on Word %d MSB. Expected 0x%02X, got 0x%02X", i, crc1_calc, crc_msb);
-        return false;
-      }
-
-      // Store reconstituted value
-      data[i] = (static_cast<uint16_t>(data_msb) << 8) | data_lsb;
-    }
-  } else {
-    // Reconstitute words cleanly without CRC parsing
-    for (size_t i = 0; i < num_words; i++) {
-      size_t offset = i * 2;
-      data[i] = (static_cast<uint16_t>(buffer[offset + 1]) << 8) | buffer[offset + 0];
-    }
-  }
-
+  for (size_t i = 0; i < num_words; i++)
+    data[i] = encode_uint16(bytes[2 * i + 1], bytes[2 * i]);
   return true;
 }
 
-bool BQ76972Component::read_subcommand(uint16_t subcommand, uint8_t *data, size_t expected_len) {
-  // Write the 16-bit subcommand address to 0x3E (lower) and 0x3F (upper)
-  uint8_t sub_byte_l[1] = {
-      static_cast<uint8_t>(subcommand & 0xFF),
-  };
-  uint8_t sub_byte_h[1] = {static_cast<uint8_t>((subcommand >> 8) & 0xFF)};
-
-  if (!this->write_block(BQ76972_SUBCOMMAND_LSB_REG, sub_byte_l, 1))
-    return false;
-  if (!this->write_block(BQ76972_SUBCOMMAND_MSB_REG, sub_byte_h, 1))
-    return false;
-
-  // Wait for the device to process the command and populate the buffer.
-  if (!this->wait_for_subcommand())
-    return false;
-
-  // Read the populated data from the transfer buffer starting at 0x40
-  if (!this->read_block(0x40, data, expected_len))
-    return false;
-
-  return true;
+bool BQ76972Component::send_subcommand_(uint16_t subcommand) {
+  const uint8_t bytes[2] = {static_cast<uint8_t>(subcommand & 0xFF), static_cast<uint8_t>(subcommand >> 8)};
+  return this->write_block_(BQ76972_REG_SUBCOMMAND, bytes, 2);
 }
 
-bool BQ76972Component::write_subcommand(uint16_t subcommand, const uint8_t *data, size_t len) {
-  // Write the 16-bit subcommand address to 0x3E (lower) and 0x3F (upper)
-  uint8_t sub_byte_l[1] = {
-      static_cast<uint8_t>(subcommand & 0xFF),
-  };
-  uint8_t sub_byte_h[1] = {static_cast<uint8_t>((subcommand >> 8) & 0xFF)};
-
-  if (!this->write_block(BQ76972_SUBCOMMAND_LSB_REG, sub_byte_l, 1))
-    return false;
-  if (!this->write_block(BQ76972_SUBCOMMAND_MSB_REG, sub_byte_h, 1))
-    return false;
-
-  // Write the data into the transfer buffer starting at 0x40
-  if (len > 0) {
-    if (!this->write_block(0x40, data, len))
+bool BQ76972Component::wait_for_subcommand_() {
+  uint8_t bytes[2];
+  for (uint8_t i = 0; i < BQ76972_MAX_POLLS; i++) {
+    if (!this->read_block_(BQ76972_REG_SUBCOMMAND, bytes, 2))
       return false;
-
-    // Calculate checksum: 8-bit sum of 0x3E, 0x3F, and buffer data, then bitwise inverted
-    uint8_t sum = sub_byte_l[0] + sub_byte_h[0];
-    for (size_t i = 0; i < len; ++i) {
-      sum += data[i];
-    }
-    uint8_t checksum = ~sum;
-
-    // Calculate length: 4 (0x3E, 0x3F, 0x60, 0x61) + len of data
-    uint8_t data_length = 4 + len;
-
-    // Checksum and length must be written together as a word to 0x60 and 0x61
-    uint8_t tail[2] = {checksum, data_length};
-    if (!this->write_block(0x60, tail, 2))
-      return false;
+    if (bytes[0] != 0xFF && bytes[1] != 0xFF)
+      return true;
+    delay(1);
   }
+  return false;
+}
 
+bool BQ76972Component::wait_for_cfgupdate_() {
+  uint16_t status;
+  for (uint8_t i = 0; i < BQ76972_MAX_POLLS; i++) {
+    if (!this->read_words_(BQ76972_CMD_BAT_STATUS, &status, 1))
+      return false;
+    if (status & 0x0001)
+      return true;
+    delay(1);
+  }
+  return false;
+}
+
+bool BQ76972Component::read_subcommand_(uint16_t subcommand, uint8_t *data, size_t len) {
+  return this->send_subcommand_(subcommand) && this->wait_for_subcommand_() &&
+         this->read_block_(BQ76972_REG_TRANSFER_BUFFER, data, len);
+}
+
+bool BQ76972Component::write_subcommand_(uint16_t subcommand, const uint8_t *data, size_t len) {
+  if (!this->send_subcommand_(subcommand))
+    return false;
+  if (len == 0)
+    return true;
+  if (!this->write_block_(BQ76972_REG_TRANSFER_BUFFER, data, len))
+    return false;
+
+  // Inverted 8-bit sum of 0x3E, 0x3F and the data; length counts 0x3E, 0x3F, 0x60, 0x61 and the data
+  uint8_t sum = static_cast<uint8_t>(subcommand & 0xFF) + static_cast<uint8_t>(subcommand >> 8);
+  for (size_t i = 0; i < len; ++i)
+    sum += data[i];
+  const uint8_t tail[2] = {static_cast<uint8_t>(~sum), static_cast<uint8_t>(4 + len)};
+  return this->write_block_(BQ76972_REG_CHECKSUM, tail, 2);
+}
+
+bool BQ76972Component::enter_cfg_update_() {
+  if (!this->write_subcommand_(BQ76972_SUBCMD_ENTER_CFG_UPDATE, nullptr, 0))
+    return false;
+  delay(10);
+  return this->wait_for_cfgupdate_();
+}
+
+bool BQ76972Component::exit_cfg_update_() {
+  return this->write_subcommand_(BQ76972_SUBCMD_EXIT_CFG_UPDATE, nullptr, 0);
+}
+
+bool BQ76972Component::regs_disabled_(bool &out) {
+  uint8_t reg12;
+  uint8_t reg0;
+  if (!this->read_subcommand_(BQ76972_MEM_REG12_CONFIG, &reg12, 1) ||
+      !this->read_subcommand_(BQ76972_MEM_REG0_CONFIG, &reg0, 1))
+    return false;
+  out = reg12 == 0 && (reg0 & 0x01) == 0;
   return true;
 }
 
-bool BQ76972Component::store_int_temp() {
+const LogString *BQ76972Component::configure_() {
   uint16_t internal_temp;
-  if (!this->bq76972_read_multi_16_le(BQ76972_GET_INT_TEMP, &internal_temp, 1)) {
-    return false;
+  if (!this->read_words_(BQ76972_CMD_TEMP_START, &internal_temp, 1))
+    return LOG_STR(ESP_LOG_MSG_COMM_FAIL);
+
+  // Only write the regulator config when it differs, see
+  // https://e2e.ti.com/support/power-management-group/power-management/f/power-management-forum/1583718/bq76972-undocumented-4-minute-config_update-auto-exit-timeout
+  bool regs_disabled = true;
+  if (this->reg_disable_ && !this->regs_disabled_(regs_disabled))
+    return LOG_STR("Reading regulator config failed");
+  const bool write_regs = !regs_disabled;
+
+  bool write_thermistors = false;
+  for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
+    if (i != BQ76972_TS1_INDEX && this->temperature_sensors_[i] != nullptr)
+      write_thermistors = true;
   }
 
-  // Internal temperature extraction
-  int16_t raw_temp = static_cast<int16_t>(internal_temp);
-  this->internal_temp_c_ = (raw_temp * 0.1f) - 273.15f;
-  this->internal_temp_f_ = (internal_temp_c_ * 9.0f / 5.0f) + 32.0f;
+  if (write_regs || write_thermistors) {
+    if (!this->enter_cfg_update_())
+      return LOG_STR("Entering config update mode failed");
+    if (write_regs) {
+      const uint8_t zero = 0;
+      if (!this->write_subcommand_(BQ76972_MEM_REG12_CONFIG, &zero, 1) ||
+          !this->write_subcommand_(BQ76972_MEM_REG0_CONFIG, &zero, 1))
+        return LOG_STR("Writing regulator config failed");
+    }
+    for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
+      if (i == BQ76972_TS1_INDEX || this->temperature_sensors_[i] == nullptr)
+        continue;
+      if (!this->write_subcommand_(BQ76972_MEM_TEMP_PIN_CONFIG_BASE + i, &BQ76972_PIN_CONFIG_THERMISTOR, 1))
+        return LOG_STR("Writing thermistor pin config failed");
+    }
+    if (!this->exit_cfg_update_())
+      return LOG_STR("Exiting config update mode failed");
+    if (write_regs && (!this->regs_disabled_(regs_disabled) || !regs_disabled))
+      return LOG_STR("Disabling regulators failed");
+  }
 
-  return true;
+  ESP_LOGD(TAG, "Internal temperature: %.1f°C", raw_to_celsius(internal_temp));
+  return nullptr;
 }
 
 void BQ76972Component::setup() {
-  // Read internal temperature to check comms
-  if (!this->store_int_temp()) {
-    ESP_LOGE(TAG, "%s: failed to communicate over I2C", this->component_id_.c_str());
-    this->mark_failed();
-    return;
-  }
-
-  if (this->address_number_ != nullptr) {
-    this->address_number_->publish_state(this->address_);
-  }
-
-  // Disable regulators if needed
-  if (this->reg_disable_) {
-    // See
-    // https://e2e.ti.com/support/power-management-group/power-management/f/power-management-forum/1583718/bq76972-undocumented-4-minute-config_update-auto-exit-timeout
-    bool reg_already_disabled = true;
-
-    // Check reg12 initial configuration
-    uint8_t reg_uint8;
-    if (!this->read_subcommand(BQ76972_MEM_REG12_CONFIG, &reg_uint8, 1)) {
-      ESP_LOGE(TAG, "%s: couldn't read reg12 config", this->component_id_.c_str());
-      this->mark_failed();
-      return;
-    }
-    if (reg_uint8 != 0)
-      reg_already_disabled = false;
-
-    // Check reg0 initial configuration
-    if (!this->read_subcommand(BQ76972_MEM_REG0_CONFIG, &reg_uint8, 1)) {
-      ESP_LOGE(TAG, "%s: couldn't read reg0 config", this->component_id_.c_str());
-      this->mark_failed();
-      return;
-    }
-    if ((reg_uint8 & 0x01) != 0)
-      reg_already_disabled = false;
-
-    if (!reg_already_disabled) {
-      // Enter CONFIG_UPDATE mode
-      if (!this->write_subcommand(BQ76972_SUBCMD_ENTER_CFG_UPDATE, nullptr, 0)) {
-        ESP_LOGE(TAG, "%s: couldn't enter config update mode", this->component_id_.c_str());
-        this->mark_failed();
-        return;
-      }
-      delay(10);
-
-      // Wait for config updatemode
-      if (!this->wait_for_cfgupdate()) {
-        ESP_LOGE(TAG, "%s: couldn't wait for update mode", this->component_id_.c_str());
-        this->mark_failed();
-        return;
-      }
-
-      // Send new configuration with reg1&2 disabled
-      uint8_t reg12_data[1] = {0x00};
-      if (!this->write_subcommand(BQ76972_MEM_REG12_CONFIG, reg12_data, 1)) {
-        ESP_LOGE(TAG, "%s: couldn't set reg12 regiser", this->component_id_.c_str());
-        this->mark_failed();
-        return;
-      }
-
-      // Send new configuration with reg0 disabled
-      uint8_t reg0_data[1] = {0x00};
-      if (!this->write_subcommand(BQ76972_MEM_REG0_CONFIG, reg0_data, 1)) {
-        ESP_LOGE(TAG, "%s: couldn't set reg0 regiser", this->component_id_.c_str());
-        this->mark_failed();
-        return;
-      }
-
-      // Exit CONFIG_UPDATE mode
-      if (!this->write_subcommand(BQ76972_SUBCMD_EXIT_CFG_UPDATE, nullptr, 0)) {
-        ESP_LOGE(TAG, "%s: couldn't exit config update mode", this->component_id_.c_str());
-        this->mark_failed();
-        return;
-      }
-
-      // Check success: reg12
-      if (!this->read_subcommand(BQ76972_MEM_REG12_CONFIG, &reg_uint8, 1) || (reg_uint8 != 0)) {
-        ESP_LOGE(TAG, "%s: couldn't disable reg12", this->component_id_.c_str());
-        this->mark_failed();
-        return;
-      }
-
-      // Check success
-      if (!this->read_subcommand(BQ76972_MEM_REG0_CONFIG, &reg_uint8, 1) || ((reg_uint8 & 0x01) != 0)) {
-        ESP_LOGE(TAG, "%s: couldn't disable pre-regulator", this->component_id_.c_str());
-        this->mark_failed();
-        return;
-      }
-    }
-  }
-
-  // Thermistor configuration
-  uint8_t register_for_thermistor_mes = 0x07;
-  const ThermistorConfig thermistors[] = {
-      {this->ts2_temp_sensor_, 0x92FE, "TS2"},         {this->ts3_temp_sensor_, 0x92FF, "TS3"},
-      {this->hdq_temp_sensor_, 0x9300, "HDQ"},         {this->dchg_temp_sensor_, 0x9301, "DCHG"},
-      {this->ddsg_temp_sensor_, 0x9302, "DDSG"},       {this->cfetoff_temp_sensor_, 0x92FA, "CFETOFF"},
-      {this->dfetoff_temp_sensor_, 0x92FB, "DFETOFF"}, {this->alert_temp_sensor_, 0x92FC, "ALERT"},
-  };
-
-  // Enter CONFIG_UPDATE mode
-  if (!this->write_subcommand(BQ76972_SUBCMD_ENTER_CFG_UPDATE, nullptr, 0)) {
-    ESP_LOGE(TAG, "%s: couldn't enter config update mode", this->component_id_.c_str());
-    this->mark_failed();
-    return;
-  }
-  delay(10);
-
-  // Wait for config updatemode
-  if (!this->wait_for_cfgupdate()) {
-    ESP_LOGE(TAG, "%s: couldn't wait for update mode", this->component_id_.c_str());
-    this->mark_failed();
-    return;
-  }
-
-  // Program registers if needed
-  for (const auto &t : thermistors) {
-    if (t.sensor != nullptr) {
-      if (!this->write_subcommand(t.subcommand, &register_for_thermistor_mes, 1)) {
-        ESP_LOGE(TAG, "%s: couldn't program %s pin input for thermistor", this->component_id_.c_str(), t.name);
-        this->mark_failed();
-        return;
-      }
-    }
-  }
-
-  // Exit CONFIG_UPDATE mode
-  if (!this->write_subcommand(BQ76972_SUBCMD_EXIT_CFG_UPDATE, nullptr, 0)) {
-    ESP_LOGE(TAG, "%s: couldn't exit config update mode", this->component_id_.c_str());
-    this->mark_failed();
-    return;
-  }
-
-  // Delayed debug info
-  this->set_timeout(7000, [this]() {
-    ESP_LOGI(TAG, "%s: Init completed without issues", this->component_id_.c_str());
-    ESP_LOGI(TAG, "%s: Internal temperature of %.2f°C, %.2f°F", this->component_id_.c_str(), this->internal_temp_c_,
-             this->internal_temp_f_);
-  });
+  if (const LogString *error = this->configure_(); error != nullptr)
+    this->mark_failed(error);
 }
 
 void BQ76972Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "BQ76972 (ID: %s):", this->component_id_.c_str());
+  ESP_LOGCONFIG(TAG, "BQ76972:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  CRC Mode: %s", this->crc_mode_ ? LOG_STR_LITERAL("Enabled") : LOG_STR_LITERAL("Disabled"));
@@ -431,113 +217,69 @@ void BQ76972Component::dump_config() {
   }
 }
 
-void BQ76972Component::program_address_from_number() {
-  if (this->address_number_ != nullptr) {
-    // Enter CONFIG_UPDATE mode
-    if (!this->write_subcommand(BQ76972_SUBCMD_ENTER_CFG_UPDATE, nullptr, 0)) {
-      ESP_LOGE(TAG, "%s: Couldn't enter config update mode", this->component_id_.c_str());
-      return;
-    }
-    delay(10);
-
-    // Wait for config updatemode
-    if (!this->wait_for_cfgupdate()) {
-      ESP_LOGE(TAG, "%s: Couldn't wait for update mode", this->component_id_.c_str());
-      return;
-    }
-
-    // Program new I²C address
-    uint8_t new_i2c_address_for_bq = (static_cast<uint8_t>(this->address_number_->state) << 1);
-    if (!this->write_subcommand(BQ76972_MEM_I2C_ADDRESS, &new_i2c_address_for_bq, 1)) {
-      ESP_LOGE(TAG, "%s: Couldn't program new I2C address", this->component_id_.c_str());
-      return;
-    }
-
-    // Issue swap comm mode
-    if (!this->write_subcommand(BQ76972_MEM_SWAP_COMM_MODE, nullptr, 0)) {
-      ESP_LOGE(TAG, "%s: Couldn't issue swap comm mode", this->component_id_.c_str());
-      return;
-    }
-    delay(10);
-
-    // Update our I²C internal logic
-    this->i2c_address_ = static_cast<uint8_t>(this->address_number_->state);
-    this->set_i2c_address(this->i2c_address_);
-
-    // Exit CONFIG_UPDATE mode
-    if (!this->write_subcommand(BQ76972_SUBCMD_EXIT_CFG_UPDATE, nullptr, 0)) {
-      ESP_LOGE(TAG, "%s: Couldn't exit config update mode", this->component_id_.c_str());
-      return;
-    }
+void BQ76972Component::program_i2c_address(uint8_t address) {
+  if (this->is_failed())
+    return;
+  const uint8_t shifted = address << 1;
+  if (!this->enter_cfg_update_() || !this->write_subcommand_(BQ76972_MEM_I2C_ADDRESS, &shifted, 1) ||
+      !this->write_subcommand_(BQ76972_MEM_SWAP_COMM_MODE, nullptr, 0)) {
+    this->status_set_warning(LOG_STR("Programming I2C address failed"));
+    return;
   }
+  delay(10);
+  this->set_i2c_address(address);
+  if (!this->exit_cfg_update_()) {
+    this->status_set_warning(LOG_STR("Programming I2C address failed"));
+    return;
+  }
+  ESP_LOGI(TAG, "I2C address set to 0x%02X", address);
 }
 
-void BQ76972Component::publish_temperature_from_buffer(uint16_t temperature_uint16t, sensor::Sensor *sens) {
-  if (sens == nullptr) {
-    return;  // Skip sensors that were not declared in YAML
+template<size_t N> static bool any_set(const std::array<sensor::Sensor *, N> &sensors) {
+  for (auto *sensor : sensors) {
+    if (sensor != nullptr)
+      return true;
   }
-
-  // Combine Little-Endian byte pair into a signed 16-bit raw integer
-  int16_t raw_signed = static_cast<int16_t>(temperature_uint16t);
-
-  // Convert raw value (0.1 Kelvin) to Celsius: (Raw / 10.0) - 273.15
-  float temp_celsius = (raw_signed / 10.0f) - 273.15f;
-
-  sens->publish_state(temp_celsius);
+  return false;
 }
 
 void BQ76972Component::update() {
-  // Stack Voltage (1 LSB = 10mV -> convert to Volts)
-  uint16_t raw_stack;
-  if (!this->bq76972_read_multi_16_le(BQ76972_CMD_STACK_VOLTAGE, &raw_stack, 1)) {
-    ESP_LOGE(TAG, "%s: Couldn't fetch stack voltage", this->component_id_.c_str());
-    return;
-  }
-  this->pack_voltage_mv_ = raw_stack * 10;
-  if (this->stack_voltage_sensor_ != nullptr && raw_stack != 0) {
-    this->stack_voltage_sensor_->publish_state((float) raw_stack * 0.01f);
-  }
-
-  // Sequential Block Read for all 16 cell voltages
-  uint16_t cell_buffer[16];
-
-  // Issue a single I2C request starting from Cell 1's memory address
-  if (!this->bq76972_read_multi_16_le(BQ76972_CMD_CELL_START, cell_buffer, 16)) {
-    ESP_LOGE(TAG, "%s: Couldn't fetch cell voltages", this->component_id_.c_str());
-    return;
-  }
-
-  // Parse the retrieved block from local memory
-  for (size_t i = 0; i < 16; i++) {
-    this->cell_voltages_mv_[i] = cell_buffer[i];
-    if (this->cell_sensors_[i] == nullptr)
-      continue;
-
-    if (cell_buffer[i] != 0) {
-      this->cell_sensors_[i]->publish_state((float) cell_buffer[i] * 0.001f);
+  // Each group publishes as soon as its read succeeds, so one failed read does not hold back the others
+  bool ok = true;
+  uint16_t words[BQ76972_NUM_CELLS];
+  if (this->stack_voltage_sensor_ != nullptr) {
+    if (this->read_words_(BQ76972_CMD_STACK_VOLTAGE, words, 1)) {
+      if (words[0] != 0)
+        this->stack_voltage_sensor_->publish_state(words[0] * 0.01f);  // 10 mV units
+    } else {
+      ok = false;
     }
   }
-
-  // Sequential Block Read for all 10 temperature sensors
-  uint16_t temperature_buffer[10];
-
-  // Issue a single I2C request
-  if (!this->bq76972_read_multi_16_le(BQ76972_CMD_TEMP_START, temperature_buffer, 10)) {
-    ESP_LOGE(TAG, "%s: Couldn't fetch temperatures", this->component_id_.c_str());
-    return;
+  if (any_set(this->cell_sensors_)) {
+    if (this->read_words_(BQ76972_CMD_CELL_START, words, BQ76972_NUM_CELLS)) {
+      for (size_t i = 0; i < BQ76972_NUM_CELLS; i++) {
+        if (this->cell_sensors_[i] != nullptr && words[i] != 0)
+          this->cell_sensors_[i]->publish_state(words[i] * 0.001f);  // mV
+      }
+    } else {
+      ok = false;
+    }
   }
-
-  // Publish state if needed
-  this->publish_temperature_from_buffer(temperature_buffer[0], this->internal_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[1], this->cfetoff_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[2], this->dfetoff_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[3], this->alert_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[4], this->ts1_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[5], this->ts2_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[6], this->ts3_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[7], this->hdq_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[8], this->dchg_temp_sensor_);
-  this->publish_temperature_from_buffer(temperature_buffer[9], this->ddsg_temp_sensor_);
+  if (any_set(this->temperature_sensors_)) {
+    if (this->read_words_(BQ76972_CMD_TEMP_START, words, BQ76972_NUM_TEMPERATURES)) {
+      for (size_t i = 0; i < BQ76972_NUM_TEMPERATURES; i++) {
+        if (this->temperature_sensors_[i] != nullptr)
+          this->temperature_sensors_[i]->publish_state(raw_to_celsius(words[i]));
+      }
+    } else {
+      ok = false;
+    }
+  }
+  if (ok) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  }
 }
 
 }  // namespace esphome::bq76972
