@@ -11,7 +11,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/ld24xx/ld24xx.h"
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_LD2410S_VERSION
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
@@ -50,7 +50,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR_WITH_DEDUP(distance, uint16_t)
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_LD2410S_VERSION
   SUB_TEXT_SENSOR(version)
 #endif
 #if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
@@ -85,7 +85,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #ifdef USE_LD2410S_PARAMETERS
   bool handle_parameters_(const uint8_t *values, uint16_t len);
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_LD2410S_VERSION
   bool handle_version_(const uint8_t *values, uint16_t len);
 #endif
   void count_dropped_frame_() {

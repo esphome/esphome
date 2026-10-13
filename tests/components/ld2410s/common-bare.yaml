@@ -22,3 +22,7 @@ select:
     name: Unrelated Select
     optimistic: true
     options: ["a", "b"]
+
+text_sensor:
+  - platform: template
+    name: Unrelated Text

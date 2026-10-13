@@ -17,6 +17,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LD2410S_VERSION")
     hub = await cg.get_variable(config[CONF_LD2410S_ID])
     text_sensors = text_sensor.sub_text_sensors(config)
     await text_sensors(CONF_VERSION, hub.set_version_text_sensor)

@@ -50,7 +50,7 @@ static constexpr uint8_t VERSION_SIZE = VERSION_TYPE_SIZE + 3 * 2;
 // an entity shows them, pick the output mode, configuration mode off
 static constexpr uint16_t INIT_SEQUENCE[] PROGMEM = {
     CONFIG_MODE_START_CMD,
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_LD2410S_VERSION
     VERSION_READ_CMD,
 #endif
 #ifdef USE_LD2410S_PARAMETERS
@@ -81,7 +81,7 @@ void LD2410SComponent::dump_config() {
 #ifdef USE_SENSOR
   LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Distance", this->distance_sensor_);
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_LD2410S_VERSION
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
 #endif
 #if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
@@ -134,8 +134,12 @@ void LD2410SComponent::loop() {
 #ifdef USE_LD2410S_PARAMETERS
 bool LD2410SComponent::set_parameter(Parameter parameter, uint8_t value) {
   // All six are written together, so the other five must be the module's own values
-  if (!this->init_done_ || !this->parameters_known_) {
+  if (!this->init_done_) {
     ESP_LOGW(TAG, "Parameters not read yet, change ignored");
+    return false;
+  }
+  if (!this->parameters_known_) {
+    ESP_LOGW(TAG, "The module reported a parameter out of range, changes are disabled");
     return false;
   }
   this->parameters_[static_cast<uint8_t>(parameter)] = value;
@@ -146,6 +150,7 @@ bool LD2410SComponent::set_parameter(Parameter parameter, uint8_t value) {
 
 void LD2410SComponent::restart_init_(uint32_t at) {
   this->init_done_ = false;
+  this->status_set_warning();  // cleared again when the new init sequence is acknowledged
 #ifdef USE_LD2410S_PARAMETERS
   // The module's own values count again once it is set up anew
   if (this->parameters_dirty_) {
@@ -412,7 +417,7 @@ void LD2410SComponent::handle_command_ack_(const uint8_t *payload, uint16_t len)
   if (command == PARAMETERS_READ_CMD && !this->handle_parameters_(&payload[4], len - 4))
     return;
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_LD2410S_VERSION
   if (command == VERSION_READ_CMD && !this->handle_version_(&payload[4], len - 4))
     return;
 #endif
@@ -448,6 +453,14 @@ bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
       ESP_LOGW(TAG, "Parameter %u out of range: %" PRIu32 ", changes stay disabled", i,
                encode_uint32(v[3], v[2], v[1], v[0]));
       this->parameters_known_ = false;
+#ifdef USE_NUMBER
+      // A value a number showed before the module answered is not confirmed
+      for (auto *number : this->numbers_) {
+        if (number != nullptr) {
+          number->publish_state(NAN);
+        }
+      }
+#endif
       return true;
     }
   }
@@ -463,7 +476,7 @@ bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
 }
 #endif
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_LD2410S_VERSION
 // Returns false when the answer is cut short
 bool LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
   if (len < VERSION_SIZE) {
@@ -475,11 +488,9 @@ bool LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
   snprintf(version, sizeof(version), "%u.%u.%u", encode_uint16(v[1], v[0]), encode_uint16(v[3], v[2]),
            encode_uint16(v[5], v[4]));
   ESP_LOGD(TAG, "Firmware %s", version);
-#ifdef USE_TEXT_SENSOR
   if (this->version_text_sensor_ != nullptr) {
     this->version_text_sensor_->publish_state(version);
   }
-#endif
   return true;
 }
 #endif
@@ -498,14 +509,14 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 
 #ifdef USE_LD2410S_PARAMETERS
 void LD2410SComponent::publish_parameters_() {
-#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
+#ifdef USE_NUMBER
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
     if (this->numbers_[i] != nullptr) {
       this->numbers_[i]->publish_raw(this->parameters_[i]);
     }
   }
 #endif
-#if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
+#ifdef USE_SELECT
   if (this->response_speed_select_ != nullptr) {
     const uint8_t speed = this->parameters_[static_cast<uint8_t>(Parameter::PARAMETER_RESPONSE_SPEED)];
     for (uint8_t i = 0; i < RESPONSE_SPEED_COUNT; i++) {
