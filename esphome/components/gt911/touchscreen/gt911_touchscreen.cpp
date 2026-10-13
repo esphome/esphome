@@ -75,7 +75,7 @@ void GT911Touchscreen::setup_internal_() {
           ESP_LOGD(TAG, "Interrupt pin: hardware interrupt, active %s",
                    active_high ? LOG_STR_LITERAL("HIGH") : LOG_STR_LITERAL("LOW"));
         } else {
-          // IO expander pin: leave as output for configuration only.
+          // IO expander pin: no hardware interrupt, the touch state is polled.
           ESP_LOGD(TAG, "Interrupt pin: IO expander polling mode, active %s",
                    active_high ? LOG_STR_LITERAL("HIGH") : LOG_STR_LITERAL("LOW"));
         }
