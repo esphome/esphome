@@ -20,6 +20,10 @@
 #ifdef USE_DASHBOARD_IMPORT
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+#include "esphome/components/ethernet/ethernet_component.h"
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 namespace esphome::mdns {
 
@@ -38,6 +42,33 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
+
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
+MDNS_STATIC_CONST_CHAR(NETWORK_ETHERNET, "ethernet");
+
+// Ethernet first: a device that is reachable wired must not be adopted as a wifi device
+const char *MDNSComponent::connected_network_() {
+  if (ethernet::global_eth_component->is_connected())
+    return NETWORK_ETHERNET;
+  if (wifi::global_wifi_component->is_connected())
+    return NETWORK_WIFI;
+  return nullptr;
+}
+
+void MDNSComponent::update_network_txt_() {
+  if (this->network_txt_ == nullptr)
+    return;
+  // With no interface connected, keep the last value instead of flapping to wifi
+  const char *network = connected_network_();
+  if (network == nullptr || network == this->network_txt_)
+    return;
+  if (!this->publish_network_txt_(network))
+    return;  // Retried on the next check
+  ESP_LOGD(TAG, "Network TXT: %s", network);
+  this->network_txt_ = network;
+}
+#endif
 
 void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_register) {
 #ifdef USE_MDNS_STORE_SERVICES
@@ -160,7 +191,11 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 
     txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
 
-#if defined(USE_WIFI)
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+    const char *network = connected_network_();
+    this->network_txt_ = network != nullptr ? network : NETWORK_WIFI;
+    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(this->network_txt_)});
+#elif defined(USE_WIFI)
     MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_WIFI)});
 #elif defined(USE_ETHERNET)

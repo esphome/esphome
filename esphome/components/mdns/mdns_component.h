@@ -32,6 +32,12 @@
 #define USE_MDNS_DEVICE_INFO_TXT
 #endif
 
+// With both wifi and ethernet, the _esphomelib "network" TXT value follows the connected interface.
+// OpenThread hands its services to the SRP client once, so it keeps the fixed value.
+#if defined(USE_API) && defined(USE_WIFI) && defined(USE_ETHERNET) && !defined(USE_OPENTHREAD)
+#define USE_MDNS_DYNAMIC_NETWORK_TXT
+#endif
+
 namespace esphome::mdns {
 
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
@@ -149,6 +155,18 @@ class MDNSComponent final : public Component
   using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
 
   void setup_buffers_and_register_(PlatformRegisterFn platform_register);
+
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+  static constexpr uint32_t NETWORK_TXT_CHECK_INTERVAL_MS = 1000;
+  /// "ethernet" when ethernet is connected, else "wifi" when wifi is connected, else nullptr.
+  static const char *connected_network_();
+  /// Check the connected interface and publish a changed "network" TXT value.
+  void update_network_txt_();
+  /// Platform-specific: replace the "network" TXT value of the registered _esphomelib service.
+  bool publish_network_txt_(const char *network);
+  /// Advertised value; nullptr until the _esphomelib service is registered.
+  const char *network_txt_{nullptr};
+#endif
 
 #ifdef USE_MDNS_DYNAMIC_TXT
   /// Storage for runtime-generated TXT values from user lambdas
