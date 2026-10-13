@@ -54,6 +54,7 @@ RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
 RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
 RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94
+RESPONSE_ERROR_UPDATE_BUSY = 0x95
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -202,6 +203,10 @@ _ERROR_MESSAGES: dict[int, str] = {
         "encryption key. Add 'encryption:' to the 'ota: platform: esphome' section "
         "of the YAML this upload uses, or update your esphome installation if it "
         "predates OTA encryption."
+    ),
+    RESPONSE_ERROR_UPDATE_BUSY: (
+        "The device is busy with another update that writes to its flash. "
+        "Wait for it to finish, then retry."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
