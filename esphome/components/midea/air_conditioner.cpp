@@ -187,16 +187,21 @@ void AirConditioner::do_display_toggle() {
   // otherwise it falls back to IR when a transmitter is compiled in, or to
   // UART when none is (Mundoclima/Rotenso accept the toggle without
   // advertising supportLightControl() in the 0xB5 capabilities report).
-  const bool use_uart = this->display_control_ == DisplayControl::DISPLAY_CONTROL_UART ||
-                        (this->display_control_ == DisplayControl::DISPLAY_CONTROL_AUTO &&
-                         this->base_.getCapabilities().supportLightControl());
+  const bool use_ir = this->display_control_ == DisplayControl::DISPLAY_CONTROL_IR ||
+                      (this->display_control_ == DisplayControl::DISPLAY_CONTROL_AUTO &&
+                       !this->base_.getCapabilities().supportLightControl());
+  if (use_ir) {
 #ifdef USE_REMOTE_TRANSMITTER
-  if (!use_uart) {
     IrSpecialData data(0x08);
     this->transmitter_.transmit(data);
     return;
-  }
+#else
+    // No transmitter compiled in — fall back to UART (Mundoclima/Rotenso
+    // accept the toggle without advertising supportLightControl()).
+    this->base_.displayToggle();
+    return;
 #endif
+  }
   this->base_.displayToggle();
 }
 
