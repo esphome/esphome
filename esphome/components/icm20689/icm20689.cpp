@@ -43,6 +43,19 @@ void ICM20689Component::setup() {
     return;
   }
 
+  // Datasheet 4.20: a soft reset must be the first operation after power-up,
+  // before any register initialization. WHO_AM_I is only valid afterwards.
+  this->write_register_(ICM20689_REG_PWR_MGMT_1, ICM20689_SOFT_RESET);
+  delay(100);  // NOLINT
+
+  // The chip comes out of reset in sleep mode: wake it and select the
+  // auto-selected best clock source (required for full gyro performance).
+  this->write_register_(ICM20689_REG_PWR_MGMT_1, ICM20689_CLKSEL_AUTO);
+
+  // USER_CTRL is not writable in sleep mode, so I2C_IF_DIS is set once awake.
+  // Datasheet 6.1: disable the I2C interface when using SPI.
+  this->write_register_(ICM20689_REG_USER_CTRL, ICM20689_I2C_IF_DIS);
+
   uint8_t who_am_i = 0;
   this->read_registers_(ICM20689_REG_WHO_AM_I, &who_am_i, 1);
 
@@ -51,16 +64,6 @@ void ICM20689Component::setup() {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-
-  // Reset the device to a known state, then wait for the reset to complete.
-  this->write_register_(ICM20689_REG_PWR_MGMT_1, ICM20689_DEVICE_RESET);
-  delay(100);  // NOLINT
-
-  // Disable the I2C interface: the datasheet recommends this when using SPI.
-  this->write_register_(ICM20689_REG_USER_CTRL, ICM20689_I2C_IF_DIS);
-
-  // Clear SLEEP and select the gyro PLL as the clock source.
-  this->write_register_(ICM20689_REG_PWR_MGMT_1, ICM20689_CLKSEL_PLL);
 
   // Allow the sensor to settle after waking from sleep.
   delay(50);  // NOLINT
