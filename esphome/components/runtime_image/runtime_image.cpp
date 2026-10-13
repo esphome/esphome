@@ -99,6 +99,22 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       }
       break;
     }
+    case image::IMAGE_TYPE_RGB111: {
+      uint8_t bits = (color.r >> 7) << 2 | (color.g >> 7) << 1 | (color.b >> 7);
+      if (this->bpp_ == 4)
+        bits = bits << 1 | (color.w >> 7);
+      const uint32_t stride = (this->buffer_width_ * this->bpp_ + 7u) / 8u;
+      const uint32_t bitpos = y * stride * 8 + x * this->bpp_;
+      uint8_t *byte = this->buffer_ + bitpos / 8;
+      // Place the pixel in a 16-bit window so it may straddle two bytes.
+      const uint8_t shift = 16 - this->bpp_ - bitpos % 8;
+      const uint16_t mask = ((1u << this->bpp_) - 1) << shift;
+      const uint16_t value = bits << shift;
+      byte[0] = (byte[0] & ~(mask >> 8)) | (value >> 8);
+      if (mask & 0xFF)
+        byte[1] = (byte[1] & ~(mask & 0xFF)) | (value & 0xFF);
+      break;
+    }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
       auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);

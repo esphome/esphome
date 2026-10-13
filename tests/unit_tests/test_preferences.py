@@ -147,3 +147,47 @@ def test_rtc_rejected_on_unsupported_platform() -> None:
 def test_flash_allowed_on_unsupported_platform() -> None:
     _set_platform(PLATFORM_RP2040)
     assert _validate({CONF_STORAGE: "flash"})[CONF_STORAGE] == preferences.STORAGE_FLASH
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32, VARIANT_ESP32C3])
+def test_rtc_supported_on_esp32_with_rtc_memory(variant: str) -> None:
+    _set_esp32(variant)
+    assert preferences.rtc_supported() is True
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32C2, VARIANT_ESP32C61])
+def test_rtc_supported_false_without_rtc_memory(variant: str) -> None:
+    _set_esp32(variant)
+    assert preferences.rtc_supported() is False
+
+
+@pytest.mark.parametrize(
+    ("platform", "expected"),
+    [(PLATFORM_ESP8266, True), (PLATFORM_RP2040, False)],
+)
+def test_rtc_supported_per_platform(platform: str, expected: bool) -> None:
+    _set_platform(platform)
+    assert preferences.rtc_supported() is expected
+
+
+def test_validate_storage_accepts_flash_everywhere() -> None:
+    _set_platform(PLATFORM_RP2040)
+    assert preferences.validate_storage("flash") == preferences.STORAGE_FLASH
+    assert preferences.validate_storage("FLASH") == preferences.STORAGE_FLASH
+
+
+def test_validate_storage_accepts_rtc_where_supported() -> None:
+    _set_esp32(VARIANT_ESP32)
+    assert preferences.validate_storage("rtc") == preferences.STORAGE_RTC
+
+
+def test_validate_storage_rejects_rtc_without_rtc_memory() -> None:
+    _set_esp32(VARIANT_ESP32C2)
+    with pytest.raises(cv.Invalid, match="not supported on this platform"):
+        preferences.validate_storage("rtc")
+
+
+def test_validate_storage_rejects_unknown_value() -> None:
+    _set_esp32(VARIANT_ESP32)
+    with pytest.raises(cv.Invalid):
+        preferences.validate_storage("nvs")
