@@ -139,7 +139,8 @@ void QspiDbi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   if (w <= 0 || h <= 0)
     return;
   if (bitness != display::COLOR_BITNESS_565 || order != this->color_mode_ ||
-      big_endian != (this->bit_order_ == spi::BIT_ORDER_MSB_FIRST)) {
+      big_endian != (this->bit_order_ == spi::BIT_ORDER_MSB_FIRST) ||
+      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   } else if (this->draw_from_origin_) {
