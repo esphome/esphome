@@ -390,6 +390,7 @@ class Application {
   friend Component;
   friend class Scheduler;
   friend class LoopBlockingGuard;
+  friend class UnavoidableBlockingScope;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -630,6 +631,38 @@ class LoopBlockingGuard {
  private:
   // Cold path; defined in component.cpp. Reads the current component/source from App to name the culprit.
   static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
+};
+
+/// Leaves a stretch of the current loop pass out of the blocking warning.
+///
+/// Only for work that cannot be made shorter or split across passes: radio
+/// bring-up, a first network connect, a key generation. Work that could be
+/// cached, deferred, polled or turned into a state machine stays outside, so
+/// the warning keeps finding it.
+///
+/// Affects only work timed by LoopBlockingGuard: loop() and scheduler
+/// callbacks, not setup(). Main loop task only. The watchdog is not fed, so
+/// pair long work with watchdog::WatchdogManager. Scopes may nest.
+/// Afterwards App.get_loop_component_start_time() can be earlier than a
+/// millis() read taken before the scope; time the work with millis() at both ends.
+///
+///   UnavoidableBlockingScope scope;
+///   this->generate_key_();
+class UnavoidableBlockingScope {
+ public:
+  UnavoidableBlockingScope() : started_(MillisInternal::get()), pass_start_(App.get_loop_component_start_time()) {}
+  ~UnavoidableBlockingScope() {
+    // Move the pass start seen at entry forward by the time spent here, clamped to now
+    const uint32_t now = MillisInternal::get();
+    const uint32_t moved = this->pass_start_ + (now - this->started_);
+    App.set_loop_component_start_time_(static_cast<int32_t>(now - moved) < 0 ? now : moved);
+  }
+  UnavoidableBlockingScope(const UnavoidableBlockingScope &) = delete;
+  UnavoidableBlockingScope &operator=(const UnavoidableBlockingScope &) = delete;
+
+ private:
+  uint32_t started_;
+  uint32_t pass_start_;
 };
 
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
