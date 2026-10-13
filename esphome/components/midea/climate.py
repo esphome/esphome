@@ -236,7 +236,7 @@ async def to_code(config: ConfigType) -> None:
         for conf in CORE.config.get(CONF_SWITCH, [])
     ):
         # Temporary fork until purifier support is accepted upstream.
-        repository = "https://github.com/m4rkireland/MideaUART.git#2e65f70ed12e507c69d9662b524d3027ac051960"
+        repository = "https://github.com/m4rkireland/MideaUART.git#867f54a49918b4a97f24d8cf1541ef789b08071d"
     cg.add_library(
         name="MideaUART",
         version=None,
