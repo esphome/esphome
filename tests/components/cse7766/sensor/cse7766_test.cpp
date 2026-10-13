@@ -58,7 +58,7 @@ class CSE7766Test : public ::testing::Test {
     this->sut_.set_power_sensor(&this->power_);
   }
 
-  float feed(uint8_t header, uint32_t power_cycle, uint8_t adj) {
+  float feed_(uint8_t header, uint32_t power_cycle, uint8_t adj) {
     this->uart_.push_rx(make_frame(header, power_cycle, adj));
     this->sut_.loop();
     return this->power_.state;
@@ -72,38 +72,38 @@ class CSE7766Test : public ::testing::Test {
 }  // namespace
 
 TEST_F(CSE7766Test, NewMeasurementIsReported) {
-  EXPECT_NEAR(this->feed(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER), 2.163f, 0.001f);
+  EXPECT_NEAR(this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER), 2.163f, 0.001f);
 }
 
 // At low load one power cycle spans many frames. Frames in between carry the last cycle or the
 // time since the last pulse, and must not be reported as 0 W.
 TEST_F(CSE7766Test, LowLoadKeepsLastMeasurementBetweenPulses) {
-  this->feed(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
-  EXPECT_NEAR(this->feed(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
-  EXPECT_NEAR(this->feed(HEADER_OK, 1078140, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
-  EXPECT_NEAR(this->feed(HEADER_OK, 4900000, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
+  this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
+  EXPECT_NEAR(this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
+  EXPECT_NEAR(this->feed_(HEADER_OK, 1078140, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
+  EXPECT_NEAR(this->feed_(HEADER_OK, 4900000, ADJ_NO_NEW_POWER), 2.163f, 0.001f);
 }
 
 TEST_F(CSE7766Test, OverduePulseReportsZero) {
-  this->feed(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
-  EXPECT_EQ(this->feed(HEADER_OK, 2 * LOW_LOAD_CYCLE + 1, ADJ_NO_NEW_POWER), 0.0f);
+  this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
+  EXPECT_EQ(this->feed_(HEADER_OK, 2 * LOW_LOAD_CYCLE + 1, ADJ_NO_NEW_POWER), 0.0f);
   // Stays 0 even when a later frame shows a short cycle again, until a new measurement arrives
-  EXPECT_EQ(this->feed(HEADER_OK, 1000000, ADJ_NO_NEW_POWER), 0.0f);
+  EXPECT_EQ(this->feed_(HEADER_OK, 1000000, ADJ_NO_NEW_POWER), 0.0f);
 }
 
 // A large load switching off: the first frame without a new measurement already shows about one
 // second since the last pulse, far beyond the 2 ms cycle, so 0 W is reported at once.
 TEST_F(CSE7766Test, HighLoadSwitchingOffReportsZeroAtOnce) {
-  EXPECT_NEAR(this->feed(HEADER_OK, HIGH_LOAD_CYCLE, ADJ_NEW_POWER), 2712.5f, 0.1f);
-  EXPECT_EQ(this->feed(HEADER_OK, 1072601, ADJ_NO_NEW_POWER), 0.0f);
+  EXPECT_NEAR(this->feed_(HEADER_OK, HIGH_LOAD_CYCLE, ADJ_NEW_POWER), 2712.5f, 0.1f);
+  EXPECT_EQ(this->feed_(HEADER_OK, 1072601, ADJ_NO_NEW_POWER), 0.0f);
 }
 
-TEST_F(CSE7766Test, NoMeasurementYetReportsZero) { EXPECT_EQ(this->feed(HEADER_OK, 1078140, ADJ_NO_NEW_POWER), 0.0f); }
+TEST_F(CSE7766Test, NoMeasurementYetReportsZero) { EXPECT_EQ(this->feed_(HEADER_OK, 1078140, ADJ_NO_NEW_POWER), 0.0f); }
 
 TEST_F(CSE7766Test, PowerCycleExceedsRangeReportsZero) {
-  this->feed(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
-  EXPECT_EQ(this->feed(HEADER_POWER_CYCLE_EXCEEDS_RANGE, 9000000, ADJ_NO_NEW_POWER), 0.0f);
-  EXPECT_EQ(this->feed(HEADER_OK, 1078140, ADJ_NO_NEW_POWER), 0.0f);
+  this->feed_(HEADER_OK, LOW_LOAD_CYCLE, ADJ_NEW_POWER);
+  EXPECT_EQ(this->feed_(HEADER_POWER_CYCLE_EXCEEDS_RANGE, 9000000, ADJ_NO_NEW_POWER), 0.0f);
+  EXPECT_EQ(this->feed_(HEADER_OK, 1078140, ADJ_NO_NEW_POWER), 0.0f);
 }
 
 }  // namespace esphome::cse7766::testing
