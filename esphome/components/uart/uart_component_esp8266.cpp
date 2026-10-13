@@ -24,6 +24,8 @@ static constexpr uint32_t RX_TICKS_PER_SECOND = 16000000;
 __attribute__((always_inline)) static inline uint32_t rx_now() { return micros() << 4; }
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+bool ESP8266UartComponent::serial0_swapped = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 uint32_t ESP8266UartComponent::get_config() {
   uint32_t config = 0;
 
@@ -111,6 +113,7 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
+    ESP8266UartComponent::serial0_swapped = true;
   } else
 #endif  // USE_ESP8266_UART_SERIAL
 #ifdef USE_ESP8266_UART_SERIAL1
@@ -133,6 +136,11 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
     SerialConfig config = static_cast<SerialConfig>(get_config());
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
+#ifdef USE_ESP8266_UART_SERIAL
+    // begin() puts UART0 back on GPIO1/GPIO3, so swap it again like setup() did for GPIO15/GPIO13
+    if (this->hw_serial_ == &Serial && ESP8266UartComponent::serial0_swapped)
+      this->hw_serial_->swap();
+#endif  // USE_ESP8266_UART_SERIAL
   } else {
     this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
                             this->parity_, this->rx_buffer_size_);
@@ -257,16 +265,19 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
+  // to_isr() allocates, so call it only for a new or changed pin
   if (tx_pin != nullptr) {
+    if (tx_pin != this->gpio_tx_pin_)
+      this->tx_pin_ = tx_pin->to_isr();
     gpio_tx_pin_ = tx_pin;
     gpio_tx_pin_->setup();
-    tx_pin_ = gpio_tx_pin_->to_isr();
     tx_pin_.digital_write(true);
   }
   if (rx_pin != nullptr) {
+    if (rx_pin != this->gpio_rx_pin_)
+      this->rx_pin_ = rx_pin->to_isr();
     gpio_rx_pin_ = rx_pin;
     gpio_rx_pin_->setup();
-    rx_pin_ = gpio_rx_pin_->to_isr();
     uint8_t *buffer = this->rx_.buffer();
     if (this->rx_.buffer_size() != rx_buffer_size) {
       delete[] buffer;                       // NOLINT
