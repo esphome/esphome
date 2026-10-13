@@ -3,7 +3,7 @@
 
 namespace esphome::copy {
 
-static const char *const TAG = "copy.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "copy.binary_sensor");
 
 void CopyBinarySensor::setup() {
   source_->add_on_state_callback([this](bool value) { this->publish_state(value); });

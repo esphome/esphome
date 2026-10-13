@@ -22,7 +22,7 @@ namespace esphome::http_request {
 #define UPDATE_RETURN return
 #endif
 
-static const char *const TAG = "http_request.update";
+ESPHOME_LOG_TAG(TAG, "http_request.update");
 
 // Wraps UpdateInfo + error for the task→main-loop handoff.
 struct TaskResult {

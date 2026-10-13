@@ -68,6 +68,15 @@ def resolve_ccache_path() -> str | None:
     return ccache
 
 
+def resolve_absolute_ccache_path() -> str | None:
+    """``resolve_ccache_path`` for the ninja backends, which run their
+    commands from the build directory, where a relative path is lost."""
+    from esphome.build_helpers.ninja import absolute_tool
+
+    ccache = resolve_ccache_path()
+    return absolute_tool(ccache) if ccache else None
+
+
 def ccache_defaults_env(cache_dir: Path) -> dict[str, str]:
     """Default ``CCACHE_*`` values for a build subprocess (not os.environ).
 
@@ -84,9 +93,39 @@ def ccache_defaults_env(cache_dir: Path) -> dict[str, str]:
             "CORE.build_path must be set before constructing the build environment"
         )
     defaults = {
-        "CCACHE_DIR": str(cache_dir),
+        # ccache expands $VAR in its settings; $$ is a literal $
+        "CCACHE_DIR": str(cache_dir).replace("$", "$$"),
         "CCACHE_NOHASHDIR": "true",
         "CCACHE_DEPEND": "1",
-        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
+        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()).replace("$", "$$"),
     }
     return {k: v for k, v in defaults.items() if k not in os.environ}
+
+
+def effective_ccache_basedir() -> str:
+    """The prefix ccache strips from hashed paths: a usable user
+    CCACHE_BASEDIR, else the resolved build path."""
+    from esphome.core import CORE
+
+    raw = os.environ.get("CCACHE_BASEDIR")
+    if raw is not None and Path(raw).is_absolute() and len(Path(raw).parts) > 1:
+        return raw
+    return str(Path(CORE.build_path).resolve())
+
+
+def ccache_env(ccache: str | None, tools_cache: tuple[str, str]) -> dict[str, str]:
+    """The ccache settings for a build subprocess (not os.environ).
+
+    ``ccache`` is the pre-resolved binary (resolve_ccache_path), or None when
+    disabled; ``tools_cache`` is the backend's tools cache spec, which holds
+    its ccache dir. The pch settings include ``time_macros``: a cached
+    object can keep an older ``__DATE__`` or ``__TIME__``.
+    """
+    if ccache is None:
+        return {}
+    from esphome.build_helpers.pch import ccache_pch_env
+    from esphome.build_helpers.tools_cache import tools_cache_path
+
+    env = ccache_defaults_env(tools_cache_path(*tools_cache) / "ccache")
+    env.update(ccache_pch_env())
+    return env

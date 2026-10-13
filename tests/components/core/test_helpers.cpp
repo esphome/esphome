@@ -7,6 +7,47 @@
 
 namespace esphome::core::testing {
 
+// --- truncate_name_to() ---
+
+TEST(TruncateNameTo, NameThatFitsIsCopied) {
+  char buffer[21];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 7), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, NameOfExactlyTheLimitIsCopied) {
+  char buffer[8];
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), "kitchen", 7, 0), 7u);
+  EXPECT_STREQ(buffer, "kitchen");
+}
+
+TEST(TruncateNameTo, CutsTheEndWithoutASuffix) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-here";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 0), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-device-n");
+}
+
+TEST(TruncateNameTo, KeepsTheSuffixAndRemovesTheMiddle) {
+  char buffer[21];
+  const char *name = "a-very-long-device-name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 20u);
+  EXPECT_STREQ(buffer, "a-very-long-d-a1b2c3");
+}
+
+TEST(TruncateNameTo, SuffixLongerThanTheBufferIsCut) {
+  char buffer[5];
+  const char *name = "name-a1b2c3";
+  EXPECT_EQ(truncate_name_to(buffer, sizeof(buffer), name, strlen(name), 7), 4u);
+  EXPECT_STREQ(buffer, "b2c3");
+}
+
+TEST(TruncateNameTo, ZeroBufferSize) {
+  char buffer[1] = {'x'};
+  EXPECT_EQ(truncate_name_to(buffer, 0, "name", 4, 0), 0u);
+  EXPECT_EQ(buffer[0], 'x');
+}
+
 // --- format_hex_to() ---
 
 TEST(FormatHexTo, Basic) {
@@ -279,6 +320,27 @@ TEST(Base64, Rfc4648Vectors) {
     EXPECT_EQ(len, strlen(v.plain));
     EXPECT_EQ(memcmp(buf, v.plain, len), 0);
   }
+}
+
+TEST(Base64, DecodeTruncatesToBuffer) {
+  uint8_t buf[4];
+  size_t len = base64_decode(std::string("Zm9vYmFy"), buf, sizeof(buf));
+  EXPECT_EQ(len, 4u);
+  EXPECT_EQ(memcmp(buf, "foob", 4), 0);
+}
+
+TEST(Base64, DecodeStopsAtNonAlphabetChar) {
+  uint8_t buf[8];
+  EXPECT_EQ(base64_decode(std::string("Zm9v!Zm9v"), buf, sizeof(buf)), 3u);
+  EXPECT_EQ(memcmp(buf, "foo", 3), 0);
+  EXPECT_EQ(base64_decode(std::string("Zm9v Zm9v"), buf, sizeof(buf)), 3u);
+  EXPECT_EQ(base64_decode(std::string("Zm9v\xC3Zm9v"), buf, sizeof(buf)), 3u);
+}
+
+TEST(Base64, DecodeDropsPartialGroup) {
+  uint8_t buf[8];
+  EXPECT_EQ(base64_decode(std::string("Z"), buf, sizeof(buf)), 0u);
+  EXPECT_EQ(base64_decode(std::string("Zm9vY"), buf, sizeof(buf)), 3u);
 }
 
 // --- step_to_accuracy_decimals() ---
