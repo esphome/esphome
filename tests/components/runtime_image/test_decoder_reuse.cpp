@@ -377,6 +377,14 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
 }
 
+// JPEGDEC's colour conversion differs by one step between its SIMD and scalar builds, so each
+// channel is checked within one step; the byte order is still exact
+static void expect_rgb565_near(uint16_t actual, uint16_t expected, const char *order, size_t pixel) {
+  EXPECT_NEAR(actual >> 11, expected >> 11, 1) << order << " pixel " << pixel << " red";
+  EXPECT_NEAR((actual >> 5) & 0x3F, (expected >> 5) & 0x3F, 1) << order << " pixel " << pixel << " green";
+  EXPECT_NEAR(actual & 0x1F, expected & 0x1F, 1) << order << " pixel " << pixel << " blue";
+}
+
 TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
   // Halving the 8x8 gradient keeps its even rows and columns. The words are JPEGDEC's output for those
   // pixels, red in the top five bits: a decode of the fixture with PIL gives (51, 7, 30) for source
@@ -398,8 +406,8 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
   const uint8_t *little = rgb565_little_endian.get_data_start();
   const uint8_t *big = rgb565_big_endian.get_data_start();
   for (size_t i = 0; i < 4 * 4; i++) {
-    EXPECT_EQ(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i]) << "little-endian pixel " << i;
-    EXPECT_EQ((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i]) << "big-endian pixel " << i;
+    expect_rgb565_near(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i], "little-endian", i);
+    expect_rgb565_near((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i], "big-endian", i);
   }
 }
 
