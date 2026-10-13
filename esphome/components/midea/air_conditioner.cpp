@@ -127,6 +127,19 @@ ClimateTraits AirConditioner::traits() {
   return traits;
 }
 
+#ifdef USE_REMOTE_TRANSMITTER
+static const LogString *display_control_str(DisplayControl control) {
+  switch (control) {
+    case DisplayControl::DISPLAY_CONTROL_UART:
+      return LOG_STR("UART");
+    case DisplayControl::DISPLAY_CONTROL_IR:
+      return LOG_STR("IR");
+    default:
+      return LOG_STR("AUTO");
+  }
+}
+#endif
+
 void AirConditioner::dump_config() {
   ESP_LOGCONFIG(Constants::TAG,
                 "MideaDongle:\n"
@@ -135,7 +148,10 @@ void AirConditioner::dump_config() {
                 "  [x] Request attempts: %d",
                 this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Using RemoteTransmitter");
+  ESP_LOGCONFIG(Constants::TAG,
+                "  [x] Using RemoteTransmitter\n"
+                "  [x] Display control: %s",
+                LOG_STR_ARG(display_control_str(this->display_control_)));
 #endif
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     this->base_.getCapabilities().dump();
