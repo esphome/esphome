@@ -122,20 +122,23 @@ def _own_documents() -> set[Path]:
 
 def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
     """The file and line ``name:`` was read from; None when validation added
-    it or a merge key brought it in from an anchor elsewhere. A mapping
-    merge_config rebuilt is placed by its winning value's line."""
+    it or a merge key brought it in from an anchor elsewhere."""
     rng = getattr(next((k for k in mapping if k == name), None), "esp_range", None)
     if rng is None:
         return None
     if (own := getattr(mapping, "esp_range", None)) is None:
         # merge_config keeps the first mapping's keys with the last one's
-        # values, so only the value's range names the line that won
+        # values, so only the value's range names the line that won, and
+        # only when the key is on it (a block value starts on a line of its own)
         rng = getattr(mapping.get(name), "esp_range", None)
-        if rng is None or Path(rng.start_mark.document).resolve() not in (
-            own_documents()
+        if rng is None:
+            return None
+        doc, line = Path(rng.start_mark.document), rng.start_mark.line
+        if doc.resolve() not in own_documents() or not field_line_re(name).match(
+            line_at(doc, line)
         ):
             return None
-        return Path(rng.start_mark.document), rng.start_mark.line
+        return doc, line
     # An included mapping carries its parent's `!include` line, so only a
     # key in the same document can be checked against the mapping's lines
     if (

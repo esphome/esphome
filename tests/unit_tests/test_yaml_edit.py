@@ -128,6 +128,10 @@ def test_a_mapping_built_in_code_places_only_this_configurations_keys(
     other = yaml_util.load_yaml(tmp_path / "elsewhere.yaml")
     other_key, other_value = next(iter(other[CONF_ESPHOME].items()))
     assert source_of({other_key: other_value}, CONF_NAME) is None
+    # A value on a line of its own does not name the key's line
+    _setup(tmp_path, "esphome:\n  name:\n    kitchen\n")
+    own_key, own_value = next(iter(CORE.raw_config[CONF_ESPHOME].items()))
+    assert source_of({own_key: own_value}, CONF_NAME) is None
 
 
 def test_own_documents_include_a_file_that_only_gives_substitutions(
