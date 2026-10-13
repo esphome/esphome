@@ -219,10 +219,10 @@ void BQ76972Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BQ76972:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  CRC Mode: %s", this->crc_mode_ ? LOG_STR_LITERAL("Enabled") : LOG_STR_LITERAL("Disabled"));
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
+  ESP_LOGCONFIG(TAG,
+                "  CRC Mode: %s\n"
+                "  Regulators disabled: %s",
+                this->crc_mode_ ? LOG_STR_LITERAL("Enabled") : LOG_STR_LITERAL("Disabled"), YESNO(this->reg_disable_));
 }
 
 void BQ76972Component::program_i2c_address(uint8_t address) {

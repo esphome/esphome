@@ -40,7 +40,7 @@ class BQ76972Component final : public PollingComponent, public i2c::I2CDevice {
   const LogString *configure_();
   const LogString *write_config_(bool write_regs);
 
-  bool reg_disable_{true};
+  bool reg_disable_{false};
   bool crc_mode_{false};
 
   sensor::Sensor *stack_voltage_sensor_{nullptr};
