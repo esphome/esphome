@@ -116,25 +116,18 @@ namespace esphome::shelly_dimmer {
 
 namespace {
 
-uint32_t read_page_size(const uint32_t *psize) {
-  uint32_t size;
-  progmem_memcpy(&size, psize, sizeof(size));
-  return size;
-}
-
 int flash_addr_to_page_ceil(const stm32_unique_ptr &stm, uint32_t addr) {
-  if (!(addr >= stm->dev.fl_start && addr <= stm->dev.fl_end))
+  if (!(addr >= stm->dev->fl_start && addr <= stm->dev->fl_end))
     return 0;
 
   int page = 0;
-  addr -= stm->dev.fl_start;
-  const auto *psize = stm->dev.fl_ps;
+  addr -= stm->dev->fl_start;
+  const auto *psize = stm->dev->fl_ps;
 
-  uint32_t size;
-  while (addr >= (size = read_page_size(psize))) {
-    addr -= size;
+  while (addr >= psize[0]) {
+    addr -= psize[0];
     page++;
-    if (read_page_size(psize + 1))
+    if (psize[1])
       psize++;
   }
 
@@ -644,16 +637,14 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const
     return make_stm32_with_deletor(nullptr);
   }
 
-  const stm32_dev_t *dev = DEVICES;
-  uint16_t id;
-  while ((id = progmem_read_uint16(&dev->id)) != 0x00 && id != stm->pid)
-    ++dev;
+  stm->dev = DEVICES;
+  while (stm->dev->id != 0x00 && stm->dev->id != stm->pid)
+    ++stm->dev;
 
-  if (!id) {
+  if (!stm->dev->id) {
     ESP_LOGD(TAG, "Unknown/unsupported device (Device ID: 0x%03x)", stm->pid);
     return make_stm32_with_deletor(nullptr);
   }
-  progmem_memcpy(&stm->dev, dev, sizeof(stm->dev));
 
   return stm;
 }
@@ -830,10 +821,10 @@ stm32_err_t stm32_erase_memory(const stm32_unique_ptr &stm, uint32_t spage, uint
      * a tentative of intrusion and will hang.
      * Erasing the flash page-by-page is the safer way to go.
      */
-    if (!(stm->dev.flags & F_NO_ME))
+    if (!(stm->dev->flags & F_NO_ME))
       return stm32_mass_erase(stm);
 
-    pages = flash_addr_to_page_ceil(stm, stm->dev.fl_end);
+    pages = flash_addr_to_page_ceil(stm, stm->dev->fl_end);
   }
 
   /*
@@ -922,9 +913,9 @@ stm32_err_t stm32_go(const stm32_unique_ptr &stm, const uint32_t address) {
 }
 
 stm32_err_t stm32_reset_device(const stm32_unique_ptr &stm) {
-  const auto target_address = stm->dev.ram_start;
+  const auto target_address = stm->dev->ram_start;
 
-  if (stm->dev.flags & F_OBLL) {
+  if (stm->dev->flags & F_OBLL) {
     /* set the OBL_LAUNCH bit to reset device (see RM0360, 2.5) */
     return stm32_run_raw_code(stm, target_address, STM_OBL_LAUNCH_CODE, STM_OBL_LAUNCH_CODE_SIZE);
   } else {
