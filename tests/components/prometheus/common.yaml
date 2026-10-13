@@ -182,6 +182,56 @@ climate:
     name: LG Climate
     transmitter_id: xmitr
 
+datetime:
+  - platform: template
+    name: Date
+    id: test_date
+    type: date
+    initial_value: "2000-1-2"
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Date: %04d-%02d-%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
+  - platform: template
+    name: Time
+    id: test_time
+    type: time
+    initial_value: "12:34:56am"
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "Time: %02d:%02d:%02d"
+          args:
+            - x.hour
+            - x.minute
+            - x.second
+  - platform: template
+    name: DateTime
+    id: test_datetime
+    type: datetime
+    initial_value: "2000-1-2 12:34:56"
+    set_action:
+      - logger.log: "set_value"
+    on_value:
+      - logger.log:
+          format: "DateTime: %04d-%02d-%02d %02d:%02d:%02d"
+          args:
+            - x.year
+            - x.month
+            - x.day_of_month
+            - x.hour
+            - x.minute
+            - x.second
+
+time:
+  - platform: sntp  # Required for datetime
+
 prometheus:
   include_internal: true
   relabel:
@@ -191,3 +241,12 @@ prometheus:
     template_text_sensor1:
       id: hello_text
       name: Text Substitution
+    test_date:
+      id: prometheus_date
+      name: Prometheus Date
+    test_time:
+      id: prometheus_time
+      name: Prometheus Time
+    test_datetime:
+      id: prometheus_datetime
+      name: Prometheus DateTime
