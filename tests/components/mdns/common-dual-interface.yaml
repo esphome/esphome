@@ -4,11 +4,6 @@ wifi:
   ssid: MySSID
   password: password1
 
-network:
-  priority:
-    - ethernet
-    - wifi
-
 api:
 
 mdns:

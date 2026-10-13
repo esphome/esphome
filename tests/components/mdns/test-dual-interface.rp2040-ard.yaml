@@ -9,3 +9,9 @@ ethernet:
   cs_pin: 17
   interrupt_pin: 21
   reset_pin: 20
+
+# wifi first, so the USE_NETWORK_PRIMARY_INTERFACE_WIFI order is compiled
+network:
+  priority:
+    - wifi
+    - ethernet

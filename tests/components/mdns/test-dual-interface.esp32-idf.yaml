@@ -10,3 +10,8 @@ ethernet:
   interrupt_pin: GPIO36
   reset_pin: GPIO22
   clock_speed: 10Mhz
+
+network:
+  priority:
+    - ethernet
+    - wifi

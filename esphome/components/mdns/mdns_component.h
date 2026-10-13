@@ -158,14 +158,18 @@ class MDNSComponent final : public Component
 
 #ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
   static constexpr uint32_t NETWORK_TXT_CHECK_INTERVAL_MS = 1000;
-  /// "ethernet" when ethernet is connected, else "wifi" when wifi is connected, else nullptr.
+  /// The first connected interface in network: priority order ("ethernet" or "wifi"), else nullptr.
   const char *connected_network_() const;
   /// Check the connected interface and publish a changed "network" TXT value.
   void update_network_txt_();
   /// Platform-specific: replace the "network" TXT value of the registered _esphomelib service.
   bool publish_network_txt_(const char *network);
-  /// Advertised value; nullptr until the _esphomelib service is registered.
+  /// Advertised value; nullptr until the _esphomelib service is registered, and after a failed publish.
   const char *network_txt_{nullptr};
+#ifdef USE_MDNS_STORE_SERVICES
+  /// The "network" record in services_, kept in step with network_txt_.
+  MDNSTXTRecord *network_record_{nullptr};
+#endif
 #endif
 
 #ifdef USE_MDNS_DYNAMIC_TXT
