@@ -32,18 +32,10 @@
 #define USE_MDNS_DEVICE_INFO_TXT
 #endif
 
-// With both wifi and ethernet, the _esphomelib "network" TXT value follows the connected interface.
-// OpenThread hands its services to the SRP client once, so it keeps the fixed value.
-#if defined(USE_API) && defined(USE_WIFI) && defined(USE_ETHERNET) && !defined(USE_OPENTHREAD)
-#define USE_MDNS_DYNAMIC_NETWORK_TXT
-#endif
-
-// On ESP32 the network component reports default route changes, so the value updates as soon as the
-// interface changes; elsewhere it is checked every NETWORK_TXT_CHECK_INTERVAL_MS.
+// USE_MDNS_DYNAMIC_NETWORK_TXT (wifi + ethernet + api): the _esphomelib "network" TXT value follows the
+// connected interface. With USE_MDNS_ACTIVE_INTERFACE_LISTENER (ESP32) the network component reports
+// default route changes; otherwise the value is checked every NETWORK_TXT_CHECK_INTERVAL_MS.
 #ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
-#ifndef USE_MDNS_DYNAMIC_NETWORK_TXT
-#error "USE_MDNS_ACTIVE_INTERFACE_LISTENER requires USE_MDNS_DYNAMIC_NETWORK_TXT"
-#endif
 #include "esphome/components/network/network_component.h"
 #endif
 
