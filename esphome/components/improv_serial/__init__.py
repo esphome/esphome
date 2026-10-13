@@ -1,15 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import improv_base, uart
 from esphome.components.esp32 import VARIANT_ESP32S3, get_esp32_variant
-from esphome.components.logger import USB_CDC
+from esphome.components.logger import DOMAIN as LOGGER_DOMAIN, USB_CDC
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BAUD_RATE,
-    CONF_HARDWARE_UART,
-    CONF_ID,
-    CONF_LOGGER,
-    CONF_UART_ID,
-)
+from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_UART_ID
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -17,6 +11,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["improv_base"]
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["logger", "network"]
+DOMAIN = "improv_serial"
 
 improv_serial_ns = cg.esphome_ns.namespace("improv_serial")
 
@@ -52,7 +47,7 @@ def validate_transport(config: ConfigType) -> None:
     # The host logger has no serial port for Improv to share
     if CORE.is_host:
         raise cv.Invalid("improv_serial on the host platform requires uart_id")
-    logger_conf = fv.full_config.get()[CONF_LOGGER]
+    logger_conf = fv.full_config.get()[LOGGER_DOMAIN]
     if logger_conf[CONF_BAUD_RATE] == 0:
         raise cv.Invalid("improv_serial requires the logger baud_rate to be not 0")
     if CORE.is_esp32 and (
@@ -70,7 +65,7 @@ FINAL_VALIDATE_SCHEMA = validate_transport
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await improv_base.setup_improv_core(var, config, "improv_serial")
+    await improv_base.setup_improv_core(var, config)
     cg.add_define("USE_IMPROV_SERIAL")
     if (uart_id := config.get(CONF_UART_ID)) is not None:
         cg.add(var.set_uart(await cg.get_variable(uart_id)))

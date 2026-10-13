@@ -6,15 +6,15 @@ from esphome.const import (
     CONF_ID,
     CONF_NUM_ATTEMPTS,
     CONF_REBOOT_TIMEOUT,
-    CONF_SAFE_MODE,
     CONF_STORAGE,
     KEY_PAST_SAFE_MODE,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj, RawExpression, TemplateArgsType
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import RawExpression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
+DOMAIN = "safe_mode"
 
 CONF_BOOT_IS_GOOD_AFTER = "boot_is_good_after"
 CONF_BOOT_IS_GOOD_ON_SHUTDOWN = "boot_is_good_on_shutdown"
@@ -22,7 +22,6 @@ CONF_ON_SAFE_MODE = "on_safe_mode"
 
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
 SafeModeComponent = safe_mode_ns.class_("SafeModeComponent", cg.Component)
-MarkSuccessfulAction = safe_mode_ns.class_("MarkSuccessfulAction", automation.Action)
 
 
 def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
@@ -53,26 +52,15 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "safe_mode.mark_successful",
-    MarkSuccessfulAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(SafeModeComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("mark_successful()"),
 )
-async def safe_mode_mark_successful_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(parent))
-    return var
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -104,5 +92,5 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(RawExpression(f"if ({condition}) return"))
 
-    CORE.data[CONF_SAFE_MODE] = {}
-    CORE.data[CONF_SAFE_MODE][KEY_PAST_SAFE_MODE] = True
+    CORE.data[DOMAIN] = {}
+    CORE.data[DOMAIN][KEY_PAST_SAFE_MODE] = True

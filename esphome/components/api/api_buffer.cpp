@@ -1,20 +1,37 @@
 #include "api_buffer.h"
-#include <new>
+#ifdef ESPHOME_DEBUG_API
+#include "esphome/core/log.h"
+#endif
 
 namespace esphome::api {
 
+#ifdef ESPHOME_DEBUG_API
+void APIBuffer::debug_check_drop_(size_t drop) const {
+  if (drop > this->size_) {
+    ESP_LOGE("api.buffer", "drop_front: drop=%zu size=%u", drop, this->size_);
+    abort();
+  }
+}
+#endif
+
 bool APIBuffer::grow_(size_t n) {
-  // nothrow (no zero-fill) so OOM is reportable; plain new aborts instead
-  // (NEW_OOM_ABORT on ESP8266 Arduino, exception stub on ESP-IDF).
-  // RAMAllocator is no fit here: unique_ptr needs delete[]-compatible memory.
-  std::unique_ptr<uint8_t[]> new_data(new (std::nothrow) uint8_t[n]);
-  if (new_data == nullptr)
+  if (n > MAX_SIZE)
     return false;
-  if (this->size_)
-    std::memcpy(new_data.get(), this->data_.get(), this->size_);
-  this->data_ = std::move(new_data);
+  // realloc extends in place when it can, avoiding the copy
+  uint8_t *grown = RAMAllocator<uint8_t>().reallocate(this->data_.get(), n);
+  if (grown == nullptr)
+    return false;
+  (void) this->data_.release();  // realloc already freed or reused the old block
+  this->data_.reset(grown);
   this->capacity_ = n;
   return true;
+}
+
+uint8_t *APIBuffer::append(size_t n) {
+  const size_t old_size = this->size_;
+  if (!this->resize(old_size + n))
+    return nullptr;
+  return this->data_.get() + old_size;
 }
 
 }  // namespace esphome::api

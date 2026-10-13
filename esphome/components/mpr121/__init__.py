@@ -25,6 +25,7 @@ CONF_MPR121 = "mpr121"
 CONF_MPR121_ID = "mpr121_id"
 
 DEPENDENCIES = ["i2c"]
+DOMAIN = "mpr121"
 
 mpr121_ns = cg.esphome_ns.namespace("mpr121")
 MPR121Component = mpr121_ns.class_("MPR121Component", cg.Component, i2c.I2CDevice)

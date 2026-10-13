@@ -5,7 +5,7 @@
 
 namespace esphome::hlk_fm22x {
 
-static const char *const TAG = "hlk_fm22x";
+ESPHOME_LOG_TAG(TAG, "hlk_fm22x");
 static constexpr uint32_t PAYLOAD_TIMEOUT_MS = 20;
 
 void HlkFm22xComponent::setup() {

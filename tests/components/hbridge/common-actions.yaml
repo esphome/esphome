@@ -1,0 +1,5 @@
+button:
+  - platform: template
+    name: Brake the fan
+    on_press:
+      - fan.hbridge.brake: fan_hbridge

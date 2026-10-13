@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jhansche"]
 DEPENDENCIES = ["ble_client"]
+DOMAIN = "bedjet"
 MULTI_CONF = True
 CONF_BEDJET_ID = "bedjet_id"
 

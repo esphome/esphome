@@ -2,14 +2,21 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    DOMAIN as OTA_DOMAIN,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OTA, CONF_PLATFORM, CONF_WEB_SERVER
+from esphome.const import CONF_ID, CONF_PLATFORM
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+from .. import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,13 +34,13 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
     causing undefined behavior. Merge them into a single instance.
     """
     full_conf = fv.full_config.get()
-    ota_confs = full_conf.get(CONF_OTA, [])
+    ota_confs = full_conf.get(OTA_DOMAIN, [])
 
     web_server_ota_configs: list[ConfigType] = []
     other_ota_configs: list[ConfigType] = []
 
     for ota_conf in ota_confs:
-        if ota_conf.get(CONF_PLATFORM) == CONF_WEB_SERVER:
+        if ota_conf.get(CONF_PLATFORM) == DOMAIN:
             web_server_ota_configs.append(ota_conf)
         else:
             other_ota_configs.append(ota_conf)
@@ -62,7 +69,7 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
 
     # Replace OTA configs with merged web_server + other OTA platforms
     other_ota_configs.append(merged)
-    full_conf[CONF_OTA] = other_ota_configs
+    full_conf[OTA_DOMAIN] = other_ota_configs
     fv.full_config.set(full_conf)
 
 
