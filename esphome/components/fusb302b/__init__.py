@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
@@ -10,17 +10,19 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_FLASH,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
     UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["sensor"]
+AUTO_LOAD = ["sensor", "text_sensor"]
 CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "fusb302b"
 
+CONF_CONTRACT = "contract"
 CONF_REQUEST_VOLTAGE = "request_voltage"
 
 fusb302b_ns = cg.esphome_ns.namespace("fusb302b")
@@ -36,6 +38,10 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(FUSB302B),
             cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pullup_pin_schema,
             cv.Required(CONF_REQUEST_VOLTAGE): validate_voltage,
+            cv.Optional(CONF_CONTRACT): text_sensor.text_sensor_schema(
+                icon=ICON_FLASH,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
@@ -68,3 +74,5 @@ async def to_code(config: ConfigType) -> None:
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
     await sensors(CONF_CURRENT, var.set_current_sensor)
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_CONTRACT, var.set_contract_text_sensor)

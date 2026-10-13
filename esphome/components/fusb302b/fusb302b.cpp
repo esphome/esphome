@@ -2,6 +2,8 @@
 
 #ifdef USE_ESP32
 
+#include <cstdio>
+
 #include "esphome/core/log.h"
 
 #include "fusb302b_registers.h"
@@ -86,6 +88,17 @@ void FUSB302B::publish_contract_(PackedContract contract) {
   if (this->current_sensor_ != nullptr)
     this->current_sensor_->publish_state(contract.current());
 #endif
+#ifdef USE_TEXT_SENSOR
+  if (this->contract_text_sensor_ != nullptr) {
+    if (!contract.is_set()) {
+      this->contract_text_sensor_->publish_state("Detached");
+    } else {
+      char buf[24];
+      snprintf(buf, sizeof(buf), "%.1fA @ %.0fV", contract.current(), contract.voltage());
+      this->contract_text_sensor_->publish_state(buf);
+    }
+  }
+#endif
 }
 
 void FUSB302B::dump_config() {
@@ -98,6 +111,9 @@ void FUSB302B::dump_config() {
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Contract", this->contract_text_sensor_);
 #endif
 }
 

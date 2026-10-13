@@ -12,6 +12,9 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 #include "pd.h"
 
@@ -34,6 +37,9 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
 #ifdef USE_SENSOR
   void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
   void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
+#endif
+#ifdef USE_TEXT_SENSOR
+  void set_contract_text_sensor(text_sensor::TextSensor *sensor) { this->contract_text_sensor_ = sensor; }
 #endif
 
  protected:
@@ -82,6 +88,9 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
 #ifdef USE_SENSOR
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
+#endif
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *contract_text_sensor_{nullptr};
 #endif
 };
 
