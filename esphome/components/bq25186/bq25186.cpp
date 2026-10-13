@@ -47,7 +47,7 @@ uint8_t BQ25186Component::expected_register_(size_t index) const {
 }
 
 bool BQ25186Component::config_matches_(const BQ25186StatusRegisters &regs) const {
-  for (uint8_t reg = BQ25186_REG_VBAT_CTRL; reg <= BQ25186_REG_IC_CTRL; reg++) {
+  for (uint8_t reg = BQ25186_REG_VBAT_CTRL; reg <= BQ25186_REG_MASK_ID; reg++) {
     const size_t index = reg - BQ25186_REG_VBAT_CTRL;
     const uint8_t mask = progmem_read_byte(&BQ25186_CONFIG_MASKS[index]);
     if (((regs[reg] ^ this->expected_register_(index)) & mask) != 0)
@@ -107,16 +107,10 @@ void BQ25186Component::setup() {
       this->pending_ = true;
       this->status_set_warning(LOG_STR("PG/GPO pin not in output mode"));
     }
-    uint8_t sys_reg;
+    // Without a restore mode the switch takes the pin's level from the first poll
     auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
-    if (initial.has_value()) {
+    if (initial.has_value())
       this->pg_gpo_switch_->control(*initial);
-    } else if (this->read_byte(BQ25186_REG_SYS_REG, &sys_reg)) {
-      this->pg_gpo_switch_->publish_state((sys_reg & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0);
-    } else {
-      this->pending_ = true;
-      this->status_set_warning(LOG_STR("PG/GPO level read failed"));
-    }
   }
 #endif
   // The poller first runs after a random share of the interval; the entities get a state now
@@ -124,22 +118,41 @@ void BQ25186Component::setup() {
 }
 
 // Every poll also serves the I2C watchdog, which wants to see traffic within its period
+#ifdef USE_BQ25186_PG_GPO
+// A reset drops the GPO level too; put the switch's level back when it differs from the pin
+void BQ25186Component::restore_pg_gpo_level_(const BQ25186StatusRegisters &status) {
+  if (this->pg_gpo_switch_ == nullptr || !this->pg_gpo_switch_->has_state())
+    return;
+  const bool level = (status[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0;
+  if (level != this->pg_gpo_switch_->state && !this->write_pg_gpo_level(this->pg_gpo_switch_->state))
+    this->pending_ = true;
+}
+#endif
+
 void BQ25186Component::update() {
   BQ25186StatusRegisters status;
   if (!this->read_bytes(BQ25186_REG_STAT0, status.data(), status.size())) {
     this->status_set_warning(LOG_STR("Status read failed"));
     return;
   }
-  // A watchdog or hardware reset puts the power-on values back; the configuration is written again
+  // A watchdog or hardware reset puts the power-on values back, and a failed write leaves a register
+  // behind; either way the configuration is written again
   if (this->configured_ && !this->config_matches_(status)) {
     ESP_LOGW(TAG, "Configuration registers changed, the chip was reset; applying the configuration again");
-    this->apply_config(this->regs_);
+    if (this->apply_config(this->regs_)) {
+#ifdef USE_BQ25186_PG_GPO
+      this->restore_pg_gpo_level_(status);
+#endif
+    }
   }
 #ifdef USE_BQ25186_PG_GPO
   else if (this->pg_gpo_switch_ != nullptr && (status[BQ25186_REG_VBAT_CTRL] & BQ25186_VBAT_CTRL_PG_MODE) == 0) {
     // Nothing was configured at boot, so only the pin mode is put back
     this->pending_ =
         !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE);
+    this->restore_pg_gpo_level_(status);
+  } else if (this->pg_gpo_switch_ != nullptr && !this->pg_gpo_switch_->has_state()) {
+    this->pg_gpo_switch_->publish_state((status[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0);
   }
 #endif
   if (!this->pending_)
