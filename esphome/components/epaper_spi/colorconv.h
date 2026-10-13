@@ -15,56 +15,14 @@
 
 namespace esphome::epaper_spi {
 
+// The Rec.601 luma helpers and the RGB565 mono lookup live in the shared display utilities, so other
+// drivers (e.g. it8951 in its 1 bit per pixel mode) can use them too.
+using display::color_to_mono;
+using display::rec601_luma;
+using display::Rgb565ToMono;
+
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
-
-/** Rec.601 luma (0.299/0.587/0.114 weights, scaled by 256) for optimum perceptual brightness */
-constexpr uint8_t rec601_luma(Color color) {
-  return (uint8_t) ((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
-}
-
-/** Map RGB color to a single monochrome bit
- *
- * @param color RGB color to convert from
- * @return      1 = white, 0 = black
- */
-constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }
-
-/** color_to_mono() of an RGB565 value as ColorUtil::to_color() reads it, from table lookups instead of a division
- * per channel.
- */
-class Rgb565ToMono {
- public:
-  explicit Rgb565ToMono(display::ColorOrder order) {
-    // Rec.601 weight of the 5-bit, 6-bit and 5-bit fields, by the channel each one holds in this order
-    uint16_t high = 77, middle = 150, low = 29;
-    if (order == display::COLOR_ORDER_BGR) {
-      high = 29;
-      low = 77;
-    } else if (order == display::COLOR_ORDER_GRB) {
-      high = 150;
-      middle = 77;
-    }
-    // Each field value scaled to 0..255 as esp_scale() does, then weighted
-    for (unsigned i = 0; i != 32; i++) {
-      this->high_[i] = high * (255u * i / 31);
-      this->low_[i] = low * (255u * i / 31);
-    }
-    for (unsigned i = 0; i != 64; i++)
-      this->middle_[i] = middle * (255u * i / 63);
-  }
-
-  uint8_t operator()(uint16_t value) const {
-    const uint32_t weighted = this->high_[value >> 11] + this->middle_[(value >> 5) & 0x3F] + this->low_[value & 0x1F];
-    return ((weighted + 128u) >> 8) >= 128 ? 1 : 0;
-  }
-
- protected:
-  // Weighted contribution of each value of each field
-  std::array<uint16_t, 32> high_{};
-  std::array<uint16_t, 64> middle_{};
-  std::array<uint16_t, 32> low_{};
-};
 
 /** Map RGB color to one of 4 discrete gray levels (2 bits per pixel)
  *
