@@ -5,8 +5,8 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
-from esphome.core import CORE, ID, Lambda
+from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, CONF_WATCHDOG
+from esphome.core import CORE, ID, EsphomeError, Lambda, TimePeriod
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@Rapsssito"]
@@ -14,6 +14,7 @@ DEPENDENCIES = ["i2c"]
 DOMAIN = "bq25186"
 MULTI_CONF = True
 
+CONF_BQ25186_ID = "bq25186_id"
 CONF_CONFIGURE_ON_BOOT = "configure_on_boot"
 CONF_BATTERY_REGULATION_VOLTAGE = "battery_regulation_voltage"
 CONF_FAST_CHARGE_CURRENT = "fast_charge_current"
@@ -43,6 +44,7 @@ CONF_WAKE2_TIMER = "wake2_timer"
 CONF_ENABLE_PUSH_BUTTON = "enable_push_button"
 CONF_SYSTEM_REGULATION = "system_regulation"
 CONF_SYS_MODE = "sys_mode"
+CONF_WATCHDOG_15S_ENABLE = "watchdog_15s_enable"
 CONF_DISABLE_VDPPM = "disable_vdppm"
 CONF_TS_HOT = "ts_hot"
 CONF_TS_COLD = "ts_cold"
@@ -56,7 +58,26 @@ CONF_MASK_BAT_INTERRUPT = "mask_bat_interrupt"
 CONF_MASK_PG_INTERRUPT = "mask_pg_interrupt"
 
 bq25186_ns = cg.esphome_ns.namespace("bq25186")
-BQ25186Component = bq25186_ns.class_("BQ25186Component", cg.Component, i2c.I2CDevice)
+BQ25186Component = bq25186_ns.class_(
+    "BQ25186Component", cg.PollingComponent, i2c.I2CDevice
+)
+
+BQ25186_CHILD_SCHEMA = cv.Schema(
+    {cv.GenerateID(CONF_BQ25186_ID): cv.use_id(BQ25186Component)}
+)
+_request_binary_sensor_slot = cg.slot_counter("BQ25186_BINARY_SENSOR_COUNT")
+_request_text_sensor_slot = cg.slot_counter("BQ25186_TEXT_SENSOR_COUNT")
+
+
+def register_binary_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
+    _request_binary_sensor_slot(str(hub))
+    return hub.register_binary_sensor(var)
+
+
+def register_text_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
+    _request_text_sensor_slot(str(hub))
+    return hub.register_text_sensor(var)
+
 
 REG_VBAT_CTRL = 0x03
 REG_ICHG_CTRL = 0x04
@@ -69,7 +90,6 @@ REG_SYS_REG = 0x0A
 REG_TS_CONTROL = 0x0B
 REG_MASK_ID = 0x0C
 REGISTER_COUNT = REG_MASK_ID - REG_VBAT_CTRL + 1
-WATCHDOG_DISABLED = 0x03
 
 TERMINATION_PERCENT_OPTIONS = {"disabled": 0, "5%": 1, "10%": 2, "20%": 3}
 VINDPM_MODE_OPTIONS = {"battery_tracking": 0, "4.5v": 1, "4.7v": 2, "disabled": 3}
@@ -86,6 +106,22 @@ BATTERY_UVLO_OPTIONS = {
 VLOWV_OPTIONS = {"3.0v": 0, "2.8v": 1}
 RECHARGE_THRESHOLD_OPTIONS = {"100mv": 0, "200mv": 1}
 SAFETY_TIMER_OPTIONS = {"3h": 0, "6h": 1, "12h": 2, "disabled": 3}
+# The I2C watchdog restores the power-on registers when the bus stays quiet for its period
+WATCHDOG_OPTIONS = {
+    "160s_software_reset": 0,
+    "160s_hardware_reset": 1,
+    "40s_hardware_reset": 2,
+    "disabled": 3,
+}
+WATCHDOG_PERIOD_S = {
+    "160s_software_reset": 160,
+    "160s_hardware_reset": 160,
+    "40s_hardware_reset": 40,
+}
+# SYS_REG watchdog_15s_enable: a hardware reset when the bus stays quiet for 15 s after VIN connects
+WATCHDOG_15S_PERIOD_S = 15
+# The chip boots with the 160 s software reset watchdog, which runs until the configuration is applied
+POWER_ON_WATCHDOG_PERIOD_S = 160
 LONG_PRESS_DURATION_OPTIONS = {"5s": 0, "10s": 1, "15s": 2, "20s": 3}
 AUTOWAKE_OPTIONS = {"0.5s": 0, "1s": 1, "2s": 2, "4s": 3}
 INPUT_CURRENT_LIMIT_OPTIONS = {
@@ -146,8 +182,8 @@ def _on_current_step(amps: float) -> float:
 
 
 # (config key, register, bit shift, validator or enum options, default).
-# VBAT_CTRL bit 7 (pg_mode) and SYS_REG bit 4 (pg_gpo_level) stay 0; they are
-# driven at runtime, not from configuration.
+# VBAT_CTRL bit 7 (pg_mode) and SYS_REG bit 4 (pg_gpo_level) stay 0; the PG/GPO
+# switch drives them.
 FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
     (
         CONF_BATTERY_REGULATION_VOLTAGE,
@@ -179,6 +215,7 @@ FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
     (CONF_RECHARGE_THRESHOLD, REG_IC_CTRL, 5, RECHARGE_THRESHOLD_OPTIONS, "100mv"),
     (CONF_DOUBLE_TIMER_DURING_DPM, REG_IC_CTRL, 4, cv.boolean, False),
     (CONF_SAFETY_TIMER, REG_IC_CTRL, 2, SAFETY_TIMER_OPTIONS, "6h"),
+    (CONF_WATCHDOG, REG_IC_CTRL, 0, WATCHDOG_OPTIONS, "disabled"),
     (CONF_LONG_PRESS_DURATION, REG_TMR_ILIM, 6, LONG_PRESS_DURATION_OPTIONS, "10s"),
     (CONF_HW_RESET_REQUIRES_VIN, REG_TMR_ILIM, 5, cv.boolean, False),
     (CONF_AUTOWAKE, REG_TMR_ILIM, 3, AUTOWAKE_OPTIONS, "1s"),
@@ -195,6 +232,7 @@ FIELDS: tuple[tuple[str, int, int, Any, Any], ...] = (
     (CONF_ENABLE_PUSH_BUTTON, REG_SHIP_RST, 0, cv.boolean, True),
     (CONF_SYSTEM_REGULATION, REG_SYS_REG, 5, SYSTEM_REGULATION_OPTIONS, "4.5v"),
     (CONF_SYS_MODE, REG_SYS_REG, 2, SYS_MODE_OPTIONS, "normal"),
+    (CONF_WATCHDOG_15S_ENABLE, REG_SYS_REG, 1, cv.boolean, False),
     (CONF_DISABLE_VDPPM, REG_SYS_REG, 0, cv.boolean, False),
     (CONF_TS_HOT, REG_TS_CONTROL, 6, TS_HOT_OPTIONS, "60c"),
     (CONF_TS_COLD, REG_TS_CONTROL, 4, TS_COLD_OPTIONS, "0c"),
@@ -232,9 +270,6 @@ _ENCODERS: dict[str, Callable[[Any], int]] = {
 def pack_registers(config: ConfigType) -> list[int]:
     """Pack the validated field values into the VBAT_CTRL..MASK_ID register bytes."""
     regs = [0] * REGISTER_COUNT
-    # Watchdog disabled (IC_CTRL[1:0] = 3): nothing talks to the chip after boot yet, and a running
-    # watchdog restores the power-on defaults after 160 s. Part 2 adds the option with the polling.
-    regs[REG_IC_CTRL - REG_VBAT_CTRL] = WATCHDOG_DISABLED
     for key, register, shift, validator, _ in FIELDS:
         value = config[key]
         if isinstance(validator, dict):
@@ -259,7 +294,28 @@ def _field_schema(with_defaults: bool) -> cv.Schema:
 
 BQ25186_CONFIG_SCHEMA = _field_schema(with_defaults=True)
 
-CONFIG_SCHEMA = (
+
+def _check_watchdog(config: ConfigType) -> ConfigType:
+    """Only the status poll talks to the chip, so it has to come round before any watchdog does."""
+    periods = []
+    if (period := WATCHDOG_PERIOD_S.get(config[CONF_WATCHDOG])) is not None:
+        periods.append(period)
+    if config[CONF_WATCHDOG_15S_ENABLE]:
+        periods.append(WATCHDOG_15S_PERIOD_S)
+    if not config.get(CONF_CONFIGURE_ON_BOOT, True):
+        periods.append(POWER_ON_WATCHDOG_PERIOD_S)
+    if not periods:
+        return config
+    if config[CONF_UPDATE_INTERVAL] >= TimePeriod(seconds=(limit := min(periods))):
+        raise cv.Invalid(
+            f"{CONF_UPDATE_INTERVAL} must be shorter than {limit} s, or the "
+            f"watchdog resets the charger between status polls",
+            path=[CONF_UPDATE_INTERVAL],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BQ25186Component),
@@ -267,7 +323,9 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(BQ25186_CONFIG_SCHEMA)
-    .extend(i2c.i2c_device_schema(0x6A))
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x6A)),
+    _check_watchdog,
 )
 
 CONFIGURE_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -305,7 +363,12 @@ async def bq25186_configure_to_code(
     # Options the action leaves out fall back to the component's configuration
     path = CORE.config.get_path_for_id(config[CONF_ID])[:-1]
     parent_config = CORE.config.get_config_for_path(path)
-    regs = pack_registers({**parent_config, **config})
+    merged = {**parent_config, **config}
+    try:
+        _check_watchdog(merged)
+    except cv.Invalid as err:
+        raise EsphomeError(f"bq25186.apply_configuration: {err.msg}") from err
+    regs = pack_registers(merged)
 
     text = str(cg.statement(parent.apply_config(cg.ArrayInitializer(*regs))))
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)

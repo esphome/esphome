@@ -7,6 +7,8 @@ esphome:
       - uart.write:
           id: uart_id
           data: [0x00, 0x20, 0x42]
+      - lambda: |-
+          id(uart_swapped).load_settings(false);
 
 uart:
   - id: uart_id
@@ -23,6 +25,10 @@ uart:
     baud_rate: 115200
     debug:
       debug_prefix: "[UART1] "
+  - id: uart_swapped
+    tx_pin: 15
+    rx_pin: 13
+    baud_rate: 9600
 
 switch:
   - platform: uart
