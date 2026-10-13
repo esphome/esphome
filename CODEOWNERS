@@ -106,6 +106,7 @@ esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
 esphome/components/bq25186/* @Rapsssito
 esphome/components/bq27220/* @rggammon
+esphome/components/bq76972/* @limpkin
 esphome/components/bridge/* @kbx81
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
@@ -213,6 +214,7 @@ esphome/components/feedback/* @ianchi
 esphome/components/file/* @esphome/core
 esphome/components/fingerprint_grow/* @alexborro @loongyh @OnFreund
 esphome/components/font/* @clydebarrow @esphome/core
+esphome/components/friedrich/* @rwrozelle
 esphome/components/fs3000/* @kahrendt
 esphome/components/ft5x06/* @clydebarrow
 esphome/components/ft63x6/* @gpambrozio

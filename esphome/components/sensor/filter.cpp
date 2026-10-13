@@ -226,14 +226,14 @@ MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(mu
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-// ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count) {
-  int8_t accuracy = parent->get_accuracy_decimals();
+// ValueListFilter
+bool ValueListFilter::value_matches_any_(float sensor_value) {
+  int8_t accuracy = this->parent_->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
-  for (size_t i = 0; i < count; i++) {
-    float fv = values[i].value();
+  for (const TemplatableFn<float> *v = this->values_; v->has_value(); v++) {
+    float fv = v->value();
 
     // Handle NaN comparison
     if (std::isnan(fv)) {
@@ -261,13 +261,12 @@ optional<float> ThrottleFilter::new_value(float value) {
   return {};
 }
 
-// ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
-                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
+// ThrottleWithPriorityFilter
+optional<float> ThrottleWithPriorityFilter::new_value(float value) {
   const uint32_t now = App.get_loop_component_start_time();
-  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
-      value_list_matches_any(parent, value, values, count)) {
-    last_input = now;
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ ||
+      this->value_matches_any_(value)) {
+    this->last_input_ = now;
     return value;
   }
   return {};
