@@ -5,8 +5,6 @@ esp32:
   variant: esp32c6
   framework:
     type: esp-idf
-    sdkconfig_options:
-      CONFIG_OPENTHREAD_JOINER: y
 
 network:
   enable_ipv6: true

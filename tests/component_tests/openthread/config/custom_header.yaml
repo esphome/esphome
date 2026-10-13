@@ -5,10 +5,6 @@ esp32:
   variant: esp32c6
   framework:
     type: esp-idf
-    sdkconfig_options:
-      CONFIG_OPENTHREAD_JOINER: y
-      OPENTHREAD_CONFIG_COAP_BLOCKWISE_TRANSFER_ENABLE: "1"
-      OPENTHREAD_CONFIG_MAC_DEFAULT_MAX_FRAME_RETRIES_DIRECT: "5"
 
 network:
   enable_ipv6: true
@@ -18,3 +14,6 @@ openthread:
   network_name: OpenThread-8f28
   network_key: 0xdfd34f0f05cad978ec4e32b0413038ff
   pan_id: 0x8f28
+  core_options:
+    OPENTHREAD_CONFIG_COAP_BLOCKWISE_TRANSFER_ENABLE: "1"
+    OPENTHREAD_CONFIG_MAC_DEFAULT_MAX_FRAME_RETRIES_DIRECT: "5"
