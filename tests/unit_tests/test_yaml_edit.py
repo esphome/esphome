@@ -299,6 +299,28 @@ def test_apply_writes_reloads_drops_the_cache_and_restores(tmp_path: Path) -> No
     assert not cache.exists()
 
 
+def test_apply_reloads_a_symlinked_file_by_the_link(tmp_path: Path) -> None:
+    """A relative !include inside the file resolves beside the link, as the
+    loader read it, not beside the target."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "device.yaml").write_bytes(
+        b"name: kitchen\nfriendly_name: !include fn.yaml\n"
+    )
+    (tmp_path / "fn.yaml").write_bytes(b"Kitchen\n")  # beside the link only
+    (tmp_path / "device.yaml").symlink_to(shared / "device.yaml")
+    _setup(tmp_path, "esphome: !include device.yaml\n")
+    doc, line_no = source_of(CORE.raw_config[CONF_ESPHOME], CONF_NAME)
+    assert doc == tmp_path / "device.yaml"
+    match = field_line_re(CONF_NAME, "kitchen").match(line_at(doc, line_no))
+    edit = LineEdit(doc, line_no, match.string, rewrite(match, "garage"))
+    originals = apply_line_edits([edit])
+    assert list(originals) == [(shared / "device.yaml").resolve()]
+    assert (shared / "device.yaml").read_text() == (
+        "name: garage\nfriendly_name: !include fn.yaml\n"
+    )
+
+
 def test_apply_rolls_back_a_rewrite_the_loader_refuses(tmp_path: Path) -> None:
     path = _setup(tmp_path, YAML)
     edit = _name_edit("garage")

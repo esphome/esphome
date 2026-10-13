@@ -83,7 +83,9 @@ _DOMAIN = "yaml_edit"
 
 
 def own_documents() -> set[Path]:
-    """Every file the loader read for this configuration, found once per run."""
+    """Every file the loader read for this configuration, found once per run.
+    A file behind an include path with a substitution that gave nothing but
+    substitutions is the one kind this misses."""
     if (documents := CORE.data.get(_DOMAIN)) is None:
         documents = CORE.data[_DOMAIN] = _own_documents()
     return documents
@@ -216,8 +218,11 @@ def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
     and after for restore_files. Nothing is written while any line is stale,
     and a file that no longer loads is put back here."""
     by_path: dict[Path, list[LineEdit]] = {}
+    seen_as: dict[Path, Path] = {}  # the path the loader read a file by
     for edit in edits:
-        by_path.setdefault(editable_file(edit.path), []).append(edit)
+        resolved = editable_file(edit.path)
+        by_path.setdefault(resolved, []).append(edit)
+        seen_as.setdefault(resolved, edit.path)
     originals = {}
     for path, own in by_path.items():
         original = read_text(path)
@@ -225,9 +230,12 @@ def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
     try:
         for path, snapshot in originals.items():
             write_keeping_mode(path, snapshot.written)
-        reloads = list(originals)
-        if (main := CORE.config_path.resolve()) not in originals:
-            reloads.append(main)  # its !secret tags register a value written elsewhere
+        # Reloaded as the loader saw them: a relative !include inside a
+        # symlinked file resolves beside the link
+        reloads = [seen_as[path] for path in originals]
+        if CORE.config_path.resolve() not in originals:
+            # Its !secret tags register a value written elsewhere
+            reloads.append(CORE.config_path)
         for path in reloads:
             try:
                 # The secret registry stays: later output still redacts
