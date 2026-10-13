@@ -189,9 +189,9 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
             return fail("Compiling with the new key failed")
 
-        def device_reached() -> None:
-            # The upload may commit from here on; the edited config reaches
-            # the device on either key
+        def image_sent() -> None:
+            # The device accepted the session and may commit from here on;
+            # the edited config reaches it on either key
             nonlocal uploaded
             uploaded = True
 
@@ -202,7 +202,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
             CORE.firmware_bin,
             noise_psk=old_key,
             plaintext_fallback=False,
-            on_connect=device_reached,
+            on_upload_start=image_sent,
         )
         if rc != 0:
             return fail(

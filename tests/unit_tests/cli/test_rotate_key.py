@@ -122,7 +122,7 @@ def env(tmp_path: Path) -> Generator[dict[str, Mock]]:
         def upload_after_connecting(
             *_args: Any, **kwargs: Any
         ) -> tuple[int, str | None]:
-            kwargs["on_connect"]()
+            kwargs["on_upload_start"]()
             return upload.return_value
 
         upload.side_effect = upload_after_connecting
@@ -159,7 +159,7 @@ def test_success(env: dict[str, Mock], capfd: pytest.CaptureFixture[str]) -> Non
         CORE.firmware_bin,
         noise_psk=OLD_KEY,
         plaintext_fallback=False,
-        on_connect=ANY,
+        on_upload_start=ANY,
     )
     out = capfd.readouterr().out
     assert NEW_KEY in out
