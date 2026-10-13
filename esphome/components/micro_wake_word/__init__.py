@@ -416,13 +416,19 @@ def _validate_task_core(config: ConfigType) -> ConfigType:
     if config[CONF_TASK_CORE] != 1:
         return config
     esp32.only_on_variant(
-        supported=[esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S3, esp32.VARIANT_ESP32P4],
+        supported=[
+            esp32.VARIANT_ESP32,
+            esp32.VARIANT_ESP32S3,
+            esp32.VARIANT_ESP32P4,
+            esp32.VARIANT_ESP32H4,
+            esp32.VARIANT_ESP32S31,
+        ],
         msg_prefix="micro_wake_word task_core: 1",
     )(config)
-    sdkconfig = fv.full_config.get()[PLATFORM_ESP32][CONF_FRAMEWORK].get(
-        esp32.CONF_SDKCONFIG_OPTIONS, {}
-    )
-    if str(sdkconfig.get("CONFIG_FREERTOS_UNICORE", "n")).lower() in ("y", "true", "1"):
+    sdkconfig = fv.full_config.get()[PLATFORM_ESP32][CONF_FRAMEWORK][
+        esp32.CONF_SDKCONFIG_OPTIONS
+    ]
+    if sdkconfig.get("CONFIG_FREERTOS_UNICORE") == "y":
         raise cv.Invalid("task_core: 1 requires FreeRTOS dual-core mode")
     return config
 
