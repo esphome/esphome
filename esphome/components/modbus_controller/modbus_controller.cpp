@@ -7,7 +7,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus_controller";
+ESPHOME_LOG_TAG(TAG, "modbus_controller");
 
 void ModbusController::setup() { this->create_polling_commands_(); }
 

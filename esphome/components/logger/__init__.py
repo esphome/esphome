@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_HARDWARE_UART,
     CONF_ID,
     CONF_LEVEL,
-    CONF_LOGGER,
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
@@ -365,7 +364,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
-    CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
+    CORE.data.setdefault(DOMAIN, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     # Determine task log buffer size. The buffer is a direct member of Logger

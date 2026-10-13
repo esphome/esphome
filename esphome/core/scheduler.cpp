@@ -12,7 +12,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "scheduler";
+ESPHOME_LOG_TAG(TAG, "scheduler");
 
 // Maximum number of logically deleted (cancelled) items before forcing cleanup.
 // Empirically chosen to balance cleanup overhead against tombstone accumulation in items_.
@@ -138,79 +138,84 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 
   // Take lock early to protect scheduler_item_pool_head_ access
-  LockGuard guard{this->lock_};
+  {
+    LockGuard guard{this->lock_};
 
-  // Create and populate the scheduler item
-  SchedulerItem *item = this->get_item_from_pool_locked_();
-  // SELF_POINTER items store the source name (owning script) in the union slot instead of a component.
-  if (name_type == NameType::SELF_POINTER) {
-    item->source_name = source;
-  } else {
-    item->component = component;
-  }
-  item->set_name(name_type, static_name, hash_or_id);
-  item->type = type;
-  // Use destroy + placement-new instead of move-assignment.
-  // GCC's std::function::operator=(function&&) does a full swap dance even when the
-  // target is empty. Since recycled/new items always have an empty callback, we can
-  // destroy the empty one (no-op) and move-construct directly, saving ~40 bytes of
-  // swap/destructor code on Xtensa.
-  item->callback.~function();
-  new (&item->callback) std::function<void()>(std::move(func));
-  // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
-  this->set_item_removed_(item, false);
+    // Create and populate the scheduler item
+    SchedulerItem *item = this->get_item_from_pool_locked_();
+    // SELF_POINTER items store the source name (owning script) in the union slot instead of a component.
+    if (name_type == NameType::SELF_POINTER) {
+      item->source_name = source;
+    } else {
+      item->component = component;
+    }
+    item->set_name(name_type, static_name, hash_or_id);
+    item->type = type;
+    // Use destroy + placement-new instead of move-assignment.
+    // GCC's std::function::operator=(function&&) does a full swap dance even when the
+    // target is empty. Since recycled/new items always have an empty callback, we can
+    // destroy the empty one (no-op) and move-construct directly, saving ~40 bytes of
+    // swap/destructor code on Xtensa.
+    item->callback.~function();
+    new (&item->callback) std::function<void()>(std::move(func));
+    // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
+    this->set_item_removed_(item, false);
 
-  // Determine target container: defer_queue_ for deferred items, to_add_ for everything else.
-  // Using a pointer lets both paths share the cancel + push_back epilogue.
-  auto *target = &this->to_add_;
+    // Determine target container: defer_queue_ for deferred items, to_add_ for everything else.
+    // Using a pointer lets both paths share the cancel + push_back epilogue.
+    auto *target = &this->to_add_;
 
 #ifndef ESPHOME_THREAD_SINGLE
-  // Special handling for defer() (delay = 0, type = TIMEOUT)
-  // Single-core platforms don't need thread-safe defer handling
-  if (delay == 0 && type == SchedulerItem::TIMEOUT) {
-    // Put in defer queue for guaranteed FIFO execution
-    target = &this->defer_queue_;
-  } else
+    // Special handling for defer() (delay = 0, type = TIMEOUT)
+    // Single-core platforms don't need thread-safe defer handling
+    if (delay == 0 && type == SchedulerItem::TIMEOUT) {
+      // Put in defer queue for guaranteed FIFO execution
+      target = &this->defer_queue_;
+    } else
 #endif /* not ESPHOME_THREAD_SINGLE */
-  {
-    // Only non-defer items need a timestamp for scheduling
-    const uint64_t now_64 = millis_64();
+    {
+      // Only non-defer items need a timestamp for scheduling
+      const uint64_t now_64 = millis_64();
 
-    // Type-specific setup
-    if (type == SchedulerItem::INTERVAL) {
-      item->interval = delay;
-      // first execution happens immediately after a random smallish offset
-      uint32_t offset = this->calculate_interval_offset_(delay);
-      item->set_next_execution(now_64 + offset);
+      // Type-specific setup
+      if (type == SchedulerItem::INTERVAL) {
+        item->interval = delay;
+        // first execution happens immediately after a random smallish offset
+        uint32_t offset = this->calculate_interval_offset_(delay);
+        item->set_next_execution(now_64 + offset);
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-      SchedulerNameLog name_log;
-      ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
-               name_log.format(name_type, static_name, hash_or_id), delay, offset);
+        SchedulerNameLog name_log;
+        ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
+                 name_log.format(name_type, static_name, hash_or_id), delay, offset);
 #endif
-    } else {
-      item->interval = 0;
-      item->set_next_execution(now_64 + delay);
-    }
+      } else {
+        item->interval = 0;
+        item->set_next_execution(now_64 + delay);
+      }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    this->debug_log_timer_(item, name_type, static_name, hash_or_id, delay, now_64);
+      this->debug_log_timer_(item, name_type, static_name, hash_or_id, delay, now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
-  }
+    }
 
-  // Common epilogue: atomic cancel-and-add (unless skip_cancel is true or anonymous)
-  // Anonymous items (STATIC_STRING with nullptr) can never match anything, so skip the scan.
-  if (!skip_cancel && (name_type != NameType::STATIC_STRING || static_name != nullptr)) {
-    this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* find_first= */ true);
-  }
-  target->push_back(item);
-  if (target == &this->to_add_) {
-    this->to_add_count_increment_locked_();
-  }
+    // Common epilogue: atomic cancel-and-add (unless skip_cancel is true or anonymous)
+    // Anonymous items (STATIC_STRING with nullptr) can never match anything, so skip the scan.
+    if (!skip_cancel && (name_type != NameType::STATIC_STRING || static_name != nullptr)) {
+      this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* find_first= */ true);
+    }
+    target->push_back(item);
+    if (target == &this->to_add_) {
+      this->to_add_count_increment_locked_();
+    }
 #ifndef ESPHOME_THREAD_SINGLE
-  else {
-    this->defer_count_increment_locked_();
-  }
+    else {
+      this->defer_count_increment_locked_();
+    }
 #endif
+  }
+  // A background insertion may shorten a sleep whose deadline was already computed.
+  if (!is_main_loop_thread()) [[unlikely]]
+    wake_scheduler_threadsafe();
 }
 
 void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout,

@@ -8,7 +8,7 @@
 
 namespace esphome::tas2780 {
 
-static const char *const TAG = "tas2780";
+ESPHOME_LOG_TAG(TAG, "tas2780");
 
 static constexpr uint8_t TAS2780_PAGE_SELECT = 0x00;  // Page Select
 static constexpr uint8_t TAS2780_PAGE_0 = 0x00;       // Page 0

@@ -25,6 +25,7 @@ class UARTDevice {
   size_t get_rx_timeout() { return this->parent_->get_rx_timeout(); }
 
   void write_array(const uint8_t *data, size_t len) { this->parent_->write_array(data, len); }
+  void write_array_progmem(const uint8_t *data, size_t len) { this->parent_->write_array_progmem(data, len); }
   void write_array(const std::vector<uint8_t> &data) { this->parent_->write_array(data); }
   template<size_t N> void write_array(const std::array<uint8_t, N> &data) {
     this->parent_->write_array(data.data(), data.size());

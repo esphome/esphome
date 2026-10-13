@@ -34,7 +34,12 @@ from esphome.components.esp8266.boards import (
     board_ld_script,
 )
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
-from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
+from esphome.components.esp8266.const import (
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_SCANF_FLOAT,
+    THROW_STUBS_HEADER,
+)
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -360,18 +365,22 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     # Assembly and C sources compile through their own rules
     assert "cont.S.o: aspp" in content
     assert "abi.c.o: c" in content
-    # throw_stubs is force-included for ESPHome sources only, via one shared
-    # srcflags variable rather than a copy of the flags line per edge
+    # throw_stubs reaches src through srcflags (after the pch include) and the
+    # core through frameworkflags: one shared variable each, not a copy per edge
     src_lines = [line for line in content.splitlines() if "obj/src/" in line]
     assert any("main.cpp.o: cxx" in line for line in src_lines)
-    assert content.count("throw_stubs.h") == 1
+    assert content.count("throw_stubs.h") == 2
     assert "srcflags = -include" in content
     flags_lines = [
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
     assert flags_lines
     # C++ src edges consume the precompiled header; C/assembly keep srcflags
-    assert set(flags_lines) == {"  flags = $srcflags", "  flags = $srccxxflags"}
+    assert set(flags_lines) == {
+        "  flags = $srcflags",
+        "  flags = $srccxxflags",
+        "  flags = $frameworkflags",
+    }
 
 
 def test_write_project_pch(tmp_path: Path) -> None:
@@ -715,6 +724,8 @@ def test_write_project_libraries_and_variant(
     assert "libHeadersOnly.a" not in content
     assert "Library HeadersOnly has no source files" in caplog.text
     assert "  flags = -DMYLIB=1" in content
+    # With exceptions on, nothing gets the stubs
+    assert "throw_stubs.h" not in content
     # A library's own include dirs lead its compile lines
     assert "  own_includes = -I" in content
     assert "$own_includes $cxxflags $flags" in content
@@ -727,6 +738,30 @@ def test_write_project_libraries_and_variant(
     assert "-fexceptions" in content
     assert "-lstdc++-exc" in content
     assert f"ccache = {_shq('/cc/ccache')}" in content
+
+
+def test_write_project_throw_stubs_reach_core_and_libraries(tmp_path: Path) -> None:
+    """Without exceptions the core and libraries take the throw stubs too."""
+    paths = _make_framework(tmp_path)
+    lib_dir = tmp_path / "libsrc"
+    lib_dir.mkdir()
+    (lib_dir / "lib.cpp").write_text("")
+    library = ArduinoLibrary(
+        name="MyLib",
+        sources=[lib_dir / "lib.cpp"],
+        include_dirs=[lib_dir],
+        flags=["-DMYLIB=1"],
+    )
+    content = _write_ninja(paths, libraries=[library])
+    stubs = CORE.relative_src_path() / THROW_STUBS_HEADER
+    assert f"frameworkflags = -include {_shq(str(stubs))}" in content
+    # Before the library's own flags; core edges take the variable alone
+    assert "  flags = $frameworkflags -DMYLIB=1" in content
+    lines = content.splitlines()
+    core_edge = next(
+        i for i, line in enumerate(lines) if "core_esp8266_main.cpp.o: cxx" in line
+    )
+    assert lines[core_edge + 1] == "  flags = $frameworkflags"
 
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:
@@ -853,8 +888,9 @@ def test_write_project_plain_asm_rule_skips_preprocessor(tmp_path: Path) -> None
     _set_flags()
     content = _write_ninja(paths)
     assert "lowlevel.s.o: asm " in content
+    assert "rule asm\n  command = $cc -x assembler $asflags -c $in -o $out" in content
     assert "rule asm\n  command = $ccache $cc -x assembler $asflags -c $in -o $out" in (
-        content
+        _write_ninja(paths, ccache="/cc/ccache")
     )
 
 

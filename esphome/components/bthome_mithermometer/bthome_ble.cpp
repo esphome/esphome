@@ -26,7 +26,7 @@
 
 namespace esphome::bthome_mithermometer {
 
-static const char *const TAG = "bthome_mithermometer";
+ESPHOME_LOG_TAG(TAG, "bthome_mithermometer");
 static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
 static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
