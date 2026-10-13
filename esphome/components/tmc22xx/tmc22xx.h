@@ -136,6 +136,8 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   /// Enable or disable the motor outputs, using the ENN pin when configured and TOFF otherwise.
   void set_enabled(bool enabled);
   bool is_enabled() const { return this->enabled_; }
+  /// True while the driver does not answer, until the status poll reads it again (every 10 s).
+  bool is_unreachable() const { return this->status_poll_skip_ > 0; }
 
   /// Called with the condition and whether it became active or cleared.
   template<typename F> void add_on_status_callback(F &&callback) {

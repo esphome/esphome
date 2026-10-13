@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.tmc22xx import CONF_ANALOG_CURRENT_SCALE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -9,6 +10,7 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_PERCENT,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import TMC2209Stepper, tmc2209_ns
@@ -52,6 +54,23 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PWM_GRAD_AUTO): _diagnostic_schema,
     }
 ).extend(cv.polling_component_schema("60s"))
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if CONF_ACTUAL_CURRENT not in config:
+        return config
+    full_config = fv.full_config.get()
+    path = full_config.get_path_for_id(config[CONF_TMC2209_ID])[:-1]
+    if full_config.get_config_for_path(path).get(CONF_ANALOG_CURRENT_SCALE):
+        raise cv.Invalid(
+            f"'{CONF_ACTUAL_CURRENT}' can't be used with '{CONF_ANALOG_CURRENT_SCALE}', "
+            "the current then depends on VREF",
+            path=[CONF_ACTUAL_CURRENT],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
