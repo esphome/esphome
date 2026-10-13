@@ -207,7 +207,7 @@ class MipiSpi : public display::Display,
       return;
     if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN || order != display::COLOR_ORDER_RGB ||
         (!HAS_HARDWARE_ROTATION && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES)) {
-      this->draw_pixels_slow_(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+      this->draw_pixels_slow(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
       return;
     }
     this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const BUFFERTYPE *>(ptr), x_offset, y_offset,
@@ -427,9 +427,8 @@ class MipiSpi : public display::Display,
    */
   // A block that is not the panel's own format, order or orientation. Only the buffered variant can
   // convert it one pixel at a time; without a buffer there is nothing to draw into, so it is dropped.
-  virtual void draw_pixels_slow_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                                 display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
-                                 int x_pad) {
+  virtual void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                                display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
     esph_log_e(TAG, "Unsupported color depth, order, bit order or rotation");
   }
 
@@ -674,9 +673,9 @@ class MipiSpiBuffer
 
  protected:
   // Rotated in software or in another format: convert per pixel through draw_pixel_at()
-  void draw_pixels_slow_(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                         display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
-                         int x_pad) override {
+  void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                        display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                        int x_pad) override {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
   }
