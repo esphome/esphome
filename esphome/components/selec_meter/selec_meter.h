@@ -22,9 +22,7 @@ namespace esphome::selec_meter {
  public: \
   void set_##name##_sensor(sensor::Sensor *(name)) { this->name##_sensor_ = name; }
 
-// Same as SELEC_METER_SENSOR, but the sensor lives in the per-phase Phase struct below and the
-// setter is indexed by phase (0 = L1/A, 1 = L2/B, 2 = L3/C), matching how sdm_meter exposes its
-// three-phase sensors.
+// Per-phase sensor in the Phase struct, setter indexed by phase (0 = L1/A, 1 = L2/B, 2 = L3/C)
 #define SELEC_METER_PHASE_SENSOR(name) \
   void set_##name##_sensor(uint8_t phase, sensor::Sensor *(name)) { this->phases_[phase].name##_sensor_ = name; }
 
@@ -33,8 +31,7 @@ enum Model : uint8_t {
   EM4M,
 };
 
-// Cycles the extra Modbus reads (serial number, DG sensing) that live far outside the
-// main 0-113 register block and therefore need their own transaction each update.
+// Extra reads (serial number, DG sensing) sit far outside the main block and get their own transaction
 enum class ReadState : uint8_t {
   MAIN_BLOCK,
   SERIAL_NUMBER,
@@ -75,8 +72,7 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   SELEC_METER_PHASE_SENSOR(export_reactive_energy)
   SELEC_METER_PHASE_SENSOR(apparent_energy)
 
-  // EM4M line-to-line and aggregate sensors -- these don't map to a single phase, so they stay
-  // top-level rather than living in the per-phase Phase struct.
+  // Line-to-line and aggregate sensors, not tied to one phase
   SELEC_METER_SENSOR(voltage_l12)
   SELEC_METER_SENSOR(voltage_l23)
   SELEC_METER_SENSOR(voltage_l31)
@@ -109,9 +105,7 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   void dump_config() override;
 
  protected:
-  // Returns false (and publishes nothing) on a short payload; drives status_set_warning()/
-  // status_clear_warning() in on_read_input_registers() so component health tracks the main block
-  // specifically.
+  // False on a short payload; the caller sets or clears the warning from the result
   bool decode_em2m_(std::span<const uint16_t> registers);
   bool decode_em4m_(std::span<const uint16_t> registers);
 #ifdef USE_TEXT_SENSOR
@@ -123,30 +117,15 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   void note_dg_sensing_failure_();
 #endif
   ReadState next_read_state_after_main_block_();
-  // Advances the state machine from `current`, whether it just succeeded or failed -- a bad
-  // transaction on one register range shouldn't cancel the other, independent reads in the chain.
+  // Next step after `current`, so one failed range does not cancel the other reads
   ReadState next_read_state_after_(ReadState current);
-  // Issues the read for `state` (or does nothing for IDLE), setting read_state_/waiting_for_response_
-  // as it goes. Sending from within a callback is safe per modbus.h's callback contract, so this is
-  // called directly from update() and, after decoding, from on_read_input_registers()/fail_current_read_()
-  // -- no deferral through loop() is needed.
+  // Sends the read for `state`; safe from a callback per the modbus callback contract
   void start_read_(ReadState state);
-  // Drops the failure (like on_read_input_registers() drops an unexpected terminal) if no read is in
-  // flight, then clears waiting_for_response_ and advances to the next read in the chain. Only marks
-  // the component unhealthy for a MAIN_BLOCK failure -- an optional side read (serial number/DG
-  // sensing) that the meter simply doesn't support shouldn't flip an otherwise-healthy meter into a
-  // warning state. Shared by on_read_input_registers()'s exception path, on_no_response()/on_not_sent(),
-  // and a refused send in start_read_().
-  // `durable` distinguishes a response the meter actually sent back refusing the read (a real "this
-  // register doesn't exist" signal) from a transient failure (no response/not sent/refused send, which
-  // could just as easily mean the bus is briefly busy). Only durable failures count toward
-  // MAX_OPTIONAL_READ_FAILURES -- a transient failure retries forever instead of eventually latching
-  // an optional read disabled for a reason that was never actually "unsupported register".
-  // `reason` may be nullptr when the caller has already logged the failure.
+  // Clears the pending read and advances the chain. Only a MAIN_BLOCK failure sets the warning and
+  // only a `durable` refusal counts toward MAX_OPTIONAL_READ_FAILURES; `reason` nullptr means already logged
   void fail_current_read_(const LogString *reason, bool durable = false);
 
-  // EM4M per-phase sensors -- phases_[0]/[1]/[2] are L1/L2/L3 (A/B/C), each register
-  // EM4M_PHASE_STRIDE apart from the next phase's, per selec_meter_registers.h.
+  // phases_[0..2] are L1/L2/L3 (A/B/C), EM4M_PHASE_STRIDE registers apart
   struct Phase {
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};

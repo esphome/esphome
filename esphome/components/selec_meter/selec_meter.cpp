@@ -15,8 +15,7 @@ ESPHOME_LOG_TAG(TAG, "selec_meter");
 
 static const uint8_t EM2M_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 
-// Consecutive modbus-level failures (error/no-response/not-sent/refused) an optional extra read
-// tolerates before it's given up on for good, instead of being retried silently forever.
+// Durable refusals an optional read tolerates before it is given up on
 static const uint8_t MAX_OPTIONAL_READ_FAILURES = 5;
 
 static const LogString *read_state_name(ReadState state) {
@@ -33,18 +32,15 @@ static const LogString *read_state_name(ReadState state) {
   }
 }
 
-// One measurement's sensor, register address, and unit multiplier -- lets decode_em2m_()/decode_em4m_()
-// drive their (near-identical) decode-and-publish loops off a table instead of a repeated if-block
-// per field.
+// One measurement: sensor, register address and unit multiplier, so both decoders run off a table
 struct FloatFieldSpec {
   sensor::Sensor *sensor;
   uint16_t reg;
   float unit;
 };
 
-// Reads the FP32 value at register address `reg`, honouring the configured byte order: FP32 takes the
-// high word first (MSRF/big-endian), FP32_R the low word first (LSRF/word-swapped). nullopt if `reg`
-// isn't wholly inside `registers`.
+// FP32 at `reg` in the configured word order (MSRF high word first, LSRF low word first); nullopt when
+// `reg` is not wholly inside `registers`
 static std::optional<float> read_float(std::span<const uint16_t> registers, uint16_t start_address, uint16_t reg,
                                        bool word_swapped) {
   return word_swapped ? helpers::value_at<helpers::SensorValueType::FP32_R>(registers, start_address, reg)
@@ -93,8 +89,7 @@ ReadState SelecMeter::next_read_state_after_(ReadState current) {
   }
 }
 
-// The start address a read for `state` was sent with -- used to confirm an incoming response actually
-// belongs to the read the state machine is waiting for.
+// Start address the read for `state` was sent with, to match a response to the pending read
 static uint16_t expected_start_address(ReadState state) {
   switch (state) {
     case ReadState::SERIAL_NUMBER:
@@ -116,10 +111,7 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
     ESP_LOGW(TAG, "Unexpected response while idle, dropping");
     return;
   }
-  // The base class decodes start_address from the exact request this response answers (see
-  // dispatch_response_() in modbus.cpp), so unlike matching purely by device address and function
-  // code, a stale reply for one read can never be mistaken for another -- confirm it's actually for
-  // the read `current` is waiting on before trusting it.
+  // start_address comes from the exact request this answers, so a stale reply cannot match another read
   if (start_address != expected_start_address(current)) {
     this->fail_current_read_(LOG_STR("Response does not match pending read"), /*durable=*/false);
     return;
@@ -128,10 +120,7 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
     const auto code = *status;
     ESP_LOGW(TAG, "Modbus error 0x%02X while reading %s", static_cast<uint8_t>(code),
              LOG_STR_ARG(read_state_name(current)));
-    // ILLEGAL_FUNCTION/ILLEGAL_DATA_ADDRESS are a durable "this register isn't supported" signal.
-    // ACKNOWLEDGE/SERVER_DEVICE_BUSY (and any other exception) mean the meter is busy right now --
-    // treat those like a transient timeout so a temporarily busy meter can't permanently latch an
-    // optional read disabled.
+    // Illegal function/address are durable; busy, acknowledge and the rest are transient
     const bool durable =
         code == modbus::ExceptionCode::ILLEGAL_FUNCTION || code == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
     this->fail_current_read_(nullptr, durable);
@@ -174,8 +163,7 @@ void SelecMeter::fail_current_read_(const LogString *reason, bool durable) {
     ESP_LOGW(TAG, "%s while reading %s", LOG_STR_ARG(reason), LOG_STR_ARG(read_state_name(failed_state)));
   }
   this->waiting_for_response_ = false;
-  // Only the main block (the actual measurements) drives component health -- a meter that simply
-  // doesn't support an optional side read shouldn't flap an otherwise-healthy meter into a warning.
+  // Only the main block drives component health; an unsupported optional read is not a fault
   if (failed_state == ReadState::MAIN_BLOCK)
     this->status_set_warning();
 #ifdef USE_TEXT_SENSOR
@@ -302,8 +290,7 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
       {this->export_active_energy_sensor_, EM4M_EXPORT_ACTIVE_ENERGY, NO_DEC_UNIT},
       {this->import_reactive_energy_sensor_, EM4M_IMPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
       {this->export_reactive_energy_sensor_, EM4M_EXPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
-      // Line-to-line and net (mains/DG) quantities -- no single-phase equivalent, so these stay
-      // flat rather than living in the per-phase loop below.
+      // Line-to-line and net (mains/DG) quantities have no per-phase equivalent
       {this->voltage_l12_sensor_, EM4M_VOLTAGE_L12, NO_DEC_UNIT},
       {this->voltage_l23_sensor_, EM4M_VOLTAGE_L23, NO_DEC_UNIT},
       {this->voltage_l31_sensor_, EM4M_VOLTAGE_L31, NO_DEC_UNIT},
@@ -316,8 +303,7 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
       {this->net_apparent_energy_dg_sensor_, EM4M_NET_APPARENT_ENERGY_DG, NO_DEC_UNIT},
   };
 
-  // Per-phase quantities, indexed by phases_[0..2] (L1/L2/L3, i.e. A/B/C). reg_l1 is the L1
-  // register; L2/L3 sit EM4M_PHASE_STRIDE further on (checked in selec_meter_registers.h).
+  // reg_l1 is the L1 register; L2/L3 follow EM4M_PHASE_STRIDE apart
   struct PhaseField {
     sensor::Sensor *Phase::*sensor_member;
     uint16_t reg_l1;
@@ -388,8 +374,7 @@ void SelecMeter::start_read_(ReadState state) {
       return;
   }
 
-  // A false return means the request was refused at send_pdu() (e.g. tx buffer full) and no terminal
-  // callback will ever follow -- unwind ourselves via the same path the async failure callbacks use.
+  // A refused send gets no callback, so unwind here like the async failure paths
   if (!sent)
     this->fail_current_read_(LOG_STR("Modbus request refused"));
 }
