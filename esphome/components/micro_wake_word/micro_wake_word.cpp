@@ -84,7 +84,12 @@ static const LogString *micro_wake_word_state_to_string(State state) {
 
 void MicroWakeWord::dump_config() {
   ESP_LOGCONFIG(TAG, "microWakeWord:");
-  ESP_LOGCONFIG(TAG, "  Inference task core: %d", MICRO_WAKE_WORD_TASK_CORE);
+  // tskNO_AFFINITY is a cast expression, so this cannot be a preprocessor test; the compiler folds it
+  if (MICRO_WAKE_WORD_TASK_CORE == tskNO_AFFINITY) {
+    ESP_LOGCONFIG(TAG, "  Inference task core: any");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Inference task core: %d", MICRO_WAKE_WORD_TASK_CORE);
+  }
   ESP_LOGCONFIG(TAG, "  models:");
   for (auto &model : this->wake_word_models_) {
     model->log_model_config();
