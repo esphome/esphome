@@ -1,0 +1,21 @@
+esphome:
+  name: midea-purifier-test
+esp8266:
+  board: esp01_1m
+logger:
+  baud_rate: 0
+uart:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+climate:
+  - platform: midea
+    id: test_climate
+    name: Test Climate
+switch:
+  - platform: midea
+    midea_id: test_climate
+    purifier:
+      id: test_purifier
+      name: Purifier
+      status_max_age: 30s

@@ -7,6 +7,7 @@
 
 #include "appliance_base.h"
 #include "esphome/components/sensor/sensor.h"
+#include "purifier_switch.h"
 
 namespace esphome::midea::ac {
 
@@ -28,6 +29,11 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
   void on_status_change() override;
+#ifdef USE_MIDEA_PURIFIER
+  void set_purifier_switch(PurifierSwitch *purifier);
+  // True means queued, not confirmed. The library checks freshness and busy controls.
+  bool set_purifier(bool state, uint32_t status_max_age) { return this->base_.setPurifier(state, status_max_age); }
+#endif
 
   /* ############### */
   /* ### ACTIONS ### */
@@ -57,6 +63,9 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
+#ifdef USE_MIDEA_PURIFIER
+  PurifierSwitch *purifier_switch_{nullptr};
+#endif
 };
 
 }  // namespace esphome::midea::ac

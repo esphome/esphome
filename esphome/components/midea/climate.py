@@ -13,9 +13,11 @@ from esphome.const import (
     CONF_NUM_ATTEMPTS,
     CONF_OUTDOOR_TEMPERATURE,
     CONF_PERIOD,
+    CONF_PLATFORM,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
+    CONF_SWITCH,
     CONF_TEMPERATURE,
     CONF_TIMEOUT,
     CONF_USE_FAHRENHEIT,
@@ -33,6 +35,9 @@ from esphome.const import (
     UNIT_WATT,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
+
+from . import CONF_PURIFIER, DOMAIN
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
@@ -190,7 +195,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -218,14 +223,22 @@ async def to_code(config):
     await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
     await sensors(CONF_POWER_USAGE, var.set_power_sensor)
     await sensors(CONF_HUMIDITY_SETPOINT, var.set_humidity_setpoint_sensor)
+
     # MideaUART uses the Arduino WiFi API for the network-notify frame
     # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
     # library talks to esp_wifi directly, so no library entry is needed.
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
-    # Using the repository until a release containing ESP-IDF support is published
+    # Every owner must select the same library, regardless of codegen order.
+    repository = "https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815"
+    if any(
+        conf[CONF_PLATFORM] == DOMAIN and CONF_PURIFIER in conf
+        for conf in CORE.config.get(CONF_SWITCH, [])
+    ):
+        # Temporary fork until purifier support is accepted upstream.
+        repository = "https://github.com/m4rkireland/MideaUART.git#867f54a49918b4a97f24d8cf1541ef789b08071d"
     cg.add_library(
         name="MideaUART",
         version=None,
-        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+        repository=repository,
     )
