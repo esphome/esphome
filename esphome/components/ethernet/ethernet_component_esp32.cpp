@@ -244,6 +244,16 @@ void EthernetComponent::ethernet_lazy_init_() {
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
+#ifdef USE_NETWORK_IPV6_ONLY
+  // Stop DHCPv4 before the driver starts. The netif glue's link-up handler starts the client for an
+  // INIT client, and start_connect_() only runs later from loop(), so DHCPv4 would leak at boot.
+  if (this->eth_netif_ != nullptr) {
+    esp_err_t dhcp_err = esp_netif_dhcpc_stop(this->eth_netif_);
+    if (dhcp_err != ESP_OK && dhcp_err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+      ESP_LOGW(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(dhcp_err));
+    }
+  }
+#endif
 
   // Init MAC and PHY configs to default
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
