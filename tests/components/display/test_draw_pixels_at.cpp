@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <initializer_list>
 #include <tuple>
 #include <vector>
 
@@ -63,6 +64,32 @@ TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk565BigEndian) { expect_walks_match(CO
 TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk565LittleEndian) { expect_walks_match(COLOR_BITNESS_565, 2, false); }
 TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk888BigEndian) { expect_walks_match(COLOR_BITNESS_888, 3, true); }
 TEST(DrawPixelsAt, ColumnWalkMatchesRowWalk888LittleEndian) { expect_walks_match(COLOR_BITNESS_888, 3, false); }
+
+// One known pixel per bitness and byte order, so a decode that swapped bytes or channels
+// could not pass the walk comparison above by being wrong the same way twice.
+static void expect_golden(ColorBitness bitness, std::initializer_list<uint8_t> bytes, bool big_endian, Color expected) {
+  const std::vector<uint8_t> source(bytes);
+  RecordingDisplay display;
+  display.draw_pixels_at(3, 4, 1, 1, source.data(), COLOR_ORDER_RGB, bitness, big_endian, 0, 0, 0);
+  ASSERT_EQ(display.count(), 1u);
+  EXPECT_EQ(display.pixels()[0], std::make_tuple(3, 4, expected.raw_32));
+}
+
+TEST(DrawPixelsAt, Golden565BigEndian) {
+  expect_golden(COLOR_BITNESS_565, {0xE0, 0x07}, true, Color(230, 0, 57));  // 0xE007: r 28, g 0, b 7
+}
+TEST(DrawPixelsAt, Golden565LittleEndian) {
+  expect_golden(COLOR_BITNESS_565, {0xE0, 0x07}, false, Color(0, 255, 0));  // 0x07E0: pure green
+}
+TEST(DrawPixelsAt, Golden888BigEndian) {
+  expect_golden(COLOR_BITNESS_888, {0x10, 0x20, 0x30}, true, Color(0x10, 0x20, 0x30));
+}
+TEST(DrawPixelsAt, Golden888LittleEndian) {
+  expect_golden(COLOR_BITNESS_888, {0x10, 0x20, 0x30}, false, Color(0x30, 0x20, 0x10));
+}
+TEST(DrawPixelsAt, Golden332) {
+  expect_golden(COLOR_BITNESS_332, {0xE3}, true, Color(255, 0, 255));  // r 7 of 7, g 0, b 3 of 3
+}
 
 // The column walk really is a different order, otherwise the tests above prove nothing.
 TEST(DrawPixelsAt, ColumnWalkChangesOrder) {
