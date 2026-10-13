@@ -47,7 +47,9 @@ class FakeBus : public i2c::I2CBus {
       return this->output;
     if (reg < 0x18)
       return this->invert;
-    return this->config;
+    if (reg < 0x20)
+      return this->config;
+    return this->mask;
   }
 
   // Power-on reset defaults from the datasheet.
@@ -55,6 +57,7 @@ class FakeBus : public i2c::I2CBus {
   uint8_t output[BANK_COUNT]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
   uint8_t invert[BANK_COUNT]{0x00, 0x00, 0x00, 0x00, 0x00};
   uint8_t config[BANK_COUNT]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  uint8_t mask[BANK_COUNT]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
   unsigned reads{0};
   unsigned writes{0};
@@ -201,6 +204,40 @@ TEST_F(PCA9505Test, WritesAreSkippedOnceSetupHasFailed) {
   pin.setup();
   pin.digital_write(true);
   EXPECT_EQ(this->bus_.writes, before);
+}
+
+// The mask registers are why the interrupt never worked before: they reset to
+// 0xFF, where a 1 blocks the pin, and nothing wrote them.
+TEST_F(PCA9505Test, SetupMasksEveryInterrupt) {
+  // Pretend a previous run left port 2 unmasked. The chip keeps its registers
+  // through an MCU reboot, so setup must write them rather than assume the reset state.
+  this->bus_.mask[2] = 0x00;
+  this->component_.setup();
+
+  for (uint8_t bank = 0; bank < BANK_COUNT; bank++)
+    EXPECT_EQ(this->bus_.mask[bank], 0xFF) << "bank " << int(bank) << " should be masked";
+}
+
+TEST_F(PCA9505Test, ConfiguringAnInputUnmasksOnlyThatPin) {
+  this->component_.setup();
+
+  PCA9505GPIOPin pin = this->make_pin_(34, gpio::FLAG_INPUT);
+  pin.setup();
+
+  // Pin 34 is bit 2 of bank 4, and a 0 lets it through.
+  EXPECT_EQ(this->bus_.mask[4], 0xFF & ~(1 << 2));
+  for (uint8_t bank = 0; bank < 4; bank++)
+    EXPECT_EQ(this->bus_.mask[bank], 0xFF) << "bank " << int(bank) << " should be untouched";
+}
+
+TEST_F(PCA9505Test, ConfiguringAnOutputLeavesItMasked) {
+  this->component_.setup();
+
+  PCA9505GPIOPin pin = this->make_pin_(34, gpio::FLAG_OUTPUT);
+  pin.setup();
+
+  // An output must not be able to pull INT low.
+  EXPECT_EQ(this->bus_.mask[4], 0xFF);
 }
 
 }  // namespace esphome::pca9505::testing

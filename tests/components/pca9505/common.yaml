@@ -3,6 +3,7 @@ pca9505:
     i2c_id: i2c_bus
     address: 0x26
   - id: pca9505_hub_second
+    interrupt_pin: ${interrupt_pin}
     i2c_id: i2c_bus
     address: 0x27
 

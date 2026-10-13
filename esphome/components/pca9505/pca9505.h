@@ -17,6 +17,8 @@ class PCA9505Component final : public Component,
                                public i2c::I2CDevice,
                                public gpio_expander::CachedGpioExpander<uint8_t, PIN_COUNT> {
  public:
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+
   void setup() override;
   void loop() override;
   void pin_mode(uint8_t pin, gpio::Flags flags);
@@ -26,6 +28,8 @@ class PCA9505Component final : public Component,
   void dump_config() override;
 
  protected:
+  static void IRAM_ATTR gpio_intr(PCA9505Component *arg);
+
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
@@ -40,6 +44,9 @@ class PCA9505Component final : public Component,
   uint8_t output_[BANK_COUNT]{};
   /// The input pin states per bank - 1 means HIGH, 0 means LOW
   uint8_t input_[BANK_COUNT]{};
+  /// Which pins may pull INT low - 1 means masked, matching the chip
+  uint8_t mask_[BANK_COUNT]{};
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 class PCA9505GPIOPin final : public GPIOPin, public Parented<PCA9505Component> {
