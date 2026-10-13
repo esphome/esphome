@@ -8,7 +8,10 @@ from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 
 
-@pytest.mark.parametrize("value", ["0s", "0ms", {"seconds": 0}, "-1s", "500us"])
+@pytest.mark.parametrize(
+    "value",
+    ["0s", "0ms", {"seconds": 0}, "-1s", "500us", "1ns", "500ns", {"nanoseconds": 1}],
+)
 def test_playback_timeout_rejects_invalid_duration(value: str | dict[str, int]) -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
     with pytest.raises(cv.Invalid):

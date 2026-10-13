@@ -1,4 +1,4 @@
-from esphome import automation
+from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import media_player, micro_wake_word, microphone, speaker
 import esphome.config_validation as cv
@@ -112,7 +112,8 @@ CONFIG_SCHEMA = cv.All(
                 CONF_CONVERSATION_TIMEOUT, default="300s"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TTS_PLAYBACK_START_TIMEOUT, default="2s"): cv.All(
-                cv.positive_not_null_time_period, cv.positive_time_period_milliseconds
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=core.TimePeriod(milliseconds=1)),
             ),
             cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
                 min=0.0, min_included=False
