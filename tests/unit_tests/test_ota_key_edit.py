@@ -1074,8 +1074,25 @@ def test_a_key_merged_from_an_anchor_is_refused(tmp_path: Path) -> None:
         f'named: &named\n  key: "{OLD_KEY}"\n\napi:\n  encryption:\n    <<: *named\n\n'
         "ota:\n  - platform: esphome\n    encryption:\n",
     )
-    with pytest.raises(EsphomeError, match="was not found on a line of the yaml"):
+    with pytest.raises(EsphomeError, match="not on a line of its own"):
         locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_old_key_inserted_into_a_shared_include_names_the_sharers(
+    tmp_path: Path,
+) -> None:
+    """The ota block lives in an include another device loads too, so the
+    inserted old_key reaches that device at its next install."""
+    (tmp_path / "ota.yaml").write_bytes(
+        f'platform: esphome\nencryption:\n  key: "{OLD_KEY}"\n'.encode()
+    )
+    (tmp_path / "other.yaml").write_bytes(b"ota:\n  - !include ota.yaml\n")
+    _setup(tmp_path, "esphome:\n  name: test\n\nota:\n  - !include ota.yaml\n")
+    edits = _edits()
+    assert [(e.insert_after, [p.name for p in e.shared_with]) for e in edits] == [
+        (False, ["other.yaml"]),
+        (True, ["other.yaml"]),
+    ]
 
 
 def test_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:
