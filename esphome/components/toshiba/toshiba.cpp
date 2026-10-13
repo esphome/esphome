@@ -67,8 +67,8 @@ const uint8_t RAC_PT1411HWRU_CS_FOOTER_COOL = 0x72;
 const uint8_t RAC_PT1411HWRU_CS_FOOTER_HEAT = 0x7E;
 // RAC-PT1411HWRU Swing
 const uint8_t RAC_PT1411HWRU_SWING_HEADER = 0xB9;
-static const uint8_t RAC_PT1411HWRU_SWING_VERTICAL[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB};
-static const uint8_t RAC_PT1411HWRU_SWING_OFF[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA};
+static constexpr uint8_t RAC_PT1411HWRU_SWING_VERTICAL[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB};
+static constexpr uint8_t RAC_PT1411HWRU_SWING_OFF[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA};
 // RAC-PT1411HWRU Fan speeds
 const uint8_t RAC_PT1411HWRU_FAN_OFF = 0x7B;
 constexpr RacPt1411hwruFanSpeed RAC_PT1411HWRU_FAN_AUTO{0xBF, 0x66};
@@ -90,12 +90,12 @@ const uint8_t RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY = 0x0E;
 //  Hence these look-up tables. In addition, the upper nibble is used here for additional
 //  "negative" and "fractional value" flags as required for some temperatures.
 // RAC-PT1411HWRU °C Temperatures (short codes)
-static const uint8_t RAC_PT1411HWRU_TEMPERATURE_C[] PROGMEM = {0x10, 0x00, 0x01, 0x03, 0x02, 0x06, 0x07, 0x05,
-                                                               0x04, 0x0C, 0x0D, 0x09, 0x08, 0x0A, 0x0B};
+static constexpr uint8_t RAC_PT1411HWRU_TEMPERATURE_C[] PROGMEM = {0x10, 0x00, 0x01, 0x03, 0x02, 0x06, 0x07, 0x05,
+                                                                   0x04, 0x0C, 0x0D, 0x09, 0x08, 0x0A, 0x0B};
 // RAC-PT1411HWRU °F Temperatures (short codes)
-static const uint8_t RAC_PT1411HWRU_TEMPERATURE_F[] PROGMEM = {0x10, 0x30, 0x00, 0x20, 0x01, 0x21, 0x03, 0x23, 0x02,
-                                                               0x22, 0x06, 0x26, 0x07, 0x05, 0x25, 0x04, 0x24, 0x0C,
-                                                               0x2C, 0x0D, 0x2D, 0x09, 0x08, 0x28, 0x0A, 0x2A, 0x0B};
+static constexpr uint8_t RAC_PT1411HWRU_TEMPERATURE_F[] PROGMEM = {
+    0x10, 0x30, 0x00, 0x20, 0x01, 0x21, 0x03, 0x23, 0x02, 0x22, 0x06, 0x26, 0x07, 0x05,
+    0x25, 0x04, 0x24, 0x0C, 0x2C, 0x0D, 0x2D, 0x09, 0x08, 0x28, 0x0A, 0x2A, 0x0B};
 
 // RAS-2819T protocol constants
 const uint16_t RAS_2819T_HEADER1 = 0xC23D;
@@ -211,7 +211,7 @@ static constexpr uint8_t SEIYA_SWING_HORIZONTAL = 0x09;
 static constexpr uint8_t SEIYA_SWING_NEUTRAL = 0x17;  // no swing change in this frame
 
 // RAS-2819T temperature codes for 18-30°C
-static const uint8_t RAS_2819T_TEMP_CODES[] PROGMEM = {
+static constexpr uint8_t RAS_2819T_TEMP_CODES[] PROGMEM = {
     0x10,  // 18°C
     0x30,  // 19°C
     0x20,  // 20°C

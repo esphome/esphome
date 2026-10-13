@@ -130,6 +130,46 @@ TEST(ToshibaGeneric, WaveformIsUnchangedByTheSharedPath) {
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x30, 0xC3, 0x00, 0xF2}, GENERIC), 9);
 }
 
+// The RAC-PT1411HWRU sends its main message, then a separate swing packet
+// wrapped in packet spaces; both use the generic timings.
+static remote_base::RawTimings swing_packet(const std::vector<uint8_t> &bytes) {
+  remote_base::RawTimings raw{-10500};
+  const remote_base::RawTimings frame = waveform(bytes, GENERIC);
+  raw.insert(raw.end(), frame.begin(), frame.end());
+  raw.push_back(-10500);
+  return raw;
+}
+
+TEST(ToshibaRacPt1411hwru, SendsTheSwingFrameFromFlash) {
+  Fixture f(MODEL_RAC_PT1411HWRU_C);
+
+  f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_VERTICAL);
+  expect_frame(f.last_frame(), swing_packet({0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB}), 6);
+
+  f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF);
+  expect_frame(f.last_frame(), swing_packet({0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA}), 6);
+}
+
+// The temperature tables are read on the way out and searched on the way back
+// in, so what one fixture sends must decode to the same state in another.
+TEST(ToshibaRacPt1411hwru, TemperatureCodesRoundTrip) {
+  for (const Model model : {MODEL_RAC_PT1411HWRU_C, MODEL_RAC_PT1411HWRU_F}) {
+    for (const float temperature : {16.0f, 20.0f, 24.0f, 30.0f}) {
+      SCOPED_TRACE(::testing::Message() << "model " << model << " temperature " << temperature);
+      Fixture tx(model);
+      tx.command(climate::CLIMATE_MODE_COOL, temperature, climate::CLIMATE_FAN_AUTO);
+      // The main message is sent before the swing packet
+      const auto &main_frame = tx.transmitter.frames[tx.transmitter.frames.size() - 2];
+
+      Fixture rx(model);
+      remote_base::RemoteReceiveData data(main_frame, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+      ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(rx.climate).on_receive(data));
+      EXPECT_EQ(rx.climate.mode, climate::CLIMATE_MODE_COOL);
+      EXPECT_NEAR(rx.climate.target_temperature, temperature, 0.3f);
+    }
+  }
+}
+
 static bool receive(ToshibaClimate &climate, const std::vector<uint8_t> &bytes, const Timings &t) {
   const remote_base::RawTimings raw = waveform(bytes, t);
   remote_base::RemoteReceiveData data(raw, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
