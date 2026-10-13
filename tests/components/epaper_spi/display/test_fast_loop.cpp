@@ -2,6 +2,7 @@
 
 #include "../common.h"
 #include "esphome/components/epaper_spi/epaper_spi_ssd1683.h"
+#include "esphome/components/epaper_spi/epaper_spi_t133a01.h"
 
 namespace esphome::epaper_spi::testing {
 
@@ -150,6 +151,67 @@ TEST(EPaperFastLoop, LongDelayUsesTheNormalPace) {
   display.loop_for(1000);
   EXPECT_EQ(display.state(), EPaperState::IDLE);
   EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+}
+
+/// A step that takes several loop passes gets the fast loop back once a long busy wait before it has ended.
+TEST(EPaperFastLoop, FastLoopResumesWhenALongBusyWaitEnds) {
+  TestableSSD1683 display;
+  // every row of data overruns a transfer slice, so the transfer takes a loop pass per row
+  RecordingDelegate bus(&display.dc, MAX_TRANSFER_TIME + 1);
+  display.install(&bus);
+
+  display.draw_whole_panel();
+  display.update();
+  const uint32_t deadline = millis() + 1000;
+  while (display.state() != EPaperState::TRANSFER_DATA && millis() < deadline)
+    display.loop();
+  ASSERT_EQ(display.state(), EPaperState::TRANSFER_DATA);
+  display.busy.busy = true;
+  display.loop_for(FAST_BUSY_POLL_MS + 20);
+  ASSERT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+
+  display.busy.busy = false;
+  display.loop();
+  ASSERT_EQ(display.state(), EPaperState::TRANSFER_DATA) << "the transfer should take more than one pass";
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
+}
+
+class TestableT133A01 : public EPaperT133A01 {
+ public:
+  TestableT133A01() : EPaperT133A01("test", 8, 2, nullptr, 0) {}
+  ~TestableT133A01() { this->high_frequency_loop_.stop(); }
+
+  void install(spi::SPIDelegate *delegate) {
+    this->delegate_ = delegate;
+    this->set_dc_pin(&this->dc);
+    this->set_cs_pins(&this->cs, &this->cs1);
+    this->set_busy_pin(&this->busy);
+    ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
+  }
+
+  void start_transfer() { this->set_state_(EPaperState::TRANSFER_DATA); }
+
+  RecordingPin dc, cs, cs1;
+  SwitchableBusyPin busy;
+};
+
+/// A busy wait that starts in the middle of a step is polled continuously for its first moments, however long
+/// the step has already run.
+TEST(EPaperFastLoop, WaitInTheMiddleOfAStepIsPolledFast) {
+  TestableT133A01 display;
+  TimedSPIDelegate delegate(MAX_TRANSFER_TIME + 5);
+  display.install(&delegate);
+
+  display.start_transfer();
+  const uint32_t until = millis() + FAST_BUSY_POLL_MS + 20;
+  while (millis() < until) {
+  }
+  // the transfer waits for the busy pin after its first command, then sends a row and yields
+  display.loop();
+  display.busy.busy = true;
+  display.loop();
+
+  EXPECT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
 }
 
 }  // namespace esphome::epaper_spi::testing

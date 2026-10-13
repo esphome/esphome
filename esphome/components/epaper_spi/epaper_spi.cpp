@@ -131,10 +131,14 @@ void EPaperBase::update() {
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
+  const uint32_t now = millis();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  this->waiting_for_idle_start_ = millis();
+  this->waiting_for_idle_start_ = now;
 #endif
   this->waiting_for_idle_ = should_wait;
+  // loop() times the fast busy poll from delay_until_, so a wait in the middle of a step restarts it
+  if (should_wait && static_cast<int>(now - this->delay_until_) > 0)
+    this->delay_until_ = now;
 }
 
 /**
@@ -159,6 +163,7 @@ void EPaperBase::loop() {
   if (this->waiting_for_idle_) {
     if (this->is_idle_()) {
       this->waiting_for_idle_ = false;
+      this->high_frequency_loop_.start();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));
 #endif
@@ -273,11 +278,9 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   // Each step of an update otherwise waits for the next loop iteration; loop() slows down again for long waits
   if (state == EPaperState::IDLE) {
     this->high_frequency_loop_.stop();
+    this->disable_loop();
   } else {
     this->high_frequency_loop_.start();
-  }
-  if (state == EPaperState::IDLE) {
-    this->disable_loop();
   }
 }
 
