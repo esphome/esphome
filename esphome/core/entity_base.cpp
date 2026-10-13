@@ -1,5 +1,6 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -13,6 +14,17 @@ ESPHOME_LOG_TAG(TAG, "entity_base");
 
 #ifdef USE_ESP8266
 namespace {
+// fnv1_hash_object_id() for a name in flash
+uint32_t fnv1_hash_object_id_progmem(const char *str, size_t len) {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i < len; i++) {
+    hash *= FNV1_PRIME;
+    char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(str + i)));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(c)));
+  }
+  return hash;
+}
+
 // RAM copies made by the deprecated get_name(), only for entities whose name is asked for. Remove before 2027.5.0
 struct NameCopy {
   NameCopy *next;
@@ -71,7 +83,7 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
     // Static name - codegen precomputes the hash; external register_* callers may pass 0
     if (object_id_hash == 0) {
 #ifdef USE_ESP8266
-      object_id_hash = fnv1_hash_object_id_P(this->name_.progmem_ptr(), this->name_.size());
+      object_id_hash = fnv1_hash_object_id_progmem(this->name_.progmem_ptr(), this->name_.size());
 #else
       object_id_hash = fnv1_hash_object_id(this->name_.progmem_ptr(), this->name_.size());
 #endif

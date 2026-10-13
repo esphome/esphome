@@ -1146,18 +1146,6 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
 }
 
 #ifdef USE_ESP8266
-/// fnv1_hash_object_id() for a string in flash (PROGMEM).
-inline uint32_t fnv1_hash_object_id_P(PGM_P str, size_t len) {
-  uint32_t hash = FNV1_OFFSET_BASIS;
-  for (size_t i = 0; i < len; i++) {
-    hash *= FNV1_PRIME;
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(static_cast<char>(pgm_read_byte(str + i)))));
-  }
-  return hash;
-}
-#endif
-
-#ifdef USE_ESP8266
 // ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
 // Format strings must be wrapped with PSTR() macro
 /// Safely append formatted string to buffer, returning new position (capped at size).
