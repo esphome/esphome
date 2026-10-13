@@ -11,9 +11,10 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
-DEPENDENCIES = ["i2c"]
-CODEOWNERS = ["@limpkin"]
 AUTO_LOAD = ["number", "sensor"]
+CODEOWNERS = ["@limpkin"]
+DEPENDENCIES = ["i2c"]
+DOMAIN = "bq76972"
 
 bq76972_ns = cg.esphome_ns.namespace("bq76972")
 BQ76972Component = bq76972_ns.class_(

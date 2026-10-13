@@ -4,7 +4,7 @@
 
 namespace esphome::bq76972 {
 
-static const char *const TAG = "bq76972";
+ESPHOME_LOG_TAG(TAG, "bq76972");
 static const uint8_t BQ76972_SUBCOMMAND_LSB_REG = 0x3E;
 static const uint8_t BQ76972_SUBCOMMAND_MSB_REG = 0x3F;
 static const uint8_t BQ76972_CMD_BAT_STATUS = 0x12;
@@ -425,7 +425,7 @@ void BQ76972Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BQ76972 (ID: %s):", this->component_id_.c_str());
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  CRC Mode: %s", this->crc_mode_ ? "Enabled" : "Disabled");
+  ESP_LOGCONFIG(TAG, "  CRC Mode: %s", this->crc_mode_ ? LOG_STR_LITERAL("Enabled") : LOG_STR_LITERAL("Disabled"));
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
