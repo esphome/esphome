@@ -81,6 +81,15 @@ TEST_F(EmonTxVersionTest, MsgCounterResetRequestsVersion) {
 }
 
 // The emonTx may have been flashed during the pause, with MSG already past its old value
+TEST_F(EmonTxVersionTest, TextMsgCounterResetRequestsVersion) {
+  this->uart_.push_rx("MSG:41,V1:230.1\r\nMSG:1,V1:230.4\r\n");
+  this->sut_.loop();
+  EXPECT_EQ(this->tx_(), "\n");
+
+  run_timers();
+  EXPECT_EQ(this->tx_(), "\nv\n");
+}
+
 TEST_F(EmonTxVersionTest, ResumeRequestsVersion) {
   this->sut_.set_paused(true);
   this->sut_.loop();

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -276,14 +277,47 @@ TEST_F(EmonTxLockAutoTest, UnlockedOnlyOnce) {
   EXPECT_EQ(this->tx_(), "emonunlock\n");
 }
 
-TEST_F(EmonTxLockAutoTest, RequestRetriedWithoutReply) {
+TEST_F(EmonTxLockAutoTest, RequestRetriedEverySecondDataLine) {
   this->sut_.setup();
-  run_timers(2100);
-  EXPECT_EQ(this->tx_(), "\nv\n\n");
+  run_timers(300);
+  this->uart_.push_rx("{\"MSG\":10}\n");
+  this->sut_.loop();
+  EXPECT_EQ(this->tx_(), "\nv\n");
+
+  // Text format counts too
+  this->uart_.push_rx("MSG:11,V1:230.1\n");
+  this->sut_.loop();
+  run_timers(300);
+  EXPECT_EQ(this->tx_(), "\nv\n\nv\n");
 
   this->report_version_("v1.1.1");
-  run_timers(2100);
+  this->uart_.push_rx("{\"MSG\":12}\n{\"MSG\":13}\n{\"MSG\":14}\n");
+  this->sut_.loop();
+  run_timers(300);
   EXPECT_EQ(this->tx_(), "\nv\n\nv\n");
+}
+
+TEST_F(EmonTxLockAutoTest, RetriesStopAfterThreeAttempts) {
+  this->sut_.setup();
+  for (int msg = 10; msg < 20; msg++) {
+    char line[24];
+    snprintf(line, sizeof(line), "{\"MSG\":%d}\n", msg);
+    this->uart_.push_rx(line);
+    this->sut_.loop();
+    run_timers(300);
+  }
+  EXPECT_EQ(this->tx_(), "\nv\n\nv\n\nv\n");
+}
+
+// The lines of a 'v' reply before the version line are not data lines
+TEST_F(EmonTxLockAutoTest, ReplyBannerNotCountedAsDataLines) {
+  this->sut_.setup();
+  run_timers(300);
+  this->uart_.push_rx(
+      "> Board:\r\n  - emonPi3/emonTx6 (arch. rev. 1)\r\n> Firmware:\r\n  - Bootloader: UART (.bin)\r\n");
+  this->sut_.loop();
+  run_timers(300);
+  EXPECT_EQ(this->tx_(), "\nv\n");
 }
 
 }  // namespace esphome::emontx::testing

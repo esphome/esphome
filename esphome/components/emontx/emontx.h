@@ -77,7 +77,9 @@ class EmonTx final : public Component, public uart::UARTDevice {
   bool wants_version_() const {
     return this->version_text_sensor_ != nullptr || this->lock_on_reboot_ == LockOnReboot::LOCK_ON_REBOOT_AUTO;
   }
-  void request_version_(uint8_t attempt = 0);
+  void request_version_();
+  void send_version_request_();
+  void parse_msg_number_(const char *line, size_t len);
   void parse_version_line_(const char *line, size_t len);
 #endif
 
@@ -92,7 +94,8 @@ class EmonTx final : public Component, public uart::UARTDevice {
   LockOnReboot lock_on_reboot_{LockOnReboot::LOCK_ON_REBOOT_NEVER};
   bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
 #ifdef USE_EMONTX_VERSION
-  bool lock_supported_{false};  // The last version reported is v1.2.0 or later
+  bool lock_supported_{false};      // The last version reported is v1.2.0 or later
+  uint8_t version_frames_left_{0};  // Data lines still to wait for a version reply; 0 when none is owed
   uint32_t last_msg_number_{0};
 #endif
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};

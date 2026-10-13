@@ -13,20 +13,28 @@ static constexpr uint32_t COMMAND_GAP_MS = 250;
 
 #ifdef USE_EMONTX_VERSION
 static constexpr uint32_t VERSION_REQUEST_ID = 1;
-static constexpr uint32_t VERSION_RETRY_ID = 2;
-static constexpr uint32_t VERSION_RETRY_MS = 2000;
+// Without a reply, 'v' is sent again every VERSION_RETRY_FRAMES data lines, VERSION_MAX_ATTEMPTS times in all
+static constexpr uint8_t VERSION_RETRY_FRAMES = 2;
 static constexpr uint8_t VERSION_MAX_ATTEMPTS = 3;
 // Line of the 'v' reply (and of the boot banner) carrying the release, e.g. "  - Version:    v1.1.1"
 static const char VERSION_PREFIX[] PROGMEM = "  - Version:";
+// Every data line starts with the message counter, in JSON or text format
+static const char MSG_JSON_PREFIX[] PROGMEM = "{\"MSG\":";
+static const char MSG_TEXT_PREFIX[] PROGMEM = "MSG:";
 // First firmware with 'emonlock' and 'emonunlock'; older firmware takes them for the bootloader command
 static constexpr uint32_t LOCK_MIN_MAJOR = 1;
 static constexpr uint32_t LOCK_MIN_MINOR = 2;
 
-// Reads the decimal number at pos and moves pos past it; false if there is none
+// True if line starts with the PROGMEM prefix and has more after it
+static bool starts_with(const char *line, size_t len, const char *prefix, size_t prefix_len) {
+  return len > prefix_len && ESPHOME_strncmp_P(line, prefix, prefix_len) == 0;
+}
+
+// Reads the decimal number (up to 9 digits) at pos and moves pos past it; false if there is none
 static bool read_number(const char *&pos, const char *end, uint32_t &value) {
   const char *start = pos;
   value = 0;
-  while (pos < end && pos - start < 6 && *pos >= '0' && *pos <= '9')
+  while (pos < end && pos - start < 9 && *pos >= '0' && *pos <= '9')
     value = value * 10 + (*pos++ - '0');
   return pos != start;
 }
@@ -143,8 +151,10 @@ void EmonTx::loop() {
           this->parse_json_(this->buffer_.data(), len);
         }
 #ifdef USE_EMONTX_VERSION
-        if (this->wants_version_())
+        if (this->wants_version_()) {
+          this->parse_msg_number_(this->buffer_.data(), len);
           this->parse_version_line_(this->buffer_.data(), len);
+        }
 #endif
       }
     } else if (received == '\r' || this->discarding_line_) {
@@ -171,16 +181,6 @@ void EmonTx::parse_json_(const char *data, size_t len) {
       }
     }
 #endif
-#ifdef USE_EMONTX_VERSION
-    auto msg = root["MSG"];
-    if (this->wants_version_() && msg.is<uint32_t>()) {
-      // MSG restarts at 1 when the emonTx reboots, as it does after a firmware update
-      uint32_t msg_number = msg;
-      if (msg_number <= this->last_msg_number_)
-        this->request_version_();
-      this->last_msg_number_ = msg_number;
-    }
-#endif
 
     this->json_callbacks_.call(root, StringRef(data, len));
     return true;
@@ -192,24 +192,48 @@ void EmonTx::parse_json_(const char *data, size_t len) {
 }
 
 #ifdef USE_EMONTX_VERSION
+void EmonTx::request_version_() {
+  this->version_frames_left_ = VERSION_RETRY_FRAMES * VERSION_MAX_ATTEMPTS;
+  this->send_version_request_();
+}
+
 // The line feed ends any pending input; the reply is picked up in loop() by parse_version_line_()
-void EmonTx::request_version_(uint8_t attempt) {
+void EmonTx::send_version_request_() {
   if (this->is_paused())
     return;
   this->write_byte('\n');
   this->set_timeout(VERSION_REQUEST_ID, COMMAND_GAP_MS, [this]() { this->send_command("v"); });
-  this->set_timeout(VERSION_RETRY_ID, VERSION_RETRY_MS, [this, attempt]() {
-    if (attempt + 1 < VERSION_MAX_ATTEMPTS) {
-      this->request_version_(attempt + 1);
-    } else {
+}
+
+void EmonTx::parse_msg_number_(const char *line, size_t len) {
+  const char *pos;
+  if (starts_with(line, len, MSG_JSON_PREFIX, sizeof(MSG_JSON_PREFIX) - 1)) {
+    pos = line + sizeof(MSG_JSON_PREFIX) - 1;
+  } else if (starts_with(line, len, MSG_TEXT_PREFIX, sizeof(MSG_TEXT_PREFIX) - 1)) {
+    pos = line + sizeof(MSG_TEXT_PREFIX) - 1;
+  } else {
+    return;
+  }
+  uint32_t msg_number;
+  if (!read_number(pos, line + len, msg_number))
+    return;
+
+  // MSG restarts at 1 when the emonTx reboots, as it does after a firmware update
+  if (msg_number <= this->last_msg_number_) {
+    this->request_version_();
+  } else if (this->version_frames_left_ > 0) {
+    if (--this->version_frames_left_ == 0) {
       ESP_LOGW(TAG, "No firmware version from the emonTx");
+    } else if (this->version_frames_left_ % VERSION_RETRY_FRAMES == 0) {
+      this->send_version_request_();
     }
-  });
+  }
+  this->last_msg_number_ = msg_number;
 }
 
 void EmonTx::parse_version_line_(const char *line, size_t len) {
   constexpr size_t prefix_len = sizeof(VERSION_PREFIX) - 1;
-  if (len <= prefix_len || ESPHOME_strncmp_P(line, VERSION_PREFIX, prefix_len) != 0)
+  if (!starts_with(line, len, VERSION_PREFIX, prefix_len))
     return;
   const char *version = line + prefix_len;
   const char *end = line + len;
@@ -218,7 +242,7 @@ void EmonTx::parse_version_line_(const char *line, size_t len) {
   if (version == end)
     return;
   ESP_LOGI(TAG, "emonTx firmware version: %.*s", static_cast<int>(end - version), version);
-  this->cancel_timeout(VERSION_RETRY_ID);
+  this->version_frames_left_ = 0;
   if (this->version_text_sensor_ != nullptr)
     this->version_text_sensor_->publish_state(version, end - version);
 
