@@ -10,14 +10,17 @@ namespace esphome::weikai {
 
 ESPHOME_LOG_TAG(TAG, "weikai");
 
+#ifdef TEST_COMPONENT
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
 /// @return the elapsed time in milliseconds
-uint32_t elapsed_ms(uint32_t &last_time) {
-  uint32_t e = millis() - last_time;
-  last_time = millis();
+static uint32_t elapsed_ms(uint32_t &last_time) {
+  uint32_t const now = millis();
+  uint32_t const e = now - last_time;
+  last_time = now;
   return e;
-};
+}
+#endif
 
 /// @brief Converts the parity enum value to a C string
 /// @param parity enum
@@ -68,8 +71,6 @@ const char *reg_to_str(int reg, bool page1) {
     return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
   }
 }
-
-enum RegType { REG = 0, FIFO = 1 };  ///< Register or FIFO
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiRegister methods
@@ -307,13 +308,16 @@ void WeikaiChannel::set_baudrate_() {
     ESP_LOGE(TAG, " Requested baudrate too high for crystal=%" PRIu32 " Hz. Has been reduced to %" PRIu32 " Bd",
              this->parent_->crystal_, this->baud_rate_);
   };
-  uint16_t const val_int = this->parent_->crystal_ / (this->baud_rate_ * 16) - 1;
-  uint16_t val_dec = (this->parent_->crystal_ % (this->baud_rate_ * 16)) / (this->baud_rate_ * 16);
+  // baudrate = crystal / (16 * (BRH:BRL + 1 + BRD / 10)): compute the divisor in tenths, rounded to nearest
+  uint64_t const div10 = (10ULL * this->parent_->crystal_ + 8ULL * this->baud_rate_) / (16ULL * this->baud_rate_);
+  uint32_t val_int = static_cast<uint32_t>(div10 / 10) - 1;
+  uint8_t baud_dec = static_cast<uint8_t>(div10 % 10);
+  if (val_int > 0xFFFF) {  // requested baudrate too low for this crystal: use the slowest possible one
+    val_int = 0xFFFF;
+    baud_dec = 0;
+  }
   uint8_t const baud_high = (uint8_t) (val_int >> 8);
   uint8_t const baud_low = (uint8_t) (val_int & 0xFF);
-  while (val_dec > 0x0A)
-    val_dec /= 0x0A;
-  uint8_t const baud_dec = (uint8_t) (val_dec);
 
   this->parent_->page1_ = true;  // switch to page 1
   this->reg(WKREG_SPAGE) = 1;
@@ -327,12 +331,19 @@ void WeikaiChannel::set_baudrate_() {
            this->baud_rate_, baud_high, baud_low, baud_dec);
 }
 
-inline bool WeikaiChannel::tx_fifo_is_not_empty_() { return this->reg(WKREG_FSR) & FSR_TFDAT; }
+uint8_t WeikaiChannel::read_fsr_() {
+  uint8_t const fsr = this->reg(WKREG_FSR);
+  if (fsr & FSR_RFOE)
+    this->rfoe_latched_ = true;  // the chip has just cleared the flag: remember it until it is reported
+  return fsr;
+}
+
+inline bool WeikaiChannel::tx_fifo_is_not_empty_() { return this->read_fsr_() & FSR_TFDAT; }
 
 size_t WeikaiChannel::tx_in_fifo_() {
   size_t tfcnt = this->reg(WKREG_TFCNT);
   if (tfcnt == 0) {
-    uint8_t const fsr = this->reg(WKREG_FSR);
+    uint8_t const fsr = this->read_fsr_();
     if (fsr & FSR_TFFULL) {
       char bin_buf[9];
       ESP_LOGVV(TAG, "tx FIFO full FSR=%s", format_bin_to(bin_buf, fsr));
@@ -344,8 +355,13 @@ size_t WeikaiChannel::tx_in_fifo_() {
 }
 
 size_t WeikaiChannel::rx_in_fifo_() {
-  size_t available = this->reg(WKREG_RFCNT);
-  uint8_t const fsr = this->reg(WKREG_FSR);
+  // Read FSR first: an empty FIFO then costs a single bus access. If RFDAT is set, RFCNT cannot be lower than what
+  // FSR reported (only we remove bytes), so RFCNT == 0 really means 256 bytes and no second read is needed.
+  uint8_t fsr = this->read_fsr_();
+  if (this->rfoe_latched_) {  // overflow flag possibly consumed by an earlier FSR read (flush(), tx_in_fifo_())
+    fsr |= FSR_RFOE;
+    this->rfoe_latched_ = false;
+  }
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
     char bin_buf[9];
     if (fsr & FSR_RFOE) {
@@ -361,20 +377,15 @@ size_t WeikaiChannel::rx_in_fifo_() {
       ESP_LOGE(TAG, "Receive parity error FSR=%s", format_bin_to(bin_buf, fsr));
     }
   }
-  if ((available == 0) && (fsr & FSR_RFDAT)) {
-    // here we should be very careful because we can have something like this:
-    // -  at time t0 we read RFCNT=0 because nothing yet received
-    // -  at time t0+delta we might read FIFO not empty because one byte has just been received
-    // -  so to be sure we need to do another read of RFCNT and if it is still zero -> buffer full
+  size_t available = 0;
+  if (fsr & FSR_RFDAT) {
     available = this->reg(WKREG_RFCNT);
-    if (available == 0) {  // still zero ?
-      char bin_buf[9];
-      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", format_bin_to(bin_buf, fsr));
+    if (available == 0) {
+      ESP_LOGV(TAG, "rx FIFO is full");
       available = FIFO_SIZE;
     }
   }
-  char bin_buf2[9];
-  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, format_bin_to(bin_buf2, fsr));
+  ESP_LOGVV(TAG, "rx FIFO contain %d bytes", available);
   return available;
 }
 
@@ -420,20 +431,33 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
     status = false;
   }
   // retrieve the bytes from ring buffer
-  for (size_t i = 0; i < length; i++) {
-    this->receive_buffer_.pop(buffer[i]);
-  }
-  ESP_LOGVV(TAG, "read_array(ch=%d buffer[0]=%02X, length=%d): status %s", this->channel_, *buffer, length,
+  this->receive_buffer_.pop_bulk(buffer, length);
+  ESP_LOGVV(TAG, "read_array(ch=%d length=%d): status %s", this->channel_, length,
             status ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("ERROR"));
   return status;
 }
 
 void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
-  if (length > XFER_MAX_SIZE) {
-    ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes but max size %d", length, XFER_MAX_SIZE);
-    length = XFER_MAX_SIZE;
+  // Split large writes in chunks of at most XFER_MAX_SIZE bytes
+  bool first = true;
+  while (length > 0) {
+    size_t const chunk = std::min(length, XFER_MAX_SIZE);
+    if (!first) {
+      // wait for room in the transmit FIFO before the next chunk
+      uint32_t const start_time = millis();
+      while (FIFO_SIZE - this->tx_in_fifo_() < chunk) {
+        if (millis() - start_time > 200) {
+          ESP_LOGE(TAG, "write_array: timeout waiting for room in the transmit FIFO - %d bytes dropped", (int) length);
+          return;
+        }
+        yield();
+      }
+    }
+    this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), chunk);
+    buffer += chunk;
+    length -= chunk;
+    first = false;
   }
-  this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
 uart::UARTFlushResult WeikaiChannel::flush() {
@@ -450,22 +474,21 @@ uart::UARTFlushResult WeikaiChannel::flush() {
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t total = 0;
-  size_t to_transfer;
-  size_t free;
-  while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
-    // while bytes in fifo and some room in the buffer we transfer
-    if (to_transfer > XFER_MAX_SIZE)
-      to_transfer = XFER_MAX_SIZE;  // we can only do so much
-    if (to_transfer > free)
-      to_transfer = free;  // we'll do the rest next time
-    if (to_transfer) {
-      uint8_t data[to_transfer];
-      this->reg(0).read_fifo(data, to_transfer);
-      for (size_t i = 0; i < to_transfer; i++)
-        this->receive_buffer_.push(data[i]);
-      total += to_transfer;
-    }
-  }  // while work to do
+  if (this->receive_buffer_.is_full())
+    return 0;  // no bus access when there is no room
+  // The FIFO is polled once: its content can only grow while we read, bytes arriving meanwhile wait for the next call
+  size_t in_fifo = this->rx_in_fifo_();
+  while (in_fifo > 0) {
+    // read directly into the ring buffer, up to its wrap around point
+    size_t to_transfer = std::min(in_fifo, this->receive_buffer_.contiguous_free());
+    if (to_transfer == 0)
+      break;  // ring buffer is full: we'll do the rest next time
+    to_transfer = std::min(to_transfer, XFER_MAX_SIZE);
+    this->reg(0).read_fifo(this->receive_buffer_.write_ptr(), to_transfer);
+    this->receive_buffer_.commit(to_transfer);
+    in_fifo -= to_transfer;
+    total += to_transfer;
+  }
   return total;
 }
 
