@@ -79,7 +79,7 @@ def _clear_toolchain() -> None:
 def write_yaml(tmp_path: Path) -> Callable[..., Path]:
     def writer(*parts: str) -> Path:
         path = tmp_path / "vnc.yaml"
-        path.write_text(BASE + "".join(parts))
+        path.write_text(BASE + "".join(parts), encoding="utf-8")
         return path
 
     return writer

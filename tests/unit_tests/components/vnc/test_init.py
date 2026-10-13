@@ -64,7 +64,7 @@ def test_auth_key_long_password_is_truncated(password: str, used: str) -> None:
 
 
 def test_auth_key_truncates_utf8_bytes_not_characters() -> None:
-    """TightVNC cuts the password at 8 bytes, even inside a character."""
+    """The password is cut at 8 bytes like TightVNC does, even inside a character."""
     password = "aéééé"
     assert vnc.vnc_auth_key(password) == [
         _reverse_bits(byte) for byte in password.encode("utf-8")[:8]
