@@ -350,7 +350,7 @@ async def write_image(
         )
 
     # Parse dither configuration
-    dither_config = config[CONF_DITHER]
+    dither_config = normalize_dither(config.get(CONF_DITHER, "NONE"))
     dither_type = dither_config[CONF_TYPE]
     dither = Image.Dither.NONE if dither_type == "NONE" else Image.Dither.FLOYDSTEINBERG
     palette = dither_config.get(CONF_PALETTE, None)

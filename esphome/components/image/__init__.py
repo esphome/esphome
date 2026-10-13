@@ -243,10 +243,9 @@ class ImageRGB111(BitPackedEncoder):
                 r = (color >> 16) & 0xFF
                 g = (color >> 8) & 0xFF
                 b = color & 0xFF
-            dither_palette.extend([r, g, b])
+                dither_palette.extend([r, g, b])
             self.custom_palette = Image.new("P", (1, 1))
             self.custom_palette.putpalette(dither_palette)
-        self.custom_palette = _RGB111_PALETTE
 
     def convert(self, image: Image, path: str):
         image = image.convert("RGBA")
