@@ -190,24 +190,6 @@ inline bool operator!=(const StringRef &lhs, const __FlashStringHelper *rhs) { r
 
 inline bool operator!=(const __FlashStringHelper *lhs, const StringRef &rhs) { return !(rhs == lhs); }
 
-/// Codegen use only: a flash string literal with its byte length, compared without a runtime strlen.
-struct ProgmemStringRef {
-  PGM_P str;
-  size_t len;
-};
-
-inline bool operator==(const std::string &lhs, ProgmemStringRef rhs) {
-  return lhs.size() == rhs.len && (rhs.len == 0 || memcmp_P(lhs.data(), rhs.str, rhs.len) == 0);
-}
-
-inline bool operator!=(const std::string &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
-
-inline bool operator==(const StringRef &lhs, ProgmemStringRef rhs) {
-  // A StringRef may be {nullptr, 0}, and memcmp_P with a null pointer is undefined even for 0 bytes
-  return lhs.size() == rhs.len && (rhs.len == 0 || memcmp_P(lhs.c_str(), rhs.str, rhs.len) == 0);
-}
-
-inline bool operator!=(const StringRef &lhs, ProgmemStringRef rhs) { return !(lhs == rhs); }
 #endif  // USE_ESP8266
 
 inline bool operator<(const StringRef &lhs, const StringRef &rhs) {
@@ -271,7 +253,9 @@ class ProgmemStringRef {
 
   bool equals(const StringRef &other) const {
 #ifdef USE_ESP8266
-    return other.size() == this->ref_.size() && memcmp_P(other.c_str(), this->ref_.c_str(), other.size()) == 0;
+    // A StringRef may be {nullptr, 0}, and memcmp_P with a null pointer is undefined even for 0 bytes
+    return other.size() == this->ref_.size() &&
+           (other.empty() || memcmp_P(other.c_str(), this->ref_.c_str(), other.size()) == 0);
 #else
     return other == this->ref_;
 #endif
@@ -292,6 +276,13 @@ class ProgmemStringRef {
  private:
   StringRef ref_;
 };
+
+#ifdef USE_ESP8266
+inline bool operator==(const StringRef &lhs, const ProgmemStringRef &rhs) { return rhs.equals(lhs); }
+inline bool operator!=(const StringRef &lhs, const ProgmemStringRef &rhs) { return !rhs.equals(lhs); }
+inline bool operator==(const std::string &lhs, const ProgmemStringRef &rhs) { return rhs.equals(StringRef(lhs)); }
+inline bool operator!=(const std::string &lhs, const ProgmemStringRef &rhs) { return !rhs.equals(StringRef(lhs)); }
+#endif
 
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
 // Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
