@@ -39,7 +39,7 @@ class Tx20Component final : public Component {
  protected:
   void decode_and_publish_();
 
-  std::string wind_cardinal_direction_;
+  uint8_t wind_direction_index_{0xFF};  // 0xFF until the first reading
   InternalGPIOPin *pin_;
   sensor::Sensor *wind_speed_sensor_{nullptr};
   sensor::Sensor *wind_direction_degrees_sensor_{nullptr};
