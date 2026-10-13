@@ -47,4 +47,7 @@ struct Polygon {
   void format(char *buf) const;
 };
 
+// text.py sizes the ESP8266 saved-settings check from this
+static_assert(sizeof(Polygon) == 94, "Polygon layout changed; update POLYGON_SAVED_BYTES in text.py");
+
 }  // namespace esphome::ld2450

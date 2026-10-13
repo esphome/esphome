@@ -1,5 +1,7 @@
 #include "polygon.h"
 
+#include "esphome/core/helpers.h"
+
 #include <cstdio>
 
 namespace esphome::ld2450 {
@@ -28,7 +30,6 @@ class Scanner {
 
   /// Read an integer in [min, max]; returns false if there is none or it is out of range.
   bool read_int(int16_t min, int16_t max, int16_t &out) {
-    this->skip_spaces();
     bool negative = this->consume('-');
     int32_t value = 0;
     uint8_t digits = 0;
@@ -111,12 +112,11 @@ bool Polygon::parse(const char *str, size_t len) {
 }
 
 void Polygon::format(char *buf) const {
-  char *pos = buf;
+  size_t pos = 0;
   buf[0] = '\0';
   for (uint8_t i = 0; i < this->count; i++) {
-    // Coordinates are checked on parse and load, so each point fits in its 11-character share of the buffer
-    pos += snprintf(pos, POLYGON_STR_SIZE - (pos - buf), "%s%d,%d", i == 0 ? "" : ";", this->points[i].x,
-                    this->points[i].y);
+    pos = buf_append_printf(buf, POLYGON_STR_SIZE, pos, "%s%d,%d", i == 0 ? "" : ";", this->points[i].x,
+                            this->points[i].y);
   }
 }
 

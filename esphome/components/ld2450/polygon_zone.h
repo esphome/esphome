@@ -46,6 +46,7 @@ class PolygonZone : public text::Text {
   /// When a target was last inside the zone, in ms; 0 if never since the polygon was set.
   uint32_t get_last_inside_ms() const { return this->last_inside_ms_; }
   bool contains(int16_t x, int16_t y) const { return this->polygon_.contains(x, y); }
+  bool has_polygon() const { return !this->polygon_.empty(); }
 
  protected:
   void control(const std::string &value) override;

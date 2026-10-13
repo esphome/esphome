@@ -11,7 +11,6 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from pathlib import Path
 import re
 
@@ -30,7 +29,7 @@ import pytest
 from esphome.components.ld2450.text import POLYGON_MAX_LENGTH, POLYGON_PATTERN
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import InitialStateHelper, StateWaiter, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "uart-mock-ld2450-zones"
@@ -72,23 +71,15 @@ async def test_uart_mock_ld2450_polygon_zones(
         presence_history: dict[str, list[bool | None]] = {
             name: [] for name in presences
         }
-        loop = asyncio.get_running_loop()
-        waits: list[tuple[Callable[[EntityState], bool], asyncio.Future]] = []
-
-        def expect(predicate: Callable[[EntityState], bool]) -> asyncio.Future:
-            """Arm a wait for the next state matching predicate."""
-            future = loop.create_future()
-            waits.append((predicate, future))
-            return future
+        waiter = StateWaiter()
+        expect = waiter.expect
 
         def on_state(state: EntityState) -> None:
             if isinstance(state, BinarySensorState) and state.key in presence_names:
                 presence_history[presence_names[state.key]].append(
                     None if state.missing_state else state.state
                 )
-            for predicate, future in waits:
-                if not future.done() and predicate(state):
-                    future.set_result(state)
+            waiter.on_state(state)
 
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
@@ -107,7 +98,7 @@ async def test_uart_mock_ld2450_polygon_zones(
             key = polygons[name].key
             published = expect(lambda s: isinstance(s, TextState) and s.key == key)
             client.text_command(key, value)
-            state = await asyncio.wait_for(published, timeout=5.0)
+            state = await published
             assert state.state == expected
             assert re.fullmatch(POLYGON_PATTERN, state.state)
 
@@ -128,7 +119,7 @@ async def test_uart_mock_ld2450_polygon_zones(
             )
         )
         client.number_command(timeout.key, 1)
-        await asyncio.wait_for(timeout_set, timeout=5.0)
+        await timeout_set
 
         left_cleared = expect(
             lambda s: (
@@ -148,7 +139,7 @@ async def test_uart_mock_ld2450_polygon_zones(
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
-        await asyncio.wait_for(asyncio.gather(left_cleared, near_cleared), timeout=5.0)
+        await asyncio.gather(left_cleared, near_cleared)
 
         # Frame 1: (-500, 1000) is in the left zone and (200, 500) is in the near zone.
         # Frame 2: (300, 400) is in the near zone only; the left zone clears 1 s after frame 1.
@@ -165,5 +156,5 @@ async def test_uart_mock_ld2450_polygon_zones(
             )
         )
         await set_polygon("left", "", "")
-        await asyncio.wait_for(left_unknown, timeout=5.0)
+        await left_unknown
         assert presence_history["left"] == [True, False, None]

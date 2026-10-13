@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import logging
+import math
 
 import esphome.codegen as cg
 from esphome.components import text
@@ -41,10 +42,12 @@ POLYGON_MAX_LENGTH = 255
 # ESP8266 space for saved settings, in 4-byte words. Must match esp8266/preferences.cpp: RTC memory has two regions
 # (RTC_NORMAL_REGION_WORDS, RTC_EBOOT_REGION_WORDS) that one saved value can't span; with restore_from_flash,
 # everything goes to flash (ESP8266_FLASH_STORAGE_SIZE)
-ESP8266_RTC_REGION_WORDS = (78, 32)
-ESP8266_FLASH_WORDS = 128
-# A saved Polygon (its points, count and padding), plus one checksum word
-POLYGON_ZONE_SAVED_WORDS = -(-(MAX_POLYGON_POINTS * 4 + 2) // 4) + 1
+PREFERENCES_RTC_REGION_WORDS = (78, 32)
+PREFERENCES_FLASH_WORDS = 128
+# sizeof(Polygon): 23 points of two int16_t, the count byte and padding; pinned by a static_assert in polygon.h
+POLYGON_SAVED_BYTES = 94
+# A saved polygon in 4-byte words, plus one checksum word
+POLYGON_ZONE_SAVED_WORDS = math.ceil(POLYGON_SAVED_BYTES / 4) + 1
 
 PolygonZone = ld2450_ns.class_("PolygonZone", text.Text)
 
@@ -63,9 +66,7 @@ def _require_manual_id(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
-        # Polygons are in the radar's raw coordinates (mm). Target sensor filters only change published values,
-        # so a target X/Y sensor with a filter that changes its value (multiply, offset, lambda, ...) is no
-        # longer in the same frame as the polygons; filters that only delay or smooth values keep the frame.
+        # Polygons are in the radar's raw coordinates (mm), checked before any sensor filter; see polygon_zone.h
         cv.Required(CONF_POLYGON_ZONES): cv.ensure_list(
             text.text_schema(
                 PolygonZone,
@@ -106,7 +107,7 @@ def _check_esp8266_space(full_config: ConfigType) -> None:
         if text_conf.get(CONF_PLATFORM) == "ld2450"
     )
     in_flash = full_config.get("esp8266", {}).get(CONF_RESTORE_FROM_FLASH, False)
-    regions = (ESP8266_FLASH_WORDS,) if in_flash else ESP8266_RTC_REGION_WORDS
+    regions = (PREFERENCES_FLASH_WORDS,) if in_flash else PREFERENCES_RTC_REGION_WORDS
     max_zones = sum(words // POLYGON_ZONE_SAVED_WORDS for words in regions)
     where = "in flash ('restore_from_flash: true')" if in_flash else "in RTC memory"
     if zones > max_zones:

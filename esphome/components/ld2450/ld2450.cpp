@@ -556,6 +556,8 @@ void LD2450Component::handle_periodic_data_() {
 #ifdef LD2450_POLYGON_ZONE_COUNT
   const uint32_t now = App.get_loop_component_start_time();
   for (PolygonZone *zone : this->polygon_zones_) {
+    if (!zone->has_polygon())
+      continue;
     bool target_inside = false;
     for (const Target &target : this->target_info_) {
       // Untracked targets are stored as (0, 0)
