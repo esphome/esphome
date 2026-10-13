@@ -137,7 +137,7 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
   }
 
   if (this->resampler_ == nullptr) {
-    this->data_callbacks_.call(data);
+    this->publish_audio_(data);
     return;
   }
 
@@ -162,7 +162,7 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
 
     if (results.frames_generated > 0) {
       this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(results.frames_generated));
-      this->data_callbacks_.call(this->output_buffer_);
+      this->publish_audio_(this->output_buffer_);
     } else if (results.frames_used == 0) {
       break;  // No progress; drop the rest of the chunk instead of spinning
     }

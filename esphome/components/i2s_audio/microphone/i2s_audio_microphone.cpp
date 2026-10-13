@@ -277,14 +277,14 @@ void I2SAudioMicrophone::mic_task(void *params) {
     xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_RUNNING);
 
     while (!(xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP)) {
-      if (this_microphone->data_callbacks_.size() > 0) {
+      if (this_microphone->has_data_callbacks_()) {
         samples.resize(bytes_to_read);
         size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * READ_DURATION_MS);
         samples.resize(bytes_read);
         if (this_microphone->correct_dc_offset_) {
           this_microphone->fix_dc_offset_(samples);
         }
-        this_microphone->data_callbacks_.call(samples);
+        this_microphone->publish_audio_(samples);
       } else {
         vTaskDelay(pdMS_TO_TICKS(READ_DURATION_MS));
       }

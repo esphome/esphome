@@ -45,8 +45,11 @@ class MicrophoneSource final {
   /// @param channel 0-indexed channel number to enable
   void add_channel(uint8_t channel) { this->channels_.set(channel); }
 
+  /// @brief Registers a callback for the processed audio. Takes the same callback forms as
+  /// Microphone::add_data_callback and passes the capture time through unchanged.
   template<typename F> void add_data_callback(F &&data_callback) {
-    this->mic_->add_data_callback([this, data_callback](const std::vector<uint8_t> &data) {
+    this->mic_->add_data_callback([this, callback = with_capture_time(std::forward<F>(data_callback))](
+                                      const std::vector<uint8_t> &data, int64_t capture_time_us) {
       if (this->enabled_ || this->passive_) {
         if (this->processed_samples_ == nullptr) {
           // Create vector if its unused
@@ -56,7 +59,7 @@ class MicrophoneSource final {
         // Take temporary ownership of samples vector to avoid deallocation before the callback finishes
         std::shared_ptr<std::vector<uint8_t>> output_samples = this->processed_samples_;
         this->process_audio_(data, *output_samples);
-        data_callback(*output_samples);
+        callback(*output_samples, capture_time_us);
       }
     });
   }
