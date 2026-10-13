@@ -36,6 +36,13 @@ constexpr std::array<uint8_t, 3> build_reset_pdu(ResetPhase phase) {
 }
 
 class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevice {
+ protected:
+  // Ahead of the sensor pointers so the two bytes share the base class's tail padding
+  uint8_t reads_outstanding_{0};
+  // Failed polls since the last good one; stops counting at MAX_CONSECUTIVE_READ_FAILURES.
+  uint8_t consecutive_failures_{0};
+
+ public:
   SUB_SENSOR(voltage_a)
   SUB_SENSOR(voltage_b)
   SUB_SENSOR(voltage_c)
@@ -95,9 +102,6 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
   void read_finished_();
 
   // Register reads accepted by the hub but not yet resolved by a terminal callback.
-  uint8_t reads_outstanding_{0};
-  // Failed polls since the last good one; stops counting at MAX_CONSECUTIVE_READ_FAILURES.
-  uint8_t consecutive_failures_{0};
 };
 
 }  // namespace esphome::pzem6l24

@@ -144,7 +144,7 @@ _COMBINED_QUANTITIES = {
     CONF_TOTAL_APPARENT_ENERGY: _APPARENT_ENERGY_SCHEMA,
 }
 
-# Every sensor by config key; the C++ setter is "set_<key>_sensor".
+# Every sensor by config key; each needs its sensors(...) call in to_code
 _SENSORS = {
     f"{name}_{phase}": schema
     for name, schema in _PHASE_QUANTITIES.items()
