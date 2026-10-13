@@ -31,10 +31,15 @@ def _final_validate_unit(config: ConfigType) -> None:
 
     for climate in climates:
         if CONF_PLATFORM in climate and climate[CONF_PLATFORM] == "haier_tundra":
-            unit_tx_pair = (climate[CONF_UNIT], climate[remote_base.CONF_TRANSMITTER_ID])
+            unit_tx_pair = (
+                climate[CONF_UNIT],
+                climate[remote_base.CONF_TRANSMITTER_ID],
+            )
 
             if unit_tx_pair in seen and climate[CONF_ID] == config[CONF_ID]:
-                raise cv.Invalid("Only one of each unit is allowed per transmitter", path=[CONF_UNIT])
+                raise cv.Invalid(
+                    "Only one of each unit is allowed per transmitter", path=[CONF_UNIT]
+                )
             seen.add(unit_tx_pair)
 
 
