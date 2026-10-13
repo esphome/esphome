@@ -249,9 +249,9 @@ def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
     try:
         restore_files(originals)
     except (EsphomeError, KeyboardInterrupt) as err:
-        safe_print(
-            color(AnsiFore.BOLD_RED, str(err) or f"Interrupted restoring {files}")
-        )
+        # An interrupted restore carries its report as a note
+        why = str(err) or "; ".join(getattr(err, "__notes__", ()))
+        safe_print(color(AnsiFore.BOLD_RED, why or f"Interrupted restoring {files}"))
         safe_print(keys)
     else:
         safe_print(color(AnsiFore.BOLD_YELLOW, f"Restored the previous key in {files}"))
