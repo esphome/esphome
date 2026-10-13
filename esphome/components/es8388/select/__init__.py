@@ -19,12 +19,14 @@ DAC_OUTPUT_OPTIONS = {
     "LINE2": DacOutputLine.DAC_OUTPUT_LINE2,
     "BOTH": DacOutputLine.DAC_OUTPUT_BOTH,
 }
+DAC_OUTPUT_OPTION_NAMES = list(DAC_OUTPUT_OPTIONS)
 AdcInputMicLine = es8388_ns.enum("AdcInputMicLine")
 ADC_INPUT_MIC_OPTIONS = {
     "LINE1": AdcInputMicLine.ADC_INPUT_MIC_LINE1,
     "LINE2": AdcInputMicLine.ADC_INPUT_MIC_LINE2,
     "DIFFERENCE": AdcInputMicLine.ADC_INPUT_MIC_DIFFERENCE,
 }
+ADC_INPUT_MIC_OPTION_NAMES = list(ADC_INPUT_MIC_OPTIONS)
 
 DacOutputSelect = es8388_ns.class_("DacOutputSelect", select.Select)
 ADCInputMicSelect = es8388_ns.class_("ADCInputMicSelect", select.Select)
@@ -63,12 +65,12 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ES8388_ID])
     selects = select.sub_selects(config, parent=hub)
     await selects(
-        CONF_DAC_OUTPUT, hub.set_dac_output_select, options=list(DAC_OUTPUT_OPTIONS)
+        CONF_DAC_OUTPUT, hub.set_dac_output_select, options=DAC_OUTPUT_OPTION_NAMES
     )
     await selects(
         CONF_ADC_INPUT_MIC,
         hub.set_adc_input_mic_select,
-        options=list(ADC_INPUT_MIC_OPTIONS),
+        options=ADC_INPUT_MIC_OPTION_NAMES,
     )
     if (
         initial := config.get(CONF_DAC_OUTPUT, {}).get(CONF_INITIAL_OPTION)
