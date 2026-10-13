@@ -68,7 +68,7 @@ class PCA9505Test : public ::testing::Test {
     this->component_.set_i2c_address(FakeBus::ADDRESS);
   }
 
-  PCA9505GPIOPin make_pin(uint8_t number, gpio::Flags flags, bool inverted = false) {
+  PCA9505GPIOPin make_pin_(uint8_t number, gpio::Flags flags, bool inverted = false) {
     PCA9505GPIOPin pin;
     pin.set_parent(&this->component_);
     pin.set_pin(number);
@@ -105,7 +105,7 @@ TEST_F(PCA9505Test, EachPinMapsToItsOwnBankAndBit) {
   this->component_.setup();
 
   for (uint8_t number = 0; number < PIN_COUNT; number++) {
-    PCA9505GPIOPin pin = this->make_pin(number, gpio::FLAG_OUTPUT);
+    PCA9505GPIOPin pin = this->make_pin_(number, gpio::FLAG_OUTPUT);
     pin.setup();
     pin.digital_write(true);
 
@@ -122,7 +122,7 @@ TEST_F(PCA9505Test, EachPinMapsToItsOwnBankAndBit) {
 TEST_F(PCA9505Test, ConfiguringAnOutputOnlyTouchesItsOwnBank) {
   this->component_.setup();
 
-  PCA9505GPIOPin pin = this->make_pin(35, gpio::FLAG_OUTPUT);
+  PCA9505GPIOPin pin = this->make_pin_(35, gpio::FLAG_OUTPUT);
   pin.setup();
 
   // Pin 35 is bit 3 of bank 4. The part reads a 1 as an input, so that bit clears.
@@ -133,7 +133,7 @@ TEST_F(PCA9505Test, ConfiguringAnOutputOnlyTouchesItsOwnBank) {
 
 TEST_F(PCA9505Test, ReadsReportTheLevelOnTheHighestPin) {
   this->component_.setup();
-  PCA9505GPIOPin pin = this->make_pin(39, gpio::FLAG_INPUT);
+  PCA9505GPIOPin pin = this->make_pin_(39, gpio::FLAG_INPUT);
   pin.setup();
 
   this->bus_.input[4] = 0x80;  // pin 39 high
@@ -146,7 +146,7 @@ TEST_F(PCA9505Test, ReadsReportTheLevelOnTheHighestPin) {
 
 TEST_F(PCA9505Test, InvertedPinFlipsTheReportedLevel) {
   this->component_.setup();
-  PCA9505GPIOPin pin = this->make_pin(39, gpio::FLAG_INPUT, /*inverted=*/true);
+  PCA9505GPIOPin pin = this->make_pin_(39, gpio::FLAG_INPUT, /*inverted=*/true);
   pin.setup();
 
   this->bus_.input[4] = 0x80;
@@ -163,7 +163,7 @@ TEST_F(PCA9505Test, PinsInOneBankShareASingleRead) {
 
   PCA9505GPIOPin pins[8];
   for (uint8_t i = 0; i < 8; i++) {
-    pins[i] = this->make_pin(8 + i, gpio::FLAG_INPUT);
+    pins[i] = this->make_pin_(8 + i, gpio::FLAG_INPUT);
     pins[i].setup();
   }
 
@@ -180,7 +180,7 @@ TEST_F(PCA9505Test, EachBankIsReadSeparately) {
 
   PCA9505GPIOPin pins[BANK_COUNT];
   for (uint8_t bank = 0; bank < BANK_COUNT; bank++) {
-    pins[bank] = this->make_pin(bank * 8, gpio::FLAG_INPUT);
+    pins[bank] = this->make_pin_(bank * 8, gpio::FLAG_INPUT);
     pins[bank].setup();
   }
 
@@ -197,7 +197,7 @@ TEST_F(PCA9505Test, WritesAreSkippedOnceSetupHasFailed) {
 
   this->bus_.fail = false;
   const unsigned before = this->bus_.writes;
-  PCA9505GPIOPin pin = this->make_pin(0, gpio::FLAG_OUTPUT);
+  PCA9505GPIOPin pin = this->make_pin_(0, gpio::FLAG_OUTPUT);
   pin.setup();
   pin.digital_write(true);
   EXPECT_EQ(this->bus_.writes, before);
