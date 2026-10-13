@@ -6,11 +6,25 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #include "esphome/components/i2c/i2c.h"
+#ifdef USE_TMP102_NUMBER
+#include "esphome/components/number/number.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
+#endif
 #include "esphome/components/sensor/sensor.h"
 
 #include <cstdint>
 
 namespace esphome::tmp102 {
+
+#ifdef USE_TMP102_NUMBER
+enum TMP102LimitType : uint8_t {
+  TMP102_LIMIT_LOW = 0,
+  TMP102_LIMIT_HIGH = 1,
+};
+
+class TMP102LimitNumber;
+#endif
 
 class TMP102Component final : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
@@ -25,6 +39,9 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
     this->low_limit_ = low_limit;
     this->configure_ = true;
   }
+#ifdef USE_TMP102_NUMBER
+  void set_limit_control(TMP102LimitNumber *number);
+#endif
 #endif
   void dump_config() override;
   void update() override;
@@ -46,6 +63,14 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   bool check_configuration_();
   void read_temperature_();
   void update_configured_();
+#ifdef USE_TMP102_NUMBER
+  friend class TMP102LimitNumber;
+  bool set_limit_temperature_(TMP102LimitType limit, float temperature);
+  float get_limit_temperature_(TMP102LimitType limit) const;
+  void prepare_number_limits_(float *restored);
+
+  TMP102LimitNumber *limit_controls_[2]{};
+#endif
 
   uint16_t config_{0};
   uint16_t high_limit_{0};
@@ -53,5 +78,23 @@ class TMP102Component final : public PollingComponent, public i2c::I2CDevice, pu
   bool configure_{false};
 #endif
 };
+
+#ifdef USE_TMP102_NUMBER
+class TMP102LimitNumber final : public number::Number, public Parented<TMP102Component> {
+ public:
+  explicit TMP102LimitNumber(TMP102LimitType limit_type) : limit_type_(limit_type) {}
+  void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
+
+ protected:
+  friend class TMP102Component;
+  float load_value_(float fallback);
+  bool save_value_(float value);
+  void control(float value) override;
+
+  ESPPreferenceObject pref_;
+  TMP102LimitType limit_type_;
+  bool restore_value_{true};
+};
+#endif
 
 }  // namespace esphome::tmp102

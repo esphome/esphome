@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["ld24xx"]
 CODEOWNERS = ["@NovakIrs"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "ld2410s"
@@ -13,6 +14,7 @@ CONF_LD2410S_ID = "ld2410s_id"
 
 ld2410s_ns = cg.esphome_ns.namespace(DOMAIN)
 LD2410SComponent = ld2410s_ns.class_("LD2410SComponent", cg.Component, uart.UARTDevice)
+Parameter = ld2410s_ns.enum("Parameter", is_class=True)
 
 CONFIG_SCHEMA = (
     cv.Schema(
