@@ -2,9 +2,11 @@ import esphome.codegen as cg
 from esphome.components import ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@spbrogan", "@Fabian-Schmidt"]
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "mopeka_ble"
 
 CONF_SHOW_SENSORS_WITHOUT_SYNC = "show_sensors_without_sync"
 
@@ -24,7 +26,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     if CONF_SHOW_SENSORS_WITHOUT_SYNC in config:
         cg.add(

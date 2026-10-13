@@ -1,13 +1,15 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 import functools
 from importlib import import_module
 from importlib.util import find_spec
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLUSTER,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -45,7 +47,7 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
-from esphome.types import ConfigType, EntityMetadata
+from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -480,6 +482,34 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
+@dataclass(frozen=True, slots=True)
+class SubEntities:
+    """Create the child entity configured under key, set parent (if bound) and pass it to setter.
+
+    Extra arguments go to new_entity. Returns None only when key is absent, so the result can be
+    used directly as a condition.
+    """
+
+    new_entity: Callable[..., Awaitable[MockObj]]
+    config: ConfigType
+    parent: MockObj | ID | None = None
+
+    async def __call__(
+        self,
+        key: str,
+        setter: Callable[[MockObj], Expression],
+        *args: SafeExpType,
+        **kwargs: Any,
+    ) -> MockObj | None:
+        if (conf := self.config.get(key)) is None:
+            return None
+        var = await self.new_entity(conf, *args, **kwargs)
+        if self.parent is not None:
+            await cg.register_parented(var, self.parent)
+        add(setter(var))
+        return var
+
+
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
     """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
     If a property is already set, it will not be inherited.
@@ -665,9 +695,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
 # owning integrations re-export the shared schema names and key strings so
 # each stays defined once.
 
-_WebServer = cg.esphome_ns.namespace("web_server").class_(
-    "WebServer", cg.Component, cg.Controller
-)
+_WebServer = cg.esphome_ns.namespace("web_server").class_("WebServer", cg.Component)
 
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
     {
@@ -712,45 +740,67 @@ ZIGBEE_REPORT = {
 
 
 def _check_report_deprecation(value: str) -> str:
-    if str(value).lower() in ("coordinator", "enable"):
+    if str(value).lower() == "coordinator":
         _LOGGER.warning(
-            "Report options 'coordinator' and 'enable' are deprecated and will be removed in a future release. Use 'default' instead."
+            "Report option 'coordinator' is deprecated and will be removed in a future release. Use 'default' instead."
         )
     return value
 
 
-ZIGBEE_BASE_ENTITY_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_REPORT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            _check_report_deprecation,
-            cv.enum(ZIGBEE_REPORT, lower=True),
-        ),
-        cv.Optional(CONF_ENDPOINT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
-        ),
-        cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.boolean,
-        ),
-    }
-)
+def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Schema:
+    """Zigbee options every entity offers; ``cluster_options`` adds the esp32 cluster key."""
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_REPORT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                _check_report_deprecation,
+                cv.enum(ZIGBEE_REPORT, lower=True),
+            ),
+            cv.Optional(CONF_ENDPOINT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
+            ),
+            cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.boolean,
+            ),
+        }
+    )
+    if cluster_options:
+        schema = cv.Schema(
+            {
+                cv.OnlyWith(
+                    CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
+                ): cv.All(
+                    cv.requires_component("zigbee"),
+                    cv.requires_component("esp32"),
+                    cv.one_of(*cluster_options, lower=True),
+                ),
+            }
+        ).extend(schema)
+    return schema
 
-# Entity platform -> (config key, zigbee C++ class). A unit test checks each
-# class against the owning declaration in zigbee_zephyr.
+
+ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
+
+# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
+# unit test checks each class against the owning declaration in zigbee_zephyr.
 _ZIGBEE_ENTITY_CLASSES = {
-    "binary_sensor": (CONF_ZIGBEE_BINARY_SENSOR, "ZigbeeBinarySensor"),
-    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor"),
+    "binary_sensor": (
+        CONF_ZIGBEE_BINARY_SENSOR,
+        "ZigbeeBinarySensor",
+        ["generic", "device_class"],
+    ),
+    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
 }
 
 
 def _zigbee_entity_schema(platform: str) -> cv.Schema:
-    conf_key, class_name = _ZIGBEE_ENTITY_CLASSES[platform]
-    return ZIGBEE_BASE_ENTITY_SCHEMA.extend(
+    conf_key, class_name, cluster_options = _ZIGBEE_ENTITY_CLASSES[platform]
+    return zigbee_base_entity_schema(cluster_options).extend(
         {
             cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
                 _ZigbeeComponent

@@ -12,13 +12,12 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 integration_ns = cg.esphome_ns.namespace("integration")
 IntegrationSensor = integration_ns.class_(
     "IntegrationSensor", sensor.Sensor, cg.Component
 )
-ResetAction = integration_ns.class_("ResetAction", automation.Action)
-SetValueAction = integration_ns.class_("SetValueAction", automation.Action)
 
 IntegrationSensorTime = integration_ns.enum("IntegrationSensorTime")
 INTEGRATION_TIMES = {
@@ -39,14 +38,14 @@ CONF_TIME_UNIT = "time_unit"
 CONF_INTEGRATION_METHOD = "integration_method"
 
 
-def inherit_unit_of_measurement(uom, config):
+def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:
     suffix = config[CONF_TIME_UNIT]
     if uom.endswith("/" + suffix):
         return uom[0 : -len("/" + suffix)]
     return uom + suffix
 
 
-def inherit_accuracy_decimals(decimals, config):
+def inherit_accuracy_decimals(decimals: int, config: ConfigType) -> int:
     return decimals + 2
 
 
@@ -90,7 +89,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)
@@ -103,36 +102,23 @@ async def to_code(config):
     cg.add(var.set_restore(config[CONF_RESTORE]))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sensor.integration.reset",
-    ResetAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset()"),
 )
-async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sensor.integration.set_value",
-    SetValueAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.float_),
 )
-async def sensor_integration_set_value_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
-    cg.add(var.set_value(template_))
-    return var

@@ -1,9 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import number
+from esphome.components.button import DOMAIN as BUTTON_DOMAIN
+from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA_ID,
-    CONF_BUTTON,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_CONFIG,
@@ -105,16 +106,16 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     if config.get(CONF_AREA_CONFIG) is None:
-        return config
+        return
 
     full_config = fv.full_config.get()
     hub_id = config[CONF_LD6002B_ID]
 
     has_apply_area = any(
         entry.get(CONF_LD6002B_ID) == hub_id and entry.get(CONF_APPLY_AREA) is not None
-        for entry in full_config.get(CONF_BUTTON, [])
+        for entry in full_config.get(BUTTON_DOMAIN, [])
     )
     if not has_apply_area:
         raise cv.Invalid(
@@ -124,7 +125,7 @@ def final_validate(config: ConfigType) -> ConfigType:
 
     has_area_id_select = any(
         entry.get(CONF_LD6002B_ID) == hub_id and entry.get(CONF_AREA_ID) is not None
-        for entry in full_config.get("select", [])
+        for entry in full_config.get(SELECT_DOMAIN, [])
     )
     if not has_area_id_select:
         raise cv.Invalid(
@@ -132,13 +133,11 @@ def final_validate(config: ConfigType) -> ConfigType:
             path=[CONF_AREA_CONFIG],
         )
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
     for key, number_type, setter, min_value, max_value, step in (

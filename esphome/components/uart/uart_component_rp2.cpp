@@ -13,7 +13,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.arduino_rp2";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 uint16_t RP2UartComponent::get_config() {
   uint16_t config = 0;

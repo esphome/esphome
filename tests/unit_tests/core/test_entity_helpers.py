@@ -11,6 +11,7 @@ import pytest
 
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_CLUSTER,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -1247,7 +1248,7 @@ async def test_finalize_comment_sanitization(
     ("value", "warns"),
     [
         ("coordinator", True),
-        ("enable", True),
+        ("enable", False),
         ("force", False),
         ("default", False),
     ],
@@ -1317,6 +1318,90 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
 
     assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    for _conf_key, class_name in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
+    for (
+        _conf_key,
+        class_name,
+        _cluster_options,
+    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
         owning = getattr(zigbee_zephyr, class_name)
         assert str(owning) == f"zigbee::{class_name}"
+
+
+def test_zigbee_entity_schema_cluster_options() -> None:
+    """The cluster key only exists for esp32 + zigbee and is limited to the
+    platform's options, with the first option as its default."""
+    schema = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
+
+    with patch.object(CORE, "loaded_integrations", set()):
+        assert schema({}) == {}
+        with pytest.raises(Invalid, match="requires component zigbee"):
+            schema({CONF_CLUSTER: "generic"})
+
+    with patch.object(CORE, "loaded_integrations", {"esp32", "zigbee"}):
+        assert schema({}) == {CONF_CLUSTER: "generic"}
+        assert schema({CONF_CLUSTER: "Device_Class"}) == {CONF_CLUSTER: "device_class"}
+        with pytest.raises(Invalid, match="Unknown value 'on_off'"):
+            schema({CONF_CLUSTER: "on_off"})
+
+    with patch.object(CORE, "loaded_integrations", {"nrf52", "zigbee"}):
+        assert CONF_CLUSTER not in schema({})
+        with pytest.raises(Invalid, match="requires component esp32"):
+            schema({CONF_CLUSTER: "generic"})
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_creates_and_sets(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """A configured key creates the entity, sets the parent before the setter and returns it."""
+    calls: list[tuple[Any, ...]] = []
+    created = MockObj("child")
+
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf, args, kwargs))
+        return created
+
+    async def fake_register_parented(var: MockObj, parent: MockObj) -> None:
+        setup_test_environment.append(f"parent {var} {parent}")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fake_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {}}, parent=hub)
+
+    assert await sub("child", hub.set_child, 1, step=2) is created
+    assert calls == [({}, (1,), {"step": 2})]
+    assert setup_test_environment == ["parent child hub", "hub->set_child(child)"]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_missing_key(setup_test_environment: list[str]) -> None:
+    """A missing key creates nothing and emits no code."""
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        raise AssertionError("must not be called")
+
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {})
+
+    assert await sub("child", hub.set_child) is None
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_parent(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Without a bound parent, register_parented is not called."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        return MockObj("child")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {CONF_ID: "child"}})
+
+    assert await sub("child", hub.set_child) is not None
+    assert setup_test_environment == ["hub->set_child(child)"]

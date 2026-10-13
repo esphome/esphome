@@ -1,0 +1,1 @@
+DOMAIN = "fujitsu_general"

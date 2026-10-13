@@ -29,8 +29,9 @@ from esphome.bundle import (
     read_bundle_manifest,
     remap_bundle_path,
 )
+from esphome.components.substitutions import do_substitution_pass
 from esphome.core import CORE, EsphomeError
-from esphome.yaml_util import force_load_include_files
+from esphome.yaml_util import force_load_include_files, load_yaml
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -138,10 +139,17 @@ def test_find_used_secret_keys_no_secrets(tmp_path: Path) -> None:
     assert keys == set()
 
 
-def test_find_used_secret_keys_missing_file(tmp_path: Path) -> None:
+def test_find_used_secret_keys_missing_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     missing = tmp_path / "does_not_exist.yaml"
-    keys = _find_used_secret_keys([missing])
+    with caplog.at_level("WARNING", logger="esphome.bundle"):
+        keys = _find_used_secret_keys([missing])
     assert keys == set()
+    assert any(
+        "Could not scan" in r.message and "does_not_exist.yaml" in r.message
+        for r in caplog.records
+    )
 
 
 def test_find_used_secret_keys_deduplicates(tmp_path: Path) -> None:
@@ -1277,6 +1285,59 @@ def test_discover_files_bundles_all_include_candidates(tmp_path: Path) -> None:
     assert "includes/empty.yaml" in paths
 
 
+@pytest.mark.parametrize("enable_proxy", [True, False])
+def test_bundle_roundtrip_templated_include_with_path_separator(
+    tmp_path: Path, enable_proxy: bool
+) -> None:
+    r"""The issue-18545 flow: a Jinja !include whose branches contain "/" still
+    resolves after the bundle is extracted on the build server.
+
+    Windows is the leg that regresses: the raw expression text must survive
+    verbatim, or its separators get rewritten to "\" and Jinja decodes
+    sequences like "\b" as string escapes.
+    """
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={
+            "includes/boards/board.yaml": (
+                "packages:\n"
+                '  - !include ${ "bluetooth/bluetooth_proxy_single_core.yaml"'
+                ' if enable_bluetooth_proxy else "../empty.yaml" }\n'
+            ),
+            "includes/boards/bluetooth/bluetooth_proxy_single_core.yaml": (
+                "bluetooth_proxy:\n  active: true\n"
+            ),
+            "includes/empty.yaml": "{}\n",
+        },
+    )
+    (config_dir / "test.yaml").write_text(
+        "substitutions:\n"
+        f"  enable_bluetooth_proxy: {str(enable_proxy).lower()}\n"
+        "esphome:\n  name: test\n"
+        "packages:\n  - !include includes/boards/board.yaml\n"
+    )
+
+    result = ConfigBundleCreator({}).create_bundle()
+    bundle_path = tmp_path / "device.esphomebundle.tar.gz"
+    bundle_path.write_bytes(result.data)
+
+    # Both conditional branches must ship in the bundle.
+    paths = [f.path for f in result.files]
+    assert "includes/boards/bluetooth/bluetooth_proxy_single_core.yaml" in paths
+    assert "includes/empty.yaml" in paths
+
+    # Extract to a fresh directory and resolve the config from there, as a
+    # remote build server would.
+    extracted_config = extract_bundle(bundle_path, tmp_path / "remote")
+    config = do_substitution_pass(load_yaml(extracted_config))
+
+    board_pkg = config["packages"][0]["packages"][0]
+    if enable_proxy:
+        assert board_pkg == {"bluetooth_proxy": {"active": True}}
+    else:
+        assert board_pkg == {}
+
+
 def test_discover_files_candidate_outside_config_dir_skipped(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1302,7 +1363,8 @@ def test_discover_files_candidate_outside_config_dir_skipped(
 def test_discover_files_nested_include_load_failure(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A nested !include pointing at a missing file is logged and skipped."""
+    """A nested !include pointing at a missing file is reported in the bundle
+    summary, not a second time by yaml_util, and skipped."""
     config_dir = _setup_config_dir(tmp_path)
     (config_dir / "test.yaml").write_text(
         "esphome:\n  name: test\nwifi: !include missing.yaml\n"
@@ -1313,10 +1375,12 @@ def test_discover_files_nested_include_load_failure(
 
     paths = [f.path for f in files]
     assert "test.yaml" in paths
+    warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
     assert any(
-        "failed to load !include" in r.message.lower() and "missing.yaml" in r.message
-        for r in caplog.records
+        m.startswith("Bundle may be incomplete") and "missing.yaml" in m
+        for m in warnings
     )
+    assert not any("failed to load !include" in m.lower() for m in warnings)
 
 
 def test_force_load_skips_duplicate_include_file() -> None:
@@ -1330,7 +1394,7 @@ def test_force_load_skips_duplicate_include_file() -> None:
             self.parent_file = Path("root.yaml")
             self.load_calls = 0
 
-        def has_unresolved_expressions(self) -> bool:
+        def has_unresolved_file(self) -> bool:
             return False
 
         def load(self) -> dict[str, Any]:
