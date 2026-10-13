@@ -11,7 +11,8 @@ namespace esphome::pulse_counter {
 
 ESPHOME_LOG_TAG(TAG, "pulse_counter");
 
-const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
+// Only passed to %s log arguments, which read flash directly on ESP8266
+static const char EDGE_MODE_TO_STRING[][10] PROGMEM = {"DISABLE", "INCREMENT", "DECREMENT"};
 
 #ifdef HAS_PCNT
 PulseCounterStorageBase *get_storage(bool hw_pcnt) {
