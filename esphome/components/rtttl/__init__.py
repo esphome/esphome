@@ -110,7 +110,7 @@ automation.register_apply_action(
         {
             cv.GenerateID(CONF_ID): cv.use_id(Rtttl),
             cv.Required(CONF_RTTTL): cv.templatable(
-                cv.All(cv.string, cv.Length(max=MAX_SONG_LENGTH))
+                cv.All(cv.string, cv.ByteLength(max=MAX_SONG_LENGTH))
             ),
         },
         key=CONF_RTTTL,
