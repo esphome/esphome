@@ -102,7 +102,10 @@ void PCA9505Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   }
   // Invert as the part sees a 1 as an input
   this->write_bank_(CONFIG_REG, bank, ~this->config_[bank]);
-  this->write_bank_(MASK_REG, bank, this->mask_[bank]);
+  // Without an interrupt pin INT is unconnected, so the masks written at setup can stay
+  if (this->interrupt_pin_ != nullptr) {
+    this->write_bank_(MASK_REG, bank, this->mask_[bank]);
+  }
 }
 
 bool PCA9505Component::read_bank_(uint8_t bank) {

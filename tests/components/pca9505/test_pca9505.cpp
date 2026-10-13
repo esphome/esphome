@@ -82,6 +82,7 @@ class PCA9505Test : public ::testing::Test {
 
   FakeBus bus_;
   PCA9505Component component_;
+  InternalGPIOPin int_pin_;  // digital_read() returns the inverted flag on the host, so it doubles as the level
 };
 
 TEST_F(PCA9505Test, SetupLeavesEveryPinAnInputWithOutputsLow) {
@@ -206,8 +207,7 @@ TEST_F(PCA9505Test, WritesAreSkippedOnceSetupHasFailed) {
   EXPECT_EQ(this->bus_.writes, before);
 }
 
-// The mask registers are why the interrupt never worked before: they reset to
-// 0xFF, where a 1 blocks the pin, and nothing wrote them.
+// A 1 in a mask register blocks that pin from pulling INT low.
 TEST_F(PCA9505Test, SetupMasksEveryInterrupt) {
   // Pretend a previous run left port 2 unmasked. The chip keeps its registers
   // through an MCU reboot, so setup must write them rather than assume the reset state.
@@ -219,6 +219,7 @@ TEST_F(PCA9505Test, SetupMasksEveryInterrupt) {
 }
 
 TEST_F(PCA9505Test, ConfiguringAnInputUnmasksOnlyThatPin) {
+  this->component_.set_interrupt_pin(&this->int_pin_);
   this->component_.setup();
 
   PCA9505GPIOPin pin = this->make_pin_(34, gpio::FLAG_INPUT);
@@ -231,6 +232,7 @@ TEST_F(PCA9505Test, ConfiguringAnInputUnmasksOnlyThatPin) {
 }
 
 TEST_F(PCA9505Test, ConfiguringAnOutputLeavesItMasked) {
+  this->component_.set_interrupt_pin(&this->int_pin_);
   this->component_.setup();
 
   PCA9505GPIOPin pin = this->make_pin_(34, gpio::FLAG_OUTPUT);
@@ -238,6 +240,73 @@ TEST_F(PCA9505Test, ConfiguringAnOutputLeavesItMasked) {
 
   // An output must not be able to pull INT low.
   EXPECT_EQ(this->bus_.mask[4], 0xFF);
+}
+
+TEST_F(PCA9505Test, WithoutAnInterruptPinTheMasksAreNotRewritten) {
+  this->component_.setup();
+  const unsigned before = this->bus_.writes;
+
+  PCA9505GPIOPin pin = this->make_pin_(34, gpio::FLAG_INPUT);
+  pin.setup();
+
+  EXPECT_EQ(this->bus_.writes, before + 1);  // the configuration register only
+  EXPECT_EQ(this->bus_.mask[4], 0xFF);
+}
+
+// Without an interrupt pin an input turns the polling loop on; with one it stays off.
+TEST_F(PCA9505Test, AnInputEnablesPollingOnlyWithoutAnInterruptPin) {
+  this->component_.setup();
+  ASSERT_TRUE(this->component_.is_idle());
+  PCA9505GPIOPin polled = this->make_pin_(3, gpio::FLAG_INPUT);
+  polled.setup();
+  EXPECT_TRUE(this->component_.is_in_loop_state());
+
+  PCA9505Component with_interrupt;
+  with_interrupt.set_i2c_bus(&this->bus_);
+  with_interrupt.set_i2c_address(FakeBus::ADDRESS);
+  with_interrupt.set_interrupt_pin(&this->int_pin_);
+  with_interrupt.setup();
+  ASSERT_TRUE(with_interrupt.is_idle());
+  PCA9505GPIOPin pin;
+  pin.set_parent(&with_interrupt);
+  pin.set_pin(3);
+  pin.set_flags(gpio::FLAG_INPUT);
+  pin.setup();
+  EXPECT_TRUE(with_interrupt.is_idle());
+}
+
+// With an interrupt pin a read is served from the cache until loop() clears it.
+TEST_F(PCA9505Test, InterruptPinKeepsTheCacheUntilTheLoopRuns) {
+  this->component_.set_interrupt_pin(&this->int_pin_);
+  this->component_.setup();
+  PCA9505GPIOPin pin = this->make_pin_(3, gpio::FLAG_INPUT);
+  pin.setup();
+
+  const unsigned before = this->bus_.reads;
+  pin.digital_read();
+  pin.digital_read();
+  EXPECT_EQ(this->bus_.reads, before + 1);
+
+  this->component_.loop();
+  pin.digital_read();
+  EXPECT_EQ(this->bus_.reads, before + 2);
+}
+
+// The loop only turns itself off once INT has gone high again, so a change that
+// lands during the read cannot leave the cache stale with no edge to wake it.
+TEST_F(PCA9505Test, LoopStaysOnUntilIntIsReleased) {
+  this->component_.set_interrupt_pin(&this->int_pin_);
+  this->component_.setup();
+  this->component_.enable_loop();
+  ASSERT_TRUE(this->component_.is_in_loop_state());
+
+  this->int_pin_.set_inverted(false);  // the host pin reads back its inverted flag: INT still low
+  this->component_.loop();
+  EXPECT_TRUE(this->component_.is_in_loop_state());
+
+  this->int_pin_.set_inverted(true);  // INT released
+  this->component_.loop();
+  EXPECT_TRUE(this->component_.is_idle());
 }
 
 }  // namespace esphome::pca9505::testing
