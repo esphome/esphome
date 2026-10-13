@@ -1,8 +1,9 @@
-#include <algorithm>
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include <utility>
 #include "mipi_dsi.h"
 #include "esphome/core/helpers.h"
+
+#include <algorithm>
 
 namespace esphome::mipi_dsi {
 

@@ -1,10 +1,11 @@
-#include <algorithm>
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <algorithm>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_ops.h>
 #include <span>
