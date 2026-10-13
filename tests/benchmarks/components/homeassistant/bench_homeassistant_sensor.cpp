@@ -141,7 +141,7 @@ static void HomeassistantSensor_StateResponse_ManySubscriptions(benchmark::State
   ScopedApiServer server;
   auto conn = create_connection(server.get());
 
-  static const char *const ENTITY_IDS[kSensorCount] = {
+  static constexpr const char *const ENTITY_IDS[kSensorCount] = {
       "sensor.import_00", "sensor.import_01", "sensor.import_02", "sensor.import_03",
       "sensor.import_04", "sensor.import_05", "sensor.import_06", "sensor.import_07",
       "sensor.import_08", "sensor.import_09", "sensor.import_10", "sensor.import_11",
