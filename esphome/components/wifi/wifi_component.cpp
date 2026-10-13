@@ -1177,156 +1177,155 @@ void WiFiComponent::stop_captive_portal_() {
 void WiFiComponent::disable_ap_() {
   // End the portal before the AP goes away: it is served on the AP's address.
   this->stop_captive_portal_();
-  void WiFiComponent::disable_ap_() {
-    this->end_ap_portal_();
-    ESP_LOGD(TAG, "Disabling AP");
-    this->wifi_mode_({}, false);
-  }
+  this->end_ap_portal_();
+  ESP_LOGD(TAG, "Disabling AP");
+  this->wifi_mode_({}, false);
+}
 
-  void WiFiComponent::set_ap(const WiFiAP &ap) {
-    this->ap_ = ap;
-    this->has_ap_ = true;
-  }
+void WiFiComponent::set_ap(const WiFiAP &ap) {
+  this->ap_ = ap;
+  this->has_ap_ = true;
+}
 #endif  // USE_WIFI_AP
 
-  void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
-  void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
-  void WiFiComponent::clear_sta() {
-    // Clear roaming state - no more configured networks
-    this->clear_roaming_state_();
-    this->sta_.clear();
-    this->selected_sta_index_ = -1;
-  }
-  void WiFiComponent::set_sta(const WiFiAP &ap) {
-    this->clear_sta();  // Also clears roaming state
-    this->init_sta(1);
-    this->add_sta(ap);
-    this->selected_sta_index_ = 0;
-    // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
-    this->skip_cooldown_next_cycle_ = true;
+void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
+void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
+void WiFiComponent::clear_sta() {
+  // Clear roaming state - no more configured networks
+  this->clear_roaming_state_();
+  this->sta_.clear();
+  this->selected_sta_index_ = -1;
+}
+void WiFiComponent::set_sta(const WiFiAP &ap) {
+  this->clear_sta();  // Also clears roaming state
+  this->init_sta(1);
+  this->add_sta(ap);
+  this->selected_sta_index_ = 0;
+  // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
+  this->skip_cooldown_next_cycle_ = true;
 #ifdef USE_WIFI_LEASE_CACHE
-    // Index 0 is a different network now, so its cached lease must not be re-applied
-    this->clear_lease_settings_();
+  // Index 0 is a different network now, so its cached lease must not be re-applied
+  this->clear_lease_settings_();
 #endif
+}
+
+WiFiAP WiFiComponent::build_params_for_current_phase_() {
+  const WiFiAP *config = this->get_selected_sta_();
+  if (config == nullptr) {
+    ESP_LOGE(TAG, "No valid network config (selected_sta_index_=%d, sta_.size()=%zu)",
+             static_cast<int>(this->selected_sta_index_), this->sta_.size());
+    // Return empty params - caller should handle this gracefully
+    return WiFiAP();
   }
 
-  WiFiAP WiFiComponent::build_params_for_current_phase_() {
-    const WiFiAP *config = this->get_selected_sta_();
-    if (config == nullptr) {
-      ESP_LOGE(TAG, "No valid network config (selected_sta_index_=%d, sta_.size()=%zu)",
-               static_cast<int>(this->selected_sta_index_), this->sta_.size());
-      // Return empty params - caller should handle this gracefully
-      return WiFiAP();
-    }
+  WiFiAP params = *config;
 
-    WiFiAP params = *config;
-
-    switch (this->retry_phase_) {
-      case WiFiRetryPhase::INITIAL_CONNECT:
+  switch (this->retry_phase_) {
+    case WiFiRetryPhase::INITIAL_CONNECT:
 #ifdef USE_WIFI_FAST_CONNECT
-      case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
+    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
 #endif
-        // Fast connect phases: use config-only (no scan results)
-        // BSSID/channel from config if user specified them, otherwise empty
-        break;
+      // Fast connect phases: use config-only (no scan results)
+      // BSSID/channel from config if user specified them, otherwise empty
+      break;
 
-      case WiFiRetryPhase::EXPLICIT_HIDDEN:
-      case WiFiRetryPhase::RETRY_HIDDEN:
-        // Hidden network mode: clear BSSID/channel to trigger probe request
-        // (both explicit hidden and retry hidden use same behavior)
-        params.clear_bssid();
-        params.clear_channel();
-        break;
+    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+    case WiFiRetryPhase::RETRY_HIDDEN:
+      // Hidden network mode: clear BSSID/channel to trigger probe request
+      // (both explicit hidden and retry hidden use same behavior)
+      params.clear_bssid();
+      params.clear_channel();
+      break;
 
-      case WiFiRetryPhase::SCAN_CONNECTING:
-        // Scan-based phase: always use best scan result (index 0 - highest priority after sorting)
-        if (!this->scan_result_.empty()) {
-          apply_scan_result_to_params(params, this->scan_result_[0]);
-        }
-        break;
+    case WiFiRetryPhase::SCAN_CONNECTING:
+      // Scan-based phase: always use best scan result (index 0 - highest priority after sorting)
+      if (!this->scan_result_.empty()) {
+        apply_scan_result_to_params(params, this->scan_result_[0]);
+      }
+      break;
 
-      case WiFiRetryPhase::RESTARTING_ADAPTER:
-        // Should not be building params during restart
-        break;
-    }
-
-    return params;
+    case WiFiRetryPhase::RESTARTING_ADAPTER:
+      // Should not be building params during restart
+      break;
   }
 
-  WiFiAP WiFiComponent::get_sta() const {
-    const WiFiAP *config = this->get_selected_sta_();
-    return config ? *config : WiFiAP{};
-  }
-  void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
-    this->save_wifi_sta(ssid.c_str(), password.c_str());
-  }
-  void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
-    SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
-    strncpy(save.ssid, ssid, sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
-    strncpy(save.password, password, sizeof(save.password) - 1);  // max 64 chars, byte 64 remains \0
-    this->pref_.save(&save);
-    // ensure it's written immediately
-    global_preferences->sync();
+  return params;
+}
 
-    WiFiAP sta{};
-    sta.set_ssid(ssid);
-    sta.set_password(password);
-    this->set_sta(sta);
+WiFiAP WiFiComponent::get_sta() const {
+  const WiFiAP *config = this->get_selected_sta_();
+  return config ? *config : WiFiAP{};
+}
+void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
+  this->save_wifi_sta(ssid.c_str(), password.c_str());
+}
+void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
+  SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
+  strncpy(save.ssid, ssid, sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
+  strncpy(save.password, password, sizeof(save.password) - 1);  // max 64 chars, byte 64 remains \0
+  this->pref_.save(&save);
+  // ensure it's written immediately
+  global_preferences->sync();
 
-    // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
-    this->connect_soon_();
-  }
+  WiFiAP sta{};
+  sta.set_ssid(ssid);
+  sta.set_password(password);
+  this->set_sta(sta);
 
-  void WiFiComponent::connect_soon_() {
+  // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
+  this->connect_soon_();
+}
+
+void WiFiComponent::connect_soon_() {
 #ifdef USE_WIFI_AP_EXCLUSIVE
-    // New credentials from the portal: the AP pauses for them once its answer
-    // is out, and the STA state machine picks them up from there.
-    if (this->ap_setup_) {
-      this->set_timeout(AP_HANDOVER_TIMEOUT_ID, WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
-        if (this->ap_setup_)
-          this->pause_exclusive_ap_();
-      });
-      return;
-    }
+  // New credentials from the portal: the AP pauses for them once its answer
+  // is out, and the STA state machine picks them up from there.
+  if (this->ap_setup_) {
+    this->set_timeout(AP_HANDOVER_TIMEOUT_ID, WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
+      if (this->ap_setup_)
+        this->pause_exclusive_ap_();
+    });
+    return;
+  }
 #endif
-    // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
-    if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
-      ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
-      this->retry_connect();
-    }
+  // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
+  if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
+    ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
+    this->retry_connect();
+  }
+}
+
+void WiFiComponent::start_connecting(const WiFiAP &ap) {
+  // Log connection attempt at INFO level with priority
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  int8_t priority = 0;
+
+  if (ap.has_bssid()) {
+    format_mac_addr_upper(ap.get_bssid().data(), bssid_s);
+    priority = this->get_sta_priority(ap.get_bssid());
   }
 
-  void WiFiComponent::start_connecting(const WiFiAP &ap) {
-    // Log connection attempt at INFO level with priority
-    char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    int8_t priority = 0;
-
-    if (ap.has_bssid()) {
-      format_mac_addr_upper(ap.get_bssid().data(), bssid_s);
-      priority = this->get_sta_priority(ap.get_bssid());
-    }
-
-    ESP_LOGI(TAG,
-             "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
-             ap.ssid_.c_str(), ap.has_bssid() ? bssid_s : LOG_STR_LITERAL("any"), priority, this->num_retried_ + 1,
-             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+  ESP_LOGI(TAG,
+           "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
+           ap.ssid_.c_str(), ap.has_bssid() ? bssid_s : LOG_STR_LITERAL("any"), priority, this->num_retried_ + 1,
+           get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-    ESP_LOGV(TAG,
-             "Connection Params:\n"
-             "  SSID: '%s'",
-             ap.ssid_.c_str());
-    if (ap.has_bssid()) {
-      ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
-    } else {
-      ESP_LOGV(TAG, "  BSSID: Not Set");
-    }
+  ESP_LOGV(TAG,
+           "Connection Params:\n"
+           "  SSID: '%s'",
+           ap.ssid_.c_str());
+  if (ap.has_bssid()) {
+    ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
+  } else {
+    ESP_LOGV(TAG, "  BSSID: Not Set");
+  }
 
 #ifdef USE_WIFI_WPA2_EAP
-    const auto &eap_opt = ap.get_eap();
-    if (eap_opt.has_value()) {
-      const EAPAuth &eap_config = *eap_opt;
-      // clang-format off
+  const auto &eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
+    const EAPAuth &eap_config = *eap_opt;
+    // clang-format off
     ESP_LOGV(
         TAG,
         "  WPA2 Enterprise authentication configured:\n"
@@ -1334,131 +1333,131 @@ void WiFiComponent::disable_ap_() {
         "    Username: " LOG_SECRET("'%s'") "\n"
         "    Password: " LOG_SECRET("'%s'"),
         eap_config.identity.c_str(), eap_config.username.c_str(), eap_config.password.c_str());
-      // clang-format on
+    // clang-format on
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
+    ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
 #endif
-      bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
-      bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
-      bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
-      ESP_LOGV(TAG,
-               "    CA Cert:     %s\n"
-               "    Client Cert: %s\n"
-               "    Client Key:  %s",
-               ca_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
-               client_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
-               client_key_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"));
-    } else {
+    bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
+    bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
+    bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
+    ESP_LOGV(TAG,
+             "    CA Cert:     %s\n"
+             "    Client Cert: %s\n"
+             "    Client Key:  %s",
+             ca_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_key_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"));
+  } else {
 #endif
-      ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.password_.c_str());
+    ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.password_.c_str());
 #ifdef USE_WIFI_WPA2_EAP
-    }
+  }
 #endif
-    if (ap.has_channel()) {
-      ESP_LOGV(TAG, "  Channel: %u", ap.get_channel());
-    } else {
-      ESP_LOGV(TAG, "  Channel not set");
-    }
+  if (ap.has_channel()) {
+    ESP_LOGV(TAG, "  Channel: %u", ap.get_channel());
+  } else {
+    ESP_LOGV(TAG, "  Channel not set");
+  }
 #ifdef USE_WIFI_MANUAL_IP
-    auto manual_ip = ap.get_manual_ip();
-    if (manual_ip.has_value()) {
-      ManualIP m = *manual_ip;
-      char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
-               m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
-               m.dns2.str_to(dns2_buf));
-    } else
-#endif
-    {
-      ESP_LOGV(TAG, "  Using DHCP IP");
-    }
-    ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
-#endif
-
-    // Clear any stale error from previous connection attempt.
-    // This is the canonical location for clearing the flag since all connection
-    // attempts go through start_connecting(). restart_adapter() also clears it, as it
-    // enters COOLDOWN without calling start_connecting(), and ESP8266 clears it again
-    // after wifi_station_connect(), whose callbacks fire synchronously.
-    this->error_from_callback_ = false;
-
-    if (!this->wifi_sta_connect_(ap)) {
-      ESP_LOGE(TAG, "wifi_sta_connect_ failed");
-      // Enter cooldown to allow WiFi hardware to stabilize
-      // (immediate failure suggests hardware not ready, different from connection timeout)
-      this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-    } else {
-      this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
-    }
-    this->action_started_ = millis();
-  }
-
-  const LogString *get_signal_bars(int8_t rssi) {
-    // LOWER ONE QUARTER BLOCK
-    // Unicode: U+2582, UTF-8: E2 96 82
-    // LOWER HALF BLOCK
-    // Unicode: U+2584, UTF-8: E2 96 84
-    // LOWER THREE QUARTERS BLOCK
-    // Unicode: U+2586, UTF-8: E2 96 86
-    // FULL BLOCK
-    // Unicode: U+2588, UTF-8: E2 96 88
-    if (rssi >= -50) {
-      return LOG_STR("\033[0;32m"  // green
-                     "\xe2\x96\x82"
-                     "\xe2\x96\x84"
-                     "\xe2\x96\x86"
-                     "\xe2\x96\x88"
-                     "\033[0m");
-    } else if (rssi >= -65) {
-      return LOG_STR("\033[0;33m"  // yellow
-                     "\xe2\x96\x82"
-                     "\xe2\x96\x84"
-                     "\xe2\x96\x86"
-                     "\033[0;37m"
-                     "\xe2\x96\x88"
-                     "\033[0m");
-    } else if (rssi >= -85) {
-      return LOG_STR("\033[0;33m"  // yellow
-                     "\xe2\x96\x82"
-                     "\xe2\x96\x84"
-                     "\033[0;37m"
-                     "\xe2\x96\x86"
-                     "\xe2\x96\x88"
-                     "\033[0m");
-    } else {
-      return LOG_STR("\033[0;31m"  // red
-                     "\xe2\x96\x82"
-                     "\033[0;37m"
-                     "\xe2\x96\x84"
-                     "\xe2\x96\x86"
-                     "\xe2\x96\x88"
-                     "\033[0m");
-    }
-  }
-
-  void WiFiComponent::print_connect_params_() {
-    bssid_t bssid = wifi_bssid();
-    char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    format_mac_addr_upper(bssid.data(), bssid_s);
-    // Use stack buffers for IP address formatting to avoid heap allocations
-    char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    for (auto &ip : wifi_sta_ip_addresses()) {
-      if (ip.is_set()) {
-        ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str_to(ip_buf));
-      }
-    }
-    int8_t rssi = wifi_rssi();
-    // Use stack buffers for SSID and all IP addresses to avoid heap allocations
-    char ssid_buf[SSID_BUFFER_SIZE];
-    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  auto manual_ip = ap.get_manual_ip();
+  if (manual_ip.has_value()) {
+    ManualIP m = *manual_ip;
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    // clang-format off
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
+             m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
+             m.dns2.str_to(dns2_buf));
+  } else
+#endif
+  {
+    ESP_LOGV(TAG, "  Using DHCP IP");
+  }
+  ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
+#endif
+
+  // Clear any stale error from previous connection attempt.
+  // This is the canonical location for clearing the flag since all connection
+  // attempts go through start_connecting(). restart_adapter() also clears it, as it
+  // enters COOLDOWN without calling start_connecting(), and ESP8266 clears it again
+  // after wifi_station_connect(), whose callbacks fire synchronously.
+  this->error_from_callback_ = false;
+
+  if (!this->wifi_sta_connect_(ap)) {
+    ESP_LOGE(TAG, "wifi_sta_connect_ failed");
+    // Enter cooldown to allow WiFi hardware to stabilize
+    // (immediate failure suggests hardware not ready, different from connection timeout)
+    this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+  } else {
+    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
+  }
+  this->action_started_ = millis();
+}
+
+const LogString *get_signal_bars(int8_t rssi) {
+  // LOWER ONE QUARTER BLOCK
+  // Unicode: U+2582, UTF-8: E2 96 82
+  // LOWER HALF BLOCK
+  // Unicode: U+2584, UTF-8: E2 96 84
+  // LOWER THREE QUARTERS BLOCK
+  // Unicode: U+2586, UTF-8: E2 96 86
+  // FULL BLOCK
+  // Unicode: U+2588, UTF-8: E2 96 88
+  if (rssi >= -50) {
+    return LOG_STR("\033[0;32m"  // green
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
+  } else if (rssi >= -65) {
+    return LOG_STR("\033[0;33m"  // yellow
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\033[0;37m"
+                   "\xe2\x96\x88"
+                   "\033[0m");
+  } else if (rssi >= -85) {
+    return LOG_STR("\033[0;33m"  // yellow
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\033[0;37m"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
+  } else {
+    return LOG_STR("\033[0;31m"  // red
+                   "\xe2\x96\x82"
+                   "\033[0;37m"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
+  }
+}
+
+void WiFiComponent::print_connect_params_() {
+  bssid_t bssid = wifi_bssid();
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(bssid.data(), bssid_s);
+  // Use stack buffers for IP address formatting to avoid heap allocations
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  for (auto &ip : wifi_sta_ip_addresses()) {
+    if (ip.is_set()) {
+      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str_to(ip_buf));
+    }
+  }
+  int8_t rssi = wifi_rssi();
+  // Use stack buffers for SSID and all IP addresses to avoid heap allocations
+  char ssid_buf[SSID_BUFFER_SIZE];
+  char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "  SSID: " LOG_SECRET("'%s'") "\n"
                 "  BSSID: " LOG_SECRET("%s") "\n"
@@ -1472,1344 +1471,1343 @@ void WiFiComponent::disable_ap_() {
                 wifi_ssid_to(ssid_buf), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
                 get_wifi_channel(), wifi_subnet_mask_().str_to(subnet_buf), wifi_gateway_ip_().str_to(gateway_buf),
                 wifi_dns_ip_(0).str_to(dns1_buf), wifi_dns_ip_(1).str_to(dns2_buf));
-    // clang-format on
+  // clang-format on
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
-      ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(config->get_bssid()));
-    }
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
+    ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(config->get_bssid()));
+  }
 #endif
 #ifdef USE_WIFI_11KV_SUPPORT
-    ESP_LOGCONFIG(TAG,
-                  "  BTM: %s\n"
-                  "  RRM: %s",
-                  this->btm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
-                  this->rrm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
+  ESP_LOGCONFIG(TAG,
+                "  BTM: %s\n"
+                "  RRM: %s",
+                this->btm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->rrm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 #endif
-  }
+}
 
-  void WiFiComponent::enable() {
-    if (this->state_ != WIFI_COMPONENT_STATE_DISABLED)
-      return;
+void WiFiComponent::enable() {
+  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED)
+    return;
 
-    ESP_LOGD(TAG, "Enabling");
-    this->state_ = WIFI_COMPONENT_STATE_OFF;
+  ESP_LOGD(TAG, "Enabling");
+  this->state_ = WIFI_COMPONENT_STATE_OFF;
 #ifdef USE_ESP32
-    // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
-    // start() can safely run.
-    this->wifi_lazy_init_();
+  // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
+  // start() can safely run.
+  this->wifi_lazy_init_();
 #endif
-    this->start();
-  }
+  this->start();
+}
 
-  void WiFiComponent::disable() {
-    if (this->state_ == WIFI_COMPONENT_STATE_DISABLED)
-      return;
+void WiFiComponent::disable() {
+  if (this->state_ == WIFI_COMPONENT_STATE_DISABLED)
+    return;
 
-    ESP_LOGD(TAG, "Disabling");
-    this->state_ = WIFI_COMPONENT_STATE_DISABLED;
+  ESP_LOGD(TAG, "Disabling");
+  this->state_ = WIFI_COMPONENT_STATE_DISABLED;
 #ifdef USE_WIFI_LEASE_CACHE
-    this->cancel_timeout(LEASE_RENEW_TIMEOUT_ID);
+  this->cancel_timeout(LEASE_RENEW_TIMEOUT_ID);
 #endif
-    this->wifi_disconnect_();
-    this->wifi_mode_(false, false);
+  this->wifi_disconnect_();
+  this->wifi_mode_(false, false);
+}
+
+void WiFiComponent::start_scanning() {
+  this->action_started_ = millis();
+  ESP_LOGD(TAG, "Starting scan");
+  this->wifi_scan_start_(this->passive_scan_);
+  this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
+}
+
+/// Comparator for WiFi scan result sorting - determines which network should be tried first
+/// Returns true if 'a' should be placed before 'b' in the sorted order (a is "better" than b)
+///
+/// Sorting logic (in priority order):
+/// 1. Matching networks always ranked before non-matching networks
+/// 2. For matching networks: Priority first (CRITICAL - tracks failure history)
+/// 3. RSSI as tiebreaker for equal priority or non-matching networks
+///
+/// WHY PRIORITY MUST BE CHECKED FIRST:
+/// The priority field tracks connection failure history via priority degradation:
+/// - Initial priority: 0.0 (from config or default)
+/// - Each connection failure: priority -= 1.0 (becomes -1.0, -2.0, -3.0, etc.)
+/// - Failed BSSIDs sorted lower → naturally try different BSSID on next scan
+///
+/// This enables automatic BSSID cycling for various real-world failure scenarios:
+/// - Crashed/hung AP (visible but not responding)
+/// - Misconfigured mesh node (accepts auth but no DHCP/routing)
+/// - Capacity limits (AP refuses new clients)
+/// - Rogue AP (same SSID, wrong password or malicious)
+/// - Intermittent hardware issues (flaky radio, overheating)
+///
+/// Example mesh network: 3 APs with same SSID "home", all at priority 0.0 initially
+/// - Try strongest BSSID A (sorted by RSSI) → fails → priority A becomes -1.0
+/// - Next scan: BSSID B and C (priority 0.0) sorted BEFORE A (priority -1.0)
+/// - Try next strongest BSSID B → succeeds or fails and gets deprioritized
+/// - System naturally cycles through all BSSIDs via priority degradation
+/// - Eventually finds working AP or tries all options before restarting adapter
+///
+/// If we checked RSSI first (Bug in PR #9963):
+/// - Same failed BSSID would keep being selected if it has strongest signal
+/// - Device stuck connecting to crashed AP with -30dBm while working AP at -50dBm ignored
+/// - Priority degradation would be useless
+/// - Mesh networks would never recover from single AP failure
+[[nodiscard]] inline static bool wifi_scan_result_is_better(const WiFiScanResult &a, const WiFiScanResult &b) {
+  // Matching networks always come before non-matching
+  if (a.get_matches() && !b.get_matches())
+    return true;
+  if (!a.get_matches() && b.get_matches())
+    return false;
+
+  // Both matching: check priority first (tracks connection failures via priority degradation)
+  // Priority is decreased when a BSSID fails to connect, so lower priority = previously failed
+  if (a.get_matches() && b.get_matches() && a.get_priority() != b.get_priority()) {
+    return a.get_priority() > b.get_priority();
   }
 
-  void WiFiComponent::start_scanning() {
-    this->action_started_ = millis();
-    ESP_LOGD(TAG, "Starting scan");
-    this->wifi_scan_start_(this->passive_scan_);
-    this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
-  }
+  // Use RSSI as tiebreaker (for equal-priority matching networks or all non-matching networks)
+  return a.get_rssi() > b.get_rssi();
+}
 
-  /// Comparator for WiFi scan result sorting - determines which network should be tried first
-  /// Returns true if 'a' should be placed before 'b' in the sorted order (a is "better" than b)
-  ///
-  /// Sorting logic (in priority order):
-  /// 1. Matching networks always ranked before non-matching networks
-  /// 2. For matching networks: Priority first (CRITICAL - tracks failure history)
-  /// 3. RSSI as tiebreaker for equal priority or non-matching networks
-  ///
-  /// WHY PRIORITY MUST BE CHECKED FIRST:
-  /// The priority field tracks connection failure history via priority degradation:
-  /// - Initial priority: 0.0 (from config or default)
-  /// - Each connection failure: priority -= 1.0 (becomes -1.0, -2.0, -3.0, etc.)
-  /// - Failed BSSIDs sorted lower → naturally try different BSSID on next scan
-  ///
-  /// This enables automatic BSSID cycling for various real-world failure scenarios:
-  /// - Crashed/hung AP (visible but not responding)
-  /// - Misconfigured mesh node (accepts auth but no DHCP/routing)
-  /// - Capacity limits (AP refuses new clients)
-  /// - Rogue AP (same SSID, wrong password or malicious)
-  /// - Intermittent hardware issues (flaky radio, overheating)
-  ///
-  /// Example mesh network: 3 APs with same SSID "home", all at priority 0.0 initially
-  /// - Try strongest BSSID A (sorted by RSSI) → fails → priority A becomes -1.0
-  /// - Next scan: BSSID B and C (priority 0.0) sorted BEFORE A (priority -1.0)
-  /// - Try next strongest BSSID B → succeeds or fails and gets deprioritized
-  /// - System naturally cycles through all BSSIDs via priority degradation
-  /// - Eventually finds working AP or tries all options before restarting adapter
-  ///
-  /// If we checked RSSI first (Bug in PR #9963):
-  /// - Same failed BSSID would keep being selected if it has strongest signal
-  /// - Device stuck connecting to crashed AP with -30dBm while working AP at -50dBm ignored
-  /// - Priority degradation would be useless
-  /// - Mesh networks would never recover from single AP failure
-  [[nodiscard]] inline static bool wifi_scan_result_is_better(const WiFiScanResult &a, const WiFiScanResult &b) {
-    // Matching networks always come before non-matching
-    if (a.get_matches() && !b.get_matches())
-      return true;
-    if (!a.get_matches() && b.get_matches())
-      return false;
+// Helper function for insertion sort of WiFi scan results
+// Using insertion sort instead of std::stable_sort saves flash memory
+// by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
+// IMPORTANT: This sort is stable (preserves relative order of equal elements)
+//
+// Uses raw memcpy instead of copy assignment to avoid CompactString's
+// destructor/constructor overhead (heap delete[]/new[] for long SSIDs).
+// Copy assignment calls ~CompactString() then placement-new for every shift,
+// which means delete[]/new[] per shift for heap-allocated SSIDs. With 70+
+// networks (e.g., captive portal showing full scan results), this caused
+// event loop blocking from hundreds of heap operations in a tight loop.
+//
+// This is safe because we're permuting elements within the same array —
+// each slot is overwritten exactly once, so no ownership duplication occurs.
+// All members of WiFiScanResult are either trivially copyable (bssid, channel,
+// rssi, priority, flags) or CompactString, which stores either inline data or
+// a heap pointer — never a self-referential pointer (unlike std::string's SSO
+// on some implementations). This was not possible before PR#13472 replaced
+// std::string with CompactString, since std::string's internal layout is
+// implementation-defined and may use self-referential pointers.
+//
+// TODO: If C++ standardizes std::trivially_relocatable, add the assertion for
+// WiFiScanResult/CompactString here to formally express the memcpy safety guarantee.
+template<typename VectorType> static void insertion_sort_scan_results(VectorType &results) {
+  // memcpy-based sort requires no self-referential pointers or virtual dispatch.
+  // These static_asserts guard the assumptions. If any fire, the memcpy sort
+  // must be reviewed for safety before updating the expected values.
+  //
+  // No vtable pointers (memcpy would corrupt vptr)
+  static_assert(!std::is_polymorphic<WiFiScanResult>::value, "WiFiScanResult must not have vtable");
+  static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
+  // Standard layout ensures predictable memory layout with no virtual bases
+  // and no mixed-access-specifier reordering
+  static_assert(std::is_standard_layout<WiFiScanResult>::value, "WiFiScanResult must be standard layout");
+  static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
+  // Size checks catch added/removed fields that may need safety review
+  static_assert(sizeof(WiFiScanResult) == 32, "WiFiScanResult size changed - verify memcpy sort is still safe");
+  static_assert(sizeof(CompactString) == 20, "CompactString size changed - verify memcpy sort is still safe");
+  // Alignment must match for reinterpret_cast of key_buf to be valid
+  static_assert(alignof(WiFiScanResult) <= alignof(std::max_align_t), "WiFiScanResult alignment exceeds max_align_t");
+  const size_t size = results.size();
+  constexpr size_t elem_size = sizeof(WiFiScanResult);
+  // Suppress warnings for intentional memcpy on non-trivially-copyable type.
+  // Safety is guaranteed by the static_asserts above and the permutation invariant.
+  // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
+  auto *memcpy_fn = &memcpy;
+  for (size_t i = 1; i < size; i++) {
+    alignas(WiFiScanResult) uint8_t key_buf[elem_size];
+    memcpy_fn(key_buf, &results[i], elem_size);
+    const auto &key = *reinterpret_cast<const WiFiScanResult *>(key_buf);
+    int32_t j = i - 1;
 
-    // Both matching: check priority first (tracks connection failures via priority degradation)
-    // Priority is decreased when a BSSID fails to connect, so lower priority = previously failed
-    if (a.get_matches() && b.get_matches() && a.get_priority() != b.get_priority()) {
-      return a.get_priority() > b.get_priority();
+    // Move elements that are worse than key to the right
+    // For stability, we only move if key is strictly better than results[j]
+    while (j >= 0 && wifi_scan_result_is_better(key, results[j])) {
+      memcpy_fn(&results[j + 1], &results[j], elem_size);
+      j--;
     }
-
-    // Use RSSI as tiebreaker (for equal-priority matching networks or all non-matching networks)
-    return a.get_rssi() > b.get_rssi();
+    memcpy_fn(&results[j + 1], key_buf, elem_size);
   }
+}
 
-  // Helper function for insertion sort of WiFi scan results
-  // Using insertion sort instead of std::stable_sort saves flash memory
-  // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
-  // IMPORTANT: This sort is stable (preserves relative order of equal elements)
-  //
-  // Uses raw memcpy instead of copy assignment to avoid CompactString's
-  // destructor/constructor overhead (heap delete[]/new[] for long SSIDs).
-  // Copy assignment calls ~CompactString() then placement-new for every shift,
-  // which means delete[]/new[] per shift for heap-allocated SSIDs. With 70+
-  // networks (e.g., captive portal showing full scan results), this caused
-  // event loop blocking from hundreds of heap operations in a tight loop.
-  //
-  // This is safe because we're permuting elements within the same array —
-  // each slot is overwritten exactly once, so no ownership duplication occurs.
-  // All members of WiFiScanResult are either trivially copyable (bssid, channel,
-  // rssi, priority, flags) or CompactString, which stores either inline data or
-  // a heap pointer — never a self-referential pointer (unlike std::string's SSO
-  // on some implementations). This was not possible before PR#13472 replaced
-  // std::string with CompactString, since std::string's internal layout is
-  // implementation-defined and may use self-referential pointers.
-  //
-  // TODO: If C++ standardizes std::trivially_relocatable, add the assertion for
-  // WiFiScanResult/CompactString here to formally express the memcpy safety guarantee.
-  template<typename VectorType> static void insertion_sort_scan_results(VectorType & results) {
-    // memcpy-based sort requires no self-referential pointers or virtual dispatch.
-    // These static_asserts guard the assumptions. If any fire, the memcpy sort
-    // must be reviewed for safety before updating the expected values.
-    //
-    // No vtable pointers (memcpy would corrupt vptr)
-    static_assert(!std::is_polymorphic<WiFiScanResult>::value, "WiFiScanResult must not have vtable");
-    static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
-    // Standard layout ensures predictable memory layout with no virtual bases
-    // and no mixed-access-specifier reordering
-    static_assert(std::is_standard_layout<WiFiScanResult>::value, "WiFiScanResult must be standard layout");
-    static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
-    // Size checks catch added/removed fields that may need safety review
-    static_assert(sizeof(WiFiScanResult) == 32, "WiFiScanResult size changed - verify memcpy sort is still safe");
-    static_assert(sizeof(CompactString) == 20, "CompactString size changed - verify memcpy sort is still safe");
-    // Alignment must match for reinterpret_cast of key_buf to be valid
-    static_assert(alignof(WiFiScanResult) <= alignof(std::max_align_t), "WiFiScanResult alignment exceeds max_align_t");
-    const size_t size = results.size();
-    constexpr size_t elem_size = sizeof(WiFiScanResult);
-    // Suppress warnings for intentional memcpy on non-trivially-copyable type.
-    // Safety is guaranteed by the static_asserts above and the permutation invariant.
-    // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
-    auto *memcpy_fn = &memcpy;
-    for (size_t i = 1; i < size; i++) {
-      alignas(WiFiScanResult) uint8_t key_buf[elem_size];
-      memcpy_fn(key_buf, &results[i], elem_size);
-      const auto &key = *reinterpret_cast<const WiFiScanResult *>(key_buf);
-      int32_t j = i - 1;
-
-      // Move elements that are worse than key to the right
-      // For stability, we only move if key is strictly better than results[j]
-      while (j >= 0 && wifi_scan_result_is_better(key, results[j])) {
-        memcpy_fn(&results[j + 1], &results[j], elem_size);
-        j--;
-      }
-      memcpy_fn(&results[j + 1], key_buf, elem_size);
-    }
-  }
-
-  // Helper function to log matching scan results - marked noinline to prevent re-inlining into loop
-  //
-  // IMPORTANT: This function deliberately uses a SINGLE log call to minimize blocking.
-  // In environments with many matching networks (e.g., 18+ mesh APs), multiple log calls
-  // per network would block the main loop for an unacceptable duration. Each log call
-  // has overhead from UART transmission, so combining INFO+DEBUG into one line halves
-  // the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
-  __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
-    char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    auto bssid = res.get_bssid();
-    format_mac_addr_upper(bssid.data(), bssid_s);
+// Helper function to log matching scan results - marked noinline to prevent re-inlining into loop
+//
+// IMPORTANT: This function deliberately uses a SINGLE log call to minimize blocking.
+// In environments with many matching networks (e.g., 18+ mesh APs), multiple log calls
+// per network would block the main loop for an unacceptable duration. Each log call
+// has overhead from UART transmission, so combining INFO+DEBUG into one line halves
+// the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
+__attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  auto bssid = res.get_bssid();
+  format_mac_addr_upper(bssid.data(), bssid_s);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-    // Single combined log line with all details when DEBUG enabled
-    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s Ch:%2u %3ddB P:%d", res.get_ssid().c_str(),
-             res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
-             LOG_STR_ARG(get_signal_bars(res.get_rssi())), res.get_channel(), res.get_rssi(), res.get_priority());
+  // Single combined log line with all details when DEBUG enabled
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s Ch:%2u %3ddB P:%d", res.get_ssid().c_str(),
+           res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())), res.get_channel(), res.get_rssi(), res.get_priority());
 #else
   ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
            res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
            LOG_STR_ARG(get_signal_bars(res.get_rssi())));
 #endif
+}
+
+void WiFiComponent::check_scanning_finished() {
+  if (!this->scan_done_) {
+    if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
+      ESP_LOGE(TAG, "Scan timeout");
+      this->retry_connect();
+    }
+    return;
+  }
+  this->scan_done_ = false;
+  // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
+  this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
+  this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
+
+  if (this->scan_result_.empty()) {
+    ESP_LOGW(TAG, "No networks found");
+    this->retry_connect();
+    return;
   }
 
-  void WiFiComponent::check_scanning_finished() {
-    if (!this->scan_done_) {
-      if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
-        ESP_LOGE(TAG, "Scan timeout");
-        this->retry_connect();
-      }
-      return;
-    }
-    this->scan_done_ = false;
-    // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
-    this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
-    this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
-
-    if (this->scan_result_.empty()) {
-      ESP_LOGW(TAG, "No networks found");
-      this->retry_connect();
-      return;
-    }
-
-    ESP_LOGD(TAG, "Found networks:");
-    {
-      ScanResultsLock lock(this);
-      for (auto &res : this->scan_result_) {
-        for (auto &ap : this->sta_) {
-          if (res.matches(ap)) {
-            res.set_matches(true);
-            // Cache priority lookup - do single search instead of 2 separate searches
-            const bssid_t &bssid = res.get_bssid();
-            if (!this->has_sta_priority(bssid)) {
-              this->set_sta_priority(bssid, ap.get_priority());
-            }
-            res.set_priority(this->get_sta_priority(bssid));
-            break;
-          }
-        }
-      }
-
-      // Sort scan results using insertion sort for better memory efficiency
-      insertion_sort_scan_results(this->scan_result_);
-    }
-
-    // Log matching networks (non-matching already logged at VERBOSE in scan callback)
+  ESP_LOGD(TAG, "Found networks:");
+  {
+    ScanResultsLock lock(this);
     for (auto &res : this->scan_result_) {
-      if (res.get_matches()) {
-        log_scan_result(res);
-      }
-    }
-
-    // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
-    // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
-    // matches that network and record it in selected_sta_index_. This keeps the two indices
-    // synchronized so build_params_for_current_phase_() can safely use both to build connection parameters.
-    const WiFiScanResult &scan_res = this->scan_result_[0];
-    bool found_match = false;
-    if (scan_res.get_matches()) {
-      for (size_t i = 0; i < this->sta_.size(); i++) {
-        if (scan_res.matches(this->sta_[i])) {
-          // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
-          // No overflow check needed - YAML validation prevents >127 networks
-          this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
-          found_match = true;
+      for (auto &ap : this->sta_) {
+        if (res.matches(ap)) {
+          res.set_matches(true);
+          // Cache priority lookup - do single search instead of 2 separate searches
+          const bssid_t &bssid = res.get_bssid();
+          if (!this->has_sta_priority(bssid)) {
+            this->set_sta_priority(bssid, ap.get_priority());
+          }
+          res.set_priority(this->get_sta_priority(bssid));
           break;
         }
       }
     }
 
-    if (!found_match) {
-      ESP_LOGW(TAG, "No matching network found");
-      // No scan results matched our configured networks - transition directly to hidden mode
-      // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
-      this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
-      // If no hidden networks to try, skip connection attempt (will be handled on next loop)
-      if (this->selected_sta_index_ == -1) {
-        return;
-      }
-      // Now start connection attempt in hidden mode
-    } else if (this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING)) {
-      return;  // scan started, wait for next loop iteration
-    }
-
-    yield();
-
-    WiFiAP params = this->build_params_for_current_phase_();
-    // Ensure we're in SCAN_CONNECTING phase when connecting with scan results
-    // (needed when scan was started directly without transition_to_phase_, e.g., initial scan)
-    this->start_connecting(params);
+    // Sort scan results using insertion sort for better memory efficiency
+    insertion_sort_scan_results(this->scan_result_);
   }
 
-  void WiFiComponent::dump_config() {
-    char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    ESP_LOGCONFIG(TAG,
-                  "WiFi:\n"
-                  "  Local MAC: %s\n"
-                  "  Connected: %s",
-                  get_mac_address_pretty_into_buffer(mac_s), YESNO(this->is_connected()));
-    if (this->is_disabled()) {
-      ESP_LOGCONFIG(TAG, "  Disabled");
+  // Log matching networks (non-matching already logged at VERBOSE in scan callback)
+  for (auto &res : this->scan_result_) {
+    if (res.get_matches()) {
+      log_scan_result(res);
+    }
+  }
+
+  // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
+  // After sorting, scan_result_[0] contains the best network. Now find which sta_[i] config
+  // matches that network and record it in selected_sta_index_. This keeps the two indices
+  // synchronized so build_params_for_current_phase_() can safely use both to build connection parameters.
+  const WiFiScanResult &scan_res = this->scan_result_[0];
+  bool found_match = false;
+  if (scan_res.get_matches()) {
+    for (size_t i = 0; i < this->sta_.size(); i++) {
+      if (scan_res.matches(this->sta_[i])) {
+        // Safe cast: sta_.size() limited to MAX_WIFI_NETWORKS (127) in __init__.py validation
+        // No overflow check needed - YAML validation prevents >127 networks
+        this->selected_sta_index_ = static_cast<int8_t>(i);  // Links scan_result_[0] with sta_[i]
+        found_match = true;
+        break;
+      }
+    }
+  }
+
+  if (!found_match) {
+    ESP_LOGW(TAG, "No matching network found");
+    // No scan results matched our configured networks - transition directly to hidden mode
+    // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
+    this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
+    // If no hidden networks to try, skip connection attempt (will be handled on next loop)
+    if (this->selected_sta_index_ == -1) {
       return;
     }
-#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
-    const char *band_mode_s;
-    switch (this->band_mode_) {
-      case WIFI_BAND_MODE_2G_ONLY:
-        band_mode_s = "2.4GHz";
-        break;
-      case WIFI_BAND_MODE_5G_ONLY:
-        band_mode_s = "5GHz";
-        break;
-      case WIFI_BAND_MODE_AUTO:
-      default:
-        band_mode_s = "Auto";
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
-#endif
-#ifdef USE_WIFI_PHY_MODE
-    ESP_LOGCONFIG(TAG, "  PHY Mode: %s", LOG_STR_ARG(phy_mode_to_log_string(this->phy_mode_)));
-#endif
-    if (this->is_connected()) {
-      this->print_connect_params_();
-    }
+    // Now start connection attempt in hidden mode
+  } else if (this->transition_to_phase_(WiFiRetryPhase::SCAN_CONNECTING)) {
+    return;  // scan started, wait for next loop iteration
   }
 
-  void WiFiComponent::check_connecting_finished(uint32_t now) {
-    auto status = this->wifi_sta_connect_status_();
+  yield();
 
-    if (status == WiFiSTAConnectStatus::CONNECTED) {
-      char ssid_buf[SSID_BUFFER_SIZE];
-      if (wifi_ssid_to(ssid_buf)[0] == '\0') {
-        ESP_LOGW(TAG, "Connection incomplete");
-        this->retry_connect();
-        return;
-      }
+  WiFiAP params = this->build_params_for_current_phase_();
+  // Ensure we're in SCAN_CONNECTING phase when connecting with scan results
+  // (needed when scan was started directly without transition_to_phase_, e.g., initial scan)
+  this->start_connecting(params);
+}
 
-      ESP_LOGI(TAG, "Connected");
-      // Warn if we had to retry with hidden network mode for a network that's not marked hidden
-      // Only warn if we actually connected without scan data (SSID only), not if scan succeeded on retry
-      if (const WiFiAP *config = this->get_selected_sta_(); this->retry_phase_ == WiFiRetryPhase::RETRY_HIDDEN &&
-                                                            config && !config->get_hidden() &&
-                                                            this->scan_result_.empty()) {
-        ESP_LOGW(TAG, LOG_SECRET("'%s'") " should be marked hidden", config->ssid_.c_str());
-      }
-      // Reset to initial phase on successful connection (don't log transition, just reset state)
-      this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
-      this->num_retried_ = 0;
+void WiFiComponent::dump_config() {
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGCONFIG(TAG,
+                "WiFi:\n"
+                "  Local MAC: %s\n"
+                "  Connected: %s",
+                get_mac_address_pretty_into_buffer(mac_s), YESNO(this->is_connected()));
+  if (this->is_disabled()) {
+    ESP_LOGCONFIG(TAG, "  Disabled");
+    return;
+  }
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  const char *band_mode_s;
+  switch (this->band_mode_) {
+    case WIFI_BAND_MODE_2G_ONLY:
+      band_mode_s = "2.4GHz";
+      break;
+    case WIFI_BAND_MODE_5G_ONLY:
+      band_mode_s = "5GHz";
+      break;
+    case WIFI_BAND_MODE_AUTO:
+    default:
+      band_mode_s = "Auto";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
+#endif
+#ifdef USE_WIFI_PHY_MODE
+  ESP_LOGCONFIG(TAG, "  PHY Mode: %s", LOG_STR_ARG(phy_mode_to_log_string(this->phy_mode_)));
+#endif
+  if (this->is_connected()) {
+    this->print_connect_params_();
+  }
+}
+
+void WiFiComponent::check_connecting_finished(uint32_t now) {
+  auto status = this->wifi_sta_connect_status_();
+
+  if (status == WiFiSTAConnectStatus::CONNECTED) {
+    char ssid_buf[SSID_BUFFER_SIZE];
+    if (wifi_ssid_to(ssid_buf)[0] == '\0') {
+      ESP_LOGW(TAG, "Connection incomplete");
+      this->retry_connect();
+      return;
+    }
+
+    ESP_LOGI(TAG, "Connected");
+    // Warn if we had to retry with hidden network mode for a network that's not marked hidden
+    // Only warn if we actually connected without scan data (SSID only), not if scan succeeded on retry
+    if (const WiFiAP *config = this->get_selected_sta_(); this->retry_phase_ == WiFiRetryPhase::RETRY_HIDDEN &&
+                                                          config && !config->get_hidden() &&
+                                                          this->scan_result_.empty()) {
+      ESP_LOGW(TAG, LOG_SECRET("'%s'") " should be marked hidden", config->ssid_.c_str());
+    }
+    // Reset to initial phase on successful connection (don't log transition, just reset state)
+    this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
+    this->num_retried_ = 0;
 #ifdef USE_WIFI_AP
-      if (this->has_ap()) {
+    if (this->has_ap()) {
 #ifdef USE_WIFI_APSTA
-        if (this->ap_coexist_) {
-          // Coexistence mode: AP stays up permanently; do not disable after STA connects.
-          ESP_LOGD(TAG, "STA connected; AP remains active (coexist mode)");
-          // The portal must not stay up: it answers every GET from anywhere without
-          // authentication, hands out the stored credentials over /wifisave, and while
-          // it is active the retries below stay in their slow, scan-free lane.
-          this->stop_captive_portal_();
-        } else {
+      if (this->ap_coexist_) {
+        // Coexistence mode: AP stays up permanently; do not disable after STA connects.
+        ESP_LOGD(TAG, "STA connected; AP remains active (coexist mode)");
+        // The portal must not stay up: it answers every GET from anywhere without
+        // authentication, hands out the stored credentials over /wifisave, and while
+        // it is active the retries below stay in their slow, scan-free lane.
+        this->stop_captive_portal_();
+      } else {
 #endif
-          this->disable_ap_();
+        this->disable_ap_();
 #ifdef USE_WIFI_APSTA
-        }
-#endif
       }
+#endif
+    }
 #endif
 #ifdef USE_IMPROV_BLE
-      if (this->is_improv_ble_active_()) {
-        improv_ble::global_improv_component->stop();
-      }
+    if (this->is_improv_ble_active_()) {
+      improv_ble::global_improv_component->stop();
+    }
 #endif
 
-      this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
-      // Refresh is_connected() cache; loop()'s refresh ran before this transition.
-      this->update_connected_state_();
-      this->num_retried_ = 0;
-      this->print_connect_params_();
+    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
+    // Refresh is_connected() cache; loop()'s refresh ran before this transition.
+    this->update_connected_state_();
+    this->num_retried_ = 0;
+    this->print_connect_params_();
 
-      // Reset roaming state on successful connection
-      this->roaming_last_check_ = now;
-      // Only preserve attempts if reconnecting after a failed roam attempt
-      // This prevents ping-pong between APs when a roam target is unreachable
-      if (this->roaming_state_ == RoamingState::CONNECTING) {
-        // Successful roam to better AP on first try - reset attempts so we can roam again later
-        ESP_LOGD(TAG, "Roam successful");
+    // Reset roaming state on successful connection
+    this->roaming_last_check_ = now;
+    // Only preserve attempts if reconnecting after a failed roam attempt
+    // This prevents ping-pong between APs when a roam target is unreachable
+    if (this->roaming_state_ == RoamingState::CONNECTING) {
+      // Successful roam to better AP on first try - reset attempts so we can roam again later
+      ESP_LOGD(TAG, "Roam successful");
+      this->roaming_attempts_ = 0;
+    } else if (this->roaming_state_ == RoamingState::RECONNECTING) {
+      // Check if we ended up on the roam target despite needing a retry
+      // (e.g., first connect failed but scan-based retry found and connected to the same better AP)
+      bssid_t current_bssid = this->wifi_bssid();
+      if (this->roaming_target_bssid_ != bssid_t{} && current_bssid == this->roaming_target_bssid_) {
+        char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(current_bssid.data(), bssid_buf);
+        ESP_LOGD(TAG, "Roam successful (via retry, attempt %u/%u) to %s", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS,
+                 bssid_buf);
         this->roaming_attempts_ = 0;
-      } else if (this->roaming_state_ == RoamingState::RECONNECTING) {
-        // Check if we ended up on the roam target despite needing a retry
-        // (e.g., first connect failed but scan-based retry found and connected to the same better AP)
-        bssid_t current_bssid = this->wifi_bssid();
-        if (this->roaming_target_bssid_ != bssid_t{} && current_bssid == this->roaming_target_bssid_) {
-          char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-          format_mac_addr_upper(current_bssid.data(), bssid_buf);
-          ESP_LOGD(TAG, "Roam successful (via retry, attempt %u/%u) to %s", this->roaming_attempts_,
-                   ROAMING_MAX_ATTEMPTS, bssid_buf);
-          this->roaming_attempts_ = 0;
-        } else if (this->roaming_target_bssid_ != bssid_t{}) {
-          // Failed roam to specific target, reconnected to different AP - keep attempts to prevent ping-pong
-          ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-        } else {
-          // Reconnected after scan-induced disconnect (no roam target) - keep attempts
-          ESP_LOGD(TAG, "Reconnected after roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-        }
+      } else if (this->roaming_target_bssid_ != bssid_t{}) {
+        // Failed roam to specific target, reconnected to different AP - keep attempts to prevent ping-pong
+        ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
       } else {
-        // Normal connection (boot, credentials changed, etc.)
-        this->roaming_attempts_ = 0;
+        // Reconnected after scan-induced disconnect (no roam target) - keep attempts
+        ESP_LOGD(TAG, "Reconnected after roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
       }
-      this->roaming_state_ = RoamingState::IDLE;
-      this->roaming_target_bssid_ = {};
-      this->roaming_scan_end_ = 0;
+    } else {
+      // Normal connection (boot, credentials changed, etc.)
+      this->roaming_attempts_ = 0;
+    }
+    this->roaming_state_ = RoamingState::IDLE;
+    this->roaming_target_bssid_ = {};
+    this->roaming_scan_end_ = 0;
 
-      // Clear all priority penalties - the next reconnect will happen when an AP disconnects,
-      // which means the landscape has likely changed and previous tracked failures are stale
-      this->clear_all_bssid_priorities_();
+    // Clear all priority penalties - the next reconnect will happen when an AP disconnects,
+    // which means the landscape has likely changed and previous tracked failures are stale
+    this->clear_all_bssid_priorities_();
 
 #ifdef USE_WIFI_FAST_CONNECT
-      this->save_fast_connect_settings_(this->wifi_bssid(), get_wifi_channel());
+    this->save_fast_connect_settings_(this->wifi_bssid(), get_wifi_channel());
 #endif
 
-      this->release_scan_results_();
+    this->release_scan_results_();
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      // Notify listeners now that state machine has reached STA_CONNECTED
-      // This ensures wifi.connected condition returns true in listener automations
-      this->notify_connect_state_listeners_();
+    // Notify listeners now that state machine has reached STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->notify_connect_state_listeners_();
 #endif
 
 #if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-      // On ESP8266, GOT_IP event may not fire for static IP configurations,
-      // so notify IP state listeners here as a fallback.
-      if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
-        this->notify_ip_state_listeners_();
-      }
+    // On ESP8266, GOT_IP event may not fire for static IP configurations,
+    // so notify IP state listeners here as a fallback.
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      this->notify_ip_state_listeners_();
+    }
 #endif
 
-      return;
-    }
+    return;
+  }
 
-    if (now - this->action_started_ > WIFI_CONNECT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Connection timeout, aborting connection attempt");
-      this->wifi_disconnect_();
-      this->retry_connect();
-      return;
-    }
-
-    if (this->error_from_callback_) {
-      // ESP8266: logging done in callback, listeners deferred via pending_.disconnect
-      // Other platforms: just log generic failure message
-#ifndef USE_ESP8266
-      ESP_LOGW(TAG, "Connecting to network failed (callback)");
-#endif
-      this->retry_connect();
-      return;
-    }
-
-    if (status == WiFiSTAConnectStatus::CONNECTING) {
-      return;
-    }
-
-    if (status == WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND) {
-      ESP_LOGW(TAG, "Network no longer found");
-      this->retry_connect();
-      return;
-    }
-
-    if (status == WiFiSTAConnectStatus::ERROR_CONNECT_FAILED) {
-      ESP_LOGW(TAG, "Connecting to network failed");
-      this->retry_connect();
-      return;
-    }
-
-    ESP_LOGW(TAG, "Unknown connection status %d", (int) status);
+  if (now - this->action_started_ > WIFI_CONNECT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Connection timeout, aborting connection attempt");
+    this->wifi_disconnect_();
     this->retry_connect();
+    return;
   }
 
-  /// Determine the next retry phase based on current state and failure conditions
-  /// This function examines the current retry phase, number of retries, and failure reasons
-  /// to decide what phase to move to next. It does not modify any state - it only returns
-  /// the recommended next phase.
-  ///
-  /// @return The next WiFiRetryPhase to transition to (may be same as current phase if should retry)
-  WiFiRetryPhase WiFiComponent::determine_next_phase_() {
-    switch (this->retry_phase_) {
-      case WiFiRetryPhase::INITIAL_CONNECT:
-#ifdef USE_WIFI_FAST_CONNECT
-      case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-        // INITIAL_CONNECT and FAST_CONNECT_CYCLING_APS: no retries, try next AP or fall back to scan
-        if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-          return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Move to next AP
-        }
+  if (this->error_from_callback_) {
+    // ESP8266: logging done in callback, listeners deferred via pending_.disconnect
+    // Other platforms: just log generic failure message
+#ifndef USE_ESP8266
+    ESP_LOGW(TAG, "Connecting to network failed (callback)");
 #endif
-        // Check if we should try explicit hidden networks before scanning
-        // This handles reconnection after connection loss where first network is hidden
-        if (!this->sta_.empty() && this->sta_[0].get_hidden()) {
-          return WiFiRetryPhase::EXPLICIT_HIDDEN;
-        }
-        // No more APs to try, fall back to scan
-        return WiFiRetryPhase::SCAN_CONNECTING;
-
-      case WiFiRetryPhase::EXPLICIT_HIDDEN: {
-        // Try all explicitly hidden networks before scanning
-        if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
-          return WiFiRetryPhase::EXPLICIT_HIDDEN;  // Keep retrying same SSID
-        }
-
-        // Exhausted retries on current SSID - check for more explicitly hidden networks
-        // Stop when we reach a visible network (proceed to scanning)
-        size_t next_index = this->selected_sta_index_ + 1;
-        if (next_index < this->sta_.size() && this->sta_[next_index].get_hidden()) {
-          // Found another explicitly hidden network
-          return WiFiRetryPhase::EXPLICIT_HIDDEN;
-        }
-
-        // No more consecutive explicitly hidden networks
-        // If ALL networks are hidden, skip scanning and go directly to restart
-        if (this->find_first_non_hidden_index_() < 0) {
-          return WiFiRetryPhase::RESTARTING_ADAPTER;
-        }
-        // Otherwise proceed to scanning for non-hidden networks
-        return WiFiRetryPhase::SCAN_CONNECTING;
-      }
-
-      case WiFiRetryPhase::SCAN_CONNECTING:
-        // If scan found no networks or no matching networks, skip to hidden network mode
-        if (this->scan_result_.empty() || !this->scan_result_[0].get_matches()) {
-          return WiFiRetryPhase::RETRY_HIDDEN;
-        }
-
-        if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_BSSID) {
-          return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying same BSSID
-        }
-
-        // Exhausted retries on current BSSID (scan_result_[0])
-        // Its priority has been decreased, so on next scan it will be sorted lower
-        // and we'll try the next best BSSID.
-        // Check if there are any potentially hidden networks to try
-        if (this->find_next_hidden_sta_(-1) >= 0) {
-          return WiFiRetryPhase::RETRY_HIDDEN;  // Found hidden networks to try
-        }
-        // No hidden networks - always go through RESTARTING_ADAPTER phase
-        // This ensures num_retried_ gets reset and a fresh scan is triggered
-        // The actual adapter restart will be skipped if captive portal/improv is active
-        return WiFiRetryPhase::RESTARTING_ADAPTER;
-
-      case WiFiRetryPhase::RETRY_HIDDEN:
-        // If no hidden SSIDs to try (selected_sta_index_ == -1), skip directly to rescan
-        if (this->selected_sta_index_ >= 0) {
-          if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
-            return WiFiRetryPhase::RETRY_HIDDEN;  // Keep retrying same SSID
-          }
-
-          // Exhausted retries on current SSID - check if there are more potentially hidden SSIDs to try
-          if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
-            // Check if find_next_hidden_sta_() would actually find another hidden SSID
-            // as it might have been seen in the scan results and we want to skip those
-            // otherwise we will get stuck in RETRY_HIDDEN phase
-            if (this->find_next_hidden_sta_(this->selected_sta_index_) != -1) {
-              // More hidden SSIDs available - stay in RETRY_HIDDEN, advance will happen in retry_connect()
-              return WiFiRetryPhase::RETRY_HIDDEN;
-            }
-          }
-        }
-        // Exhausted all potentially hidden SSIDs - always go through RESTARTING_ADAPTER
-        // This ensures num_retried_ gets reset and a fresh scan is triggered
-        // The actual adapter restart will be skipped if captive portal/improv is active
-        return WiFiRetryPhase::RESTARTING_ADAPTER;
-
-      case WiFiRetryPhase::RESTARTING_ADAPTER:
-        // After restart, go back to explicit hidden if we went through it initially
-        if (this->went_through_explicit_hidden_phase_()) {
-          return WiFiRetryPhase::EXPLICIT_HIDDEN;
-        }
-        // Skip scanning when captive portal/improv is active to avoid disrupting AP,
-        // BUT only if we've already completed at least one scan AFTER the portal started.
-        // When captive portal first starts, scan results may be filtered/stale, so we need
-        // to do one full scan to populate available networks for the captive portal UI.
-        //
-        // WHY SCANNING DISRUPTS AP MODE:
-        // WiFi scanning requires the radio to leave the AP's channel and hop through
-        // other channels to listen for beacons. During this time (even for passive scans),
-        // the AP cannot service connected clients - they experience disconnections or
-        // timeouts. On ESP32, even passive scans cause brief but noticeable disruptions
-        // that break captive portal HTTP requests and DNS lookups.
-        //
-        // BLIND RETRY MODE:
-        // When captive portal/improv is active, we use RETRY_HIDDEN as a "try all networks
-        // blindly" mode. Since retry_hidden_mode_ is set to BLIND_RETRY (in RESTARTING_ADAPTER
-        // transition), find_next_hidden_sta_() will treat ALL configured networks as
-        // candidates, cycling through them without requiring scan results.
-        //
-        // This allows users to configure WiFi via captive portal while the device keeps
-        // attempting to connect to all configured networks in sequence.
-        // Captive portal needs scan results to show available networks.
-        // If captive portal is active, only skip scanning if we've done a scan after it started.
-        // If only improv is active (no captive portal), skip scanning since improv doesn't need results.
-        if (this->is_captive_portal_active_()) {
-          if (this->has_completed_scan_after_captive_portal_start_) {
-            return WiFiRetryPhase::RETRY_HIDDEN;
-          }
-          // Need to scan for captive portal
-        } else if (this->is_improv_ble_active_()) {
-          // Improv doesn't need scan results
-          return WiFiRetryPhase::RETRY_HIDDEN;
-        }
-        return WiFiRetryPhase::SCAN_CONNECTING;
-    }
-
-    // Should never reach here
-    return WiFiRetryPhase::SCAN_CONNECTING;
+    this->retry_connect();
+    return;
   }
 
-  /// Transition from current retry phase to a new phase with logging and phase-specific setup
-  /// This function handles the actual state change, including:
-  /// - Logging the phase transition
-  /// - Resetting the retry counter
-  /// - Performing phase-specific initialization (e.g., advancing AP index, starting scans)
-  ///
-  /// @param new_phase The phase we're transitioning TO
-  /// @return true if connection attempt should be skipped (scan started or no networks to try)
-  ///         false if caller can proceed with connection attempt
-  bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
-    WiFiRetryPhase old_phase = this->retry_phase_;
+  if (status == WiFiSTAConnectStatus::CONNECTING) {
+    return;
+  }
 
-    // No-op if staying in same phase
-    if (old_phase == new_phase) {
-      return false;
-    }
+  if (status == WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND) {
+    ESP_LOGW(TAG, "Network no longer found");
+    this->retry_connect();
+    return;
+  }
 
-    ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(old_phase)),
-             LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
+  if (status == WiFiSTAConnectStatus::ERROR_CONNECT_FAILED) {
+    ESP_LOGW(TAG, "Connecting to network failed");
+    this->retry_connect();
+    return;
+  }
 
-    this->retry_phase_ = new_phase;
-    this->num_retried_ = 0;  // Reset retry counter on phase change
+  ESP_LOGW(TAG, "Unknown connection status %d", (int) status);
+  this->retry_connect();
+}
 
-    // Phase-specific setup
-    switch (new_phase) {
+/// Determine the next retry phase based on current state and failure conditions
+/// This function examines the current retry phase, number of retries, and failure reasons
+/// to decide what phase to move to next. It does not modify any state - it only returns
+/// the recommended next phase.
+///
+/// @return The next WiFiRetryPhase to transition to (may be same as current phase if should retry)
+WiFiRetryPhase WiFiComponent::determine_next_phase_() {
+  switch (this->retry_phase_) {
+    case WiFiRetryPhase::INITIAL_CONNECT:
 #ifdef USE_WIFI_FAST_CONNECT
-      case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS: {
-        // Move to next configured AP - clear old scan data so new AP is tried with config only
-        this->selected_sta_index_++;
-        ScanResultsLock lock(this);
-        this->scan_result_.clear();
-        break;
+    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
+      // INITIAL_CONNECT and FAST_CONNECT_CYCLING_APS: no retries, try next AP or fall back to scan
+      if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+        return WiFiRetryPhase::FAST_CONNECT_CYCLING_APS;  // Move to next AP
       }
 #endif
-
-      case WiFiRetryPhase::EXPLICIT_HIDDEN:
-        // Starting explicit hidden phase - reset to first network
-        this->selected_sta_index_ = 0;
-        break;
-
-      case WiFiRetryPhase::SCAN_CONNECTING:
-        // Transitioning to scan-based connection
-#ifdef USE_WIFI_FAST_CONNECT
-        if (old_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
-          ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan");
-        }
-#endif
-        // Trigger scan if we don't have scan results OR if transitioning from phases that need fresh scan
-        if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::EXPLICIT_HIDDEN ||
-            old_phase == WiFiRetryPhase::RETRY_HIDDEN || old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
-          this->selected_sta_index_ = -1;  // Will be set after scan completes
-          this->start_scanning();
-          return true;  // Started scan, wait for completion
-        }
-        // Already have scan results - selected_sta_index_ should already be synchronized
-        // (set in check_scanning_finished() when scan completed)
-        // No need to reset it here
-        break;
-
-      case WiFiRetryPhase::RETRY_HIDDEN:
-        // Always reset to first candidate when entering this phase.
-        // This phase can be entered from:
-        // - SCAN_CONNECTING: normal flow, find_next_hidden_sta_() skips networks visible in scan
-        // - RESTARTING_ADAPTER: captive portal active, find_next_hidden_sta_() tries ALL networks
-        //
-        // The retry_hidden_mode_ controls the behavior:
-        // - SCAN_BASED: scan_result_ is checked, visible networks are skipped
-        // - BLIND_RETRY: scan_result_ is ignored, all networks become candidates
-        // We don't clear scan_result_ here - the mode controls whether it's consulted.
-        this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
-
-        if (this->selected_sta_index_ == -1) {
-          ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
-        }
-        break;
-
-      case WiFiRetryPhase::RESTARTING_ADAPTER:
-        // Skip actual adapter restart if a portal/improv is active
-        // This allows state machine to reset num_retried_ and trigger fresh scan
-        // without disrupting the portal/improv connection
-        if (!this->is_ap_portal_active_() && !this->is_improv_ble_active_()) {
-          this->restart_adapter();
-        } else {
-          // Even when skipping full restart, disconnect to clear driver state
-          // Without this, platforms like LibreTiny may think we're still connecting
-          this->wifi_disconnect_();
-        }
-        // Clear scan flag - we're starting a new retry cycle
-        // This is critical for captive portal/improv flow: when determine_next_phase_()
-        // returns RETRY_HIDDEN (because scanning is skipped), find_next_hidden_sta_()
-        // will see BLIND_RETRY mode and treat ALL networks as candidates,
-        // effectively cycling through all configured networks without scan results.
-        this->retry_hidden_mode_ = RetryHiddenMode::BLIND_RETRY;
-        // Always enter cooldown after restart (or skip-restart) to allow stabilization
-        // Use extended cooldown when AP is active to avoid constant scanning that blocks DNS
-        this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
-        this->action_started_ = millis();
-        // Return true to indicate we should wait (go to COOLDOWN) instead of immediately connecting
-        return true;
-
-      default:
-        break;
-    }
-
-    return false;  // Did not start scan, can proceed with connection
-  }
-
-  void WiFiComponent::clear_all_bssid_priorities_() {
-    if (!this->sta_priorities_.empty()) {
-      decltype(this->sta_priorities_)().swap(this->sta_priorities_);
-    }
-  }
-
-  /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
-  /// At minimum priority, all BSSIDs are equally bad, so priority tracking is useless
-  /// Called after failed connection attempts
-  void WiFiComponent::clear_priorities_if_all_min_() {
-    if (this->sta_priorities_.empty()) {
-      return;
-    }
-
-    int8_t first_priority = this->sta_priorities_[0].priority;
-
-    // Only clear if all priorities have been decremented to the minimum value
-    // At this point, all BSSIDs have been equally penalized and priority info is useless
-    if (first_priority != std::numeric_limits<int8_t>::min()) {
-      return;
-    }
-
-    for (const auto &pri : this->sta_priorities_) {
-      if (pri.priority != first_priority) {
-        return;  // Not all same, nothing to do
+      // Check if we should try explicit hidden networks before scanning
+      // This handles reconnection after connection loss where first network is hidden
+      if (!this->sta_.empty() && this->sta_[0].get_hidden()) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
-    }
+      // No more APs to try, fall back to scan
+      return WiFiRetryPhase::SCAN_CONNECTING;
 
-    // All priorities are at minimum - clear the vector to save memory and reset
-    ESP_LOGD(TAG, "Clearing BSSID priorities (all at minimum)");
-    this->clear_all_bssid_priorities_();
-  }
+    case WiFiRetryPhase::EXPLICIT_HIDDEN: {
+      // Try all explicitly hidden networks before scanning
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;  // Keep retrying same SSID
+      }
 
-  /// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
-  /// This function identifies which BSSID was attempted (from scan results or config),
-  /// decreases its priority by 1.0 to discourage future attempts, and logs the change.
-  ///
-  /// The priority degradation system ensures that failed BSSIDs are automatically sorted
-  /// lower in subsequent scans, naturally cycling through different APs without explicit
-  /// BSSID tracking within a scan cycle.
-  ///
-  /// Priority sources:
-  /// - SCAN_CONNECTING phase: Uses BSSID from scan_result_[0] (best match after sorting)
-  /// - Other phases: Uses BSSID from config if explicitly specified by user or fast_connect
-  ///
-  /// If no BSSID is available (SSID-only connection), priority adjustment is skipped.
-  ///
-  /// IMPORTANT: Priority is only decreased on the LAST attempt for a BSSID in SCAN_CONNECTING phase.
-  /// This prevents false positives from transient WiFi stack state issues after scanning.
-  /// Single failures don't necessarily mean the AP is bad - two genuine failures provide
-  /// higher confidence before degrading priority and skipping the BSSID in future scans.
-  void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
-    // Determine which BSSID we tried to connect to
-    optional<bssid_t> failed_bssid;
-
-    if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-      // Scan-based phase: always use best result (index 0)
-      failed_bssid = this->scan_result_[0].get_bssid();
-    } else if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
-      // Config has specific BSSID (fast_connect or user-specified)
-      failed_bssid = config->get_bssid();
-    }
-
-    if (!failed_bssid.has_value()) {
-      return;  // No BSSID to penalize
-    }
-
-    // Get SSID for logging (use pointer to avoid copy)
-    const char *ssid = nullptr;
-    if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-      ssid = this->scan_result_[0].ssid_.c_str();
-    } else if (const WiFiAP *config = this->get_selected_sta_()) {
-      ssid = config->ssid_.c_str();
-    }
-
-    // Only decrease priority on the last attempt for this phase
-    // This prevents false positives from transient WiFi stack issues
-    uint8_t max_retries = get_max_retries_for_phase(this->retry_phase_);
-    bool is_last_attempt = (this->num_retried_ + 1 >= max_retries);
-
-    // Decrease priority only on last attempt to avoid false positives from transient failures
-    int8_t old_priority = this->get_sta_priority(failed_bssid.value());
-    int8_t new_priority = old_priority;
-
-    if (is_last_attempt) {
-      // Decrease priority, but clamp to int8_t::min to prevent overflow
-      new_priority =
-          (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
-      this->set_sta_priority(failed_bssid.value(), new_priority);
-    }
-    char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-    ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
-             bssid_s, old_priority, new_priority);
-
-    // After adjusting priority, check if all priorities are now at minimum
-    // If so, clear the vector to save memory and reset for fresh start
-    this->clear_priorities_if_all_min_();
-  }
-
-  /// Handle target advancement or retry counter increment when staying in the same phase
-  /// This function is called when a connection attempt fails and determine_next_phase_() indicates
-  /// we should stay in the current phase. It decides whether to:
-  /// - Advance to the next target (AP in fast_connect, SSID in hidden mode)
-  /// - Or increment the retry counter to try the same target again
-  ///
-  /// Phase-specific behavior:
-  /// - FAST_CONNECT_CYCLING_APS: Always advance to next AP (no retries per AP)
-  /// - RETRY_HIDDEN: Advance to next SSID after exhausting retries on current SSID
-  /// - Other phases: Increment retry counter (will retry same target)
-  void WiFiComponent::advance_to_next_target_or_increment_retry_() {
-    WiFiRetryPhase current_phase = this->retry_phase_;
-
-    // Check if we need to advance to next AP/SSID within the same phase
-#ifdef USE_WIFI_FAST_CONNECT
-    if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
-      // Fast connect: always advance to next AP (no retries per AP)
-      this->selected_sta_index_++;
-      this->num_retried_ = 0;
-      ESP_LOGD(TAG, "Next AP in %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-      return;
-    }
-#endif
-
-    if (current_phase == WiFiRetryPhase::EXPLICIT_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
-      // Explicit hidden: exhausted retries on current SSID, find next explicitly hidden network
+      // Exhausted retries on current SSID - check for more explicitly hidden networks
       // Stop when we reach a visible network (proceed to scanning)
       size_t next_index = this->selected_sta_index_ + 1;
       if (next_index < this->sta_.size() && this->sta_[next_index].get_hidden()) {
-        this->selected_sta_index_ = static_cast<int8_t>(next_index);
-        this->num_retried_ = 0;
-        ESP_LOGD(TAG, "Next explicit hidden network at index %d", static_cast<int>(next_index));
-        return;
-      }
-      // No more consecutive explicit hidden networks found - fall through to trigger phase change
-    }
-
-    if (current_phase == WiFiRetryPhase::RETRY_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
-      // Hidden mode: exhausted retries on current SSID, find next potentially hidden SSID
-      // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
-      // In that case, skip networks marked hidden:true (already tried)
-      // Otherwise, include them (they haven't been tried yet)
-      int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_);
-      if (next_index != -1) {
-        // Found another potentially hidden SSID
-        this->selected_sta_index_ = next_index;
-        this->num_retried_ = 0;
-        return;
-      }
-      // No more potentially hidden SSIDs - set selected_sta_index_ to -1 to trigger phase change
-      // This ensures determine_next_phase_() will skip the RETRY_HIDDEN logic and transition out
-      this->selected_sta_index_ = -1;
-      // Return early - phase change will happen on next wifi_loop() iteration
-      return;
-    }
-
-    // Don't increment retry counter if we're in a scan phase with no valid targets
-    if (this->needs_scan_results_()) {
-      return;
-    }
-
-    // Increment retry counter to try the same target again
-    this->num_retried_++;
-    ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
-             get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
-  }
-
-  void WiFiComponent::retry_connect() {
-    // Handle roaming state transitions - preserve attempts counter to prevent ping-pong
-    // to unreachable APs after ROAMING_MAX_ATTEMPTS failures
-    if (this->roaming_state_ == RoamingState::CONNECTING) {
-      // Roam connection failed - transition to reconnecting
-      ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-      this->roaming_state_ = RoamingState::RECONNECTING;
-    } else if (this->is_roaming_scan_active()) {
-      // Disconnected during roam scan - transition to RECONNECTING so the attempts
-      // counter is preserved when reconnection succeeds (IDLE would reset it)
-      ESP_LOGD(TAG, "Disconnected during roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-      this->roaming_state_ = RoamingState::RECONNECTING;
-    } else if (this->roaming_state_ == RoamingState::IDLE) {
-      // Check if a roaming scan recently completed - on ESP8266, going off-channel
-      // during scan can cause a delayed Beacon Timeout 8-20 seconds after scan finishes.
-      // Transition to RECONNECTING so the attempts counter is preserved on reconnect.
-      if (this->roaming_scan_end_ != 0 && millis() - this->roaming_scan_end_ < ROAMING_SCAN_GRACE_PERIOD) {
-        ESP_LOGD(TAG, "Disconnect after roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-        this->roaming_state_ = RoamingState::RECONNECTING;
-      } else {
-        // Not a roaming-triggered reconnect, reset state
-        this->clear_roaming_state_();
-      }
-    }
-    // RECONNECTING: keep state and counter, still trying to reconnect
-
-    this->log_and_adjust_priority_for_failed_connect_();
-
-    // Determine next retry phase based on current state
-    WiFiRetryPhase current_phase = this->retry_phase_;
-    WiFiRetryPhase next_phase = this->determine_next_phase_();
-
-    // Handle phase transitions (transition_to_phase_ handles same-phase no-op internally)
-    if (this->transition_to_phase_(next_phase)) {
-      return;  // Scan started or adapter restarted (which sets its own state)
-    }
-
-    if (next_phase == current_phase) {
-      this->advance_to_next_target_or_increment_retry_();
-    }
-
-    yield();
-    // Check if we have a valid target before building params
-    // After exhausting all networks in a phase, selected_sta_index_ may be -1
-    // In that case, skip connection and let next wifi_loop() handle phase transition
-    if (this->selected_sta_index_ >= 0) {
-      WiFiAP params = this->build_params_for_current_phase_();
-      this->start_connecting(params);
-    }
-  }
-
-  void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
-    this->power_save_ = power_save;
-#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
-    this->configured_power_save_ = power_save;
-#endif
-  }
-
-  bool WiFiComponent::is_captive_portal_active_() {
-#ifdef USE_CAPTIVE_PORTAL
-    return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
-#else
-  return false;
-#endif
-  }
-
-#if defined(USE_CAPTIVE_PORTAL) && defined(USE_WIFI_AP)
-  void WiFiComponent::start_captive_portal_() {
-    // Where the AP runs on its own, a portal with no AP behind it would only
-    // stretch the cooldowns.
-    if (captive_portal::global_captive_portal == nullptr || (WIFI_AP_EXCLUSIVE && !this->ap_setup_))
-      return;
-    // Reset so we force one full scan after captive portal starts
-    // (previous scans were filtered because captive portal wasn't active yet)
-    this->has_completed_scan_after_captive_portal_start_ = false;
-    captive_portal::global_captive_portal->start();
-  }
-#endif
-
-  bool WiFiComponent::is_ap_portal_active_() {
-#ifdef USE_WEBSERVER_CAPTIVE
-    if (web_server::global_web_server->is_captive())
-      return true;
-#endif
-    return this->is_captive_portal_active_();
-  }
-
-  // global_web_server needs no null check: codegen always instantiates WebServer when
-  // USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
-  void WiFiComponent::start_ap_portal_() {
-#ifdef USE_CAPTIVE_PORTAL
-    if (captive_portal::global_captive_portal != nullptr)
-      captive_portal::global_captive_portal->start();
-#endif
-#ifdef USE_WEBSERVER_CAPTIVE
-    web_server::global_web_server->start_captive();
-#endif
-  }
-
-  void WiFiComponent::end_ap_portal_() {
-#ifdef USE_CAPTIVE_PORTAL
-    if (this->is_captive_portal_active_())
-      captive_portal::global_captive_portal->end();
-#endif
-#ifdef USE_WEBSERVER_CAPTIVE
-    web_server::global_web_server->end_captive();
-#endif
-  }
-  bool WiFiComponent::is_improv_ble_active_() {
-#ifdef USE_IMPROV_BLE
-    return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();
-#else
-  return false;
-#endif
-  }
-
-#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
-  bool WiFiComponent::request_high_performance() {
-    // Already configured for high performance - request satisfied
-    if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
-      return true;
-    }
-
-    // Semaphore initialization failed
-    if (this->high_performance_semaphore_ == nullptr) {
-      return false;
-    }
-
-    // Give the semaphore (non-blocking). This increments the count.
-    bool success = xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
-
-    // Wake the main loop so the switch to high-performance mode is applied on the
-    // next tick instead of waiting up to loop_interval.
-    if (success) {
-      App.wake_loop_threadsafe();
-    }
-
-    return success;
-  }
-
-  bool WiFiComponent::release_high_performance() {
-    // Already configured for high performance - nothing to release
-    if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
-      return true;
-    }
-
-    // Semaphore initialization failed
-    if (this->high_performance_semaphore_ == nullptr) {
-      return false;
-    }
-
-    // Take the semaphore (non-blocking). This decrements the count.
-    return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
-  }
-#endif  // USE_ESP32 && USE_WIFI_RUNTIME_POWER_SAVE
-
-#ifdef USE_WIFI_FAST_CONNECT
-  bool WiFiComponent::load_fast_connect_settings_(WiFiAP & params) {
-    SavedWifiFastConnectSettings fast_connect_save{};
-
-    if (this->fast_connect_pref_.load(&fast_connect_save)) {
-      // Validate saved AP index
-      if (fast_connect_save.ap_index < 0 || static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
-        ESP_LOGW(TAG, "AP index out of bounds");
-        return false;
+        // Found another explicitly hidden network
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
 
-      // Set selected index for future operations (save, retry, etc)
-      this->selected_sta_index_ = fast_connect_save.ap_index;
-
-      // Copy entire config, then override with fast connect data
-      params = this->sta_[fast_connect_save.ap_index];
-
-      // Override with saved BSSID/channel from fast connect (SSID/password/etc already copied from config)
-      bssid_t bssid{};
-      std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
-      params.set_bssid(bssid);
-      params.set_channel(fast_connect_save.channel);
-      // Fast connect uses specific BSSID+channel, not hidden network probe (even if config has hidden: true)
-      params.set_hidden(false);
-
-      ESP_LOGD(TAG, "Loaded fast_connect settings");
-#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
-      if ((this->band_mode_ == WIFI_BAND_MODE_5G_ONLY && fast_connect_save.channel < FIRST_5GHZ_CHANNEL) ||
-          (this->band_mode_ == WIFI_BAND_MODE_2G_ONLY && fast_connect_save.channel >= FIRST_5GHZ_CHANNEL)) {
-        ESP_LOGW(TAG, "Saved channel %u not allowed by band mode, ignoring fast_connect", fast_connect_save.channel);
-        this->selected_sta_index_ = -1;
-        return false;
+      // No more consecutive explicitly hidden networks
+      // If ALL networks are hidden, skip scanning and go directly to restart
+      if (this->find_first_non_hidden_index_() < 0) {
+        return WiFiRetryPhase::RESTARTING_ADAPTER;
       }
-#endif
-      return true;
+      // Otherwise proceed to scanning for non-hidden networks
+      return WiFiRetryPhase::SCAN_CONNECTING;
     }
 
+    case WiFiRetryPhase::SCAN_CONNECTING:
+      // If scan found no networks or no matching networks, skip to hidden network mode
+      if (this->scan_result_.empty() || !this->scan_result_[0].get_matches()) {
+        return WiFiRetryPhase::RETRY_HIDDEN;
+      }
+
+      if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_BSSID) {
+        return WiFiRetryPhase::SCAN_CONNECTING;  // Keep retrying same BSSID
+      }
+
+      // Exhausted retries on current BSSID (scan_result_[0])
+      // Its priority has been decreased, so on next scan it will be sorted lower
+      // and we'll try the next best BSSID.
+      // Check if there are any potentially hidden networks to try
+      if (this->find_next_hidden_sta_(-1) >= 0) {
+        return WiFiRetryPhase::RETRY_HIDDEN;  // Found hidden networks to try
+      }
+      // No hidden networks - always go through RESTARTING_ADAPTER phase
+      // This ensures num_retried_ gets reset and a fresh scan is triggered
+      // The actual adapter restart will be skipped if captive portal/improv is active
+      return WiFiRetryPhase::RESTARTING_ADAPTER;
+
+    case WiFiRetryPhase::RETRY_HIDDEN:
+      // If no hidden SSIDs to try (selected_sta_index_ == -1), skip directly to rescan
+      if (this->selected_sta_index_ >= 0) {
+        if (this->num_retried_ + 1 < WIFI_RETRY_COUNT_PER_SSID) {
+          return WiFiRetryPhase::RETRY_HIDDEN;  // Keep retrying same SSID
+        }
+
+        // Exhausted retries on current SSID - check if there are more potentially hidden SSIDs to try
+        if (this->selected_sta_index_ < static_cast<int8_t>(this->sta_.size()) - 1) {
+          // Check if find_next_hidden_sta_() would actually find another hidden SSID
+          // as it might have been seen in the scan results and we want to skip those
+          // otherwise we will get stuck in RETRY_HIDDEN phase
+          if (this->find_next_hidden_sta_(this->selected_sta_index_) != -1) {
+            // More hidden SSIDs available - stay in RETRY_HIDDEN, advance will happen in retry_connect()
+            return WiFiRetryPhase::RETRY_HIDDEN;
+          }
+        }
+      }
+      // Exhausted all potentially hidden SSIDs - always go through RESTARTING_ADAPTER
+      // This ensures num_retried_ gets reset and a fresh scan is triggered
+      // The actual adapter restart will be skipped if captive portal/improv is active
+      return WiFiRetryPhase::RESTARTING_ADAPTER;
+
+    case WiFiRetryPhase::RESTARTING_ADAPTER:
+      // After restart, go back to explicit hidden if we went through it initially
+      if (this->went_through_explicit_hidden_phase_()) {
+        return WiFiRetryPhase::EXPLICIT_HIDDEN;
+      }
+      // Skip scanning when captive portal/improv is active to avoid disrupting AP,
+      // BUT only if we've already completed at least one scan AFTER the portal started.
+      // When captive portal first starts, scan results may be filtered/stale, so we need
+      // to do one full scan to populate available networks for the captive portal UI.
+      //
+      // WHY SCANNING DISRUPTS AP MODE:
+      // WiFi scanning requires the radio to leave the AP's channel and hop through
+      // other channels to listen for beacons. During this time (even for passive scans),
+      // the AP cannot service connected clients - they experience disconnections or
+      // timeouts. On ESP32, even passive scans cause brief but noticeable disruptions
+      // that break captive portal HTTP requests and DNS lookups.
+      //
+      // BLIND RETRY MODE:
+      // When captive portal/improv is active, we use RETRY_HIDDEN as a "try all networks
+      // blindly" mode. Since retry_hidden_mode_ is set to BLIND_RETRY (in RESTARTING_ADAPTER
+      // transition), find_next_hidden_sta_() will treat ALL configured networks as
+      // candidates, cycling through them without requiring scan results.
+      //
+      // This allows users to configure WiFi via captive portal while the device keeps
+      // attempting to connect to all configured networks in sequence.
+      // Captive portal needs scan results to show available networks.
+      // If captive portal is active, only skip scanning if we've done a scan after it started.
+      // If only improv is active (no captive portal), skip scanning since improv doesn't need results.
+      if (this->is_captive_portal_active_()) {
+        if (this->has_completed_scan_after_captive_portal_start_) {
+          return WiFiRetryPhase::RETRY_HIDDEN;
+        }
+        // Need to scan for captive portal
+      } else if (this->is_improv_ble_active_()) {
+        // Improv doesn't need scan results
+        return WiFiRetryPhase::RETRY_HIDDEN;
+      }
+      return WiFiRetryPhase::SCAN_CONNECTING;
+  }
+
+  // Should never reach here
+  return WiFiRetryPhase::SCAN_CONNECTING;
+}
+
+/// Transition from current retry phase to a new phase with logging and phase-specific setup
+/// This function handles the actual state change, including:
+/// - Logging the phase transition
+/// - Resetting the retry counter
+/// - Performing phase-specific initialization (e.g., advancing AP index, starting scans)
+///
+/// @param new_phase The phase we're transitioning TO
+/// @return true if connection attempt should be skipped (scan started or no networks to try)
+///         false if caller can proceed with connection attempt
+bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
+  WiFiRetryPhase old_phase = this->retry_phase_;
+
+  // No-op if staying in same phase
+  if (old_phase == new_phase) {
     return false;
   }
 
-  void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel) {
-    // selected_sta_index_ is always valid here (called only after successful connection)
-    // Fallback to 0 is defensive programming for robustness
-    int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
+  ESP_LOGD(TAG, "Retry phase: %s → %s", LOG_STR_ARG(retry_phase_to_log_string(old_phase)),
+           LOG_STR_ARG(retry_phase_to_log_string(new_phase)));
 
-    // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
-    SavedWifiFastConnectSettings previous_save{};
-    if (this->fast_connect_pref_.load(&previous_save) && memcmp(previous_save.bssid, bssid.data(), 6) == 0 &&
-        previous_save.channel == channel && previous_save.ap_index == ap_index) {
-      return;  // No change, nothing to save
+  this->retry_phase_ = new_phase;
+  this->num_retried_ = 0;  // Reset retry counter on phase change
+
+  // Phase-specific setup
+  switch (new_phase) {
+#ifdef USE_WIFI_FAST_CONNECT
+    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS: {
+      // Move to next configured AP - clear old scan data so new AP is tried with config only
+      this->selected_sta_index_++;
+      ScanResultsLock lock(this);
+      this->scan_result_.clear();
+      break;
+    }
+#endif
+
+    case WiFiRetryPhase::EXPLICIT_HIDDEN:
+      // Starting explicit hidden phase - reset to first network
+      this->selected_sta_index_ = 0;
+      break;
+
+    case WiFiRetryPhase::SCAN_CONNECTING:
+      // Transitioning to scan-based connection
+#ifdef USE_WIFI_FAST_CONNECT
+      if (old_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+        ESP_LOGI(TAG, "Fast connect exhausted, falling back to scan");
+      }
+#endif
+      // Trigger scan if we don't have scan results OR if transitioning from phases that need fresh scan
+      if (this->scan_result_.empty() || old_phase == WiFiRetryPhase::EXPLICIT_HIDDEN ||
+          old_phase == WiFiRetryPhase::RETRY_HIDDEN || old_phase == WiFiRetryPhase::RESTARTING_ADAPTER) {
+        this->selected_sta_index_ = -1;  // Will be set after scan completes
+        this->start_scanning();
+        return true;  // Started scan, wait for completion
+      }
+      // Already have scan results - selected_sta_index_ should already be synchronized
+      // (set in check_scanning_finished() when scan completed)
+      // No need to reset it here
+      break;
+
+    case WiFiRetryPhase::RETRY_HIDDEN:
+      // Always reset to first candidate when entering this phase.
+      // This phase can be entered from:
+      // - SCAN_CONNECTING: normal flow, find_next_hidden_sta_() skips networks visible in scan
+      // - RESTARTING_ADAPTER: captive portal active, find_next_hidden_sta_() tries ALL networks
+      //
+      // The retry_hidden_mode_ controls the behavior:
+      // - SCAN_BASED: scan_result_ is checked, visible networks are skipped
+      // - BLIND_RETRY: scan_result_ is ignored, all networks become candidates
+      // We don't clear scan_result_ here - the mode controls whether it's consulted.
+      this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
+
+      if (this->selected_sta_index_ == -1) {
+        ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
+      }
+      break;
+
+    case WiFiRetryPhase::RESTARTING_ADAPTER:
+      // Skip actual adapter restart if a portal/improv is active
+      // This allows state machine to reset num_retried_ and trigger fresh scan
+      // without disrupting the portal/improv connection
+      if (!this->is_ap_portal_active_() && !this->is_improv_ble_active_()) {
+        this->restart_adapter();
+      } else {
+        // Even when skipping full restart, disconnect to clear driver state
+        // Without this, platforms like LibreTiny may think we're still connecting
+        this->wifi_disconnect_();
+      }
+      // Clear scan flag - we're starting a new retry cycle
+      // This is critical for captive portal/improv flow: when determine_next_phase_()
+      // returns RETRY_HIDDEN (because scanning is skipped), find_next_hidden_sta_()
+      // will see BLIND_RETRY mode and treat ALL networks as candidates,
+      // effectively cycling through all configured networks without scan results.
+      this->retry_hidden_mode_ = RetryHiddenMode::BLIND_RETRY;
+      // Always enter cooldown after restart (or skip-restart) to allow stabilization
+      // Use extended cooldown when AP is active to avoid constant scanning that blocks DNS
+      this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+      this->action_started_ = millis();
+      // Return true to indicate we should wait (go to COOLDOWN) instead of immediately connecting
+      return true;
+
+    default:
+      break;
+  }
+
+  return false;  // Did not start scan, can proceed with connection
+}
+
+void WiFiComponent::clear_all_bssid_priorities_() {
+  if (!this->sta_priorities_.empty()) {
+    decltype(this->sta_priorities_)().swap(this->sta_priorities_);
+  }
+}
+
+/// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
+/// At minimum priority, all BSSIDs are equally bad, so priority tracking is useless
+/// Called after failed connection attempts
+void WiFiComponent::clear_priorities_if_all_min_() {
+  if (this->sta_priorities_.empty()) {
+    return;
+  }
+
+  int8_t first_priority = this->sta_priorities_[0].priority;
+
+  // Only clear if all priorities have been decremented to the minimum value
+  // At this point, all BSSIDs have been equally penalized and priority info is useless
+  if (first_priority != std::numeric_limits<int8_t>::min()) {
+    return;
+  }
+
+  for (const auto &pri : this->sta_priorities_) {
+    if (pri.priority != first_priority) {
+      return;  // Not all same, nothing to do
+    }
+  }
+
+  // All priorities are at minimum - clear the vector to save memory and reset
+  ESP_LOGD(TAG, "Clearing BSSID priorities (all at minimum)");
+  this->clear_all_bssid_priorities_();
+}
+
+/// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
+/// This function identifies which BSSID was attempted (from scan results or config),
+/// decreases its priority by 1.0 to discourage future attempts, and logs the change.
+///
+/// The priority degradation system ensures that failed BSSIDs are automatically sorted
+/// lower in subsequent scans, naturally cycling through different APs without explicit
+/// BSSID tracking within a scan cycle.
+///
+/// Priority sources:
+/// - SCAN_CONNECTING phase: Uses BSSID from scan_result_[0] (best match after sorting)
+/// - Other phases: Uses BSSID from config if explicitly specified by user or fast_connect
+///
+/// If no BSSID is available (SSID-only connection), priority adjustment is skipped.
+///
+/// IMPORTANT: Priority is only decreased on the LAST attempt for a BSSID in SCAN_CONNECTING phase.
+/// This prevents false positives from transient WiFi stack state issues after scanning.
+/// Single failures don't necessarily mean the AP is bad - two genuine failures provide
+/// higher confidence before degrading priority and skipping the BSSID in future scans.
+void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
+  // Determine which BSSID we tried to connect to
+  optional<bssid_t> failed_bssid;
+
+  if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
+    // Scan-based phase: always use best result (index 0)
+    failed_bssid = this->scan_result_[0].get_bssid();
+  } else if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
+    // Config has specific BSSID (fast_connect or user-specified)
+    failed_bssid = config->get_bssid();
+  }
+
+  if (!failed_bssid.has_value()) {
+    return;  // No BSSID to penalize
+  }
+
+  // Get SSID for logging (use pointer to avoid copy)
+  const char *ssid = nullptr;
+  if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
+    ssid = this->scan_result_[0].ssid_.c_str();
+  } else if (const WiFiAP *config = this->get_selected_sta_()) {
+    ssid = config->ssid_.c_str();
+  }
+
+  // Only decrease priority on the last attempt for this phase
+  // This prevents false positives from transient WiFi stack issues
+  uint8_t max_retries = get_max_retries_for_phase(this->retry_phase_);
+  bool is_last_attempt = (this->num_retried_ + 1 >= max_retries);
+
+  // Decrease priority only on last attempt to avoid false positives from transient failures
+  int8_t old_priority = this->get_sta_priority(failed_bssid.value());
+  int8_t new_priority = old_priority;
+
+  if (is_last_attempt) {
+    // Decrease priority, but clamp to int8_t::min to prevent overflow
+    new_priority =
+        (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
+    this->set_sta_priority(failed_bssid.value(), new_priority);
+  }
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
+           bssid_s, old_priority, new_priority);
+
+  // After adjusting priority, check if all priorities are now at minimum
+  // If so, clear the vector to save memory and reset for fresh start
+  this->clear_priorities_if_all_min_();
+}
+
+/// Handle target advancement or retry counter increment when staying in the same phase
+/// This function is called when a connection attempt fails and determine_next_phase_() indicates
+/// we should stay in the current phase. It decides whether to:
+/// - Advance to the next target (AP in fast_connect, SSID in hidden mode)
+/// - Or increment the retry counter to try the same target again
+///
+/// Phase-specific behavior:
+/// - FAST_CONNECT_CYCLING_APS: Always advance to next AP (no retries per AP)
+/// - RETRY_HIDDEN: Advance to next SSID after exhausting retries on current SSID
+/// - Other phases: Increment retry counter (will retry same target)
+void WiFiComponent::advance_to_next_target_or_increment_retry_() {
+  WiFiRetryPhase current_phase = this->retry_phase_;
+
+  // Check if we need to advance to next AP/SSID within the same phase
+#ifdef USE_WIFI_FAST_CONNECT
+  if (current_phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS) {
+    // Fast connect: always advance to next AP (no retries per AP)
+    this->selected_sta_index_++;
+    this->num_retried_ = 0;
+    ESP_LOGD(TAG, "Next AP in %s", LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+    return;
+  }
+#endif
+
+  if (current_phase == WiFiRetryPhase::EXPLICIT_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
+    // Explicit hidden: exhausted retries on current SSID, find next explicitly hidden network
+    // Stop when we reach a visible network (proceed to scanning)
+    size_t next_index = this->selected_sta_index_ + 1;
+    if (next_index < this->sta_.size() && this->sta_[next_index].get_hidden()) {
+      this->selected_sta_index_ = static_cast<int8_t>(next_index);
+      this->num_retried_ = 0;
+      ESP_LOGD(TAG, "Next explicit hidden network at index %d", static_cast<int>(next_index));
+      return;
+    }
+    // No more consecutive explicit hidden networks found - fall through to trigger phase change
+  }
+
+  if (current_phase == WiFiRetryPhase::RETRY_HIDDEN && this->num_retried_ + 1 >= WIFI_RETRY_COUNT_PER_SSID) {
+    // Hidden mode: exhausted retries on current SSID, find next potentially hidden SSID
+    // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
+    // In that case, skip networks marked hidden:true (already tried)
+    // Otherwise, include them (they haven't been tried yet)
+    int8_t next_index = this->find_next_hidden_sta_(this->selected_sta_index_);
+    if (next_index != -1) {
+      // Found another potentially hidden SSID
+      this->selected_sta_index_ = next_index;
+      this->num_retried_ = 0;
+      return;
+    }
+    // No more potentially hidden SSIDs - set selected_sta_index_ to -1 to trigger phase change
+    // This ensures determine_next_phase_() will skip the RETRY_HIDDEN logic and transition out
+    this->selected_sta_index_ = -1;
+    // Return early - phase change will happen on next wifi_loop() iteration
+    return;
+  }
+
+  // Don't increment retry counter if we're in a scan phase with no valid targets
+  if (this->needs_scan_results_()) {
+    return;
+  }
+
+  // Increment retry counter to try the same target again
+  this->num_retried_++;
+  ESP_LOGD(TAG, "Retry attempt %u/%u in phase %s", this->num_retried_ + 1,
+           get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+}
+
+void WiFiComponent::retry_connect() {
+  // Handle roaming state transitions - preserve attempts counter to prevent ping-pong
+  // to unreachable APs after ROAMING_MAX_ATTEMPTS failures
+  if (this->roaming_state_ == RoamingState::CONNECTING) {
+    // Roam connection failed - transition to reconnecting
+    ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    this->roaming_state_ = RoamingState::RECONNECTING;
+  } else if (this->is_roaming_scan_active()) {
+    // Disconnected during roam scan - transition to RECONNECTING so the attempts
+    // counter is preserved when reconnection succeeds (IDLE would reset it)
+    ESP_LOGD(TAG, "Disconnected during roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    this->roaming_state_ = RoamingState::RECONNECTING;
+  } else if (this->roaming_state_ == RoamingState::IDLE) {
+    // Check if a roaming scan recently completed - on ESP8266, going off-channel
+    // during scan can cause a delayed Beacon Timeout 8-20 seconds after scan finishes.
+    // Transition to RECONNECTING so the attempts counter is preserved on reconnect.
+    if (this->roaming_scan_end_ != 0 && millis() - this->roaming_scan_end_ < ROAMING_SCAN_GRACE_PERIOD) {
+      ESP_LOGD(TAG, "Disconnect after roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      this->roaming_state_ = RoamingState::RECONNECTING;
+    } else {
+      // Not a roaming-triggered reconnect, reset state
+      this->clear_roaming_state_();
+    }
+  }
+  // RECONNECTING: keep state and counter, still trying to reconnect
+
+  this->log_and_adjust_priority_for_failed_connect_();
+
+  // Determine next retry phase based on current state
+  WiFiRetryPhase current_phase = this->retry_phase_;
+  WiFiRetryPhase next_phase = this->determine_next_phase_();
+
+  // Handle phase transitions (transition_to_phase_ handles same-phase no-op internally)
+  if (this->transition_to_phase_(next_phase)) {
+    return;  // Scan started or adapter restarted (which sets its own state)
+  }
+
+  if (next_phase == current_phase) {
+    this->advance_to_next_target_or_increment_retry_();
+  }
+
+  yield();
+  // Check if we have a valid target before building params
+  // After exhausting all networks in a phase, selected_sta_index_ may be -1
+  // In that case, skip connection and let next wifi_loop() handle phase transition
+  if (this->selected_sta_index_ >= 0) {
+    WiFiAP params = this->build_params_for_current_phase_();
+    this->start_connecting(params);
+  }
+}
+
+void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
+  this->power_save_ = power_save;
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  this->configured_power_save_ = power_save;
+#endif
+}
+
+bool WiFiComponent::is_captive_portal_active_() {
+#ifdef USE_CAPTIVE_PORTAL
+  return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
+#else
+  return false;
+#endif
+}
+
+#if defined(USE_CAPTIVE_PORTAL) && defined(USE_WIFI_AP)
+void WiFiComponent::start_captive_portal_() {
+  // Where the AP runs on its own, a portal with no AP behind it would only
+  // stretch the cooldowns.
+  if (captive_portal::global_captive_portal == nullptr || (WIFI_AP_EXCLUSIVE && !this->ap_setup_))
+    return;
+  // Reset so we force one full scan after captive portal starts
+  // (previous scans were filtered because captive portal wasn't active yet)
+  this->has_completed_scan_after_captive_portal_start_ = false;
+  captive_portal::global_captive_portal->start();
+}
+#endif
+
+bool WiFiComponent::is_ap_portal_active_() {
+#ifdef USE_WEBSERVER_CAPTIVE
+  if (web_server::global_web_server->is_captive())
+    return true;
+#endif
+  return this->is_captive_portal_active_();
+}
+
+// global_web_server needs no null check: codegen always instantiates WebServer when
+// USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
+void WiFiComponent::start_ap_portal_() {
+#ifdef USE_CAPTIVE_PORTAL
+  if (captive_portal::global_captive_portal != nullptr)
+    captive_portal::global_captive_portal->start();
+#endif
+#ifdef USE_WEBSERVER_CAPTIVE
+  web_server::global_web_server->start_captive();
+#endif
+}
+
+void WiFiComponent::end_ap_portal_() {
+#ifdef USE_CAPTIVE_PORTAL
+  if (this->is_captive_portal_active_())
+    captive_portal::global_captive_portal->end();
+#endif
+#ifdef USE_WEBSERVER_CAPTIVE
+  web_server::global_web_server->end_captive();
+#endif
+}
+bool WiFiComponent::is_improv_ble_active_() {
+#ifdef USE_IMPROV_BLE
+  return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();
+#else
+  return false;
+#endif
+}
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+bool WiFiComponent::request_high_performance() {
+  // Already configured for high performance - request satisfied
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
+    return false;
+  }
+
+  // Give the semaphore (non-blocking). This increments the count.
+  bool success = xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+
+  // Wake the main loop so the switch to high-performance mode is applied on the
+  // next tick instead of waiting up to loop_interval.
+  if (success) {
+    App.wake_loop_threadsafe();
+  }
+
+  return success;
+}
+
+bool WiFiComponent::release_high_performance() {
+  // Already configured for high performance - nothing to release
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
+    return false;
+  }
+
+  // Take the semaphore (non-blocking). This decrements the count.
+  return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
+}
+#endif  // USE_ESP32 && USE_WIFI_RUNTIME_POWER_SAVE
+
+#ifdef USE_WIFI_FAST_CONNECT
+bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
+  SavedWifiFastConnectSettings fast_connect_save{};
+
+  if (this->fast_connect_pref_.load(&fast_connect_save)) {
+    // Validate saved AP index
+    if (fast_connect_save.ap_index < 0 || static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
+      ESP_LOGW(TAG, "AP index out of bounds");
+      return false;
     }
 
-    SavedWifiFastConnectSettings fast_connect_save{};
-    memcpy(fast_connect_save.bssid, bssid.data(), 6);
-    fast_connect_save.channel = channel;
-    fast_connect_save.ap_index = ap_index;
+    // Set selected index for future operations (save, retry, etc)
+    this->selected_sta_index_ = fast_connect_save.ap_index;
 
-    this->fast_connect_pref_.save(&fast_connect_save);
+    // Copy entire config, then override with fast connect data
+    params = this->sta_[fast_connect_save.ap_index];
 
-    ESP_LOGD(TAG, "Saved fast_connect settings");
+    // Override with saved BSSID/channel from fast connect (SSID/password/etc already copied from config)
+    bssid_t bssid{};
+    std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
+    params.set_bssid(bssid);
+    params.set_channel(fast_connect_save.channel);
+    // Fast connect uses specific BSSID+channel, not hidden network probe (even if config has hidden: true)
+    params.set_hidden(false);
+
+    ESP_LOGD(TAG, "Loaded fast_connect settings");
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+    if ((this->band_mode_ == WIFI_BAND_MODE_5G_ONLY && fast_connect_save.channel < FIRST_5GHZ_CHANNEL) ||
+        (this->band_mode_ == WIFI_BAND_MODE_2G_ONLY && fast_connect_save.channel >= FIRST_5GHZ_CHANNEL)) {
+      ESP_LOGW(TAG, "Saved channel %u not allowed by band mode, ignoring fast_connect", fast_connect_save.channel);
+      this->selected_sta_index_ = -1;
+      return false;
+    }
+#endif
+    return true;
   }
+
+  return false;
+}
+
+void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel) {
+  // selected_sta_index_ is always valid here (called only after successful connection)
+  // Fallback to 0 is defensive programming for robustness
+  int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
+
+  // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
+  SavedWifiFastConnectSettings previous_save{};
+  if (this->fast_connect_pref_.load(&previous_save) && memcmp(previous_save.bssid, bssid.data(), 6) == 0 &&
+      previous_save.channel == channel && previous_save.ap_index == ap_index) {
+    return;  // No change, nothing to save
+  }
+
+  SavedWifiFastConnectSettings fast_connect_save{};
+  memcpy(fast_connect_save.bssid, bssid.data(), 6);
+  fast_connect_save.channel = channel;
+  fast_connect_save.ap_index = ap_index;
+
+  this->fast_connect_pref_.save(&fast_connect_save);
+
+  ESP_LOGD(TAG, "Saved fast_connect settings");
+}
 #endif
 
 #ifdef USE_WIFI_LEASE_CACHE
-  void WiFiComponent::load_lease_settings_() {
-    if (!this->lease_cache_pref_.load(&this->cached_lease_) ||
-        this->cached_lease_.version != SAVED_WIFI_LEASE_VERSION) {
-      this->cached_lease_ = {};
-      return;
-    }
-    const uint8_t *ip = reinterpret_cast<const uint8_t *>(&this->cached_lease_.ip);  // network byte order
-    ESP_LOGD(TAG, "Loaded cached lease %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
-             this->cached_lease_.ap_index, this->cached_lease_.lease_secs);
-  }
-
-  void WiFiComponent::clear_lease_settings_() {
-    if (this->cached_lease_.version == 0)
-      return;
+void WiFiComponent::load_lease_settings_() {
+  if (!this->lease_cache_pref_.load(&this->cached_lease_) || this->cached_lease_.version != SAVED_WIFI_LEASE_VERSION) {
     this->cached_lease_ = {};
-    this->lease_cache_pref_.save(&this->cached_lease_);
-    ESP_LOGD(TAG, "Lease cache: cleared");
+    return;
   }
+  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&this->cached_lease_.ip);  // network byte order
+  ESP_LOGD(TAG, "Loaded cached lease %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
+           this->cached_lease_.ap_index, this->cached_lease_.lease_secs);
+}
+
+void WiFiComponent::clear_lease_settings_() {
+  if (this->cached_lease_.version == 0)
+    return;
+  this->cached_lease_ = {};
+  this->lease_cache_pref_.save(&this->cached_lease_);
+  ESP_LOGD(TAG, "Lease cache: cleared");
+}
 #endif
 
-  WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi,
-                                 bool with_auth, bool is_hidden)
-      : bssid_(bssid),
-        channel_(channel),
-        rssi_(rssi),
-        ssid_(ssid, ssid_len),
-        with_auth_(with_auth),
-        is_hidden_(is_hidden) {}
-  bool WiFiScanResult::matches(const WiFiAP &config) const {
-    if (config.get_hidden()) {
-      // User configured a hidden network, only match actually hidden networks
-      // don't match SSID
-      if (!this->is_hidden_)
-        return false;
-    } else if (!config.ssid_.empty()) {
-      // check if SSID matches
-      if (this->ssid_ != config.ssid_)
-        return false;
-    } else {
-      // network is configured without SSID - match other settings
-    }
-    // If BSSID configured, only match for correct BSSIDs
-    if (config.has_bssid() && config.get_bssid() != this->bssid_)
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi,
+                               bool with_auth, bool is_hidden)
+    : bssid_(bssid),
+      channel_(channel),
+      rssi_(rssi),
+      ssid_(ssid, ssid_len),
+      with_auth_(with_auth),
+      is_hidden_(is_hidden) {}
+bool WiFiScanResult::matches(const WiFiAP &config) const {
+  if (config.get_hidden()) {
+    // User configured a hidden network, only match actually hidden networks
+    // don't match SSID
+    if (!this->is_hidden_)
       return false;
+  } else if (!config.ssid_.empty()) {
+    // check if SSID matches
+    if (this->ssid_ != config.ssid_)
+      return false;
+  } else {
+    // network is configured without SSID - match other settings
+  }
+  // If BSSID configured, only match for correct BSSIDs
+  if (config.has_bssid() && config.get_bssid() != this->bssid_)
+    return false;
 
 #ifdef USE_WIFI_WPA2_EAP
-    // BSSID requires auth but no PSK or EAP credentials given
-    if (this->with_auth_ && (config.password_.empty() && !config.get_eap().has_value()))
-      return false;
+  // BSSID requires auth but no PSK or EAP credentials given
+  if (this->with_auth_ && (config.password_.empty() && !config.get_eap().has_value()))
+    return false;
 
-    // BSSID does not require auth, but PSK or EAP credentials given
-    if (!this->with_auth_ && (!config.password_.empty() || config.get_eap().has_value()))
-      return false;
+  // BSSID does not require auth, but PSK or EAP credentials given
+  if (!this->with_auth_ && (!config.password_.empty() || config.get_eap().has_value()))
+    return false;
 #else
   // If PSK given, only match for networks with auth (and vice versa)
   if (config.password_.empty() == this->with_auth_)
     return false;
 #endif
 
-    // If channel configured, only match networks on that channel.
-    if (config.has_channel() && config.get_channel() != this->channel_) {
-      return false;
-    }
-    return true;
+  // If channel configured, only match networks on that channel.
+  if (config.has_channel() && config.get_channel() != this->channel_) {
+    return false;
   }
-  bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
+  return true;
+}
+bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
-  void WiFiComponent::clear_roaming_state_() {
-    this->roaming_attempts_ = 0;
-    this->roaming_last_check_ = 0;
-    this->roaming_scan_end_ = 0;
-    this->roaming_target_bssid_ = {};
-    this->roaming_state_ = RoamingState::IDLE;
-  }
+void WiFiComponent::clear_roaming_state_() {
+  this->roaming_attempts_ = 0;
+  this->roaming_last_check_ = 0;
+  this->roaming_scan_end_ = 0;
+  this->roaming_target_bssid_ = {};
+  this->roaming_state_ = RoamingState::IDLE;
+}
 
 #ifdef USE_ESP32
-  void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
-    // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the state
-    // machine ever leaving STA_CONNECTED, so check_connecting_finished() never runs.
-    // Redo its post-connect bookkeeping here. roaming_state_ is deliberately left
-    // untouched so an in-flight roaming scan is not orphaned. The BSSID and
-    // channel both come from the connected event so the saved pair is consistent:
-    // the radio may be off-channel during a roaming scan, and a later queued
-    // event may have moved the driver on again by the time this one is processed.
-    this->roaming_last_check_ = App.get_loop_component_start_time();
-    this->roaming_attempts_ = 0;
-    this->roaming_scan_end_ = 0;
-    this->clear_all_bssid_priorities_();
+void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
+  // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the state
+  // machine ever leaving STA_CONNECTED, so check_connecting_finished() never runs.
+  // Redo its post-connect bookkeeping here. roaming_state_ is deliberately left
+  // untouched so an in-flight roaming scan is not orphaned. The BSSID and
+  // channel both come from the connected event so the saved pair is consistent:
+  // the radio may be off-channel during a roaming scan, and a later queued
+  // event may have moved the driver on again by the time this one is processed.
+  this->roaming_last_check_ = App.get_loop_component_start_time();
+  this->roaming_attempts_ = 0;
+  this->roaming_scan_end_ = 0;
+  this->clear_all_bssid_priorities_();
 #ifdef USE_WIFI_FAST_CONNECT
-    this->save_fast_connect_settings_(bssid, channel);
+  this->save_fast_connect_settings_(bssid, channel);
 #endif
-  }
+}
 #endif
 
-  void WiFiComponent::release_scan_results_() {
-    if (!this->keep_scan_results_) {
-      ScanResultsLock lock(this);
+void WiFiComponent::release_scan_results_() {
+  if (!this->keep_scan_results_) {
+    ScanResultsLock lock(this);
 #if defined(USE_RP2)
-      // std::vector - use swap trick since shrink_to_fit is non-binding
-      decltype(this->scan_result_)().swap(this->scan_result_);
+    // std::vector - use swap trick since shrink_to_fit is non-binding
+    decltype(this->scan_result_)().swap(this->scan_result_);
 #else
     // FixedVector::release() frees all memory
     this->scan_result_.release();
 #endif
-    }
   }
+}
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-  void WiFiComponent::notify_connect_state_listeners_() {
-    if (!this->pending_.connect_state)
-      return;
-    this->pending_.connect_state = false;
-    // Get current SSID and BSSID from the WiFi driver
-    char ssid_buf[SSID_BUFFER_SIZE];
-    const char *ssid = this->wifi_ssid_to(ssid_buf);
-    bssid_t bssid = this->wifi_bssid();
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
-    }
+void WiFiComponent::notify_connect_state_listeners_() {
+  if (!this->pending_.connect_state)
+    return;
+  this->pending_.connect_state = false;
+  // Get current SSID and BSSID from the WiFi driver
+  char ssid_buf[SSID_BUFFER_SIZE];
+  const char *ssid = this->wifi_ssid_to(ssid_buf);
+  bssid_t bssid = this->wifi_bssid();
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
   }
+}
 
-  void WiFiComponent::notify_disconnect_state_listeners_() {
-    constexpr uint8_t empty_bssid[6] = {};
-    for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), empty_bssid);
-    }
+void WiFiComponent::notify_disconnect_state_listeners_() {
+  constexpr uint8_t empty_bssid[6] = {};
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(), empty_bssid);
   }
+}
 #endif  // USE_WIFI_CONNECT_STATE_LISTENERS
 
 #ifdef USE_WIFI_IP_STATE_LISTENERS
-  void WiFiComponent::notify_ip_state_listeners_() {
-    for (auto *listener : this->ip_state_listeners_) {
-      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
-    }
+void WiFiComponent::notify_ip_state_listeners_() {
+  for (auto *listener : this->ip_state_listeners_) {
+    listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
   }
+}
 #endif  // USE_WIFI_IP_STATE_LISTENERS
 
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-  void WiFiComponent::notify_scan_results_listeners_() {
-    for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
-    }
+void WiFiComponent::notify_scan_results_listeners_() {
+  for (auto *listener : this->scan_results_listeners_) {
+    listener->on_wifi_scan_results(this->scan_result_);
   }
+}
 #endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
 
-  void WiFiComponent::force_roam_check() {
-    if (!this->is_connected() || this->roaming_state_ != RoamingState::IDLE || this->roaming_suppressed_()) {
-      ESP_LOGD(TAG, "Roam check requested, but not able to check now");
-      return;
-    }
-    // Reset the attempt counter so a prior run of failed roams doesn't block this explicit request
-    // Note that this re-arms automatic roaming if enabled.
-    this->roaming_attempts_ = 0;
-    this->check_roaming_(millis());
+void WiFiComponent::force_roam_check() {
+  if (!this->is_connected() || this->roaming_state_ != RoamingState::IDLE || this->roaming_suppressed_()) {
+    ESP_LOGD(TAG, "Roam check requested, but not able to check now");
+    return;
+  }
+  // Reset the attempt counter so a prior run of failed roams doesn't block this explicit request
+  // Note that this re-arms automatic roaming if enabled.
+  this->roaming_attempts_ = 0;
+  this->check_roaming_(millis());
+}
+
+void WiFiComponent::check_roaming_(uint32_t now) {
+  // Guard: not for hidden networks (may not appear in scan)
+  const WiFiAP *selected = this->get_selected_sta_();
+  if (selected == nullptr || selected->get_hidden()) {
+    this->roaming_attempts_ = ROAMING_MAX_ATTEMPTS;  // Stop checking forever
+    return;
   }
 
-  void WiFiComponent::check_roaming_(uint32_t now) {
-    // Guard: not for hidden networks (may not appear in scan)
-    const WiFiAP *selected = this->get_selected_sta_();
-    if (selected == nullptr || selected->get_hidden()) {
-      this->roaming_attempts_ = ROAMING_MAX_ATTEMPTS;  // Stop checking forever
-      return;
-    }
+  this->roaming_last_check_ = now;
+  this->roaming_attempts_++;
 
-    this->roaming_last_check_ = now;
-    this->roaming_attempts_++;
-
-    // Guard: skip scan if signal is already good (no meaningful improvement possible)
-    int8_t rssi = this->wifi_rssi();
-    if (rssi > ROAMING_GOOD_RSSI) {
-      ESP_LOGD(TAG, "Roam check skipped, signal good (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_,
-               ROAMING_MAX_ATTEMPTS);
-      return;
-    }
-
-    ESP_LOGD(TAG, "Roam scan (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-    this->roaming_state_ = RoamingState::SCANNING;
-    if (!this->wifi_scan_start_(this->passive_scan_)) {
-      // Scan failed to start (e.g. busy) - don't get stuck in SCANNING forever
-      ESP_LOGD(TAG, "Roam scan failed to start");
-      this->roaming_state_ = RoamingState::IDLE;
-    }
+  // Guard: skip scan if signal is already good (no meaningful improvement possible)
+  int8_t rssi = this->wifi_rssi();
+  if (rssi > ROAMING_GOOD_RSSI) {
+    ESP_LOGD(TAG, "Roam check skipped, signal good (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_,
+             ROAMING_MAX_ATTEMPTS);
+    return;
   }
 
-  void WiFiComponent::process_roaming_scan_() {
-    this->scan_done_ = false;
-    // Default to IDLE - will be set to CONNECTING if we find a better AP
+  ESP_LOGD(TAG, "Roam scan (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+  this->roaming_state_ = RoamingState::SCANNING;
+  if (!this->wifi_scan_start_(this->passive_scan_)) {
+    // Scan failed to start (e.g. busy) - don't get stuck in SCANNING forever
+    ESP_LOGD(TAG, "Roam scan failed to start");
     this->roaming_state_ = RoamingState::IDLE;
-    // Record when scan completed so delayed disconnects (e.g., ESP8266 Beacon Timeout)
-    // can be attributed to the scan and avoid resetting the attempts counter
-    this->roaming_scan_end_ = millis();
+  }
+}
 
-    // Get current connection info
-    int8_t current_rssi = this->wifi_rssi();
-    // Guard: must still be connected (RSSI may have become invalid during scan)
-    if (current_rssi == WIFI_RSSI_DISCONNECTED) {
-      this->release_scan_results_();
-      return;
-    }
+void WiFiComponent::process_roaming_scan_() {
+  this->scan_done_ = false;
+  // Default to IDLE - will be set to CONNECTING if we find a better AP
+  this->roaming_state_ = RoamingState::IDLE;
+  // Record when scan completed so delayed disconnects (e.g., ESP8266 Beacon Timeout)
+  // can be attributed to the scan and avoid resetting the attempts counter
+  this->roaming_scan_end_ = millis();
 
-    char ssid_buf[SSID_BUFFER_SIZE];
-    StringRef current_ssid(this->wifi_ssid_to(ssid_buf));
-    bssid_t current_bssid = this->wifi_bssid();
+  // Get current connection info
+  int8_t current_rssi = this->wifi_rssi();
+  // Guard: must still be connected (RSSI may have become invalid during scan)
+  if (current_rssi == WIFI_RSSI_DISCONNECTED) {
+    this->release_scan_results_();
+    return;
+  }
 
-    // Find best candidate: same SSID, different BSSID
-    const WiFiScanResult *best = nullptr;
-    char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  char ssid_buf[SSID_BUFFER_SIZE];
+  StringRef current_ssid(this->wifi_ssid_to(ssid_buf));
+  bssid_t current_bssid = this->wifi_bssid();
 
-    for (const auto &result : this->scan_result_) {
-      // Must be same SSID, different BSSID
-      if (result.ssid_ != current_ssid || result.get_bssid() == current_bssid)
-        continue;
+  // Find best candidate: same SSID, different BSSID
+  const WiFiScanResult *best = nullptr;
+  char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+
+  for (const auto &result : this->scan_result_) {
+    // Must be same SSID, different BSSID
+    if (result.ssid_ != current_ssid || result.get_bssid() == current_bssid)
+      continue;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
-      ESP_LOGV(TAG, "Roam candidate %s %d dBm", bssid_buf, result.get_rssi());
+    format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
+    ESP_LOGV(TAG, "Roam candidate %s %d dBm", bssid_buf, result.get_rssi());
 #endif
 
-      // Track the best candidate
-      if (best == nullptr || result.get_rssi() > best->get_rssi()) {
-        best = &result;
-      }
+    // Track the best candidate
+    if (best == nullptr || result.get_rssi() > best->get_rssi()) {
+      best = &result;
     }
-
-    // Check if best candidate meets minimum improvement threshold
-    const WiFiAP *selected = this->get_selected_sta_();
-    int8_t improvement = (best == nullptr) ? 0 : best->get_rssi() - current_rssi;
-    if (selected == nullptr || improvement < ROAMING_MIN_IMPROVEMENT) {
-      ESP_LOGV(TAG, "Roam best %+d dB (need +%d), attempt %u/%u", improvement, ROAMING_MIN_IMPROVEMENT,
-               this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-      this->release_scan_results_();
-      return;
-    }
-
-    format_mac_addr_upper(best->get_bssid().data(), bssid_buf);
-    ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_buf, improvement);
-
-    WiFiAP roam_params = *selected;
-    apply_scan_result_to_params(roam_params, *best);
-
-    // Mark as roaming attempt - affects retry behavior if connection fails
-    this->roaming_state_ = RoamingState::CONNECTING;
-    this->roaming_target_bssid_ = best->get_bssid();  // Must read before releasing scan results
-
-    this->release_scan_results_();
-
-    // Connect directly - wifi_sta_connect_ handles disconnect internally
-    this->start_connecting(roam_params);
   }
 
-  WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  // Check if best candidate meets minimum improvement threshold
+  const WiFiAP *selected = this->get_selected_sta_();
+  int8_t improvement = (best == nullptr) ? 0 : best->get_rssi() - current_rssi;
+  if (selected == nullptr || improvement < ROAMING_MIN_IMPROVEMENT) {
+    ESP_LOGV(TAG, "Roam best %+d dB (need +%d), attempt %u/%u", improvement, ROAMING_MIN_IMPROVEMENT,
+             this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    this->release_scan_results_();
+    return;
+  }
+
+  format_mac_addr_upper(best->get_bssid().data(), bssid_buf);
+  ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_buf, improvement);
+
+  WiFiAP roam_params = *selected;
+  apply_scan_result_to_params(roam_params, *best);
+
+  // Mark as roaming attempt - affects retry behavior if connection fails
+  this->roaming_state_ = RoamingState::CONNECTING;
+  this->roaming_target_bssid_ = best->get_bssid();  // Must read before releasing scan results
+
+  this->release_scan_results_();
+
+  // Connect directly - wifi_sta_connect_ handles disconnect internally
+  this->start_connecting(roam_params);
+}
+
+WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::wifi
 #endif
