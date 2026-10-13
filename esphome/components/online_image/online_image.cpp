@@ -240,12 +240,9 @@ void OnlineImage::loop() {
       this->download_error_callback_.call();
       return;
     } else {
-      // The decoder needs more data than the buffer can hold, so it can never make progress
-      ESP_LOGE(TAG, "Image does not fit in the %zu byte download buffer; increase buffer_size",
-               this->download_buffer_.size());
-      this->end_connection_();
-      this->download_error_callback_.call();
-      return;
+      // Decoder can't process more data, might need complete image
+      // This is normal for JPEG which needs complete data
+      ESP_LOGV(TAG, "Decoder waiting for more data");
     }
   }
 }
