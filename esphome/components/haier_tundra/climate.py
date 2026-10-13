@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir, remote_base
 import esphome.config_validation as cv
-from esphome.const import CONF_PLATFORM
+from esphome.const import CONF_ID, CONF_PLATFORM
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -25,21 +25,17 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(HaierTundra).extend(
 
 
 def _final_validate_unit(config: ConfigType) -> None:
-    full_config = fv.full_config.get()
-    if "climate" in full_config:
-        # Ensure at most one each of unit A and B
-        has_unit_a = has_unit_b = False
+    # Ensure at most one each of unit A and B
+    climates = fv.full_config.get()["climate"]
+    seen = set()
 
-        for climate in full_config["climate"]:
-            if CONF_PLATFORM in climate and climate[CONF_PLATFORM] == "haier_tundra":
-                if climate[CONF_UNIT] == "a":
-                    if has_unit_a:
-                        raise cv.Invalid("Only one unit A is allowed")
-                    has_unit_a = True
-                elif climate[CONF_UNIT] == "b":
-                    if has_unit_b:
-                        raise cv.Invalid("Only one unit B is allowed")
-                    has_unit_b = True
+    for climate in climates:
+        if CONF_PLATFORM in climate and climate[CONF_PLATFORM] == "haier_tundra":
+            unit_tx_pair = (climate[CONF_UNIT], climate[remote_base.CONF_TRANSMITTER_ID])
+
+            if unit_tx_pair in seen and climate[CONF_ID] == config[CONF_ID]:
+                raise cv.Invalid("Only one of each unit is allowed per transmitter", path=[CONF_UNIT])
+            seen.add(unit_tx_pair)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate_unit
