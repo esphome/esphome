@@ -2,7 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#include <climits>
+#include <cstddef>
 #include <cstdint>
 
 namespace esphome::icm20689 {
@@ -16,7 +16,6 @@ namespace {
 // out-of-range unsigned-to-signed conversion behavior.
 int16_t decode_int16(uint8_t hi, uint8_t lo) {
   const uint16_t raw = (static_cast<uint16_t>(hi) << 8) | static_cast<uint16_t>(lo);
-
   const int32_t value = (raw & 0x8000U) ? static_cast<int32_t>(raw) - 65536 : static_cast<int32_t>(raw);
 
   return static_cast<int16_t>(value);
@@ -71,8 +70,6 @@ void ICM20689Component::read_registers_(uint8_t reg, uint8_t *data, size_t len) 
 void ICM20689Component::setup() {
   MotionComponent::setup();
 
-  // Validate configuration before using range values in register writes
-  // or array lookups.
   if (static_cast<uint8_t>(this->accel_range_) >= RANGE_COUNT ||
       static_cast<uint8_t>(this->gyro_range_) >= RANGE_COUNT) {
     ESP_LOGE(TAG, "Invalid accelerometer or gyroscope range");
@@ -82,21 +79,25 @@ void ICM20689Component::setup() {
 
   this->spi_setup();
 
-  // Verify the device identity.
+  if (!this->spi_is_ready()) {
+    ESP_LOGE(TAG, "SPI device is not ready");
+    this->mark_failed();
+    return;
+  }
+
   this->enable();
   this->write_byte(ICM20689_REG_WHO_AM_I | ICM20689_READ_BIT);
   const uint8_t who_am_i = this->transfer_byte(0x00);
   this->disable();
 
   if (who_am_i != ICM20689_WHO_AM_I_VALUE) {
-    ESP_LOGE(TAG, "Unexpected WHO_AM_I 0x%02X (expected 0x%02X) -- check wiring/CS", who_am_i, ICM20689_WHO_AM_I_VALUE);
+    ESP_LOGE(TAG, "Unexpected WHO_AM_I 0x%02X (expected 0x%02X) -- check wiring/CS", who_am_i,
+             ICM20689_WHO_AM_I_VALUE);
     this->mark_failed();
     return;
   }
 
   // Clear SLEEP and select the gyro PLL as the clock source.
-  // The device can fall back to its internal oscillator if the PLL
-  // is not ready yet.
   this->write_register_(ICM20689_REG_PWR_MGMT_1, 0x01);
 
   // Allow the sensor to settle after waking from sleep.
@@ -136,7 +137,6 @@ bool ICM20689Component::update_data(motion::MotionData &data) {
   const uint8_t accel_range = static_cast<uint8_t>(this->accel_range_);
   const uint8_t gyro_range = static_cast<uint8_t>(this->gyro_range_);
 
-  // Defend against invalid range values before indexing scale tables.
   if (accel_range >= RANGE_COUNT || gyro_range >= RANGE_COUNT) {
     ESP_LOGE(TAG, "Invalid accelerometer or gyroscope range");
     this->mark_failed();
