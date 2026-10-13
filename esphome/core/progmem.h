@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <new>
 #include <string>
-#include <type_traits>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
 
@@ -82,8 +81,9 @@ template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t BLOB_SIZE = (0 + ... + (Strs.size() + 1));
   /// Length of the longest string, for sizing a RAM copy on ESP8266
   static constexpr size_t MAX_LENGTH = std::max({Strs.size()...});
-  /// Offsets are one byte while the blob fits in 255 bytes and two bytes beyond that.
-  using offset_t = std::conditional_t<(BLOB_SIZE <= UINT8_MAX), uint8_t, uint16_t>;
+  /// One-byte offsets address up to 255 bytes; a larger blob has no offset table and is scanned instead,
+  /// which costs less flash than wider offsets for the rarely read tables that get this big.
+  static constexpr bool INDEXED = BLOB_SIZE <= UINT8_MAX;
 
   /// Generate packed string blob at compile time
   static constexpr auto make_blob() {
@@ -101,22 +101,23 @@ template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr auto make_offsets() {
     static_assert(COUNT > 0, "PROGMEM_STRING_TABLE must contain at least one string");
     static_assert(COUNT <= 255, "PROGMEM_STRING_TABLE supports at most 255 strings with uint8_t indices");
-    static_assert(BLOB_SIZE <= UINT16_MAX, "PROGMEM_STRING_TABLE blob exceeds 65535 bytes; use fewer/shorter strings");
-    std::array<offset_t, COUNT> result{};
-    size_t pos = 0, idx = 0;
-    ((result[idx++] = static_cast<offset_t>(pos), pos += Strs.size() + 1), ...);
-    return result;
-  }
-
-  /// Read one offset from the table, which may live in flash
-  static offset_t read_offset(const offset_t *offset) {
-    if constexpr (sizeof(offset_t) == 1) {
-      return progmem_read_byte(offset);
+    if constexpr (INDEXED) {
+      std::array<uint8_t, COUNT> result{};
+      size_t pos = 0, idx = 0;
+      ((result[idx++] = static_cast<uint8_t>(pos), pos += Strs.size() + 1), ...);
+      return result;
     } else {
-      return progmem_read_uint16(offset);
+      return std::array<uint8_t, 0>{};
     }
   }
 };
+
+/// Skip idx strings in a packed NUL-separated blob that may live in flash.
+inline const char *progmem_skip_strings(const char *blob, uint8_t idx) {
+  while (idx-- > 0)
+    blob += ESPHOME_strlen_P(blob) + 1;
+  return blob;
+}
 
 // Forward declaration for LogString (defined in log.h)
 struct LogString;
@@ -138,7 +139,10 @@ struct LogString;
         idx = fallback; \
       /* std::launder is used here to prevent the inter-procedural analysis that */ \
       /* causes the false positive that the string is not null terminated */ \
-      return std::launder(&BLOB[Table::read_offset(&OFFSETS[idx])]); \
+      if constexpr (Table::INDEXED) \
+        return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
+      else \
+        return std::launder(::esphome::progmem_skip_strings(BLOB.data(), idx)); \
     } \
     static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
       return reinterpret_cast<::ProgmemStr>(get_(idx, fallback)); \
