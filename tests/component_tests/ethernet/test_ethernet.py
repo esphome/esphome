@@ -8,6 +8,7 @@ from esphome.components.esp32 import (
     KEY_BOARD,
     KEY_IDF_VERSION,
     KEY_VARIANT,
+    VARIANT_ESP32,
     VARIANT_ESP32S3,
 )
 from esphome.components.ethernet import CONF_CLOCK_SPEED, CONFIG_SCHEMA, _final_validate
@@ -82,3 +83,40 @@ def test_ch390_rejects_clock_speed_above_the_datasheet_maximum(
     CORE.name = "ch390-test"
     with pytest.raises(Invalid, match="value must be at most 72000000"):
         CONFIG_SCHEMA({**_CH390_CONFIG, CONF_CLOCK_SPEED: "80MHz"})
+
+
+_LAN8720_CONFIG = {"type": "LAN8720", "mdc_pin": 23, "mdio_pin": 18}
+
+
+def _set_esp32_core(set_core_config: SetCoreConfigCallable) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={
+            KEY_BOARD: "esp32dev",
+            KEY_VARIANT: VARIANT_ESP32,
+            KEY_IDF_VERSION: cv.Version(5, 3, 2),
+        },
+    )
+    CORE.name = "rmii-test"
+
+
+def test_rmii_rejects_removed_clk_mode(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The removed clk_mode option points at the clk: replacement."""
+    _set_esp32_core(set_core_config)
+    with pytest.raises(Invalid, match="GPIO17_OUT -> mode: CLK_OUT, pin: GPIO17"):
+        CONFIG_SCHEMA(
+            {
+                **_LAN8720_CONFIG,
+                "clk_mode": "GPIO17_OUT",
+                "clk": {"mode": "CLK_OUT", "pin": 17},
+            }
+        )
+
+
+def test_rmii_requires_clk(set_core_config: SetCoreConfigCallable) -> None:
+    """An RMII PHY has no default clock, so clk must be given."""
+    _set_esp32_core(set_core_config)
+    with pytest.raises(Invalid, match=r"required key not provided @ data\['clk'\]"):
+        CONFIG_SCHEMA(_LAN8720_CONFIG)

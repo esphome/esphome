@@ -17,7 +17,7 @@ extern const char *core_release;
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 // PROGMEM string table for reset reasons, indexed by reason code (0-6), with "Unknown" as fallback
 // clang-format off

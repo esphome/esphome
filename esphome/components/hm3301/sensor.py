@@ -2,7 +2,8 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE
+from esphome.components.const import CONF_AQI
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,

@@ -22,7 +22,7 @@ static const size_t HTTP_STREAM_BUFFER_SIZE = 2048;
 
 static const uint8_t MAX_REDIRECTIONS = 5;
 
-static const char *const TAG = "audio_reader";
+ESPHOME_LOG_TAG(TAG, "audio_reader");
 
 // Some common HTTP status codes - borrowed from http_request component accessed 20241224
 enum HttpStatus {

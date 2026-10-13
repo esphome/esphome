@@ -30,6 +30,8 @@ cc1101:
     then:
       - lambda: |-
           ESP_LOGD("cc1101", "packet %s freq_offset %.0f Hz rssi %.1f dBm lqi %u", format_hex(x).c_str(), freq_offset, rssi, lqi);
+      - cc1101.send_packet: !lambda |-
+          return x;
 
 button:
   - platform: template
@@ -42,6 +44,8 @@ button:
         - cc1101.reset: transceiver
         - cc1101.send_packet:
             data: [0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]
+        - cc1101.send_packet: [0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]
+        - cc1101.send_packet: "ABCDEFGH"
         - cc1101.send_packet: !lambda |-
             return {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
 
