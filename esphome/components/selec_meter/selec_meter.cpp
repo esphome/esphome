@@ -238,7 +238,7 @@ bool SelecMeter::publish_fields_(std::span<const uint16_t> registers, std::span<
 }
 
 bool SelecMeter::decode_em2m_(std::span<const uint16_t> registers) {
-  static constexpr FloatField em2m_fields[] PROGMEM = {
+  static constexpr FloatField EM2M_FIELDS[] PROGMEM = {
       {&SelecMeter::total_active_energy_sensor_, SELEC_TOTAL_ACTIVE_ENERGY, false},
       {&SelecMeter::import_active_energy_sensor_, SELEC_IMPORT_ACTIVE_ENERGY, false},
       {&SelecMeter::export_active_energy_sensor_, SELEC_EXPORT_ACTIVE_ENERGY, false},
@@ -257,12 +257,12 @@ bool SelecMeter::decode_em2m_(std::span<const uint16_t> registers) {
       {&SelecMeter::maximum_demand_reactive_power_sensor_, SELEC_MAXIMUM_DEMAND_REACTIVE_POWER, true},
       {&SelecMeter::maximum_demand_apparent_power_sensor_, SELEC_MAXIMUM_DEMAND_APPARENT_POWER, true},
   };
-  return this->publish_fields_(registers, em2m_fields, EM2M_REGISTER_COUNT);
+  return this->publish_fields_(registers, EM2M_FIELDS, EM2M_REGISTER_COUNT);
 }
 
 #ifdef USE_SELEC_METER_EM4M
 bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
-  static constexpr FloatField em4m_fields[] PROGMEM = {
+  static constexpr FloatField EM4M_FIELDS[] PROGMEM = {
       // Common quantities, shared sensor keys with EM2M
       {&SelecMeter::voltage_sensor_, EM4M_VOLTAGE, false},
       {&SelecMeter::current_sensor_, EM4M_CURRENT, false},
@@ -297,7 +297,7 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
     uint16_t reg_l1;
     bool kilo;
   };
-  static constexpr PhaseField phase_fields[] PROGMEM = {
+  static constexpr PhaseField PHASE_FIELDS[] PROGMEM = {
       {&Phase::voltage_sensor_, EM4M_VOLTAGE_L1, false},
       {&Phase::current_sensor_, EM4M_CURRENT_L1, false},
       {&Phase::active_power_sensor_, EM4M_ACTIVE_POWER_L1, true},
@@ -311,9 +311,9 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
       {&Phase::apparent_energy_sensor_, EM4M_APPARENT_ENERGY_L1, false},
   };
 
-  if (!this->publish_fields_(registers, em4m_fields, EM4M_REGISTER_COUNT))
+  if (!this->publish_fields_(registers, EM4M_FIELDS, EM4M_REGISTER_COUNT))
     return false;
-  for (const auto &entry : phase_fields) {
+  for (const auto &entry : PHASE_FIELDS) {
     PhaseField field;
     progmem_memcpy(&field, &entry, sizeof(field));
     for (uint8_t phase = 0; phase < 3; phase++) {
