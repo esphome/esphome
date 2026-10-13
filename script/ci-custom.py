@@ -1274,7 +1274,7 @@ LOG_TAG_INCLUDE = ["esphome/*.cpp", "esphome/*.h"]
 
 
 @lint_re_check(
-    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?(?:\w+::)*TAG|\s(?:const\s+)?(?:\w+::)*TAG\s*\[\w*\])"
     r"\s*(?:=\s*\{?|[{(])\s*\"" + CPP_RE_EOL,
     prefilter="TAG",
     include=LOG_TAG_INCLUDE,
@@ -1285,6 +1285,8 @@ def lint_log_tag_macro(fname, match):
         f"ESP8266.\n"
         f"  Before: {highlight('static const char *const TAG = "name";')}\n"
         f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
+        f"A class member tag cannot use the macro; declare {highlight('static const char TAG[];')} in the class "
+        f"and define {highlight('const char Foo::TAG[] PROGMEM = "name";')} in the .cpp.\n"
         f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
@@ -1292,8 +1294,8 @@ def lint_log_tag_macro(fname, match):
 
 @lint_re_check(
     r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
-    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*TAG\b"
-    r"|\bstd::string\s+\w+\s*[={(]\s*TAG\b",
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*(?:\w+::)*TAG\b"
+    r"|\bstd::string\s+\w+\s*[={(]\s*(?:\w+::)*TAG\b",
     mask=True,
     prefilter="TAG",
     include=LOG_TAG_INCLUDE,
