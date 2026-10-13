@@ -1023,7 +1023,9 @@ def probe_ota_key(
     outcome = ProbeResult.UNREACHABLE  # a device answer outranks a network error
     while time.monotonic() < deadline:
         if not res:
-            # A rebooting device may drop off mDNS for a while; keep asking
+            # A rebooting device may drop off mDNS for a while; keep asking.
+            # Addresses the caller pre-resolved (the address cache, or a
+            # literal IP) are its to keep; only a hostname is looked up again
             try:
                 res = _resolve_targets(remote_host, remote_port)
             except OTAError as err:
