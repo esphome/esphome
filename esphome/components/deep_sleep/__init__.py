@@ -367,11 +367,10 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
-    if CONF_WAKEUP_PIN in config:
-        pins_as_list = config.get(CONF_WAKEUP_PIN, [])
+    if (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is not None:
         if CORE.is_bk72xx:
-            cg.add(var.init_wakeup_pins(len(pins_as_list)))
-            for item in pins_as_list:
+            cg.add(var.init_wakeup_pins(len(wakeup_pins)))
+            for item in wakeup_pins:
                 cg.add(
                     var.add_wakeup_pin(
                         await cg.gpio_pin_expression(item[CONF_PIN]),
@@ -381,7 +380,7 @@ async def to_code(config: ConfigType) -> None:
                     )
                 )
         else:
-            pin = await cg.gpio_pin_expression(pins_as_list[0][CONF_PIN])
+            pin = await cg.gpio_pin_expression(wakeup_pins[0][CONF_PIN])
             cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
         cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
