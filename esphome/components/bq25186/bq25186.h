@@ -74,7 +74,7 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t expected_register_(size_t index) const;
   bool config_matches_(const BQ25186StatusRegisters &regs) const;
 #ifdef USE_BQ25186_PG_GPO
-  void restore_pg_gpo_level_(const BQ25186StatusRegisters &status);
+  void check_pg_gpo_(const BQ25186StatusRegisters &status, bool &pending);
 #endif
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 

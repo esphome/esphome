@@ -101,13 +101,7 @@ void BQ25186Component::setup() {
     this->apply_config(this->regs_);
 #ifdef USE_BQ25186_PG_GPO
   if (this->pg_gpo_switch_ != nullptr) {
-    // apply_config sets pg_mode when it runs
-    if (!this->configure_on_boot_ &&
-        !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE)) {
-      this->pending_ = true;
-      this->status_set_warning(LOG_STR("PG/GPO pin not in output mode"));
-    }
-    // Without a restore mode the switch takes the pin's level from the first poll
+    // The poll below puts the pin in output mode; without a restore mode the switch takes its level from it
     auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
     if (initial.has_value())
       this->pg_gpo_switch_->control(*initial);
@@ -119,43 +113,49 @@ void BQ25186Component::setup() {
 
 // Every poll also serves the I2C watchdog, which wants to see traffic within its period
 #ifdef USE_BQ25186_PG_GPO
-// A reset drops the GPO level too; put the switch's level back when it differs from the pin
-void BQ25186Component::restore_pg_gpo_level_(const BQ25186StatusRegisters &status) {
-  if (this->pg_gpo_switch_ == nullptr || !this->pg_gpo_switch_->has_state())
+// The pin mode and level come from the switch, so every poll puts back whatever the chip lost
+void BQ25186Component::check_pg_gpo_(const BQ25186StatusRegisters &status, bool &pending) {
+  if (this->pg_gpo_switch_ == nullptr)
     return;
+  if ((status[BQ25186_REG_VBAT_CTRL] & BQ25186_VBAT_CTRL_PG_MODE) == 0 &&
+      !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE)) {
+    this->status_set_warning(LOG_STR("PG/GPO pin not in output mode"));
+    pending = true;
+  }
   const bool level = (status[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0;
-  if (level != this->pg_gpo_switch_->state && !this->write_pg_gpo_level(this->pg_gpo_switch_->state))
-    this->pending_ = true;
+  if (!this->pg_gpo_switch_->has_state()) {
+    this->pg_gpo_switch_->publish_state(level);
+  } else if (level != this->pg_gpo_switch_->state && !this->write_pg_gpo_level(this->pg_gpo_switch_->state)) {
+    this->status_set_warning(LOG_STR("PG/GPO level write failed"));
+    pending = true;
+  }
 }
 #endif
 
+// Every poll also serves the I2C watchdog, which wants to see traffic within its period
 void BQ25186Component::update() {
   BQ25186StatusRegisters status;
   if (!this->read_bytes(BQ25186_REG_STAT0, status.data(), status.size())) {
     this->status_set_warning(LOG_STR("Status read failed"));
     return;
   }
+  // Whatever failed is tried again here, so the warning only stays while something is still wrong
+  bool pending = false;
   // A watchdog or hardware reset puts the power-on values back, and a failed write leaves a register
   // behind; either way the configuration is written again
   if (this->configured_ && !this->config_matches_(status)) {
-    ESP_LOGW(TAG, "Configuration registers changed, the chip was reset; applying the configuration again");
+    ESP_LOGW(TAG, "Configuration registers differ from the values applied, writing them again");
     if (this->apply_config(this->regs_)) {
-#ifdef USE_BQ25186_PG_GPO
-      this->restore_pg_gpo_level_(status);
-#endif
+      status[BQ25186_REG_VBAT_CTRL] |= BQ25186_VBAT_CTRL_PG_MODE;  // part of the write when a switch is configured
+    } else {
+      pending = true;
     }
   }
 #ifdef USE_BQ25186_PG_GPO
-  else if (this->pg_gpo_switch_ != nullptr && (status[BQ25186_REG_VBAT_CTRL] & BQ25186_VBAT_CTRL_PG_MODE) == 0) {
-    // Nothing was configured at boot, so only the pin mode is put back
-    this->pending_ =
-        !this->update_register_(BQ25186_REG_VBAT_CTRL, BQ25186_VBAT_CTRL_PG_MODE, BQ25186_VBAT_CTRL_PG_MODE);
-    this->restore_pg_gpo_level_(status);
-  } else if (this->pg_gpo_switch_ != nullptr && !this->pg_gpo_switch_->has_state()) {
-    this->pg_gpo_switch_->publish_state((status[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0);
-  }
+  this->check_pg_gpo_(status, pending);
 #endif
-  if (!this->pending_)
+  this->pending_ = pending;
+  if (!pending)
     this->status_clear_warning();
 #ifdef BQ25186_BINARY_SENSOR_COUNT
   for (auto *sensor : this->binary_sensors_)
