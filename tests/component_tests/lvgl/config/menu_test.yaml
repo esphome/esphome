@@ -39,10 +39,12 @@ lvgl:
         sidebar_page: nav_page
         header_style:
           bg_color: 0xFF0000
-        sidebar_style:
+        sidebar_header_style:
           bg_color: 0x00FF00
         on_root_back_button_click:
           - logger.log: "root back clicked"
+        on_value:
+          - logger.log: "page changed"
         pages:
           - id: main_page
             title: "Settings"

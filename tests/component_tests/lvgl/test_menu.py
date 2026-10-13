@@ -192,20 +192,43 @@ def test_empty_pages_list_is_rejected(tmp_path: Path) -> None:
     assert any("length of value must be at least 1" in err for err in errors)
 
 
-def test_sidebar_style_without_sidebar_page_is_rejected(tmp_path: Path) -> None:
+def test_sidebar_header_style_without_sidebar_page_is_rejected(tmp_path: Path) -> None:
     errors = _config_errors(
         tmp_path,
         """\
     - menu:
         id: menu_a
         root_page: menu_a_page
-        sidebar_style:
+        sidebar_header_style:
           bg_color: 0x101010
         pages:
           - id: menu_a_page
 """,
     )
-    assert any("'sidebar_style' requires 'sidebar_page'" in err for err in errors)
+    assert any(
+        "'sidebar_header_style' requires 'sidebar_page'" in err for err in errors
+    )
+
+
+def test_root_back_button_click_needs_root_back_button_enabled(tmp_path: Path) -> None:
+    """With the default `root_back_btn: disabled` the button never appears, so the
+    trigger could never fire."""
+    errors = _config_errors(
+        tmp_path,
+        """\
+    - menu:
+        id: menu_a
+        root_page: menu_a_page
+        on_root_back_button_click:
+          - logger.log: "never"
+        pages:
+          - id: menu_a_page
+""",
+    )
+    assert any(
+        "'on_root_back_button_click' requires 'root_back_btn: enabled'" in err
+        for err in errors
+    )
 
 
 def test_sidebar_page_of_another_menu_is_rejected(tmp_path: Path) -> None:
@@ -326,6 +349,12 @@ def test_ungrouped_widget_created_directly_under_page(main_cpp: str) -> None:
     assert "advanced_button = lv_button_create(main_page);" in main_cpp
 
 
+def test_sections_created_before_ungrouped_widgets(main_cpp: str) -> None:
+    assert main_cpp.index("wifi_section = lv_menu_section_create(main_page);") < (
+        main_cpp.index("advanced_button = lv_button_create(main_page);")
+    )
+
+
 def test_root_page_and_sidebar_page_set_at_boot(main_cpp: str) -> None:
     assert "lv_menu_set_page(test_menu, main_page);" in main_cpp
     assert "lv_menu_set_sidebar_page(test_menu, nav_page);" in main_cpp
@@ -338,7 +367,9 @@ def test_header_style_applied_via_main_header_accessor(main_cpp: str) -> None:
     ) in main_cpp
 
 
-def test_sidebar_style_applied_via_sidebar_header_accessor(main_cpp: str) -> None:
+def test_sidebar_header_style_applied_via_sidebar_header_accessor(
+    main_cpp: str,
+) -> None:
     assert (
         "lv_obj_t *menu_sidebar_header_VAR_ = lv_menu_get_sidebar_header(test_menu);\n"
         "lv_obj_set_style_bg_color(menu_sidebar_header_VAR_, lv_color_make(0, 255, 0), LV_PART_MAIN);"
@@ -366,3 +397,11 @@ def test_set_page_action_targets_main_by_default(main_cpp: str) -> None:
 
 def test_set_page_action_targets_sidebar_when_flagged(main_cpp: str) -> None:
     assert "lv_menu_set_sidebar_page(test_menu, main_page);" in main_cpp
+
+
+def test_on_value_passes_current_main_page(main_cpp: str) -> None:
+    assert (
+        "->trigger(lv_menu_get_cur_main_page(test_menu), event);\n"
+        "    \n"
+        "}, LV_EVENT_VALUE_CHANGED, lvgl::lv_update_event, nullptr);"
+    ) in main_cpp

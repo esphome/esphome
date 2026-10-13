@@ -18,8 +18,8 @@ from ..defines import (
     CONF_ROOT_BACK_BTN,
     CONF_ROOT_PAGE,
     CONF_SECTIONS,
+    CONF_SIDEBAR_HEADER_STYLE,
     CONF_SIDEBAR_PAGE,
-    CONF_SIDEBAR_STYLE,
     CONF_TITLE,
     LV_MENU_MODES,
     LV_MENU_ROOT_BACK_BUTTON_MODES,
@@ -120,9 +120,11 @@ class MenuPageType(WidgetType):
             parent, await lv_text.process(title) if title is not None else cg.nullptr
         )
 
-    async def to_code(self, w: Widget, config: dict):
+    async def on_create(self, var: cg.MockObj, config: dict):
+        # Runs before the page's ungrouped `widgets:` are added, so sections come first.
         for section_conf in config.get(CONF_SECTIONS, ()):
-            await widget_to_code(section_conf, menu_section_spec, w.obj)
+            await widget_to_code(section_conf, menu_section_spec, var)
+        return var
 
 
 menu_page_spec = MenuPageType()
@@ -144,7 +146,7 @@ MENU_SCHEMA = cv.Schema(
             CONF_ROOT_BACK_BTN, default="disabled"
         ): LV_MENU_ROOT_BACK_BUTTON_MODES.one_of,
         cv.Optional(CONF_HEADER_STYLE): part_schema(obj_spec.parts),
-        cv.Optional(CONF_SIDEBAR_STYLE): part_schema(obj_spec.parts),
+        cv.Optional(CONF_SIDEBAR_HEADER_STYLE): part_schema(obj_spec.parts),
         cv.Optional(CONF_ON_ROOT_BACK_BUTTON_CLICK): automation.validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger.template())}
         ),
@@ -163,10 +165,23 @@ class MenuType(WidgetType):
 
     def validate(self, value: ConfigType) -> ConfigType:
         # The sidebar header only exists once a sidebar page has been set.
-        if CONF_SIDEBAR_STYLE in value and CONF_SIDEBAR_PAGE not in value:
+        if CONF_SIDEBAR_HEADER_STYLE in value and CONF_SIDEBAR_PAGE not in value:
             raise cv.Invalid(
-                f"'{CONF_SIDEBAR_STYLE}' requires '{CONF_SIDEBAR_PAGE}'",
-                path=[CONF_SIDEBAR_STYLE],
+                f"'{CONF_SIDEBAR_HEADER_STYLE}' requires '{CONF_SIDEBAR_PAGE}'",
+                path=[CONF_SIDEBAR_HEADER_STYLE],
+            )
+        # Runs before the schema, so the default has not been applied yet and an
+        # invalid value is left for the schema to report.
+        back_btn = (
+            str(value.get(CONF_ROOT_BACK_BTN, "disabled"))
+            .upper()
+            .removeprefix(LV_MENU_ROOT_BACK_BUTTON_MODES.prefix)
+        )
+        if CONF_ON_ROOT_BACK_BUTTON_CLICK in value and back_btn != "ENABLED":
+            raise cv.Invalid(
+                f"'{CONF_ON_ROOT_BACK_BUTTON_CLICK}' requires "
+                f"'{CONF_ROOT_BACK_BTN}: enabled'",
+                path=[CONF_ON_ROOT_BACK_BUTTON_CLICK],
             )
         return value
 
@@ -192,13 +207,13 @@ class MenuType(WidgetType):
                 "menu_header", lv_obj_t, rhs=lv_expr.menu_get_main_header(w.obj)
             ) as hdr:
                 await set_obj_properties(Widget(hdr, obj_spec), header_style)
-        if sidebar_style := config.get(CONF_SIDEBAR_STYLE):
+        if sidebar_header_style := config.get(CONF_SIDEBAR_HEADER_STYLE):
             with LocalVariable(
                 "menu_sidebar_header",
                 lv_obj_t,
                 rhs=lv_expr.menu_get_sidebar_header(w.obj),
             ) as hdr:
-                await set_obj_properties(Widget(hdr, obj_spec), sidebar_style)
+                await set_obj_properties(Widget(hdr, obj_spec), sidebar_header_style)
 
 
 menu_spec = MenuType()
@@ -254,11 +269,12 @@ async def add_root_back_button_triggers() -> None:
     """
     Wire up on_root_back_button_click for every menu, once all widgets exist.
     Actions like `lvgl.widget.hide` on the menu itself need the widget map fully
-    populated, so this must run as a deferred pass (mirrors trigger.py's
-    generate_triggers()) rather than inline in MenuType.to_code -- doing it inline
-    deadlocks the code-generation coroutine scheduler.
+    populated, so this must run as a deferred pass rather than inline in
+    MenuType.to_code -- doing it inline deadlocks the code-generation coroutine
+    scheduler.
     """
-    for w in get_widget_map().values():
+    # Snapshot: build_automation() can create widgets (e.g. `lvgl.list.add`).
+    for w in list(get_widget_map().values()):
         if not isinstance(w.type, MenuType):
             continue
         for conf in w.config.get(CONF_ON_ROOT_BACK_BUTTON_CLICK, ()):

@@ -112,7 +112,7 @@ from .widgets import (
     set_obj_properties,
 )
 from .widgets.keyboard import attach_textareas
-from .widgets.menu import validate_menu_pages
+from .widgets.menu import add_root_back_button_triggers, validate_menu_pages
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -505,6 +505,7 @@ async def to_code(configs):
 
         await finish_list_triggers()
         await generate_triggers()
+        await add_root_back_button_triggers()
         await generate_align_tos(configs[0])
         await attach_textareas()
         for config in configs:
