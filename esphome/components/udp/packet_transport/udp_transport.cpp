@@ -5,7 +5,7 @@
 
 namespace esphome::udp {
 
-static const char *const TAG = "udp_transport";
+ESPHOME_LOG_TAG(TAG, "udp_transport");
 
 bool UDPTransport::should_send() { return network::is_connected(); }
 void UDPTransport::setup() {

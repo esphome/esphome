@@ -1,5 +1,6 @@
 #pragma once
 
+#include "colorconv.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
@@ -80,15 +81,6 @@ class EPaperBase : public Display,
 
   DisplayType get_display_type() override { return this->display_type_; };
 
-  // Default implementations for monochrome displays
-  static uint8_t color_to_bit(Color color) {
-    // It's always a shade of gray. Map to BLACK or WHITE.
-    // We split the luminance at a suitable point
-    if ((color.r + color.g + color.b) >= 382) {
-      return 1;
-    }
-    return 0;
-  }
   // Whole buffer fills bypass draw_pixel_at(), so the dirty bounds are set here once for every driver.
   void fill(Color color) final {
     // If clipping is active, fall back to the per-pixel base implementation
@@ -108,6 +100,10 @@ class EPaperBase : public Display,
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
+  // Make the next update a full one. Applied when that update starts, so one in progress is not affected.
+  void request_full_update() { this->full_update_requested_ = true; }
+  // True from the start of an update until the display has refreshed and gone back to sleep.
+  bool is_updating() const { return this->state_ != EPaperState::IDLE; }
 
  protected:
   int get_height_internal() override { return this->height_; };
@@ -116,7 +112,7 @@ class EPaperBase : public Display,
   /// Fill the whole frame buffer with the color.
   virtual void fill_buffer(Color color) {
     // We store 8 pixels per byte
-    this->buffer_.fill(color_to_bit(color) ? 0xFF : 0x00);
+    this->buffer_.fill(color_to_mono(color) ? 0xFF : 0x00);
   }
   /// An update with no dirty area is skipped, so whole buffer writes must call this.
   void mark_all_dirty_() {
@@ -191,6 +187,7 @@ class EPaperBase : public Display,
   uint8_t transform_{};
   uint8_t effective_transform_{};
   uint8_t update_count_{};
+  bool full_update_requested_{};
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};

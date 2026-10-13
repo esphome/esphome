@@ -5,7 +5,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.mono";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.mono");
 
 void EPaperSSD1683::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");

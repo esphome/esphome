@@ -3,7 +3,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components import web_server_base, wifi
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
@@ -15,7 +15,6 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
-    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
@@ -34,6 +33,7 @@ def AUTO_LOAD() -> list[str]:
 
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "captive_portal"
 
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
@@ -63,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
-    wifi_conf = full_config.get("wifi")
+    wifi_conf = full_config.get(WIFI_DOMAIN)
 
     if wifi_conf is None:
         # This shouldn't happen due to DEPENDENCIES = ["wifi"], but check anyway
@@ -76,17 +76,7 @@ def _final_validate(config: ConfigType) -> None:
             "Add 'ap:' to your WiFi configuration to enable the captive portal."
         )
 
-    # Register socket needs for DNS server and additional HTTP connections
-    # - 1 UDP socket for DNS server
-    # - 3 TCP sockets for captive portal detection probes + configuration requests
-    #   OS captive portal detection makes multiple probe requests that stay in TIME_WAIT.
-    #   Need headroom for actual user configuration requests.
-    #   LRU purging will reclaim idle sockets to prevent exhaustion from repeated attempts.
-    # The listening socket is registered by web_server_base (shared HTTP server).
-    from esphome.components import socket
-
-    socket.consume_sockets(3, "captive_portal")(config)
-    socket.consume_sockets(1, "captive_portal", socket.SocketType.UDP)(config)
+    web_server_base.consume_captive_dns_sockets(config, DOMAIN)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -106,16 +96,4 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
 
-    if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2):
-        cg.add_library("DNSServer", None)
-
-
-# Only compile the ESP-IDF DNS server when using ESP-IDF framework
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
-    {
-        "dns_server_esp32_idf.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-    }
-)
+    web_server_base.add_captive_dns_library()

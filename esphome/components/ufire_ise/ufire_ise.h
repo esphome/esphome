@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
@@ -56,38 +55,6 @@ class UFireISEComponent final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_external_{nullptr};
   sensor::Sensor *ph_sensor_{nullptr};
-};
-
-template<typename... Ts> class UFireISECalibrateProbeLowAction final : public Action<Ts...> {
- public:
-  UFireISECalibrateProbeLowAction(UFireISEComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, solution)
-
-  void play(const Ts &...x) override { this->parent_->calibrate_probe_low(this->solution_.value(x...)); }
-
- protected:
-  UFireISEComponent *parent_;
-};
-
-template<typename... Ts> class UFireISECalibrateProbeHighAction final : public Action<Ts...> {
- public:
-  UFireISECalibrateProbeHighAction(UFireISEComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, solution)
-
-  void play(const Ts &...x) override { this->parent_->calibrate_probe_high(this->solution_.value(x...)); }
-
- protected:
-  UFireISEComponent *parent_;
-};
-
-template<typename... Ts> class UFireISEResetAction final : public Action<Ts...> {
- public:
-  UFireISEResetAction(UFireISEComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->reset_board(); }
-
- protected:
-  UFireISEComponent *parent_;
 };
 
 }  // namespace esphome::ufire_ise

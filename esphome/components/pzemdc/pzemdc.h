@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
@@ -32,16 +31,6 @@ class PZEMDC final : public PollingComponent, public modbus::ModbusClientDevice 
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *energy_sensor_{nullptr};
-};
-
-template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
- public:
-  ResetEnergyAction(PZEMDC *pzemdc) : pzemdc_(pzemdc) {}
-
-  void play(const Ts &...x) override { this->pzemdc_->reset_energy(); }
-
- protected:
-  PZEMDC *pzemdc_;
 };
 
 }  // namespace esphome::pzemdc
