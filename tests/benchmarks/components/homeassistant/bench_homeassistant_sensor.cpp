@@ -47,6 +47,7 @@ using StateBuffers = char[kStateCount][kStateBufferSize];
 using Messages = std::array<api::HomeAssistantStateResponse, kStateCount>;
 
 static StateBuffers NUMERIC_STATES = {"100.50", "101.25", "99.75", "100.00"};
+static StateBuffers INTEGER_STATES = {"100", "101", "99", "0"};
 static StateBuffers UNAVAILABLE_STATES = {"unavailable", "unknown", "unavailable", "unknown"};
 
 static Messages make_messages(const char *entity_id, const char *attribute, StateBuffers &states) {
@@ -82,6 +83,28 @@ static void HomeassistantSensor_StateResponse(benchmark::State &state) {
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(HomeassistantSensor_StateResponse);
+
+// --- One imported sensor, integer state such as a percentage or a count ---
+// Exercises: the same path with no fractional digits to parse.
+
+static void HomeassistantSensor_StateResponse_Integer(benchmark::State &state) {
+  ScopedApiServer server;
+  auto conn = create_connection(server.get());
+  const Messages msgs = make_messages("sensor.battery", nullptr, INTEGER_STATES);
+
+  HomeassistantSensor sensor;
+  sensor.set_entity_id("sensor.battery");
+  sensor.setup();
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      conn->on_home_assistant_state_response(msgs[i % kStateCount]);
+    }
+    benchmark::DoNotOptimize(sensor.state);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(HomeassistantSensor_StateResponse_Integer);
 
 // --- Attribute import: the subscription and the message both carry an attribute ---
 // Exercises: the extra attribute compare before the callback.
