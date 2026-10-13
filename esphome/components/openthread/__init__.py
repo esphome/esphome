@@ -166,10 +166,10 @@ _CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PAN_ID): cv.hex_int,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=11, max=26),
-        cv.Optional(CONF_NETWORK_KEY): cv.hex_int,
+        cv.Optional(CONF_NETWORK_KEY): cv.sensitive(cv.hex_int),
         cv.Optional(CONF_EXT_PAN_ID): cv.hex_int,
         cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
-        cv.Optional(CONF_PSKC): cv.hex_int,
+        cv.Optional(CONF_PSKC): cv.sensitive(cv.hex_int),
         cv.Optional(CONF_MESH_LOCAL_PREFIX): cv.ipv6network,
     }
 )
@@ -243,7 +243,9 @@ CONFIG_SCHEMA = cv.All(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
-            cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
+            cv.Optional(CONF_TLV): cv.sensitive(
+                cv.All(cv.string_strict, _validate_tlv_hex)
+            ),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,

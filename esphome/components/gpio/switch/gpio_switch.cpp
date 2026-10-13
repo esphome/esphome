@@ -67,8 +67,4 @@ void GPIOSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-#ifdef USE_GPIO_SWITCH_INTERLOCK
-void GPIOSwitch::set_interlock(const std::initializer_list<Switch *> &interlock) { this->interlock_ = interlock; }
-#endif
-
 }  // namespace esphome::gpio

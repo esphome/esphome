@@ -27,7 +27,7 @@ static ProgmemStr get_color_mode_json_str(ColorMode mode) {
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   if (state.supports_effects()) {
-    root[ESPHOME_F("effect")] = state.get_effect_name().c_str();
+    root[ESPHOME_F("effect")] = json::linked(state.get_effect_name());
     root[ESPHOME_F("effect_index")] = state.get_current_effect_index();
     root[ESPHOME_F("effect_count")] = state.get_effect_count();
   }
@@ -37,7 +37,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   const auto color_mode = values.get_color_mode();
   const auto *mode_str = get_color_mode_json_str(color_mode);
   if (mode_str != nullptr) {
-    root[ESPHOME_F("color_mode")] = mode_str;
+    root[ESPHOME_F("color_mode")] = json::linked(mode_str);
   }
 
   if (color_mode & ColorCapability::ON_OFF)
