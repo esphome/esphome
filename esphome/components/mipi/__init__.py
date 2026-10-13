@@ -35,6 +35,8 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
+DOMAIN = "mipi"
+
 LOGGER = cv.logging.getLogger(__name__)
 
 CONF_TRANSFORMS = "transforms"

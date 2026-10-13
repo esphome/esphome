@@ -22,6 +22,8 @@ from esphome.components.esp32 import (
     request_bluetooth,
 )
 from esphome.components.esp32.const import VARIANT_ESP32C2
+from esphome.components.esp32_hosted import DOMAIN as ESP32_HOSTED_DOMAIN
+from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -277,7 +279,7 @@ DEFAULT_MAX_CONNECTIONS = 3
 IDF_MAX_CONNECTIONS = 9
 
 # Connection slot tracking keys
-KEY_ESP32_BLE = "esp32_ble"
+KEY_ESP32_BLE = DOMAIN
 KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
 
 # Export for use by other components (bluetooth_proxy, etc.)
@@ -361,7 +363,7 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
         ),
         cv.Optional(CONF_USE_PSRAM): cv.All(
-            cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+            cv.only_on_esp32, cv.requires_component(PSRAM_DOMAIN), cv.boolean
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -404,7 +406,7 @@ def consume_connection_slots(
     """
 
     def _consume_connection_slots(config: MutableMapping) -> MutableMapping:
-        data: dict[str, Any] = CORE.data.setdefault(KEY_ESP32_BLE, {})
+        data: dict[str, Any] = CORE.data.setdefault(DOMAIN, {})
         slots: list[str] = data.setdefault(KEY_USED_CONNECTION_SLOTS, [])
         slots.extend([consumer] * value)
         return config
@@ -418,7 +420,7 @@ def validate_connection_slots(max_connections: int) -> None:
     if CORE.testing_mode:
         return
 
-    ble_data = CORE.data.get(KEY_ESP32_BLE, {})
+    ble_data = CORE.data.get(DOMAIN, {})
     used_slots = ble_data.get(KEY_USED_CONNECTION_SLOTS, [])
     num_used = len(used_slots)
 
@@ -473,7 +475,7 @@ def final_validation(config: ConfigType) -> None:
     validate_connection_slots(max_connections)
 
     # Check if hosted bluetooth is being used
-    if "esp32_hosted" in full_config:
+    if ESP32_HOSTED_DOMAIN in full_config:
         from esphome.components.esp32_hosted import uses_esp_hosted_3x
 
         add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)

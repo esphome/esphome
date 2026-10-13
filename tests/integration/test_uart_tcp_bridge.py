@@ -27,13 +27,17 @@ async def test_uart_tcp_bridge(
     server_port = unused_tcp_port_factory()
     denied_port = unused_tcp_port_factory()
     controller_fd, device_fd = os.openpty()
+    denied_controller_fd, denied_device_fd = os.openpty()
     os.set_blocking(controller_fd, False)
     # uart's validate_port wants a two segment device path; Linux ptys live at
     # /dev/pts/N, so hand the config a /tmp symlink instead.
     pty_link = f"/tmp/uart-tcp-pty-{os.getpid()}"
     pathlib.Path(pty_link).symlink_to(os.ttyname(device_fd))
+    denied_pty_link = f"/tmp/uart-tcp-denied-pty-{os.getpid()}"
+    pathlib.Path(denied_pty_link).symlink_to(os.ttyname(denied_device_fd))
     yaml_config = yaml_config.replace("port: 18126", f"port: {server_port}")
     yaml_config = yaml_config.replace("port: 18127", f"port: {denied_port}")
+    yaml_config = yaml_config.replace("DENIED_PTY_PATH", denied_pty_link)
     yaml_config = yaml_config.replace("PTY_PATH", pty_link)
 
     lines = LineWaiter()
@@ -80,13 +84,16 @@ async def test_uart_tcp_bridge(
 
             reader, writer = await asyncio.open_connection("127.0.0.1", server_port)
             await wait_log_count("Client connected", 1)
+            # The accept log precedes the stale discard in the same loop pass, so
+            # prove the device is past it with a client to UART round trip before
+            # writing the bytes the client must see.
+            writer.write(b"down1")
+            await writer.drain()
+            assert await read_uart(5) == b"down1"
             os.write(controller_fd, b"live!")
             assert await asyncio.wait_for(reader.readexactly(5), 10) == b"live!", (
                 "First bytes to the client were not the live payload"
             )
-            writer.write(b"down1")
-            await writer.drain()
-            assert await read_uart(5) == b"down1"
 
             # Drop the client; bytes while no client is connected are discarded
             # when the next one is accepted.
@@ -97,13 +104,13 @@ async def test_uart_tcp_bridge(
 
             reader, writer = await asyncio.open_connection("127.0.0.1", server_port)
             await wait_log_count("Client connected", 2)
+            writer.write(b"down2")
+            await writer.drain()
+            assert await read_uart(5) == b"down2"
             os.write(controller_fd, b"live2")
             assert await asyncio.wait_for(reader.readexactly(5), 10) == b"live2", (
                 "Second client received stale bytes from the gap"
             )
-            writer.write(b"down2")
-            await writer.drain()
-            assert await read_uart(5) == b"down2"
             writer.close()
 
             # A peer outside the allow list is rejected and closed.
@@ -117,4 +124,7 @@ async def test_uart_tcp_bridge(
         loop.remove_reader(controller_fd)
         os.close(controller_fd)
         os.close(device_fd)
+        os.close(denied_controller_fd)
+        os.close(denied_device_fd)
         pathlib.Path(pty_link).unlink()
+        pathlib.Path(denied_pty_link).unlink()

@@ -8,7 +8,7 @@
 
 namespace esphome::pn532 {
 
-static const char *const TAG = "pn532.mifare_classic";
+ESPHOME_LOG_TAG(TAG, "pn532.mifare_classic");
 
 std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(nfc::NfcTagUid &uid) {
   uint8_t current_block = 4;

@@ -7,7 +7,7 @@
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp.text_sensor";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp.text_sensor");
 
 // Indexed by DoorState. Each fits the 15 characters std::string keeps inline, so publishing never allocates.
 PROGMEM_STRING_TABLE(DoorStateStrings, "Open", "Opening", "Closed", "Closing", "Half open", "Moving to vent",

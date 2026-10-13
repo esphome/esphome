@@ -2,7 +2,7 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc.helpers";
+ESPHOME_LOG_TAG(TAG, "nfc.helpers");
 
 bool has_ha_tag_ndef(const NfcTag &tag) { return !get_ha_tag_ndef(tag).empty(); }
 

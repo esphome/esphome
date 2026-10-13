@@ -9,3 +9,5 @@ tcp_uart:
     reconnect_interval: 10s
     connected:
       name: TCP UART Connected
+    disconnects:
+      name: TCP UART Disconnects

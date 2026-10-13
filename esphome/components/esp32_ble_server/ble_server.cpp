@@ -18,7 +18,7 @@
 
 namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server");
 
 void BLEServer::setup() {
   if (this->parent_->is_failed()) {

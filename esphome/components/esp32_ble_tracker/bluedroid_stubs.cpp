@@ -15,7 +15,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::esp32_ble_tracker {
-static const char *const TAG = "esp32_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_tracker");
 }  // namespace esphome::esp32_ble_tracker
 
 static_assert(ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 2, 0),

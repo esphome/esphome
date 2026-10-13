@@ -13,6 +13,7 @@ static constexpr uint8_t REG_SG_RESULT = 0x41;
 static constexpr uint8_t REG_COOLCONF = 0x42;
 
 static constexpr RegisterField TCOOLTHRS{REG_TCOOLTHRS, 0, 20, false};
+static constexpr RegisterField SGTHRS{REG_SGTHRS, 0, 8, false};
 static constexpr RegisterField SG_RESULT{REG_SG_RESULT, 0, 10, false};
 static constexpr RegisterField SEMIN{REG_COOLCONF, 0, 4, false};
 static constexpr RegisterField SEUP{REG_COOLCONF, 5, 2, false};
@@ -30,8 +31,8 @@ class TMC2209Stepper : public tmc22xx::TMC22XXStepper {
   }
 
   /// A stall is reported when the StallGuard result drops below twice this value.
-  void set_stallguard_threshold(uint8_t threshold) { this->write_register(REG_SGTHRS, threshold); }
-  uint8_t get_stallguard_threshold() const { return this->sgthrs_; }
+  void set_stallguard_threshold(uint8_t threshold) { this->write_field(SGTHRS, threshold); }
+  uint8_t get_stallguard_threshold() const { return extract_field(this->sgthrs_, SGTHRS); }
   /// Lower velocity limit, as TSTEP, for CoolStep and the StallGuard output on DIAG.
   void set_tcool_threshold(uint32_t threshold) { this->write_field(TCOOLTHRS, threshold); }
   void set_semin(uint8_t semin) { this->write_field(SEMIN, semin); }
@@ -41,16 +42,16 @@ class TMC2209Stepper : public tmc22xx::TMC22XXStepper {
   void set_seimin(bool seimin) { this->write_field(SEIMIN, seimin); }
 
  protected:
-  uint8_t expected_version_() const override { return 0x21; }
-  uint32_t *shadow_register_(uint8_t reg) override;
-  void configure_driver_() override;
-  void on_diag_without_error_() override { this->stall_callback_.call(); }
+  uint8_t expected_version() const override { return 0x21; }
+  uint32_t *shadow_register(uint8_t reg) override;
+  void restore_registers() override;
+  void on_diag_without_error() override { this->stall_callback_.call(); }
 
+  LazyCallbackManager<void()> stall_callback_;
   // Write-only registers with their power-on values
   uint32_t tcoolthrs_{0};
   uint32_t sgthrs_{0};
   uint32_t coolconf_{0};
-  LazyCallbackManager<void()> stall_callback_;
 };
 
 }  // namespace esphome::tmc2209

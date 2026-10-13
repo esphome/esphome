@@ -8,7 +8,7 @@
 
 namespace esphome::pn71xx {
 
-static const char *const TAG = "pn71xx.mifare_ultralight";
+ESPHOME_LOG_TAG(TAG, "pn71xx.mifare_ultralight");
 
 uint8_t PN71xx::read_mifare_ultralight_tag_(nfc::NfcTag &tag) {
   UltralightReadBuffer data;

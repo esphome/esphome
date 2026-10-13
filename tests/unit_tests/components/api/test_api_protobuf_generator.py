@@ -360,3 +360,56 @@ def test_repeated_strings_generate_in_every_direction(source: int) -> None:
     assert "nullptr" not in header
     if source != SOURCE_SERVER:
         assert "case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):" in cpp
+
+
+def _progmem_field(
+    *, pointer_to_buffer: bool = True, force: bool = False, repeated: bool = False
+) -> descriptor_pb2.FieldDescriptorProto:
+    field = _field(12, force=force, repeated=repeated)
+    field.options.Extensions[pb.progmem] = True
+    if pointer_to_buffer:
+        field.options.Extensions[pb.pointer_to_buffer] = True
+    return field
+
+
+@pytest.mark.parametrize(
+    ("force", "encode_fn"),
+    [(False, "encode_progmem_bytes("), (True, "encode_progmem_bytes_force(")],
+)
+def test_progmem_bytes_field_copies_from_flash(force: bool, encode_fn: str) -> None:
+    """A (progmem) field encodes and dumps through the progmem_memcpy helpers."""
+    ti = create_field_type_info(_progmem_field(force=force), needs_decode=False)
+    assert encode_fn in ti.encode_content
+    assert "encode_bytes" not in ti.encode_content
+    assert "dump_progmem_bytes_field(" in ti.dump_content
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        pytest.param(_progmem_field(pointer_to_buffer=False), id="no_pointer"),
+        pytest.param(_progmem_field(repeated=True), id="repeated"),
+    ],
+)
+def test_progmem_rejected_where_it_cannot_apply(
+    field: descriptor_pb2.FieldDescriptorProto,
+) -> None:
+    """(progmem) on a field that would not copy from flash fails instead of silently using memcpy."""
+    with pytest.raises(ValueError, match="progmem on field 'value'"):
+        create_field_type_info(field, needs_decode=False)
+
+
+def test_progmem_rejected_in_a_decoded_message() -> None:
+    """Received data is never in flash, so a decoded message cannot use (progmem)."""
+    desc = descriptor_pb2.DescriptorProto(name="Received")
+    desc.field.add().CopyFrom(_progmem_field())
+    with pytest.raises(ValueError, match="progmem on field 'value' of Received"):
+        build_message_type(desc, {}, {"Received": SOURCE_CLIENT})
+
+
+def test_progmem_rejected_on_non_bytes_field() -> None:
+    """(progmem) only applies to bytes fields."""
+    field = _field(9)
+    field.options.Extensions[pb.progmem] = True
+    with pytest.raises(ValueError, match="progmem on field 'value'"):
+        create_field_type_info(field, needs_decode=False)
