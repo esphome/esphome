@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_miscale {
 
-static const char *const TAG = "xiaomi_miscale";
+ESPHOME_LOG_TAG(TAG, "xiaomi_miscale");
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");

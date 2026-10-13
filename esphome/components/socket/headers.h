@@ -20,6 +20,16 @@
 
 #define IPPROTO_IP 0
 #define IPPROTO_TCP 6
+#define IPPROTO_UDP 17
+
+#define IP_ADD_MEMBERSHIP 3
+#define IP_DROP_MEMBERSHIP 4
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+struct ip_mreq {
+  struct in_addr imr_multiaddr;
+  struct in_addr imr_interface;
+};
 
 #if LWIP_IPV6
 #define AF_INET6 10
@@ -204,6 +214,13 @@ static constexpr size_t SOCKADDR_STR_LEN = 46;  // INET6_ADDRSTRLEN
 #else
 static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
 #endif
+
+/// Outcome of polling a non-blocking connect(); see socket::poll_connect().
+enum class ConnectPollResult : uint8_t {
+  CONNECT_POLL_RESULT_PENDING,
+  CONNECT_POLL_RESULT_CONNECTED,
+  CONNECT_POLL_RESULT_ERROR,
+};
 
 }  // namespace esphome::socket
 

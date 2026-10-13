@@ -4,7 +4,7 @@
 
 namespace esphome::vbus {
 
-static const char *const TAG = "vbus.sensor";
+ESPHOME_LOG_TAG(TAG, "vbus.sensor");
 
 static inline uint16_t get_u16(std::vector<uint8_t> &message, int start) {
   return (message[start + 1] << 8) + message[start];

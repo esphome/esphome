@@ -19,7 +19,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 // index by values returned by esp_reset_reason
 

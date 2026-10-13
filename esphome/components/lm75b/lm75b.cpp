@@ -4,7 +4,7 @@
 
 namespace esphome::lm75b {
 
-static const char *const TAG = "lm75b";
+ESPHOME_LOG_TAG(TAG, "lm75b");
 
 void LM75BComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LM75B:");
