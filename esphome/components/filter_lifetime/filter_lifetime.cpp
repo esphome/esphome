@@ -34,7 +34,7 @@ void FilterLifetime::update() {
     this->carry_ms_ += static_cast<uint32_t>(elapsed_ms * (speed / 100.0f));
     this->runtime_seconds_ += this->carry_ms_ / 1000;
     this->carry_ms_ %= 1000;
-    // Save once per hour of runtime: every save erases a flash sector on ESP8266.
+    // Save once per hour of runtime (and in on_shutdown): every save erases a flash sector on ESP8266.
     if (this->runtime_seconds_ / SECONDS_PER_HOUR != prev_hours)
       this->pref_.save(&this->runtime_seconds_);
     ESP_LOGV(TAG, "Elapsed %" PRIu32 " ms at %.0f%%, runtime %" PRIu32 " s", elapsed_ms, speed, this->runtime_seconds_);
@@ -53,6 +53,8 @@ void FilterLifetime::publish_values_() {
     this->remaining_days_sensor_->publish_state(remaining_minutes / MINUTES_PER_DAY);
 }
 
+void FilterLifetime::on_shutdown() { this->pref_.save(&this->runtime_seconds_); }
+
 void FilterLifetime::reset_filter() {
   this->runtime_seconds_ = 0;
   this->carry_ms_ = 0;
@@ -67,7 +69,7 @@ bool FilterLifetime::get_is_on_() {
   if (this->is_on_sensor_ != nullptr)
     return this->is_on_sensor_->state;
 #endif
-  if (this->is_on_lambda_)
+  if (this->is_on_lambda_ != nullptr)
     return this->is_on_lambda_();
   return true;
 }
@@ -75,7 +77,7 @@ bool FilterLifetime::get_is_on_() {
 float FilterLifetime::get_current_speed_() {
   if (this->current_speed_sensor_ != nullptr)
     return this->current_speed_sensor_->state;  // NaN before the first publish, treated as 0
-  if (this->current_speed_lambda_)
+  if (this->current_speed_lambda_ != nullptr)
     return this->current_speed_lambda_();
   return 100.0f;
 }
@@ -93,13 +95,14 @@ void FilterLifetime::dump_config() {
   } else
 #endif
   {
-    ESP_LOGCONFIG(TAG, "  Is-on: %s", this->is_on_lambda_ ? LOG_STR_LITERAL("lambda") : LOG_STR_LITERAL("always"));
+    ESP_LOGCONFIG(TAG, "  Is-on: %s",
+                  this->is_on_lambda_ != nullptr ? LOG_STR_LITERAL("lambda") : LOG_STR_LITERAL("always"));
   }
   if (this->current_speed_sensor_ != nullptr) {
     LOG_SENSOR("  ", "Speed sensor", this->current_speed_sensor_);
   } else {
     ESP_LOGCONFIG(TAG, "  Speed: %s",
-                  this->current_speed_lambda_ ? LOG_STR_LITERAL("lambda") : LOG_STR_LITERAL("100%"));
+                  this->current_speed_lambda_ != nullptr ? LOG_STR_LITERAL("lambda") : LOG_STR_LITERAL("100%"));
   }
   LOG_SENSOR("  ", "Runtime hours", this->runtime_hours_sensor_);
   LOG_SENSOR("  ", "Remaining days", this->remaining_days_sensor_);

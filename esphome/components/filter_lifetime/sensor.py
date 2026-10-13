@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_DURATION,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_HOUR,
     UNIT_PERCENT,
 )
@@ -47,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_HOUR,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_DURATION,
-                state_class=STATE_CLASS_TOTAL,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
                 icon="mdi:timer-outline",
             ),
             cv.Optional(CONF_REMAINING_DAYS): sensor.sensor_schema(
