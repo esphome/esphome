@@ -309,6 +309,23 @@ TEST_F(EmonTxLockAutoTest, RetriesStopAfterThreeAttempts) {
   EXPECT_EQ(this->tx_(), "\n\n\n");
 }
 
+// E.g. a downgrade: after the reboot, the new firmware never answers 'v'
+TEST_F(EmonTxLockAutoTest, NoLockAfterUnansweredRequest) {
+  this->report_version_("v1.2.0");
+  run_timers(300);
+  for (int msg : {50, 1, 2, 3, 4, 5, 6, 7}) {
+    char line[24];
+    snprintf(line, sizeof(line), "MSG:%d\n", msg);
+    this->uart_.push_rx(line);
+    this->sut_.loop();
+  }
+  this->uart_.tx.clear();
+
+  EXPECT_CALL(this->uart_, flush()).Times(0);
+  this->sut_.on_shutdown();
+  EXPECT_TRUE(this->uart_.tx.empty());
+}
+
 TEST_F(EmonTxLockAutoTest, UnlockDroppedByPauseSentAfterResume) {
   this->report_version_("v1.2.0");
   this->sut_.set_paused(true);

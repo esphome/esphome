@@ -224,6 +224,8 @@ void EmonTx::parse_msg_number_(const char *line, size_t len) {
   } else if (this->version_frames_left_ > 0) {
     if (--this->version_frames_left_ == 0) {
       ESP_LOGW(TAG, "No firmware version from the emonTx, it may still be locked");
+      // An unknown version gets no lock commands, even if an earlier one allowed them
+      this->lock_supported_ = false;
     } else if (this->version_frames_left_ % VERSION_RETRY_FRAMES == 0) {
       this->send_version_request_();
     }
