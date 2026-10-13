@@ -34,6 +34,7 @@ OTHER_PSK = base64.b64encode(bytes(range(1, 33))).decode()
 MAGIC = bytes(espota2.MAGIC_BYTES)
 # One resolved loopback address, as resolve_ip_address returns it
 RESOLVED = [(2, 1, 0, "", ("127.0.0.1", 1))]
+TWO_ADDRESSES = [(2, 1, 0, "", ("10.0.0.1", 1)), (2, 1, 0, "", ("10.0.0.2", 1))]
 
 
 def _recv_exact(sock: socket.socket, amount: int) -> bytes:
@@ -280,11 +281,13 @@ def _run_ota(
     return rc
 
 
-def test_on_connect_runs_once_per_connection(tmp_path: Path) -> None:
-    """The old_key reconnect reports again; a refused connect never does."""
+def test_on_upload_start_runs_once_the_device_accepted_the_session(
+    tmp_path: Path,
+) -> None:
+    """The rejected first key never reaches the hook; the old_key reconnect does."""
     pytest.importorskip("aioesphomeapi.noise")
     device = FakeEncryptedDevice(psk=OTHER_PSK, connections=2)
-    on_connect = Mock()
+    on_upload_start = Mock()
     with patch("time.sleep"):
         rc = _run_ota(
             device,
@@ -293,18 +296,22 @@ def test_on_connect_runs_once_per_connection(tmp_path: Path) -> None:
             PSK,
             plaintext_fallback=False,
             old_noise_psk=OTHER_PSK,
-            on_connect=on_connect,
+            on_upload_start=on_upload_start,
         )
     device.join_and_check()
     assert rc == 0
-    assert on_connect.call_count == 2
+    on_upload_start.assert_called_once()
 
 
-def test_on_connect_failure_closes_the_socket() -> None:
+def test_on_upload_start_failure_closes_the_socket() -> None:
+    def start_upload(*_args: Any, **kwargs: Any) -> None:
+        kwargs["on_upload_start"]()
+
     with (
         patch("esphome.espota2.resolve_ip_address", return_value=RESOLVED),
         patch("socket.socket") as sock,
         patch("pathlib.Path.open"),
+        patch("esphome.espota2.perform_ota", side_effect=start_upload),
         pytest.raises(RuntimeError, match="boom"),
     ):
         espota2.run_ota_impl_(
@@ -312,7 +319,7 @@ def test_on_connect_failure_closes_the_socket() -> None:
             1,
             None,
             Path("fw.bin"),
-            on_connect=Mock(side_effect=RuntimeError("boom")),
+            on_upload_start=Mock(side_effect=RuntimeError("boom")),
         )
     sock.return_value.close.assert_called_once()
 
@@ -413,9 +420,7 @@ def test_tampered_negotiation_breaks_handshake() -> None:
 def test_client_fails_closed_when_device_lacks_encryption() -> None:
     """With a key configured, a device not offering noise aborts the upload."""
     device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
-    with pytest.raises(
-        espota2.OTAError, match="refusing to send the image.*allow_plaintext_upload"
-    ):
+    with pytest.raises(espota2.OTAEncryptionNotOffered, match="did not offer"):
         _upload(device, b"firmware", PSK)
     device.join_and_check()
 
@@ -841,7 +846,7 @@ def test_bare_block_refuses_a_device_that_cannot_encrypt(
     device.join_and_check()
     assert rc == 1
     assert device.received != b"firmware"
-    assert any("refusing to send the image" in r.message for r in caplog.records)
+    assert any("Refusing to send the image" in r.message for r in caplog.records)
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
@@ -877,10 +882,7 @@ def test_probe_ota_key_tries_every_address_before_a_final_no() -> None:
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[
-                (2, 1, 0, "", ("10.0.0.1", 1)),
-                (2, 1, 0, "", ("10.0.0.2", 1)),
-            ],
+            return_value=TWO_ADDRESSES,
         ),
         patch("socket.socket"),
         patch(
@@ -924,10 +926,7 @@ def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[
-                (2, 1, 0, "", ("10.0.0.1", 1)),
-                (2, 1, 0, "", ("10.0.0.2", 1)),
-            ],
+            return_value=TWO_ADDRESSES,
         ),
         patch("socket.socket") as sock,
         patch(
@@ -964,10 +963,7 @@ def test_probe_ota_key_pauses_between_rounds_once_an_address_answered() -> None:
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[
-                (2, 1, 0, "", ("10.0.0.1", 1)),
-                (2, 1, 0, "", ("10.0.0.2", 1)),
-            ],
+            return_value=TWO_ADDRESSES,
         ) as resolve,
         patch("socket.socket") as sock_cls,
         patch(
@@ -1005,7 +1001,7 @@ def test_probe_ota_key_keeps_trying_an_address_a_new_lookup_added() -> None:
         patch(
             "esphome.espota2.resolve_ip_address",
             side_effect=itertools.chain(
-                [[(2, 1, 0, "", ("10.0.0.1", 1)), (2, 1, 0, "", ("10.0.0.2", 1))]],
+                [TWO_ADDRESSES],
                 itertools.repeat([(2, 1, 0, "", ("10.0.0.3", 1))]),
             ),
         ),
@@ -1025,6 +1021,37 @@ def test_probe_ota_key_keeps_trying_an_address_a_new_lookup_added() -> None:
     assert negotiate.call_count == 11  # the new address was tried every round
 
 
+def test_probe_ota_key_keeps_the_device_answer_when_a_later_lookup_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    clock = [0.0]
+
+    def sleep(seconds: float) -> None:
+        clock[0] += seconds
+
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            side_effect=itertools.chain(
+                [TWO_ADDRESSES], itertools.repeat(EsphomeError("dns down"))
+            ),
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[espota2.OTAKeyRejected("no"), OSError("down")],
+        ),
+        patch("time.sleep", side_effect=sleep),
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+            is ProbeResult.REJECTED
+        )
+    assert "failed, rejected: 10.0.0.1: no" in caplog.text
+
+
 def test_probe_ota_key_names_a_missing_encryption_offer(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1034,7 +1061,7 @@ def test_probe_ota_key_names_a_missing_encryption_offer(
         patch("socket.socket"),
         patch(
             "esphome.espota2._negotiate_session",
-            side_effect=espota2.OTAEncryptionNotOffered("refusing to send the image"),
+            side_effect=espota2.OTAEncryptionNotOffered("did not offer encryption"),
         ),
         patch("time.sleep"),
         caplog.at_level(logging.WARNING),
@@ -1043,7 +1070,7 @@ def test_probe_ota_key_names_a_missing_encryption_offer(
             espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
             is ProbeResult.NOT_OFFERED
         )
-    assert "failed, not offered: 127.0.0.1: no encryption offered" in caplog.text
+    assert "failed, not offered: 127.0.0.1: did not offer encryption" in caplog.text
     assert "image" not in caplog.text
 
 
@@ -1082,10 +1109,7 @@ def test_probe_ota_key_reports_the_device_answer_over_a_network_error(
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[
-                (2, 1, 0, "", ("10.0.0.1", 1)),
-                (2, 1, 0, "", ("10.0.0.2", 1)),
-            ],
+            return_value=TWO_ADDRESSES,
         ),
         patch("socket.socket"),
         patch(

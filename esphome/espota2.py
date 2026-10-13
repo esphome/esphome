@@ -121,6 +121,7 @@ _AUTH_METHODS: dict[int, tuple[Callable[..., Any], int, str]] = {
     RESPONSE_REQUEST_SHA256_AUTH: (hashlib.sha256, 64, "SHA256"),
     RESPONSE_REQUEST_AUTH: (hashlib.md5, 32, "MD5"),
 }
+_AUTH_ANSWERS = (*_AUTH_METHODS, RESPONSE_AUTH_OK)
 
 # Error response code -> human-readable message (without the "Error: " prefix; check_error()
 # prepends it uniformly). Looked up by check_error() to translate a single byte from the device
@@ -241,6 +242,12 @@ class ProbeResult(enum.Enum):
     UNREACHABLE = "unreachable"  # no answer at all
 
 
+_PROBE_ANSWERS = (
+    (OTAKeyRejected, ProbeResult.REJECTED),
+    (OTAEncryptionNotOffered, ProbeResult.NOT_OFFERED),
+)
+
+
 def esphome_ota_items(config: ConfigType) -> list[ConfigType]:
     """The esphome ota entries; a raw ``ota:`` may be a mapping, not a list."""
     ota = config.get(CONF_OTA) or []
@@ -256,6 +263,14 @@ def esphome_ota_items(config: ConfigType) -> list[ConfigType]:
 # the names so the upload path never loads the component module
 CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
 CONF_OLD_KEY = "old_key"
+ENCRYPTION_NOT_OFFERED_ADVICE = (
+    "Refusing to send the image in plaintext. The running firmware predates "
+    "ESPHome 2026.9.0 or has no 'api: encryption: key'. With an api key, install "
+    "once without the 'ota: encryption:' block (that build offers encryption), "
+    f"then restore it; otherwise set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: true' under "
+    "'ota: encryption:' for this one install, or flash by serial or the "
+    "web_server OTA platform."
+)
 ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
     f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; expected once, on the install that "
     "migrates a device which never encrypted. If this device encrypted before, "
@@ -598,21 +613,17 @@ class NoiseSocketWrapper:
 def _negotiate_session(
     sock: socket.socket,
     noise_psk: str | None,
-    plaintext_fallback: bool,
-    allow_plaintext_upload: bool,
-    level: int = logging.INFO,
+    plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> tuple[socket.socket | NoiseSocketWrapper, int, int, bool]:
     """Negotiate through the Noise handshake; returns the socket to go on with
-    (wrapped once encrypted), version, features, extended. ``level`` keeps a
-    retrying probe quiet."""
+    (wrapped once encrypted), version, features, extended."""
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
-    _LOGGER.log(
-        level, "Connection established; device supports OTA version %s", version
-    )
+    _LOGGER.debug("Device supports OTA version %s", version)
     supported_versions = (OTA_VERSION_1_0, OTA_VERSION_2_0)
     if version not in supported_versions:
         raise OTAError(
@@ -670,13 +681,7 @@ def _negotiate_session(
             # falls back then; advise 'allow_plaintext_upload: true' instead
             raise OTAEncryptionNotOffered(
                 "An OTA encryption key is configured but the device did not "
-                "offer encryption; refusing to send the image in plaintext. "
-                "The running firmware predates ESPHome 2026.9.0 or has no "
-                "'api: encryption: key'. With an api key, install once "
-                "without the 'ota: encryption:' block (that build offers "
-                f"encryption), then restore it; otherwise set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: "
-                "true' under 'ota: encryption:' for this one install, or flash by "
-                "serial or the web_server OTA platform."
+                "offer encryption"
             )
     if noise_psk:
         # The prologue binds every negotiation byte both sides saw, so any
@@ -694,7 +699,7 @@ def _negotiate_session(
         except OTANetworkError as err:
             # A transport fault: retry encrypted before considering plaintext
             raise OTAHandshakeNetworkError(str(err)) from err
-        _LOGGER.log(level, "Encrypted connection established")
+        _LOGGER.debug("Encrypted connection established")
         if allow_plaintext_upload:
             _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
     return sock, version, features, extended_proto
@@ -709,6 +714,7 @@ def perform_ota(
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
+    on_upload_start: Callable[[], None] | None = None,
 ) -> None:
     # Validate up front; an out-of-range value would only surface as a
     # ValueError deep inside send_check, bypassing OTAError handling
@@ -734,6 +740,9 @@ def perform_ota(
     sock, version, features, extended_proto = _negotiate_session(
         sock, noise_psk, plaintext_fallback, allow_plaintext_upload
     )
+    _LOGGER.info("Connection established; device supports OTA version %s", version)
+    if isinstance(sock, NoiseSocketWrapper):
+        _LOGGER.info("Encrypted connection established")
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -810,18 +819,15 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
-    (auth,) = receive_exactly(
-        sock,
-        1,
-        "auth",
-        [RESPONSE_REQUEST_AUTH, RESPONSE_REQUEST_SHA256_AUTH, RESPONSE_AUTH_OK],
-    )
+    (auth,) = receive_exactly(sock, 1, "auth", list(_AUTH_ANSWERS))
 
     if auth != RESPONSE_AUTH_OK:
         hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
         perform_auth(sock, password, hash_func, nonce_size, hash_name)
 
     _LOGGER.info("Handshake complete")
+    if on_upload_start is not None:
+        on_upload_start()  # the device may commit anything sent from here
 
     sock.settimeout(DATA_PHASE_TIMEOUT)
 
@@ -946,7 +952,8 @@ PROBE_HANDSHAKE_TIMEOUT = 10.0
 
 
 def _resolve_targets(remote_host: str | list[str], remote_port: int) -> list[Any]:
-    """Every address to try for the host, resolved once through the cache."""
+    """Every address to try for the host, through the cache; OTAError when
+    there is none."""
     from esphome.core import CORE
 
     try:
@@ -954,16 +961,6 @@ def _resolve_targets(remote_host: str | list[str], remote_port: int) -> list[Any
             remote_host, remote_port, address_cache=CORE.address_cache
         )
     except EsphomeError as err:
-        _LOGGER.error(
-            "Error resolving IP address of %s. Is it connected to WiFi?",
-            remote_host,
-        )
-        if not CORE.dashboard:
-            _LOGGER.error("(If you know the IP, try --device <IP>)")
-        _LOGGER.error(
-            "(If this error persists, please set a static IP address: "
-            "https://esphome.io/components/wifi/#manual-ips)"
-        )
         raise OTAError(err) from err
     if not res:
         raise OTAError(f"No addresses to connect to for {remote_host}")
@@ -1010,7 +1007,6 @@ def probe_ota_key(
     """Whether the device completes a Noise handshake with the key, no image
     sent. Retries until the deadline, a rejection too with ``retry_rejected``
     (the old firmware may answer once more after an upload)."""
-    from esphome.core import CORE
 
     noise_handshake(noise_psk, b"")  # a local fault must not read as the device's no
     deadline = time.monotonic() + timeout
@@ -1026,48 +1022,32 @@ def probe_ota_key(
         if not res:
             # A rebooting device may drop off mDNS for a while; keep asking
             try:
-                res = resolve_ip_address(
-                    remote_host, remote_port, address_cache=CORE.address_cache
-                )
-            except EsphomeError as err:
-                last_error = str(err)
-            else:
-                if not res:
-                    last_error = f"no addresses for {remote_host}"
-            if not res:
-                _LOGGER.debug("Host not resolved yet (%s); retrying", last_error)
+                res = _resolve_targets(remote_host, remote_port)
+            except OTAError as err:
+                if outcome is ProbeResult.UNREACHABLE:
+                    last_error = str(err)
+                _LOGGER.debug("Host not resolved yet (%s); retrying", err)
                 pause(PROBE_RETRY_DELAY)
                 continue
         # One round: every address that has not answered, back to back
         started = time.monotonic()
         unreached = 0
         for af, socktype, _, _, sa in res:
-            if sa in answered or (remaining := deadline - time.monotonic()) <= 0:
+            if sa in answered:
                 continue
+            if (remaining := deadline - time.monotonic()) <= 0:
+                break
             sock = socket.socket(af, socktype)
             # A dead host must not eat the budget
             sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
             with contextlib.closing(sock):
                 try:
                     sock.connect(sa)
-                    session, _, _, _ = _negotiate_session(
-                        _DeadlineSocket(sock, deadline),
-                        noise_psk,
-                        False,
-                        False,
-                        level=logging.DEBUG,
-                    )
+                    session = _negotiate_session(
+                        _DeadlineSocket(sock, deadline), noise_psk
+                    )[0]
                     # A password challenge also proves the key: it comes encrypted
-                    receive_exactly(
-                        session,
-                        1,
-                        "auth",
-                        [
-                            RESPONSE_REQUEST_AUTH,
-                            RESPONSE_REQUEST_SHA256_AUTH,
-                            RESPONSE_AUTH_OK,
-                        ],
-                    )
+                    receive_exactly(session, 1, "auth", list(_AUTH_ANSWERS))
                 except (OSError, OTANetworkError) as err:
                     if outcome is ProbeResult.UNREACHABLE:
                         last_error = f"{sa[0]}: {err}"
@@ -1075,13 +1055,10 @@ def probe_ota_key(
                 except OTAError as err:
                     # Final in the precheck; a rebooting device may answer
                     # differently once it is back
-                    if isinstance(err, OTAKeyRejected):
-                        outcome = ProbeResult.REJECTED
-                    elif isinstance(err, OTAEncryptionNotOffered):
-                        outcome = ProbeResult.NOT_OFFERED
-                        err = "no encryption offered"
-                    else:
-                        outcome = ProbeResult.DEVICE_ERROR
+                    outcome = next(
+                        (r for t, r in _PROBE_ANSWERS if isinstance(err, t)),
+                        ProbeResult.DEVICE_ERROR,
+                    )
                     last_error = f"{sa[0]}: {err}"
                     if not retry_rejected:
                         answered.add(sa)
@@ -1111,9 +1088,24 @@ def run_ota_impl_(
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
     old_noise_psk: str | None = None,
-    on_connect: Callable[[], None] | None = None,
+    on_upload_start: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
-    res = _resolve_targets(remote_host, remote_port)
+    from esphome.core import CORE
+
+    try:
+        res = _resolve_targets(remote_host, remote_port)
+    except OTAError:
+        _LOGGER.error(
+            "Error resolving IP address of %s. Is it connected to WiFi?",
+            remote_host,
+        )
+        if not CORE.dashboard:
+            _LOGGER.error("(If you know the IP, try --device <IP>)")
+        _LOGGER.error(
+            "(If this error persists, please set a static IP address: "
+            "https://esphome.io/components/wifi/#manual-ips)"
+        )
+        raise
 
     # Every address is tried at least once and EXTRA_UPLOAD_ATTEMPTS retries
     # are shared across the addresses, cycling through them. Wait before an
@@ -1157,8 +1149,6 @@ def run_ota_impl_(
         _LOGGER.info("Connected to %s", sa[0])
         reached_device = True
         with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
-            if on_connect is not None:
-                on_connect()
             try:
                 perform_ota(
                     sock,
@@ -1169,6 +1159,7 @@ def run_ota_impl_(
                     encryption.noise_psk,
                     encryption.plaintext_fallback,
                     allow_plaintext_upload=allow_plaintext_upload,
+                    on_upload_start=on_upload_start,
                 )
             except OTAKeyRejected as err:
                 # The device sent a reject and closed on its own, so reconnect
@@ -1204,6 +1195,8 @@ def run_ota_impl_(
                 # Device-reported error (wrong password, wrong flash size, ...);
                 # retrying cannot succeed, so fail immediately
                 _LOGGER.error(str(err))
+                if isinstance(err, OTAEncryptionNotOffered):
+                    _LOGGER.error(ENCRYPTION_NOT_OFFERED_ADVICE)
                 return 1, None
 
         if encryption.tried_old_key:
@@ -1229,10 +1222,10 @@ def run_ota(
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
     old_noise_psk: str | None = None,
-    on_connect: Callable[[], None] | None = None,
+    on_upload_start: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
-    """``on_connect`` runs once a connection to the device is open, the point
-    from which an upload may have committed."""
+    """``on_upload_start`` runs once the device accepted the session and the
+    image is about to go out, the point from which it may commit."""
     try:
         return run_ota_impl_(
             remote_host,
@@ -1244,7 +1237,7 @@ def run_ota(
             plaintext_fallback,
             allow_plaintext_upload,
             old_noise_psk,
-            on_connect,
+            on_upload_start,
         )
     except OTAError as err:
         _LOGGER.error(err)
