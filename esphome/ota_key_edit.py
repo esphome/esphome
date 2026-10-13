@@ -41,14 +41,22 @@ class KeyEdit(LineEdit):
 def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
     """The api and esphome ota ``encryption:`` mappings whose key is ``key``."""
     blocks = [raw.get(CONF_API) or {}, *esphome_ota_items(raw)]
-    # A bare ota block gets the api key at validation; it has no key line
-    return [
-        block[CONF_ENCRYPTION]
-        for block in blocks
-        if (node := static_encryption_key(block)) is not None
-        and str(node) == key
-        and source_of(block[CONF_ENCRYPTION], CONF_KEY) is not None
-    ]
+    found = []
+    for block in blocks:
+        if (node := static_encryption_key(block)) is None or str(node) != key:
+            continue
+        encryption = block[CONF_ENCRYPTION]
+        if source_of(encryption, CONF_KEY) is not None:
+            found.append(encryption)
+        elif hasattr(next(k for k in encryption if k == CONF_KEY), "esp_range"):
+            # Read from a file but not on a line of its own, as with a merge
+            # key; only a key validation added, which has no range at all,
+            # is passed over (a bare ota block takes the api key)
+            raise EsphomeError(
+                f"The '{CONF_KEY}' of an '{CONF_ENCRYPTION}:' block is not on a "
+                "line of its own; edit the key by hand"
+            )
+    return found
 
 
 _INDENT_RE = re.compile(r"\s*")
@@ -165,8 +173,8 @@ def with_sharers(edits: list[KeyEdit]) -> list[str]:
                 f"{path} includes {match['target']} through a substitution"
             )
     for edit in edits:
-        if edit.insert_after:
-            continue
+        if edit.insert_after and edit.secret:
+            continue  # a new secrets line has no users yet
         ref = (
             _secret_use_re(edit.secret) if edit.secret else _file_use_re(edit.path.name)
         )
@@ -223,6 +231,7 @@ def _secret_insert(secrets_path: Path, after: str, name: str, value: str) -> Key
         m.string,
         f'{_indent(m.string)}{name}: "{value}"',
         insert_after=True,
+        secret=name,
     )
 
 
