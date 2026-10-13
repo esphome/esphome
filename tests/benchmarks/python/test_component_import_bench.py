@@ -10,9 +10,9 @@ The core of esphome is imported once up front and stays loaded; each run
 drops only the component modules from ``sys.modules`` and imports the
 component again, so the import machinery and the module bodies of the
 component and everything it pulls in run every time, as they do in a new
-process, while a change to the core moves no number here. The modules the
-session had before a case are put back afterwards, so later tests keep the
-objects they already hold.
+process, while a change to the core moves no number here. The modules and
+registry entries the session had before a case are put back afterwards, so
+later tests keep the objects they already hold.
 
 Skipped when ``pytest-codspeed`` isn't installed so the regular unit-test
 suite keeps working unchanged.
@@ -29,12 +29,19 @@ import pytest
 pytest.importorskip("pytest_codspeed")
 
 # Load the core before the first case so no case pays for it.
+from esphome import automation, pins  # noqa: E402
 import esphome.codegen  # noqa: E402, F401
 import esphome.config_validation  # noqa: E402, F401
 
 COMPONENTS = ("binary_sensor", "sensor", "logger")
 COMPONENT_PACKAGE = "esphome.components"
 COMPONENT_PREFIX = COMPONENT_PACKAGE + "."
+# Core registries that component module bodies write to when they are imported
+REGISTRIES = (
+    automation.ACTION_REGISTRY,
+    automation.CONDITION_REGISTRY,
+    pins.PIN_SCHEMA_REGISTRY,
+)
 
 
 def _component_modules() -> dict[str, object]:
@@ -60,9 +67,18 @@ def _import_component(name: str) -> object:
 @pytest.fixture
 def restore_component_modules() -> Generator[None]:
     saved = _component_modules()
+    saved_registries = [dict(registry) for registry in REGISTRIES]
     yield
     _forget_component_modules()
     sys.modules.update(saved)
+    # An import also binds the module to its parent package, so put those back as well
+    for name, module in saved.items():
+        parent, _, child = name.rpartition(".")
+        setattr(sys.modules[parent], child, module)
+    # The re-imported bodies registered their actions, conditions and pin schemas again
+    for registry, entries in zip(REGISTRIES, saved_registries, strict=True):
+        registry.clear()
+        registry.update(entries)
 
 
 @pytest.mark.usefixtures("restore_component_modules")
