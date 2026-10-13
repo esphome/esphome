@@ -233,7 +233,10 @@ void GreeClimate::register_mode_bit_switch(uint8_t bit_mask, void *arg, void (*p
     const uint8_t index = this->mode_bit_switch_count_++;
     this->mode_bit_switch_masks_[index] = bit_mask;
     this->mode_bit_switch_args_[index] = arg;
-    this->mode_bit_switch_publish_state_ = publish_state;
+    // All mode-bit switches share one publish callback: keep the first registered one.
+    if (this->mode_bit_switch_publish_state_ == nullptr) {
+      this->mode_bit_switch_publish_state_ = publish_state;
+    }
   }
 }
 
