@@ -144,7 +144,7 @@ _COMBINED_QUANTITIES = {
     CONF_TOTAL_APPARENT_ENERGY: _APPARENT_ENERGY_SCHEMA,
 }
 
-# Every sensor by config key; the C++ setter is "set_<key>_sensor".
+# Every sensor by config key; each needs its sensors(...) call in to_code
 _SENSORS = {
     f"{name}_{phase}": schema
     for name, schema in _PHASE_QUANTITIES.items()
@@ -192,7 +192,39 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await modbus.register_modbus_client_device(var, config)
 
-    for key in _SENSORS:
-        if (conf := config.get(key)) is not None:
-            sens = await sensor.new_sensor(conf)
-            cg.add(getattr(var, f"set_{key}_sensor")(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors("voltage_a", var.set_voltage_a_sensor)
+    await sensors("voltage_b", var.set_voltage_b_sensor)
+    await sensors("voltage_c", var.set_voltage_c_sensor)
+    await sensors("current_a", var.set_current_a_sensor)
+    await sensors("current_b", var.set_current_b_sensor)
+    await sensors("current_c", var.set_current_c_sensor)
+    await sensors("active_power_a", var.set_active_power_a_sensor)
+    await sensors("active_power_b", var.set_active_power_b_sensor)
+    await sensors("active_power_c", var.set_active_power_c_sensor)
+    await sensors("reactive_power_a", var.set_reactive_power_a_sensor)
+    await sensors("reactive_power_b", var.set_reactive_power_b_sensor)
+    await sensors("reactive_power_c", var.set_reactive_power_c_sensor)
+    await sensors("apparent_power_a", var.set_apparent_power_a_sensor)
+    await sensors("apparent_power_b", var.set_apparent_power_b_sensor)
+    await sensors("apparent_power_c", var.set_apparent_power_c_sensor)
+    await sensors("power_factor_a", var.set_power_factor_a_sensor)
+    await sensors("power_factor_b", var.set_power_factor_b_sensor)
+    await sensors("power_factor_c", var.set_power_factor_c_sensor)
+    await sensors("active_energy_a", var.set_active_energy_a_sensor)
+    await sensors("active_energy_b", var.set_active_energy_b_sensor)
+    await sensors("active_energy_c", var.set_active_energy_c_sensor)
+    await sensors("reactive_energy_a", var.set_reactive_energy_a_sensor)
+    await sensors("reactive_energy_b", var.set_reactive_energy_b_sensor)
+    await sensors("reactive_energy_c", var.set_reactive_energy_c_sensor)
+    await sensors("apparent_energy_a", var.set_apparent_energy_a_sensor)
+    await sensors("apparent_energy_b", var.set_apparent_energy_b_sensor)
+    await sensors("apparent_energy_c", var.set_apparent_energy_c_sensor)
+    await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
+    await sensors(CONF_TOTAL_ACTIVE_POWER, var.set_total_active_power_sensor)
+    await sensors(CONF_TOTAL_REACTIVE_POWER, var.set_total_reactive_power_sensor)
+    await sensors(CONF_TOTAL_APPARENT_POWER, var.set_total_apparent_power_sensor)
+    await sensors(CONF_TOTAL_POWER_FACTOR, var.set_total_power_factor_sensor)
+    await sensors(CONF_TOTAL_ACTIVE_ENERGY, var.set_total_active_energy_sensor)
+    await sensors(CONF_TOTAL_REACTIVE_ENERGY, var.set_total_reactive_energy_sensor)
+    await sensors(CONF_TOTAL_APPARENT_ENERGY, var.set_total_apparent_energy_sensor)

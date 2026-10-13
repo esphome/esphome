@@ -139,6 +139,10 @@ def validate_raw_data(value):
     )
 
 
+# Lengths are stored as uint16_t; reject longer payloads at validation.
+validate_raw_payload = cv.All(validate_raw_data, cv.Length(max=65535))
+
+
 def validate_rx_pin(value):
     value = pins.internal_gpio_input_pin_schema(value)
     if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
@@ -603,7 +607,7 @@ async def register_uart_device(var, config):
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(UARTComponent),
-            cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+            cv.Required(CONF_DATA): cv.templatable(validate_raw_payload),
         },
         key=CONF_DATA,
     ),
@@ -612,18 +616,9 @@ async def register_uart_device(var, config):
 async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+    await automation.templatable_bytes(
+        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "uart_data"
+    )
     return var
 
 
