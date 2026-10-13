@@ -928,6 +928,16 @@ template<> const char *proto_enum_to_string<enums::SerialProxyIdentityFlag>(enum
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::UsbSerialDriver>(enums::UsbSerialDriver value) {
+  switch (value) {
+    case enums::USB_SERIAL_DRIVER_CLASS:
+      return ESPHOME_PSTR("USB_SERIAL_DRIVER_CLASS");
+    case enums::USB_SERIAL_DRIVER_VENDOR:
+      return ESPHOME_PSTR("USB_SERIAL_DRIVER_VENDOR");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #ifdef USE_SENDSPIN
 template<>
 const char *proto_enum_to_string<enums::SendspinPairingTokenStatus>(enums::SendspinPairingTokenStatus value) {
@@ -2942,7 +2952,8 @@ const char *UsbDeviceDescriptor::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("product_id"), this->product_id);
   dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);
   dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
-  dump_field(out, ESPHOME_PSTR("interface_class"), this->interface_class);
+  dump_field(out, ESPHOME_PSTR("driver"), static_cast<enums::UsbSerialDriver>(this->driver));
+  dump_field(out, ESPHOME_PSTR("port_number"), this->port_number);
   return out.c_str();
 }
 const char *SerialProxyIdentity::dump_to(DumpBuffer &out) const {

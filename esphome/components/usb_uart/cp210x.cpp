@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
-#include <utility>
 
 namespace esphome::usb_uart {
 
@@ -89,12 +88,11 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
       ESP_LOGE(TAG, "in_ep: usb_parse_endpoint_descriptor_by_index failed");
       continue;
     }
-    CdcEps eps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber};
-    if (!(in_ep->bEndpointAddress & usb_host::USB_DIR_IN)) {
-      std::swap(eps.in_ep, eps.out_ep);
+    if (in_ep->bEndpointAddress & usb_host::USB_DIR_IN) {
+      cdc_devs.push_back({CdcEps{nullptr, in_ep, out_ep, data_desc->bInterfaceNumber}});
+    } else {
+      cdc_devs.push_back({CdcEps{nullptr, out_ep, in_ep, data_desc->bInterfaceNumber}});
     }
-    eps.bulk_interface_class = data_desc->bInterfaceClass;
-    cdc_devs.push_back(eps);
   }
   return cdc_devs;
 }

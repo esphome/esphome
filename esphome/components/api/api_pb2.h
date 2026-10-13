@@ -383,6 +383,10 @@ enum SerialProxyIdentityFlag : uint32_t {
   SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1,
   SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2,
 };
+enum UsbSerialDriver : uint32_t {
+  USB_SERIAL_DRIVER_CLASS = 0,
+  USB_SERIAL_DRIVER_VENDOR = 1,
+};
 #ifdef USE_SENDSPIN
 enum SendspinPairingTokenStatus : uint32_t {
   SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY = 0,
@@ -4083,7 +4087,8 @@ class UsbDeviceDescriptor final : public ProtoMessage {
   uint32_t product_id{0};
   uint32_t bcd_device{0};
   uint32_t interface_number{0};
-  uint32_t interface_class{0};
+  enums::UsbSerialDriver driver{};
+  uint32_t port_number{0};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

@@ -3043,13 +3043,21 @@ enum SerialProxyIdentityFlag {
                                              // IDs below are empty
 }
 
-// The descriptor fields of a USB device as seen by the host stack
+// How a USB serial port is bound. A class driver claims the interface itself, a vendor
+// driver numbers the ports it exposes, which a host reflects in the port's name.
+enum UsbSerialDriver {
+  USB_SERIAL_DRIVER_CLASS = 0;   // A standard class driver, CDC ACM
+  USB_SERIAL_DRIVER_VENDOR = 1;  // A chip-specific driver
+}
+
+// What a host needs to identify the USB device behind a port, and the port on it
 message UsbDeviceDescriptor {
   uint32 vendor_id = 1;
   uint32 product_id = 2;
   uint32 bcd_device = 3;
-  uint32 interface_number = 4;   // bInterfaceNumber the host driver binds to
-  uint32 interface_class = 5;    // bInterfaceClass of that interface
+  uint32 interface_number = 4;   // bInterfaceNumber the port is bound through
+  UsbSerialDriver driver = 5;
+  uint32 port_number = 6;        // Index within the driver instance, for a vendor driver
 }
 
 // The identity of the device behind a port. Identifies one physical device among others of
