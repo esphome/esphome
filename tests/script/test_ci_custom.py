@@ -401,6 +401,7 @@ def test_ternary_error_message_names_the_literal() -> None:
         'static const char TAG[8] = "x";',
         '  static const char *const TAG = "x";',
         'constexpr static const char *const TAG = "x";',
+        'const char *const Constants::TAG = "x";',
     ],
 )
 def test_log_tag_macro_flags_plain_tags(line: str) -> None:
@@ -413,6 +414,7 @@ def test_log_tag_macro_flags_plain_tags(line: str) -> None:
         'ESPHOME_LOG_TAG(TAG, "x");',
         'static const char *const NAME = "x";',
         'static const char *const TAG = "x";  // NOLINT',
+        'const char Constants::TAG[] PROGMEM = "x";',
     ],
 )
 def test_log_tag_macro_ignores_macro_and_other_names(line: str) -> None:

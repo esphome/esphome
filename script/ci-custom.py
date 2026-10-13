@@ -1274,7 +1274,7 @@ LOG_TAG_INCLUDE = ["esphome/*.cpp", "esphome/*.h"]
 
 
 @lint_re_check(
-    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?(?:\w+::)*TAG|\s(?:const\s+)?(?:\w+::)*TAG\s*\[\w*\])"
     r"\s*(?:=\s*\{?|[{(])\s*\"" + CPP_RE_EOL,
     prefilter="TAG",
     include=LOG_TAG_INCLUDE,

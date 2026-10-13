@@ -18,8 +18,7 @@ namespace esphome::ble_client {
 // placeholder class for static TAG .
 class Automation {
  public:
-  // could be made inline with C++17
-  static const char *const TAG;
+  static const char TAG[];  // PROGMEM, like ESPHOME_LOG_TAG
 };
 
 // Base for nodes that never read the parent's services.

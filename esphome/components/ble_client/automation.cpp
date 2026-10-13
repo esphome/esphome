@@ -4,7 +4,7 @@
 
 namespace esphome::ble_client {
 
-const char *const Automation::TAG = "ble_client.automation";
+const char Automation::TAG[] PROGMEM = "ble_client.automation";
 
 }  // namespace esphome::ble_client
 
