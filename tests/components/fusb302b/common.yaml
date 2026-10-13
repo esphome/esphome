@@ -1,0 +1,4 @@
+fusb302b:
+  id: pd
+  interrupt_pin: ${interrupt_pin}
+  request_voltage: 20
