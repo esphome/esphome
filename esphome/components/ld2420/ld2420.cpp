@@ -1,6 +1,7 @@
 #include "ld2420.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 /*
 Configure commands - little endian
@@ -143,7 +144,7 @@ static constexpr StringToUint8 OP_MODE_BY_STR[] = {
 };
 
 // Only passed to %s log arguments, which read flash directly on ESP8266
-static const char ERR_MESSAGE[][8] PROGMEM = {"None", "Unknown", "Timeout"};
+PROGMEM_STRING_TABLE(ErrMessageStrings, "None", "Unknown", "Timeout");
 
 // Helper function for lookups
 template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
@@ -740,10 +741,10 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
 }
 
 void LD2420Component::handle_cmd_error(uint16_t error) {
-  if (error < std::size(ERR_MESSAGE)) {
-    ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]);
+  if (error < ErrMessageStrings::COUNT) {
+    ESP_LOGE(TAG, "Command failed: %s", LOG_STR_ARG(ErrMessageStrings::get_log_str(error, 0)));
   } else {
-    // The error word comes from the device reply frame; unknown codes must not index ERR_MESSAGE
+    // The error word comes from the device reply frame; unknown codes are logged as numbers
     ESP_LOGE(TAG, "Command failed: error 0x%04X", error);
   }
 }
